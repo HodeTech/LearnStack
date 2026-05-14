@@ -1,106 +1,229 @@
 # Technical Architecture
 
-## Recommended Stack
+## Stack
 
-- Backend: .NET 10, ASP.NET Core Web API
-- Language: C#
-- ORM: Entity Framework Core
-- Database: PostgreSQL
-- Cache: Redis
-- Object storage: MinIO locally, S3-compatible storage in production
-- Background jobs: Hangfire or Quartz.NET
-- Search: Meilisearch first, OpenSearch later if complexity demands it
-- Frontend: Next.js
-- Infrastructure: Docker Compose locally, container-based deployment in production
-- Observability: OpenTelemetry, structured logs, Sentry or similar error tracking
+| Layer | Technology |
+|-------|------------|
+| Backend runtime | .NET 10, ASP.NET Core Web API |
+| Language | C# |
+| ORM | Entity Framework Core |
+| Database | PostgreSQL 16+ |
+| Cache & coordination | Redis 7+ |
+| Object storage | MinIO (local), S3-compatible (production) |
+| Background jobs | Hangfire (Postgres storage) |
+| Search | Meilisearch (initial), OpenSearch (later, if needed) |
+| Auth | Keycloak (self-hosted OIDC) — see [Authentication Strategy](13-identity-and-auth.md) |
+| Live classroom | LiveKit OSS (self-hosted) + coturn — see [In-App Live Classroom](07-in-app-live-classroom.md) |
+| Frontend | Next.js (App Router), React, TypeScript |
+| API contract | REST + OpenAPI; GraphQL only if a clear frontend requirement appears |
+| Observability | OpenTelemetry (traces + metrics + logs), Sentry |
+| Container runtime | Docker; Docker Compose locally; Kubernetes or Nomad in production |
+
+## High-Level Architecture
+
+```mermaid
+flowchart LR
+  subgraph clients["Clients"]
+    web[Public Site<br/>Next.js]
+    studio[Admin Studio<br/>Next.js]
+    portal[Learner / Instructor Portal<br/>Next.js]
+  end
+
+  subgraph edge["Edge"]
+    cdn[CDN]
+    proxy[Reverse Proxy<br/>Traefik or NGINX]
+  end
+
+  subgraph backend["LearnStack Backend"]
+    api[ASP.NET Core API<br/>Modular Monolith]
+    workers[Hangfire Workers<br/>jobs + outbox dispatcher]
+  end
+
+  subgraph data["Data Plane"]
+    pg[(PostgreSQL)]
+    redis[(Redis)]
+    minio[(MinIO / S3)]
+    meili[(Meilisearch)]
+  end
+
+  subgraph realtime["Realtime / Live"]
+    lk[LiveKit OSS]
+    egress[LiveKit Egress<br/>recording]
+    turn[coturn<br/>TURN / STUN]
+  end
+
+  subgraph identity["Identity"]
+    keycloak[Keycloak OIDC]
+  end
+
+  web --> cdn --> proxy --> api
+  studio --> proxy --> api
+  portal --> proxy --> api
+  portal -. WebRTC .-> lk
+  lk -. media .-> turn
+  api --> pg
+  api --> redis
+  api --> minio
+  api --> meili
+  api --> keycloak
+  api --> lk
+  workers --> pg
+  workers --> redis
+  workers --> minio
+  egress --> minio
+  lk --> egress
+```
 
 ## Architecture Style
 
-Start with a modular monolith.
+**Modular monolith first.**
 
 This gives the project:
-
 - Faster local development.
 - Simpler deployment.
-- Stronger refactoring ability while the domain is still forming.
+- Stronger refactoring while the domain is still forming.
 - Clear extraction paths for future services.
 
-Potential future service candidates:
+Potential future service candidates: Billing, Notifications, Analytics ingestion, Search indexing, Media processing, Live Classroom egress.
 
-- Billing
-- Notifications
-- Analytics
-- Search indexing
-- Media processing
+Module boundaries and dependency rules are in [Module Boundaries](03-module-boundaries.md).
 
 ## Backend Layering
 
-Recommended layering:
+| Layer | Responsibility |
+|-------|----------------|
+| `Api` | HTTP endpoints, auth middleware, request binding, OpenAPI emission, tenant resolution middleware. |
+| `Application` | Use cases (MediatR commands/queries), validation, transactions, pipeline behaviors. |
+| `Domain` | Entities, aggregates, value objects, domain services, domain events. |
+| `Infrastructure` | EF Core, Redis, MinIO, Hangfire, OpenTelemetry, external adapters. |
+| `Modules.*` | Bounded feature areas, each with their own `Application` / `Domain` / `Infrastructure` internals and a public `Application.Contracts` surface. |
 
-- Api: HTTP endpoints, auth middleware, request binding, OpenAPI.
-- Application: use cases, commands, queries, validation, transactions.
-- Domain: entities, value objects, domain services, domain events.
-- Infrastructure: EF Core, Redis, MinIO, email/SMS providers, external adapters.
-- Modules: bounded feature areas with their own application/domain/infrastructure internals.
+## Multi-Tenancy
 
-## Database Strategy
+| Decision | Initial choice |
+|----------|----------------|
+| Database | **Single PostgreSQL**, **shared schema**, `tenant_id` column on tenant-owned tables. |
+| Tenant resolution | Host header → tenant id resolver, with explicit override for admin/studio and for background jobs. |
+| Application enforcement | EF Core global query filter rewriting every tenant-owned query. |
+| Defense-in-depth | PostgreSQL Row Level Security (RLS) on every tenant-owned table from day 1. |
+| Architecture tests | Automated tests fail the build if a tenant-owned entity is missing the filter / column / policy. |
 
-Use PostgreSQL as the source of truth.
+Full details: [Tenant Isolation](09-tenant-isolation.md).
 
-Initial multi-tenancy approach:
-
-- Shared database.
-- Shared schema.
-- TenantId on tenant-owned tables.
-- Strong query filters and application-level tenant enforcement.
-
-Later options:
-
-- PostgreSQL Row Level Security for stronger database-side isolation.
-- Schema-per-tenant for selected enterprise tenants if needed.
-- Read replicas and reporting projections as scale grows.
+Future options (deferred): schema-per-tenant for enterprise tenants, read replicas, reporting projections.
 
 ## API Strategy
 
-Start with REST APIs.
+- **REST + OpenAPI** from day one. OpenAPI is generated, not handwritten, and consumed by the frontend SDK.
+- **Problem Details (RFC 7807)** for all error responses.
+- **Cursor pagination** for list endpoints. Offset pagination is allowed only for admin-bounded lists.
+- **Idempotency keys** for `POST` operations that have external side effects (payments, webhooks, send-notification).
+- **Optimistic concurrency** for any mutable entity using `xmin` or `row_version` column.
+- **API versioning** via URL prefix: `/v1/...`. Breaking changes bump to `/v2/...`; non-breaking additions stay on the existing version. ADR-pending.
+- **Authentication** via OIDC bearer tokens issued by Keycloak. Frontends use Auth.js to bridge.
+- **Authorization** layered: tenant scope → role/permission → resource ownership where applicable.
 
-Use:
+GraphQL is not in scope for the MVP. Revisit only when a frontend surface (e.g. studio query workload) demonstrably needs it.
 
-- OpenAPI for documentation.
-- Problem Details for error responses.
-- Cursor pagination for list endpoints.
-- Idempotency keys for payment and webhook-sensitive operations.
-- Optimistic concurrency for versioned content.
+## Database Conventions
 
-GraphQL can be considered later for content rendering, but should not be the first dependency unless frontend requirements clearly demand it.
+| Concern | Rule |
+|---------|------|
+| Naming | `snake_case` for tables/columns; plural table names (`users`, `course_versions`). |
+| Primary keys | Strongly-typed ids backed by `uuid`. |
+| Tenant column | `tenant_id uuid not null` on every tenant-owned table; RLS policy enforces it. |
+| Audit columns | `created_at`, `created_by`, `updated_at`, `updated_by`, optional `deleted_at`, `deleted_by`. |
+| Concurrency | `row_version` (`xmin` or explicit `bigint` column) on mutable entities. |
+| Migrations | EF Core migrations; every PR includes a paired migration if the schema changes. |
+| Soft delete | Opt-in per aggregate; not a global default. |
+
+See [Database Standards](../standards/05-database.md).
+
+## Background Jobs and Outbox
+
+```mermaid
+flowchart LR
+  trans[Module transaction]
+  outbox[(outbox table)]
+  dispatcher[Outbox dispatcher<br/>Hangfire recurring job]
+  bus[In-process event bus]
+  handlers[Integration event handlers]
+  externals[External calls<br/>email / search index / etc.]
+
+  trans -- domain change + integration event row --> outbox
+  dispatcher -- pull batch --> outbox
+  dispatcher -- dispatch --> bus
+  bus --> handlers
+  bus --> externals
+  outbox -. mark processed .- dispatcher
+```
+
+- All side-effects beyond the database transaction are deferred to **integration events** written to a transactional `outbox` table in the same transaction as the domain change.
+- A dispatcher polls the outbox and dispatches events to in-process handlers and external systems.
+- Idempotency keys plus consumer-side deduplication guarantee at-least-once with effective once-only semantics.
+
+Full details: [Events & Outbox](15-event-and-outbox.md).
 
 ## Frontend Strategy
 
-Use Next.js for:
+- Next.js (App Router) for public site, admin studio, learner portal, instructor portal.
+- Server Components by default; Client Components only where interactivity needs it.
+- Tenant resolution at the edge / middleware layer; tenant context propagated via header into RSC and route handlers.
+- Typed API client generated from OpenAPI.
 
-- Public tenant websites.
-- SEO-oriented landing pages.
-- Tenant-aware page rendering.
-- Admin/content studio.
-- Learner and instructor portal, at least initially.
-
-Possible structure:
-
-- apps/web: public tenant renderer
-- apps/studio: admin/content studio
-- apps/portal: learner and instructor portal
-- packages/ui: shared UI primitives
-- packages/sdk: typed API client
+Detailed conventions: [Frontend Architecture](14-frontend-architecture.md) and [Frontend Architecture Standards](../standards/07-frontend-architecture.md).
 
 ## Local Infrastructure
 
-Local development should run with Docker Compose:
+`docker-compose` brings up:
 
-- PostgreSQL
-- Redis
-- MinIO
-- Optional Meilisearch
-- Optional mail catcher
+```
+postgres
+redis
+minio + minio-console
+meilisearch
+keycloak
+livekit-server
+livekit-egress
+coturn
+mailhog
+otel-collector
+```
 
-Application projects should run outside containers during active development unless containerized development proves more convenient.
+Application projects run **outside** containers during active development for fast iteration. CI runs identical container versions.
 
+## Observability
+
+Three signals, one correlation id:
+- **Structured logs** via Serilog → OTLP → collector.
+- **Distributed traces** via OpenTelemetry SDK.
+- **Metrics** via OpenTelemetry → Prometheus-compatible exporter.
+
+A `traceparent` header binds frontend → API → background jobs → LiveKit events. Errors surface in Sentry; performance and infra metrics in Grafana.
+
+Full details: [Observability Standards](../standards/10-observability.md).
+
+## Security
+
+- All HTTP behind TLS.
+- Strict secure headers (HSTS, CSP, X-Content-Type-Options, Referrer-Policy, etc.).
+- Secrets via environment + sealed-secret / cloud secret manager; never in repo.
+- Rate limiting on auth and write endpoints.
+- File upload validation (MIME sniff + extension + size + virus scan hook).
+- Webhook signature verification on every inbound provider webhook.
+- LiveKit join tokens scoped per-user, per-room, short TTL.
+
+Full details: [Security Standards](../standards/11-security.md).
+
+## Performance Budgets (initial)
+
+| Surface | Budget |
+|---------|--------|
+| Public landing page (TTFB) | < 200 ms server, < 1.5 s Largest Contentful Paint |
+| Course catalog list | < 300 ms server |
+| Lesson player initial load | < 500 ms server |
+| API p95 (read) | < 200 ms |
+| API p95 (write) | < 500 ms |
+| LiveKit join time (token + room) | < 1.5 s |
+
+These are reviewed quarterly. See [Performance Standards](../standards/15-performance.md).
