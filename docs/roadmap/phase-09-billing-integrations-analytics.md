@@ -95,13 +95,13 @@ Read model examples:
 - Live session attendance report.
 - Classroom usage and cost report.
 
-### Search
+### Search Reporting and Platform-Admin Search
 
-- Course search.
-- Content search.
-- Media search metadata.
-- Indexing jobs.
-- Tenant-scoped search.
+Initial index population lands earlier: `content-entry` and `media` indexes go online in Phase 04, `course` index in Phase 05, public search endpoints in Phase 06 (see [20-search.md § Roadmap Touchpoints](../architecture/20-search.md) and [ADR 0012](../decisions/0012-search-strategy.md)). Phase 09 adds:
+
+- Search query telemetry feeding the analytics module.
+- Platform-admin cross-tenant search via `IPlatformSearch` (audited as `platform-admin`, see [18-audit-coverage.md](../standards/18-audit-coverage.md)).
+- Drift dashboards and the nightly reconciliation surface.
 
 ## Deliverables
 
@@ -109,7 +109,7 @@ Read model examples:
 - Payment adapter infrastructure.
 - Integration registry.
 - Analytics event ingestion and basic reports.
-- Search indexing MVP.
+- Search reporting + platform-admin cross-tenant search (`IPlatformSearch`).
 - Live classroom usage reporting foundation.
 
 ## Completion Criteria
@@ -119,7 +119,7 @@ Read model examples:
 - Successful order creates entitlement.
 - Webhook idempotency is tested.
 - Learning, commerce, and classroom events can be reported.
-- Tenant-scoped search works.
+- Platform-admin cross-tenant search runs through `IPlatformSearch` with audit entries.
 
 ## Risks
 

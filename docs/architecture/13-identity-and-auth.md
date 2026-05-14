@@ -1,6 +1,6 @@
 # Identity and Authentication
 
-LearnStack delegates user authentication to a self-hosted identity provider rather than building one inside the .NET application. The default provider is **Keycloak** (Authentik is the documented alternative). The decision and the trade-offs are recorded in [ADR 0004](../decisions/0004-identity-strategy.md).
+LearnStack delegates user authentication to a self-hosted identity provider rather than building one inside the .NET application. The default provider is **Keycloak** (Authentik is the documented alternative). The decision and the trade-offs are recorded in [ADR 0004 — Authentication Strategy](../decisions/0004-authentication-strategy.md).
 
 This document covers what lives where: in Keycloak vs in LearnStack, how multi-tenant identity works, how tokens flow, and how SSO/OIDC integrations land later.
 
@@ -15,7 +15,7 @@ The chosen identity provider:
 - Has a battle-tested admin UI for user management.
 - Is self-hostable (we control the data, the deployment, the upgrades).
 
-The cost is one more service to operate. That is acceptable; see [Team capacity](../../README.md) and the user's stated preference for self-hosted infrastructure.
+The cost is one more service to operate. That is acceptable: self-hosted infrastructure is the platform's stated preference (see [README](../../README.md)) and the operational load fits within current team capacity.
 
 ## What Lives Where
 

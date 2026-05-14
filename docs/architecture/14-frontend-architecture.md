@@ -1,6 +1,6 @@
 # Frontend Architecture
 
-The frontend is Next.js (App Router). The initial deployment is a **single application** with route segments separating public, studio, and portal experiences; the multi-app split is deferred until concrete need ([ADR 0006](../decisions/0006-frontend-single-app-first.md)).
+The frontend is Next.js (App Router). The initial deployment is a **single application** with route segments separating public, studio, and portal experiences; the multi-app split is deferred until concrete need ([ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md)).
 
 This document covers app shape, tenant resolution at the edge, theming, rendering strategies, data fetching, the page-block resolver, and the path to extracting independent apps when warranted.
 
@@ -48,7 +48,7 @@ Two boundaries inside one app:
 - **Route segments** (`(public)`, `(studio)`, `(portal)`) keep code physically separated.
 - **Layouts** in each segment apply different shells (public marketing layout vs admin chrome vs portal chrome).
 
-Splitting into separate apps is governed by [ADR 0006](../decisions/0006-frontend-single-app-first.md); the split triggers (independent deploy cadence, build-time becomes a bottleneck, separate teams) are listed there.
+Splitting into separate apps is governed by [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md); the split triggers (independent deploy cadence, build-time becomes a bottleneck, separate teams) are listed there.
 
 ## Tenant Resolution at the Edge
 

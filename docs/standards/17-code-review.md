@@ -1,6 +1,7 @@
 # 17 — Code Review Standards
 
 **Status:** Active
+**Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md) (zero-tolerance blockers map back to these two).
 
 How LearnStack reviews pull requests. The goal is faster, safer ship — not gatekeeping.
 

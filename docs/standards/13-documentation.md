@@ -45,6 +45,16 @@ The following are kept current and treated as code:
 | Runbook (`runbooks/`) | Operational procedures | Editable; review quarterly |
 | Roadmap (`roadmap/`) | Phased plan | Editable per phase |
 
+## Anchored Standards
+
+Every standard begins with a `**Derives from:**` line on the second line that names its authority. The authority is one of:
+
+- An ADR — preferred when one exists (`[ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md)`).
+- An authoritative external standard — when LearnStack adopts an external rule directly (`WCAG 2.2 AA`).
+- One or more sibling standards — when the rule lives at the standards layer and no ADR is warranted (`[11-security.md § Audit Log](11-security.md)`).
+
+Multiple sources can be listed comma-separated. A standard with no authority means the rule is folklore and either needs an ADR drafted or is a documentation bug.
+
 ## ADRs
 
 Every ADR has:
@@ -116,7 +126,7 @@ Common diagram types:
 
 ## Per-Module Specifications
 
-When a module reaches "design stable, ready to implement", it gets a spec under `docs/modules/<module>/` containing **at minimum**:
+When a module reaches "design stable, ready to implement", it gets a spec under `docs/modules/<module>/` (this directory is created with the first module spec; it does not exist during pre-implementation) containing **at minimum**:
 
 - **Overview** — what the module owns, what it does not.
 - **Entity-relationship diagram** (Mermaid `erDiagram`) — aggregate roots, owned entities, cross-module id references.

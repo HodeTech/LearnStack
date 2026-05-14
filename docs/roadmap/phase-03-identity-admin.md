@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build LearnStack's identity domain (users, memberships, roles, permissions, invitations, audit) on top of the Keycloak OIDC integration delivered in Phase 02, and ship the first admin experience.
+Build LearnStack's identity domain (users, memberships, roles, permissions, invitations, audit) on top of the Keycloak OIDC integration delivered in Phase 02b, and ship the first admin experience.
 
 Authentication itself (password storage, MFA, token issuance, password reset, account recovery) is owned by Keycloak — see [ADR 0004](../decisions/0004-authentication-strategy.md) and [13-identity-and-auth.md](../architecture/13-identity-and-auth.md). This phase delivers the LearnStack-side identity model on top of that.
 
@@ -22,7 +22,7 @@ Authentication itself (password storage, MFA, token issuance, password reset, ac
 
 Keycloak owns credentials, password reset, email verification, MFA. Phase 03 wires LearnStack into that flow:
 
-- OIDC token validation against Keycloak's JWKS (Phase 02 already configured the middleware).
+- OIDC token validation against Keycloak's JWKS (Phase 02b already configured the middleware).
 - BFF session handling for the Next.js Studio: HTTP-only cookies, silent refresh, end-session at Keycloak on logout.
 - Post-login membership lookup: resolve memberships for the authenticated user, surface the active tenant via host + claim cross-check.
 - Tenant-specific Keycloak federation surface in Admin Studio (configure SAML/OIDC IdP per tenant) — UI delivered here, runtime in Keycloak.

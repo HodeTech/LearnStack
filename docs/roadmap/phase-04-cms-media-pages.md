@@ -6,6 +6,12 @@ Turn LearnStack into an education-aware headless CMS and page composition platfo
 
 This phase enables landing pages, blog content, catalog pages, campaign pages, and product-specific page blocks.
 
+Decisions consumed in this phase:
+
+- [ADR 0008 — Localization Schema](../decisions/0008-localization-schema.md). All tenant-owned content tables introduced here adopt the side-table or JSONB-localized pattern declared in the ADR. The `tenant_locales` table (owned by the Tenancy module) is created in this phase if it has not landed earlier.
+- [ADR 0013 — Page Block Schema Versioning](../decisions/0013-page-block-schema-versioning.md). Every block ships with a `(key, schemaVersion)` tuple, an immutable JSON schema, and a registered renderer. Lazy migration and the `UnknownVersionBlock` / `UnknownBlock` placeholders are part of the renderer contract from day one.
+- [ADR 0011 — Vertical Extension Points](../decisions/0011-extension-points.md). The page-block registry and content-type registry are core surfaces; verticals register against them rather than modifying core tables.
+
 ## Scope
 
 ### Content Type System

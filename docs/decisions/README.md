@@ -37,7 +37,19 @@ These live under `_redirects/` so older links keep working without polluting the
 - [_redirects/0005-i18n-schema.md](_redirects/0005-i18n-schema.md) — redirects to ADR 0008 Localization Schema.
 - [_redirects/0006-frontend-single-app-first.md](_redirects/0006-frontend-single-app-first.md) — redirects to ADR 0009 Frontend Single App First.
 
-ADR numbers are sequential and never reused. When an ADR is superseded, the redirect stub stays under `_redirects/` and the new ADR takes the next free number.
+ADR numbers are sequential. New ADRs take the next free number; superseded ADRs leave a redirect stub under `_redirects/` so older links keep working. A small set of early-draft ADRs (0004 — Authentication Strategy; 0005 — Live Classroom Media Stack; 0006 — Events and Outbox) were renumbered before any ADR was relied on at the code level; the redirect stubs preserve that history. Going forward, once an ADR is accepted, its number is fixed for that topic; renaming the topic is allowed, reassigning the number is not.
+
+## Open ADR Drafts
+
+The following decisions are referenced as `ADR-pending` in other docs and need an ADR before the rule is treated as stable:
+
+| Topic | Referenced from |
+|---|---|
+| API versioning policy (URL vs header, deprecation cadence) | [04-technical-architecture.md § API Strategy](../architecture/04-technical-architecture.md), [04-api-design.md § Versioning](../standards/04-api-design.md) |
+| Release-tag scheme (`vYYYY.MM.DD.<n>` vs SemVer) | [14-git-workflow.md § Tagging and Releases](../standards/14-git-workflow.md) |
+| Audit-coverage retention floors (currently in [18-audit-coverage.md](../standards/18-audit-coverage.md)) | [18-audit-coverage.md](../standards/18-audit-coverage.md) |
+| Permission closed-action set (`read \| write \| delete \| admin`) | [19-permissions.md](../standards/19-permissions.md) |
+| Distributed-consistency Tier framing (Tier 1 / 2A / 2B / 3) | [01-architecture-standards.md § Distributed-Consistency Tiers](../standards/01-architecture-standards.md) |
 
 ## Authoring an ADR
 

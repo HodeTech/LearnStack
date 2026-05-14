@@ -1,6 +1,7 @@
 # 09 — Error Handling Standards
 
 **Status:** Active
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [04-api-design.md](04-api-design.md) § Error Responses.
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 

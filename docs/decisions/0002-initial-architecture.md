@@ -6,7 +6,7 @@ Accepted
 
 ## Decision
 
-LearnStack will start as a modular monolith using .NET 10, ASP.NET Core, Entity Framework Core, PostgreSQL, Redis, MinIO, and Next.js.
+LearnStack starts as a modular monolith using .NET 10, ASP.NET Core, Entity Framework Core, PostgreSQL, Redis, MinIO, and Next.js.
 
 ## Context
 

@@ -6,7 +6,7 @@ Accepted
 
 ## Decision
 
-LearnStack will use domain events inside module boundaries and integration events across module boundaries.
+LearnStack uses domain events inside module boundaries and integration events across module boundaries.
 
 Integration events are written to an outbox in the same transaction as the state change that produced them. A worker dispatches outbox events to internal handlers, projections, or external integrations.
 

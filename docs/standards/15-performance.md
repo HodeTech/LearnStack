@@ -1,6 +1,7 @@
 # 15 — Performance Standards
 
 **Status:** Active
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (initial budgets in [04-technical-architecture.md § Performance Budgets](../architecture/04-technical-architecture.md)), [ADR 0005 — Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md) (classroom join + bandwidth budgets).
 
 Performance budgets, the rules that keep them, and the test discipline that protects them.
 

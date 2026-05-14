@@ -122,17 +122,17 @@ Every phase delivers a thin layer across this slice rather than a deep layer in 
 
 ## Deferred
 
-| Capability | Reason for deferral |
-|------------|---------------------|
-| Full subscription lifecycle | MVP uses manual enrollment + manual payment + optional Stripe/iyzico via adapter. |
-| Advanced assessment (essay grading, adaptive) | Out of scope; placeholder question types only. |
-| Native mobile apps | Web-first; mobile considered after Phase 11. |
-| Complex reporting dashboards | Read models exist; dashboards beyond the basics are post-MVP. |
-| LTI / xAPI implementation | Module structure is ready; protocol implementations are post-MVP. |
-| Marketplace features | Out of scope. |
-| AI features (pronunciation feedback, transcription) | Post-MVP. Hooks in the classroom event stream make later addition straightforward. |
-| Whiteboard, breakout rooms | Post-MVP. |
-| Self-service tenant signup | Tenants are provisioned by platform admin in MVP. |
+| Capability | Reason for deferral | Owning phase |
+|------------|---------------------|--------------|
+| Full subscription lifecycle | MVP uses manual enrollment + manual payment + optional Stripe/iyzico via adapter. | Phase 09 (billing adapter delivers the basics; full subscription lifecycle extends post-MVP) |
+| Advanced assessment (essay grading, adaptive) | Out of scope; placeholder question types only. | Post-MVP backlog (no phase yet) |
+| Native mobile apps | Web-first; mobile considered after Phase 11. | Post-MVP backlog (no phase yet) |
+| Complex reporting dashboards | Read models exist; dashboards beyond the basics are post-MVP. | Phase 11 ships the baseline dashboards; advanced reporting is post-MVP backlog |
+| LTI / xAPI implementation | Module structure is ready; protocol implementations are post-MVP. | Post-MVP backlog (Integrations module is ready in Phase 09) |
+| Marketplace features | Out of scope. | Not on the roadmap |
+| AI features (pronunciation feedback, transcription) | Post-MVP. Hooks in the classroom event stream make later addition straightforward. | Post-MVP backlog (no phase yet) |
+| Whiteboard, breakout rooms | Post-MVP. | Post-MVP backlog (no phase yet) |
+| Self-service tenant signup | Tenants are provisioned by platform admin in MVP. | Post-MVP backlog (no phase yet) |
 
 ## First Vertical Product Candidate
 

@@ -6,7 +6,7 @@ Accepted
 
 ## Decision
 
-LearnStack will build an in-app classroom product experience, but it will not build a custom WebRTC SFU or recording pipeline from scratch.
+LearnStack builds an in-app classroom product experience, but does not build a custom WebRTC SFU or recording pipeline from scratch.
 
 Preferred media stack:
 

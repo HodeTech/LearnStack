@@ -27,7 +27,7 @@ This standard defines **which operations must be audited**, **what an audit entr
 
 ## Classification Matrix Template
 
-Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it.
+Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it. The `docs/modules/` directory is created with the first module spec and does not exist yet during pre-implementation.
 
 | Resource | create | update | delete | read-sensitive | security-event |
 |----------|:------:|:------:|:------:|:--------------:|:--------------:|

@@ -1,8 +1,6 @@
 # Page Builder
 
-> **Status:** Companion notes; main rules are referenced from other documents.
-
-This document captures the page-builder model referenced by [Extension Points](11-extension-points.md), [Frontend Architecture](14-frontend-architecture.md), and [Localization](12-localization.md).
+This document captures the page-builder model referenced by [Extension Points](11-extension-points.md), [Frontend Architecture](14-frontend-architecture.md), and [Localization](12-localization.md). The accepted decision lives in [ADR 0013 — Page Block Schema Versioning](../decisions/0013-page-block-schema-versioning.md).
 
 ## Conceptual Model
 

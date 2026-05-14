@@ -232,8 +232,9 @@ The local development setup runs all of these in `infra/compose/livekit.yml`. Pr
 ## Roadmap Touchpoints
 
 - Phase 01 — local LiveKit OSS in Docker Compose for development.
-- Phase 02 — `ILiveClassProvider` skeleton, but no implementation yet.
-- Phase 08b — in-app classroom MVP, scheduling, attendance, notification flow.
-- Phase 09 — recording metadata and classroom usage analytics.
+- Phase 02b — `ILiveClassProvider` interface declared (no implementation yet); architecture test enforces provider-SDK boundary.
+- Phase 08b — scheduling and booking primitives (`LiveSession`, `LiveBooking`, materials) — no WebRTC yet.
+- Phase 08c — in-app classroom MVP: room runtime, scoped join tokens, attendance, recording metadata + consent flow.
+- Phase 09 — classroom usage analytics (participant minutes, recording minutes, bandwidth) feed cost dashboards.
 - Phase 10 — English vertical uses the classroom for speaking sessions.
 - Phase 11 — production hardening: TURN, monitoring, recording retention, bandwidth budget, cost dashboards.

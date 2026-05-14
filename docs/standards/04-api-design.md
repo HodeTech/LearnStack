@@ -1,6 +1,7 @@
 # 04 — API Design Standards
 
 **Status:** Active
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md).
 
 REST conventions for LearnStack public and admin APIs.
 

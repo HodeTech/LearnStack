@@ -130,3 +130,11 @@ A flag that has been at its default for > 1 year with no tenant overrides is fla
 - **Branching on flag identity instead of capability.** Code that reads `if (locale === "tr")` is bad ([08-localization.md](../standards/08-localization.md)); code that reads `if (FeatureFlags.SomeArbitraryName)` for unrelated branching is the same bug. Flags gate features; if you find yourself branching on multiple unrelated flags in one function, refactor.
 - **Flag drift between code and database.** A flag whose key is renamed in code but not migrated in the DB silently returns the default for every tenant. Renaming is a deprecation cycle, not a refactor.
 - **Performance.** Hot paths that read flags per call become DB-bound without the Redis cache; the 60s TTL is the default trade-off.
+
+## Roadmap Touchpoints
+
+- **Phase 02a** — `tenant_feature_flags` table created in the Tenancy module (see [phase-02a-kernel-tenancy.md § Tenancy Schema Foundations](../roadmap/phase-02a-kernel-tenancy.md)). `IFeatureFlags`, `FlagKey<T>`, Redis cache, and the catalog file land here.
+- **Phase 06** — Admin Studio surface for editing per-tenant flag overrides ships with the rest of the admin shell (see [phase-06-renderer-admin-studio.md](../roadmap/phase-06-renderer-admin-studio.md)).
+- **Phase 09** — Audit + observability hooks for flag changes plug into the analytics/audit pipeline.
+- **Phase 10** — `vertical.english.enabled` becomes the first real vertical-enablement flag.
+- **Phase 11** — Quarterly hygiene review and CI surfacing of stale flags become operational.

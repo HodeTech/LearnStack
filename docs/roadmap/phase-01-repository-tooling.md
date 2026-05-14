@@ -52,7 +52,7 @@ learnstack/
 
 ### Frontend Scaffold
 
-**Single Next.js application** at `frontend/` with route segments separating concerns ([ADR 0006](../decisions/0006-frontend-single-app-first.md) and [Frontend Architecture](../architecture/14-frontend-architecture.md)):
+**Single Next.js application** at `frontend/` with route segments separating concerns ([ADR 0009](../decisions/0009-frontend-single-app-first.md) and [Frontend Architecture](../architecture/14-frontend-architecture.md)):
 
 - `app/(public)/` — tenant-facing public site.
 - `app/(studio)/` — admin and content studio.
@@ -67,7 +67,7 @@ Shared packages (extracted only when duplication is real):
 - `packages/sdk` — generated typed API client.
 - `packages/config` — shared tsconfig, eslint, tailwind.
 
-Multi-app split deferred; see ADR 0006 for the extraction triggers.
+Multi-app split deferred; see [ADR 0009](../decisions/0009-frontend-single-app-first.md) for the extraction triggers.
 
 ### Local Infrastructure
 
@@ -135,7 +135,7 @@ Two compose files:
 ## Risks
 
 - Adding too many tools before the product shape is clear.
-- Splitting frontend into multiple apps too aggressively (deferred per ADR 0006).
+- Splitting frontend into multiple apps too aggressively (deferred per [ADR 0009](../decisions/0009-frontend-single-app-first.md)).
 - Treating local infrastructure as production infrastructure.
 - Delaying CI until implementation grows complex.
 - Drifting `infra/compose/dev.yml` from the production deployment shape.

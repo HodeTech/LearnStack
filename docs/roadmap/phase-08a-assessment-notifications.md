@@ -1,4 +1,4 @@
-# Phase 08A: Assessment, Notifications, and Background Jobs
+# Phase 08a: Assessment, Notifications, and Background Jobs
 
 ## Goal
 
@@ -63,7 +63,7 @@ The English vertical adds:
 - Course enrollment.
 - Lesson reminder.
 - Assessment completed.
-- Live session reminder events prepared for Phase 08B.
+- Live session reminder events prepared for Phase 08b.
 
 ### Background Jobs
 

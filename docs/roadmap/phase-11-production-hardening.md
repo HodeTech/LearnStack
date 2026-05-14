@@ -17,7 +17,7 @@ This phase is not only about performance. It covers security, observability, bac
 - Keycloak hardening review: password policy, brute-force protection, MFA enforcement for tenant-admin / platform-admin roles, refresh-token rotation. See [11-security.md](../standards/11-security.md). LearnStack does not implement any of these; configuration is reviewed in Keycloak.
 - Secret management: rotation cadence, secret-manager wiring, no secrets in repo.
 - Audit log coverage review.
-- Tenant isolation regression suite (expansion of Phase 02 CI gate to cover new modules from Phases 04-09).
+- Tenant isolation regression suite (expansion of the Phase 02a/02b CI gate to cover new modules from Phases 04-09).
 - File upload security (MIME sniff, size limits, AV scan hook, key scoping).
 - Live classroom token expiration and permission review.
 - Provider webhook signature verification.

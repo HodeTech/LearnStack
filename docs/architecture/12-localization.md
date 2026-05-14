@@ -2,7 +2,7 @@
 
 LearnStack is multi-tenant and many tenants will serve multilingual audiences. The English-learning vertical alone needs at minimum Turkish and English for the same content. Localisation cannot be a retrofit.
 
-The schema choice is made before any tenant-owned table ships. See [ADR 0005](../decisions/0005-i18n-schema.md).
+The schema choice is made before any tenant-owned table ships. See [ADR 0008 — Localization Schema](../decisions/0008-localization-schema.md).
 
 ## Scope
 

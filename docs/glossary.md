@@ -199,6 +199,14 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Tier 2B** | A command where the external system returns an ID we must store; external call first, then DB write, compensating action on DB failure. |
 | **Tier 3** | A cross-system commit with provider-confirmed completion (payment, recording); idempotency key + pending row + provider webhook. |
 
+## API & Integration
+
+| Term | Definition |
+|------|------------|
+| **BFF (Backend-for-Frontend)** | The Next.js server-side proxy layer in `app/api/` that holds session cookies, refreshes Keycloak tokens silently, and forwards calls to the .NET API with `Authorization` and tenant headers. The browser never sees refresh tokens. |
+| **Idempotency Key** | A client-supplied `Idempotency-Key` header on `POST` operations with external side effects (payments, webhook processing, notification sending, recording start/stop). The server stores `(idempotency_key, response)` for 24 hours and replays the stored response for duplicates. See [04-api-design.md § Idempotency](standards/04-api-design.md). |
+| **Problem Details** | RFC 7807 JSON error envelope (`type`, `title`, `status`, `code`, `detail`, `instance`, `correlationId`) used by every LearnStack error response. |
+
 ## Conventions
 
 - `PascalCase` for entities and aggregates.

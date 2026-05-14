@@ -25,6 +25,17 @@ The decisions made in this phase are the ones that are most painful to reverse l
 - Pagination model (cursor-first).
 - `IClock`, `IRandom`, `IGuidFactory` for deterministic tests.
 
+### Tenancy Schema Foundations
+
+The following Tenancy-owned tables are created in this phase so later modules don't have to retrofit:
+
+- `tenants` — tenant root.
+- `tenant_domains` — host → tenant mapping (lifecycle/verification UI lands in Phase 04 / Phase 06).
+- `tenant_locales` — default + enabled locales (see [ADR 0008](../decisions/0008-localization-schema.md)). Required before any tenant-owned content table ships.
+- `tenant_settings` — non-translated tenant configuration.
+- `tenant_extensions` — per-tenant vertical enablement and version (see [ADR 0011](../decisions/0011-extension-points.md)). Empty until the first vertical lands (Phase 10).
+- `tenant_feature_flags` — typed feature flag overrides (see [21-feature-flags.md](../architecture/21-feature-flags.md)). The flag catalog is code-defined; the table just stores per-tenant deltas. The admin UI to edit flags lands with the rest of the admin shell in Phase 06.
+
 ### Tenant Resolution
 
 Tenant context is resolvable from:

@@ -1,6 +1,7 @@
 # 14 — Git Workflow Standards
 
 **Status:** Active
+**Derives from:** [ADR 0007 — Documentation Language and Conventions](../decisions/0007-documentation-language-and-conventions.md). Release-tagging policy is tracked as an open ADR draft in [decisions/README.md](../decisions/README.md).
 
 Branches, commits, pull requests, reviews.
 
@@ -46,7 +47,7 @@ Rules:
 - Each commit is a meaningful unit; squash messy WIP before opening the PR.
 - For multi-module changes, pick the primary module as `scope`; list the others in the body.
 - Co-author tags allowed (`Co-authored-by: ...`).
-- Commits include `Co-Authored-By: Claude <noreply@anthropic.com>` when AI assistance was material.
+- Commits include `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` when AI assistance was material.
 
 ### Trailers
 
@@ -69,7 +70,7 @@ backed by ILiveClassProvider.CreateJoinTokenAsync.
 
 ADR: 0005
 Module: Classroom, Identity
-Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
 
 ## Pull Requests

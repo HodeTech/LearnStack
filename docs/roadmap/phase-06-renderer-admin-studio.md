@@ -42,6 +42,7 @@ Phase 03 delivers the **identity-management** surface of Admin Studio (login, te
 - Course structure editor (modules, lessons, lesson items).
 - Preview of published and draft content.
 - Tenant branding configuration surface (logo, theme tokens, header / footer).
+- Tenant settings surfaces: feature-flag editor for `tenant_feature_flags` overrides (see [21-feature-flags.md](../architecture/21-feature-flags.md)) and custom-domain management (see [22-custom-domains.md](../architecture/22-custom-domains.md)).
 
 Login, tenant switcher, dashboard shell, users, roles, invitations, and audit log views are **not** scoped to this phase — they are delivered in Phase 03 and are consumed by Phase 06 as the surrounding shell.
 

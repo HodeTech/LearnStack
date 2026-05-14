@@ -92,7 +92,7 @@ Rules:
 ## Object Storage Operations
 
 - MinIO local; S3-compatible cloud storage in production.
-- Bucket per tenant or prefix per tenant (decided in [Tenant Isolation](../architecture/09-tenant-isolation.md)).
+- One bucket per environment; tenant isolation enforced by key prefix (`{tenant_id}/...`). Bucket-per-tenant is not used. See [Media Pipeline § Key Layout](../architecture/16-media-pipeline.md) and [Tenant Isolation](../architecture/09-tenant-isolation.md).
 - Lifecycle policies for recording retention.
 - Cross-region replication for production buckets (optional, behind ADR).
 

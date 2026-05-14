@@ -6,7 +6,7 @@ Accepted
 
 ## Decision
 
-LearnStack will use defense-in-depth tenant isolation:
+LearnStack uses defense-in-depth tenant isolation:
 
 - Application tenant context.
 - EF Core global query filters.

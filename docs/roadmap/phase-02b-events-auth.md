@@ -48,7 +48,7 @@ LearnStack does not implement password hashing, password reset rendering, MFA en
 
 ### Audit Coverage Wiring
 
-The `AuditLog` aggregate (defined in Phase 02a's shared kernel) becomes routable in this phase: every platform-admin scope entry, every Keycloak-mirrored event (`user.created`, `password.reset.requested`), every outbox dead-letter entry writes through the standard audit pipeline. Per-module audit matrices land with their modules; the cross-cutting wiring lives here.
+The cross-cutting audit pipeline becomes routable in this phase: every platform-admin scope entry, every Keycloak-mirrored event (`user.created`, `password.reset.requested`), every outbox dead-letter entry writes through it. The `AuditLog` aggregate itself is owned by the Identity module and ships in Phase 03 (see [02-domain-model.md § Identity](../architecture/02-domain-model.md) and [phase-03-identity-admin.md](phase-03-identity-admin.md)); this phase provides the pipeline (interceptor, actor propagation, redaction) that Identity plugs into. Per-module audit matrices land with their modules.
 
 See [18-audit-coverage.md](../standards/18-audit-coverage.md).
 

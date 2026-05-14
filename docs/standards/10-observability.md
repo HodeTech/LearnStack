@@ -1,6 +1,7 @@
 # 10 — Observability Standards
 
 **Status:** Active
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries).
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
