@@ -1,0 +1,39 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+*.rsuser
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Local infrastructure data
+.data/
+minio-data/
+postgres-data/
+redis-data/
+
