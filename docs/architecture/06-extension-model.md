@@ -68,7 +68,7 @@ Provider adapters behind documented interfaces.
 | `IEmailProvider` | `PostmarkEmailProvider`, `ResendEmailProvider`, `SmtpEmailProvider` |
 | `ISmsProvider` | `TwilioSmsProvider`, `NetGsmSmsProvider` |
 | `IStorageProvider` | `MinioStorageProvider`, `S3StorageProvider`, `R2StorageProvider` |
-| `ISearchProvider` | `MeilisearchSearchProvider`, `OpenSearchSearchProvider` |
+| `ISearchProvider` | `MeilisearchSearchProvider`, `OpenSearchSearchProvider`. See [Search](20-search.md) |
 | `IRecordingEgressProvider` | `LiveKitEgressProvider` |
 
 ### 4. UI Extensions
@@ -93,7 +93,7 @@ Examples:
 1. **Core defines stable primitives.** Vertical products only consume; they do not modify core entities.
 2. **Vertical-specific business rules never leak into core modules.** CEFR mapping does not belong in `Level`. Placement-test scoring does not belong in `Assessment`.
 3. **Provider-specific code stays behind adapters.** LiveKit SDK types never appear in `Domain` or `Application`.
-4. **Tenant configuration decides which extensions are active.** Feature flags + tenant-scoped registration.
+4. **Tenant configuration decides which extensions are active.** Feature flags + tenant-scoped registration. See [Feature Flags](21-feature-flags.md) for the registry and runtime evaluation.
 5. **Versioning.** Content types and block schemas are versioned per vertical. Upgrades are explicit migrations.
 
 ## Example: English Learning Vertical
@@ -127,4 +127,4 @@ If a hypothetical exam-prep vertical were added later, it would do the same — 
 | A vertical module reaching into another module's DbContext | Breaks module boundaries. |
 | A vertical module mutating core entities directly | Breaks ownership. |
 | Hardcoding a tenant id in vertical code | Verticals must be tenant-agnostic in code; configuration is per-tenant. |
-| Feature flags scattered without a registry | Flags must live in `TenantFeatureFlag` with a typed key catalog. |
+| Feature flags scattered without a registry | Flags must live in `TenantFeatureFlag` with a typed key catalog. See [Feature Flags](21-feature-flags.md). |

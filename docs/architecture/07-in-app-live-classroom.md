@@ -180,7 +180,7 @@ Defaults:
 - Recording is **off by default** at the tenant level.
 - A tenant administrator can enable it for the entire tenant, for a course, or for a specific session.
 - Composite (single-file) recording is the default mode. Track-based recording is available for advanced post-processing scenarios.
-- Recordings are written to S3/MinIO; retention defaults to **30 days** and is configurable per tenant up to a tenant-wide retention cap.
+- Recordings are written to S3/MinIO; retention defaults to **30 days** and is configurable per tenant up to a tenant-wide retention cap. See [16-media-pipeline.md](16-media-pipeline.md) § Recordings for the storage pipeline and [23-data-protection.md](23-data-protection.md) § Right to Erasure for deletion under KVKK / GDPR.
 - Recordings require consent: the classroom UI shows a "Recording" indicator while active, and the tenant onboarding agreement covers consent.
 
 ## MVP Scope for the Classroom

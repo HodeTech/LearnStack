@@ -89,7 +89,7 @@ Key details:
 
 When a user logs in, they may have multiple memberships. The active tenant is determined by:
 
-1. The host the user hit (custom domain / subdomain).
+1. The host the user hit (custom domain / subdomain). See [22-custom-domains.md](22-custom-domains.md) for verification and TLS.
 2. An explicit tenant selector for Studio (for cross-tenant operators).
 3. The user's last active tenant (cookie hint).
 

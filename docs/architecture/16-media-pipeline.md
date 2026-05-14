@@ -216,6 +216,7 @@ For each recording, store:
 - A tenant can extend retention within a platform-wide cap.
 - Purge jobs delete both metadata row and storage object.
 - Legal-hold flag blocks purge when required (compliance, complaint investigation).
+- Recording deletion as part of a user-erasure request follows [23-data-protection.md](23-data-protection.md) § Right to Erasure.
 
 ### Cost Control
 

@@ -14,7 +14,7 @@ They need:
 - Program and course catalogs.
 - Learning materials, quizzes, assignments, and progress tracking.
 - Student, instructor, and admin portals.
-- Tenant-specific branding, navigation, domains, and feature flags.
+- Tenant-specific branding, navigation, domains ([22-custom-domains.md](22-custom-domains.md)), and feature flags ([21-feature-flags.md](21-feature-flags.md)).
 - Optional billing, authentication policies, scheduling, and integrations.
 - In-app live classes with attendance and recording.
 - A way to create different vertical products without rebuilding the foundation.

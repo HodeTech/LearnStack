@@ -34,8 +34,8 @@ Every phase delivers a thin layer across this slice rather than a deep layer in 
 ### Platform & Tenancy
 - Create and manage tenants.
 - Configure tenant branding (logo, colors, typography tokens).
-- Map custom domains.
-- Per-tenant feature flags.
+- Map custom domains. See [22-custom-domains.md](22-custom-domains.md).
+- Per-tenant feature flags. See [21-feature-flags.md](21-feature-flags.md).
 - Per-tenant settings (locale, timezone).
 
 ### Identity

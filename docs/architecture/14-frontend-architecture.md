@@ -201,6 +201,6 @@ The route-segment structure today is deliberately shaped to make this extraction
 ## Risks
 
 - **Per-tenant SSR cost** — caching is per `(tenantId, locale, slug)`. Cardinality is bounded; budget memory headroom.
-- **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use SameSite-Lax + path scoping; do not share auth cookies across tenants.
+- **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use SameSite-Lax + path scoping; do not share auth cookies across tenants. Domain registration and TLS flow: [22-custom-domains.md](22-custom-domains.md).
 - **Brand-token contrast failures** — surface a warning at save time, not a render-time surprise.
 - **Block schema drift** — verticals shipping new block versions while the renderer is older. The placeholder path keeps this safe; CI tests verify forward compatibility.

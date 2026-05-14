@@ -205,6 +205,6 @@ Dispatch resolves the recipient's preferred locale and applies fallback before r
 ## Risks
 
 - **Schema retrofit** — adding translation tables later is expensive. The schema must be locale-aware from day 1; this is why the pattern is decided before any tenant table ships.
-- **Search across locales** — a search query for "ingilizce başlangıç" should not match "beginner English." Search indexes are per-locale (Meilisearch index per locale or a `locale` filter). See [Technical Architecture](04-technical-architecture.md) for the indexing model.
+- **Search across locales** — a search query for "ingilizce başlangıç" should not match "beginner English." Search indexes are split per locale (`<env>-<kind>-<locale>`). See [Search](20-search.md) and [ADR 0012](../decisions/0012-search-strategy.md) for the indexing model.
 - **Default-locale drift** — content authored in `en` and partially translated to `tr` is the normal state. Tools (admin UI) must show the gap clearly to avoid accidentally publishing untranslated pages.
 - **URL changes** — changing a published slug is breaking. Redirects must follow; the CMS auto-creates a redirect on slug change.

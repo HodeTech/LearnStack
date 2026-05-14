@@ -11,7 +11,7 @@
 | Cache & coordination | Redis 7+ |
 | Object storage | MinIO (local), S3-compatible (production) |
 | Background jobs | Hangfire (Postgres storage) |
-| Search | Meilisearch (initial), OpenSearch (later, if needed) |
+| Search | Meilisearch (initial), OpenSearch (later, if needed). See [Search](20-search.md) and [ADR 0012](../decisions/0012-search-strategy.md) |
 | Auth | Keycloak (self-hosted OIDC) — see [Authentication Strategy](13-identity-and-auth.md) |
 | Live classroom | LiveKit OSS (self-hosted) + coturn — see [In-App Live Classroom](07-in-app-live-classroom.md) |
 | Frontend | Next.js (App Router), React, TypeScript |

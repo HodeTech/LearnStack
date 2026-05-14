@@ -77,7 +77,7 @@ The dashed arrows are **integration events** or **read-model projections** — n
 ## Backend Modules
 
 ### Tenancy
-Owns tenants, domains, branding, settings, feature flags, and tenant resolution. Exposes a read-only `TenantContext` to other modules.
+Owns tenants, domains, branding, settings, feature flags, and tenant resolution. Exposes a read-only `TenantContext` to other modules. Custom-domain lifecycle: [22-custom-domains.md](22-custom-domains.md). Feature-flag catalog and runtime: [21-feature-flags.md](21-feature-flags.md).
 
 ### Identity
 Owns users, memberships, roles, permissions, invitations, sessions, and security audit events. Wraps the auth provider (Keycloak today — see [Authentication Strategy](13-identity-and-auth.md)).

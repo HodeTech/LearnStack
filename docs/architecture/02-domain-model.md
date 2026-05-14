@@ -132,9 +132,9 @@ flowchart LR
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
 | `Tenant` | Yes | Global table; sits above `tenant_id` scoping. |
-| `TenantDomain` | Inside Tenant | Custom domain or subdomain. |
+| `TenantDomain` | Inside Tenant | Custom domain or subdomain. Lifecycle and verification: [22-custom-domains.md](22-custom-domains.md). |
 | `TenantBranding` | Inside Tenant | Logo, colors, typography tokens. |
-| `TenantFeatureFlag` | Inside Tenant | Feature availability per tenant. |
+| `TenantFeatureFlag` | Inside Tenant | Feature availability per tenant. Catalog and runtime: [21-feature-flags.md](21-feature-flags.md). |
 | `TenantSettings` | Inside Tenant | Locale, timezone, billing, auth, content settings. |
 
 ## Identity

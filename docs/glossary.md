@@ -127,6 +127,78 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Content Extension** | A vertical-specific content type or page block. |
 | **UI Extension** | A vertical-specific frontend component, block renderer, or portal widget. |
 
+## Feature Flags
+
+| Term | Definition |
+|------|------------|
+| **Feature Flag** | A typed, tenant-scoped capability toggle stored in `tenant_feature_flags` and resolved through `IFeatureFlags`. Catalog is code-defined; per-tenant overrides are data. |
+| **Flag Catalog** | The code-defined enumeration of every flag the platform knows about. Free-form string keys are forbidden; `FlagKey<T>` is the only entry point. |
+| **Killswitch** | A flag whose default is "enabled" and that gates an expensive or risky code path. Flipped off during an incident to disable the path. |
+| **Vertical Enablement Flag** | A flag of the form `vertical.<key>.enabled` that gates whether a vertical's handlers, blocks, and content types are active for a tenant. |
+
+## Search
+
+| Term | Definition |
+|------|------------|
+| **Search Index** | A Meilisearch index named `<env>-<kind>-<locale>` (e.g. `prod-course-en`). |
+| **Search Kind** | A document type (`course`, `content-entry`, `media`, ...). Verticals can register their own kinds. |
+| **Tenant Filter (search)** | The mandatory `tenant_id = ?` predicate every tenant-scoped search query carries. Enforcement lives in `ITenantSearch`; direct Meilisearch client calls are forbidden. |
+| **Reindex** | A platform-admin operation that streams documents from the source-of-truth table into a fresh index, then atomically swaps the alias. |
+
+## Custom Domains
+
+| Term | Definition |
+|------|------------|
+| **Custom Domain** | A tenant-chosen hostname (`learn.acme.com`) that resolves to a tenant via the host → tenant registry. |
+| **Domain Verification** | The DNS check (TXT or CNAME) that proves the tenant controls the host before traffic is routed. |
+| **Reserved Host** | A hostname the platform refuses to assign to a tenant (e.g. `api.*`, `admin.*`, any platform domain). |
+
+## Data Protection
+
+| Term | Definition |
+|------|------------|
+| **PII Category** | One of `PII-Identity`, `PII-Behaviour`, `PII-Sensitive`, `Payment`, `Audit`. Each category has its own redaction, retention, and erasure rules. |
+| **Data Controller** | The tenant. Decides what personal data is collected and why. |
+| **Data Processor** | LearnStack. Processes personal data on the controller's instructions. |
+| **Right of Access** | The user's KVKK/GDPR right to receive an export of their personal data. |
+| **Right to Erasure** | The user's right to have their personal data deleted, subject to retention exceptions (legal hold, financial records). |
+| **Anonymisation** | Replacement of PII fields with pseudonymous values; row stays for analytics / audit integrity. Distinct from soft delete and hard delete. |
+| **Consent Record** | An append-only per-purpose record (terms of service, recording, marketing). "Changing one's mind" creates a new record, never edits an old one. |
+| **Sub-processor** | A third-party service LearnStack uses to process tenant data (Keycloak, LiveKit, S3 / MinIO, email provider, ...). Changes require 30-day tenant notice. |
+
+## Audit
+
+| Term | Definition |
+|------|------------|
+| **Audit Operation Class** | One of `create`, `update`, `delete`, `read-sensitive`, `security-event`, `platform-admin`. Determines whether an action MUST, SHOULD, or MAY be audited. |
+| **Audit Coverage Matrix** | A per-module table mapping resources × operations to MUST / SHOULD / MAY / – classifications. Required for every module spec. |
+| **Retention Class** | The retention floor for a category of audit entries (7y for security-event / platform-admin / financial; 2y for others). |
+
+## Permissions
+
+| Term | Definition |
+|------|------------|
+| **Permission Key** | A dotted string `{module}.{resource}.{action}` with `action` drawn from the closed set `read \| write \| delete \| admin`. |
+| **Permission Scope** | Either `platform` (cross-tenant operator capabilities) or `tenant` (within a tenant). Registries are disjoint. |
+| **Permission Matrix** | A per-module table mapping `Resource × Action` to ✓ / – plus default role grants. Required for every module spec. |
+
+## Page Builder
+
+| Term | Definition |
+|------|------------|
+| **Block Schema Version** | The `(key, schemaVersion)` tuple that identifies a page block's payload shape. Schemas are immutable after publish; breaking changes bump the version. |
+| **Lazy Migration (blocks)** | The studio-side upgrade of an existing block instance from an older `schemaVersion` to a newer one on save. The published version is untouched until the editor publishes. |
+| **Bulk Migration (blocks)** | A platform-admin operation that walks every tenant's stored block instances of a given `(key, schemaVersion)` and migrates them to a new version. |
+
+## Distributed Consistency
+
+| Term | Definition |
+|------|------------|
+| **Tier 1** | A command with no external calls; DB transaction is the boundary. |
+| **Tier 2A** | A command where the external system is a mirror of DB state; DB-first, external call after, failure non-fatal (retry via outbox). |
+| **Tier 2B** | A command where the external system returns an ID we must store; external call first, then DB write, compensating action on DB failure. |
+| **Tier 3** | A cross-system commit with provider-confirmed completion (payment, recording); idempotency key + pending row + provider webhook. |
+
 ## Conventions
 
 - `PascalCase` for entities and aggregates.
