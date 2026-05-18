@@ -1,6 +1,16 @@
 # MVP Scope
 
-The MVP proves that LearnStack can power one real education product without hardcoding that product into the core.
+The MVP proves that LearnStack can power one real education product **without LearnStack
+writing any domain-specific code**. The first tenant happens to be an English-learning
+brand; the same code paths must serve a yoga, coding, music, or driving-school tenant
+provisioned later.
+
+The platform substrate below — kernel, tenancy + organization, identity, customization,
+audit, content, media, education, enrollment, progress, assessment, scheduling,
+classroom, notifications, analytics, integrations — ships in **every** deployment. The
+domain-specific shape (CEFR levels, vocabulary cards, placement-test rules, …) is loaded
+as **tenant customization data** ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md))
+at tenant provisioning, not compiled into the binary.
 
 ## MVP Goal
 
@@ -8,12 +18,19 @@ Run an end-to-end online English-learning tenant on LearnStack, where:
 - The public site is content-managed.
 - The course catalog is real.
 - Learners enroll and progress through lessons.
-- Speaking practice happens **inside** an in-app live classroom with attendance and recording.
-- No vertical-specific code lives in core modules.
+- Speaking practice happens **inside** an in-app live classroom with attendance and
+  recording.
+- The tenant's domain shape (CEFR taxonomy, vocabulary content type, placement-test
+  scoring rule, speaking-practice lesson item, lesson-package custom fields) is loaded
+  from `TenantContentType`, `TenantLevelTaxonomy`, `TenantScoringRule`, etc. **No
+  English-specific code lives in any module.**
+- A second tenant exists in parallel with a **different** domain shape (e.g. coding or
+  yoga) loaded from its own customization data, proving the substrate is generic.
 
 ## Vertical Slice First
 
-Rather than building every module to feature parity before moving on, the MVP cuts a **vertical slice** from tenant resolution to learner outcome:
+Rather than building every module to feature parity before moving on, the MVP cuts a
+**vertical slice** from tenant resolution to learner outcome:
 
 ```mermaid
 flowchart LR
@@ -27,27 +44,79 @@ flowchart LR
   visitor --> signup --> enroll --> consume --> speak --> recorded
 ```
 
-Every phase delivers a thin layer across this slice rather than a deep layer in one module.
+Every phase delivers a thin layer across this slice rather than a deep layer in one
+module. The same slice runs against the second (non-English) tenant in the cross-tenant
+test pass.
 
 ## In Scope
 
-### Platform & Tenancy
-- Create and manage tenants.
-- Configure tenant branding (logo, colors, typography tokens).
-- Map custom domains. See [22-custom-domains.md](22-custom-domains.md).
-- Per-tenant feature flags. See [21-feature-flags.md](21-feature-flags.md).
-- Per-tenant settings (locale, timezone).
+### Platform Kernel
+- Dapr building blocks wired through `IEventBus` (pub/sub → Kafka), `ICacheService`
+  (state → Redis), `ISecretProvider` (secrets → Vault). See
+  [29-dapr-integration.md](29-dapr-integration.md) and
+  [ADR-0014](../decisions/0014-adopt-dapr.md).
+- APISIX gateway in standalone mode (YAML hot-reload) — JWT verification, CORS,
+  rate-limit, custom-host routing. See [30-api-gateway.md](30-api-gateway.md) and
+  [ADR-0015](../decisions/0015-api-gateway-apisix.md).
+- `IEntitlementProvider` interface with `NullEntitlementProvider` default for
+  development; Hub-backed and signed-license-key implementations land in Phase 02c.
+- `IHostToTenantResolver` + `platform_host_to_tenant` projection (host → tenant_id),
+  populated by Hub for SaaS / by config for Self-Hosted.
+- `platform_entitlement_cache` projection (15-min TTL, eager-invalidated on
+  `learnstack.hub.entitlement` Dapr pub/sub event).
+- Architecture tests run **from Day 1** of Phase 02 (not added later as cleanup).
+
+### Tenancy & Organization
+- Create and manage tenants (Hub-driven for SaaS, CLI for Self-Hosted).
+- **Organization** as sub-unit within a tenant — every tenant has at least one default
+  organization; org-scoped entities carry `OrganizationId`; tenant-wide entities leave
+  it null ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)).
+- Configure tenant branding (logo, colors, typography tokens), with optional
+  per-organization override.
+- Map custom domains via Hub's `CustomDomain` aggregate; LearnStack mirrors the
+  host→tenant mapping. See [27-custom-domain-tls.md](27-custom-domain-tls.md).
+- Per-tenant feature flags (catalog-defined; runtime via Redis cache + Postgres). See
+  [21-feature-flags.md](21-feature-flags.md).
+- Per-tenant settings (locale, timezone, default notification sender).
 
 ### Identity
 - Admin login via Keycloak.
-- User management.
-- Roles (`tenant-admin`, `editor`, `instructor`, `learner`) and permissions.
-- Tenant memberships.
-- Invitations.
+- User management with **triple-keyed Membership** `(user_id, tenant_id, organization_id)`.
+- Roles (`tenant-admin`, `editor`, `instructor`, `learner`) and permissions with
+  explicit scope (Platform / Tenant / Organization per ADR-0017).
+- Invitations bound to email + tenant + organization.
+
+### Tenant Customization
+Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md), the
+customization aggregates are first-class in MVP:
+- `TenantContentType` (JSON Schema for tenant-defined content types).
+- `TenantPageBlock` (JSON Schema + renderer key for tenant-defined page blocks).
+- `TenantLessonItemType` (JSON Schema + player key for tenant-defined lesson items).
+- `TenantLevelTaxonomy` (flat list of level items — CEFR, yoga difficulty, kyu/dan,
+  coding difficulty).
+- `TenantScoringRule` (sandboxed DSL expression for assessment scoring).
+- `TenantCompletionRule` (boolean DSL expression for lesson/module/course completion).
+- `TenantCustomFieldDef` (custom fields stored on built-in entities' `custom_fields
+  jsonb` column).
+- `TenantTemplateLibrary` (notification templates per locale; optional per-org override).
+- Admin Studio editor for all of the above.
+
+### Audit
+- `LearnStack.Modules.Audit` with `AuditEntry` aggregate, `AuditConfig` per-tenant
+  override, partitioned `audit_log` table, and retention job
+  ([ADR-0016](../decisions/0016-audit-log-subsystem.md)).
+- Capture pipeline (`AuditChangeTrackerInterceptor` → `IAuditStateCapture` →
+  `AuditLogBehavior` → `IAuditStore`) in `LearnStack.Infrastructure.Audit`, shared by
+  every module.
+- MUST-class audit coverage for every command and security event per the
+  [Audit Coverage Standard](../standards/18-audit-coverage.md). Read API for admins
+  ships with Admin Studio in Phase 06.
 
 ### CMS
-- Content types with the field types listed in [CMS phase](../roadmap/phase-04-cms-media-pages.md).
-- Pages with versions, blocks, slug, SEO metadata.
+- Content types backed by `TenantContentType` JSON Schemas; the built-in primitives
+  (text, number, image, reference) compose with tenant-defined types.
+- Pages with versions, blocks, slug, SEO metadata. Per-tenant block shapes resolve
+  through `TenantPageBlock`.
 - Navigation menus.
 - Draft / published workflow with preview tokens.
 
@@ -59,21 +128,23 @@ Every phase delivers a thin layer across this slice rather than a deep layer in 
 
 ### Education Catalog
 - Programs, courses, course versions.
-- Modules, lessons, lesson items.
-- Categories, levels, tags.
+- Modules, lessons, lesson items (with tenant-defined item types).
+- Categories, **levels backed by `TenantLevelTaxonomy`**, tags.
 - Instructor profiles.
 - Catalog visibility and SEO metadata.
 
 ### Enrollment & Progress
 - Manual learner enrollment.
-- Course access by entitlement.
-- Lesson / module / course progress.
+- Course access by entitlement (per-learner Enrollment entitlement; **not** the
+  Hub-side plan entitlement, which is a separate concept).
+- Lesson / module / course progress with completion resolved via
+  `TenantCompletionRule`.
 - Learning events recorded.
 
 ### Assessment
 - Question banks, questions, quizzes.
-- Attempts and scoring.
-- Pass/fail rule.
+- Attempts and scoring resolved via `TenantScoringRule` (e.g. placement-test → CEFR
+  recommendation as a tenant-authored rule, not hard-coded English logic).
 
 ### Live Classroom
 - Self-hosted LiveKit OSS via `ILiveClassProvider`.
@@ -81,7 +152,8 @@ Every phase delivers a thin layer across this slice rather than a deep layer in 
 - Generate scoped join tokens.
 - Audio, video, screen share, in-room chat.
 - Attendance from classroom events.
-- Recording with consent flow (see [Recording & Consent](16-media-pipeline.md)).
+- Recording with consent flow (see [Recording & Consent](16-media-pipeline.md));
+  execution **tenant-configurable and off by default**.
 
 ### Scheduling
 - Instructor availability.
@@ -90,66 +162,118 @@ Every phase delivers a thin layer across this slice rather than a deep layer in 
 
 ### Notifications
 - Email channel (transactional).
-- Templates for invitation, enrollment, session reminders, password reset, assessment completion.
+- Templates resolved through `TenantTemplateLibrary` (per-locale, per-org-override).
+- Built-in template stubs for invitation, enrollment, session reminders, password reset,
+  assessment completion — tenants override or extend.
 
 ### Public Rendering
 - Tenant landing pages with composed blocks.
 - Course catalog and detail pages.
-- Placement-test landing page (renders an English vertical content block).
+- Tenant-customization-driven landing page (e.g. the English tenant renders a
+  placement-test entry block; the coding tenant renders a track-selector block — both
+  using the same page-builder pipeline against different `TenantPageBlock` data).
 - 404 + redirect handling.
+- Custom-domain resolution via `IHostToTenantResolver`.
 
 ### Admin Studio
 - Login + tenant switcher (platform admin).
 - Content, media, page builder.
 - Catalog, course version editor.
-- User management.
+- User management (with org filter).
+- **Customization editor** (content types, page blocks, lesson item types, level
+  taxonomy, scoring rules, completion rules, custom field defs, template library).
+- Audit log viewer.
 - Live-session schedule view.
 
 ### Learner & Instructor Portal
 - My courses.
-- Lesson player.
+- Lesson player (with custom lesson-item renderers from `TenantLessonItemType`).
 - Resume learning.
 - Profile basics.
 - Speaking session entry to in-app classroom.
 
-### English Vertical (first vertical product)
-- CEFR level taxonomy.
-- Placement test.
-- Vocabulary list content type.
-- Speaking practice content type.
-- Lesson package definition.
-- Teacher matching metadata.
+### LearnStack Hub (Phase 02c — parallel track)
+The Hub Foundation socket ships in parallel with Phase 02b's events/auth wiring; the
+**MVP
+deployment may run with `NullEntitlementProvider` and skip Hub entirely**, but the
+contracts and the option to point at a Hub instance are MVP-complete:
+- Separate `learnstack-hub` repository ([ADR-0019](../decisions/0019-learnstack-hub.md)).
+- Separate Keycloak realm (`learnstack-hub`).
+- `Plan` / `HubSubscription` / `Entitlement` aggregates on the Hub side.
+- mTLS + signed JWT + HMAC internal API:
+  `PUT /api/internal/tenants/{id}/entitlements`, `POST /api/internal/tenants`,
+  `POST /api/v1/internal/license/verify`, `POST /api/v1/usage/report`.
+- Feature-based entitlement projection per
+  [ADR-0021](../decisions/0021-feature-based-entitlement.md).
+
+### First Tenant Customization Showcase (online English education)
+Delivered as **tenant customization data** loaded at provisioning, **not** as code:
+- `TenantLevelTaxonomy` with CEFR levels (A1, A2, B1, B2, C1, C2).
+- `TenantContentType` for `VocabularyCard`, `SpeakingPrompt`, `LessonPackage`.
+- `TenantLessonItemType` for `SpeakingPracticeItem` (with live-session reference).
+- `TenantScoringRule` for placement-test → CEFR-level recommendation.
+- `TenantCompletionRule` for English-specific lesson-package completion semantics.
+- `TenantCustomFieldDef` for `User.preferredAccent`, `InstructorProfile.dialectsTaught`,
+  etc.
+- `TenantTemplateLibrary` populated with English-locale email templates.
+
+The same provisioning pipeline loads a **second tenant** with a non-English customization
+data set (the second tenant is the substrate-genericity proof; see Exit Criteria).
 
 ## Deferred
 
 | Capability | Reason for deferral | Owning phase |
 |------------|---------------------|--------------|
-| Full subscription lifecycle | MVP uses manual enrollment + manual payment + optional Stripe/iyzico via adapter. | Phase 09 (billing adapter delivers the basics; full subscription lifecycle extends post-MVP) |
+| Full subscription lifecycle | MVP uses manual enrollment + manual payment + optional Stripe/iyzico via adapter. | Phase 09 (storefront billing adapter delivers the basics; full subscription lifecycle extends post-MVP) |
+| Hub-side platform billing & invoicing | Hub Foundation ships entitlements; full plan/billing/invoice is Hub-roadmap. | Phase 09b (parallel Hub track) |
+| Hub Marketplace (template / customization-data sharing) | Out of scope for MVP exit. | Phase 12 (optional) |
 | Advanced assessment (essay grading, adaptive) | Out of scope; placeholder question types only. | Post-MVP backlog (no phase yet) |
 | Native mobile apps | Web-first; mobile considered after Phase 11. | Post-MVP backlog (no phase yet) |
-| Complex reporting dashboards | Read models exist; dashboards beyond the basics are post-MVP. | Phase 11 ships the baseline dashboards; advanced reporting is post-MVP backlog |
-| LTI / xAPI implementation | Module structure is ready; protocol implementations are post-MVP. | Post-MVP backlog (Integrations module is ready in Phase 09) |
+| Complex reporting dashboards | Read models exist; dashboards beyond the basics are post-MVP. | Phase 11 ships baseline dashboards; advanced reporting is post-MVP backlog |
+| LTI / xAPI implementation | Integrations module is ready; protocol implementations are post-MVP. | Post-MVP backlog (Integrations module structure lands in Phase 09) |
 | Marketplace features | Out of scope. | Not on the roadmap |
 | AI features (pronunciation feedback, transcription) | Post-MVP. Hooks in the classroom event stream make later addition straightforward. | Post-MVP backlog (no phase yet) |
 | Whiteboard, breakout rooms | Post-MVP. | Post-MVP backlog (no phase yet) |
-| Self-service tenant signup | Tenants are provisioned by platform admin in MVP. | Post-MVP backlog (no phase yet) |
+| Self-service tenant signup | Tenants are provisioned by Hub admin (SaaS) or CLI (Self-Hosted) in MVP. | Post-MVP backlog (no phase yet) |
 
-## First Vertical Product Candidate
+## Bar for Adding to Core
 
-Online English education. It is the test of whether the core stays clean. Every English-specific requirement gets evaluated against:
+A request that initially looks like a core feature gets evaluated against:
 
-> *Does this belong in the core because every education product will need it, or does it belong in the English vertical module because only English needs it?*
+> *Does this belong in the core because every education product will need it, or does it
+> belong as **tenant customization data** because only some domains need it?*
 
-The bar is high. CEFR levels, placement-test scoring rules, vocabulary banks, and speaking practice content types live in the English vertical, not in core `Level`, `Assessment`, or `Lesson`.
+The bar is high. CEFR levels, placement-test scoring rules, vocabulary banks, speaking
+practice item types, kyu/dan ranks, asana catalogs, kata progressions, beat-counting
+exercises, code-challenge runners, and exam curricula are **all** tenant customization
+data, **not** core code. Core only owns generic primitives.
+
+If a candidate feature cannot be expressed via the customization aggregates
+(`TenantContentType`, `TenantPageBlock`, `TenantLessonItemType`,
+`TenantLevelTaxonomy`, `TenantScoringRule`, `TenantCompletionRule`,
+`TenantCustomFieldDef`, `TenantTemplateLibrary`), the first question is "should we
+extend a customization aggregate?" — not "should we add a core module?".
 
 ## Exit Criteria for MVP
 
 - A visitor opens an English-tenant public site rendered by LearnStack.
 - They can start a placement test.
-- The test produces a CEFR-level recommendation through vertical logic.
+- The test produces a CEFR-level recommendation **through `TenantScoringRule`
+  evaluation against the tenant's `TenantLevelTaxonomy`** — no English-specific code
+  involved.
 - A tenant admin enrolls them in the recommended course.
-- They open the course and complete a lesson.
+- They open the course and complete a lesson (with completion resolved via
+  `TenantCompletionRule`).
 - They book a speaking session.
 - They join the in-app live classroom and the instructor joins too.
-- The recording metadata model and consent flow are in place, and visible to the instructor and tenant admin. Recording execution itself is **tenant-configurable and off by default** ([16-media-pipeline.md](16-media-pipeline.md)); whether any session actually records during MVP exit depends on the tenant's policy.
-- A second tenant exists in parallel and the cross-tenant isolation tests pass.
+- The recording metadata model and consent flow are in place, and visible to the
+  instructor and tenant admin. Recording execution itself is **tenant-configurable and
+  off by default** ([16-media-pipeline.md](16-media-pipeline.md)); whether any session
+  actually records during MVP exit depends on the tenant's policy.
+- A **second tenant** exists in parallel with a different customization data set (e.g.
+  a coding bootcamp with `Track` levels and `CodeChallenge` lesson items); cross-tenant
+  isolation tests pass and the same code paths serve both tenants without modification.
+- Every MUST-class audit event in [Audit Coverage Standard](../standards/18-audit-coverage.md)
+  is captured for both tenants and queryable via the Audit admin API.
+- LearnStack runs against either `NullEntitlementProvider` (no Hub) or against a real
+  Hub instance (mTLS internal API) without code changes — only configuration.

@@ -11,40 +11,68 @@ This phase is not only about performance. It covers security, observability, bac
 ### Security
 
 - Secure headers (HSTS, CSP with nonces, COOP/CORP, Permissions-Policy).
-- CORS policy.
+- CORS policy enforced at APISIX (`cors` plugin) + per-handler ASP.NET layer.
 - CSRF strategy for non-Action mutating routes.
-- Rate limiting at edge + per-handler.
-- Keycloak hardening review: password policy, brute-force protection, MFA enforcement for tenant-admin / platform-admin roles, refresh-token rotation. See [11-security.md](../standards/11-security.md). LearnStack does not implement any of these; configuration is reviewed in Keycloak.
-- Secret management: rotation cadence, secret-manager wiring, no secrets in repo.
-- Audit log coverage review.
-- Tenant isolation regression suite (expansion of the Phase 02a/02b CI gate to cover new modules from Phases 04-09).
+- Rate limiting at APISIX (`limit-req` / `limit-count`) + per-handler ASP.NET layer
+  for plan-level `LimitKeys.MaxApiRequestsPerHour`.
+- Keycloak hardening review for **both realms** (`learnstack` + `learnstack-hub`):
+  password policy, brute-force protection, MFA enforcement for tenant-admin /
+  platform-admin / Hub-operator roles, refresh-token rotation. See
+  [11-security.md](../standards/11-security.md). LearnStack does not implement any of
+  these; configuration is reviewed in Keycloak.
+- Secret management: Vault rotation cadence (90 days for provider keys, yearly for
+  Hub HMAC shared secret + mTLS client certs), no secrets in repo, no secrets in
+  env files committed.
+- Audit log coverage review against the per-module matrices.
+- Tenant + **organization** isolation regression suite (expansion of the Phase 02a
+  CI gate to cover every module from Phases 04–09).
 - File upload security (MIME sniff, size limits, AV scan hook, key scoping).
 - Live classroom token expiration and permission review.
 - Provider webhook signature verification.
+- **Hub contract surface review**: mTLS + signed JWT + HMAC pen-test, replay-window
+  validation, four-endpoint surface confirmation (no creep).
+- **APISIX standalone config review**: route allow-list, plugin order, mTLS guard on
+  `/api/internal/*`.
 
 ### Reliability
 
-- Health checks.
-- Readiness/liveness endpoints.
+- Health checks (LearnStack core + Hub).
+- Readiness / liveness endpoints.
 - Background job retry policy.
-- Dead-letter handling.
-- Outbox dispatcher reliability.
+- Dead-letter handling (outbox DLQ + Hangfire DLQ).
+- Outbox dispatcher reliability under multi-pod load.
 - Idempotent webhook handling.
 - Graceful shutdown.
 - Live classroom provider failure handling.
 - Recording job failure handling.
+- **Hub outage tolerance** — LearnStack core continues to operate on the cached
+  entitlement projection for at least 24h during a Hub outage; the 15-min TTL is the
+  refresh cadence, the cached projection is the graceful-degradation buffer.
+- **Self-Hosted phone-home failure tolerance** — 30-day grace period from
+  ADR-0020 validated end-to-end.
+- **Cross-instance L1 cache invalidation** via `learnstack.cache.invalidation` Dapr
+  topic tested under failure (Kafka partition outage).
 
 ### Observability
 
 - Structured logs.
 - Correlation id.
-- OpenTelemetry traces.
+- OpenTelemetry traces (LearnStack core + Hub share the same backend).
 - Metrics.
 - Error tracking.
 - Slow query logging.
 - Background job monitoring.
 - Live classroom connection quality metrics.
 - Provider usage and cost metrics.
+- **Dapr-component health dashboards** (`dapr_component_pubsub_*`,
+  `dapr_component_state_*`, `dapr_component_secretstores_*`) alongside LearnStack
+  metrics.
+- **APISIX gateway metrics** (route hit rate, plugin latency, mTLS handshake
+  failures).
+- **Hub-side metrics** (entitlement projection push lag, license-verify success
+  rate, custom-domain pipeline state).
+- **Outbox lag** (`learnstack_outbox_pending_count`) alerts above threshold per
+  module.
 
 ### Performance
 
@@ -83,13 +111,18 @@ LearnStack's classroom media stack is **self-hosted LiveKit OSS** ([ADR 0005](..
 
 ### Deployment
 
-- Production Dockerfiles.
-- Environment configuration.
-- CI/CD pipeline.
-- Staging environment.
-- Production environment.
-- Rollback strategy.
-- Release checklist.
+- Production Dockerfiles for both LearnStack core and Hub.
+- Environment configuration for the three production deployment modes
+  (`SaaS`, `Dedicated`, `SelfHosted`) per
+  [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
+- CI / CD pipeline (separate pipelines for `learnstack` and `learnstack-hub` repos).
+- Staging environment for both.
+- Production environment for both.
+- Rollback strategy (image-by-sha for both repos).
+- Release checklist that covers the four-endpoint contract surface (any change to
+  the surface is ADR-gated and ships in a coordinated cross-repo release).
+- **Self-Hosted distribution** — packaged installer (Docker Compose bundle +
+  Kubernetes Helm chart) with a documented license-key flow.
 
 ### Compliance Readiness
 
@@ -113,15 +146,20 @@ LearnStack's classroom media stack is **self-hosted LiveKit OSS** ([ADR 0005](..
 
 ## Completion Criteria
 
-- Full user journey works in staging.
-- Production deployment is repeatable and documented.
-- Backup restore test passes.
-- Tenant isolation regression tests exist.
-- Critical flows have sufficient logging and tracing.
+- Full user journey works in staging for all three deployment modes (`SaaS`,
+  `Dedicated`, `SelfHosted`).
+- Production deployment is repeatable and documented for LearnStack core **and**
+  Hub.
+- Backup restore test passes (LearnStack core + Hub independently).
+- Tenant + organization isolation regression tests exist and are not skippable.
+- Critical flows have sufficient logging and tracing including the Hub contract
+  surface.
 - Public site performance is acceptable.
 - File uploads are safely constrained.
 - In-app classroom flows are load-tested for the expected MVP usage.
 - Live classroom cost monitoring exists before production launch.
+- Hub outage tolerance proven (24h cached projection survival).
+- Self-Hosted 30-day grace period proven end-to-end.
 
 ## Risks
 

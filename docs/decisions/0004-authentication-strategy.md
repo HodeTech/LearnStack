@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted (Amendment 1: 2026-05-18 — adds `learnstack-hub` realm for LearnStack operators;
+see bottom of document)
 
 ## Decision
 
@@ -34,4 +35,49 @@ Keycloak fits the team's stated preference for self-hosted infrastructure and is
 
 - [13-identity-and-auth.md](../architecture/13-identity-and-auth.md) — full identity architecture.
 - Superseded ADR file: [_redirects/0004-identity-strategy.md](_redirects/0004-identity-strategy.md) (kept for old links).
+
+---
+
+## Amendment 1 — `learnstack-hub` realm for operators (2026-05-18)
+
+Per [ADR-0019](0019-learnstack-hub.md), LearnStack ships a separate operator-facing
+application (Hub) with its own user population. This amendment formalises the realm split.
+
+**Realm topology:**
+
+| Realm | Purpose | User population |
+|-------|---------|-----------------|
+| `learnstack` (existing) | Tenant users — admins, instructors, learners, parents, guardians. Single realm with multi-tenant `tenant_id` JWT claim. | All LearnStack customer users. |
+| **`learnstack-hub` (new)** | LearnStack operators — billing, support, compliance, plan management, custom domain approval, tenant lifecycle. | LearnStack staff only. |
+
+**Per-tenant SSO** (enterprise tenants) remains a realm-level configuration inside
+`learnstack` realm (Keycloak identity-provider brokering), unchanged from the original
+decision.
+
+**Realm-per-tenant** (for compliance-driven enterprise tenants who require isolated
+identity) remains an option, also unchanged.
+
+**Hub-side authentication:**
+
+- Operators authenticate against `learnstack-hub` via OIDC Authorization Code + PKCE.
+- Operator JWT carries `scope: "platform"`; the LearnStack runtime rejects platform-scope
+  tokens on any non-platform endpoint. Conversely, `learnstack-hub` realm rejects any
+  attempt to authenticate against tenant routes.
+- mTLS + signed JWT + HMAC chain between Hub and LearnStack internal APIs is **independent
+  of operator JWT** — service-to-service auth uses a Hub service-account client in the
+  `learnstack-hub` realm.
+
+**MFA requirements:**
+
+- `learnstack-hub` realm enforces MFA mandatory for every operator.
+- `learnstack` realm enforces MFA optional but recommended for tenant admins; tenant policy
+  may make it mandatory.
+
+**Audit:**
+
+- Operator actions audit via Hub's own audit stream (ADR-0019).
+- Cross-stream correlation by `correlation_id`.
+
+The two-realm separation is a hard architectural invariant: an operator cannot be a tenant
+user under the same identity, and vice versa.
 

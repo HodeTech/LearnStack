@@ -167,27 +167,42 @@ API responses do **not** localise system-level identifiers, only human-facing st
 
 ## Notification Template Localisation
 
-Notification templates ship per locale:
+Notification templates are a **tenant customization aggregate** owned by
+`LearnStack.Modules.Customization` per
+[ADR-0018](../decisions/0018-tenant-driven-customization-model.md) — see
+[32-tenant-customization-model.md](32-tenant-customization-model.md). The
+`TenantTemplateLibrary` aggregate stores per-channel, per-locale, optionally
+per-organization template bodies authored as Liquid / Handlebars:
 
 ```sql
-CREATE TABLE notification_templates (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    key TEXT NOT NULL,             -- "enrollment.created", "live.session.reminder"
-    channel TEXT NOT NULL,         -- "email", "sms", "in_app"
-    UNIQUE (tenant_id, key, channel)
+CREATE TABLE tenant_template_library (
+    id              uuid PRIMARY KEY,
+    tenant_id       uuid NOT NULL,
+    organization_id uuid NULL,                     -- optional org override
+    key             text NOT NULL,                 -- "enrollment.created", "live.session.reminder"
+    channel         text NOT NULL,                 -- "email" | "sms" | "whatsapp" | "in_app"
+    locale          text NOT NULL,                 -- "tr-TR", "en-US", ...
+    subject         text NULL,                     -- channels with a subject (email)
+    body            text NOT NULL,
+    schema_version  int  NOT NULL DEFAULT 1,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    created_by      uuid NOT NULL,
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+    updated_by      uuid NOT NULL,
+    CONSTRAINT ux_tenant_template_library
+        UNIQUE (tenant_id, organization_id, key, channel, locale)
 );
 
-CREATE TABLE notification_template_translations (
-    template_id UUID NOT NULL REFERENCES notification_templates(id) ON DELETE CASCADE,
-    locale TEXT NOT NULL,
-    subject TEXT,
-    body TEXT NOT NULL,
-    PRIMARY KEY (template_id, locale)
-);
+ALTER TABLE tenant_template_library ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_template_library_tenant_isolation ON tenant_template_library
+    USING (tenant_id = current_setting('app.tenant_id')::uuid);
 ```
 
-Dispatch resolves the recipient's preferred locale and applies fallback before rendering.
+Dispatch (in the Notifications module) resolves the recipient's preferred locale,
+applies the organization → tenant → tenant-default fallback chain, then renders the
+chosen row with the dispatch context. The two-table `notification_templates` +
+`notification_template_translations` shape used in pre-2026-05-18 drafts is
+superseded by this single aggregate.
 
 ## SEO Considerations
 

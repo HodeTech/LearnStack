@@ -21,7 +21,7 @@ The following findings are always `blocker:`. No discussion needed; the PR does 
 |---------|----------|
 | Tenant-owned entity missing `[TenantOwned]`, EF query filter, or RLS policy | [01-architecture-standards.md](01-architecture-standards.md) § Tenant-Scoped Code, [05-database.md](05-database.md) |
 | `IgnoreQueryFilters()` used outside platform-admin code paths | [11-security.md](11-security.md) § Tenant Isolation |
-| `app.current_tenant_id` not set on a tenant-scoped DB connection | [05-database.md](05-database.md) § Connection Management |
+| `app.tenant_id` not set on a tenant-scoped DB connection (or `app.organization_id` not set for org-scoped reads) | [05-database.md](05-database.md) § Connection Management |
 | Raw SQL with interpolated user input | [05-database.md](05-database.md) § Raw SQL, [11-security.md](11-security.md) § SQL & ORM |
 | Secret, token, or password committed to the repo | [11-security.md](11-security.md) § Secrets |
 | Tenant id read from request body or query param at API edge | [04-api-design.md](04-api-design.md) § Tenant Context |

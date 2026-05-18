@@ -1,47 +1,69 @@
 # Frontend Architecture
 
-The frontend is Next.js (App Router). The initial deployment is a **single application** with route segments separating public, studio, and portal experiences; the multi-app split is deferred until concrete need ([ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md)).
+LearnStack ships **two independent Next.js applications**:
 
-This document covers app shape, tenant resolution at the edge, theming, rendering strategies, data fetching, the page-block resolver, and the path to extracting independent apps when warranted.
+- **`apps/web`** in *this* repository — the tenant-facing surface. One Next.js app
+  (App Router) with `(public)`, `(studio)`, and `(portal)` route segments separating
+  marketing/CMS rendering, admin Studio, and learner/instructor portals. The multi-app
+  split is deferred until concrete need
+  ([ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md)).
+- **`learnstack-hub-web`** in the **separate `learnstack-hub` repository** — the
+  **operator portal** at `hub.learnstack.dev`. Operators authenticate against the
+  `learnstack-hub` Keycloak realm (ADR-0004 Amendment 1); different realm, different
+  user pool, different domain. The two apps **do not share code at runtime**. If a
+  shared design-system package is later extracted (`packages/ui`), it is a build-time-only
+  dependency. The operator portal scope lives in
+  [24-learnstack-hub.md §6](24-learnstack-hub.md) and is not duplicated here.
+
+This document covers `apps/web`: app shape, tenant resolution at the edge, theming with
+optional per-organization override, rendering strategies, data fetching, the tenant-driven
+block resolver, entitlement-aware UI, custom-domain handling, and the path to extracting
+independent apps when warranted.
 
 ## App Shape
 
 ```text
-apps/web/
-  src/
-    app/
-      (public)/
-        [tenant-by-host]/        # virtual segment, resolved in middleware
-        page.tsx
-        courses/
-        blog/
-      (studio)/
-        login/
-        dashboard/
-        content/
-        pages/
-        courses/
-        media/
-      (portal)/
-        my-courses/
-        lesson/[id]/
-        sessions/
-      api/                       # only thin BFF proxies, see "Data Fetching"
-    components/
-      blocks/                    # core page blocks
-      ui/                        # design-system primitives
-    lib/
-      api/
-      auth/
-      tenant/
-      i18n/
-    middleware.ts                # tenant + locale resolution
-    extensions/                  # client-side block resolver, see Page Builder
-packages/
-  ui/                            # extracted only once duplication is real
-  sdk/                           # generated typed API client
-  config/                        # eslint, tsconfig, tailwind shared bits
+frontend/
+  apps/
+    web/                                  # the only tenant-facing Next.js app
+      src/
+        app/
+          (public)/
+            [tenant-by-host]/             # virtual segment, resolved in middleware
+            page.tsx
+            courses/
+            blog/
+          (studio)/
+            login/
+            dashboard/
+            content/
+            pages/
+            courses/
+            media/
+          (portal)/
+            my-courses/
+            lesson/[id]/
+            sessions/
+          api/                            # only thin BFF proxies, see "Data Fetching"
+        components/
+          blocks/                         # built-in primitive page blocks
+          ui/                             # design-system primitives
+        lib/
+          api/
+          auth/
+          tenant/
+          i18n/
+        middleware.ts                     # tenant + organization + locale resolution
+        extensions/                       # client-side block resolver, see Page Builder
+  packages/
+    ui/                                   # extracted only once duplication is real
+    sdk/                                  # generated typed API client
+    config/                               # eslint, tsconfig, tailwind shared bits
 ```
+
+The operator portal (`learnstack-hub-web`) is a **separate Next.js application in the
+separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
+tree.
 
 Two boundaries inside one app:
 
@@ -50,23 +72,25 @@ Two boundaries inside one app:
 
 Splitting into separate apps is governed by [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md); the split triggers (independent deploy cadence, build-time becomes a bottleneck, separate teams) are listed there.
 
-## Tenant Resolution at the Edge
+## Tenant + Organization Resolution at the Edge
 
-Next.js middleware resolves the tenant before any route handler runs.
+Next.js middleware resolves the tenant (and optionally the organization) before any
+route handler runs. The same resolution is the backend's source of truth: the API
+re-validates the resolved IDs from the JWT and host against `IHostToTenantResolver`.
 
 ```ts
 // src/middleware.ts
 export async function middleware(req: NextRequest) {
   const host = normaliseHost(req.headers.get('host') ?? '');
-  const tenant = await resolveTenantByHost(host);
-  if (!tenant) return new NextResponse(null, { status: 404 });
+  const resolved = await resolveHost(host);   // calls /v1/tenants/resolve-host
+  if (!resolved) return new NextResponse(null, { status: 404 });
 
-  const locale = resolveLocaleFromPathOrTenant(req.nextUrl, tenant);
+  const locale = resolveLocaleFromPathOrTenant(req.nextUrl, resolved.tenant);
 
   const res = NextResponse.next();
-  res.headers.set('x-tenant-id', tenant.id);
+  res.headers.set('x-tenant-id', resolved.tenant.id);
+  if (resolved.organizationId) res.headers.set('x-organization-id', resolved.organizationId);
   res.headers.set('x-locale', locale);
-  // forward to downstream API calls
   return res;
 }
 
@@ -75,20 +99,31 @@ export const config = {
 };
 ```
 
-`resolveTenantByHost` is backed by a short-TTL edge cache (~60 s) that fetches from the API. Tenant deletions invalidate the cache via a webhook into the edge runtime (Vercel KV / Cloudflare KV / equivalent).
+`resolveHost` is backed by a short-TTL edge cache (~60 s) that calls the LearnStack API,
+which in turn reads the `platform_host_to_tenant` projection (populated by the Hub —
+[27-custom-domain-tls.md](27-custom-domain-tls.md)). Custom-domain activations and
+deactivations on the Hub side publish a `learnstack.hub.custom-domain.activated`
+(and `.deactivated`) Dapr pub/sub event; LearnStack listens, invalidates the
+`ICacheService` entry, and the next edge fetch picks up the change. Tenant deletions
+similarly invalidate via Dapr pub/sub.
+
+A request to an org-scoped subdomain (`branch-istanbul.example.edu`) resolves to the
+parent tenant id **plus** an organization id; the rest of the page render gets
+appropriate filtering for free because the API enforces the org scope from the headers.
 
 ```mermaid
 sequenceDiagram
     Browser->>Edge: GET https://english.example.com/tr/courses
-    Edge->>Edge: cache lookup host -> tenantId
+    Edge->>Edge: cache lookup host -> {tenantId, organizationId?}
     alt cache miss
-        Edge->>API: GET /v1/tenants/resolve?host=english.example.com
-        API-->>Edge: tenant
+        Edge->>API: GET /v1/tenants/resolve-host?host=english.example.com
+        API->>API: SELECT FROM platform_host_to_tenant WHERE host = $1
+        API-->>Edge: { tenantId, organizationId?, branding }
         Edge->>Edge: cache (60s SWR)
     end
-    Edge->>Next: forward with x-tenant-id, x-locale headers
-    Next->>API: subsequent fetches include x-tenant-id
-    API-->>Next: tenant-scoped responses
+    Edge->>Next: forward with x-tenant-id, x-organization-id?, x-locale
+    Next->>API: subsequent fetches include the headers
+    API-->>Next: tenant- + org-scoped responses
     Next-->>Browser: rendered HTML
 ```
 
@@ -106,17 +141,27 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-A tenant's branding flows from the API as design tokens. The renderer applies them as CSS variables on the document root.
+A tenant's branding flows from the API as design tokens. The renderer applies them as
+CSS variables on the document root. When the resolved request carries an organization
+id and that organization has a `BrandingOverride`, the override merges on top of the
+tenant defaults before injection — the merged token set is the source of truth for the
+SSR'd page.
 
 ```html
 <html style="--brand-primary: #1f3a8a; --brand-on-primary: #ffffff; --brand-font: 'Inter';">
 ```
 
-Tailwind reads these variables via `theme.extend.colors.brand.primary = 'rgb(var(--brand-primary) / <alpha-value>)'`. The first paint is themed; there is no FOUC because tokens are injected into the SSR'd HTML.
+Tailwind reads these variables via
+`theme.extend.colors.brand.primary = 'rgb(var(--brand-primary) / <alpha-value>)'`.
+The first paint is themed; there is no FOUC because tokens are injected into the SSR'd
+HTML.
 
-Logo and font assets are URLs (served from CDN). Custom fonts are validated and rate-limited at upload to prevent unbounded font payloads.
+Logo and font assets are URLs (served from CDN). Custom fonts are validated and
+rate-limited at upload to prevent unbounded font payloads.
 
-A `ThemeProvider` is **not** introduced unless dynamic theme switching is needed; the CSS-variable approach handles the static-per-request case more cheaply.
+A `ThemeProvider` is **not** introduced unless dynamic theme switching is needed; the
+CSS-variable approach handles the static-per-request case (one render = one theme = one
+merge of tenant + optional org) more cheaply.
 
 ## Data Fetching
 
@@ -138,24 +183,90 @@ Auth is delegated to the identity provider (Keycloak/Authentik, see [Identity an
 
 ## Page-Block Resolver
 
-The CMS stores pages as ordered lists of blocks. The renderer resolves each block to a component:
+The CMS stores pages as ordered lists of blocks. The renderer resolves each block to a
+component using a two-tier registry:
 
 ```ts
 type BlockResolver = {
   register(key: string, component: BlockComponent): void;
-  resolve(key: string): BlockComponent;
+  resolveAsync(tenantId: string, key: string): Promise<BlockComponent>;
 };
 
-// At startup:
+// Tier 1 — at startup, code-registered built-in primitives:
 resolver.register('hero', HeroBlock);
 resolver.register('rich-text', RichTextBlock);
-// vertical-provided blocks registered by the active vertical packages:
-resolver.register('english.vocabulary-list', VocabularyList);
+resolver.register('image', ImageBlock);
+resolver.register('content-list', ContentListBlock);
+resolver.register('card-grid', CardGridBlock);
+
+// Tier 2 — tenant-defined blocks via TenantPageBlock (ADR-0018):
+// the renderer fetches the tenant's TenantPageBlock catalog from the API and dynamically
+// resolves keys against a JSON-Schema-driven composite renderer that knows how to read
+// the block's data shape and dispatch to a registered renderer-key (e.g. 'default-card').
 ```
 
-Unknown keys render a placeholder (a small "block unavailable" notice in studio preview, an empty fragment in production). This is the renderer-side counterpart to [Page Builder](17-page-builder.md) schema-version handling.
+There is **no `english.vocabulary-list` block in code**. A tenant that wants vocabulary
+cards declares a `TenantContentType` (`VocabularyCard`) plus a `TenantPageBlock`
+(`vocabulary-list` → renderer-key `content-list`); the renderer reads the schema, queries
+the content entries, and renders the list with the chosen `content-list` composite.
+Different tenants get different blocks **without code changes** — this is the runtime
+counterpart to [Page Builder](17-page-builder.md) and the
+[Tenant Customization Model](32-tenant-customization-model.md).
 
-Server Components are preferred for blocks; Client Components are used only for blocks with interactivity (forms, video players, the live classroom panel).
+Unknown keys render a placeholder (a small "block unavailable" notice in studio
+preview, an empty fragment in production). Schema-version mismatches between a
+block's stored data and its current `TenantPageBlock` schema fall back to the placeholder
+plus a console warning in studio.
+
+Server Components are preferred for blocks; Client Components are used only for blocks
+with interactivity (forms, video players, the live classroom panel).
+
+## Entitlement-Aware UI
+
+The frontend reads the tenant's entitlement projection through a thin API endpoint
+backed by `platform_entitlement_cache`. Two hooks expose the data:
+
+```ts
+const recordingEnabled = useFeatureFlag(FeatureKeys.ClassroomRecording);
+const { current, limit, soft } = useLimit(LimitKeys.ConcurrentLiveSessions);
+```
+
+Three UI patterns flow from these:
+
+1. **Feature gating.** Tabs / nav items / buttons whose feature key is not in the
+   entitlement projection are hidden, not greyed out. Example: the *Custom Domain* tab
+   in Studio is absent for tenants whose plan doesn't include `FeatureKeys.CustomDomain`.
+2. **Limit visualization.** Studio shows `current / limit` for limit keys
+   (`100/500 users`, `12,000/50,000 classroom minutes`) with a colour ramp at 80% / 95%.
+   Limits projected as `soft` show a banner but allow the action; `hard` block at the
+   API layer (the frontend re-renders the blocking error from RFC 7807).
+3. **Upgrade nudges.** A blocked action surfaces a link to the tenant's plan management
+   page in the **Hub** (or, on Self-Hosted, a `mailto:` to the LearnStack vendor) —
+   never an in-app "upgrade now" form, because the storefront and billing for the
+   tenant's *own* LearnStack subscription live on Hub-side, not in `apps/web`.
+
+The entitlement projection is invalidated eagerly on the
+`learnstack.hub.entitlement` Dapr pub/sub event (15-min TTL is the upper bound, not the
+typical refresh window).
+
+## Custom Domains
+
+Custom-domain registration, DNS validation, and TLS issuance are **Hub-owned admin
+actions**. The tenant-facing surface in `apps/web` is read-only:
+
+- Studio shows the current custom-domain status (`pending-dns`, `pending-tls`,
+  `active`, `failed`) by reading the entitlement projection (which mirrors Hub's
+  `CustomDomain` aggregate).
+- Studio renders a banner with the DNS records the tenant must add and a "Recheck now"
+  button that **proxies to a Hub admin endpoint** through the internal API.
+- Registering a *new* custom domain happens in the **operator portal**
+  (`learnstack-hub-web`), not in `apps/web`. Tenant admins request a domain via a form
+  in Studio that creates a support ticket / Hub-side request — the actual create is an
+  operator action.
+
+Full flow: [27-custom-domain-tls.md](27-custom-domain-tls.md). Auth-cookie scoping for
+custom domains uses SameSite-Lax with explicit `Domain=` per active host; no cookies
+shared across tenants.
 
 ## Live Classroom Integration
 
@@ -189,18 +300,38 @@ CI runs Lighthouse on representative public pages on every PR; budgets failing t
 
 ## Splitting into Multiple Apps Later
 
-If and when the single-app model breaks down (rebuild times, deploy cadence conflicts, separate teams owning different surfaces), the split path is:
+The operator portal split has already happened: `learnstack-hub-web` is a *separate
+repository*, not a separate app within this repo. Within `apps/web`, if and when the
+single-app model breaks down (rebuild times, deploy cadence conflicts, separate teams
+owning different surfaces), the split path is:
 
-1. Extract `packages/ui` first — duplicated primitives become a shared package.
+1. Extract `packages/ui` first — duplicated primitives become a shared package. (This
+   is the same `packages/ui` candidate that, post-extraction, could be a build-time
+   dependency for `learnstack-hub-web` as well.)
 2. Extract `packages/sdk` — already generated, easy lift.
-3. Move `(studio)` into `apps/studio`. Keep `(public)` and `(portal)` together initially.
+3. Move `(studio)` into `apps/studio`. Keep `(public)` and `(portal)` together
+   initially.
 4. Move `(portal)` into `apps/portal` only when its needs diverge from `(public)`.
 
-The route-segment structure today is deliberately shaped to make this extraction mechanical.
+The route-segment structure today is deliberately shaped to make this extraction
+mechanical.
 
 ## Risks
 
-- **Per-tenant SSR cost** — caching is per `(tenantId, locale, slug)`. Cardinality is bounded; budget memory headroom.
-- **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use SameSite-Lax + path scoping; do not share auth cookies across tenants. Domain registration and TLS flow: [22-custom-domains.md](22-custom-domains.md).
-- **Brand-token contrast failures** — surface a warning at save time, not a render-time surprise.
-- **Block schema drift** — verticals shipping new block versions while the renderer is older. The placeholder path keeps this safe; CI tests verify forward compatibility.
+- **Per-tenant SSR cost** — caching is per `(tenantId, organizationId?, locale, slug)`.
+  Cardinality is bounded; budget memory headroom.
+- **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use
+  SameSite-Lax + explicit `Domain=` per host; do not share auth cookies across tenants.
+  Domain registration and TLS flow:
+  [27-custom-domain-tls.md](27-custom-domain-tls.md).
+- **Brand-token contrast failures** — surface a warning at save time, not a render-time
+  surprise. The contrast check also runs against the merged tenant+org token set, not
+  only the tenant defaults.
+- **Block schema drift** — tenants editing their `TenantPageBlock` schema while pages
+  have stored content against the older shape. The renderer's placeholder path keeps
+  this safe; the customization editor surfaces the drift at save time and offers a
+  migration hint.
+- **Entitlement projection staleness** — the 15-min TTL is a fallback; eager
+  invalidation via the Dapr event is the typical path. A tenant whose plan was just
+  upgraded but whose UI hasn't refreshed sees the new features within seconds of the
+  Hub publishing the event, not 15 minutes.

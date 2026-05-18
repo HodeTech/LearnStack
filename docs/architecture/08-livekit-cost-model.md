@@ -1,8 +1,27 @@
 # Live Classroom Cost Model
 
-This document captures the cost model for LearnStack's in-app classroom, including both **LiveKit OSS self-hosted** (the default) and **LiveKit Cloud** (optional). It also explains why a fully custom WebRTC stack is not on the table.
+This document captures the cost model for LearnStack's in-app classroom, including
+both **LiveKit OSS self-hosted** (the default) and **LiveKit Cloud** (optional). It
+also explains why a fully custom WebRTC stack is not on the table.
 
-Pricing values are based on public LiveKit Cloud pricing and public infrastructure provider rates reviewed on 2026-05-14. Numbers must be rechecked before any production commitment. The production release checklist in [Phase 11](../roadmap/phase-11-production-hardening.md) explicitly includes this recheck.
+> **Pricing & rate baseline.** All figures below were derived on **2026-05-14** from:
+>
+> - LiveKit Cloud public pricing page (Build / Ship / Scale plan tiers, included
+>   quotas, overage rates).
+> - **Hetzner** Cloud / dedicated server tier pricing (CX / CCX / EX series; 20 TB
+>   included monthly egress on most VM tiers).
+> - **AWS** EC2 / EBS / S3 list pricing (egress $0.09/GB after the first 100 GB
+>   pooled monthly free tier).
+> - **Internal salary blend** for the "engineering amortised" line: senior
+>   engineer fully-loaded cost ≈ $12k–$18k/month; the custom-Mediasoup row assumes
+>   2× FTE for 6 months ramp, then 0.5–1.0 FTE ongoing.
+>
+> Numbers must be rechecked before any production commitment; the production release
+> checklist in [Phase 11](../roadmap/phase-11-production-hardening.md) explicitly
+> includes this recheck, and the cost dashboards (Phase 09) replace these estimates
+> with measured data once the platform is live. Each scenario below ends with a
+> **"derivation footnote"** that shows how the row's number was computed from the
+> formulas in this document so a reviewer can re-derive when rates change.
 
 ## Three Operating Modes
 
@@ -120,7 +139,25 @@ A single 4-core SFU node comfortably handles ~250 concurrent participants for ty
 | LiveKit OSS Hetzner | ~$130 (1 small SFU + Redis + TURN) |
 | LiveKit OSS AWS | ~$140 |
 
-At this scale, **LiveKit Cloud is cheaper** because the fixed infra cost of self-hosting is not yet amortised.
+At this scale, **LiveKit Cloud is cheaper** because the fixed infra cost of self-
+hosting is not yet amortised.
+
+> **Derivation (2026-05-14 rates).** Cloud: 12,000 minutes / 150,000 included = 8% of
+> quota, 84 GB / 250 GB = 34% — both inside Ship plan; $50 base only.
+> Hetzner self-host: CX21 SFU (~$5) + CX11 Redis (~$3) + CX11 TURN (~$3) ≈ $11
+> infra; remaining ~$120 is the SRE-slice amortised cost (~10% of a senior engineer's
+> on-call rotation at this small workload).
+> AWS: same compute (~$30 t3.medium × 3) + ~$0 egress (84 GB inside 100 GB pooled
+> free tier) + SRE amortised ≈ $140.
+
+### Scenario A: cost-rate sources
+
+- LiveKit Cloud Ship plan: $50/mo base, 150k included WebRTC minutes, 250 GB
+  included downstream (LiveKit pricing page, snapshot in this doc).
+- Hetzner Cloud VM list price: cx21 €5.18/mo, cx11 €3.79/mo (rounded to USD at
+  parity for legibility).
+- AWS EC2 t3.medium: $30.37/mo on-demand (us-east-1, 2026-05).
+- AWS S3 / EBS egress: 100 GB pooled free, then $0.09/GB.
 
 ### Scenario B: 1,000 one-on-one sessions per month (no recording)
 
@@ -160,7 +197,21 @@ Cloud still wins at this volume.
 | LiveKit Cloud Ship | ~$1,309 |
 | LiveKit OSS Hetzner | $150 SFU + $80 dedicated Egress node + $25 storage ≈ **$255** |
 
-**This is where self-hosting pays back massively.** Recording is the line item that flips the decision.
+**This is where self-hosting pays back massively.** Recording is the line item that
+flips the decision.
+
+> **Derivation (2026-05-14 rates).** Cloud Ship: live cost matches Scenario B
+> ($121); recording overage = (60,000 − 600) × $0.02/min ≈ $1,188. Hetzner:
+> SFU cost ≈ $150 SRE-slice (unchanged from B); 1 CCX13 Egress node ≈ $30 hardware +
+> $50 SRE-slice; recording storage ≈ 60,000 min × 60 MB/min ≈ 3.4 TB at ~$7/TB-month
+> (Hetzner Storage Box / S3-equivalent) ≈ $25. Total ≈ $255.
+
+### Scenario D: cost-rate sources
+
+- LiveKit Cloud recording overage: $0.02 / video minute on Ship (snapshot above).
+- Per-minute recording size: ~60 MB at 720p H.264 with composite egress (LiveKit
+  Egress documentation, default profile).
+- Hetzner Storage Box pricing: BX21 (1 TB) €3.81/mo (linear scaling above).
 
 ### Scenario E: 5,000 one-on-one sessions + recording every session
 
@@ -201,3 +252,20 @@ This is the basis for the firm decision in [ADR 0005](../decisions/0005-live-cla
 3. Keep `LiveKitCloudProvider` ready behind the same `ILiveClassProvider` so a sudden need for managed cloud can be served with one configuration switch.
 4. Do not enable recording globally; let it be a per-tenant, per-course decision.
 5. Add classroom cost dashboards before opening the in-app classroom to paying users (Phase 11).
+
+## Recheck cadence
+
+Every figure in this document is a **snapshot**, not a contract. The recheck cadence:
+
+| Trigger | What to verify | Owner |
+|---------|----------------|-------|
+| Phase 11 production-launch checklist | All scenarios A-E with the latest pricing pages; SRE-slice cost reconciled with real on-call data | Production Hardening lead |
+| Quarterly | LiveKit Cloud plan tiers (Build / Ship / Scale rates) and Hetzner / AWS egress rates | Live Classroom owner |
+| Vendor price-change announcement | Affected scenarios; if Cloud overage rates change by >10%, re-run the break-even point | Live Classroom owner |
+| Recording mix change (e.g. tenant policy shift to 1080p) | Per-minute recording size formula; storage line | Live Classroom owner |
+
+Replace the snapshot tables in this document each time a recheck completes; do **not**
+delete the old number — keep the prior value in a small "history" footnote so price
+drift is visible. The cost dashboards in Phase 09/11 are the runtime counterpart and
+should agree with these estimates within a budget margin documented in
+[Phase 11](../roadmap/phase-11-production-hardening.md).

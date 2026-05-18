@@ -7,36 +7,47 @@
 | Backend runtime | .NET 10, ASP.NET Core Web API |
 | Language | C# |
 | ORM | Entity Framework Core |
-| Database | PostgreSQL 16+ |
-| Cache & coordination | Redis 7+ |
+| Database | PostgreSQL 16+ (shared schema + RLS isolation; ADR-0003) |
+| Cache & coordination | **Redis 7+ via Dapr State Store** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
+| Pub/Sub | **Apache Kafka via Dapr Pub/Sub** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) — outbox dispatch target |
+| Secrets | **HashiCorp Vault via Dapr Secret Store** (or env-var fallback in Dev) |
+| Distributed runtime | **Dapr 1.14+** sidecar pattern (pub/sub, state, secrets) |
 | Object storage | MinIO (local), S3-compatible (production) |
 | Background jobs | Hangfire (Postgres storage) |
-| Search | Meilisearch (initial), OpenSearch (later, if needed). See [Search](20-search.md) and [ADR 0012](../decisions/0012-search-strategy.md) |
-| Auth | Keycloak (self-hosted OIDC) — see [Authentication Strategy](13-identity-and-auth.md) |
-| Live classroom | LiveKit OSS (self-hosted) + coturn — see [In-App Live Classroom](07-in-app-live-classroom.md) |
-| Frontend | Next.js (App Router), React, TypeScript |
-| API contract | REST + OpenAPI; GraphQL only if a clear frontend requirement appears |
-| Observability | OpenTelemetry (traces + metrics + logs), Sentry |
-| Container runtime | Docker; Docker Compose locally; Kubernetes or Nomad in production |
+| Search | Meilisearch (initial), OpenSearch (later, if needed). See [ADR 0012](../decisions/0012-search-strategy.md) |
+| Auth | Keycloak (self-hosted OIDC) — two realms: `learnstack` (tenant users) + `learnstack-hub` (operators); ADR-0004 Amendment 1 |
+| Live classroom | LiveKit OSS (self-hosted) + coturn — see [07-in-app-live-classroom.md](07-in-app-live-classroom.md) |
+| Frontend | Next.js (App Router), React, TypeScript — one app for tenant users (`apps/web`); separate Next.js app for Hub operators (`learnstack-hub-web`, in `learnstack-hub` repo) |
+| API gateway | **Apache APISIX** (standalone mode) — JWT validation, rate limit, CORS, correlation ID; [30-api-gateway.md](30-api-gateway.md), [ADR-0015](../decisions/0015-api-gateway-apisix.md) |
+| API contract | REST + OpenAPI + RFC 7807 Problem Details; GraphQL only if a clear frontend requirement appears |
+| Observability | OpenTelemetry (traces + metrics + logs), Sentry, Grafana + Tempo + Loki + Prometheus |
+| Container runtime | Docker; Docker Compose locally; Kubernetes (Helm chart) in production |
+| **Control plane (Hub)** | **`learnstack-hub`** — separate codebase + separate Keycloak realm + separate Postgres schema. Manages tenant lifecycle, plans, subscriptions, entitlements, custom domains, compliance caps. [24-learnstack-hub.md](24-learnstack-hub.md), [ADR-0019](../decisions/0019-learnstack-hub.md) |
+| Deployment | **SaaS / Dedicated / Self-Hosted** (online + air-gapped) all from one codebase; hybrid license model with phone-home + RSA-signed key + 30-day grace; [25-deployment-models.md](25-deployment-models.md), [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md) |
 
 ## High-Level Architecture
 
 ```mermaid
 flowchart LR
   subgraph clients["Clients"]
-    web[Public Site<br/>Next.js]
-    studio[Admin Studio<br/>Next.js]
-    portal[Learner / Instructor Portal<br/>Next.js]
+    web[Public Site / Studio / Portal<br/>Next.js apps/web]
+    hubweb[Hub Operator Portal<br/>Next.js learnstack-hub-web]
   end
 
   subgraph edge["Edge"]
     cdn[CDN]
-    proxy[Reverse Proxy<br/>Traefik or NGINX]
+    apisix[APISIX gateway<br/>JWT + Rate limit + CORS + Correlation]
   end
 
   subgraph backend["LearnStack Backend"]
     api[ASP.NET Core API<br/>Modular Monolith]
+    daprd1[Dapr sidecar]
     workers[Hangfire Workers<br/>jobs + outbox dispatcher]
+  end
+
+  subgraph hubplane["LearnStack Hub (separate codebase)"]
+    hubapi[Hub API]
+    daprd2[Hub Dapr sidecar]
   end
 
   subgraph data["Data Plane"]
@@ -44,6 +55,8 @@ flowchart LR
     redis[(Redis)]
     minio[(MinIO / S3)]
     meili[(Meilisearch)]
+    kafka[(Kafka)]
+    vault[(HashiCorp Vault)]
   end
 
   subgraph realtime["Realtime / Live"]
@@ -53,25 +66,40 @@ flowchart LR
   end
 
   subgraph identity["Identity"]
-    keycloak[Keycloak OIDC]
+    kc_main[Keycloak realm: learnstack<br/>tenant users]
+    kc_hub[Keycloak realm: learnstack-hub<br/>operators]
   end
 
-  web --> cdn --> proxy --> api
-  studio --> proxy --> api
-  portal --> proxy --> api
-  portal -. WebRTC .-> lk
+  web --> cdn --> apisix --> api
+  hubweb --> apisix
+  apisix -- "host: hub.learnstack.dev" --> hubapi
+  web -. WebRTC .-> lk
   lk -. media .-> turn
+
+  api <-.-> daprd1
+  daprd1 --> kafka
+  daprd1 --> redis
+  daprd1 --> vault
+
+  hubapi <-.-> daprd2
+  daprd2 --> kafka
+  daprd2 --> redis
+  daprd2 --> vault
+
   api --> pg
-  api --> redis
   api --> minio
   api --> meili
-  api --> keycloak
+  api --> kc_main
   api --> lk
   workers --> pg
-  workers --> redis
   workers --> minio
   egress --> minio
   lk --> egress
+
+  hubapi -- "mTLS + signed JWT + HMAC<br/>POST /api/internal/*" --> api
+  api -- "API key<br/>POST /api/v1/internal/license/verify" --> hubapi
+  hubapi --> kc_hub
+  hubapi --> pg
 ```
 
 ## Architecture Style

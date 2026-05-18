@@ -2,7 +2,40 @@
 
 ## Status
 
-Accepted
+**Superseded by [ADR-0018: Tenant-Driven Customization Model](0018-tenant-driven-customization-model.md)
+on 2026-05-18.**
+
+The original decision below is retained for historical context. New work must follow
+ADR-0018.
+
+### Why superseded
+
+ADR-0011 committed LearnStack to a code-package vertical model: LearnStack would maintain
+verticals (English, Exam Prep, Corporate Academy) as separate assemblies registering
+typed extensions at startup. On 2026-05-18 the team revisited the platform thesis and
+concluded:
+
+- LearnStack is positioned as a PaaS for arbitrary education domains (yoga, coding,
+  language, music, …), not a closed list of curated verticals.
+- The DLL-plug-in model creates security, version-management, and operational risk that
+  doesn't pay back for a small team.
+- Tenants will build platforms in domains LearnStack engineers don't anticipate; the
+  customization model must be **data-driven**, not code-driven.
+
+ADR-0018 replaces the typed extension registry with **tenant-driven customization**:
+content types, page blocks, lesson item types, scoring rules, level taxonomies live as
+**rows in the tenant's database** with JSON Schema definitions. The same modules ship to
+every tenant; differentiation lives in data.
+
+ADR-0011 was never implemented (the design landed pre-implementation), so no migration is
+required — the `IModuleExtension`, `IExtensionRegistry`, `tenant_extensions` table, and
+`LearnStack.Verticals.*` source folder are simply not created.
+
+---
+
+## Original Decision (no longer in effect)
+
+Accepted (pre-supersede)
 
 ## Decision
 

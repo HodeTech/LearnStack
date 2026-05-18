@@ -33,6 +33,7 @@ This directory contains the engineering rules that apply across the LearnStack c
 | 17 | [Code Review Standards](17-code-review.md) | What to look for, what *not* to block on, etiquette. Zero-tolerance blockers and author self-review gate. |
 | 18 | [Audit Coverage Standards](18-audit-coverage.md) | Which operations must be audited; payload contract; retention; per-module classification matrix. |
 | 19 | [Permissions Standards](19-permissions.md) | `{module}.{resource}.{action}` naming, closed action set, registry pattern, matrix template, built-in roles. |
+| 20 | [Infrastructure Stack Standards](20-infrastructure-stack.md) | Dapr building blocks (`IEventBus`, `ICacheService`, `ISecretProvider`), APISIX gateway, Hub HTTPS contract surface, entitlement projection, outbox/inbox usage. |
 
 ## Status of Each Standard
 

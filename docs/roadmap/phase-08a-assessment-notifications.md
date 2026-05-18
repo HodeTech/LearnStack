@@ -28,33 +28,44 @@ This phase covers assessment, notification workflows, background job foundations
 
 ### Placement Test Readiness
 
-The core remains generic.
+The core remains generic per
+[ADR-0018](../decisions/0018-tenant-driven-customization-model.md).
 
 Core provides:
 
-- Assessment.
-- Scoring.
-- Result bands.
-- Attempt lifecycle.
+- Assessment, attempt, attempt-answer, score primitives.
+- Attempt lifecycle (started → in-progress → submitted → graded → published).
+- A **scoring engine** that evaluates `TenantScoringRule` DSL expressions against an
+  attempt's answer map and returns a structured result. Built-in primitive operators
+  cover sum, weighted-sum, threshold-band, and lookup-table operations; tenant rules
+  compose these.
+- Result-band → recommendation projection (e.g. a band `{min, max} → level_key`
+  mapping that resolves against the tenant's `TenantLevelTaxonomy`).
 
-The English vertical adds:
+The **English tenant** (Phase 10) ships its placement test as:
 
-- CEFR mapping.
-- Grammar, vocabulary, listening, or speaking sections.
-- Level recommendation rules.
+- A `TenantScoringRule` row that weights grammar / vocabulary / listening / speaking
+  sections and emits a CEFR level recommendation.
+- A `TenantLevelTaxonomy` row declaring CEFR (A1, A2, B1, B2, C1, C2).
+- A `TenantContentType` for `SpeakingPrompt`, `VocabularyCard`, `GrammarTopic`
+  question content.
+
+A **yoga tenant** ships the same kind of placement test with completely different
+data (sections: balance / flexibility / breath; result-band → asana-difficulty
+recommendation) — **same code path, different `TenantScoringRule` and
+`TenantLevelTaxonomy` rows**.
 
 ### Notifications
 
-- Notification template.
-- Notification channel:
-  - Email
-  - SMS placeholder
-  - WhatsApp placeholder
-  - In-app placeholder
-- Notification preference.
-- Dispatch job.
+- Notification dispatch orchestration in the Notifications module.
+- Channels: email (wired), SMS placeholder, WhatsApp placeholder, in-app placeholder.
+- Notification preference per user.
+- Dispatch job (Hangfire-backed).
 - Delivery status.
-- Template variables.
+- Template resolution via **`TenantTemplateLibrary`** (the
+  customization-module-owned aggregate scaffolded in Phase 02a) — per-channel,
+  per-locale, optional per-organization override. Templates author body + subject in
+  Liquid / Handlebars; the dispatcher renders against the dispatch context.
 
 ### Notification Use Cases
 
@@ -95,6 +106,12 @@ The English vertical adds:
 
 - Building a full assessment engine too early.
 - Hardcoding notification providers into core logic.
-- Putting English-specific placement-test rules into the core assessment module.
+- Putting any domain-specific placement-test rule (CEFR mapping, asana difficulty,
+  kyu/dan progression, …) into the core Assessment module. All such rules live as
+  `TenantScoringRule` rows. The architecture test
+  `Core_Modules_HaveNo_DomainSpecific_Names` enforces this.
 - Running background jobs without tenant context.
+- Choosing a scoring DSL engine ad-hoc — the engine choice is an ADR-pending item
+  that **must land before this phase implements** the scoring engine. See
+  [decisions/README.md § Open ADR Drafts](../decisions/README.md).
 

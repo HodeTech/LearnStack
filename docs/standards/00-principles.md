@@ -6,11 +6,29 @@ These are the beliefs that every other standard descends from. When a standard a
 
 ## 1. The Core Stays Generic
 
-LearnStack is a platform for many education products. The core never holds vertical-specific business rules. CEFR levels, exam curricula, certification flows — all of these live in vertical modules. If a feature request would put product-specific logic into a generic core module, the request is wrong, not the standard.
+LearnStack is a platform for many education products. The core never holds
+domain-specific business rules. CEFR levels, exam curricula, certification flows, kyu
+ranks, asana catalogs, kata progressions, beat-counting exercises — all of these live as
+**tenant customization data** ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)),
+not as code in any module. If a feature request would put product-specific logic into a
+core module, the answer is to express it as a `TenantContentType`, `TenantLevelTaxonomy`,
+`TenantScoringRule`, `TenantCompletionRule`, `TenantLessonItemType`, or
+`TenantCustomFieldDef` — not to add a module or branch on a domain identifier.
+
+A class, file, table, column, permission, or audit event name in the core that contains
+a domain term (`CEFR`, `English`, `Asana`, `Kyu`, …) is a bug. The architecture test
+`Core_Modules_HaveNo_DomainSpecific_Names` guards against this.
 
 ## 2. Tenant Isolation Is Not a Feature, It Is a Boundary Condition
 
-Every read, every write, every job, every event, every log line, every metric is tenant-scoped unless it is an explicit platform-admin operation. There is no "we'll harden tenant isolation later." It is in from day one and defended in depth.
+Every read, every write, every job, every event, every log line, every metric is
+tenant-scoped (and, where applicable, organization-scoped per
+[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)) unless it is an
+explicit platform-admin operation. There is no "we'll harden tenant isolation later."
+It is in from day one and defended in depth: tenant context + EF query filter +
+PostgreSQL RLS + architecture tests, with the same four-layer treatment for the
+organization dimension where the entity is org-scoped. The architecture tests run on
+Day 1 of Phase 02, not as a Phase-11 cleanup pass.
 
 ## 3. Modules Talk Through Contracts, Not Tables
 
@@ -18,7 +36,17 @@ The modular monolith works only because modules pretend to be services. Cross-mo
 
 ## 4. Providers Are Adapters
 
-Anything that crosses the LearnStack boundary — payments, email, SMS, search, storage, identity, live-class media — lives behind an interface. The domain code knows nothing about Stripe, Postmark, MinIO, Keycloak, or LiveKit. Provider-specific code lives in `Infrastructure.<Provider>` packages.
+Anything that crosses the LearnStack boundary — payments, email, SMS, search, storage,
+identity, live-class media, the **Hub**, **entitlement source**, **host→tenant
+resolution**, **event bus**, **cache**, **secret store** — lives behind an interface.
+The domain code knows nothing about Stripe, Postmark, MinIO, Keycloak, LiveKit, Dapr,
+Kafka, Redis, Vault, or the Hub. Provider-specific code lives in
+`Infrastructure.<Provider>` packages. Swapping a provider is a composition-root edit,
+not a code change.
+
+In practice this means: `IEventBus` not `KafkaProducer`; `ICacheService` not
+`IConnectionMultiplexer`; `ISecretProvider` not `VaultClient`; `IEntitlementProvider`
+not `HubHttpClient`; `IHostToTenantResolver` not `IConfiguration["hosts:..."]`.
 
 ## 5. Explicit Over Implicit
 

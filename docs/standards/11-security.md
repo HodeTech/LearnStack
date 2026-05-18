@@ -1,7 +1,14 @@
 # 11 — Security Standards
 
 **Status:** Active
-**Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0004 — Authentication Strategy](../decisions/0004-authentication-strategy.md).
+**Derives from:** [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md)
+(Amendment 1: Organization Scope),
+[ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
+(Amendment 1: `learnstack-hub` realm),
+[ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
+[ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
+[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -35,17 +42,31 @@ Every security review walks this lens before signing off.
 | A09 Logging & Monitoring Failures | OpenTelemetry traces/metrics/logs; correlation id end-to-end; Sentry on errors; audit log on privileged ops ([18-audit-coverage.md](18-audit-coverage.md)). |
 | A10 SSRF | Outbound calls allow-listed; rendered outbound URLs validated against an allow-list before emit. |
 
-## Multi-Tenant Isolation Review Checklist
+## Multi-Tenant + Organization Isolation Review Checklist
 
-A PR that touches tenant-owned data, queries, or background jobs must answer **yes** to each item, or attach a written justification:
+A PR that touches tenant- or organization-owned data, queries, or background jobs must
+answer **yes** to each item, or attach a written justification:
 
-- [ ] Every new tenant-owned entity is `[TenantOwned]` and has both an EF query filter and a Postgres RLS policy.
-- [ ] No `IgnoreQueryFilters()` outside platform-admin code paths (Roslyn-allowlisted + audit-logged).
-- [ ] Every background job payload carries `TenantId`; the worker sets ambient tenant before any work.
-- [ ] Every integration event payload carries `tenant_id`; consumers restore tenant context before handling.
-- [ ] Raw SQL queries (if any) include `tenant_id` in the predicate explicitly.
-- [ ] Cache keys, search index names/filters, storage prefixes, and metric labels all carry tenant id (never as a high-cardinality metric label — see [10-observability.md](10-observability.md)).
-- [ ] At least one tenant-isolation integration test asserts that tenant A cannot read tenant B's data via the new surface.
+- [ ] Every new tenant-owned entity is `[TenantOwned]` and has both an EF query filter
+      and a Postgres RLS policy.
+- [ ] Every new **organization-scoped** entity carries `OrganizationId` (nullable when
+      the entity may be tenant-wide) and has an org-aware EF query filter + RLS policy
+      per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). The
+      architecture test `Every_OrgScoped_Entity_HasOrgIdAndFilter` checks the marker.
+- [ ] No `IgnoreQueryFilters()` outside platform-admin code paths (Roslyn-allowlisted +
+      audit-logged).
+- [ ] Every background job payload carries `TenantId` (and `OrganizationId?` when
+      relevant); the worker sets ambient tenant + org before any work.
+- [ ] Every integration event payload carries `tenant_id` (and `organization_id?` when
+      relevant); consumers restore tenant + org context before handling.
+- [ ] Raw SQL queries (if any) include `tenant_id` (and `organization_id` when
+      applicable) in the predicate explicitly.
+- [ ] Cache keys, search index names/filters, storage prefixes, and metric labels all
+      carry tenant id (and org id where applicable) — never as a high-cardinality
+      metric label, see [10-observability.md](10-observability.md).
+- [ ] At least one tenant-isolation integration test asserts that tenant A cannot read
+      tenant B's data via the new surface, **and** that org X cannot read org Y's data
+      within the same tenant where the entity is org-scoped.
 
 ## Transport
 
@@ -71,12 +92,64 @@ Every response from the API and the rendered apps must set:
 
 ## Authentication
 
-- OIDC via Keycloak. No handwritten password code; no handwritten token rotation.
-- Refresh tokens stored as `HttpOnly`, `Secure`, `SameSite=Lax` cookies; never accessible to JS.
-- Access tokens short-lived (≤ 1 hour) and refreshed via Auth.js silently.
-- MFA enrollment supported for tenant-admin roles; required for platform-admin.
-- Password policy delegated to Keycloak: minimum 12 chars, breach check via HIBP, no password reuse for the last 5.
-- Account lockout after 5 failed attempts in 10 minutes; lifted after 15 minutes or admin unlock.
+LearnStack runs **two Keycloak realms** per
+[ADR-0004 Amendment 1](../decisions/0004-authentication-strategy.md):
+
+- `learnstack` — the tenant-facing realm. All tenant admins, instructors, and learners
+  authenticate here. The realm includes the tenant id in token claims; the API
+  re-validates against the resolved tenant context.
+- `learnstack-hub` — the **operator realm**, used **only** by the Hub operator portal
+  (`hub.learnstack.dev`). Tenant-facing apps **never** accept `learnstack-hub` tokens;
+  the internal API (`/api/internal/*`) **only** accepts `learnstack-hub` tokens plus
+  the mTLS client certificate.
+
+General rules:
+
+- OIDC. No handwritten password code; no handwritten token rotation.
+- Refresh tokens stored as `HttpOnly`, `Secure`, `SameSite=Lax` cookies; never
+  accessible to JS.
+- Access tokens short-lived (≤ 1 hour) and refreshed silently by the BFF.
+- MFA enrollment supported for tenant-admin roles; required for platform-admin **and**
+  for every Hub operator account.
+- Password policy delegated to Keycloak: minimum 12 chars, breach check via HIBP, no
+  password reuse for the last 5.
+- Account lockout after 5 failed attempts in 10 minutes; lifted after 15 minutes or
+  admin unlock.
+
+## Ingress / Gateway (APISIX)
+
+All tenant-facing traffic enters through **APISIX** in standalone mode per
+[ADR-0015](../decisions/0015-api-gateway-apisix.md). The gateway is a defense-in-depth
+layer, not the sole control — the API re-verifies everything.
+
+- `jwt-auth` plugin verifies the access token against the `learnstack` realm's public
+  key set; the API also verifies. Both must pass.
+- `cors` plugin handles preflight; authenticated cross-origin traffic is allow-listed
+  per environment.
+- `limit-req` / `limit-count` plugins enforce the rate-limit policy below.
+- `mtls` plugin guards the `/api/internal/*` route set; the client certificate must be
+  signed by the LearnStack-internal CA.
+- Gateway config lives in `infra/apisix/` as YAML, version-controlled. No live edits.
+
+Direct ingress to backend pods (bypassing APISIX) is blocked at the network policy
+level.
+
+## Hub Contract Surface
+
+The LearnStack ↔ Hub API is a **separate, narrow** surface with stronger controls than
+tenant-facing endpoints. Per
+[ADR-0019](../decisions/0019-learnstack-hub.md):
+
+- **mTLS** with LearnStack-internal CA-signed client certs. Certs are rotated yearly.
+- **Signed JWT (RS256)** carrying `iss`, `aud=learnstack-internal`, `exp ≤ 5 min`,
+  `jti` (replay-protected via short-TTL inbox).
+- **HMAC body signature** in the `X-Signature` header (HMAC-SHA256 of the raw body
+  with a per-deployment shared secret).
+- All three layers must validate. Failure of any returns `401` with no detail leak.
+- The endpoint set is closed at four:
+  `POST /api/v1/internal/license/verify`, `POST /api/v1/usage/report`,
+  `PUT /api/internal/tenants/{id}/entitlements`, `POST /api/internal/tenants`. Adding
+  a fifth requires an ADR.
 
 ## Authorization
 
@@ -89,21 +162,37 @@ Every write use case checks, in order:
 
 A failure at any step returns a Problem Details response with the right code (`unauthorized`, `tenant_mismatch`, `forbidden`, `resource_scope_violation`).
 
-## Tenant Isolation
+## Tenant + Organization Isolation
 
-See [docs/architecture/09-tenant-isolation.md](../architecture/09-tenant-isolation.md) for the full strategy. Standards-side:
+See [docs/architecture/09-tenant-isolation.md](../architecture/09-tenant-isolation.md)
+for the full strategy. Standards-side:
 
-- Every `[TenantOwned]` entity has a query filter and an RLS policy. Architecture tests enforce this.
-- `IgnoreQueryFilters()` is allowed only in platform-admin code paths with a Roslyn-allowlist attribute and an audit-log call.
-- Background jobs **must** receive `TenantId` in their payload; jobs without it fail at registration.
-- Connection pool checkout sets `app.current_tenant_id` before any work runs.
+- Every `[TenantOwned]` entity has a query filter and an RLS policy. Architecture tests
+  enforce this.
+- Every `[OrganizationScoped]` entity additionally carries an `OrganizationId` column
+  and an org-aware EF filter + RLS policy
+  ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)). Nullable
+  `OrganizationId` means the row may be tenant-wide.
+- `IgnoreQueryFilters()` is allowed only in platform-admin code paths with a
+  Roslyn-allowlist attribute and an audit-log call.
+- Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
+  payload; jobs without it fail at registration.
+- Connection pool checkout sets both `app.tenant_id` and `app.organization_id`
+  before any work runs (`SET LOCAL` inside the ambient transaction; see
+  [05-database.md § Connection Management](05-database.md)).
 
-## Secrets
+## Secrets and Configuration
 
-- Secrets live in the deployment platform's secret manager. Not in git, not in env-files committed to the repo.
-- `.env.example` checked in; `.env` ignored.
-- Production secrets rotated at least every 90 days where rotation is feasible (DB passwords, provider API keys).
-- Secret access logged.
+- Secrets live in **Vault** (production / staging / dev) accessed via `ISecretProvider`
+  (Dapr secret store) per
+  [ADR-0014](../decisions/0014-adopt-dapr.md). Local development can fall back to
+  `EnvironmentSecretProvider`; `.env.example` is checked in, `.env` is gitignored.
+- Secret namespace: `learnstack/{deployment}/{module}/{key}`. The deployment segment is
+  `development | saas | dedicated | selfhosted`.
+- Production secrets rotated at least every 90 days where rotation is feasible (DB
+  passwords, provider API keys, Hub HMAC shared secret, mTLS client certs).
+- Secret access via `ISecretProvider` is logged.
+
 
 ## File Uploads
 
@@ -154,8 +243,11 @@ See [docs/architecture/09-tenant-isolation.md](../architecture/09-tenant-isolati
 | Authenticated API | 600 req/min per token |
 | Write endpoints | 60 req/min per token |
 | Webhook endpoints | 1000 req/min per provider |
+| Hub internal API (`/api/internal/*`) | 60 req/min per mTLS client cert |
 
-429 responses include `Retry-After`. Rate-limit policy lives at the edge (NGINX / Traefik) plus a per-handler ASP.NET layer for finer grain.
+429 responses include `Retry-After`. Rate-limit policy lives at **APISIX**
+(`limit-req` / `limit-count` plugins) plus a per-handler ASP.NET layer for finer grain
+where plan-level `LimitKeys.MaxApiRequestsPerHour` differs per tenant.
 
 ## Webhooks (Inbound)
 
@@ -204,9 +296,12 @@ See [docs/architecture/09-tenant-isolation.md](../architecture/09-tenant-isolati
 
 ## Audit Log
 
-Every privileged operation writes an audit log entry:
-- Actor user id, tenant id, action, target resource id, source IP, user agent, outcome.
-- Append-only; queryable by tenant admins for their own tenant.
+Every privileged operation writes an audit log entry per
+[ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md) and the
+[18 Audit Coverage Standard](18-audit-coverage.md). Coverage is **MUST / SHOULD / MAY**
+per module-operation; the MediatR `AuditLogBehavior` writes through `IAuditStore` —
+modules never write `audit_log` directly. Entries are append-only, partitioned by
+month, and queryable by tenant admins for their own tenant (org-admins for their org).
 
 ## Incident Response
 
@@ -218,8 +313,16 @@ Every privileged operation writes an audit log entry:
 
 - Storing passwords or password derivatives in any LearnStack table.
 - Storing third-party tokens in plain text — encrypt at rest if storage is unavoidable.
-- Trusting `tenant_id` from a request body or query param.
+- Trusting `tenant_id` or `organization_id` from a request body or query param. Both
+  come from authenticated context only.
 - Implementing custom crypto. Use established libraries.
-- Disabling RLS in production for any reason short of an investigated incident with an ADR.
+- Disabling RLS in production for any reason short of an investigated incident with an
+  ADR.
 - Echoing user-supplied HTML without sanitization.
 - Logging full request/response bodies.
+- Calling Hub endpoints from anywhere except the dedicated `IEntitlementProvider` /
+  `IUsageReporter` / `IHubTenantSync` adapters (see
+  [20-infrastructure-stack.md](20-infrastructure-stack.md)).
+- Accepting `learnstack-hub` realm tokens on tenant-facing endpoints, or accepting
+  `learnstack` realm tokens on `/api/internal/*` endpoints.
+- Bypassing APISIX with direct backend ingress.

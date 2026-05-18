@@ -43,10 +43,13 @@ Initial screens:
 
 - My courses.
 - Course overview.
-- Lesson player.
+- Lesson player (dispatches to built-in lesson-item players for primitive types and
+  to tenant-defined player composites via `TenantLessonItemType` for tenant-defined
+  types).
 - Lesson resources.
-- Progress summary.
-- Profile basics.
+- Progress summary (driven by `TenantCompletionRule`).
+- Profile basics (with optional tenant-defined custom fields via
+  `TenantCustomFieldDef` on `User`).
 
 ### Progress Tracking
 
@@ -56,6 +59,14 @@ Initial screens:
 - Completion timestamps.
 - Last viewed lesson.
 - Resume learning.
+
+**Completion semantics resolve through `TenantCompletionRule`** per
+[ADR-0018](../decisions/0018-tenant-driven-customization-model.md): the Progress
+module evaluates the active completion rule against the learner's lesson / module /
+attempt state. A built-in default rule ships ("all required lessons complete") and a
+tenant may override it (e.g. an English tenant adds "speaking session attended AND
+vocab drill score ≥ 70%"). No completion code lives in Progress beyond the DSL
+evaluator + the primitive checks.
 
 ### Learning Events
 

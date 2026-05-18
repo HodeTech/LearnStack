@@ -1,37 +1,60 @@
 # 07 — Frontend Architecture Standards
 
 **Status:** Active
-**Derives from:** [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md), [ADR 0004 — Authentication Strategy](../decisions/0004-authentication-strategy.md).
+**Derives from:** [ADR-0009 Frontend Single App First](../decisions/0009-frontend-single-app-first.md),
+[ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
+(Amendment 1: `learnstack-hub` realm for the separate operator portal),
+[ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
+`learnstack-hub-web` lives in the separate `learnstack-hub` repository).
 
-Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns. See [03-frontend-coding.md](03-frontend-coding.md) for code-level style.
+Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
+tenant-facing `apps/web` application in *this* repository. See
+[03-frontend-coding.md](03-frontend-coding.md) for code-level style. The operator
+portal (`learnstack-hub-web`) lives in the separate `learnstack-hub` repo and follows
+its own standards.
 
 ## Apps and Packages
 
-LearnStack starts with a **single** Next.js app using route groups. Splitting into separate apps is deferred until coordination cost demands it.
+LearnStack's tenant-facing surface ships as a **single** Next.js app under
+`frontend/apps/web` using route groups (`(public)`, `(studio)`, `(portal)`). Splitting
+into separate apps within this repo is deferred until coordination cost demands it.
 
 ```
 frontend/
-  app/
-    (public)/         # tenant public site
-      [...slug]/
-      layout.tsx
-    (studio)/         # admin studio
-      layout.tsx
-    (portal)/         # learner + instructor
-      layout.tsx
-    api/              # route handlers
-    middleware.ts     # tenant resolution edge middleware
-    layout.tsx        # root layout
+  apps/
+    web/                       # the only tenant-facing Next.js app
+      src/
+        app/
+          (public)/            # tenant public site
+            [...slug]/
+            layout.tsx
+          (studio)/            # admin studio
+            layout.tsx
+          (portal)/            # learner + instructor
+            layout.tsx
+          api/                 # thin BFF route handlers
+          layout.tsx           # root layout
+        middleware.ts          # tenant + organization resolution edge middleware
+        components/
+        lib/
 
   packages/
-    ui/               # design system primitives
-    sdk/              # generated API client + types
-    config/           # eslint, tsconfig, tailwind shared configs
-    i18n/             # locale messages + helpers
-    auth/             # Auth.js wiring + OIDC client config
+    ui/                        # design system primitives (extracted only when duplication is real)
+    sdk/                       # generated API client + types
+    config/                    # eslint, tsconfig, tailwind shared configs
+    i18n/                      # locale messages + helpers
+    auth/                      # OIDC client config + BFF helpers
 ```
 
-Migration to multiple apps later is feasible because route groups isolate concerns at the layout level.
+The operator portal `learnstack-hub-web` is a **separate Next.js application in the
+separate `learnstack-hub` repository** — not under this `frontend/` directory. The two
+apps do not share runtime code; if `packages/ui` is later extracted as a build-time
+dependency, it can be referenced by both repos. See
+[14-frontend-architecture.md § Apps and Packages](../architecture/14-frontend-architecture.md)
+for the architecture-side view.
+
+Migration to multiple apps within this repo (e.g. extracting `(studio)` into
+`apps/studio`) is feasible because route groups isolate concerns at the layout level.
 
 ## Server Components by Default
 

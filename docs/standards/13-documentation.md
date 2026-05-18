@@ -17,11 +17,44 @@ The product-facing UI for tenants is independent and can be in any language.
 docs/
   architecture/   NN-topic.md   core architectural concepts
   decisions/      NNNN-topic.md ADRs
-  roadmap/        phase-NN-topic.md
+    _redirects/   redirect stubs for superseded ADRs
+  roadmap/        phase-NN-topic.md   (with phase-NNa / phase-NNb splits for parallel tracks)
   standards/      NN-topic.md   engineering rules
   runbooks/       *.md           operations procedures (Phase 11+)
+  modules/        NN-module/    per-module specs (created with the first module impl)
   glossary.md     terminology
 ```
+
+The `learnstack-hub` repository follows a similar `docs/` layout for its own concerns;
+cross-repo references use absolute URLs.
+
+## Local-Only Directories (not committed)
+
+Some working directories live on disk but are **gitignored** and never travel with the
+repository. Today:
+
+| Path | Purpose | Notes |
+|------|---------|-------|
+| `docs/analysis/` | Scratchpad for exploratory analyses, prior-art studies, redesign master plans, vendor reviews, and other research artefacts that informed decisions but are not themselves part of the spec. | Gitignored. Contents are personal / team-internal context. |
+
+**Rule:** committed files **must not reference paths under `docs/analysis/`**. That
+means:
+
+- No `docs/analysis/...` paths in committed Markdown — not as relative links, not in
+  prose ("see `docs/analysis/foo.md` §2"), not in code-fenced examples.
+- No `docs/analysis/...` paths in commit messages, PR descriptions, code comments, or
+  docstrings.
+- No `docs/analysis/...` paths in tests, configuration, or generated assets.
+
+The reasoning is that local analyses are a transient working surface: contents can be
+rewritten, renamed, or deleted on a whim, and broken links from committed docs would
+silently rot. The committed corpus must stand on its own.
+
+When committed content needs to reference *the outcome* of an analysis (e.g. a vendor
+comparison that motivated a decision), capture the outcome in the appropriate place
+(ADR, architecture doc, standard, glossary) — not by linking to the analysis. Prose
+attribution of the form "prior-art X demonstrated Y" is fine and encouraged; the path
+reference is what is forbidden.
 
 ## Required Docs
 
@@ -65,21 +98,34 @@ Every ADR has:
 ## Status
 Proposed | Accepted | Superseded | Deprecated
 
+## Decision Drivers
+<bullet list of the forces / constraints / goals that made a decision necessary>
+
+## Considered Options
+<short numbered list — at least the chosen one and one rejected alternative>
+
 ## Decision
 <the decision, present tense>
 
 ## Context
-<why the decision was needed; alternatives considered>
+<why the decision was needed; deeper alternatives analysis>
 
 ## Consequences
 <positive and negative implications>
+
+## Amendments
+<dated, append-only clarifications that do not change the Decision>
 ```
 
 Rules:
 - Numbered sequentially (`0001`, `0002`, ...). Never reused.
-- Accepted ADRs are immutable except for typo fixes.
-- A new decision that supersedes an old one is a new ADR; the old one is marked `Superseded by ADR NNNN`.
-- Required for: technology choices, security-sensitive decisions, persistence strategy changes, provider decisions, cross-module contract changes, anything expensive to reverse.
+- Accepted ADRs are immutable except for typo fixes and dated Amendments.
+- A new decision that supersedes an old one is a **new ADR**; the old one is marked
+  `Superseded by ADR-NNNN` and reduced to a redirect stub. The full stub lives in
+  `decisions/_redirects/` when the file is otherwise empty.
+- Required for: technology choices, security-sensitive decisions, persistence strategy
+  changes, provider decisions, cross-module contract changes, deployment-model
+  changes, anything expensive to reverse.
 
 ## Mermaid Diagrams
 
@@ -160,12 +206,14 @@ Amendments must not change the Decision section. If the decision itself changes,
 | Change | Doc to update |
 |--------|---------------|
 | New module | Module boundaries doc + glossary |
-| New provider adapter | Extension model doc |
-| New ADR-worthy decision | New ADR |
+| New provider adapter | Extension model doc + 20-infrastructure-stack.md if it touches Dapr / APISIX / Hub |
+| New ADR-worthy decision | New ADR (with Decision Drivers + Considered Options) |
 | New cross-module contract | Cross-module contracts doc |
 | Schema migration | Inline in code; reference standards doc if a new pattern |
 | New translatable content type | i18n strategy doc |
-| New extension point | Extension model doc + relevant standard |
+| New Tenant Customization aggregate | [32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md) + glossary |
+| New feature key or limit key | [21-feature-flags.md](../architecture/21-feature-flags.md) catalog + matching `FeatureKeys` / `LimitKeys` entry |
+| New Hub endpoint | New ADR (the four-endpoint surface is closed) + [24-learnstack-hub.md](../architecture/24-learnstack-hub.md) |
 | Standards rule change | The standard itself + an ADR if non-trivial |
 
 ## Documentation Reviews

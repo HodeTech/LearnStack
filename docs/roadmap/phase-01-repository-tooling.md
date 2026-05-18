@@ -38,9 +38,12 @@ learnstack/
   - LearnStack.Application.Contracts
   - LearnStack.Domain
   - LearnStack.Infrastructure
+  - LearnStack.Infrastructure.Audit
   - LearnStack.SharedKernel
   - LearnStack.Modules.Tenancy.{Application, Application.Contracts, Domain, Infrastructure}
   - LearnStack.Modules.Identity.{...}
+  - LearnStack.Modules.Customization.{...}
+  - LearnStack.Modules.Audit.{...}
   - LearnStack.Modules.Content.{...}
   - LearnStack.Modules.Media.{...}
   - LearnStack.Modules.Education.{...}
@@ -50,16 +53,29 @@ learnstack/
   - LearnStack.Tests.Architecture
   - LearnStack.Tests.Contract
 
+There is **no `Verticals/` folder**. Tenant-specific shapes are data, not code
+([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)). Architecture
+test `No_Source_Folder_Named_Verticals` enforces this from this phase onward.
+
 ### Frontend Scaffold
 
-**Single Next.js application** at `frontend/` with route segments separating concerns ([ADR 0009](../decisions/0009-frontend-single-app-first.md) and [Frontend Architecture](../architecture/14-frontend-architecture.md)):
+**Single Next.js application** at `frontend/apps/web` with route segments separating
+concerns ([ADR-0009](../decisions/0009-frontend-single-app-first.md) and
+[Frontend Architecture](../architecture/14-frontend-architecture.md)):
 
 - `app/(public)/` — tenant-facing public site.
 - `app/(studio)/` — admin and content studio.
 - `app/(portal)/` — learner and instructor portal.
 - `app/api/` — thin BFF proxies only.
 - `components/blocks/`, `components/ui/`.
-- `extensions/` — vertical-provided components registered at boot.
+- `lib/customization/` — runtime resolvers for tenant-defined content types, page
+  blocks, lesson item types (the data-not-code surface from
+  [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).
+
+There is **no `extensions/` folder for vertical-provided components**. Per ADR-0018,
+tenant-specific renderers are composite renderer keys referenced by
+`TenantPageBlock` / `TenantLessonItemType` data; the renderer key resolves to a
+built-in composite at runtime.
 
 Shared packages (extracted only when duplication is real):
 
@@ -67,7 +83,11 @@ Shared packages (extracted only when duplication is real):
 - `packages/sdk` — generated typed API client.
 - `packages/config` — shared tsconfig, eslint, tailwind.
 
-Multi-app split deferred; see [ADR 0009](../decisions/0009-frontend-single-app-first.md) for the extraction triggers.
+Multi-app split inside this repo is deferred; see
+[ADR-0009](../decisions/0009-frontend-single-app-first.md) for the extraction
+triggers. The **operator portal** (`learnstack-hub-web`) is a *separate Next.js app
+in the `learnstack-hub` repository* per
+[ADR-0019](../decisions/0019-learnstack-hub.md) — not in this scaffold.
 
 ### Local Infrastructure
 
@@ -79,8 +99,17 @@ Docker Compose under `infra/compose/`:
 - Mailpit (outbound email).
 - Meilisearch.
 - LiveKit OSS + Coturn (for in-app classroom development).
-- Keycloak (identity development; see [Identity and Authentication](../architecture/13-identity-and-auth.md) and [ADR 0004](../decisions/0004-authentication-strategy.md)).
+- Keycloak (identity development; see
+  [Identity and Authentication](../architecture/13-identity-and-auth.md) and
+  [ADR-0004](../decisions/0004-authentication-strategy.md)). Two realms seeded:
+  `learnstack` + `learnstack-hub`.
+- **Kafka** (Dapr pub/sub backend) + kafka-ui.
+- **Vault** (Dapr secret store, dev mode).
+- **Dapr sidecar** + placement service.
+- **APISIX** (standalone YAML-reload mode) + apisix-dashboard (dev only).
 - Optional Jaeger or Tempo (for trace inspection).
+- Optional `learnstack-hub` compose overlay for local Hub development (depends on
+  the same Keycloak / Postgres / Kafka / Vault / APISIX stack).
 
 Two compose files:
 

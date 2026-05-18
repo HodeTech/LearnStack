@@ -1,130 +1,238 @@
 # Extension Model
 
-LearnStack supports vertical education products without modifying the core. Vertical products attach to documented **extension points**.
+> **Note:** This document was rewritten on 2026-05-18 as a consequence of
+> [ADR-0018: Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md),
+> which supersedes ADR-0011's typed vertical-pack extension registry. The previous version
+> of this document, which described `IModuleExtension` and the `IExtensionRegistry`, is
+> obsolete; vertical packs are not part of the LearnStack design.
 
-## Extension Surfaces
+LearnStack core is 100% domain-agnostic. Tenants extend it by declaring **data**, not by
+shipping code. Yoga, coding, music, language, exam prep, art, certification, driving
+school — every customer runs on the same compiled binary; differentiation lives in their
+database rows.
 
-```mermaid
-flowchart LR
-  subgraph core["Core"]
-    coreModules[Core modules]
-    contracts[Public contracts]
-    events[Integration events]
-    blocks[Block registry]
-    contentTypes[Content type registry]
-    providerInterfaces[Provider interfaces]
-  end
+This document is the architecture-level overview. The full data model and worked examples
+live in [32-tenant-customization-model.md](32-tenant-customization-model.md).
 
-  subgraph vertical["Vertical product (e.g. English)"]
-    domain[Domain entities<br/>CEFR, vocab, placement]
-    handlers[Event handlers]
-    customBlocks[Page blocks]
-    customTypes[Content types]
-    customProviders[Custom adapters]
-    portalWidgets[Portal widgets]
-  end
+## 1. Two kinds of "extension" we still talk about
 
-  handlers -. subscribes .-> events
-  customBlocks -. registers .-> blocks
-  customTypes -. registers .-> contentTypes
-  customProviders -. implements .-> providerInterfaces
-  domain --> handlers
-  domain --> customBlocks
+The word "extension" appears in this codebase in two senses; ADR-0018 narrows it:
+
+### 1a. Provider adapters — still active
+
+The core platform talks to external systems through **interfaces** in
+`LearnStack.SharedKernel`:
+
+| Concern | Interface |
+|---------|-----------|
+| Payment processing | `IPaymentProvider` |
+| Email delivery | `IEmailProvider` |
+| SMS delivery | `ISmsProvider` |
+| WhatsApp delivery | `IWhatsAppProvider` |
+| Object storage | `IFileStorageService` |
+| Search | `ISearchProvider` (or `ITenantSearch` / `IPlatformSearch` per ADR-0012) |
+| Live classroom transport | `ILiveClassProvider` |
+| Recording egress | `IRecordingEgressProvider` |
+| Identity provider | (covered by Keycloak baseline; ADR-0004) |
+| Pub/Sub | `IEventBus` → Dapr → Kafka (ADR-0014) |
+| Cache | `ICacheService` → Dapr → Redis (ADR-0014) |
+| Secret store | `ISecretProvider` → Dapr → Vault (ADR-0014) |
+
+Implementations live in `LearnStack.Infrastructure.<Concern>.<Provider>` projects.
+Modules never import provider SDK types. Architecture tests enforce this — same pattern
+as the original Extension Model document. **This part is unchanged.**
+
+### 1b. Tenant-driven customization — the new extension surface
+
+What ADR-0011 originally called "vertical extension points" — content types, page
+blocks, lesson item types, scoring rules, level taxonomies, completion rules, custom
+fields — are now **per-tenant database rows**, not compile-time-typed registrations from
+a third-party DLL.
+
+| Customization surface | Where it lives | Examples |
+|-----------------------|----------------|----------|
+| Content types | `tenant_content_types` | VocabularyCard, AsanaPose, CodeChallenge, Score |
+| Page blocks | `tenant_page_blocks` | VocabularyGallery, AsanaSequenceBrowser, LeaderboardWidget |
+| Lesson item types | `tenant_lesson_item_types` | SpeakingPractice, GuidedSequence, CodeRunner, DrivingSimulation |
+| Level taxonomies | `tenant_level_taxonomies` | CEFR (A1-C2), yoga difficulty (Beginner-Master), kyu/dan |
+| Scoring rules | `tenant_scoring_rules` | CEFR placement DSL, code challenge auto-grading rules |
+| Completion rules | `tenant_completion_rules` | "all items viewed AND quiz score >= passing_threshold" |
+| Custom fields | `tenant_custom_field_defs` | Extra fields on `User`, `Course`, `Enrollment`, etc. |
+| Notification templates | `tenant_template_library` | Liquid / Handlebars per channel + locale |
+
+Every row carries `tenant_id`, RLS-isolated. Some are org-scoped as well.
+
+The frontend renders these through a **closed, generic primitive set** (text, markdown,
+image, video, audio, pdf, code, math, link, list, tabs, sanitised-html) composed by a
+small fixed set of composite renderers (default-card, content-list, lesson-shell,
+quiz-shell, …). Adding a new primitive or composite is a LearnStack release; tenants
+**cannot** bring custom JSX.
+
+## 2. What the new model preserves
+
+The original Extension Model document's invariants are preserved by ADR-0018:
+
+- **Core stays generic.** No `Cefr`, `Asana`, `CodeChallenge`, `EnglishPlacement`,
+  `YogaSequence` etc. in any LearnStack module. Architecture test
+  `No_DomainSpecific_Names_In_Modules` enforces this.
+- **Anti-patterns to reject** (still apply):
+  - Adding domain-specific columns to core entities.
+  - Importing live-classroom SDK types in Domain or Application.
+  - Hardcoding tenant ids in code (configuration is per-tenant data).
+  - Feature flags scattered without a registry (typed `FeatureKeys`, ADR-0021).
+- **Tenant feature enablement.** Now via `IFeatureFlagService` reading the entitlement
+  projection (ADR-0021), not via "vertical loaded but not enabled."
+
+## 3. What the new model removes
+
+Old artifacts that **do not exist** in LearnStack:
+
+- ❌ `LearnStack.Verticals.*` source folder. The "vertical assembly" concept is gone.
+- ❌ `IModuleExtension` interface. There are no plugin DLLs.
+- ❌ `IExtensionRegistry` typed registry. Customization happens through CRUD on the
+  customization tables, not via startup-time registrations from third-party code.
+- ❌ `tenant_extensions` table. Tenants don't "enable" verticals; they author
+  customization data directly.
+
+## 4. Example: how three tenants share the same binary
+
+### English Hero (language learning)
+
+```
+tenant_content_types:
+  - vocabulary-card     { word, definition, pronunciation, audio_url, level }
+  - grammar-point       { rule, examples, exercises }
+tenant_lesson_item_types:
+  - speaking-practice   { prompt, scoring_rubric, expected_duration_sec }
+tenant_level_taxonomies:
+  - cefr                [A1, A2, B1, B2, C1, C2]
+tenant_scoring_rules:
+  - cefr-placement-v1   ← sandboxed DSL expression
 ```
 
-## Extension Types
+### Anatolia Yoga (yoga studio)
 
-### 1. Domain Extensions
-Product-specific entities and workflows. Live in the vertical's own module, never in core.
+```
+tenant_content_types:
+  - asana-pose          { english_name, sanskrit_name, image_urls, difficulty, benefits }
+  - breath-technique    { name, instructions, duration_minutes }
+tenant_lesson_item_types:
+  - guided-sequence     { poses[], music_url, intro_audio_url }
+tenant_level_taxonomies:
+  - yoga-difficulty     [Beginner, Intermediate, Advanced, Master]
+tenant_scoring_rules: (none — yoga isn't graded)
+```
 
-Examples:
-- CEFR taxonomy and level-recommendation logic.
-- Exam curriculum mapping for exam-prep verticals.
-- Corporate compliance-training rules.
+### CodeAcademy (coding bootcamp)
 
-The vertical owns its own EF DbContext slice and its own database tables (prefixed by the vertical, e.g. `english_*`).
+```
+tenant_content_types:
+  - code-challenge      { title, language, starter_code, test_suite, hints }
+tenant_lesson_item_types:
+  - code-runner-item    { challenge_ref, time_limit_minutes, max_attempts }
+tenant_level_taxonomies:
+  - coding-difficulty   [Easy, Medium, Hard, Expert]
+tenant_scoring_rules:
+  - auto-grade-runner   ← runs test suite against submission
+```
 
-### 2. Content Extensions
-Product-specific content types and page blocks.
+Same modules. Same code. Different rows.
 
-| Extension | Hook |
-|-----------|------|
-| Content type | `IContentTypeRegistration` — vertical registers its schemas. |
-| Page block | `IPageBlockRegistration` — vertical registers block code + JSON schema + renderer component. |
+## 5. Provider adapter ports (unchanged from earlier doc)
 
-Examples:
-- Vocabulary list content type.
-- Grammar unit content type.
-- Instructor spotlight block.
-- Placement-test CTA block.
+Existing `LearnStack.SharedKernel` ports for external integrations remain. Concrete
+implementations:
 
-### 3. Integration Extensions
-Provider adapters behind documented interfaces.
-
-| Interface | Adapter examples |
-|-----------|-----------------|
-| `ILiveClassProvider` | `LiveKitOssLiveClassProvider`, `LiveKitCloudLiveClassProvider`, `DailyLiveClassProvider`, `ManualMeetingLinkProvider` (fallback only) |
-| `IPaymentProvider` | `StripePaymentProvider`, `IyzicoPaymentProvider`, `PayTRPaymentProvider`, `OfflinePaymentProvider` |
+| Interface | Implementation |
+|-----------|----------------|
+| `IPaymentProvider` | `StripePaymentProvider`, `IyzicoPaymentProvider`, `OfflinePaymentProvider` |
 | `IEmailProvider` | `PostmarkEmailProvider`, `ResendEmailProvider`, `SmtpEmailProvider` |
 | `ISmsProvider` | `TwilioSmsProvider`, `NetGsmSmsProvider` |
-| `IStorageProvider` | `MinioStorageProvider`, `S3StorageProvider`, `R2StorageProvider` |
-| `ISearchProvider` | `MeilisearchSearchProvider`, `OpenSearchSearchProvider`. See [Search](20-search.md) |
-| `IRecordingEgressProvider` | `LiveKitEgressProvider` |
+| `ILiveClassProvider` | `LiveKitSelfHostedLiveClassProvider`, `LiveKitCloudLiveClassProvider` |
+| `IFileStorageService` | `MinioFileStorageService`, `S3FileStorageService` |
+| `IEventBus` | `DaprEventBus` (default), `InProcessEventBus` (dev fallback) |
+| `ICacheService` | `DaprCacheService` (default), `InMemoryCacheService` (dev fallback) |
+| `ISecretProvider` | `DaprSecretProvider` (default), `EnvironmentSecretProvider` (dev fallback) |
+| `IEntitlementProvider` | `NullEntitlementProvider` (dev), `HubEntitlementProvider` (online), `SignedLicenseKeyEntitlementProvider` (air-gapped) |
 
-### 4. UI Extensions
-Tenant- or product-specific frontend code.
+Adding a new provider is a code change in core (new adapter implementation in
+`LearnStack.Infrastructure`) — not a tenant action.
 
-| Extension | Hook |
-|-----------|------|
-| Block renderer | Vertical ships a React component matching the block schema; registered in the renderer's block map. |
-| Portal widget | Verticals can register portal dashboard widgets behind a typed slot system. |
-| Page template | Verticals can register named templates as starting points in the page builder. |
-| Theme tokens | Tenant branding includes a theme-token override layer; verticals may ship preset token packs. |
+## 6. Frontend rendering of customization data
 
-### 5. Event Extensions
-Subscribe to integration events to react to platform changes.
+A tenant's content types are rendered through a fixed pipeline:
 
-Examples:
-- The English vertical subscribes to `EnrollmentCreated` to schedule a recommended placement test.
-- The English vertical subscribes to `LiveSessionEnded` to update vocabulary review state.
+```
+Tenant defines content type "VocabularyCard" with JSON Schema
+                      ↓
+Module reads tenant_content_types where tenant_id = current
+                      ↓
+For each JSON Schema field, frontend matches to a PRIMITIVE_RENDERER
+  (text, markdown, image, video, audio, pdf, code, math, link, list, tabs)
+                      ↓
+Composite renderer (default-card / content-list / lesson-shell) composes the primitives
+                      ↓
+Tenant's brand tokens applied as CSS variables
+                      ↓
+Rendered output
+```
 
-## Extension Rules
+Architecture tests enforce:
 
-1. **Core defines stable primitives.** Vertical products only consume; they do not modify core entities.
-2. **Vertical-specific business rules never leak into core modules.** CEFR mapping does not belong in `Level`. Placement-test scoring does not belong in `Assessment`.
-3. **Provider-specific code stays behind adapters.** LiveKit SDK types never appear in `Domain` or `Application`.
-4. **Tenant configuration decides which extensions are active.** Feature flags + tenant-scoped registration. See [Feature Flags](21-feature-flags.md) for the registry and runtime evaluation.
-5. **Versioning.** Content types and block schemas are versioned per vertical. Upgrades are explicit migrations.
+- The primitive renderer set is closed (only what's in `PRIMITIVE_RENDERERS`).
+- The composite renderer set is closed (only what's in `COMPOSITE_RENDERERS`).
+- Adding to either set requires CODEOWNERS approval — LearnStack team only.
 
-## Example: English Learning Vertical
+## 7. What this means for `IModule`
 
-Core provides:
-- Tenant, Page, Course, CourseVersion, Lesson, Assessment, Enrollment, Progress, InstructorProfile, LiveSession, LiveRoom.
+`IModule` (LearnStack's module-loading contract) remains, but slimmer than the
+Nexora-pattern `IModuleExtension`. **No `IModuleExtension` interface in LearnStack.** The
+"vertical module = third-party DLL implementing `IModuleExtension`" Nexora pattern does
+not apply.
 
-English vertical adds:
+LearnStack's own modules (`LearnStack.Modules.Identity`, `LearnStack.Modules.Tenancy`,
+`LearnStack.Modules.Content`, `LearnStack.Modules.Catalog`,
+`LearnStack.Modules.Enrollment`, `LearnStack.Modules.Classroom`,
+`LearnStack.Modules.Audit`, etc.) implement `IModule`. All are first-party. Tenants do
+**not** install third-party modules.
 
-| Capability | Type |
-|------------|------|
-| CEFR level taxonomy (A1–C2) | Domain extension |
-| Placement test scoring rules | Domain extension + event handler |
-| Speaking session metadata | Domain extension referencing `LiveSession` by id |
-| Grammar topic taxonomy | Domain extension |
-| Vocabulary bank | Content type + Domain extension |
-| Teacher matching rules | Domain extension |
-| Lesson package definitions | Domain extension |
-| Placement-test CTA block | Content extension |
-| Speaking-session widget | UI extension |
-| Recommendation engine | Subscribes to `AssessmentCompleted` |
+## 8. Risks and trade-offs
 
-If a hypothetical exam-prep vertical were added later, it would do the same — its own module, its own schemas, its own event subscriptions, its own blocks — without touching the English vertical or the core.
+- **Loss of compile-time type safety.** Vertical pack registrations were typed; data-
+  driven customization is JSON-schema-typed. Mitigation: schema validation on every save;
+  primitive renderer pipeline is type-safe in TypeScript.
+- **Some advanced features can't be expressed declaratively.** Audio analysis, generative
+  AI feedback, video proctoring, etc. These become LearnStack-team-built features
+  available via plan entitlement (ADR-0021). Tenants don't bring their own code;
+  LearnStack ships the feature, gates it by plan.
+- **Renderer composite set is closed.** A tenant wanting a truly novel UI pattern must
+  either compose existing primitives (fast path) or request LearnStack to add a new
+  composite (slow path, CODEOWNERS gate). The closed set is intentional — it prevents
+  the platform from becoming a wild west.
+- **JSON Schema authoring is harder than writing a C# class.** Admin Studio needs a
+  visual schema editor (Phase 06+) to make this approachable for non-technical tenant
+  admins.
 
-## Anti-patterns to Reject
+## 9. Phasing
 
-| Anti-pattern | Why bad |
-|--------------|---------|
-| Adding `cefr_level` to core `Level` table | Vertical leaks into core. |
-| Importing `LiveKit.Server` types in `Domain` | Provider lock-in. |
-| A vertical module reaching into another module's DbContext | Breaks module boundaries. |
-| A vertical module mutating core entities directly | Breaks ownership. |
-| Hardcoding a tenant id in vertical code | Verticals must be tenant-agnostic in code; configuration is per-tenant. |
-| Feature flags scattered without a registry | Flags must live in `TenantFeatureFlag` with a typed key catalog. See [Feature Flags](21-feature-flags.md). |
+| Phase | Deliverable |
+|-------|-------------|
+| 02 | Customization tables created (empty). Primitive renderer set scaffolded. `IModule` interface in SharedKernel. Provider adapter interfaces in SharedKernel + Null implementations. |
+| 04 | CMS / Page Builder: page blocks as data; first composite renderers; JSON form editor for content types. |
+| 05 | Catalog / Learning Content: lesson item types as data; lesson player composites. |
+| 06 | Admin Studio visual schema editor (drag-and-drop field builder); preview pane. |
+| 08a | Assessment: scoring rule DSL + sandbox; level taxonomies; completion rules. |
+| 12 (optional) | Content template marketplace: pre-built JSON Schema + scoring rule + level taxonomy bundles for tenants to install with one click. Data sharing only, no code. |
+
+## References
+
+- ADR-0018 — Tenant-Driven Customization Model (this document is the architecture-level
+  view; ADR-0018 is the decision).
+- ADR-0011 — Vertical Extension Points (superseded; retained in `docs/decisions/` with
+  Superseded status banner).
+- ADR-0013 — Page Block Schema Versioning.
+- ADR-0014 — Adopt Dapr (provider adapters for cross-cutting infrastructure).
+- ADR-0021 — Feature-Based Entitlement (plan-gated features that go beyond customization).
+- [32-tenant-customization-model.md](32-tenant-customization-model.md) — deep dive with
+  schema, worked examples, sandbox engine, Admin Studio surface.
+- [01-platform-vision.md](01-platform-vision.md) — why generic-only core is the product.

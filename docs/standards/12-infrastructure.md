@@ -1,9 +1,20 @@
 # 12 — Infrastructure Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0005 — Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md).
+**Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md),
+[ADR-0005 Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md),
+[ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
+[ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
+[ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
+[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md).
 
-How LearnStack is built, packaged, deployed, configured, and observed at the infrastructure level.
+How LearnStack is built, packaged, deployed, configured, and observed at the
+infrastructure level. The application-code rules for the foundation building blocks
+(Dapr `IEventBus` / `ICacheService` / `ISecretProvider`, APISIX, the Hub HTTPS surface,
+the entitlement projection, outbox / inbox) live in
+[20-infrastructure-stack.md](20-infrastructure-stack.md); this standard covers the
+*operational* concerns: containers, environments, CI/CD, database operations,
+observability, DR, deployment models.
 
 ## Environments
 
@@ -17,6 +28,24 @@ How LearnStack is built, packaged, deployed, configured, and observed at the inf
 
 Configuration differences are explicit and documented.
 
+## Deployment Modes
+
+LearnStack ships in three production deployment models per
+[ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md) plus a local
+development mode:
+
+| Mode | Owner of infra | Hub presence | Entitlement source |
+|------|----------------|--------------|--------------------|
+| `Development` | Developer workstation | none | `NullEntitlementProvider` |
+| `SaaS` | LearnStack vendor | Yes (multi-tenant Hub instance) | `HubEntitlementProvider` (HTTPS) |
+| `Dedicated` | LearnStack vendor on a tenant-isolated cluster | Yes (Hub points at that cluster) | `HubEntitlementProvider` (HTTPS) |
+| `SelfHosted` | Customer | None (air-gapped possible) | `SignedLicenseKeyEntitlementProvider` (RSA-2048 `.lic` file + optional phone-home) |
+
+The application code is the same binary across all four modes; selection happens at
+the composition root via `DeploymentMode`. See
+[20-infrastructure-stack.md](20-infrastructure-stack.md) § Composition Root for the
+adapter table.
+
 ## Local Infrastructure (Docker Compose)
 
 ```
@@ -24,17 +53,28 @@ postgres
 redis
 minio + minio-console
 meilisearch
-keycloak
+keycloak                # two realms: learnstack + learnstack-hub
 livekit-server
 livekit-egress
 coturn
 mailhog
 otel-collector
+
+dapr-placement          # Dapr building blocks
+dapr-sidecar-api        # one sidecar per backend service
+kafka + kafka-ui        # Dapr pub/sub backend
+vault                   # Dapr secrets backend (dev mode)
+apisix                  # gateway in standalone YAML-reload mode
+apisix-dashboard        # optional, dev only
 ```
 
-- Application projects run **outside** containers during active development.
+- Application projects run **outside** containers during active development; the Dapr
+  sidecar still runs alongside via `dapr run` or compose.
 - CI runs the same image tags as developers.
-- `.env.example` is the source of truth for required env vars.
+- `.env.example` is the source of truth for required env vars; secrets in real
+  environments come from Vault via `ISecretProvider`, not env files.
+- `infra/apisix/config.yaml` is the canonical APISIX standalone config; routes / plugins
+  hot-reload on file change.
 
 ## Image Conventions
 
@@ -48,10 +88,14 @@ otel-collector
 ## Configuration
 
 - Strongly-typed `IOptions<T>` bound in code.
-- Sources, in order: env vars → secret manager → `appsettings.{env}.json` → `appsettings.json`.
+- Sources, in order: `ISecretProvider` (Vault via Dapr) → env vars →
+  `appsettings.{env}.json` → `appsettings.json`. Vault wins.
 - No secrets in git.
-- Secrets stored in the deployment platform's secret manager.
+- Secrets stored in Vault for `SaaS` / `Dedicated`; in Vault or a sealed file for
+  `SelfHosted`; in env files (gitignored) for `Development`.
 - Production secrets rotated at least every 90 days where rotation is feasible.
+- `IOptionsMonitor<T>` is used where dynamic refresh is required (e.g. Hub URL, HMAC
+  secret); a Vault watcher pushes updates.
 
 ## CI/CD
 
@@ -116,26 +160,39 @@ See [10-observability.md](10-observability.md).
 
 ## Secrets Management
 
-- Local: `.env` (not committed).
-- CI: GitHub Actions secrets / Vault.
-- Cloud: native secret manager (AWS SM / GCP SM / HashiCorp Vault).
-- Rotation: documented per provider; quarterly minimum for keys we control.
+- All non-development modes use **HashiCorp Vault** accessed via Dapr's secret store
+  building block ([ADR-0014](../decisions/0014-adopt-dapr.md)). Application code uses
+  `ISecretProvider`; direct `VaultClient` usage is forbidden.
+- Local: `.env` (not committed) — sufficient for `Development` mode.
+- CI: GitHub Actions secrets feed a short-lived Vault token for integration tests.
+- Rotation: documented per provider; quarterly minimum for keys we control. Hub
+  HMAC shared secret and mTLS client certificates are rotated yearly.
 
 ## Networking
 
-- TLS everywhere.
+- TLS everywhere; HTTP → HTTPS redirect at the edge.
+- **APISIX is the only tenant-facing ingress** ([ADR-0015](../decisions/0015-api-gateway-apisix.md)).
+  Direct ingress to backend pods is blocked by network policy.
+- The `/api/internal/*` route set is reachable only through a separate APISIX
+  route guarded by the `mtls` plugin, with the LearnStack-internal CA pinned.
 - Strict ingress rules; only documented ports open.
-- Private VPC for backend services; database not on public internet.
-- Outbound calls allow-listed where feasible.
+- Private VPC for backend services; database, Redis, Kafka, Vault not on public
+  internet.
+- Outbound calls allow-listed where feasible. Hub outbound traffic is allow-listed
+  per environment.
 
 ## Resource Budgets (initial)
 
 | Service | CPU | Memory | Notes |
 |---------|-----|--------|-------|
 | API (per instance) | 1 vCPU | 2 GB | autoscale 2–8 |
+| Dapr sidecar (per API/worker pod) | 0.25 vCPU | 256 MB | runs alongside each pod |
 | Workers (per instance) | 1 vCPU | 2 GB | autoscale 1–4 |
 | Postgres | 4 vCPU | 16 GB | initial; scale as needed |
 | Redis | 1 vCPU | 2 GB | initial |
+| Kafka (per broker) | 2 vCPU | 4 GB | 3-broker cluster baseline |
+| Vault | 1 vCPU | 1 GB | HA mode in production (3 nodes) |
+| APISIX | 1 vCPU | 1 GB | autoscale 2–4 |
 | MinIO | 2 vCPU | 4 GB | scaled by storage tier |
 | LiveKit SFU | 2 vCPU | 4 GB | per 250 concurrent participants |
 | LiveKit Egress | 2 vCPU | 4 GB | per ~1.5 concurrent recordings |

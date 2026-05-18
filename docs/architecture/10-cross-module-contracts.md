@@ -2,6 +2,15 @@
 
 Modules collaborate only through explicit contracts. This keeps the modular monolith extractable and avoids accidental database coupling.
 
+> **2026-05-18 update.** Per [ADR-0010 Amendment 1](../decisions/0010-cross-module-communication.md)
+> and [ADR-0014](../decisions/0014-adopt-dapr.md), integration events (Mechanism #3 in this
+> document) dispatch via **Dapr pub/sub to Kafka**. The outbox table remains the durable
+> producer-side buffer; Dapr is the transport. Topic naming convention:
+> `learnstack.{module}.{aggregate}`. Consumer-side idempotency via per-module inbox guard
+> (`IInboxGuard`). Application contracts (Mechanism #1), intra-module domain events
+> (Mechanism #2), and read-model projections (Mechanism #4) are unchanged. See
+> [15-event-and-outbox.md](15-event-and-outbox.md) for the full producer/consumer flow.
+
 ## Allowed Contract Types
 
 ```mermaid

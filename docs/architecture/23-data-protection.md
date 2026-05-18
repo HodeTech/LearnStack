@@ -90,9 +90,78 @@ Consent records are append-only; "I changed my mind" creates a new record with a
 
 ## Data Residency
 
-LearnStack supports one geographic region for the MVP. Tenants subject to data-residency obligations (Turkish data on Turkish soil, EU data in EU) are served by deploying a regional instance of the platform; cross-region replication is out of scope until enterprise demand justifies it. This is documented in tenant onboarding.
+LearnStack supports **one geographic region per deployment instance** for the MVP.
+Tenants subject to data-residency obligations (Turkish data on Turkish soil, EU data
+in EU, KSA data in KSA) are served by deploying a **regional instance** of the
+platform; cross-region replication of tenant content is out of scope until enterprise
+demand justifies it. The choice is documented in tenant onboarding.
 
-A future architecture document will define multi-region operations when it lands.
+### How "data residency" surfaces today
+
+Per [ADR-0021](../decisions/0021-feature-based-entitlement.md), the entitlement
+projection carries a `compliance.data_residency` cap:
+
+```json
+{
+  "compliance": {
+    "data_residency": {
+      "forced": true,
+      "region": "eu-west"
+    }
+  }
+}
+```
+
+When the cap is set, the LearnStack admin surface refuses to enable any storage /
+provider option whose region does not match. **Today the only enforcement is at the
+deployment-mode-and-config level** — there is no runtime cross-region routing inside
+a single LearnStack deployment. In practice:
+
+| Deployment mode | Residency enforcement |
+|-----------------|-----------------------|
+| `SaaS` | Hub provisions the tenant on the regional instance whose `region` matches the plan's `data_residency.region`. Cross-region tenant moves are operator-driven (back up + restore in target region; not online). |
+| `Dedicated` | The dedicated cluster is region-pinned at provisioning. Hub records the region in the entitlement projection; tenant-side admin sees it read-only. |
+| `SelfHosted` | The customer chooses the deployment region. The signed license key can carry a `region` claim that LearnStack core validates against `IConfiguration["Deployment:Region"]`; mismatch refuses to start. |
+
+### Per-component region pinning
+
+Within a regional instance, the following components must run in-region:
+
+- PostgreSQL primary + WAL archive.
+- Redis (entitlement cache, L1 invalidation).
+- MinIO / S3-compatible object storage (recordings, media).
+- Meilisearch.
+- Kafka.
+- LiveKit SFU + Egress (a learner joining from another continent still has their
+  media routed through the in-region SFU; this is acceptable latency-vs-residency
+  trade-off; cross-region SFU is post-MVP).
+
+Vault may run regionally **or** be replicated cross-region for operator-key
+distribution — secret content is encrypted at rest, and the trade-off is operational
+not residency-bound.
+
+### Cross-region operations that remain centralised
+
+Two flows legitimately cross regions:
+
+- **LearnStack ↔ Hub** internal API. Hub may live in a single region (e.g. eu-west)
+  while serving tenants in multiple regions. The four-endpoint contract is small,
+  audit-friendly, and carries no tenant content — only plan / entitlement / license
+  metadata. Tenants whose plan forbids cross-region operator access are served by a
+  region-local Hub instance (Hub federation is a Phase-11+ topic, not MVP).
+- **Telemetry → centralised OpenTelemetry collector**. Trace and metric data can be
+  shipped cross-region for unified observability; PII redaction in the pipeline keeps
+  this clear of residency obligations. Tenants with stricter rules get a region-local
+  collector with no upstream forwarder.
+
+### Open questions (Phase 11+)
+
+- Multi-region tenant pools where one tenant has learners across regions.
+- Active-active region pairs with synchronous replication.
+- Per-organization residency overrides within a single tenant (rare).
+- Cross-region disaster-recovery RPO/RTO targets (`docs/runbooks/dr.md`, Phase 11).
+
+These are tracked as Phase-11+ work and are not implementation blockers for the MVP.
 
 ## Processor Agreements
 

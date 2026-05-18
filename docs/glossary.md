@@ -6,23 +6,28 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **LearnStack** | The core platform engine. Not a single product, not a single LMS. The reusable foundation that hosts education products. |
+| **LearnStack** | The core platform engine. Not a single product, not a single LMS. The reusable foundation that hosts education products of any domain. |
+| **LearnStack Hub** | The companion control-plane application in the separate `learnstack-hub` repository. Owns plans, custom-domain admin, license-key issuance, and the entitlement projection that LearnStack core mirrors. See [ADR-0019](decisions/0019-learnstack-hub.md) and [24-learnstack-hub.md](architecture/24-learnstack-hub.md). |
 | **Tenant** | A logical education platform or brand running on LearnStack. One LearnStack deployment can host many tenants. Each tenant has its own domain, branding, content, courses, and members. |
+| **Organization** | A sub-unit within a tenant — a branch, campus, studio, department, or cohort. Two-level hierarchy strict (`Tenant → Organization`, no nesting) per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). Every tenant has at least one default organization. |
 | **Brand** | Synonym for Tenant in product-facing language. In code, prefer `Tenant`. |
-| **Platform Admin** | A LearnStack operator who manages tenants, plans, infrastructure-level settings. Operates above tenants. |
-| **Tenant Admin** | A user with administrative rights inside a single tenant. Cannot see other tenants. |
-| **Vertical Product** | A domain-specific product built on the LearnStack core. Examples: English-learning, exam preparation, corporate academy. |
-| **Core** | The reusable platform layer. Does not contain vertical-specific business rules. |
+| **Platform Admin** | A LearnStack operator who manages tenants, plans, infrastructure-level settings. Authenticates against the `learnstack-hub` Keycloak realm. Operates above tenants. |
+| **Hub Operator** | A subset of Platform Admins who use the operator portal (`learnstack-hub-web`). Same Keycloak realm; finer-grained roles (`hub-platform-admin`, `hub-operator`, `hub-billing-viewer`). |
+| **Tenant Admin** | A user with administrative rights inside a single tenant. Authenticates against the `learnstack` Keycloak realm. Cannot see other tenants. |
+| **Org Admin** | A user with administrative rights inside a single organization within a tenant. |
+| **Deployment Mode** | One of `Development` / `SaaS` / `Dedicated` / `SelfHosted` per [ADR-0020](decisions/0020-triple-deployment-hybrid-license.md). Selected at composition root; module code never branches on it. |
+| **Core** | The reusable platform layer. Does **not** contain domain-specific business rules. |
+| **Tenant Customization** | Per-tenant data (JSON Schemas + DSL expressions) that defines the tenant's domain shape: content types, page blocks, lesson item types, level taxonomies, scoring rules, completion rules, custom fields, notification templates. Authored by tenants, not by LearnStack. See [ADR-0018](decisions/0018-tenant-driven-customization-model.md). |
 
 ## Identity & Membership
 
 | Term | Definition |
 |------|------------|
 | **User** | A person known to LearnStack at the global level. Identified by a stable user id. |
-| **Membership** | The relationship between a user and a tenant. A user can have memberships in multiple tenants with different roles. |
-| **Role** | A named bundle of permissions inside a tenant. Examples: `tenant-admin`, `editor`, `instructor`, `learner`. |
-| **Permission** | A fine-grained capability such as `course.publish` or `media.upload`. |
-| **Invitation** | A pending offer for a user to accept a membership in a tenant. |
+| **Membership** | The relationship between a user, a tenant, and (optionally) an organization. Triple-keyed `(user_id, tenant_id, organization_id)` per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). A user can have memberships in multiple tenants and multiple organizations within one tenant. |
+| **Role** | A named bundle of permissions. Scope: `Platform` / `Tenant` / `Organization`. Examples: `tenant-admin`, `editor`, `instructor`, `learner`, `org-admin`. |
+| **Permission** | A fine-grained capability `{module}.{resource}.{action}` with a scope (Platform / Tenant / Organization). Action set is closed: `read | write | delete | admin`. |
+| **Invitation** | A pending offer for a user to accept a membership in a tenant + organization. |
 
 ## Content & Pages
 
@@ -121,20 +126,20 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **Extension Point** | A documented hook in the core (event subscription, block registration, content-type registration, provider adapter slot) where a vertical product can attach. |
-| **Provider Adapter** | A concrete implementation of an infrastructure-side interface (payment, live-class, search, storage, email, SMS). |
-| **Domain Extension** | A vertical-specific entity or workflow (e.g. CEFR level, placement-test scoring). |
-| **Content Extension** | A vertical-specific content type or page block. |
-| **UI Extension** | A vertical-specific frontend component, block renderer, or portal widget. |
+| **Tenant Customization Aggregate** | One of `TenantContentType`, `TenantPageBlock`, `TenantLessonItemType`, `TenantLevelTaxonomy`, `TenantScoringRule`, `TenantCompletionRule`, `TenantCustomFieldDef`, `TenantTemplateLibrary`. Per [ADR-0018](decisions/0018-tenant-driven-customization-model.md), per-tenant domain shapes live here as data, not code. |
+| **Composite Renderer Key** | A reference from a `TenantPageBlock` / `TenantLessonItemType` to a built-in primitive renderer (`default-card`, `content-list`, `card-grid`, …) that the runtime resolves to a React component. Tenants compose; they do not bring code. |
+| **Provider Adapter** | A concrete implementation of an infrastructure-side interface (payment, live-class, search, storage, email, SMS, event bus, cache, secrets, entitlement source, host resolver). |
+| **Vertical (deprecated)** | Pre-2026-05-18 term for a domain-specific code module. Verticals as code no longer exist — see [ADR-0018](decisions/0018-tenant-driven-customization-model.md). Domain shapes live as tenant customization data. |
 
-## Feature Flags
+## Feature Flags & Entitlements
 
 | Term | Definition |
 |------|------------|
-| **Feature Flag** | A typed, tenant-scoped capability toggle stored in `tenant_feature_flags` and resolved through `IFeatureFlags`. Catalog is code-defined; per-tenant overrides are data. |
-| **Flag Catalog** | The code-defined enumeration of every flag the platform knows about. Free-form string keys are forbidden; `FlagKey<T>` is the only entry point. |
-| **Killswitch** | A flag whose default is "enabled" and that gates an expensive or risky code path. Flipped off during an incident to disable the path. |
-| **Vertical Enablement Flag** | A flag of the form `vertical.<key>.enabled` that gates whether a vertical's handlers, blocks, and content types are active for a tenant. |
+| **Feature Flag (tenant-level)** | A typed capability toggle stored in `tenant_feature_flags` for experimental / rollout / opt-in features. Resolved through `IFeatureFlags`. Catalog is code-defined (`FeatureKeys`); per-tenant overrides are data. |
+| **Entitlement** | A Hub-projected fact about a tenant's plan: which features are enabled, which limits apply, which compliance caps. Mirrored from the Hub into `platform_entitlement_cache` per [ADR-0021](decisions/0021-feature-based-entitlement.md). |
+| **Feature Key / Limit Key** | A typed value object (`FeatureKey`, `LimitKey`) from the `FeatureKeys` / `LimitKeys` static catalogs. Free-form strings are forbidden. |
+| **Killswitch** | A `KillswitchKeys.*` flag whose default is "enabled" and gates an expensive or risky code path. Flipped off during an incident to disable the path platform-wide. Overlay wins over both plan projection and tenant flag. |
+| **Soft vs Hard Limit** | A `LimitKey` declares `LimitEnforcement = Soft | Hard`. Hard refuses the operation with `403 ProblemDetails`; Soft surfaces a banner and emits a Hub-side soft-limit alert. |
 
 ## Search
 
@@ -149,9 +154,34 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **Custom Domain** | A tenant-chosen hostname (`learn.acme.com`) that resolves to a tenant via the host → tenant registry. |
-| **Domain Verification** | The DNS check (TXT or CNAME) that proves the tenant controls the host before traffic is routed. |
-| **Reserved Host** | A hostname the platform refuses to assign to a tenant (e.g. `api.*`, `admin.*`, any platform domain). |
+| **Custom Domain** | A tenant-chosen hostname (`learn.acme.com`) that resolves to a tenant via `platform_host_to_tenant`. Hub owns the issuance + TLS lifecycle; LearnStack mirrors the host → tenant mapping. See [ADR-0022](decisions/0022-custom-domain-tls.md) and [27-custom-domain-tls.md](architecture/27-custom-domain-tls.md). |
+| **Domain Verification** | The DNS-01 / HTTP-01 challenge that proves the tenant controls the host before TLS issuance. Hub-side flow. |
+| **Reserved Host** | A hostname the platform refuses to assign to a tenant (e.g. `api.*`, `admin.*`, `hub.*`, any platform domain). |
+| **`IHostToTenantResolver`** | The interface every host-lookup goes through. Backed by `platform_host_to_tenant`. The frontend edge calls a thin API endpoint that delegates to it. |
+
+## Branding
+
+| Term | Definition |
+|------|------------|
+| **TenantBranding** | The aggregate inside Tenancy that carries the tenant's design tokens — logo, primary / secondary colour set, typography tokens, header / footer settings. Resolved once per request at the layout level and injected as CSS variables on the SSR'd HTML root. |
+| **OrganizationBranding** | An optional override row attached to an `Organization` that supplies a partial design-token set. When the resolved request carries an organization id, the runtime merges `OrganizationBranding` on top of `TenantBranding` before injecting tokens; missing fields fall through to the tenant default. |
+
+## Module-Loading Contracts
+
+| Term | Definition |
+|------|------------|
+| **`IModule`** | The module-loading contract every backend module exposes: a single `AddXxxModule(IServiceCollection)` extension that registers the module's MediatR handlers, EF DbContext, validators, permission catalogue, audit-coverage matrix, and any provider adapters. The composition root calls each module's contract exactly once at startup; modules never register cross-module dependencies. |
+| **`IPermissionRegistry`** | The interface modules use to declare their permission keys + scope (Platform / Tenant / Organization) + default role grants. Registry is composed at startup from every module's contributions; CI fails on duplicates. See [19-permissions.md](standards/19-permissions.md). |
+| **`IAuthorizationHandler<TOperation, TResource>`** | The application-layer policy class that evaluates whether an actor with a given permission can perform an operation on a specific resource (e.g. `instructor` with `education.course.write` against `Course.OwnerId == actor.UserId`). Sits behind `IAuthorizationService.AuthorizeAsync` calls. |
+
+## Marker Attributes
+
+| Term | Definition |
+|------|------------|
+| **`[TenantOwned]`** | Marks a domain entity whose rows are scoped to a tenant. The build inspects the marker to assert: the entity carries a `TenantId`, an EF global query filter for tenant scope is configured, and a PostgreSQL RLS policy on the backing table reads `current_setting('app.tenant_id')`. See [05-database.md](standards/05-database.md). |
+| **`[OrganizationScoped]`** | Marks a `[TenantOwned]` entity that additionally carries `OrganizationId` (nullable; null means tenant-wide). The build asserts a matching org-aware EF filter + RLS policy reading `current_setting('app.organization_id', true)`. Per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). |
+| **`[PiiSensitive]`** | Marks a field whose value the audit pipeline must redact before persisting to `audit_log`. The redaction filter strips matching property names from `before` / `after` snapshots and replaces with `"<redacted>"`. |
+| **`[ConsistencyTier(...)]`** | Optional marker on a command handler that explicitly states the distributed-consistency tier (1 / 2A / 2B / 3) per [01-architecture-standards.md § Distributed-Consistency Tiers](standards/01-architecture-standards.md). Reviewers use it to reason about failure modes. |
 
 ## Data Protection
 
@@ -170,16 +200,19 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
+| **AuditEntry** | The append-only aggregate owned by `LearnStack.Modules.Audit`. Inherits `Entity<TId>`, **not** `AuditableEntity<T>` — append-only by design. See [ADR-0016](decisions/0016-audit-log-subsystem.md) and [31-audit-subsystem.md](architecture/31-audit-subsystem.md). |
 | **Audit Operation Class** | One of `create`, `update`, `delete`, `read-sensitive`, `security-event`, `platform-admin`. Determines whether an action MUST, SHOULD, or MAY be audited. |
 | **Audit Coverage Matrix** | A per-module table mapping resources × operations to MUST / SHOULD / MAY / – classifications. Required for every module spec. |
+| **AuditConfig** | The per-tenant override of the catalog's MUST/SHOULD/MAY mapping (tenants can opt into stricter coverage but cannot relax MUST). |
+| **Audit Capture Pipeline** | `AuditChangeTrackerInterceptor` (EF) → `IAuditStateCapture` (before/after/changes JSON) → `AuditLogBehavior` (MediatR) → `IAuditStore`. Modules never write `audit_log` directly. |
 | **Retention Class** | The retention floor for a category of audit entries (7y for security-event / platform-admin / financial; 2y for others). |
 
 ## Permissions
 
 | Term | Definition |
 |------|------------|
-| **Permission Key** | A dotted string `{module}.{resource}.{action}` with `action` drawn from the closed set `read \| write \| delete \| admin`. |
-| **Permission Scope** | Either `platform` (cross-tenant operator capabilities) or `tenant` (within a tenant). Registries are disjoint. |
+| **Permission Key** | A dotted string `{module}.{resource}.{action}` with `action` drawn from the closed set `read \| write \| delete \| admin`. Domain terms (CEFR, English, yoga, …) are forbidden in keys. |
+| **Permission Scope** | One of `platform` (Hub operators), `tenant` (within a tenant), or `organization` (within one organization). Registries are disjoint. |
 | **Permission Matrix** | A per-module table mapping `Resource × Action` to ✓ / – plus default role grants. Required for every module spec. |
 
 ## Page Builder
@@ -203,9 +236,38 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **BFF (Backend-for-Frontend)** | The Next.js server-side proxy layer in `app/api/` that holds session cookies, refreshes Keycloak tokens silently, and forwards calls to the .NET API with `Authorization` and tenant headers. The browser never sees refresh tokens. |
+| **BFF (Backend-for-Frontend)** | The Next.js server-side proxy layer in `app/api/` that holds session cookies, refreshes Keycloak tokens silently, and forwards calls to the .NET API with `Authorization` and tenant + organization headers. The browser never sees refresh tokens. |
 | **Idempotency Key** | A client-supplied `Idempotency-Key` header on `POST` operations with external side effects (payments, webhook processing, notification sending, recording start/stop). The server stores `(idempotency_key, response)` for 24 hours and replays the stored response for duplicates. See [04-api-design.md § Idempotency](standards/04-api-design.md). |
 | **Problem Details** | RFC 7807 JSON error envelope (`type`, `title`, `status`, `code`, `detail`, `instance`, `correlationId`) used by every LearnStack error response. |
+| **Hub Contract Surface** | The closed set of four endpoints between LearnStack core and the Hub: `POST /api/internal/tenants`, `PUT /api/internal/tenants/{id}/entitlements`, `POST /api/v1/internal/license/verify`, `POST /api/v1/usage/report`. mTLS + signed JWT + HMAC. Adding a fifth requires a new ADR. |
+
+## Foundation Infrastructure
+
+| Term | Definition |
+|------|------------|
+| **Dapr Building Blocks** | The three Dapr abstractions LearnStack uses: pub/sub (Kafka), state (Redis), secrets (Vault) per [ADR-0014](decisions/0014-adopt-dapr.md). Service invocation, workflow, bindings, and actors are out of scope. |
+| **`IEventBus`** | Interface for publishing integration events. Backed by `DaprEventBus` (production) or `InProcessEventBus` (development). The `OutboxProcessor` is the only sanctioned caller. |
+| **`ICacheService`** | Interface for cache reads / writes. Backed by `DaprCacheService` (production, Redis-backed) or `InMemoryCacheService` (development). Cache keys carry `{tenant_id}` prefix. |
+| **`ISecretProvider`** | Interface for secret reads. Backed by `DaprSecretProvider` (production, Vault) or `EnvironmentSecretProvider` (development). Secret namespace `learnstack/{deployment}/{module}/{key}`. |
+| **`IEntitlementProvider`** | Interface for the entitlement source. Implementations: `NullEntitlementProvider` (dev), `HubEntitlementProvider` (SaaS / Dedicated), `SignedLicenseKeyEntitlementProvider` (Self-Hosted). |
+| **`IHostToTenantResolver`** | Interface for host → `(tenant_id, organization_id?)` resolution. Backed by `platform_host_to_tenant`. |
+| **APISIX** | The gateway in standalone YAML-reload mode per [ADR-0015](decisions/0015-api-gateway-apisix.md). The only tenant-facing ingress. A separate route set guards `/api/internal/*` with mTLS. |
+| **`OutboxProcessor`** | The BackgroundService that polls `outbox_messages` with `FOR UPDATE SKIP LOCKED`, dispatches through `IEventBus`, and handles retry / dead-letter. |
+| **`IInboxGuard`** | The per-module inbox-deduplication helper. Every integration-event handler must call `IsAlreadyProcessedAsync` before business logic and `MarkAsProcessed` inside the same SaveChanges. |
+| **`DeploymentMode`** | Enum (`Development | SaaS | Dedicated | SelfHosted`) read at the composition root to select provider implementations. Modules never read this enum. |
+
+## Hub & Licensing
+
+| Term | Definition |
+|------|------------|
+| **Plan (Hub-side)** | The plan catalog entry owned by `learnstack-hub`. Carries default features, limits, compliance caps. |
+| **HubSubscription** | A per-tenant binding to a `Plan`. Has lifecycle state (trial / active / cancelled / grace / suspended). |
+| **Entitlement (Hub-side)** | The effective feature + limit + compliance set for a tenant — the snapshot Hub pushes to LearnStack core via `PUT /api/internal/tenants/{id}/entitlements`. |
+| **License Key** | An RSA-2048 signed `.lic` file issued by Hub for Self-Hosted deployments. Carries claims (`tenant_id`, `plan_code`, `features`, `limits`, `valid_until`, …) and a signature. See [ADR-0020](decisions/0020-triple-deployment-hybrid-license.md). |
+| **Phone-Home** | The 24h verify call a Self-Hosted instance makes against Hub's `POST /api/v1/internal/license/verify`. Optional; can be disabled for air-gapped operation. |
+| **Grace Period** | The 30-day window during which a Self-Hosted instance keeps operating after the last successful phone-home. |
+| **Platform Entitlement Cache** | The `platform_entitlement_cache` table in LearnStack core — the read-only mirror of Hub's `Entitlement`. 15-min TTL upper bound, eager-invalidated on `learnstack.hub.entitlement` Dapr event. |
+| **Operator Portal** | `learnstack-hub-web` — the separate Next.js app for Hub operators. Authenticates against the `learnstack-hub` Keycloak realm. |
 
 ## Conventions
 

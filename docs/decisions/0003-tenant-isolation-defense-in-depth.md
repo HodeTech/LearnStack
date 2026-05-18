@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Amendment 1: 2026-05-18 — adds Organization scope; see bottom of document)
 
 ## Decision
 
@@ -26,4 +26,46 @@ LearnStack uses a shared database and shared schema initially. Query filters alo
 - Platform-admin operations must be explicit and audited.
 - PostgreSQL RLS policies are required before production.
 - Tests must fail when tenant-owned entities lack protection.
+
+---
+
+## Amendment 1 — Organization scope (2026-05-18)
+
+Per [ADR-0017](0017-tenant-organization-hierarchy.md), LearnStack adopts a two-level
+hierarchy (Tenant + Organization). This amendment extends the original defense-in-depth
+table without altering the tenant-level guarantees.
+
+**Extended defense-in-depth layers:**
+
+| Layer | Mechanism |
+|-------|-----------|
+| Tenant isolation | `tenant_id` column + EF query filter + RLS policy + architecture tests (unchanged from original decision) |
+| **Organization filter (new)** | `organization_id` column on org-scoped entities + EF query filter + RLS policy + architecture test |
+| Identity | Keycloak realm-per-tenant + `organization_id` JWT claim populated from active org |
+| Cache | Cache keys auto-prefixed `{tenant_id}:{organization_id}:{key}` when org context set; `{tenant_id}:{key}` otherwise |
+| Files (MinIO) | Object key prefix `tenants/{tenant_id}/organizations/{org_id}/...` when org-scoped; `tenants/{tenant_id}/...` when tenant-wide |
+| Search (Meilisearch) | Query filter `tenant_id = X AND (organization_id = Y OR organization_id IS NULL)` for org-context queries |
+| Jobs (Hangfire) | Job payload carries `TenantId` (mandatory) + `OrganizationId?` (when applicable) |
+| Audit | Every audit row carries `tenant_id` (mandatory) + `organization_id?` (when applicable) — ADR-0016 |
+
+**RLS policy template for org-scoped tables:**
+
+```sql
+CREATE POLICY <table>_organization_isolation ON <table>
+    USING (
+        organization_id IS NULL
+        OR organization_id = current_setting('app.organization_id', true)::uuid
+        OR current_setting('app.scope', true) = 'tenant'
+    );
+```
+
+**Org-scope opt-in.** A tenant-owned entity may be **tenant-wide** (no `organization_id`)
+or **org-scoped** (`organization_id` populated). Entities mark themselves via
+`[OrgScoped]` attribute; architecture test enforces the column + filter + policy.
+
+**Default org.** A tenant without explicit orgs has one default org auto-created at tenant
+provisioning. Single-org tenants experience no UX difference (org switcher hidden).
+
+The original tenant-level guarantees, RLS-from-day-one rule, and architecture tests for
+tenant isolation remain unchanged.
 

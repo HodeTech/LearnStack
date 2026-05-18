@@ -47,7 +47,15 @@ Rules:
 - Each commit is a meaningful unit; squash messy WIP before opening the PR.
 - For multi-module changes, pick the primary module as `scope`; list the others in the body.
 - Co-author tags allowed (`Co-authored-by: ...`).
-- Commits include `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` when AI assistance was material.
+- AI-assisted commits **must** include a `Co-Authored-By` trailer naming the assistant
+  that materially contributed. The canonical form is the agent's product name +
+  underlying model + context length, with `<noreply@anthropic.com>` as the email
+  unless the agent vendor specifies otherwise. Examples:
+  - `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+    (default for Claude Code sessions in this repo).
+  - `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>` (when the
+    assistant is OpenAI Codex / a Codex-derived agent acting on `AGENTS.md`).
+  - One trailer per assistant when multiple were used in the same commit.
 
 ### Trailers
 

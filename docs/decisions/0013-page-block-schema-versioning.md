@@ -46,6 +46,7 @@ Option 2 was chosen because it preserves both forward and backward safety: old p
 ## References
 
 - [17-page-builder.md](../architecture/17-page-builder.md) — lifecycle rules and resolver safety.
-- [11-extension-points.md](../architecture/11-extension-points.md) — how a vertical registers a block.
 - [06-extension-model.md](../architecture/06-extension-model.md) — extension surfaces overview.
+- [32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md) — how
+  a tenant declares a block as data (supersedes the vertical-as-code path).
 - [01-architecture-standards.md](../standards/01-architecture-standards.md) — architecture test requirements.

@@ -1,7 +1,14 @@
 # 01 — Architecture Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md), [ADR 0011 — Vertical Extension Points](../decisions/0011-extension-points.md).
+**Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md),
+[ADR-0010 Cross-Module Communication](../decisions/0010-cross-module-communication.md)
+(Amendment 1: outbox dispatch via Dapr pub/sub),
+[ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
+[ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md),
+[ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
+(supersedes ADR-0011 Vertical Extension Points).
 
 These rules turn the architecture docs into enforceable code conventions. They are checked by architecture tests where possible.
 
@@ -18,10 +25,17 @@ LearnStack.Modules.<Name>.Infrastructure/          EF configurations, adapters, 
 
 Rules:
 - A module's `Domain` references only the shared kernel.
-- A module's `Application` references its own `Domain` plus other modules' `Application.Contracts`.
-- A module's `Infrastructure` references its own `Application` and `Domain`, plus provider SDKs.
-- Other modules reference only `<Name>.Application.Contracts`. Never `<Name>.Domain` or `<Name>.Infrastructure`.
-- Verticals follow the same internal shape under `LearnStack.Verticals.<Name>.*`.
+- A module's `Application` references its own `Domain` plus other modules'
+  `Application.Contracts`.
+- A module's `Infrastructure` references its own `Application` and `Domain`, plus
+  provider SDKs.
+- Other modules reference only `<Name>.Application.Contracts`. Never `<Name>.Domain`
+  or `<Name>.Infrastructure`.
+- **There is no `LearnStack.Verticals.*` namespace.** Domain-specific shapes
+  (CEFR levels, asana catalogs, kyu/dan ranks, code-challenge runners, …) live as
+  **tenant customization data** ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)),
+  not as compiled code. The architecture test `No_Source_Folder_Named_Verticals`
+  enforces this.
 
 ## Dependency Direction
 
@@ -125,16 +139,31 @@ Architecture tests live in `LearnStack.Tests.Architecture`. They enforce:
 
 Tests run on every CI build and are not skippable.
 
-## Vertical Modules
+## Tenant Customization (no Vertical Modules)
 
-Vertical products (English-learning, exam-prep, etc.) follow the same layout under `LearnStack.Verticals.<Name>.*`. They:
+Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md), LearnStack
+does **not** ship per-domain vertical modules. Tenant-specific shapes are expressed as
+**data** in the customization aggregates owned by `LearnStack.Modules.Customization`:
 
-- Own their own EF DbContext slice (their tables live in their own migrations).
-- Subscribe to core integration events to react to platform changes.
-- Register their own page blocks, content types, portal widgets.
-- Never modify core module code.
+- `TenantContentType` — JSON Schema definitions for tenant-defined content types.
+- `TenantPageBlock` — schema + composite-renderer key for tenant-defined page blocks.
+- `TenantLessonItemType` — schema + player key for tenant-defined lesson items.
+- `TenantLevelTaxonomy` — items declared by a tenant's taxonomy (CEFR, yoga
+  difficulty, kyu/dan, …).
+- `TenantScoringRule` — sandboxed DSL expression for assessment scoring.
+- `TenantCompletionRule` — boolean DSL expression for lesson/module/course completion.
+- `TenantCustomFieldDef` — custom fields on built-in entities (`User`, `Course`,
+  `Enrollment`, …), stored in the entity's `custom_fields jsonb` column.
+- `TenantTemplateLibrary` — notification templates (email/SMS/WhatsApp/in-app) per
+  locale, optionally per organization.
 
-If a vertical needs to influence core behavior, the right answer is a new extension point in the core, exposed via an interface — never a direct modification.
+The runtime composes per-tenant content shapes by reading these records — schemas are
+JSON, expressions are DSL strings (engine choice pending its own ADR). No tenant ships
+a C# project; no `Verticals/` folder exists; an architecture test
+(`No_Source_Folder_Named_Verticals`) keeps it that way.
+
+Full data model and worked tenant examples:
+[32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md).
 
 ## Distributed-Consistency Tiers
 
@@ -158,10 +187,17 @@ This is the decision rule every PR author runs before writing a handler that tal
 
 ## Service Extraction Readiness
 
-The modular monolith must remain extractable. When a module is later promoted to a separate service, only the **adapter** and **transport** layer should change, not the domain model.
+The modular monolith must remain extractable. When a module is later promoted to a
+separate service, only the **adapter** and **transport** layer should change, not the
+domain model.
 
 To stay extractable:
 - Public contracts in `Application.Contracts` must use only primitives and ids.
 - Integration events must be serializable to JSON without loss.
 - Cross-module reads happen through contracts, never through shared DbContexts.
-- The outbox boundary is identical between in-process dispatch and message broker dispatch.
+- The outbox boundary is identical between **`InProcessEventBus`** (dev) and
+  **`DaprEventBus` → Kafka** (production) — both implement the same `IEventBus`
+  interface, so a module promoted to a separate service inherits at-least-once
+  delivery with no code change. See
+  [20-infrastructure-stack.md](20-infrastructure-stack.md) and
+  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).

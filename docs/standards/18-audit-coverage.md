@@ -1,16 +1,33 @@
 # 18 — Audit Coverage Standards
 
 **Status:** Active
-**Derives from:** [11-security.md](11-security.md) § Audit Log, [01-architecture-standards.md](01-architecture-standards.md).
+**Derives from:** [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md),
+[ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[11-security.md](11-security.md) § Audit Log,
+[01-architecture-standards.md](01-architecture-standards.md).
 
-This standard defines **which operations must be audited**, **what an audit entry contains**, **how long entries are retained**, and how each module signs up for its own coverage. The `AuditLog` aggregate itself is defined in [02-domain-model.md](../architecture/02-domain-model.md); this document is the rule that prevents the audit story from drifting.
+This standard defines **which operations must be audited**, **what an audit entry
+contains**, **how long entries are retained**, and how each module signs up for its
+own coverage. The `AuditEntry` aggregate itself is defined in
+[02-domain-model.md](../architecture/02-domain-model.md) § Audit and the subsystem deep
+dive is in [31-audit-subsystem.md](../architecture/31-audit-subsystem.md); this
+document is the rule that prevents the audit story from drifting.
 
 ## Quick Rules
 
-- A breach investigator or regulator should be able to answer "**who did what, to which resource, when, from where, with what outcome**" for every meaningful state change.
-- If omitting an audit entry would embarrass a compliance officer, it **MUST** be audited.
-- Audit entries are append-only, immutable, tenant-scoped, and queryable by tenant admins for their own tenant.
-- Every module owns a Permission × Operation classification table for its resources. The matrix is reviewed when the module is built and again when it is extended.
+- A breach investigator or regulator should be able to answer "**who did what, to which
+  resource, when, from where, with what outcome**" for every meaningful state change.
+- If omitting an audit entry would embarrass a compliance officer, it **MUST** be
+  audited.
+- Audit entries are append-only, immutable, tenant-scoped (and org-scoped when the
+  resource is org-scoped per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
+  and queryable by tenant admins for their own tenant (org admins for their org).
+- Every module owns a Permission × Operation classification table for its resources.
+  The matrix is reviewed when the module is built and again when it is extended.
+- Coverage is configured in the **catalog** (`AuditConfig` per-tenant override of the
+  module/operation MUST/SHOULD/MAY mapping) and **enforced by the MediatR
+  `AuditLogBehavior`**. Modules never call `IAuditStore` directly — the pipeline does
+  it for them based on the catalog.
 
 ## Operation Classes
 
@@ -42,8 +59,9 @@ The following operations are MUST-audit across LearnStack regardless of which mo
 
 | Domain | MUST-audit operation |
 |--------|----------------------|
-| Identity | Membership created / removed; role assigned / revoked; permission set changed; invitation created / accepted / revoked; platform-admin tenant access. |
-| Tenancy | Tenant created / suspended / deleted; tenant setting changed; custom domain added / verified / removed; feature flag toggled. |
+| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
+| Tenancy | Tenant created / suspended / deleted; organization created / archived; tenant setting changed; custom domain added / verified / removed; feature flag toggled; entitlement projection refresh (`tenancy.entitlement.refresh`); killswitch toggled. |
+| Customization | `TenantContentType` / `TenantPageBlock` / `TenantLessonItemType` / `TenantLevelTaxonomy` / `TenantScoringRule` / `TenantCompletionRule` / `TenantCustomFieldDef` / `TenantTemplateLibrary` created / updated / deleted (schema changes are MUST; both `before` and `after` snapshots required). |
 | Content / Pages | Page published / unpublished; content type schema changed; redirect created / changed. |
 | Catalog / Learning | Course published / unpublished; CourseVersion published; lesson item replaced post-publish. |
 | Enrollment | Enrollment created / suspended / cancelled / completed; entitlement granted / revoked. |
@@ -52,11 +70,13 @@ The following operations are MUST-audit across LearnStack regardless of which mo
 | Classroom | Room opened / ended; participant joined / left (security-event); join token issued; consent state changed. |
 | Recording | Recording started / stopped; recording downloaded; retention policy changed; legal hold applied / removed. |
 | Billing | Order paid / refunded; subscription created / cancelled; payment provider account changed. |
+| Hub contract | Inbound Hub command received (`tenancy.tenant.create-from-hub`, `tenancy.entitlement.push`); outbound usage report (`platform.usage.report`); license verification result. |
 | Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). |
 | Integrations | External provider credential created / rotated / revoked; webhook secret rotated. |
-| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard. |
+| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`. |
 
-Vertical modules (English Learning, etc.) extend this table with their own MUST/SHOULD entries; they never relax a core rule.
+There are **no vertical modules**. Tenant-specific extensions land as data via the
+Customization aggregates and inherit the MUST-audit rules above for schema changes.
 
 ## Audit Entry Payload Contract
 
@@ -65,20 +85,23 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
 ```json
 {
   "id": "01H...",
-  "occurredAt": "2026-05-14T12:34:56.789Z",
+  "occurredAt": "2026-05-18T12:34:56.789Z",
   "tenantId": "ten_01H...",
+  "organizationId": "org_01H...",
   "actor": {
     "userId": "usr_01J...",
     "membershipId": "mbr_01J...",
     "roles": ["instructor"],
-    "platformAdmin": false
+    "platformAdmin": false,
+    "hubOperator": false
   },
   "operation": {
     "module": "enrollment",
     "resource": "Enrollment",
     "resourceId": "enr_01K...",
     "action": "create",
-    "class": "create"
+    "class": "create",
+    "operationType": "command"
   },
   "request": {
     "correlationId": "01H...",
@@ -89,7 +112,11 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
   "outcome": "success",
   "before": null,
   "after": { "courseVersionId": "...", "userId": "...", "status": "active" },
-  "reason": null
+  "changes": [
+    { "path": "/status", "before": null, "after": "active" }
+  ],
+  "reason": null,
+  "metadata": { "source": "tenant-admin-studio" }
 }
 ```
 
@@ -103,10 +130,24 @@ Rules:
 
 ## Storage
 
-- One global `audit_log` table; partitioned by `tenant_id` then `occurred_at` (monthly) once volume warrants it.
-- Append-only; no `UPDATE` or `DELETE` in application code; CI rejects `UpdateAsync` / `DeleteAsync` calls against the audit aggregate.
-- Tenant admins query their own tenant's entries through a paginated, indexed view. Platform admins query across tenants through a separate read role.
-- The audit log is **never** the source of truth for application state; downstream consumers project from integration events, not from audit entries.
+- One global `audit_log` table partitioned by `occurred_at` **monthly from day one**
+  ([ADR-0016](../decisions/0016-audit-log-subsystem.md)). RLS isolates rows by
+  `tenant_id`; the partition strategy serves retention pruning.
+- Append-only; the `AuditEntry` aggregate inherits `Entity<TId>` **not**
+  `AuditableEntity<T>`. No `UPDATE` or `DELETE` in application code; CI rejects
+  `UpdateAsync` / `DeleteAsync` calls against `AuditEntry` and a Postgres trigger
+  rejects them at the database layer too.
+- Tenant admins query their own tenant's entries through a paginated, indexed view.
+  Org admins additionally filter by `organization_id`. Platform admins query across
+  tenants through a separate read role. Hub operators are platform admins from this
+  surface's perspective and their reads are themselves audited.
+- The audit log is **never** the source of truth for application state; downstream
+  consumers project from integration events, not from audit entries.
+- Capture pipeline: `AuditChangeTrackerInterceptor` (EF Core SaveChanges interceptor)
+  → `IAuditStateCapture` (before/after/changes JSON capture) →
+  `AuditLogBehavior` (MediatR pipeline behavior that enriches with actor + correlation
+  + operation metadata and writes through `IAuditStore`). Modules see none of this
+  plumbing.
 
 ## Retention
 
@@ -133,10 +174,16 @@ A tenant cannot reduce retention below the platform-defined floor for `security-
 
 The following tests live in `LearnStack.Tests.Architecture` and run on every PR:
 
-- Every handler that calls `SaveChanges` against a MUST-audit aggregate **also** writes an audit row in the same transaction (instrumented via the EF interceptor).
-- The audit aggregate is never updated or deleted by application code (Roslyn analyzer).
-- Every module ships an `audit.md` matrix at the path expected by the doc-coverage check.
+- Every handler that calls `SaveChanges` against a MUST-audit aggregate **also** writes
+  an audit row in the same transaction (instrumented via the EF interceptor).
+- The `AuditEntry` aggregate is never updated or deleted by application code (Roslyn
+  analyzer + Postgres trigger).
+- `IAuditStore` is the only sanctioned write path: `Modules_Do_Not_Write_AuditLog_Directly`.
+- Every module ships an `audit.md` matrix at the path expected by the doc-coverage
+  check.
 - Outbox dispatcher attaches `actor` and `correlation_id` to every event.
+- `AuditEntry_Inherits_Entity_Not_AuditableEntity` ensures the audit aggregate is
+  append-only by inheritance.
 
 ## Tenant-Admin Visibility
 
@@ -160,7 +207,17 @@ Platform admins additionally see cross-tenant entries through a separate route g
 
 ## References
 
-- [11-security.md](11-security.md) — security headers, authorization, tenant isolation, secrets.
-- [02-domain-model.md](../architecture/02-domain-model.md) — `AuditLog` aggregate definition.
-- [13-identity-and-auth.md](../architecture/13-identity-and-auth.md) — Keycloak vs LearnStack audit split.
+- [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md) — capture
+  pipeline, retention policy, partitioning strategy.
+- [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md) —
+  `organization_id` in audit entries.
+- [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) — subsystem deep dive
+  (interceptor, state capture, MediatR behavior, retention job).
+- [11-security.md](11-security.md) — security headers, authorization, tenant isolation,
+  secrets.
+- [02-domain-model.md](../architecture/02-domain-model.md) § Audit — `AuditEntry`
+  aggregate definition.
+- [13-identity-and-auth.md](../architecture/13-identity-and-auth.md) — Keycloak vs
+  LearnStack audit split.
 - [10-observability.md](10-observability.md) — correlation id propagation, redaction.
+- [20-infrastructure-stack.md](20-infrastructure-stack.md) — `IAuditStore` rules.

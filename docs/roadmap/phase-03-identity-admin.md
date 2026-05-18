@@ -2,9 +2,20 @@
 
 ## Goal
 
-Build LearnStack's identity domain (users, memberships, roles, permissions, invitations, audit) on top of the Keycloak OIDC integration delivered in Phase 02b, and ship the first admin experience.
+Build LearnStack's identity domain (users, memberships with triple-key
+`(user_id, tenant_id, organization_id)`, roles, permissions, invitations) on top of
+the Keycloak OIDC integration delivered in Phase 02b, and ship the first admin
+experience.
 
-Authentication itself (password storage, MFA, token issuance, password reset, account recovery) is owned by Keycloak — see [ADR 0004](../decisions/0004-authentication-strategy.md) and [13-identity-and-auth.md](../architecture/13-identity-and-auth.md). This phase delivers the LearnStack-side identity model on top of that.
+Authentication itself (password storage, MFA, token issuance, password reset, account
+recovery) is owned by Keycloak — see
+[ADR-0004](../decisions/0004-authentication-strategy.md) and
+[13-identity-and-auth.md](../architecture/13-identity-and-auth.md). The **audit
+trail** is owned by `LearnStack.Modules.Audit` — Identity does **not** own an audit
+table; it emits MUST-audit events that the central pipeline captures
+([ADR-0016](../decisions/0016-audit-log-subsystem.md)). The audit module and capture
+pipeline were already wired in Phase 02a. This phase delivers the LearnStack-side
+identity domain on top of those primitives.
 
 ## Scope
 
@@ -12,11 +23,23 @@ Authentication itself (password storage, MFA, token issuance, password reset, ac
 
 - `User` — global identity mirrored from Keycloak (`sub`, email, display name).
 - `UserProfile` — LearnStack-owned profile attributes.
-- `Membership` — per-tenant relationship; carries roles and tenant-specific profile data.
-- `Role` — tenant-scoped except for built-in platform roles.
-- `Permission` — fine-grained capability inside a role.
-- `Invitation` — pending membership offer.
-- `AuditLog` — append-only identity and admin activity.
+- `Membership` — per-tenant **and per-organization** relationship; triple key
+  `(user_id, tenant_id, organization_id)` per
+  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). Carries roles and
+  membership-specific profile data. A user can have memberships in multiple tenants
+  and multiple organizations within one tenant.
+- `Role` — Platform / Tenant / Organization-scoped per the scope catalogue in
+  [19-permissions.md](../standards/19-permissions.md).
+- `Permission` — fine-grained capability inside a role with an explicit scope
+  (Platform / Tenant / Organization).
+- `Invitation` — pending membership offer, bound to email + tenant + organization.
+
+> **Audit ownership.** The `AuditEntry` aggregate lives in the **Audit** module
+> ([ADR-0016](../decisions/0016-audit-log-subsystem.md)), not in Identity. Identity
+> publishes integration events (`learnstack.identity.user`,
+> `learnstack.identity.membership`, `learnstack.identity.role`) that the central
+> capture pipeline turns into audit entries — and command-side mutations also flow
+> through the shared `AuditLogBehavior`. There is **no** Identity-owned audit table.
 
 ### Authentication Integration
 
@@ -58,42 +81,68 @@ Phase 03 ships the identity-management surface in Admin Studio. CMS, page-builde
 - Invitations.
 - Tenant member settings basics.
 
-### Audit
+### Audit Coverage Wiring
 
-Events to record in `AuditLog`:
+Identity emits the following MUST-audit operations through the **central audit
+pipeline** ([ADR-0016](../decisions/0016-audit-log-subsystem.md)); the
+`AuditLogBehavior` in the MediatR pipeline writes entries via `IAuditStore` — Identity
+itself never touches `audit_log` directly:
 
-- Membership created/removed.
-- Role assigned/removed.
+- Membership created / removed (per `(user_id, tenant_id, organization_id)`).
+- Role assigned / revoked.
 - Permission set changed.
-- Invitation created/accepted/revoked.
+- Invitation created / accepted / revoked.
 - Tenant setting changed.
-- Platform-admin cross-tenant access.
+- Platform-admin cross-tenant access (`actor.platformAdmin = true` with a required
+  `reason` field).
+- Hub-operator access to a tenant resource (`actor.hubOperator = true`).
 
-Keycloak owns its own audit stream for login success/failure, password reset, MFA enrolment, and account lock — mirrored events propagate via Keycloak webhooks into the LearnStack `AuditLog` for cross-system queries.
+Keycloak owns its own audit stream for login success/failure, password reset, MFA
+enrolment, and account lock. The Identity module **subscribes** to Keycloak webhooks
+and re-publishes the relevant events as `learnstack.identity.user` integration events;
+the Audit module consumes these and writes audit entries via `IInboxGuard`-protected
+handlers. See [18-audit-coverage.md](../standards/18-audit-coverage.md) for the
+MUST/SHOULD/MAY matrix.
 
 ## Deliverables
 
-- Identity domain (User, Membership, Role, Permission, Invitation, AuditLog) on top of Keycloak.
-- Admin login + tenant switcher via OIDC PKCE.
-- Tenant-aware user management screens.
-- Role and permission system with resource-scoped policy hooks.
-- Invitation flow end to end.
-- AuditLog wired into critical identity operations.
+- Identity domain (`User`, `UserProfile`, `Membership` triple-keyed,
+  `Role` with scope, `Permission` with scope, `Invitation`) on top of Keycloak.
+- Admin login + tenant switcher + **organization switcher** via OIDC PKCE.
+- Tenant- and org-aware user management screens.
+- Role and permission system with explicit scope (Platform / Tenant / Organization)
+  and resource-scoped policy hooks.
+- Invitation flow end to end (tenant + organization bound).
+- Identity events wired through the central audit pipeline (Audit module captures);
+  Keycloak webhook → Dapr integration event → Audit consumer working end-to-end.
 
 ## Completion Criteria
 
-- A tenant admin can only see users from their tenant.
-- Role and permission changes are enforced by both API and UI.
+- A tenant admin can only see users from their tenant; an org admin can only see
+  users from their organization.
+- Role and permission changes are enforced by both API and UI; permission-scope
+  rejection (Tenant vs Organization) returns the right Problem Details code.
 - Unauthorized users cannot access admin endpoints.
-- Invitation flow is covered by integration tests, including email-mismatch and revoked cases.
-- AuditLog records critical identity events.
-- Cross-tenant operations from a platform admin role are audited explicitly.
+- Invitation flow is covered by integration tests, including email-mismatch and
+  revoked cases, and across-organization invitations.
+- MUST-audit identity events appear in `audit_log` via the central pipeline with
+  before/after snapshots where applicable; no Identity-owned `audit_*` table exists.
+- Cross-tenant operations from a platform admin role are audited explicitly with the
+  required `reason` field; Hub-operator actions are audited with
+  `actor.hubOperator = true`.
 
 ## Risks
 
-- Re-implementing capabilities Keycloak already owns (password hashing, reset emails, token rotation). If a feature is in the Keycloak vs. LearnStack split table ([13-identity-and-auth.md](../architecture/13-identity-and-auth.md)), it stays in Keycloak.
-- Designing authentication only around the first vertical product.
+- Re-implementing capabilities Keycloak already owns (password hashing, reset emails,
+  token rotation). If a feature is in the Keycloak vs. LearnStack split table
+  ([13-identity-and-auth.md](../architecture/13-identity-and-auth.md)), it stays in
+  Keycloak.
+- Designing the identity model only around the first tenant's needs (the English-
+  learning showcase). Triple-key membership and org-scoped roles must serve every
+  tenant shape, not only the showcase.
 - Keeping roles too simple and postponing permissions until it is painful.
 - Confusing global user identity with tenant membership.
+- Building an Identity-owned audit table by accident. The Audit module is the only
+  owner; Identity emits events.
 - Relying only on frontend checks for admin authorization.
 

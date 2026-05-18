@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted (Amendment 1: 2026-05-18 — clarifies Dapr pub/sub as the dispatch transport; see
+bottom of document)
 
 ## Decision
 
@@ -21,4 +22,58 @@ The modular monolith must avoid direct cross-module database coupling and should
 - Outbox dispatch is idempotent.
 - Background workers preserve tenant context.
 - Event schema changes require compatibility review.
+
+---
+
+## Amendment 1 — Dapr pub/sub as dispatch transport (2026-05-18)
+
+Per [ADR-0014](0014-adopt-dapr.md) (Adopt Dapr) and [ADR-0010 Amendment 1](0010-cross-module-communication.md),
+the outbox dispatch worker publishes integration events via the Dapr pub/sub building
+block, with Apache Kafka as the production backend.
+
+**Producer side (unchanged guarantee, clarified transport):**
+
+```
+Module transaction commits ─┐
+                            ├── 1. Aggregate state row(s) updated
+                            ├── 2. OutboxMessage row inserted (atomic with #1)
+                            └── COMMIT
+                                  │
+                                  ▼
+        OutboxProcessor (BackgroundService) polls outbox table
+                  SELECT ... WHERE processed_at IS NULL
+                  FOR UPDATE SKIP LOCKED LIMIT @batch_size
+                                  │
+                                  ▼
+        Per message:
+          IEventBus.PublishAsync<TIntegrationEvent>(event)
+            → DaprEventBus → DaprClient.PublishEventAsync(
+                pubsubName: "pubsub",
+                topicName: $"learnstack.{module}.{aggregate}",
+                data: event)
+            → Dapr sidecar → Kafka topic
+          On success: outbox row marked processed_at
+          On failure: retry_count++, exponential backoff, eventually DLQ
+```
+
+**Consumer side:**
+
+- Subscribed via Dapr `[Topic("pubsub", "learnstack.{module}.{aggregate}")]` attribute on
+  the consuming handler, OR programmatic subscription in `IModule.ConfigureEventHandlers`.
+- Consumer wraps work in `IInboxGuard.IsAlreadyProcessedAsync(eventId)` → process →
+  `MarkAsProcessed(eventId, eventType)` → single `SaveChangesAsync()`. The inbox guard table
+  lives in the consuming module's own schema; deduplication is per-module.
+
+**Development fallback:**
+
+When `DeploymentMode.Development` and Dapr sidecar not running, `InProcessEventBus`
+implements `IEventBus` and routes via MediatR `IPublisher.Publish`. Module handlers
+don't change.
+
+**Schema versioning:**
+
+Integration event types are `sealed record` inheriting `IntegrationEventBase` (in
+`<Module>.Application.Contracts`); breaking changes ship a new versioned record
+(`UserCreatedIntegrationEventV2`) and the producer migrates within one deployment window.
+Outbox stores `EventType` as the assembly-qualified name for version disambiguation.
 

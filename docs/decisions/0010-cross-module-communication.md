@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted (Amendment 1: 2026-05-18 — adds Dapr pub/sub as the outbox dispatch target; see
+bottom of document)
 
 ## Decision
 
@@ -56,5 +57,75 @@ The following tests live in `LearnStack.Tests.Architecture` and run on every PR:
 ## References
 
 - [Cross-Module Contracts](../architecture/10-cross-module-contracts.md)
-- [Event and Outbox](../architecture/15-event-and-outbox.md)
+- [Events and Outbox](../architecture/15-event-and-outbox.md)
 - [Architecture Standards](../standards/01-architecture-standards.md)
+
+---
+
+## Amendment 1 — Dapr pub/sub as outbox dispatch target (2026-05-18)
+
+Per [ADR-0014](0014-adopt-dapr.md), LearnStack adopts Dapr for cross-cutting infrastructure
+(pub/sub Kafka, state Redis, secrets Vault). This amendment specifies how Mechanism #3
+(integration event via outbox) is dispatched.
+
+**Updated dispatch flow:**
+
+```
+Module transaction
+  ├── Aggregate state change committed to module's DbContext
+  └── OutboxMessage row written in same transaction
+                                           │
+                                           ▼
+        OutboxProcessor (BackgroundService) polls outbox table
+                  SELECT ... FOR UPDATE SKIP LOCKED
+                                           │
+                                           ▼
+        IEventBus.PublishAsync(integrationEvent)
+                                           │
+                                           ▼
+        DaprEventBus → DaprClient.PublishEventAsync("pubsub", topic, event)
+                                           │
+                                           ▼
+        Dapr sidecar → Kafka topic (durable, at-least-once)
+                                           │
+                                           ▼
+        Subscribed module's IIntegrationEventHandler<T>
+        (via [Topic] attribute or programmatic subscription)
+                                           │
+                                           ▼
+        IInboxGuard.IsAlreadyProcessedAsync → skip duplicates
+                                           │
+                                           ▼
+        Handler processes event; MarkAsProcessed; SaveChanges
+```
+
+**Key contracts:**
+
+- The outbox table is **LearnStack-owned** (in PostgreSQL); Dapr is the **dispatch target**,
+  not the durable buffer. If Dapr / Kafka is briefly unavailable, the OutboxProcessor
+  retries with backoff; messages remain in the outbox until dispatched.
+- Topic naming convention: `learnstack.{module}.{aggregate}` (e.g.
+  `learnstack.identity.tenant`, `learnstack.enrollment.enrollment`).
+- Every integration event carries `EventId`, `TenantId`, `OccurredAt`, `CorrelationId` in
+  its payload. Dapr cloud-event envelope wraps this with its own metadata.
+- **In-process MediatR fan-out remains available** for Development mode — when Dapr sidecar
+  is not running, `InProcessEventBus : IEventBus` (registered conditionally on
+  `DeploymentMode.Development`) routes events to `IPublisher.Publish(@event, ct)`. Module
+  handlers don't know the difference.
+
+**Idempotency** — at-least-once delivery means consumers must be idempotent. The `IInboxGuard`
+pattern (record processed `EventId` in module's own inbox table; reject duplicates) is
+mandatory for every cross-module consumer.
+
+**Architecture test additions:**
+
+- `Dapr_PubSub_TopicNames_FollowConvention` — string scan ensures every `[Topic]` attribute
+  argument matches `^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$`.
+- `Integration_Event_Handlers_Use_InboxGuard` — every `IIntegrationEventHandler<T>`
+  implementation invokes `IInboxGuard.IsAlreadyProcessedAsync` before processing.
+- Existing architecture tests in this ADR (no cross-module Domain references, no provider
+  SDK in Domain/Application) remain unchanged.
+
+**The four sanctioned mechanisms and the closed-list invariant are unchanged.** Amendment 1
+clarifies the dispatch implementation for Mechanism #3 without expanding the mechanism
+list.

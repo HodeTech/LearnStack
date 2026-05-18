@@ -37,3 +37,6 @@ minio-data/
 postgres-data/
 redis-data/
 
+# Local-only analyses (not shared via git)
+docs/analysis/
+

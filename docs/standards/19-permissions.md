@@ -1,7 +1,10 @@
 # 19 — Permissions Standards
 
 **Status:** Active
-**Derives from:** [11-security.md](11-security.md) § Authorization, [01-architecture-standards.md](01-architecture-standards.md), [18-audit-coverage.md](18-audit-coverage.md).
+**Derives from:** [11-security.md](11-security.md) § Authorization,
+[ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[01-architecture-standards.md](01-architecture-standards.md),
+[18-audit-coverage.md](18-audit-coverage.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
@@ -23,8 +26,13 @@ Examples:
 
 Rules:
 
-- `{module}` matches the backend module key (`education`, `enrollment`, `classroom`, `tenancy`, `identity`, ...). Verticals namespace by their own prefix (`english.placement.write`).
-- `{resource}` is the aggregate or sub-resource name in lowercase singular form. Multi-word resources use snake_case (`live_session`, `course_version`).
+- `{module}` matches the backend module key (`education`, `enrollment`, `classroom`,
+  `tenancy`, `identity`, `customization`, `audit`, ...). There are **no vertical
+  prefixes** — domain shapes are tenant data, not code. A permission key MUST NOT
+  contain a domain term (`english`, `cefr`, `yoga`, `asana`, …).
+- `{resource}` is the aggregate or sub-resource name in lowercase singular form.
+  Multi-word resources use snake_case (`live_session`, `course_version`,
+  `content_type_definition`).
 - `{action}` is from the **closed set** below.
 
 ## Closed Action Set
@@ -48,16 +56,29 @@ If a verb does not fit, model the verb as a **distinct sub-resource**:
 
 This rule prevents permission sprawl and keeps the matrix template stable.
 
-## Scope: Platform vs. Tenant
+## Scope: Platform / Tenant / Organization
 
-Permissions live in one of two registries; the registries are disjoint and validated at seed time.
+Permissions carry a **scope** at registration time per
+[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). The registries are
+disjoint and validated at seed time.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
-| **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read` | Only platform admins; never assignable to a tenant role. |
-| **Tenant** | `education.course.write`, `enrollment.entitlement.read`, `classroom.recording.delete` | Tenant roles only; permission check requires a `Membership` in the target tenant. |
+| **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read`, `platform.hub.operator` | Only platform admins / Hub operators; never assignable to a tenant role. |
+| **Tenant** | `education.course.write`, `enrollment.entitlement.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
+| **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Org-scoped roles; permission check requires `Membership.OrganizationId` matches the resource's `OrganizationId` (or the role is tenant-scoped). |
 
-Tenant permissions are only meaningful inside a resolved tenant context. Platform permissions bypass tenant scope but require platform-admin authentication and write a `platform-admin` audit entry (see [18-audit-coverage.md](18-audit-coverage.md)).
+Tenant permissions are only meaningful inside a resolved tenant context. Org-scoped
+permissions further require the actor's `OrganizationId` match (or the actor have the
+tenant-wide variant of the same role). Platform permissions bypass tenant scope but
+require platform-admin authentication and write a `platform-admin` audit entry (see
+[18-audit-coverage.md](18-audit-coverage.md)).
+
+Architecture test
+`Permission_Scope_Matches_Resource_Scope` ensures permissions registered as
+`Organization`-scope are only checked against `[OrganizationScoped]` resources, and
+that `Tenant`-scope permissions never gain `OrganizationId` filtering at runtime
+without an explicit `organization-scope` role binding.
 
 ## Module-Driven Registration
 
@@ -142,8 +163,12 @@ The "Default role grants" column declares which built-in roles receive which per
 | `Guardian` | Tenant | Off by default | Read on linked learner's progress and recordings (per consent). |
 | `Editor` | Tenant | Module-defined seeds | Read/write on content, pages, media; no enrollment / billing access. |
 | `Portal Public` | Tenant | Anonymous | Read on published public surfaces only. |
+| `Org Admin` | Organization | Off by default | Tenant-admin permissions limited to the actor's organization. Typical for branch managers / campus heads. |
+| `Org Instructor` | Organization | Off by default | Instructor permissions limited to the actor's organization. |
+| `Hub Operator` | Platform | Off by default — provisioned by Hub | Has the `platform.hub.operator` permission and a Hub-realm token. Each Hub operator action against a tenant resource writes an audit entry with `actor.hubOperator = true`. |
 
-Verticals **add** roles; they do not modify these.
+Tenant-driven customization **does not add roles**. Tenants extend behavior through
+customization data; they configure role grants by composing the closed set above.
 
 ## Testing Requirements
 
