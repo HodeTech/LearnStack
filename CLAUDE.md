@@ -39,24 +39,22 @@ For any task, read in this order:
 5. [docs/standards/00-principles.md](docs/standards/00-principles.md) — the beliefs every other standard descends from.
 6. [docs/glossary.md](docs/glossary.md) — terminology; the single source of truth for project-specific terms.
 
-Once the high-level reading is done, pick the **skill** that matches the task you're
-about to perform. Skills live under [`.claude/skills/`](.claude/skills/) and each one
-walks a specific workflow (adding a tenant-owned entity, wiring a Dapr pub/sub topic,
-writing an ADR, authoring a tenant scoring rule, …). The
-[skills catalogue](.claude/skills/README.md) is the index.
+Once the high-level reading is done, pick **exactly one** skill entry point based
+on the user's intent. The entry point dispatches the rest internally; do not
+chain entry points yourself.
 
-- For **substantive work** (the default — "implement / geliştir this task"), run
-  [implement-task](.claude/skills/implement-task/SKILL.md). It wraps scoping,
-  implementation against the standards corpus, self-check, linter + tests,
-  documentation updates, the commit, and the review-agent prompt into one
-  disciplined pass.
-- For **scoping only** (planning before knowing what to build) run
-  [start-task](.claude/skills/start-task/SKILL.md).
-- For **review** of a diff or PR, run
-  [standards-check](.claude/skills/standards-check/SKILL.md) first (mechanical
-  conformance) and then
-  [code-review](.claude/skills/code-review/SKILL.md) (security / bugs /
-  optimisation / refactor).
+| Intent | Entry point |
+|--------|-------------|
+| "Implement / geliştir / yap / ekle / refactor X" (substantive work) | [implement-task](.claude/skills/implement-task/SKILL.md) — the **default**. Dispatches `start-task` in Step 1, then the workflow-specific `add-*` skill(s), then runs linter + tests, updates docs, commits, and emits a review-agent prompt. |
+| "Plan / scope / orient / araştır / kapsamı çıkar" (no implementation yet) | [start-task](.claude/skills/start-task/SKILL.md) — standalone scoping pass. Stops at the plan. |
+| "Review this diff / PR" | [standards-check](.claude/skills/standards-check/SKILL.md) first (5-min mechanical gate), then [code-review](.claude/skills/code-review/SKILL.md) (security + bugs + optimisation + refactor + LearnStack-specific lenses). |
+| "Explain / what is X" (informational) | No skill — answer directly. |
+| One-line typo / comment fix | No skill — edit directly. |
+
+The full [skills catalogue](.claude/skills/README.md) lists every workflow skill
+(`add-tenant-owned-entity`, `wire-dapr-pubsub`, `add-tenant-scoring-rule`, …) the
+entry points dispatch to. You almost never invoke a workflow skill directly —
+let the entry point pick it.
 
 ## Documentation layout
 

@@ -11,21 +11,38 @@ convention.
 
 ## How to use
 
-Two entry points:
+### Which skill runs first?
 
-- **Substantive work** (the common case — "implement / geliştir this task"): run
-  [implement-task](implement-task/SKILL.md). It wraps scoping, implementation,
-  self-check, linter + tests, doc updates, commit, and review-prompt generation
-  into one disciplined pass.
-- **Scoping only** (planning before knowing what to build, or a quick
-  orientation pass): run [start-task](start-task/SKILL.md). Stop when the plan
-  is clear.
+Pick the entry point that matches the user's intent. Only **one** entry point
+runs per task — it dispatches the rest internally.
 
-Both entry points dispatch to the **workflow-specific** skills below for the
-mechanics. After implementation, two review skills close the loop:
-[code-review](code-review/SKILL.md) for security / bugs / optimisation /
-refactor, and [standards-check](standards-check/SKILL.md) for corpus + hard-rule
-conformance.
+| User's intent | Entry point | What it does |
+|---------------|-------------|--------------|
+| "Implement / geliştir / yap / ekle / refactor X" (substantive work) | **[implement-task](implement-task/SKILL.md)** | The default for any non-trivial change. Step 1 dispatches `start-task` internally; subsequent steps walk the workflow-specific skill, run linter + tests, update docs, commit, and produce a review-agent prompt. |
+| "Plan / scope / orient me on X, don't implement yet" | [start-task](start-task/SKILL.md) | Standalone scoping pass. Reading order + hard-rule walk + which workflow-specific skill the implementation will eventually need. Stops when the plan is clear. |
+| "Review this diff / PR" | [standards-check](standards-check/SKILL.md), then [code-review](code-review/SKILL.md) | Run `standards-check` first (5-min mechanical conformance gate), then `code-review` (security + bug + optimisation + refactor + LearnStack-specific lenses). |
+| "Explain / what is …" (informational) | none — answer directly | Don't load a skill to chat. |
+| One-line typo / comment fix | none — edit directly | Skills are for workflows, not single-line edits. |
+
+### Why `implement-task` is the default
+
+The most common pattern in this project is: user describes a task →
+implementation → tests → docs → commit → review. Running each phase as a
+separate skill (start → workflow → tests → docs → commit) is exactly what
+`implement-task` orchestrates as a single disciplined pass. Calling
+`implement-task` is **not** "running the long workflow on a small task" —
+trivial steps (no docs to update, no migration, …) drop out naturally.
+
+### Composition
+
+- `implement-task` **dispatches** `start-task` in Step 1, then `add-*` workflow
+  skill(s) in Step 4, then `run-tests-locally` in Step 6, then
+  `update-glossary` / `commit-and-pr` / `code-review` where applicable.
+- `start-task` is **standalone** — it stops at planning. Use it only when you
+  explicitly want to scope without implementing.
+- `code-review` and `standards-check` are **post-implementation gates**.
+  `implement-task` Step 10 emits a review-agent prompt; the user dispatches a
+  separate agent that runs the two review skills.
 
 If no skill matches, default to the [Standards](../../docs/standards/README.md)
 index plus the relevant [Architecture](../../docs/architecture/) doc.

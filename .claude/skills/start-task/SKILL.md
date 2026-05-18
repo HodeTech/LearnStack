@@ -1,30 +1,46 @@
 ---
 name: start-task
 description: >
-  Bootstrap any LearnStack task with the right reading order, scope check, and skill
-  selection. USE FOR: the first thing you do on any non-trivial change — agent
-  invocation that starts implementation, refactoring, documentation, or
-  investigation. Pick the right workflow-specific skill afterward.
-  DO NOT USE FOR: trivial one-line fixes, typo corrections, or follow-up turns
-  inside a task already in flight.
+  Lightweight, **scoping-only** pass on a LearnStack task — read the right docs in
+  the right order, check phase fit, walk the hard rules, identify which
+  workflow-specific skill the eventual implementation will need. Produces a plan,
+  not code. USE FOR: planning before knowing what to build, orientation on an
+  unfamiliar branch, a "what would this involve?" question, or as the Step 1
+  pass dispatched by `implement-task` (which does this **automatically** —
+  don't double-invoke). DO NOT USE FOR: substantive implementation work — use
+  `implement-task` instead; it dispatches this skill internally as Step 1.
+  Trivial one-line fixes, typo corrections, or follow-up turns inside a task
+  already in flight also skip this skill entirely.
 ---
 
-# Starting a LearnStack task
+# Starting a LearnStack task (scoping pass)
 
 ## Purpose
 
-Make sure every task starts from the project's current shape — not stale assumptions.
-Read the right docs in the right order, confirm the task fits the current phase,
-pick the workflow-specific skill, and align on the deliverable before touching code.
+Produce a **plan** — not code. Make sure the task starts from the project's
+current shape, the right standards and architecture docs are read, the phase
+fit is confirmed, and the workflow-specific skill the implementation will need
+is identified. Stops when the plan is clear.
+
+This skill is **also** invoked automatically as Step 1 of
+[implement-task](../implement-task/SKILL.md). If you're running `implement-task`,
+this skill already runs — don't load it separately.
 
 ## When to use
 
-- The user has just opened a task and the agent is about to start work.
-- You're picking up a branch you didn't author and need to orient.
-- The change touches a module / surface you have not modified before.
+- User asked for scoping / planning / orientation, **not** implementation:
+  "plan / scope / what would this involve / araştır şunu / kapsamı çıkar".
+- You're picking up a branch you didn't author and need a quick orientation
+  pass before deciding the next move.
+- You're explicitly told "don't implement yet — just plan".
 
 ## When not to use
 
+- **Substantive implementation work.** Use
+  [implement-task](../implement-task/SKILL.md) — it dispatches this skill as
+  its Step 1 and then walks implementation + self-check + tests + docs +
+  commit + review-prompt.
+- A `code-review` / `standards-check` is being requested. Different skills.
 - One-line typo fixes or comment edits.
 - Follow-up turns in a task you already scoped.
 - Operations against `docs/analysis/` (gitignored scratchpad — different rules).
