@@ -145,6 +145,21 @@ Internet
 - SIGHUP to the LearnStack process triggers immediate re-read of the license file.
 - Revocation list also delivered out-of-band when revocations occur.
 
+**Tenant provisioning without Hub.** Hub is the canonical issuer of `tenant_id`
+([28-platform-tenant-organization.md § Hub ↔ LearnStack ownership matrix](28-platform-tenant-organization.md)).
+In air-gapped Self-Hosted mode there is no Hub at the customer's site, so the
+**bootstrap rule** is:
+
+1. The signed `.lic` file carries `tenant_id` (and a default `organization_id`) as
+   claims. The LearnStack-side CLI (`learnstack tenant init`) reads the `.lic`,
+   verifies the signature, and creates the `tenants` + `organizations` rows with
+   the IDs from the license claims.
+2. Subsequent tenants (rare in air-gapped enterprise) require a new `.lic`
+   issued by the LearnStack-hosted Hub and delivered out-of-band — the customer
+   never mints `tenant_id` themselves.
+3. In `SelfHostedOnline` mode the CLI exists too, but defers to Hub via
+   `POST /api/internal/tenants` so Hub remains authoritative.
+
 Customer responsibilities (air-gapped):
 - Customer manages their own TLS certs (cert-manager + local CA OR
   customer-provided certs).

@@ -333,3 +333,40 @@ The full subsystem architecture, table schema, and operational runbook live in
 - [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) — architecture deep dive.
 - Nexora reference implementation: `Nexora/docs/modules/tier-1-core/audit/SPEC.md`
   and `Nexora/docs/decisions/0009-audit-repository-pattern.md`.
+
+## Amendments
+
+### 2026-05-19 — `OperationType` extended with `PlatformAdmin`
+
+The original Decision section defined `OperationType` as
+`{ Create, Update, Delete, ReadSensitive, SecurityEvent, Action }`. In practice
+[18-audit-coverage.md § Operation Types](../standards/18-audit-coverage.md) and the
+"Baseline Coverage" matrix call out a distinct `platform-admin` type — any operation
+performed by a platform admin (or Hub operator) against a tenant they are not a
+member of. The audit consumer (compliance / regulator) needs to filter on this
+distinction directly; mapping it to the generic `Action` value loses signal.
+
+**Amended enum (binding):**
+
+```csharp
+public enum OperationType
+{
+    Create,
+    Update,
+    Delete,
+    ReadSensitive,
+    SecurityEvent,
+    PlatformAdmin,   // added — cross-tenant operator action
+    Action,          // retained — generic non-CRUD action that doesn't fit above
+}
+```
+
+[31-audit-subsystem.md § 6](../architecture/31-audit-subsystem.md) and any module
+that emits cross-tenant operator actions must classify them as `PlatformAdmin`.
+The `Action` value remains for genuine in-tenant non-CRUD actions (e.g. recording
+start when no consent change is captured).
+
+The audit-coverage standard already treats `platform-admin` as MUST; no MUST/SHOULD/MAY
+tier change. Architecture test `OperationType_Enum_Matches_Catalog` is added to assert
+the enum members match the OperationType list in
+[18-audit-coverage.md § Operation Types](../standards/18-audit-coverage.md).

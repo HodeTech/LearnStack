@@ -43,10 +43,42 @@ Option 2 was chosen because it preserves both forward and backward safety: old p
 - Verticals namespace their block keys (`english.vocabulary-list`); core block keys are unprefixed. A vertical's block schema is owned by the vertical; the core does not migrate vertical-owned blocks.
 - Architecture test asserts that every registered block has a corresponding `JsonSchema` and a renderer component, and that the renderer maps the `(key, version)` tuple exactly.
 
+## Amendments
+
+### 2026-05-19 — Tenant-defined block keys per ADR-0018
+
+The Decision section above predates [ADR-0018 Tenant-Driven Customization Model](0018-tenant-driven-customization-model.md)
+and uses the language of "verticals" namespacing their block keys
+(`english.vocabulary-list`). ADR-0018 supersedes the vertical-as-code path
+(ADR-0011); verticals no longer exist as compiled modules. The schema-versioning
+mechanism in this ADR (immutable `(key, schemaVersion)` tuples, lazy + bulk
+migration, `UnknownVersionBlock` / `UnknownBlock` placeholders) **remains in
+force** for both built-in primitive blocks and tenant-defined blocks.
+
+Read the Decision section with the following substitutions:
+
+- "Vertical-prefixed block key (`english.vocabulary-list`)" → a row in
+  `tenant_page_blocks` whose `key` column carries that string, scoped to the
+  authoring tenant. The runtime resolves it through the tenant's `TenantPageBlock`
+  catalog, not through code-registered vertical assemblies.
+- "Vertical's block schema is owned by the vertical" → the tenant's
+  `TenantPageBlock` row owns the schema; LearnStack core does not migrate
+  tenant-authored blocks. Lazy migration on save in the Admin Studio remains the
+  default; bulk migration is a platform-admin operation (now per-tenant rather
+  than per-vertical).
+- "Vertical loaded but not enabled for a tenant" → no such state exists.
+  `tenant_page_blocks` rows are inherently per-tenant; an unknown `key` for a
+  given tenant still renders `UnknownBlock`.
+
+The schema-versioning rule does **not** prevent tenants from authoring blocks
+with breaking changes — the Admin Studio enforces the versioning discipline at
+save time per [32-tenant-customization-model.md § Schema versioning](../architecture/32-tenant-customization-model.md).
+
 ## References
 
 - [17-page-builder.md](../architecture/17-page-builder.md) — lifecycle rules and resolver safety.
 - [06-extension-model.md](../architecture/06-extension-model.md) — extension surfaces overview.
 - [32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md) — how
   a tenant declares a block as data (supersedes the vertical-as-code path).
+- [ADR-0018 Tenant-Driven Customization Model](0018-tenant-driven-customization-model.md) — supersedes ADR-0011.
 - [01-architecture-standards.md](../standards/01-architecture-standards.md) — architecture test requirements.

@@ -97,6 +97,35 @@ CREATE POLICY outbox_messages_tenant_isolation ON outbox_messages
 -- OutboxProcessor uses learnstack_outbox_admin role that bypasses RLS to read all tenants.
 ```
 
+### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass
+
+The OutboxProcessor must dispatch events for **every** tenant from a single
+BackgroundService instance; setting `app.tenant_id` per row would defeat the
+`FOR UPDATE SKIP LOCKED` batching pattern. The role bypasses RLS by design, and
+the bypass is bounded by:
+
+- **Scope by grant**. The role has `SELECT`, `UPDATE` only on `outbox_messages`
+  (status column transitions: `processed_at`, `attempts`, `last_error`,
+  `available_after`). It has **no** access to any other tenant-owned table; the
+  bypass cannot be used as a generic backdoor.
+- **No connection sharing**. The role is used only by the `OutboxProcessor`
+  BackgroundService DI scope; no MediatR handler or API endpoint ever runs
+  under this role (architecture test
+  `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` enforces this).
+- **Audited on use**. Every dispatch attempt produces a structured log entry
+  with `event_id`, `tenant_id`, `event_type`, and outcome. Bypass-as-such is
+  not separately audited (the dispatch outcome is); a misuse pattern would
+  surface as out-of-band tenants in the dispatch log.
+- **Permission rationale anchored in ADR-0006 Amendment 1**. The outbox-as-
+  durable-buffer + Dapr-as-transport pattern requires a single batch-fetcher;
+  the RLS bypass is the minimum privilege escalation that makes that pattern
+  work. It is not an exception to ADR-0003 — it is the only legitimate path.
+
+The same shape applies to `learnstack_audit_admin` (read-side cross-tenant
+audit queries, see [31-audit-subsystem.md](31-audit-subsystem.md)) and any
+future `learnstack_*_admin` role: bounded by grant, isolated by DI scope,
+discoverable by log.
+
 ## Inbox table (per consumer module)
 
 ```sql

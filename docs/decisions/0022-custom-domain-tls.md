@@ -412,6 +412,63 @@ Two blocker-level architecture tests added (when Hub repository scaffolded — P
 The architecture deep dive, sequence diagram, public-suffix-list usage, and operational
 runbook live in [27-custom-domain-tls.md](../architecture/27-custom-domain-tls.md).
 
+## Amendments
+
+### 2026-05-19 — Cert-and-route propagation is event-driven; Hub does not write LearnStack's K8s state
+
+The Decision and the worked example show Hub "writing to
+`infra/apisix/partials/routes-custom-domains.yaml`" / "Kubernetes ConfigMap rolling
+update" as the path that puts a new SNI cert and route entry in front of APISIX. To
+avoid implying that Hub holds K8s write credentials on the LearnStack cluster — a
+coupling that violates the closed Hub HTTPS contract surface — the **authoritative
+propagation path** is:
+
+1. Hub completes DNS / TLS issuance and stores the cert in Vault under
+   `learnstack-hub/certs/{domain}` (Hub-owned Vault namespace).
+2. Hub publishes `learnstack.hub.custom-domain.activated` (and
+   `.deactivated` / `.renewed`) via Dapr pub/sub.
+3. Hub pushes the host → tenant mapping to LearnStack via
+   `PUT /api/internal/tenants/{id}/entitlements` (or a dedicated host-mapping
+   sub-field within it — kept inside the four-endpoint surface).
+4. **LearnStack core** (not Hub) consumes the event and the projection push:
+   - updates `platform_host_to_tenant`,
+   - writes the matching APISIX route partial under `infra/apisix/partials/`
+     inside the LearnStack cluster (or, in etcd-backed mode, calls the local
+     APISIX Admin API),
+   - materialises the cert/key via the Vault Agent sidecar attached to the
+     APISIX pod, reading from the LearnStack-side Vault path that Hub
+     replicates the cert into via the same internal API call.
+
+Hub **never** holds Kubernetes credentials on the LearnStack cluster. The
+ConfigMap / file write happens entirely within the LearnStack-owned cluster as a
+reaction to the Dapr event + entitlement push. The four-endpoint contract
+surface remains closed.
+
+The Decision (Hub-owned admin flow, Let's Encrypt DNS-01 / HTTP-01 preferred,
+APISIX hot-reload) is unchanged; only the **operational mechanism** for the
+"APISIX picks it up" step is clarified.
+
+### 2026-05-19 — Option B (customer-provided cert) path for `SelfHostedAirGapped`
+
+Option B's original phrasing — "Hub stores in Vault, APISIX picks up" — assumes a
+Hub-reachable deployment. For `SelfHostedAirGapped` mode there is **no Hub**;
+the path is:
+
+- **`SelfHostedOnline` / `SaaS` / `Dedicated`** (Hub reachable): customer-provided
+  cert is uploaded through the Hub operator portal, stored in the **Hub-side
+  Vault**, then replicated to the LearnStack-side Vault via the entitlement-push
+  internal-API path (same channel as Let's Encrypt-issued certs).
+- **`SelfHostedAirGapped`** (no Hub): customer places the cert + key directly in
+  their **own Vault** (or the configured `ISecretProvider` backend) at the
+  agreed namespace; the LearnStack APISIX pod's Vault Agent sidecar reads from
+  there. Renewal is the customer's responsibility; Hub plays no role. The
+  signed `.lic` file may carry a `custom_domains` claim listing the air-gapped
+  customer's domains so the LearnStack-side host resolver knows the expected
+  hosts at boot.
+
+Architecture test `Cert_PrivateKey_NeverLeavesVault_To_Logs` continues to apply
+across all modes.
+
 ## References
 
 - ADR-0014 — Adopt Dapr (CustomDomain* events via Dapr pub/sub).

@@ -201,7 +201,7 @@ for the full strategy. Standards-side:
 - Enforce per-content-type size limits (image: 10 MB, document: 50 MB, video: 5 GB).
 - Strip EXIF where appropriate.
 - Store in tenant-scoped object storage prefix.
-- Never trust the original filename. Generate a server-side key (`{tenantId}/{uuid}.{ext}`).
+- Never trust the original filename. Generate a server-side key under the canonical tenant prefix: `tenants/{tenantId}/{category}/{uuid}.{ext}` (with `organizations/{orgId}/` segment for org-scoped assets), per [09-tenant-isolation.md § Storage (MinIO)](../architecture/09-tenant-isolation.md) and [16-media-pipeline.md § Key Layout](../architecture/16-media-pipeline.md).
 - Virus scan hook (ClamAV or cloud equivalent) before files become accessible.
 - Signed URLs for private files; TTL ≤ 1 hour.
 

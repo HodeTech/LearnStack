@@ -42,9 +42,22 @@ Rules:
 
 ## Translatable Storage
 
-The storage shape is encapsulated behind the application contract; consumers see structured values.
+Per [ADR-0008](../decisions/0008-localization-schema.md) two storage patterns coexist;
+the choice is per-entity, not project-global. Both are encapsulated behind the
+application contract — consumers see resolved values, not the on-disk shape.
 
-Initial implementation: per-locale JSON object on the field.
+### Pattern A — Side translation table (default for content-shaped entities)
+
+Used for `Course`, `Lesson`, `Page`, `ContentEntry`, and anything with multiple
+translatable fields, per-locale slugs, or SEO metadata. The parent table holds
+non-translatable columns; a `<entity>_translations` table holds translatable fields
+keyed by `(<entity>_id, locale)`. The slug is **always per-locale** in this pattern
+(`UNIQUE (entity_id, locale, slug)`).
+
+### Pattern B — JSONB localized field (for compact taxonomy-style fields)
+
+Used for `Level.display_name`, `Tag.label`, `Category.name`, and similar short
+atomic strings where joining a translation table would be overkill.
 
 ```json
 {
@@ -55,7 +68,19 @@ Initial implementation: per-locale JSON object on the field.
 }
 ```
 
-Application contract returns a resolved string for the requested locale, applying the fallback chain.
+### Choosing between patterns
+
+| Field shape | Pattern |
+|---|---|
+| Long text, multiple fields per entity, SEO metadata | A (side table) |
+| Short atomic string, few fields | B (JSONB) |
+| Rich content with version history | A (side table, with `is_published`, `version`) |
+| Taxonomy display names | B |
+
+The full table + worked examples live in
+[12-localization.md § Storage Schema](../architecture/12-localization.md). In both
+patterns the application contract returns a resolved string for the requested locale,
+applying the fallback chain.
 
 ## SEO
 

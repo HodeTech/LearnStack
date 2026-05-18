@@ -199,8 +199,9 @@ Per [API Standards](../standards/04-api-design.md):
 - Strongly typed options bound from `ISecretProvider` (Vault) + env vars +
   `appsettings.*.json`. Vault wins.
 - Environment-based configuration (dev / staging / prod) and
-  **`DeploymentMode`-based composition** (Development / SaaS / Dedicated / SelfHosted)
-  per [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
+  **`DeploymentMode`-based composition** (Development / SaaS / Dedicated /
+  SelfHostedOnline / SelfHostedAirGapped) per
+  [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md).
 - Secret handling — never in source.
 - Tenant-level + organization-level settings model with a typed accessor.
 
@@ -220,6 +221,9 @@ The architecture test project starts going green during this phase. Phase 02a co
 - `LearnStack_Modules_DoNotReference_Hub`.
 - `Modules_Do_Not_Inject_Redis_Directly`, `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
   `Modules_Do_Not_Write_AuditLog_Directly`.
+- `Modules_Do_Not_Reference_DeploymentMode` — modules never read `DeploymentMode`
+  directly; the composition root selects provider implementations once. See
+  [20-infrastructure-stack.md § Composition Root and Deployment Mode](../standards/20-infrastructure-stack.md).
 - `Core_Modules_HaveNo_DomainSpecific_Names`,
   `No_Source_Folder_Named_Verticals`.
 
@@ -284,3 +288,18 @@ pipeline, customization runtime read paths, API conventions, and the architectur
 test gate are stable and green in CI. Phase 02c (Hub Foundation in the separate
 `learnstack-hub` repo) may start **in parallel** with 02b — both consume the sockets
 already in place from 02a.
+
+### ADR commitments that must land in this phase
+
+Per [decisions/README.md § Open ADR Drafts](../decisions/README.md), three drafts
+target Phase 02a and **must be Accepted before this phase exits**:
+
+| Reserved # | Topic | Why it blocks Phase 02a |
+|---|---|---|
+| ADR-0023 | Strongly-typed ID source generator (Vogen vs StronglyTypedId vs custom) | EF interceptors and value converters depend on the emitter at compile time |
+| ADR-0024 | API versioning policy (deprecation cadence, sunset headers, `/v1/` convention) | OpenAPI spec + SDK generation start in this phase |
+| ADR-0028 | `audit_log` monthly partition management (Hangfire job vs `pg_partman`) | Partition policy ships Day 1 with the audit infrastructure |
+
+Each PR that lands one of these ADRs flips the corresponding "exit checklist"
+item; the phase is not "done" until all three are Accepted and CI exercises the
+chosen implementation.

@@ -10,8 +10,8 @@ Decisions consumed in this phase:
 
 - [ADR-0008 Localization Schema](../decisions/0008-localization-schema.md). All
   tenant-owned content tables introduced here adopt the side-table or JSONB-localized
-  pattern declared in the ADR. The `tenant_locales` table (owned by the Tenancy
-  module) is created in this phase if it has not landed earlier.
+  pattern declared in the ADR. The `tenant_locales` table is owned by the Tenancy
+  module and lands in [Phase 02a](phase-02a-kernel-tenancy.md); Phase 04 consumes it.
 - [ADR-0013 Page Block Schema Versioning](../decisions/0013-page-block-schema-versioning.md).
   Every block ships with a `(key, schemaVersion)` tuple, an immutable JSON schema, and
   a registered renderer. Lazy migration and the `UnknownVersionBlock` / `UnknownBlock`

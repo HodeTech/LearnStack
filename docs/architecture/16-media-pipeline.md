@@ -25,23 +25,31 @@ Buckets are per-environment, not per-tenant. Tenant isolation in storage is enfo
 
 ## Key Layout
 
+Per [09-tenant-isolation.md § Storage (MinIO)](09-tenant-isolation.md) the canonical
+key prefix is `tenants/{tenant_id}/...` (with `organizations/{org_id}/...` segment
+for org-scoped assets). The full key layout used by the media module:
+
 ```text
-{tenant_id}/{category}/{yyyy}/{mm}/{asset_id}/{variant}.{ext}
+tenants/{tenant_id}/{category}/{yyyy}/{mm}/{asset_id}/{variant}.{ext}                     ← tenant-wide asset
+tenants/{tenant_id}/organizations/{org_id}/{category}/{yyyy}/{mm}/{asset_id}/{variant}.{ext}  ← org-scoped asset
 ```
 
 Examples:
 
 ```text
-ten_01H.../media/2026/05/ast_01J.../original.png
-ten_01H.../media/2026/05/ast_01J.../w800.webp
-ten_01H.../media/2026/05/ast_01J.../w400.webp
-ten_01H.../lesson-video/2026/05/ast_01J.../source.mp4
-ten_01H.../lesson-video/2026/05/ast_01J.../hls/master.m3u8
-ten_01H.../lesson-video/2026/05/ast_01J.../hls/720p/seg-0001.ts
-ten_01H.../recording/2026/05/rec_01K.../composite.mp4
+tenants/ten_01H.../media/2026/05/ast_01J.../original.png
+tenants/ten_01H.../media/2026/05/ast_01J.../w800.webp
+tenants/ten_01H.../media/2026/05/ast_01J.../w400.webp
+tenants/ten_01H.../lesson-video/2026/05/ast_01J.../source.mp4
+tenants/ten_01H.../lesson-video/2026/05/ast_01J.../hls/master.m3u8
+tenants/ten_01H.../lesson-video/2026/05/ast_01J.../hls/720p/seg-0001.ts
+tenants/ten_01H.../recording/2026/05/rec_01K.../composite.mp4
+tenants/ten_01H.../organizations/org_01M.../media/2026/05/ast_01J.../original.png
 ```
 
-The prefix lets us scope tenant operations cheaply (listing, deletion, retention) and matches how IAM policies / RLS for storage signed URLs would be applied.
+The `tenants/` prefix lets us scope tenant operations cheaply (listing, deletion,
+retention), simplifies IAM policy authoring, and matches the storage row in
+[09-tenant-isolation.md § Defense-in-depth layers](09-tenant-isolation.md).
 
 ## Upload Flow
 

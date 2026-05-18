@@ -265,7 +265,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = "https://auth.learnstack.dev/realms/learnstack",  // PUBLIC issuer
             // Authority above is the INTERNAL URL for JWKS fetch; ValidIssuer is what's
             // in the JWT `iss` claim (set by Keycloak's KC_HOSTNAME).
-            // Documented in 12-authentication-and-identity.md.
+            // Documented in 13-identity-and-auth.md.
         };
     });
 ```
@@ -338,7 +338,7 @@ Phase 11 deliverables:
 - [ ] Strict CSP header via `response-rewrite` plugin (production only).
 - [ ] Per-tenant rate-limit override (consumer keys; requires etcd mode).
 - [ ] `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` for Keycloak issuer split (Docker network vs
-      browser); document in 12-authentication-and-identity.md.
+      browser); document in 13-identity-and-auth.md.
 - [ ] Hangfire dashboard route gated by both BasicAuth (gateway) and `IsInRole("platform-admin")`
       (backend).
 - [ ] Production CORS allow-list (no `localhost`).
@@ -370,7 +370,7 @@ Phase 11 deliverables:
 - ADR-0015 — API Gateway with APISIX.
 - ADR-0004 Amendment 1 — `learnstack-hub` realm.
 - [11-security.md](../standards/11-security.md) — defense-in-depth.
-- [12-authentication-and-identity.md](12-authentication-and-identity.md) — Keycloak realm
+- [13-identity-and-auth.md](13-identity-and-auth.md) — Keycloak realm
   topology.
 - [29-dapr-integration.md](29-dapr-integration.md) — pub/sub and state transports.
 - Nexora reference: `Nexora/docs/decisions/0003-deployment-strategy.md`,

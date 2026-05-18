@@ -309,7 +309,17 @@ public sealed class AuditEntry : Entity<AuditEntryId>   // NOT AuditableEntity â
     }
 }
 
-public enum OperationType { Create, Update, Delete, ReadSensitive, SecurityEvent, Action }
+public enum OperationType
+{
+    Create,
+    Update,
+    Delete,
+    ReadSensitive,
+    SecurityEvent,
+    PlatformAdmin,   // cross-tenant operator action â€” see ADR-0016 Amendment 1
+    Action,          // generic non-CRUD action that doesn't fit above
+}
+
 public enum OperationClass { Must, Should, May }
 ```
 

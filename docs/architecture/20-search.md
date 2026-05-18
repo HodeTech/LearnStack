@@ -155,9 +155,27 @@ Renaming a field is a breaking change → bump schema version, dual-write, drop 
 | `mime_type` | mime |
 | `created_at` | `MediaAsset.CreatedAt` |
 
-### Vertical Kinds
+### Tenant Content-Type Kinds
 
-Verticals register their own search kinds via the extension registry — same isolation rules, same indexer pattern. Example: the English vertical registers `vocabulary-list` with `tenant_id` filter and `cefr_level` facet.
+Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md), there are
+**no vertical modules**. Tenants surface their own searchable shapes by declaring
+`TenantContentType` rows (data, not code) with a `searchable: true` marker plus
+declared filterable / facet fields. The indexer reads the customization registry
+at startup, materialises a search kind per declared content type, and applies the
+**same isolation rules** as built-in kinds — `tenant_id` is the mandatory first
+filter, locale is index-split, and facets resolve through the type's JSON Schema.
+
+Example (data, in `tenant_content_types`): an English-tenant `VocabularyCard`
+content type with `searchable: true` produces a `<env>-vocabulary-card-<locale>`
+index per enabled locale; the type's `level` field is declared filterable and
+resolves against the tenant's `TenantLevelTaxonomy`. A yoga-tenant `AsanaPose`
+content type with `searchable: true` produces a parallel set of indexes with its
+own `difficulty` facet — same code path, different tenant data.
+
+The architecture test
+`Search_Kinds_AreNot_Domain_Prefixed_In_Code` ensures no LearnStack module
+registers a domain-prefixed search kind (`english.*`, `yoga.*`, `cefr_level`,
+…); every domain-specific shape arrives via `TenantContentType`.
 
 ## Query Path
 

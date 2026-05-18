@@ -261,7 +261,7 @@ per org for billing-tier sizing.
 Five blocker-level architecture tests added in Phase 02:
 
 1. `Every_TenantOwned_Entity_HasTenantId` — already required by ADR-0003.
-2. `Every_OrgScoped_Entity_HasOrganizationId_Nullable` — auto-discovered by `[OrgScoped]`
+2. `Every_OrgScoped_Entity_HasOrganizationId_Nullable` — auto-discovered by `[OrganizationScoped]`
    attribute or interface marker.
 3. `Every_OrgScoped_Entity_HasOrgQueryFilter` — EF model assertion.
 4. `Every_OrgScoped_Table_HasOrganizationRlsPolicy` — migration scan.
@@ -294,7 +294,7 @@ Five blocker-level architecture tests added in Phase 02:
 ## Implementation notes
 
 - Phase 02 — Platform kernel: `Organization` aggregate, `OrganizationId` strongly-typed ID,
-  EF entity config, RLS policy template, `[OrgScoped]` attribute, architecture tests.
+  EF entity config, RLS policy template, `[OrganizationScoped]` attribute, architecture tests.
 - Phase 03 — Identity module: `Organization` CRUD endpoints (tenant-admin scope), Keycloak
   attribute mapping for `organization_id`, `Membership` extension for org-scoped role
   assignments, JWT claim emission.
@@ -317,3 +317,17 @@ The conceptual model, ER diagram, RLS policy worked example, and onboarding flow
 - Nexora reference: `Nexora/docs/decisions/0012-tenant-management.md`,
   `Nexora/docs/decisions/0025-org-scoped-compliance-config-with-platform-caps.md`,
   `Nexora/docs/architecture/multi-tenancy.md`.
+
+## Amendments
+
+### 2026-05-19 — Identity row terminology
+
+The "Identity" row in the defense-in-depth table reads "Keycloak realm-per-tenant".
+Read this as a reference to the **realm-per-tenant opt-in** described in
+[ADR-0004 Amendment 1](0004-authentication-strategy.md); the default Keycloak
+strategy is **single-realm `learnstack` with a `tenant_id` JWT claim** (and
+`organization_id` JWT claim populated from the active org membership). Realm-per-
+tenant is an enterprise opt-in for compliance-driven isolation. Both strategies
+satisfy the defense-in-depth requirement of this ADR; the live architecture guide
+[09-tenant-isolation.md](../architecture/09-tenant-isolation.md) reflects the
+corrected wording. This is a clarification; the Decision is unchanged.

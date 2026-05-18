@@ -85,7 +85,7 @@ without an explicit `organization-scope` role binding.
 Permissions are declared in code, not configured in a database. Each module exposes its permissions at startup; the platform registry composes them and seeds the database.
 
 ```csharp
-public sealed class EnrollmentModule : ILearnStackModule
+public sealed class EnrollmentModule : IModule
 {
     public void RegisterPermissions(IPermissionRegistry registry)
     {

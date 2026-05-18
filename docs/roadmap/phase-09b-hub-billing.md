@@ -66,6 +66,18 @@ Decisions referenced:
 - All three implement `IHubPaymentProvider`; adding a fourth is a code edit, not an
   ADR.
 
+> **Naming.** Hub-side `IHubPaymentProvider` is **distinct** from the LearnStack-core
+> `IPaymentProvider` (Phase 09's tenant-facing storefront billing). The two
+> interfaces share a common shape (idempotency key, webhook signature verification,
+> status mapping) but are scoped to different billing relationships:
+> `IPaymentProvider` charges *learners* on behalf of a tenant; `IHubPaymentProvider`
+> charges *tenants* on behalf of LearnStack for their LearnStack subscription. Hub
+> adapters live in the `learnstack-hub` repo's
+> `Hub.Infrastructure.Payments.{Stripe,Iyzico,Manual}` packages; LearnStack-core
+> adapters live in `LearnStack.Infrastructure.Payments.{...}` in this repo.
+> Mixing them in one process is forbidden by the Hub / LearnStack codebase
+> separation invariant ([ADR-0019](../decisions/0019-learnstack-hub.md)).
+
 ### Operator Portal Extensions
 
 - Per-tenant billing tab: subscription state, current period, recent invoices,

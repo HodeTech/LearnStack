@@ -182,30 +182,56 @@ erDiagram
 
 ## 3. Communication contracts
 
-### 3.1. Hub → LearnStack (push)
+### Contract surface — "closed at four"
 
-Internal listener inside LearnStack pod, bound to a separate port not proxied by APISIX.
-mTLS + signed JWT (from `learnstack-hub` realm) + HMAC-SHA256 request signature.
+The **closed Hub HTTPS contract surface** is the set of endpoints that the
+`LearnStack_Modules_DoNotReference_Hub` architecture test and the "no fifth without
+ADR" rule (per [ADR-0019](../decisions/0019-learnstack-hub.md) and
+[20-infrastructure-stack.md § Hub HTTPS Contract Surface](../standards/20-infrastructure-stack.md))
+guard. Those four endpoints are the **load-bearing entitlement + lifecycle + telemetry
+contract**:
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/internal/tenants` | Create tenant (Hub → LearnStack) |
-| PUT | `/api/internal/tenants/{id}/status` | Suspend / activate / archive |
-| PUT | `/api/internal/tenants/{id}/entitlements` | Push updated entitlement (features, limits, compliance.caps) |
-| GET | `/api/internal/tenants/{id}/usage` | Pull aggregated usage metrics |
-| DELETE | `/api/internal/tenants/{id}` | Terminate (hard delete with confirmation) |
+| # | Direction | Method | Path | Purpose |
+|---|-----------|--------|------|---------|
+| 1 | Hub → LS | POST | `/api/internal/tenants` | Create tenant + default organization |
+| 2 | Hub → LS | PUT | `/api/internal/tenants/{id}/entitlements` | Push updated entitlement projection (status, features, limits, compliance.caps) |
+| 3 | LS → Hub | POST | `/api/v1/internal/license/verify` | Pull / verify entitlement (called by `HubEntitlementProvider`) |
+| 4 | LS → Hub | POST | `/api/v1/usage/report` | Report usage metric (idempotent; Hub aggregates per period) |
 
-### 3.2. LearnStack → Hub (pull)
+Adding a fifth endpoint to this closed set requires a new ADR.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/v1/internal/license/verify` | Verify feature / entitlement (called by `HubEntitlementProvider`) |
-| POST | `/api/v1/usage/report` | Report usage metric (idempotent; Hub aggregates per period) |
-| POST | `/api/v1/internal/license/refresh` | Phone-home refresh (Self-Hosted Online) |
+### Auxiliary lifecycle endpoints (within the closed surface)
 
-Authentication: API key per LearnStack instance, stored in Vault
-(`learnstack/hub/api-key`). Rate limit: 100 req/min per key. Scope strictly limited to
-license verification + usage reporting.
+The operational endpoints below are **specializations of endpoint #2** in the closed
+set — they share the same `/api/internal/tenants/{id}` resource, the same
+mTLS + signed JWT + HMAC chain, the same `Hub → LearnStack` direction, and the same
+authorization scope. They are listed separately for clarity but do not count as new
+contract entries:
+
+| Method | Path | Purpose | Belongs to closed-set # |
+|--------|------|---------|--------------------------|
+| PUT | `/api/internal/tenants/{id}/status` | Suspend / activate / archive (status field of entitlement projection) | #2 |
+| GET | `/api/internal/tenants/{id}/usage` | Pull aggregated usage metrics (Hub-side mirror of #4 reports) | #4 |
+| DELETE | `/api/internal/tenants/{id}` | Terminate (hard delete with confirmation) | #1 (inverse) |
+| POST | `/api/v1/internal/license/refresh` | Phone-home refresh used by `SelfHostedOnline` mode — a scheduled call shape of #3 | #3 |
+
+If any of these auxiliary endpoints needs a contract or auth model that **differs**
+from its parent (different role, different rate limit, different payload shape that
+isn't a subset of the parent), it must be promoted to a new ADR-registered closed-set
+entry.
+
+### Authentication chain (applies to every endpoint above)
+
+**Hub → LearnStack `/api/internal/*`:**
+- mTLS with LearnStack-internal CA-signed client cert
+- Signed JWT (RS256) from `learnstack-hub` realm; `aud=learnstack-internal`; `exp ≤ 5 min`
+- HMAC-SHA256 body signature in `X-Signature` (per-deployment shared secret in Vault)
+- Bound to internal listener; **never** proxied through APISIX
+
+**LearnStack → Hub `/api/v1/internal/*` and `/api/v1/usage/*`:**
+- API key per LearnStack instance, stored in Vault (`learnstack/hub/api-key`)
+- Rate limit: 100 req/min per key
+- Scope strictly limited to license verification + usage reporting
 
 ### 3.3. Hub-internal: Stripe / Iyzico webhooks
 
@@ -220,20 +246,29 @@ Stripe and Iyzico POST webhooks to `https://hub.learnstack.dev/api/v1/webhooks/{
 The `Entitlement` row is a flattened projection of `Plan` + `HubSubscription` per tenant.
 It is the **only** shape `NmpLicenseVerifier` returns to the LearnStack runtime.
 
+> The `features` key strings follow the typed `FeatureKey` catalog in
+> [21-feature-flags.md](21-feature-flags.md) and
+> [ADR-0021 Amendment 1](../decisions/0021-feature-based-entitlement.md). The
+> trailing `.enabled` suffix used in earlier drafts has been dropped — every
+> `FeatureKey` is implicitly boolean. Compliance-cap keys
+> (`gdpr.hard_delete.enabled`, …) follow a different convention: their `.enabled`
+> portion is part of the cap name, not a redundant suffix, and the value is a
+> `{ allowed, forced, value? }` object.
+
 ```json
 {
   "tenant_id": "tenant-uuid",
   "tier": "growth",
   "features": {
-    "classroom.recording.enabled": true,
-    "custom_domain.enabled": true,
-    "white_label_branding.enabled": true,
+    "classroom.recording": true,
+    "tenancy.custom_domain": true,
+    "tenancy.white_label_branding": true,
     "customization.unlimited_content_types": true,
-    "sso.saml.enabled": false,
-    "analytics.advanced.enabled": false,
-    "api_access.enabled": true,
-    "webhooks.outbound.enabled": true,
-    "audit.export.enabled": true
+    "identity.sso.saml": false,
+    "analytics.advanced_reporting": false,
+    "integrations.api_access": true,
+    "integrations.webhooks": true,
+    "audit.export": true
   },
   "limits": {
     "limits.max_users": 500,
@@ -339,7 +374,7 @@ sequenceDiagram
     participant HubAPI as Hub API
 
     User->>LSApi: "Start recording" command
-    LSApi->>LSApi: IFeatureFlagService.IsEnabledAsync(FeatureKeys.ClassroomRecording)
+    LSApi->>LSApi: IFeatureFlags.IsEnabledAsync(FeatureKeys.ClassroomRecording)
     LSApi->>Cache: SELECT WHERE tenant_id = X
     alt Cache fresh (<15m)
         Cache-->>LSApi: Entitlement (gen=42)
@@ -488,8 +523,22 @@ learnstack-hub/
 ```
 
 Hub does NOT share Dapr instance with LearnStack — Hub has its own sidecar, its own
-`pubsub` component (Kafka topic prefix `learnstack.hub.*`), its own state store (Hub
-Redis instance), its own secret store namespace (`secret/learnstack-hub/*`).
+`pubsub` component, its own state store (Hub Redis instance), its own secret store
+namespace (`secret/learnstack-hub/*`).
+
+**Kafka cluster topology:** Hub and LearnStack share the **same Kafka cluster** in
+SaaS / Dedicated; isolation is at the **topic-name** level. Hub publishes under
+the `learnstack.hub.*` prefix; LearnStack core publishes under
+`learnstack.{module}.*`. Cross-side subscriptions are explicit: LearnStack core
+consumes `learnstack.hub.entitlement`, `learnstack.hub.custom-domain.activated`,
+`learnstack.hub.custom-domain.deactivated`; Hub consumes
+`learnstack.tenancy.tenant.renamed` (and similar LS-emitted operational events).
+Topic-level ACLs (Kafka ACL rules per principal) enforce that Hub cannot publish
+into the LS-core prefix and vice versa.
+
+In Self-Hosted (especially air-gapped) deployments, Hub may not exist at all; the
+`learnstack.hub.*` topic family is absent and the LS-side consumers are no-ops
+(no subscriber registers when `DeploymentMode = SelfHostedAirGapped`).
 
 ## 10. Architecture tests (Hub-side)
 

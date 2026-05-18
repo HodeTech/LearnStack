@@ -18,7 +18,11 @@ procedure, refresh cadence, revocation flow, and operational runbook.
 ## 1. License key payload
 
 The key is a JWT-style RS256-signed token with a custom header `typ: "LSL"`
-("LearnStack License").
+("LearnStack License"). The embedded `entitlement.features` key strings follow
+the typed `FeatureKey` catalog in
+[21-feature-flags.md](21-feature-flags.md) and
+[ADR-0021 Amendment 1](../decisions/0021-feature-based-entitlement.md) — the
+trailing `.enabled` suffix used in earlier drafts has been dropped.
 
 ```json
 {
@@ -36,15 +40,15 @@ The key is a JWT-style RS256-signed token with a custom header `typ: "LSL"`
     "entitlement": {
       "tier": "enterprise",
       "features": {
-        "classroom.recording.enabled": true,
-        "custom_domain.enabled": true,
-        "white_label_branding.enabled": true,
+        "classroom.recording": true,
+        "tenancy.custom_domain": true,
+        "tenancy.white_label_branding": true,
         "customization.unlimited_content_types": true,
-        "sso.saml.enabled": true,
-        "analytics.advanced.enabled": true,
-        "api_access.enabled": true,
-        "audit.export.enabled": true,
-        "data_residency.selection.enabled": true
+        "identity.sso.saml": true,
+        "analytics.advanced_reporting": true,
+        "integrations.api_access": true,
+        "audit.export": true,
+        "compliance.data_residency": true
       },
       "limits": {
         "limits.max_users": 50000,

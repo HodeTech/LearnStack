@@ -61,11 +61,29 @@ CREATE POLICY <table>_organization_isolation ON <table>
 
 **Org-scope opt-in.** A tenant-owned entity may be **tenant-wide** (no `organization_id`)
 or **org-scoped** (`organization_id` populated). Entities mark themselves via
-`[OrgScoped]` attribute; architecture test enforces the column + filter + policy.
+`[OrganizationScoped]` attribute; architecture test enforces the column + filter + policy.
 
 **Default org.** A tenant without explicit orgs has one default org auto-created at tenant
 provisioning. Single-org tenants experience no UX difference (org switcher hidden).
 
 The original tenant-level guarantees, RLS-from-day-one rule, and architecture tests for
 tenant isolation remain unchanged.
+
+---
+
+## Amendment 2 — Identity row terminology (2026-05-19)
+
+The "Identity" row in Amendment 1's defense-in-depth table reads "Keycloak
+realm-per-tenant + `organization_id` JWT claim". Read this as a reference to the
+**realm-per-tenant opt-in** described in
+[ADR-0004 Amendment 1](0004-authentication-strategy.md) — it is **not** the default.
+
+The default Keycloak strategy (per ADR-0004) is **single-realm `learnstack` with a
+`tenant_id` JWT claim**; realm-per-tenant is an enterprise opt-in for compliance-
+driven isolation. Both strategies satisfy the defense-in-depth requirement of this
+ADR — the row was written assuming the realm-per-tenant variant; the live
+architecture guide [09-tenant-isolation.md](../architecture/09-tenant-isolation.md)
+reflects the corrected wording.
+
+This is a documentation clarification; the Decision is unchanged.
 

@@ -80,8 +80,9 @@ The original Extension Model document's invariants are preserved by ADR-0018:
   - Importing live-classroom SDK types in Domain or Application.
   - Hardcoding tenant ids in code (configuration is per-tenant data).
   - Feature flags scattered without a registry (typed `FeatureKeys`, ADR-0021).
-- **Tenant feature enablement.** Now via `IFeatureFlagService` reading the entitlement
-  projection (ADR-0021), not via "vertical loaded but not enabled."
+- **Tenant feature enablement.** Now via `IFeatureFlags` reading the entitlement
+  projection ([ADR-0021](../decisions/0021-feature-based-entitlement.md) Amendment 1),
+  not via "vertical loaded but not enabled."
 
 ## 3. What the new model removes
 
@@ -148,7 +149,7 @@ implementations:
 | `IPaymentProvider` | `StripePaymentProvider`, `IyzicoPaymentProvider`, `OfflinePaymentProvider` |
 | `IEmailProvider` | `PostmarkEmailProvider`, `ResendEmailProvider`, `SmtpEmailProvider` |
 | `ISmsProvider` | `TwilioSmsProvider`, `NetGsmSmsProvider` |
-| `ILiveClassProvider` | `LiveKitSelfHostedLiveClassProvider`, `LiveKitCloudLiveClassProvider` |
+| `ILiveClassProvider` | `LiveKitSelfHostedProvider`, `LiveKitCloudProvider` |
 | `IFileStorageService` | `MinioFileStorageService`, `S3FileStorageService` |
 | `IEventBus` | `DaprEventBus` (default), `InProcessEventBus` (dev fallback) |
 | `ICacheService` | `DaprCacheService` (default), `InMemoryCacheService` (dev fallback) |

@@ -144,10 +144,18 @@ secret/learnstack/coturn              shared-secret
 secret/learnstack/hub                 api-key, internal-api-hmac-key, internal-api-mtls-cert
 ```
 
-In `Development`, a `secretstore-local-file.yaml` reading from `dapr/components/secrets.json`
-is used as fallback (Nexora pattern).
+In `Development` the **primary** `ISecretProvider` implementation is
+`EnvironmentSecretProvider` (reads from process env vars; configured via
+`.env`; matches the composition-root table in
+[20-infrastructure-stack.md § Composition Root and Deployment Mode](../standards/20-infrastructure-stack.md)).
+For dev workflows that prefer Dapr-shaped secrets (e.g. exercising the
+`DaprSecretProvider` code path locally), an optional
+`secretstore-local-file.yaml` reading from `dapr/components/secrets.json` is
+**available** but not the default; the composition root picks one based on
+`Deployment:Secrets:Provider` config (`env` | `dapr-file`). Both paths produce
+the same observable behaviour through `ISecretProvider`.
 
-### `secretstore-local-file.yaml` — Dev fallback
+### `secretstore-local-file.yaml` — optional dev variant
 
 ```yaml
 apiVersion: dapr.io/v1alpha1

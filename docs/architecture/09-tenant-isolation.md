@@ -28,7 +28,7 @@ two scopes (tenant + organization):
 | Application context | `ITenantContextAccessor.Current.TenantId` (AsyncLocal) | `ITenantContextAccessor.Current.OrganizationId` (AsyncLocal; nullable) |
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
 | PostgreSQL | RLS policy `tenant_id = current_setting('app.tenant_id', true)::uuid` | RLS policy `organization_id IS NULL OR organization_id = current_setting('app.organization_id', true)::uuid` |
-| Identity | Keycloak realm-per-tenant or `tenant_id` JWT claim | `organization_id` JWT claim populated from active org membership |
+| Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
 | Cache | Cache key auto-prefixed `{tenant_id}:{key}` | `{tenant_id}:{org_id}:{key}` when org context set |
 | Files (MinIO) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search (Meilisearch) | `tenant_id` as mandatory filter | `organization_id = X OR organization_id IS NULL` clause when org context |
@@ -180,7 +180,7 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 | Test | Asserts |
 |------|---------|
 | `Every_TenantOwned_Entity_HasTenantId` | Every aggregate marked `[TenantOwned]` (or inheriting `AuditableEntity<>`) has a `TenantId` property and an EF query filter referencing it. |
-| `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every aggregate marked `[OrgScoped]` has `OrganizationId` nullable + EF query filter. |
+| `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every aggregate marked `[OrganizationScoped]` has `OrganizationId` nullable + EF query filter. |
 | `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has at least one RLS policy. |
 | `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: every org-scoped table has the org isolation policy. |
 | `IgnoreQueryFilters_OnlyInPlatformAdminScope` | Roslyn source scan: `IgnoreQueryFilters()` appears only in `LearnStack.Modules.Identity.Application.Platform` or behind an `architecture-allow: ignore-query-filters ADR-NNNN` marker. |

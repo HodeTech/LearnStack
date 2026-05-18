@@ -96,7 +96,11 @@ and stable precisely because LearnStack core is domain-agnostic (ADR-0018).
    port must exist from Phase 02 onward (with a `NullEntitlementProvider` default) so
    modules program against it from day one, just as Nexora's `ILicenseVerifier` did.
 5. **Stripe + Iyzico support.** Global customers via Stripe; Turkish customers via Iyzico.
-   Same `IPaymentProvider` port abstracts both.
+   Each side has its own provider port — `IPaymentProvider` (LearnStack core,
+   tenant→learner storefront) and `IHubPaymentProvider` (Hub, LearnStack→tenant
+   subscription billing). The interfaces share shape but live in different
+   codebases and never run in the same process. See
+   [Phase 09b § Payment Provider Adapters](../roadmap/phase-09b-hub-billing.md).
 6. **Operator portal UX.** Tenant list, status, plan, MRR, license, audit, support;
    compliance caps editor; custom domain approval queue; usage metrics dashboard.
 7. **Nexora pattern is transferable.** The team has just analysed NMP at length; reusing
@@ -380,3 +384,28 @@ The Decision is unchanged: Hub is a separate codebase, separate Keycloak realm, 
 internal API, four-endpoint contract surface. Only the phase label is corrected
 throughout this ADR's body — the Hub Foundation work belongs to **Phase 02c**, not
 Phase 02b. See [phase-02c-hub-foundation.md](../roadmap/phase-02c-hub-foundation.md).
+
+### 2026-05-19 — Implementation-notes phase split (Hub endpoints land in 02c, sockets in 02a)
+
+The "Implementation notes" Phase 02a entry in this ADR's body lists the
+`PUT /api/internal/tenants/{id}/entitlements` endpoint and the
+`POST /api/v1/internal/license/verify` outbound call as Phase 02a deliverables.
+That phrasing is corrected here without changing the Decision:
+
+- **Phase 02a (LearnStack core side)** ships the *sockets* only:
+  - `IEntitlementProvider` interface in SharedKernel + `NullEntitlementProvider`
+    default,
+  - `platform_entitlement_cache` table + read paths,
+  - APISIX route group reserved for `/api/internal/*` (mTLS-guarded; the routes
+    themselves carry no handlers yet).
+- **Phase 02c (parallel Hub Foundation track)** lights up the four-endpoint
+  contract surface end to end: the Hub-side authoring of
+  `POST /api/internal/tenants`, `PUT /api/internal/tenants/{id}/entitlements`,
+  and the LearnStack-side handlers for the same; the LearnStack-side typed
+  `HttpClient` for the outbound `POST /api/v1/internal/license/verify` and
+  `POST /api/v1/usage/report`; the `HubEntitlementProvider` implementation that
+  consumes them.
+
+The four-endpoint surface, the mTLS + signed JWT + HMAC chain, the closed-list
+invariant, and the Hub's separate-codebase status are unchanged. Only the
+phasing of who-ships-what is corrected.

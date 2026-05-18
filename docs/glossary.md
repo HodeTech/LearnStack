@@ -15,7 +15,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Hub Operator** | A subset of Platform Admins who use the operator portal (`learnstack-hub-web`). Same Keycloak realm; finer-grained roles (`hub-platform-admin`, `hub-operator`, `hub-billing-viewer`). |
 | **Tenant Admin** | A user with administrative rights inside a single tenant. Authenticates against the `learnstack` Keycloak realm. Cannot see other tenants. |
 | **Org Admin** | A user with administrative rights inside a single organization within a tenant. |
-| **Deployment Mode** | One of `Development` / `SaaS` / `Dedicated` / `SelfHosted` per [ADR-0020](decisions/0020-triple-deployment-hybrid-license.md). Selected at composition root; module code never branches on it. |
+| **Deployment Mode** | One of `Development` / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` per [ADR-0020](decisions/0020-triple-deployment-hybrid-license.md). Selected at composition root; module code never branches on it. The two `SelfHosted*` variants differ on phone-home availability (entitlement source). |
 | **Core** | The reusable platform layer. Does **not** contain domain-specific business rules. |
 | **Tenant Customization** | Per-tenant data (JSON Schemas + DSL expressions) that defines the tenant's domain shape: content types, page blocks, lesson item types, level taxonomies, scoring rules, completion rules, custom fields, notification templates. Authored by tenants, not by LearnStack. See [ADR-0018](decisions/0018-tenant-driven-customization-model.md). |
 
@@ -48,7 +48,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Program** | A higher-level grouping of related courses or learning paths. |
 | **Course** | A learning product listed in a tenant catalog. Identified by a stable id. |
 | **Course Version** | A versioned, publishable structure of modules and lessons attached to a Course. Enrollments target a specific version. |
-| **Module** | An ordered grouping of lessons inside a course version. |
+| **Module (course aggregate)** | An ordered grouping of lessons inside a course version. Distinct from the backend module-loading concept *`IModule`* (see *Module-Loading Contracts* below). When the term "module" appears unqualified in code or docs, prefer this domain meaning unless the surrounding text is clearly about the backend loader. |
 | **Lesson** | A unit of learning consumption inside a module. |
 | **Lesson Item** | A single piece inside a lesson: rich text, video, file, quiz reference, live-session reference, embedded tool. |
 | **Learning Path** | An ordered or conditional traversal across multiple courses or lessons. |
@@ -95,7 +95,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | Term | Definition |
 |------|------------|
 | **Product** | A sellable platform item. |
-| **Plan** | A package or subscription definition referencing one or more products. |
+| **Plan (tenant storefront)** | A package or subscription definition referencing one or more products. Lives in the LearnStack core `Billing` module — what a tenant sells to its own learners. Distinct from the Hub-side `Plan` (see *Hub & Licensing*) that governs the tenant's own LearnStack subscription. |
 | **Price** | A currency / interval / amount combination attached to a plan. |
 | **Order** | A purchase intent and lifecycle record. |
 | **Subscription** | A recurring access grant. |
@@ -254,7 +254,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **APISIX** | The gateway in standalone YAML-reload mode per [ADR-0015](decisions/0015-api-gateway-apisix.md). The only tenant-facing ingress. A separate route set guards `/api/internal/*` with mTLS. |
 | **`OutboxProcessor`** | The BackgroundService that polls `outbox_messages` with `FOR UPDATE SKIP LOCKED`, dispatches through `IEventBus`, and handles retry / dead-letter. |
 | **`IInboxGuard`** | The per-module inbox-deduplication helper. Every integration-event handler must call `IsAlreadyProcessedAsync` before business logic and `MarkAsProcessed` inside the same SaveChanges. |
-| **`DeploymentMode`** | Enum (`Development | SaaS | Dedicated | SelfHosted`) read at the composition root to select provider implementations. Modules never read this enum. |
+| **`DeploymentMode`** | Enum (`Development \| SaaS \| Dedicated \| SelfHostedOnline \| SelfHostedAirGapped`) read at the composition root to select provider implementations. Modules never read this enum. |
 
 ## Hub & Licensing
 

@@ -216,6 +216,7 @@ flowchart LR
 | `Organization` | Yes | Sub-unit within a tenant (branch, studio, campus, department, cohort). Two-level hierarchy strict (ADR-0017). Every tenant has at least one default org. |
 | `TenantDomain` | Inside Tenant | Subdomain on `{slug}.learnstack.app` (always available) or custom domain (Hub-managed; see [27-custom-domain-tls.md](27-custom-domain-tls.md)). |
 | `TenantBranding` | Inside Tenant | Logo, colors, typography tokens. May be overridden per-organization via `OrganizationBranding`. |
+| `OrganizationBranding` | Inside Organization | Optional partial design-token override (logo / colors / typography) merged on top of `TenantBranding` at render time. When the resolved request carries an organization id and a row exists, the merged token set is injected as CSS variables on the SSR'd HTML root; missing fields fall through to the tenant default. See [Glossary § Branding](../glossary.md). |
 | `TenantFeatureFlag` | Inside Tenant | Experimental / gradual-rollout flags. Plan-level features are surfaced via the entitlement projection (ADR-0021), not stored here. See [21-feature-flags.md](21-feature-flags.md). |
 | `TenantSettings` | Inside Tenant | Locale set, timezone, default notification sender, content settings. |
 

@@ -29,16 +29,21 @@ document is the rule that prevents the audit story from drifting.
   `AuditLogBehavior`**. Modules never call `IAuditStore` directly — the pipeline does
   it for them based on the catalog.
 
-## Operation Classes
+## Operation Types
 
-| Class | Meaning | Default classification |
-|-------|---------|------------------------|
-| `create` | New aggregate row written | SHOULD audit |
-| `update` | Existing aggregate mutated | MUST audit when status, permission, money, content-publication, or consent fields change |
-| `delete` | Aggregate removed or soft-deleted | MUST audit |
-| `read-sensitive` | Read of another user's PII, financial data, learner progress, recording, or consent state | MUST audit |
-| `security-event` | Login, MFA challenge, role grant/revoke, permission change, tenant impersonation, token revocation, RLS bypass | MUST audit |
-| `platform-admin` | Any operation performed by a platform admin against a tenant they are not a member of | MUST audit |
+This standard uses **OperationType** to mean *what kind of operation produced the
+audit row* — distinct from `OperationClass` in [ADR-0016](../decisions/0016-audit-log-subsystem.md),
+which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
+`AuditEntry` (see [31-audit-subsystem.md](../architecture/31-audit-subsystem.md)).
+
+| OperationType | Meaning | Default audit classification (OperationClass) |
+|---------------|---------|------------------------------------------------|
+| `create` | New aggregate row written | SHOULD |
+| `update` | Existing aggregate mutated | MUST when status, permission, money, content-publication, or consent fields change |
+| `delete` | Aggregate removed or soft-deleted | MUST |
+| `read-sensitive` | Read of another user's PII, financial data, learner progress, recording, or consent state | MUST |
+| `security-event` | Login, MFA challenge, role grant/revoke, permission change, tenant impersonation, token revocation, RLS bypass | MUST |
+| `platform-admin` | Any operation performed by a platform admin against a tenant they are not a member of (subsumes the generic `action` type from ADR-0016's initial enum; see ADR-0016 Amendment 1) | MUST |
 
 `read-sensitive` is not "any GET request" — it's the read paths a regulator would ask about. Examples: guardian viewing a student's grades; instructor exporting a class roster with PII; admin viewing learner email list; admin downloading a recording.
 
@@ -158,7 +163,7 @@ Rules:
 | Financial (`Billing.*`) | **7 years** | Tax and invoice retention |
 | `read-sensitive` | **2 years** | Sufficient for typical investigation cycles |
 | `create` / `update` / `delete` (other domains) | **2 years** | Tenant-configurable down to 6 months or up to 7 years |
-| Recording-policy and consent changes | **7 years** | Lives with the recording itself if longer |
+| Recording-policy and consent changes | **7 years** | Lives with the recording itself if longer. **Note:** this is the retention of the *audit-log entry* about a recording policy or consent change — not the retention of the recording **file** itself. Recording files follow the per-tenant retention policy declared in [16-media-pipeline.md § Recordings](../architecture/16-media-pipeline.md) (default 30 days; tenant-configurable up to the platform cap). The two retentions are independent: the audit entry persists for compliance reconstruction even after the recording file is purged. |
 
 A tenant cannot reduce retention below the platform-defined floor for `security-event`, `platform-admin`, or financial entries. Retention is enforced by a daily Hangfire job; deletions are batched, logged, and themselves audited (`security-event`).
 

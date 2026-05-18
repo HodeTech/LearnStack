@@ -17,10 +17,20 @@ overlapping.
 ## Composition Root and Deployment Mode
 
 Every host (`LearnStack.Api`, worker, background-service host) reads
-`DeploymentMode` at startup:
+`DeploymentMode` at startup. Per
+[ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md), `SelfHosted` is
+split into two values so the composition root can pick between phone-home and
+signed-license-key entitlement providers without runtime branching:
 
 ```csharp
-public enum DeploymentMode { Development, SaaS, Dedicated, SelfHosted }
+public enum DeploymentMode
+{
+    Development,
+    SaaS,
+    Dedicated,
+    SelfHostedOnline,
+    SelfHostedAirGapped
+}
 ```
 
 The composition root branches on `DeploymentMode` to pick provider implementations.
@@ -36,13 +46,14 @@ Rules:
   (`Modules_Do_Not_Reference_DeploymentMode`) ensures no module assembly references the
   enum.
 
-| Concern | `Development` | `SaaS` | `Dedicated` | `SelfHosted` |
-|---|---|---|---|---|
-| Event bus | `InProcessEventBus` (MediatR) | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka (single-broker OK) |
-| Cache | `InMemoryCacheService` | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis |
-| Secrets | `EnvironmentSecretProvider` | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault or file |
-| Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `SignedLicenseKeyEntitlementProvider` |
-| Host → tenant | Config / single tenant | Hub-mirrored projection | Hub-mirrored projection | Config / projection |
+| Concern | `Development` | `SaaS` | `Dedicated` | `SelfHostedOnline` | `SelfHostedAirGapped` |
+|---|---|---|---|---|---|
+| Event bus | `InProcessEventBus` (MediatR) | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka (single-broker OK) | `DaprEventBus` → Kafka (single-broker OK) |
+| Cache | `InMemoryCacheService` | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis |
+| Secrets | `EnvironmentSecretProvider` | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault or file |
+| Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` (phone-home) | `SignedLicenseKeyEntitlementProvider` |
+| Host → tenant | Config / single tenant | Hub-mirrored projection | Hub-mirrored projection | Hub-mirrored projection | Config / `.lic` claim |
+| Phone-home | n/a | enabled | enabled | enabled (daily, 30-day grace) | disabled |
 
 ## Dapr Building Blocks
 
@@ -80,6 +91,30 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
   longer needs explicit justification in code review.
 - Eager invalidation publishes to `learnstack.cache.invalidation`; do not rely on TTL
   expiry for correctness.
+
+#### Cache layer cheat sheet
+
+The `ICacheService` has **two TTL knobs** (`CacheOptions.L1Ttl`, `CacheOptions.L2Ttl`).
+The most-referenced read paths follow this layered policy; mismatches across docs
+(e.g. "60s cache" vs "15-min TTL") refer to different layers of the same cache, not
+different decisions:
+
+| Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Redis) | Eager invalidation event |
+|---|---|---|---|
+| `hub:host:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
+| `hub:entitlement:{tenant_id}` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
+| `tenant_feature_flags:{tenant_id}` | 60 s | 15 min | `learnstack.cache.invalidation` (key prefix) |
+| Permission lookup per session | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
+| Tenant settings (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
+
+Rules:
+
+- L1 protects per-pod hot path; cross-pod consistency relies on L2 + eager
+  invalidation.
+- The 15-min L2 figure is an **upper bound**, not the typical refresh window —
+  eager invalidation via Dapr is the typical path; the TTL is the safety net.
+- A "60s cache" reference in any other document refers to L1; a "15-min TTL"
+  reference refers to L2. These are not in conflict.
 
 ### `ISecretProvider` (secrets)
 

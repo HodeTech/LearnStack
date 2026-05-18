@@ -145,9 +145,16 @@ Per [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md):
 - Custom-domain lifecycle: DNS / HTTP-01 challenge runner, Let's Encrypt adapter,
   push to LearnStack core.
 - License-key issuance UI + signed `.lic` download.
-- LearnStack core's `HubEntitlementProvider` + `SignedLicenseKeyEntitlementProvider`
-  implementations land here (in the LearnStack repo, not the Hub repo — Phase 02c
-  PRs into the LearnStack core).
+- LearnStack core's `HubEntitlementProvider` is **production-complete** here
+  (in the LearnStack repo, not the Hub repo — Phase 02c PRs into the LearnStack
+  core).
+- LearnStack core's `SignedLicenseKeyEntitlementProvider` lands here as a
+  **functional skeleton** — RSA signature verification, payload parsing, file-watch
+  reload. The production-hardening pieces (key rotation procedure, signed
+  revocation list distribution, SIGHUP hot-reload runbook, multi-day grace-period
+  load testing) ship in **Phase 11**, per
+  [ADR-0020 Phase 11](../decisions/0020-triple-deployment-hybrid-license.md) and
+  [26-hybrid-license-model.md § 11](../architecture/26-hybrid-license-model.md).
 - End-to-end SaaS scenario rehearsable: operator creates a tenant in Hub → tenant
   appears in LearnStack core with default organization + projection mirrored → tenant
   admin can log in and see their plan's feature set in Studio.

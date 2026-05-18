@@ -39,9 +39,10 @@ development mode:
 | `Development` | Developer workstation | none | `NullEntitlementProvider` |
 | `SaaS` | LearnStack vendor | Yes (multi-tenant Hub instance) | `HubEntitlementProvider` (HTTPS) |
 | `Dedicated` | LearnStack vendor on a tenant-isolated cluster | Yes (Hub points at that cluster) | `HubEntitlementProvider` (HTTPS) |
-| `SelfHosted` | Customer | None (air-gapped possible) | `SignedLicenseKeyEntitlementProvider` (RSA-2048 `.lic` file + optional phone-home) |
+| `SelfHostedOnline` | Customer | LearnStack-hosted Hub reachable | `HubEntitlementProvider` (phone-home, 30-day grace) |
+| `SelfHostedAirGapped` | Customer | None (no outbound network) | `SignedLicenseKeyEntitlementProvider` (RSA-2048 `.lic` file, no phone-home) |
 
-The application code is the same binary across all four modes; selection happens at
+The application code is the same binary across all five modes; selection happens at
 the composition root via `DeploymentMode`. See
 [20-infrastructure-stack.md](20-infrastructure-stack.md) § Composition Root for the
 adapter table.
