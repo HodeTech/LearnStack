@@ -24,6 +24,14 @@ If multiple agents contributed materially to the same commit, include one traile
 agent. The full trailer convention lives in
 [docs/standards/14-git-workflow.md § Trailers](docs/standards/14-git-workflow.md).
 
+## Skills
+
+Both Claude Code and Codex respect skills declared as `SKILL.md` files. LearnStack's
+skill catalogue lives in [`.claude/skills/`](.claude/skills/) and applies to every
+agent runtime — there is no Codex-specific skills directory. Begin every task with
+[start-task](.claude/skills/start-task/SKILL.md) and pick the workflow-specific skill
+from the [catalogue](.claude/skills/README.md).
+
 ## Maintaining this file
 
 Do **not** copy CLAUDE.md content into AGENTS.md. If a guidance rule needs to change,

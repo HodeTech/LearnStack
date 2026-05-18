@@ -39,6 +39,25 @@ For any task, read in this order:
 5. [docs/standards/00-principles.md](docs/standards/00-principles.md) — the beliefs every other standard descends from.
 6. [docs/glossary.md](docs/glossary.md) — terminology; the single source of truth for project-specific terms.
 
+Once the high-level reading is done, pick the **skill** that matches the task you're
+about to perform. Skills live under [`.claude/skills/`](.claude/skills/) and each one
+walks a specific workflow (adding a tenant-owned entity, wiring a Dapr pub/sub topic,
+writing an ADR, authoring a tenant scoring rule, …). The
+[skills catalogue](.claude/skills/README.md) is the index.
+
+- For **substantive work** (the default — "implement / geliştir this task"), run
+  [implement-task](.claude/skills/implement-task/SKILL.md). It wraps scoping,
+  implementation against the standards corpus, self-check, linter + tests,
+  documentation updates, the commit, and the review-agent prompt into one
+  disciplined pass.
+- For **scoping only** (planning before knowing what to build) run
+  [start-task](.claude/skills/start-task/SKILL.md).
+- For **review** of a diff or PR, run
+  [standards-check](.claude/skills/standards-check/SKILL.md) first (mechanical
+  conformance) and then
+  [code-review](.claude/skills/code-review/SKILL.md) (security / bugs /
+  optimisation / refactor).
+
 ## Documentation layout
 
 | Directory | Purpose | Mutability |
