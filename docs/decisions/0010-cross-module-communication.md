@@ -129,3 +129,28 @@ mandatory for every cross-module consumer.
 **The four sanctioned mechanisms and the closed-list invariant are unchanged.** Amendment 1
 clarifies the dispatch implementation for Mechanism #3 without expanding the mechanism
 list.
+
+---
+
+## Amendment 2 — Topic-name regex widened for Hub-side event suffixes (2026-05-19)
+
+Amendment 1's architecture test
+`Dapr_PubSub_TopicNames_FollowConvention` originally enforced
+`^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$` — strictly three segments
+(`learnstack.{module}.{aggregate}`). In practice the Hub publishes 4-segment
+topics that carry an event-name suffix (`learnstack.hub.custom-domain.activated`,
+`.deactivated`, `.revoked`) per
+[ADR-0022](0022-custom-domain-tls.md) and
+[24-learnstack-hub.md § 9](../architecture/24-learnstack-hub.md). Those are
+cited in the LS-core subscriber list as legitimate topics.
+
+**Amended regex (binding):**
+
+```
+^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$
+```
+
+The optional fourth segment is reserved for **Hub-side event-name suffixes only**.
+LearnStack-core topics stay 3-segment by convention (`learnstack.{module}.{aggregate}`);
+the test does not reject 3-segment topics in either direction. This amendment
+clarifies the regex; no other rule changes.

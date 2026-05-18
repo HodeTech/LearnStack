@@ -61,7 +61,11 @@ If the task touches a specific module, **additionally** read its architecture
 doc(s) under `docs/architecture/NN-*.md`. The most load-bearing ones for
 implementation:
 
-- [03-module-boundaries.md](../../../docs/architecture/03-module-boundaries.md)
+- [03-module-boundaries.md](../../../docs/architecture/03-module-boundaries.md) —
+  the four-package layout (`Application.Contracts` / `Application` / `Domain` /
+  `Infrastructure`) every module follows; this is the same shape that
+  [add-backend-module](../add-backend-module/SKILL.md) scaffolds when a brand-new
+  module is needed.
 - [09-tenant-isolation.md](../../../docs/architecture/09-tenant-isolation.md)
 - [15-event-and-outbox.md](../../../docs/architecture/15-event-and-outbox.md)
 - [32-tenant-customization-model.md](../../../docs/architecture/32-tenant-customization-model.md)

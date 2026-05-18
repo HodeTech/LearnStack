@@ -64,8 +64,17 @@ Format: `learnstack.{module}.{aggregate}`. Examples:
 | `learnstack.hub.custom-domain.activated` | Hub → core host mapping update |
 | `learnstack.cache.invalidation` | Cross-instance L1 cache invalidation |
 
-Architecture test `Dapr_PubSub_TopicNames_FollowConvention` rejects anything that
-doesn't match `^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$`.
+Architecture test `Dapr_PubSub_TopicNames_FollowConvention` (defined in
+[15-event-and-outbox.md § Architecture tests](../../../docs/architecture/15-event-and-outbox.md))
+rejects anything that doesn't match
+`^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$`.
+
+The optional third segment exists for **Hub-side event-name suffixes**
+(`learnstack.hub.custom-domain.activated`, `learnstack.hub.custom-domain.deactivated`,
+`learnstack.hub.custom-domain.revoked`). LearnStack-core topics stay 3-segment
+(`learnstack.{module}.{aggregate}`); the 4-segment shape is reserved for the Hub-side
+naming exception. Treat the architecture test as the source of truth; keep this
+skill's regex aligned with it.
 
 ### Step 2: Dapr component YAML
 
@@ -119,12 +128,18 @@ aggregate name; you do not name it manually.
 In the consumer module's startup:
 
 ```csharp
-public sealed class EnrollmentModule : ILearnStackModule
+public sealed class EnrollmentModule : IModule
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         // ... DbContext, MediatR, etc. ...
 
+        // `AddDaprSubscription<T>` is a project-owned helper (or equivalent —
+        // e.g. a `[Topic]` attribute on the handler). It lives in
+        // LearnStack.Infrastructure.Messaging; the exact signature is
+        // implementation detail. What matters: the subscription is registered
+        // in the consumer module's startup, and the handler reaches
+        // `IInboxGuard` before any business logic.
         services.AddDaprSubscription<UserGdprDeletedIntegrationEventV1>(
             topic: "learnstack.identity.user",
             pubsubName: "pubsub");
@@ -179,9 +194,25 @@ entry. Most modules use `ICacheService` directly and skip this.
 ### Step 7: Ordering (rare)
 
 If consumers require per-aggregate ordering (e.g. learner progress events on the
-same enrollment must arrive in order), set the partition key on the producer side:
+same enrollment must arrive in order), set the partition key when enqueuing the
+event — **never call `DaprClient` directly**. Module code goes through `IOutbox`
+/ `IEventBus`; only `DaprEventBus` (in `LearnStack.Infrastructure.Messaging`)
+touches `DaprClient`. The `IOutbox.EnqueueAsync` overload accepts a partition-key
+parameter that the `OutboxProcessor` forwards into the Dapr publish metadata:
 
 ```csharp
+await outbox.EnqueueAsync(
+    @event,
+    partitionKey: enrollment.Id.ToString(),
+    ct);
+```
+
+Internally, `DaprEventBus.PublishAsync` translates this into the equivalent Dapr
+metadata (`partitionKey`) on the `PublishEventAsync` call:
+
+```csharp
+// LearnStack.Infrastructure.Messaging.DaprEventBus (Infrastructure only — never
+// call DaprClient from a module).
 await daprClient.PublishEventAsync(
     "pubsub", topic, @event,
     metadata: new Dictionary<string, string>
@@ -219,8 +250,10 @@ within ~5 minutes of the first published message.
 
 ## Common pitfalls
 
-- **Inventing a topic name.** The convention is `learnstack.{module}.{aggregate}`.
-  Architecture test fails the build for deviations.
+- **Inventing a topic name.** The convention is `learnstack.{module}.{aggregate}`
+  for LearnStack-core topics (3 segments). Hub-side events may add a 4th
+  event-name segment (`learnstack.hub.custom-domain.activated`). Architecture
+  test `Dapr_PubSub_TopicNames_FollowConvention` rejects anything else.
 - **Direct `DaprClient` / `KafkaProducer` injection.** Both forbidden. Use
   `IEventBus`.
 - **Subscribing in the wrong module.** A subscription declared in the producer

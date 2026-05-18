@@ -78,7 +78,8 @@ Walk every change against the project's
 
 | Concern | What to check |
 |---------|---------------|
-| **Tenant + organization isolation** | New tenant-owned entity has `[TenantOwned]` + EF filter + RLS policy + canonical `app.tenant_id` session var. `[OrganizationScoped]` covered the same way. Any `IgnoreQueryFilters` outside platform-admin paths? |
+| **Tenant + organization isolation** | New tenant-owned entity has `[TenantOwned]` + EF filter + RLS policy + canonical `app.tenant_id` session var. `[OrganizationScoped]` covered the same way. Any `IgnoreQueryFilters` outside platform-admin paths is a zero-tolerance blocker per [17-code-review.md § Zero Tolerance](../../../docs/standards/17-code-review.md). |
+| **4-step auth order** | Every write use case checks in order: (1) Authn → (2) Tenant membership → (3) Role / permission → (4) Resource scope. Failure at each step returns the right Problem Details code (`unauthorized` / `tenant_mismatch` / `forbidden` / `resource_scope_violation`). Source: [11-security.md § Authorization](../../../docs/standards/11-security.md), [19-permissions.md § Enforcement Points](../../../docs/standards/19-permissions.md). |
 | **Authn / authz** | Every new endpoint has `[Authorize(Policy=…)]` or `[AllowAnonymous]` with a comment. Policy keys exist in the permission registry. Resource-scope handlers (`instructor` edits own course only) present where needed. |
 | **Tenant id from JWT only** | Never from request body / query / header that isn't authenticated. Check command and DTO surfaces. |
 | **SQL injection** | EF Core LINQ or `FromSqlInterpolated`; never raw string concatenation. Raw SQL has parameters. |
@@ -263,9 +264,14 @@ Author intent: <one-paragraph restatement>
 - **No `Verticals/` folder.** ADR-0018 superseded ADR-0011.
 - **Hub HTTPS contract surface closed at four endpoints.** Adding a fifth
   requires a new ADR.
-- **No direct `IConnectionMultiplexer` / `KafkaProducer` / `VaultClient` /
-  `DaprClient` injection.** Use `ICacheService` / `IEventBus` /
-  `ISecretProvider`.
+- **No direct `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
+  `VaultClient` injection** (per [CLAUDE.md hard rules](../../../CLAUDE.md) and
+  [20-infrastructure-stack.md § Forbidden](../../../docs/standards/20-infrastructure-stack.md)).
+  Use `ICacheService` / `IEventBus` / `ISecretProvider`.
+- **No `Dapr.Client.*` imports outside `LearnStack.Infrastructure.{Caching,Messaging,Secrets}`**
+  — a separate rule per [ADR-0014 § Architecture tests](../../../docs/decisions/0014-adopt-dapr.md)
+  and [29-dapr-integration.md § 8](../../../docs/architecture/29-dapr-integration.md);
+  architecture test `Dapr_SDK_Types_NotImportedOutsideInfrastructure`.
 - **No direct write to `audit_log` / `outbox_messages` /
   `platform_entitlement_cache`.** Use `IAuditStore` / `IOutbox` /
   `IEntitlementProvider.RefreshAsync`.

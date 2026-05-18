@@ -15,7 +15,7 @@ description: >
 
 ## Purpose
 
-Land a new route in `apps/web` that respects route-group conventions, tenant + org
+Land a new route in `frontend/apps/web` that respects route-group conventions, tenant + org
 resolution at the edge, Server-Component-first rendering, and the typed SDK
 contract per
 [14-frontend-architecture.md](../../../docs/architecture/14-frontend-architecture.md)
@@ -184,7 +184,7 @@ Every route ships its own:
 
 ### Step 10: Tests
 
-- Component test (`apps/web/src/app/(studio)/dashboard/users/page.test.tsx`) with
+- Component test (`frontend/apps/web/src/app/(studio)/dashboard/users/page.test.tsx`) with
   `axe-core` for accessibility.
 - Lighthouse budget check on representative public routes (CI).
 

@@ -56,7 +56,7 @@ and [17-page-builder.md](../../../docs/architecture/17-page-builder.md).
 
 | Tier | Lives where | Authorship | When |
 |------|-------------|------------|------|
-| **Primitive** | C# block registry + React renderer in `apps/web/src/components/blocks/`. | LearnStack engineering. | Every tenant might use it (`hero`, `rich-text`, `image`, `cta`). |
+| **Primitive** | C# block registry + React renderer in `frontend/apps/web/src/components/blocks/`. | LearnStack engineering. | Every tenant might use it (`hero`, `rich-text`, `image`, `cta`). |
 | **Composite renderer** | C# composite registry + React renderer (`default-card`, `content-list`, `card-grid`). | LearnStack engineering. | Tenants compose this in `TenantPageBlock` rows. |
 | **Tenant block** | `tenant_page_blocks` row (data only). | Tenant admin via Studio editor. | Tenant-specific shape (`vocabulary-list` for English, `asana-card` for yoga). |
 

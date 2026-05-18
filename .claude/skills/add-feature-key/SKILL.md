@@ -125,10 +125,17 @@ public static class KillswitchKeys
 }
 ```
 
-Pair each key with a **catalogue descriptor** (`FeatureKeyDescriptor`,
-`LimitKeyDescriptor`):
+Pair each key with a **catalogue descriptor** so the runtime knows whether the
+key is plan-projected vs tenant-flag-level, its default, enforcement, etc. The
+exact shape is an implementation detail of the `LearnStack.SharedKernel` types
+that ship in Phase 02a; the corpus describes the *intent* in
+[21-feature-flags.md § Storage / Evaluation](../../../docs/architecture/21-feature-flags.md)
+and [ADR-0021 Amendment 1](../../../docs/decisions/0021-feature-based-entitlement.md).
+**Illustrative shape (final names land with the Phase-02a SharedKernel PR):**
 
 ```csharp
+// Illustrative — actual property names land with the SharedKernel
+// FeatureKeyDescriptor / LimitKeyDescriptor types in Phase 02a.
 descriptors.Add(FeatureKeys.ClassroomRecording, new FeatureKeyDescriptor
 {
     Source = FeatureSource.PlanProjected,
@@ -148,8 +155,11 @@ descriptors.Add(LimitKeys.MaxClassroomMinutesPerMonth, new LimitKeyDescriptor
 });
 ```
 
-The descriptor's `Source` is what the architecture test
-`PlanProjected_Keys_NotInTenantFlags` reads to enforce disjoint storage.
+The descriptor's `Source` field is what the architecture test
+`PlanProjected_Keys_NotInTenantFlags` (per
+[21-feature-flags.md § Evaluation](../../../docs/architecture/21-feature-flags.md))
+reads to enforce disjoint storage. Whatever the final property name is, the
+disjoint-storage invariant is binding.
 
 ### Step 3: Read at the call site
 

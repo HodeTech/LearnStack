@@ -298,8 +298,8 @@ domain the diff doesn't touch.
 - [ ] `IEventBus` / `ICacheService` / `ISecretProvider` used; direct SDK
   injection absent.
 - [ ] Topic naming `learnstack.{module}.{aggregate}`.
-- [ ] APISIX in standalone YAML-reload mode; routes under `infra/apisix/`
-  (note: canonical is `infra/apisix/`, not `infrastructure/apisix/`).
+- [ ] APISIX in standalone YAML-reload mode; routes under `infra/apisix/` per
+  [30-api-gateway.md § 2](../../../docs/architecture/30-api-gateway.md).
 - [ ] Hub HTTPS contract surface untouched (still 4 endpoints).
 - [ ] Outbox + inbox usage correct (atomic with aggregate write; inbox guard
   in every consumer).

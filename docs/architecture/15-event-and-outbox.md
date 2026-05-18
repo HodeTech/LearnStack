@@ -353,7 +353,11 @@ separate service later:
 - `Integration_Event_Handlers_Use_InboxGuard` — every `IIntegrationEventHandler<T>`
   implementation invokes `IInboxGuard.IsAlreadyProcessedAsync` before processing.
 - `Dapr_PubSub_TopicNames_FollowConvention` — string scan ensures every `[Topic]`
-  attribute argument matches `^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$`.
+  attribute argument matches
+  `^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$`. The
+  optional fourth segment is reserved for **Hub-side event-name suffixes**
+  (`learnstack.hub.custom-domain.activated`, `.deactivated`, `.revoked`).
+  LearnStack-core topics remain 3-segment (`learnstack.{module}.{aggregate}`).
 - `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — integration test asserts one
   poisoned message doesn't prevent others in the batch from processing.
 

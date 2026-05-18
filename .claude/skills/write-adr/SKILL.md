@@ -135,9 +135,14 @@ After writing the ADR:
 3. Update any standard that derives from this decision — set its `Derives from`
    header to include this ADR.
 4. Update relevant architecture docs to cite the new ADR.
-5. If the decision supersedes an older ADR, edit the older ADR's status to
-   `Superseded by ADR-NNNN` and convert it to a redirect stub
-   (see `docs/decisions/_redirects/` for examples).
+5. If the decision supersedes an older ADR, **retain the older ADR in place** —
+   edit its status to `Superseded by ADR-NNNN`, add a short "why superseded"
+   note linking forward, and leave the original Decision section intact for
+   history. (Pattern: ADR-0011 → ADR-0018.) The `decisions/_redirects/`
+   directory is **only** for the early-draft renumbering stubs
+   (0004 / 0005 / 0006 — see
+   [decisions/README.md § Redirect ADRs](../../../docs/decisions/README.md));
+   never move a superseded ADR there.
 
 ### Step 4: Validate
 
@@ -162,7 +167,9 @@ After writing the ADR:
   the decision probably isn't ADR-worthy.
 - **Editing an Accepted ADR's Decision.** Add an Amendment (date + clarification),
   or write a superseding ADR. Never rewrite the Decision in place.
-- **Reusing a number.** Sequential and immutable. The architecture test
-  `Adr_Numbers_AreSequential_NoReuse` is the safety net.
+- **Reusing a number.** ADR numbers are sequential and immutable per
+  [decisions/README.md](../../../docs/decisions/README.md). The rule is enforced
+  by code review, not by an architecture test today; do not depend on a test to
+  catch it.
 - **Forgetting the README index.** A new ADR that isn't in
   `decisions/README.md` is effectively unfindable.

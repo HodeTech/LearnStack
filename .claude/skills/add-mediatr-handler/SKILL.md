@@ -129,7 +129,9 @@ public sealed class CreateEnrollmentCommandHandler(
             EnrollmentId = enrollment.Id.Value,
             LearnerId = cmd.LearnerId.Value,
             CourseVersionId = cmd.CourseVersionId.Value,
-            OccurredAt = DateTimeOffset.UtcNow
+            // OccurredAt is auto-populated by IntegrationEventBase — do not set
+            // it manually. If you need it explicitly, inject IClock and use
+            // clock.UtcNow per 02-backend-coding.md § Time.
         }, ct);
 
         await db.SaveChangesAsync(ct);   // atomic: aggregate + outbox row
@@ -187,6 +189,10 @@ registry.Tenant(
     description: "Create or update enrollments",
     defaultGrants: [Roles.TenantAdmin, Roles.OrgAdmin]);
 ```
+
+`Roles.*` references come from the **Built-in Roles** catalogue authoritative
+at [19-permissions.md § Built-in Roles](../../../docs/standards/19-permissions.md).
+Do not invent role names; pick from that table or extend it via PR.
 
 See [add-permission](../add-permission/SKILL.md).
 

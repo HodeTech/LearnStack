@@ -102,6 +102,12 @@ public void RegisterPermissions(IPermissionRegistry registry)
 `registry.Tenant(...)` / `registry.Organization(...)` / `registry.Platform(...)`
 declare scope explicitly; the three registries are disjoint, asserted at seed.
 
+`Roles.*` references come from the **Built-in Roles** catalogue authoritative
+at [19-permissions.md § Built-in Roles](../../../docs/standards/19-permissions.md)
+(`TenantAdmin`, `Instructor`, `Learner`, `Guardian`, `Editor`, `OrgAdmin`,
+`OrgInstructor`, `PortalPublic`, `HubOperator`, `PlatformAdmin`). Do not invent
+role names; pick from that table or extend it via PR + standard update.
+
 ### Step 3: Apply to the endpoint
 
 ```csharp

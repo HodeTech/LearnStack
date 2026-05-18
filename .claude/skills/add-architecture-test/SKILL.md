@@ -73,6 +73,11 @@ public sealed class ModuleDependencyTests
     [Fact]
     public void Modules_DoNot_Reference_OtherModule_Domain()
     {
+        // pseudo-code; replace `GetOwningModuleNamespace(...)` with the real
+        // owning-namespace resolver helper that lives next to the test. The
+        // helper isn't a corpus contract — pick a shape that fits the test
+        // harness (e.g. parse the consumer type's namespace and extract the
+        // `LearnStack.Modules.<Name>` prefix).
         var rule = Types.InAssemblies(ModuleAssemblies)
             .That()
             .ResideInNamespaceMatching(@"LearnStack\.Modules\.\w+\.")
@@ -81,7 +86,7 @@ public sealed class ModuleDependencyTests
                 Types.That().ResideInNamespaceMatching(
                     @"LearnStack\.Modules\.\w+\.Domain")
                     .GetTypes()
-                    .Where(t => !t.FullName!.Contains(GetOwningModuleNamespace(...)))
+                    .Where(t => !t.FullName!.Contains(GetOwningModuleNamespace(...))) // pseudo
                     .Select(t => t.FullName)
                     .ToArray());
 

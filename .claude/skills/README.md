@@ -118,6 +118,13 @@ pitfalls**. Keep each skill under ~250 lines; split into reference files in the
 skill's directory when content grows. Prefer linking to the canonical doc (ADR,
 standard, architecture doc) over copying its content.
 
+> **Known overrun.** Three skills currently exceed the 250-line guideline:
+> [standards-check](standards-check/SKILL.md) (~390), [code-review](code-review/SKILL.md)
+> (~316), and [implement-task](implement-task/SKILL.md) (~297). The catalogue's
+> documented remediation is to split the bulk of each into reference files in the
+> skill's directory (e.g. `standards-check/checklists/NN-<name>.md`); this is a
+> follow-up commit, not a blocker on the catalogue itself.
+
 ## What skills are not
 
 - **Not duplicates of standards.** A skill is a *workflow* for a specific task, not a
