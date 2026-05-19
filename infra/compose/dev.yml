@@ -50,10 +50,15 @@ services:
       # ../compose/README.md for the re-seed procedure.
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
+      # `start_period: 20s` gives the first boot enough room for initdb +
+      # the `postgres-init/*.sql` scripts to complete before pg_isready
+      # starts counting failures against the retry budget. Re-boots
+      # (data already in the volume) skip this — Postgres is ready in <2s.
       test: ["CMD-SHELL", "pg_isready -U learnstack -d learnstack"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 20s
 
   # Valkey replaces Redis per ADR-0030. RESP-protocol drop-in (Dapr
   # `state.redis` component, StackExchange.Redis library, ICacheService
@@ -85,6 +90,12 @@ services:
     image: chrislusf/seaweedfs:3.94
     container_name: learnstack-seaweedfs
     restart: unless-stopped
+    labels:
+      # OrbStack hint: route `seaweedfs.learnstack-dev.orb.local` to the Filer
+      # UI (8888) rather than picking the lowest EXPOSE'd port (8080 = Volume
+      # HTTP API root, which returns 400). Use explicit `:9333` / `:8333` for
+      # master / S3 when needed.
+      dev.orbstack.http-port: "8888"
     command:
       - server
       - -dir=/data
@@ -120,6 +131,10 @@ services:
     image: axllent/mailpit:v1.29.7
     container_name: learnstack-mailpit
     restart: unless-stopped
+    labels:
+      # OrbStack hint: route `mailpit.learnstack-dev.orb.local` to the Web UI
+      # (8025) rather than the SMTP listener (1025), which is not HTTP.
+      dev.orbstack.http-port: "8025"
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # web UI
@@ -192,6 +207,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Realm SMTP server points at `mailpit:1025`. If Mailpit hasn't bound
+      # the SMTP listener yet when Keycloak sends its first email (password
+      # reset, verification), the send silently fails — TCP connect refused
+      # bubbles up as a generic SMTP timeout. Gating Keycloak start on
+      # mailpit-healthy closes that window.
+      mailpit:
+        condition: service_healthy
     healthcheck:
       # The Keycloak 26 image is UBI-9-minimal based + openjdk-21-runtime —
       # neither curl nor wget is in the image. Bash IS available, so we use
@@ -235,8 +257,11 @@ services:
     healthcheck:
       # `--spider` issues a HEAD without downloading the body; tolerates
       # LiveKit's WebSocket-upgrade contract changing across minor versions
-      # since we only care that the listener is bound.
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7880"]
+      # since we only care that the listener is bound. `127.0.0.1` (not
+      # `localhost`) for consistency with seaweedfs / meilisearch probes —
+      # the IPv6 `::1` fallback failure has bitten us on other Alpine-based
+      # minimal images, and the LiveKit image is built on the same family.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:7880"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -318,6 +343,16 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    healthcheck:
+      # Spring Boot Actuator (`/actuator/health` returns 200 + `{"status":"UP"}`
+      # when the Kafka client has connected). Spring Boot startup with JDK 21
+      # + Netty native init + Kafka client discovery is slow — `start_period`
+      # buys the boot 30s before the healthcheck starts counting failures.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   # ---- Secrets (Phase 01 packet 6) -----------------------------------------
   # HashiCorp Vault in -dev mode. Production runs Vault in HA mode with
