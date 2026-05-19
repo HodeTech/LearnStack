@@ -54,7 +54,7 @@ adapter table.
 
 Shipped in Phase 01 packets 1-6 (`infra/compose/dev.yml`):
 
-```
+```text
 postgres                # PostgreSQL 18.x per ADR-0031
 valkey                  # Linux-Foundation BSD-3 fork of Redis 7.2.4 per ADR-0030
 seaweedfs               # single dev binary: master + volume + filer + S3 gateway per ADR-0029
@@ -73,7 +73,7 @@ apisix                  # gateway in file-driven standalone (data_plane) mode �
 
 Deferred — added by a later phase, not in the Phase 01 stack:
 
-```
+```text
 livekit-egress          # Phase 08c (recording / consent / cost model)
 otel-collector          # Phase 11 (Production hardening — observability stack)
 ```
