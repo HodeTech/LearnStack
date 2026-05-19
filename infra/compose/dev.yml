@@ -6,8 +6,13 @@
 # Kafka (KRaft) + kafka-ui, HashiCorp Vault (-dev mode), the Dapr sidecar +
 # placement (pub/sub + state + secrets building blocks per ADR-0014), and the
 # APISIX gateway in file-driven standalone mode per ADR-0015. The DX
-# orchestrator (`make` targets, `.env.example`, e2e overlay) and CI workflow
-# arrive in Phase-01 packets 7-8.
+# orchestrator (`make` targets) and CI workflow arrive in Phase-01 packets 7-8.
+#
+# Env vars (POSTGRES_*, KEYCLOAK_*, VAULT_ROOT_TOKEN, …) come from the repo-
+# root `.env` file (template: `.env.example`). Compose auto-loads it because
+# the `make dev` target runs from the repo root; every `${VAR:-default}`
+# reference below falls back to a dev-safe literal when `.env` is missing,
+# so `docker compose -f infra/compose/dev.yml up` works even without `make`.
 #
 # Operational rules: Standards 12 § Local Infrastructure + Standards 20.
 # Tenant isolation in SeaweedFS S3 is enforced by key prefix
@@ -31,9 +36,11 @@ services:
     container_name: learnstack-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: learnstack
-      POSTGRES_PASSWORD: learnstack
-      POSTGRES_DB: learnstack
+      # Defaults match `.env.example`. Compose's `${VAR:-default}` form keeps
+      # `dev.yml` self-bootstrapping even when no `.env` file is present.
+      POSTGRES_USER: ${POSTGRES_USER:-learnstack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-learnstack}
+      POSTGRES_DB: ${POSTGRES_DB:-learnstack}
       # Dev-only. Production secrets come from Vault via ISecretProvider.
     ports:
       - "5432:5432"
@@ -186,13 +193,14 @@ services:
     restart: unless-stopped
     command: ["start-dev", "--import-realm"]
     environment:
-      # Dev-only. Production credentials come from Vault via ISecretProvider.
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin-dev-secret
+      # Defaults match `.env.example`. Production credentials come from Vault
+      # via ISecretProvider — `.env.example` is the local-dev parity only.
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin-dev-secret}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: learnstack
-      KC_DB_PASSWORD: learnstack
+      KC_DB_USERNAME: ${POSTGRES_USER:-learnstack}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-learnstack}
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
@@ -359,19 +367,20 @@ services:
   # auto-unseal + AppRole / Kubernetes auth methods (Standards 12 § Secrets
   # Management). The root token is intentionally embedded here for dev only.
   #
-  # IMPORTANT: the literal `learnstack-dev-root-token` appears in TWO files:
-  # this service definition AND ../dapr/components/secretstore-vault.yaml.
-  # If you change one you MUST change the other. Phase 07 (DX) wires both
-  # to a single `.env.example` source so the duplication goes away.
+  # Single source of truth: `VAULT_ROOT_TOKEN` from `.env.example`. The Dapr
+  # Vault secret-store component (`infra/dapr/components/secretstore-vault.yaml`)
+  # reads the same env var through Dapr's `{{env.VAULT_ROOT_TOKEN}}` template
+  # substitution, so changing the token in `.env` updates every consumer in
+  # lockstep (Phase 07 DX commitment per `infra/dapr/README.md` § Vault token).
   vault:
     image: hashicorp/vault:1.21.4
     container_name: learnstack-vault
     restart: unless-stopped
-    command: ["server", "-dev", "-dev-root-token-id=learnstack-dev-root-token", "-dev-listen-address=0.0.0.0:8200"]
+    command: ["server", "-dev", "-dev-root-token-id=${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}", "-dev-listen-address=0.0.0.0:8200"]
     environment:
       # Dev-only. Production loads tokens via Dapr `secretKeyRef` indirection
       # so the literal never appears in component YAML.
-      VAULT_DEV_ROOT_TOKEN_ID: learnstack-dev-root-token
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}
       VAULT_ADDR: http://0.0.0.0:8200
     cap_add:
       - IPC_LOCK
@@ -426,6 +435,11 @@ services:
       - /config/dapr-config.yaml
       - -log-level
       - info
+    environment:
+      # `secretstore-vault.yaml` substitutes `{{env.VAULT_ROOT_TOKEN}}` at
+      # component-load time; passing the same env var here completes the
+      # single-source-of-truth chain from `.env.example` (Phase 07 DX).
+      VAULT_ROOT_TOKEN: ${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}
     volumes:
       - ../dapr/components:/components:ro
       - ../dapr/config:/config:ro

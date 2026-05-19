@@ -26,10 +26,12 @@ dist/
 build/
 coverage/
 
-# Environment
+# Environment — track only the *.example templates, never real envs
 .env
 .env.*
 !.env.example
+!.env.local.example
+!*.example
 
 # Logs
 *.log

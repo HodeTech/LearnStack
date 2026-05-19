@@ -101,18 +101,21 @@ All dev-only. Production wires Vault with AppRole / Kubernetes auth and
 loads the token through Dapr's `secretKeyRef` indirection so the literal
 token never appears in the component YAML.
 
-### Vault token duplication
+### Vault token — single source of truth
 
-The literal `learnstack-dev-root-token` appears in **two files**:
+As of Phase 07 (DX), the Vault root token lives in **one** place:
+`VAULT_ROOT_TOKEN` in the repo-root `.env.example` (copied to `.env` per
+workstation). The chain:
 
-- `infra/compose/dev.yml` — `vault` service command + env var (the token
-  Vault `-dev` mode boots with).
-- `infra/dapr/components/secretstore-vault.yaml` — `vaultToken` metadata
-  (the token Dapr authenticates to Vault with).
+1. `.env` — developer's actual value (gitignored).
+2. `infra/compose/dev.yml` — both the `vault` service (boots `-dev` mode
+   with that token) and the `dapr-sidecar-api` service (passes it as an
+   env var to daprd) read `${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}`.
+3. `infra/dapr/components/secretstore-vault.yaml` — `vaultToken: '{{env.VAULT_ROOT_TOKEN}}'`
+   tells Dapr to substitute the env var at component-load time.
 
-These MUST stay in lockstep. Phase 07 (DX) wires both to a single
-`.env.example` source so the duplication goes away; until then, change
-both places together.
+Changing `.env` therefore updates every consumer at the next `docker compose
+up`. There is no longer a two-file edit risk.
 
 ## What does NOT live here
 

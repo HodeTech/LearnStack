@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# LearnStack pre-commit hook.
+#
+# Activated via `git config core.hooksPath .githooks` (run by `make install`).
+# Formats staged files in place ONLY — never the working tree at large — so
+# the check is fast and does not pollute unrelated changes.
+#
+# Languages handled:
+#   *.cs                              → dotnet format (whitespace + style)
+#   *.{ts,tsx,js,jsx,mjs,cjs}         → prettier --write + ESLint via pnpm
+#   *.{json,md}                       → prettier --write
+#
+# Intentionally NOT handled: *.yml / *.yaml. Compose / Dapr / APISIX YAMLs
+# are comment-heavy and prettier reflows them in a way that hurts review
+# readability. CI runs `yamllint` on those files separately.
+#
+# Bypass once: `git commit --no-verify` (allowed for emergency fixes only;
+# CI re-checks formatting in `.github/workflows/ci.yml` so a bypassed local
+# commit will fail the PR build).
+
+set -eu -o pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Collect newly-added or modified staged files, NUL-separated so paths with
+# spaces / unicode are safe.
+staged_files() {
+    git diff --cached --name-only --diff-filter=ACMR -z "$@"
+}
+
+# Re-stage a path after the formatter touched it.
+restage() {
+    git add -- "$@"
+}
+
+cs_files=()
+js_like_files=()
+prettier_only_files=()
+
+while IFS= read -r -d '' f; do
+    case "$f" in
+        *.cs)                                         cs_files+=("$f") ;;
+        *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)           js_like_files+=("$f") ;;
+        *.json|*.md)                                  prettier_only_files+=("$f") ;;
+    esac
+done < <(staged_files)
+
+# ─── Backend: dotnet format ───────────────────────────────────────────────
+if [[ ${#cs_files[@]} -gt 0 ]]; then
+    if ! command -v dotnet >/dev/null 2>&1; then
+        printf "pre-commit: dotnet SDK not found — staged C# files left unformatted.\n" >&2
+        exit 1
+    fi
+    printf "pre-commit: dotnet format (%d file(s)) …\n" "${#cs_files[@]}"
+    # `--include` takes a space-separated list relative to the solution dir.
+    # Run from backend/ so the solution resolves; paths must be relative to it.
+    rel_cs=()
+    for f in "${cs_files[@]}"; do
+        rel_cs+=("${f#backend/}")
+    done
+    (cd backend && dotnet format LearnStack.slnx --include "${rel_cs[@]}" --no-restore)
+    restage "${cs_files[@]}"
+fi
+
+# ─── Frontend: prettier + ESLint via pnpm ─────────────────────────────────
+if [[ ${#js_like_files[@]} -gt 0 || ${#prettier_only_files[@]} -gt 0 ]]; then
+    if ! command -v pnpm >/dev/null 2>&1; then
+        printf "pre-commit: pnpm not found — staged JS/JSON/MD files left unformatted.\n" >&2
+        exit 1
+    fi
+
+    fmt_files=("${js_like_files[@]:-}" "${prettier_only_files[@]:-}")
+    # Strip the placeholder empty entry the ${arr[@]:-} idiom leaves when the
+    # array is empty under Bash 3.x (macOS default).
+    fmt_files=("${fmt_files[@]/#}")
+    # Re-filter out any empty strings.
+    real_fmt_files=()
+    for f in "${fmt_files[@]}"; do
+        [[ -n "$f" ]] && real_fmt_files+=("$f")
+    done
+
+    if [[ ${#real_fmt_files[@]} -gt 0 ]]; then
+        printf "pre-commit: prettier --write (%d file(s)) …\n" "${#real_fmt_files[@]}"
+        (cd frontend && pnpm exec prettier --write --log-level warn "${real_fmt_files[@]/#/../}")
+        restage "${real_fmt_files[@]}"
+    fi
+
+    if [[ ${#js_like_files[@]} -gt 0 ]]; then
+        # ESLint runs only on JS-like files (not on JSON/MD/YAML).
+        # `--max-warnings 0` turns ANY warning into a hook failure.
+        printf "pre-commit: eslint --fix (%d file(s)) …\n" "${#js_like_files[@]}"
+        (cd frontend && pnpm exec eslint --fix --max-warnings 0 "${js_like_files[@]/#/../}")
+        restage "${js_like_files[@]}"
+    fi
+fi
