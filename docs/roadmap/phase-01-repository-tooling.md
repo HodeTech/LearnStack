@@ -25,9 +25,12 @@
 > (binary `readyz` healthcheck), Meilisearch — pinned tags, healthchecks,
 > named volumes, dev-only credential banners.
 >
-> **Packet 4 — Identity stack (pending)**
-> Keycloak two realms (`learnstack` + `learnstack-hub`) in dev compose, seed
-> realm config.
+> **Packet 4 — Identity stack ✅**
+> Keycloak 26 in dev compose with two realms imported on first boot
+> (`learnstack` tenant-facing + `learnstack-hub` operator), each hard-isolated
+> per ADR-0004 Amendment 1. Realm seeds at `infra/keycloak/realms/`; Postgres
+> init script provisions the Keycloak DB on the first start of the
+> `postgres-data` volume.
 >
 > **Packet 5 — Live media (pending)**
 > LiveKit OSS + Coturn in dev compose.
