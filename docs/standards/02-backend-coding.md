@@ -143,15 +143,60 @@ Rules:
 
 ## Pipeline Behaviors
 
-Standard MediatR pipeline (in order):
+Standard MediatR pipeline (in order; outermost first, innermost last). Bound by
+[ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
+and consistent with [ADR-0016 § Pipeline behavior order](../decisions/0016-audit-log-subsystem.md):
 
-1. Logging / tracing / correlation propagation.
-2. Validation (FluentValidation).
-3. Tenant context check.
-4. Authorization.
-5. Transaction.
-6. Outbox flush.
-7. Handler.
+1. **`ValidationBehavior`** — FluentValidation. Invalid input → returns
+   `Result.Fail(validation_failed, errors)`; never throws
+   `ValidationException`. Short-circuits the request before any DB / audit /
+   business code runs.
+2. **`LoggingBehavior`** — Opens the `ILogger.BeginScope` carrying the eight
+   correlation fields ([10-observability.md § Correlation](10-observability.md)),
+   starts the manual `<module>.<operation>` `Activity`, and measures handler
+   latency for the histogram metric.
+3. **`AuditLogBehavior`** — Per [ADR-0016](../decisions/0016-audit-log-subsystem.md),
+   wraps the inner pipeline with `try / catch`. On exception, writes a
+   failure-class audit entry and rethrows via `ExceptionDispatchInfo` to
+   preserve the original stack. On success, reads `IAuditStateCapture` and
+   writes the success entry. Failure of `IAuditStore` itself is logged but
+   never blocks the business operation.
+4. **`TenantContextBehavior`** — Asserts `ITenantContext.IsResolved` (the
+   `TenantResolverMiddleware` populated it from the inbound HTTP request,
+   the Hangfire `JobActivator` populated it from the job payload, or the
+   integration-event handler scope populated it from the event envelope);
+   sets the `app.tenant_id` and `app.organization_id` PostgreSQL session
+   variables via the `DbConnectionInterceptor` so RLS sees the right values.
+5. **`AuthorizationBehavior`** — `IAuthorizationService.AuthorizeAsync`
+   against the command's resource. Denial returns
+   `Result.Fail(forbidden)`; no exception.
+6. **`TransactionBehavior`** — Opens a `DbContext.Database` transaction (UoW).
+   Commits on a success-`Result`; rolls back on a fail-`Result` or any
+   exception that bubbles through. No transaction for forbidden or
+   validation-failed requests because those short-circuit upstream.
+7. **`OutboxFlushBehavior`** — Per
+   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md), enrols
+   `IOutbox` messages in the current transaction; they ship via
+   `DaprEventBus` on commit.
+8. **Handler** — domain logic; returns `Result<T>`. **No** `throw new
+   DomainException` for expected business-rule violations — use
+   `Result.Fail(business_rule_violation, ...)`. The
+   `LearnStackException-DomainExceptionThrow` Roslyn analyzer
+   ([ADR-0032 § Sub-decision 4](../decisions/0032-exception-handling-logging-and-observability.md))
+   flags violations.
+
+The pipeline does **not** include a separate `ExceptionHandlingBehavior`.
+`AuditLogBehavior`'s catch-and-rethrow + the L1 `IExceptionHandler`
+([ADR-0032 § Sub-decision 1](../decisions/0032-exception-handling-logging-and-observability.md))
+together cover every exception path; a third behavior would duplicate the
+responsibility.
+
+Architecture test
+[`MediatR_Pipeline_Order_Matches_Canonical_Sequence`](21-architecture-tests-catalogue.md#mediatr_pipeline_order_matches_canonical_sequence)
+asserts the DI registration order at startup; the test fails the build if
+any behavior is missing, reordered, or duplicated. The catalogue entry in
+[21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md) is
+the canonical reference for this identifier.
 
 ## Time
 

@@ -7,9 +7,25 @@ non-goals.
 
 | Building block | Backend (dev) | Component file | Application interface |
 |----------------|---------------|----------------|-----------------------|
-| Pub/Sub | Kafka (`kafka:9092`) | `components/pubsub-kafka.yaml` | `IEventBus` (Phase 02b) |
-| State store | Valkey (`valkey:6379`, RESP protocol) | `components/statestore-redis.yaml` | `ICacheService` (Phase 02a) |
-| Secret store | Vault (`http://vault:8200`, dev mode) | `components/secretstore-vault.yaml` | `ISecretProvider` (Phase 02a) |
+| Pub/Sub | Kafka (`kafka:9092`) | `components/pubsub-kafka.yaml` | `IEventBus` |
+| State store | Valkey (`valkey:6379`, RESP protocol) | `components/statestore-redis.yaml` | `ICacheService` |
+| Secret store | Vault (`http://vault:8200`, dev mode) | `components/secretstore-vault.yaml` | `ISecretProvider` |
+
+Phase ownership (per [phase-02a](../../docs/roadmap/phase-02a-kernel-tenancy.md)
+§ Shared Kernel and § Dapr Building Blocks, and
+[phase-02b](../../docs/roadmap/phase-02b-events-auth.md)):
+
+- **Phase 02a** declares all three interfaces in `LearnStack.SharedKernel`
+  with default in-process implementations (`InProcessEventBus`,
+  `InMemoryCacheService`, `EnvironmentSecretProvider`) **and** ships the
+  Dapr-backed implementations (`DaprEventBus`, `DaprCacheService`,
+  `DaprSecretProvider`) in `LearnStack.Infrastructure`. The composition
+  root picks between in-process and Dapr-backed per `DeploymentMode`.
+- **Phase 02b** wires the `OutboxProcessor`, which is the only sanctioned
+  caller of `IEventBus.PublishAsync` per ADR-0010 Amendment 1. Modules
+  therefore *consume* `ICacheService` and `ISecretProvider` from 02a but
+  do not *write* to `IEventBus` directly until the outbox path exists in
+  02b.
 
 Service invocation, workflow, bindings, **actors**, configuration, and
 distributed lock are **not adopted**; if a future need appears the gate is a
@@ -20,21 +36,27 @@ new ADR. The state store's `actorStateStore` flag is therefore pinned to
 
 Dev compose runs one sidecar bound to the `learnstack-api` app id:
 
-```text
-┌──────────────────────────┐   ┌──────────────────────────────────────────┐
-│ dotnet run                │   │ daprd                                     │
-│  → host:5080              │   │  ./daprd -app-id learnstack-api \        │
-│                           │   │           -app-port 5080 \                │
-│                           │◄──┤           -app-channel-address \          │
-│                           │   │             host.docker.internal \        │
-│                           │   │           -dapr-http-port 3500 \         │
-│                           │   │           -dapr-grpc-port 50001 \        │
-│                           │   │           -placement-host-address \       │
-│                           │   │             dapr-placement:50005 \        │
-│                           │   │           -resources-path /components \   │
-│                           │   │           -config /config/dapr-config.yaml
-└──────────────────────────┘   └──────────────────────────────────────────┘
+```mermaid
+graph LR
+    app["<b>.NET API</b><br/>dotnet run → host:5080<br/>(workstation, outside compose network)"]
+    daprd["<b>daprd</b> (compose service: dapr-sidecar-api)<br/>-app-id learnstack-api<br/>-app-port 5080<br/>-app-channel-address host.docker.internal<br/>-dapr-http-port 3500<br/>-dapr-grpc-port 50001<br/>-placement-host-address dapr-placement:50005<br/>-resources-path /components<br/>-config /config/dapr-config.yaml"]
+    daprd -- "inbound subscription delivery<br/>via host.docker.internal:5080" --> app
+    app -- "outbound publish / get-secret / get-state<br/>via localhost:3500 (HTTP) / :50001 (gRPC)" --> daprd
 ```
+
+Text fallback for non-Mermaid renderers:
+
+- **App** — `dotnet run` on the developer's workstation, listening on
+  `host:5080` (outside the compose network).
+- **daprd** — compose service `dapr-sidecar-api`, run with flags:
+  `-app-id learnstack-api`, `-app-port 5080`,
+  `-app-channel-address host.docker.internal`, `-dapr-http-port 3500`,
+  `-dapr-grpc-port 50001`, `-placement-host-address dapr-placement:50005`,
+  `-resources-path /components`, `-config /config/dapr-config.yaml`.
+- **daprd → app** — inbound subscription deliveries reach the workstation
+  via `host.docker.internal:5080`.
+- **app → daprd** — outbound publish / state / secret calls hit
+  `localhost:3500` (HTTP) or `localhost:50001` (gRPC).
 
 The .NET host runs **outside the container network** during active dev
 (developers `dotnet run` from their workstation). `-app-channel-address
@@ -61,7 +83,8 @@ public interface ISecretProvider { Task<string> GetSecretAsync(string key, Cance
 
 `DaprEventBus`, `DaprCacheService`, `DaprSecretProvider` are the **only**
 Dapr-aware types in the codebase; they live in `LearnStack.Infrastructure`
-and ship in Phase 02b. Architecture tests
+and ship in Phase 02a (composition-root selected per `DeploymentMode`).
+Architecture tests
 `Dapr_SDK_Types_NotImportedOutsideInfrastructure`,
 `Modules_DoNotReference_DaprPackage`, and
 `ICacheService_Is_OnlyCacheAbstraction` keep this honest.
@@ -94,7 +117,9 @@ both places together.
 ## What does NOT live here
 
 - The `IEventBus` / `ICacheService` / `ISecretProvider` implementations —
-  Phase 02b (`LearnStack.Infrastructure`).
+  the **interfaces + Dapr-backed adapters** both ship in **Phase 02a**
+  (see § Phase ownership above); only the *outbox dispatch path* that
+  becomes the sanctioned caller of `IEventBus.PublishAsync` is Phase 02b.
 - Outbox dispatcher (`OutboxProcessor` polling + dispatch) — Phase 02b.
 - Per-module `inbox_messages` table + `IInboxGuard` — Phase 02b.
 - Production Vault setup (HA mode, auto-unseal, AppRole policies) — Phase 11.

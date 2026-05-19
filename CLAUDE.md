@@ -171,6 +171,34 @@ rules:
   more space, expand the existing doc rather than splintering.
 - Mention a feature as "deferred to a later phase" without naming the
   phase that owns it.
+- Throw `DomainException` for expected business-rule violations — use
+  `Result.Fail(business_rule_violation, ...)`.
+  `DomainException` is reserved for programmer errors / aggregate invariant
+  bugs ([ADR-0032 § Sub-decision 4](docs/decisions/0032-exception-handling-logging-and-observability.md)).
+  The Roslyn analyzer `LearnStackException-DomainExceptionThrow` flags
+  violations; full catalogue entry in
+  [docs/standards/21-architecture-tests-catalogue.md](docs/standards/21-architecture-tests-catalogue.md).
+- Throw `FluentValidation.ValidationException` from `ValidationBehavior` —
+  the behavior returns `Result.Fail(validation_failed)` and never throws.
+- Reference `Sentry.SentrySdk` directly from any module assembly — error
+  capture goes through `IErrorTrackingProvider`; the L1 `IExceptionHandler`
+  is the only sanctioned caller in application code.
+- Add an `ExceptionHandlingBehavior` to the MediatR pipeline —
+  `AuditLogBehavior` (catches handler exceptions, audits, rethrows via
+  `ExceptionDispatchInfo`) plus the L1 `IExceptionHandler` cover every
+  exception path.
+- Register the OpenTelemetry `LoggerProvider`
+  (`AddOpenTelemetry().WithLogging()`) alongside Serilog. Logs flow through
+  Serilog → OTLP sink only; double-export would duplicate every line.
+- Import `Serilog.ILogger` from a module assembly — modules use
+  `Microsoft.Extensions.Logging.ILogger<T>`; Serilog is the implementation
+  wired once at the composition root.
+- Import a provider SDK exception type outside the adapter's
+  `LearnStack.Infrastructure.<Adapter>` namespace — adapters translate SDK
+  exceptions into `ProviderException` subclasses at the boundary.
+- Tag a span with `tenant.id` / `organization.id` / `user.id` /
+  `correlation.id` from module code — the `TenantContextSpanProcessor`
+  enriches every span centrally.
 
 ## Where to look when stuck
 

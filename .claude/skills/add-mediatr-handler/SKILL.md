@@ -15,8 +15,11 @@ description: >
 ## Purpose
 
 Write a command/query handler that participates correctly in the LearnStack MediatR
-pipeline: validators → audit → idempotency → handler → outbox commit. The pipeline
-is shared, so the handler stays focused on its own business logic.
+pipeline: `Validation → Logging → Audit → TenantContext → Authorization →
+Transaction → OutboxFlush → Handler`. The pipeline is shared (per
+[ADR-0032 § Sub-decision 2](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)
+and [Standards 02 § Pipeline Behaviors](../../../docs/standards/02-backend-coding.md)),
+so the handler stays focused on its own business logic.
 
 ## When to use
 
@@ -246,10 +249,24 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
 ## Common pitfalls
 
 - **Throwing for expected failures.** Use `Result.Fail(...)`. Exceptions are for
-  *unexpected* paths (DB unavailable). The pipeline maps `Result.Fail` to RFC 7807
-  Problem Details automatically.
+  *unexpected* paths (DB unavailable, infrastructure faults, programmer error).
+  `Result.Fail` values are converted to RFC 7807 Problem Details at the
+  **controller/API boundary** when the endpoint calls
+  `Result<T>.ToActionResult()` (Step 7 above) — the pipeline itself just
+  propagates the `Result` unchanged; the explicit `.ToActionResult()` call is
+  where the mapping happens. Per
+  [ADR-0032 § Sub-decision 4](../../../docs/decisions/0032-exception-handling-logging-and-observability.md),
+  `DomainException` is reserved for **bugs** — "expected business-rule
+  violation" means `Result.Fail(business_rule_violation, …)`, not a throw. The
+  Roslyn analyzer `LearnStackException-DomainExceptionThrow` flags violations.
+- **Throwing `FluentValidation.ValidationException` from a validator.** The
+  pipeline `ValidationBehavior` already produces
+  `Result.Fail(validation_failed, errors)`. A throw from the validator is a
+  bug; FluentValidation runs in collect-mode by default and pipeline behavior
+  never raises a validation exception.
 - **Calling `IAuditStore` directly.** The `AuditLogBehavior` does this for you. A
-  direct call writes a duplicate row.
+  direct call writes a duplicate row. The architecture test
+  `Modules_Do_Not_Write_AuditLog_Directly` enforces it.
 - **Two transactions for write + outbox.** The outbox row must be in the **same**
   `SaveChangesAsync` as the aggregate. Otherwise the system can publish without
   committing (or commit without publishing).
@@ -260,3 +277,11 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
   rejected at runtime because the policy is unknown.
 - **Using raw `Guid` in the command.** Loses type safety; the architecture test
   `Commands_Use_StronglyTypedIds` rejects it.
+- **Logging `ILogger.LogError(ex, ...)` then rethrowing.** The L1
+  `IExceptionHandler` already logs + records the OTel span error + captures
+  to `IErrorTrackingProvider` per
+  [ADR-0032 § Sub-decision 7](../../../docs/decisions/0032-exception-handling-logging-and-observability.md).
+  Re-logging at the handler doubles the entry.
+- **Per-call `Activity.Current?.SetTag("tenant.id", ...)`.** The
+  `TenantContextSpanProcessor` enriches every span automatically. Per-call
+  tagging is duplication and a maintenance burden.

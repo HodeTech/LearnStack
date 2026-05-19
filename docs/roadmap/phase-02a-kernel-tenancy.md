@@ -26,6 +26,7 @@ They are codified in:
 - [ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
 - [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md)
+- [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 
 ## Scope
 
@@ -119,6 +120,67 @@ Per [ADR-0016](../decisions/0016-audit-log-subsystem.md):
   ships now with the policy from [18-audit-coverage.md](../standards/18-audit-coverage.md).
 - MUST-class coverage is enabled for every command and security event the modules
   declare; modules added in later phases extend the catalog, not the infrastructure.
+
+### Cross-cutting Concerns (Day 1)
+
+Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md):
+
+- **L1 exception handler.** `LearnStackExceptionHandler : IExceptionHandler`
+  ships in `LearnStack.Api`; registered with
+  `services.AddExceptionHandler<LearnStackExceptionHandler>() +
+  services.AddProblemDetails()`.
+- **MediatR pipeline behaviors (eight-step canonical order).**
+  `ValidationBehavior` (returns `Result.Fail(validation_failed)` — never
+  throws), `LoggingBehavior` (opens the 8-field `ILogger` scope + manual
+  `Activity` + latency histogram), `AuditLogBehavior` (per ADR-0016 — wraps
+  inner pipeline with try/catch + audit-fail entry + ExceptionDispatchInfo
+  rethrow), `TenantContextBehavior` (asserts resolved + sets RLS GUCs),
+  `AuthorizationBehavior` (returns `Result.Fail(forbidden)` on deny),
+  `TransactionBehavior` (UoW), `OutboxFlushBehavior` (enrols outbox writes
+  in current tx).
+- **`Result<T>.ToActionResult()` extension** lives in
+  `LearnStack.Api.Common`; every controller endpoint uses it explicitly. No
+  action filter, no `ResultUnwrapBehavior`.
+- **Roslyn analyzer `LearnStackException-DomainExceptionThrow`** under
+  `backend/analyzers/` flags every `throw new DomainException(...)` outside
+  aggregate invariant guards. Warning in Phase 02a, escalates to Error after
+  Phase 03 exit.
+- **`IProviderResilience<TPort>` decorator** with Polly v8
+  `ResiliencePipeline` (retry + circuit breaker + timeout + bulkhead) lives
+  in `LearnStack.Infrastructure.Resilience`. Configuration shape:
+  `appsettings.Resilience:<port-name>:`. Every adapter is wired through the
+  `AddProviderResilience<TPort, TImpl>(string portName)` composition-root
+  extension. The
+  [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
+  skill walks the canonical wiring.
+- **Serilog primary logger + OTLP sink.** Hosts wire
+  `builder.Host.UseSerilog(...)` with `WriteTo.Console(...)` +
+  `WriteTo.OpenTelemetry(...)`. The OTel `LoggerProvider`
+  (`AddOpenTelemetry().WithLogging()`) is **not** registered alongside.
+  Modules log through `ILogger<T>` only.
+- **OpenTelemetry SDK** wired with `AddAspNetCoreInstrumentation` +
+  `AddHttpClientInstrumentation` + `AddEntityFrameworkCoreInstrumentation` +
+  `AddProcessor<TenantContextSpanProcessor>` + `AddOtlpExporter`. Manual
+  `ActivitySource` named per module (`learnstack.<module>`) for use-case
+  spans.
+- **`ITenantContextAccessor`** (singleton, `AsyncLocal<ITenantContext?>`-backed)
+  lives in `LearnStack.SharedKernel` alongside the request-scoped
+  `ITenantContext`. The scoped interface is what handlers and services
+  inject; the singleton accessor is what cross-cutting infrastructure
+  (OTel processor, Serilog enricher, Sentry enricher) reads. The accessor
+  is populated at scope start by `TenantResolverMiddleware` (HTTP),
+  `HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
+  (background jobs), and the outbox / inbox handler scope (integration
+  events). Modules never write to the accessor.
+- **`TenantContextSpanProcessor : BaseProcessor<Activity>`** lives in
+  `LearnStack.Infrastructure.Observability`; reads from
+  `ITenantContextAccessor.Current` in its `OnStart` hook and enriches every
+  span with `tenant.id`, `organization.id`, `user.id`, `module`,
+  `correlation.id`.
+- **`IErrorTrackingProvider` socket.** Three implementations land:
+  `NoOpErrorTracker`, `SentryErrorTracker`, `LocalFileErrorTracker`.
+  Composition root branches on `DeploymentMode`. DSN comes from
+  `ISecretProvider`. Modules never reference `Sentry.SentrySdk`.
 
 ### Tenant Customization Foundation (Day 1)
 
@@ -229,6 +291,28 @@ The architecture test project starts going green during this phase. Phase 02a co
   [20-infrastructure-stack.md § Composition Root and Deployment Mode](../standards/20-infrastructure-stack.md).
 - `Core_Modules_HaveNo_DomainSpecific_Names`,
   `No_Source_Folder_Named_Verticals`.
+- `IExceptionHandler_Registered_AtStartup` — every host registers
+  `LearnStackExceptionHandler`.
+- `MediatR_Pipeline_Order_Matches_Canonical_Sequence` — DI registration produces the eight-step
+  pipeline in the canonical order.
+- `ValidationBehavior_DoesNotThrow_ValidationException` — runtime assertion
+  via an integration test that triggers a validation failure.
+- `Domain_Methods_Do_Not_Throw_For_Expected_Cases` — uses the
+  `LearnStackException-DomainExceptionThrow` Roslyn analyzer report.
+- `Adapters_Wrap_Provider_Exceptions` — provider SDK exception types do not
+  leave `LearnStack.Infrastructure.<Adapter>` namespaces.
+- `Modules_Do_Not_Reference_Sentry_SDK_Directly`.
+- `Logging_Goes_Through_Microsoft_Extensions_Logging` — modules import
+  `Microsoft.Extensions.Logging.ILogger<T>`, not `Serilog.ILogger`.
+- `OTel_Pipeline_Includes_TenantContextSpanProcessor`.
+- `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` — unit
+  test guard.
+
+Every identifier in the cross-cutting list above is described — assertion,
+type, source ADR / standard — in
+[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](../standards/21-architecture-tests-catalogue.md).
+The catalogue is the canonical reference; rename or relocation lands there
+first.
 
 The event/outbox-specific tests (serialisable records, job payloads with `TenantId`)
 land in Phase 02b.
@@ -246,6 +330,14 @@ land in Phase 02b.
 - `LearnStack.Modules.Audit` aggregates + `LearnStack.Infrastructure.Audit` pipeline +
   partitioned `audit_log` table + retention job.
 - `platform_entitlement_cache` and `platform_host_to_tenant` tables + read paths.
+- Cross-cutting foundation (per
+  [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)):
+  `LearnStackExceptionHandler`, 8-step MediatR pipeline, `Result.ToActionResult`
+  extension, `IProviderResilience<TPort>` decorator, Serilog + OTLP sink,
+  `TenantContextSpanProcessor`, `IErrorTrackingProvider` with three
+  implementations, Roslyn analyzer for `DomainException`. The
+  [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)
+  skill walks the canonical wiring.
 - Database conventions implemented and enforced.
 - API conventions wired (versioning, Problem Details, cursor pagination, idempotency,
   ETag).

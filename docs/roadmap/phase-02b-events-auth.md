@@ -24,6 +24,9 @@ Decisions made in this phase:
   (Amendment 1: outbox dispatch target is Dapr pub/sub)
 - [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md) (sidecar wired in 02a; the
   dispatch path lands here)
+- [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
+  (outbox / Hangfire correlation propagation; Hub HTTPS surface correlation
+  middleware)
 
 ## Scope
 
@@ -36,7 +39,17 @@ Decisions made in this phase:
 - Retry with exponential backoff (1s, 5s, 30s, 5min, 1h); dead-letter after max
   attempts (5). Dead-letter visible via the `OutboxStatusEndpoints` admin API.
 - Outbox row attaches `tenant_id`, `organization_id?`, `correlation_id`, `event_id`,
-  `occurred_at`, versioned `type` to every event.
+  `occurred_at`, versioned `type` to every event (per
+  [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
+  The `correlation_id` column is the **full W3C `traceparent` header string**
+  (`00-<32-hex trace-id>-<16-hex parent-span-id>-<2-hex flags>`), not a
+  bare UUID — so the consumer can rehydrate the trace with one call:
+  `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var parentCtx)`
+  then `_activitySource.StartActivity(name, kind, parentCtx)`. Storing the
+  full string keeps the deserialisation deterministic and avoids any
+  "how do we map a UUID back to a trace-id?" ambiguity. Consumer handler
+  also restores `ITenantContext` from the envelope before the inner
+  pipeline runs, so end-to-end trace + tenant context stay continuous.
 - Versioned integration event types in `<Module>.Application.Contracts`, inheriting
   `IntegrationEventBase`.
 - Per-module **`inbox_messages`** table + `IInboxGuard`. Every
@@ -115,6 +128,18 @@ In addition to Phase 02a's rules, this phase adds:
   guard before processing.
 - `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — integration test asserts one
   poisoned message doesn't prevent others in the batch from processing.
+- `Outbox_Row_Carries_Correlation_Context` — every persisted outbox row has
+  non-null `tenant_id` and `correlation_id` per
+  [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md).
+- `Hangfire_Job_Payloads_Include_TenantId` — enqueue-time guard rejects
+  payloads missing `tenant_id` or `correlation_id`.
+- `Integration_Event_Handler_Restores_Tenant_Context` — handler scope has
+  `ITenantContext.IsResolved == true` before the inner pipeline runs.
+
+The three identifiers above are catalogued (assertion, type, source) in
+[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](../standards/21-architecture-tests-catalogue.md);
+the catalogue is the canonical reference, this list is a Phase 02b
+shipping checklist.
 
 ## Deliverables
 

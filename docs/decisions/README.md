@@ -40,6 +40,7 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0029 | [Object Storage — SeaweedFS](0029-object-storage-seaweedfs.md) | Self-hosted SeaweedFS behind the existing `IStorageProvider` S3 contract; partially supersedes ADR-0002's MinIO row |
 | 0030 | [Redis-compatible Store — Valkey](0030-redis-compatible-store-valkey.md) | Valkey (Linux Foundation, BSD-3-Clause) for the cache + Dapr state-store backend; RESP-protocol drop-in; partially supersedes ADR-0002's Redis row |
 | 0031 | [PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) | Pin primary RDBMS major version to PostgreSQL 18; native `gen_uuid_v7()` + async I/O + longest LTS runway; partially supersedes ADR-0002's PostgreSQL row |
+| 0032 | [Exception Handling, Logging, and Observability](0032-exception-handling-logging-and-observability.md) | `IExceptionHandler` + 8-step MediatR pipeline + `Result.Fail`-only validation + `DomainException`-is-bug discipline + `IProviderResilience<TPort>` (Polly v8) + Sentry vs OTel error capture boundary + Serilog primary + `TenantContextSpanProcessor` + `IErrorTrackingProvider` deployment-mode branching |
 
 ## Superseded ADRs
 
