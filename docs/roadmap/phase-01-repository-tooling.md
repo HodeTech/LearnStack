@@ -1,18 +1,51 @@
 # Phase 01: Repository, Tooling, and Local Infrastructure
 
 > **In-progress status (2026-05-19).** The phase is implemented incrementally in
-> packets. Shipped so far:
+> packets. Packets 1-3 are shipped; packets 4-8 remain.
 >
-> - ✅ Repo skeleton + .NET 10 solution scaffold (core + 7 modules × 4 projects + 4 test projects)
-> - ✅ `LearnStack.Tests.Architecture` with `No_Source_Folder_Named_Verticals` (ADR-0018) and module-dependency-direction tests
-> - ✅ Frontend `pnpm` monorepo: `apps/web` (Next.js 15 App Router, `(public)`/`(studio)`/`(portal)` route groups, `api/healthz`, `lib/customization/` runtime resolver) + `packages/{config,ui,sdk}`
-> - ✅ `infra/compose/dev.yml` core services: PostgreSQL 16, Redis 7, MinIO + console, Mailpit, Meilisearch
+> **Packet 1 — Backend skeleton ✅**
+> .NET 10 solution scaffold, central package management, `LearnStack.slnx`, 7 core
+> projects + 7 modules × 4 packages + 4 test projects (Unit / Integration /
+> Architecture / Contract) including `No_Source_Folder_Named_Verticals`
+> (ADR-0018), module-dependency-direction tests, and the
+> `Meta_NetArchTest_DetectsAPlantedViolation` positive-control meta-test.
+> Minimal `/healthz` + OpenAPI host. Contract test fixture pins
+> `Environments.Development` so `MapOpenApi()` lights up under `dotnet test`.
 >
-> Still pending in subsequent packets: Keycloak (two realms), LiveKit OSS +
-> Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX, `make`
-> orchestrator, `.env.example`, pre-commit hook, `make seed`, the
-> `learnstack-hub` compose overlay, GitHub Actions CI workflow, and the
-> `e2e.yml` companion stack.
+> **Packet 2 — Frontend monorepo ✅**
+> pnpm workspaces (Node 20.11+, pnpm 9.12.3 via corepack), `apps/web`
+> Next.js 15 App Router with `(public)` / `(studio)/studio` / `(portal)/portal`
+> route groups + `api/healthz` BFF + `middleware.ts` (production-guarded host
+> trust placeholder), `lib/customization/` runtime resolver against the closed
+> ADR-0018 primitive + composite sets, `packages/{config,ui,sdk}`.
+> `pnpm-lock.yaml` committed; `postinstall` hook stubs `.next/types/routes.d.ts`.
+>
+> **Packet 3 — Core dev compose ✅**
+> `infra/compose/dev.yml` with PostgreSQL 16, Redis 7, MinIO + console, Mailpit
+> (binary `readyz` healthcheck), Meilisearch — pinned tags, healthchecks,
+> named volumes, dev-only credential banners.
+>
+> **Packet 4 — Identity stack (pending)**
+> Keycloak two realms (`learnstack` + `learnstack-hub`) in dev compose, seed
+> realm config.
+>
+> **Packet 5 — Live media (pending)**
+> LiveKit OSS + Coturn in dev compose.
+>
+> **Packet 6 — Eventing + secrets + gateway (pending)**
+> Kafka + kafka-ui, Vault (dev mode), Dapr sidecar + placement, APISIX
+> standalone YAML-reload + dashboard, `infra/apisix/config.yaml`.
+>
+> **Packet 7 — Developer experience (pending)**
+> `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
+> pre-commit hook (dotnet-format + prettier), `infra/compose/e2e.yml`
+> companion stack, optional `learnstack-hub` compose overlay.
+>
+> **Packet 8 — CI baseline + seed (pending)**
+> GitHub Actions workflow (backend build + unit + arch + contract +
+> Testcontainers integration; frontend install + typecheck + build + lint +
+> component; OpenAPI breaking-change check; Lighthouse budget), `make seed`
+> with two demo tenants + platform admin, required status checks on `main`.
 
 ## Goal
 
