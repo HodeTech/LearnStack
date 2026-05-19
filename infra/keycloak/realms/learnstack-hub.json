@@ -1,0 +1,111 @@
+{
+  "realm": "learnstack-hub",
+  "displayName": "LearnStack Hub — Operators",
+  "displayNameHtml": "<strong>LearnStack Hub</strong> — Operators",
+  "enabled": true,
+  "registrationAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "failureFactor": 10,
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 14400,
+  "sslRequired": "external",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en"],
+  "defaultLocale": "en",
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 10,
+      "config": {}
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "hub-platform-admin",
+        "description": "Full Hub platform administration: plan CRUD, tenant lifecycle, custom-domain admin, license issuance.",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "hub-operator",
+        "description": "Day-to-day Hub operator: tenant support, entitlement overrides, audit review.",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "hub-billing-viewer",
+        "description": "Read-only access to billing + invoice surfaces in the operator portal.",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "learnstack-hub-web",
+      "name": "LearnStack Hub Web (public PKCE)",
+      "description": "Hub operator portal. Public client, PKCE-enforced. Dev posture (fullScopeAllowed=true) documented in infra/keycloak/README.md.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3100/*"
+      ],
+      "webOrigins": ["http://localhost:3100"],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3100/*"
+      },
+      "fullScopeAllowed": true
+    }
+  ],
+  "users": [
+    {
+      "username": "demo-operator@learnstack.test",
+      "email": "demo-operator@learnstack.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-dev-secret",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["hub-operator"],
+      "requiredActions": ["CONFIGURE_TOTP"]
+    }
+  ],
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@hub.learnstack.dev",
+    "fromDisplayName": "LearnStack Hub Dev",
+    "replyTo": "no-reply@hub.learnstack.dev",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  }
+}

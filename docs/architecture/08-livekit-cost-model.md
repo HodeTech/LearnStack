@@ -34,7 +34,7 @@ LearnStack owns:
 - Compute for the SFU and Egress workers.
 - Outbound bandwidth (often the largest single line item).
 - TURN/STUN infrastructure (Coturn).
-- Redis for multi-node coordination.
+- Valkey for multi-node coordination.
 - Object storage for recordings.
 - Monitoring, alerting, scaling, regional deployment, incident response.
 
@@ -65,7 +65,7 @@ This would mean building a custom SFU on top of an open-source WebRTC library (M
 |---|---|---|---|---|
 | Base / minutes | $50 + $165 overage | $0 | $0 | $0 |
 | Bandwidth | $381 | ~$0 (in plan) | ~$310 | ~$0 (in plan) |
-| Compute (SFU + Redis + TURN) | included | ~$150 | ~$200 | ~$150 |
+| Compute (SFU + Valkey + TURN) | included | ~$150 | ~$200 | ~$150 |
 | Storage (recordings) | included up to 600 min | $5 | $5 | $5 |
 | Engineering (amortised) | ~$0 | ~$300/mo SRE slice | ~$300/mo SRE slice | **~$3,000–5,000/mo for 12 months, then ongoing** |
 | **Monthly steady-state** | **~$596** | **~$155** | **~$515** | **~$3,155–5,155** |
@@ -136,7 +136,7 @@ A single 4-core SFU node comfortably handles ~250 concurrent participants for ty
 | Mode | Estimated monthly cost |
 |---|---|
 | LiveKit Cloud Ship | $50 (well within included quota) |
-| LiveKit OSS Hetzner | ~$130 (1 small SFU + Redis + TURN) |
+| LiveKit OSS Hetzner | ~$130 (1 small SFU + Valkey + TURN) |
 | LiveKit OSS AWS | ~$140 |
 
 At this scale, **LiveKit Cloud is cheaper** because the fixed infra cost of self-
@@ -144,7 +144,7 @@ hosting is not yet amortised.
 
 > **Derivation (2026-05-14 rates).** Cloud: 12,000 minutes / 150,000 included = 8% of
 > quota, 84 GB / 250 GB = 34% — both inside Ship plan; $50 base only.
-> Hetzner self-host: CX21 SFU (~$5) + CX11 Redis (~$3) + CX11 TURN (~$3) ≈ $11
+> Hetzner self-host: CX21 SFU (~$5) + CX11 Valkey (~$3) + CX11 TURN (~$3) ≈ $11
 > infra; remaining ~$120 is the SRE-slice amortised cost (~10% of a senior engineer's
 > on-call rotation at this small workload).
 > AWS: same compute (~$30 t3.medium × 3) + ~$0 egress (84 GB inside 100 GB pooled
@@ -222,7 +222,7 @@ flips the decision.
 | Mode | Estimated monthly cost |
 |---|---|
 | LiveKit Cloud Scale | $500 base + ~$120 transfer overage + $4,380 recording overage ≈ **$5,000** |
-| LiveKit OSS Hetzner | 3× SFU + 2× Egress + Redis + TURN + 1 TB recording storage ≈ **$650–800** |
+| LiveKit OSS Hetzner | 3× SFU + 2× Egress + Valkey + TURN ≈ **$650–800** compute. Recording storage at 300,000 min × 60 MB/min ≈ **18 TB** → ~€70/mo on Hetzner BX21-tier (€3.81/TB-month linear above 1 TB). **Total ≈ $720–870** |
 
 By this scale, the self-hosted advantage is ~6×.
 
@@ -242,7 +242,7 @@ This is the basis for the firm decision in [ADR 0005](../decisions/0005-live-cla
 - Each tenant can enable recording, with retention configurable up to a tenant-level cap.
 - Track classroom cost metrics (participant minutes, bandwidth, recording minutes, egress CPU) from the first production deployment. See [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md).
 - Default retention: 30 days. Long-term retention requires explicit tenant action.
-- Recording files live in S3/MinIO; metadata lives in PostgreSQL. Deletion is a two-step process.
+- Recording files live in S3/SeaweedFS; metadata lives in PostgreSQL. Deletion is a two-step process.
 - Bandwidth provider choice for the SFU node is a real architectural decision. Default to a bandwidth-friendly provider; only run the SFU on AWS/GCP when there is a regulatory or proximity reason.
 
 ## Recommendation

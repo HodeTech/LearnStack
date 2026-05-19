@@ -30,7 +30,7 @@ two scopes (tenant + organization):
 | PostgreSQL | RLS policy `tenant_id = current_setting('app.tenant_id', true)::uuid` | RLS policy `organization_id IS NULL OR organization_id = current_setting('app.organization_id', true)::uuid` |
 | Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
 | Cache | Cache key auto-prefixed `{tenant_id}:{key}` | `{tenant_id}:{org_id}:{key}` when org context set |
-| Files (MinIO) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
+| Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search (Meilisearch) | `tenant_id` as mandatory filter | `organization_id = X OR organization_id IS NULL` clause when org context |
 | Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
 | Audit (ADR-0016) | `audit_log.tenant_id` mandatory | `audit_log.organization_id` nullable |
@@ -187,20 +187,20 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 | `Hangfire_JobPayloads_IncludeTenantId` | Reflection: every `LearnStackJob<TParams>` subclass's `TParams` has `TenantId`. |
 | `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; `SetTenant(...)` precedes `ExecuteAsync(...)`. |
 | `No_DirectDaprClient_OutsideInfrastructure` | Roslyn source scan: `Dapr.Client.*` only in `LearnStack.Infrastructure.{Caching, Messaging, Secrets}`. |
-| `Provider_SDK_Types_NotImported_InDomain` | Provider SDK types (Stripe, Iyzico, LiveKit, Keycloak admin, MinIO) only in `LearnStack.Infrastructure.*` adapters. |
+| `Provider_SDK_Types_NotImported_InDomain` | Provider SDK types (Stripe, Iyzico, LiveKit, Keycloak admin, SeaweedFS) only in `LearnStack.Infrastructure.*` adapters. |
 
 ## Storage, cache, search, audit, logs
 
 Tenant + org isolation applies outside PostgreSQL too:
 
-### Storage (MinIO)
+### Storage (SeaweedFS)
 
-```
+```text
 tenants/{tenant_id}/organizations/{org_id}/courses/{course_id}/...   ← org-scoped
 tenants/{tenant_id}/brand/...                                        ← tenant-wide
 ```
 
-### Cache (Dapr State Store / Redis)
+### Cache (Dapr State Store / Valkey)
 
 ```
 {tenant_id}:{org_id}:{module}:{entity}:{id}     ← org context set

@@ -3,7 +3,7 @@ name: add-integration-test
 description: >
   Write a Testcontainers-backed integration test in
   `backend/tests/LearnStack.Tests.Integration` that exercises a real Postgres +
-  Redis + (optionally) Dapr stack and asserts behaviour under tenant + organization
+  Valkey + (optionally) Dapr stack and asserts behaviour under tenant + organization
   context. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
   new `[TenantOwned]` / `[OrganizationScoped]` entity), outbox → consumer round
   trips, audit-pipeline assertions, RLS-effective-isolation tests. DO NOT USE FOR:
@@ -31,7 +31,7 @@ architecture test) plus any other invariant the change touches. See
 - Outbox → consumer round-trip.
 - Audit-pipeline-writes-the-expected-row.
 - Provider-adapter contract test that talks to a containerised real provider
-  (LiveKit OSS, MinIO, Meilisearch).
+  (LiveKit OSS, SeaweedFS, Meilisearch).
 
 ## When not to use
 
@@ -45,7 +45,7 @@ architecture test) plus any other invariant the change touches. See
 |-------|----------|-------------|
 | Scenario | Yes | A short name + setup + act + assert. |
 | Seed | Yes | Minimum tenants / orgs / users / customization data the scenario needs. |
-| Required containers | Yes | Postgres always; add Redis / Kafka / Meilisearch / LiveKit / MinIO as needed. |
+| Required containers | Yes | Postgres always; add Valkey / Kafka / Meilisearch / LiveKit / SeaweedFS as needed. |
 | Tenant context | Yes | Which tenant + org the act phase runs as. |
 
 ## Workflow
@@ -54,7 +54,7 @@ architecture test) plus any other invariant the change touches. See
 
 The project ships `TestFixture` that:
 
-- Spins Postgres + Redis (+ optional Kafka via Dapr) via Testcontainers.
+- Spins Postgres + Valkey (+ optional Kafka via Dapr) via Testcontainers.
 - Applies all migrations (per module).
 - Seeds a baseline platform admin, two tenants, two orgs per tenant.
 - Exposes `fixture.AsTenant(tenantId, organizationId?)` to scope a block.

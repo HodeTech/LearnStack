@@ -1,0 +1,31 @@
+# Dapr pub/sub component — Kafka backend.
+# Per ADR-0014, application code talks to `IEventBus` exclusively; the
+# `DaprEventBus` implementation (lands Phase 02b) publishes through this
+# component. Topic naming follows the `learnstack.{module}.{aggregate}`
+# convention enforced by `Dapr_PubSub_TopicNames_FollowConvention`
+# architecture test.
+#
+# IMPORTANT: `consumerGroup` is pinned to the LearnStack core app id
+# (`learnstack-api`). Adding a second consumer (a second app id, the Hub
+# overlay in packet 7, a separate worker process) requires a DIFFERENT
+# consumer group — copy this component, do not reuse the YAML with a
+# different `app-id`. Sharing a consumer group across distinct apps
+# silently splits the topic partitions between them and breaks
+# at-least-once semantics for both.
+
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    - name: brokers
+      value: kafka:9092
+    - name: consumerGroup
+      value: learnstack-api
+    - name: authType
+      value: none
+    - name: disableTls
+      value: "true"

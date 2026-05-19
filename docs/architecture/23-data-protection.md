@@ -128,8 +128,8 @@ a single LearnStack deployment. In practice:
 Within a regional instance, the following components must run in-region:
 
 - PostgreSQL primary + WAL archive.
-- Redis (entitlement cache, L1 invalidation).
-- MinIO / S3-compatible object storage (recordings, media).
+- Valkey (entitlement cache, L1 invalidation).
+- SeaweedFS / S3-compatible object storage (recordings, media).
 - Meilisearch.
 - Kafka.
 - LiveKit SFU + Egress (a learner joining from another continent still has their
@@ -167,7 +167,7 @@ These are tracked as Phase-11+ work and are not implementation blockers for the 
 
 For tenants subject to KVKK / GDPR, LearnStack acts as a **data processor** while the tenant is the **data controller**. The processor agreement template lives outside this repository (legal). Engineering-side commitments:
 
-- Sub-processor list maintained in the tenant onboarding pack (Keycloak host, LiveKit host, S3 / MinIO provider, email provider, SMS provider, payment provider).
+- Sub-processor list maintained in the tenant onboarding pack (Keycloak host, LiveKit host, S3 / SeaweedFS provider, email provider, SMS provider, payment provider).
 - Sub-processor changes are notified to tenants 30 days in advance via the Tenancy module's notification channel.
 - Security incident notification timeline: within 72 hours of discovery (GDPR Article 33 baseline).
 
@@ -175,7 +175,7 @@ For tenants subject to KVKK / GDPR, LearnStack acts as a **data processor** whil
 
 - **PII redaction in logs.** Configured at the logging pipeline; the `[PiiSensitive]` attribute on a property excludes it from log emission ([10-observability.md](../standards/10-observability.md)).
 - **PII redaction in error reports.** Sentry receives redacted payloads; integration tests assert the redaction layer cannot be bypassed.
-- **Encryption at rest.** Storage provider (S3 / MinIO) + PostgreSQL volumes use the provider's at-rest encryption; specific configuration documented in [12-infrastructure.md](../standards/12-infrastructure.md).
+- **Encryption at rest.** Storage provider (S3 / SeaweedFS) + PostgreSQL volumes use the provider's at-rest encryption; specific configuration documented in [12-infrastructure.md](../standards/12-infrastructure.md).
 - **TLS in transit.** [11-security.md](../standards/11-security.md) § Transport.
 - **Backups.** Per-tenant deletion must propagate to backups within the platform's RPO + 1 backup cycle; the `delete-from-backups` job runs nightly.
 - **Subject-access timeline.** GDPR Article 12 requires response within 30 days. Engineering target: export bundle ready within 7 days of request; deletion completed within 30 days.

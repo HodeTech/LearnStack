@@ -52,7 +52,7 @@ test pass.
 
 ### Platform Kernel
 - Dapr building blocks wired through `IEventBus` (pub/sub → Kafka), `ICacheService`
-  (state → Redis), `ISecretProvider` (secrets → Vault). See
+  (state → Valkey), `ISecretProvider` (secrets → Vault). See
   [29-dapr-integration.md](29-dapr-integration.md) and
   [ADR-0014](../decisions/0014-adopt-dapr.md).
 - APISIX gateway in standalone mode (YAML hot-reload) — JWT verification, CORS,
@@ -75,7 +75,7 @@ test pass.
   per-organization override.
 - Map custom domains via Hub's `CustomDomain` aggregate; LearnStack mirrors the
   host→tenant mapping. See [27-custom-domain-tls.md](27-custom-domain-tls.md).
-- Per-tenant feature flags (catalog-defined; runtime via Redis cache + Postgres). See
+- Per-tenant feature flags (catalog-defined; runtime via Valkey cache + Postgres). See
   [21-feature-flags.md](21-feature-flags.md).
 - Per-tenant settings (locale, timezone, default notification sender).
 
@@ -121,7 +121,7 @@ customization aggregates are first-class in MVP:
 - Draft / published workflow with preview tokens.
 
 ### Media
-- Upload to MinIO via signed URLs.
+- Upload to SeaweedFS via signed URLs.
 - Asset metadata, folders, tags.
 - Image variants on upload.
 - Use assets inside content and page blocks.

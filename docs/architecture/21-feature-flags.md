@@ -139,7 +139,7 @@ Rules:
   the inbound Dapr event from Hub. See
   [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
   [29-dapr-integration.md](29-dapr-integration.md).
-- A short-TTL Redis cache (60 s) fronts both tables for hot-path reads. Eager
+- A short-TTL Valkey cache (60 s) fronts both tables for hot-path reads. Eager
   invalidation flows from `learnstack.cache.invalidation` (intra-instance) and from
   `learnstack.hub.entitlement` (cross-deployment).
 
@@ -160,11 +160,11 @@ Resolution precedence for `IsEnabledAsync(FeatureKey key, ct)`:
    genuinely need to read cross-tenant go through a separate
    `IEntitlementAdminQuery` interface.
 2. **If the key's catalog descriptor says `Source = PlanProjected`:** read from
-   `platform_entitlement_cache.features` (via Redis cache → Postgres). A missing entry
+   `platform_entitlement_cache.features` (via Valkey cache → Postgres). A missing entry
    resolves to the catalog default. Per-tenant `tenant_feature_flags` are **never**
    consulted for plan-projected keys.
 3. **If the key's catalog descriptor says `Source = TenantFlag`:** read from
-   `tenant_feature_flags` (via Redis cache → Postgres). Missing entry → catalog
+   `tenant_feature_flags` (via Valkey cache → Postgres). Missing entry → catalog
    default.
 4. **Killswitch overlay** (last word): if the corresponding killswitch is flipped
    `false` platform-wide, the answer becomes `false` regardless of the per-tenant
@@ -264,13 +264,13 @@ Both surfaces are MUST-audit security-events (see
   hasn't refreshed sees the old feature set. Eager invalidation via the Dapr event
   keeps the typical refresh within seconds; the 15-min TTL is the upper bound.
 - **Performance.** Hot paths that read flags per call become DB-bound without the
-  Redis cache; the 60s TTL is the default trade-off.
+  Valkey cache; the 60s TTL is the default trade-off.
 
 ## Roadmap Touchpoints
 
 - **Phase 02a** — `tenant_feature_flags` table created in the Tenancy module; the
   `FeatureKeys` / `LimitKeys` / `KillswitchKeys` catalogs land here. `IFeatureFlags`,
-  the Redis cache, and the architecture tests ship here.
+  the Valkey cache, and the architecture tests ship here.
 - **Phase 02c** (parallel Hub Foundation) —
   `platform_entitlement_cache`, `IEntitlementProvider` with `NullEntitlementProvider`
   default + `HubEntitlementProvider` + `SignedLicenseKeyEntitlementProvider`

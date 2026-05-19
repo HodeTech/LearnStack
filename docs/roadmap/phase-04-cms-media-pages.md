@@ -94,7 +94,7 @@ The block system ships with:
 
 ### Media Library
 
-- MinIO upload.
+- SeaweedFS upload.
 - Asset metadata.
 - Folder and tag organization.
 - Image dimensions.

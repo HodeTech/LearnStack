@@ -60,7 +60,7 @@ docker info >/dev/null && echo "docker OK"
 backend/tests/
   LearnStack.Tests.Unit/           # No DB, no Docker. Pure unit tests.
   LearnStack.Tests.Architecture/   # Reflection + Roslyn + migration-scan rules.
-  LearnStack.Tests.Integration/    # Testcontainers (Postgres, Redis, optional Dapr).
+  LearnStack.Tests.Integration/    # Testcontainers (Postgres, Valkey, optional Dapr).
   LearnStack.Tests.EndToEnd/       # Real HTTP API + frontend smoke.
 
 frontend/apps/web/                 # Vitest + axe-core + Playwright (E2E).
@@ -96,14 +96,14 @@ Common failure messages and fixes:
 | `Every_TenantOwned_Table_HasRls_With_AppTenantId` | Migration missing `ENABLE ROW LEVEL SECURITY` + the policy. |
 | `Integration_Event_Handlers_Use_InboxGuard` | Handler skipped `IsAlreadyProcessedAsync`; see [add-integration-event](../add-integration-event/SKILL.md). |
 | `Dapr_PubSub_TopicNames_FollowConvention` | Topic isn't `learnstack.{module}.{aggregate}`. |
-| `Modules_Do_Not_Inject_Redis_Directly` | Use `ICacheService` not `IConnectionMultiplexer`. |
+| `Modules_Do_Not_Inject_Valkey_Directly` | Use `ICacheService` not `IConnectionMultiplexer`. |
 | `LearnStack_Modules_DoNotReference_Hub` | Hub URL or namespace referenced outside the dedicated adapter. |
 | `No_Source_Folder_Named_Verticals` | A `Verticals/` folder exists; ADR-0018 forbids. |
 | `Core_Modules_HaveNo_DomainSpecific_Names` | A `Cefr`, `English`, `Asana`, etc. name appears in core. |
 
 ### Step 5: Run integration tests
 
-Testcontainers spin Postgres + Redis per class fixture; runtime depends on Docker
+Testcontainers spin Postgres + Valkey per class fixture; runtime depends on Docker
 performance.
 
 ```bash
@@ -123,7 +123,7 @@ Common failure shapes:
 | `TenantContextMissingException` | Test forgot `using fixture.AsTenant(...)`. |
 | Empty result where rows should exist | Wrong tenant context — RLS works as designed. |
 | `relation "<table>" does not exist` | Migration didn't apply; check the module's `Persistence/Migrations`. |
-| Docker container fails to start | Port collision (5432, 6379) — stop local Postgres / Redis. |
+| Docker container fails to start | Port collision (5432, 6379) — stop local Postgres / Valkey. |
 | Test hangs | A handler awaiting Dapr in the dev fallback path; check `IEventBus` registration. |
 
 ### Step 6: Run frontend tests
@@ -226,7 +226,7 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   change — the lockfile must match.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
   it as a bug.
-- **Port collisions.** Local Postgres / Redis on default ports collides with
+- **Port collisions.** Local Postgres / Valkey on default ports collides with
   Testcontainers. Stop them.
 - **`--no-build` after a source change.** Drop the flag — the test would run
   against stale binaries.

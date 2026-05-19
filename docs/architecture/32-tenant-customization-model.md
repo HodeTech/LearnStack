@@ -367,7 +367,7 @@ LearnStack core owns:
 - **Aggregate lifecycle** — `Course → CourseVersion → Module → Lesson → LessonItem`
   hierarchy. Tenant can't redefine that an enrollment binds to a `CourseVersion`.
 - **Auth flow** — Keycloak realm structure, JWT shape, MFA enforcement.
-- **Storage layout** — MinIO bucket prefix `tenants/{tenant_id}/organizations/{org_id}/...`.
+- **Storage layout** — SeaweedFS bucket prefix `tenants/{tenant_id}/organizations/{org_id}/...`.
 - **Outbox / event-bus contract** — integration event shapes are LearnStack-defined.
 - **Primitive set** — adding `whiteboard` or `3d-model` primitive is a LearnStack release.
 - **Audit pipeline** — modules cannot opt out of audit; per-(module, operation) toggling

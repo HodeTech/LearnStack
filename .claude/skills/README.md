@@ -114,7 +114,7 @@ index plus the relevant [Architecture](../../docs/architecture/) doc.
 
 | Skill | When to use |
 |-------|-------------|
-| [local-dev-setup](local-dev-setup/SKILL.md) | Bringing up the local stack: Postgres, Redis, Vault, Kafka, Dapr sidecar, APISIX, Keycloak, MinIO, LiveKit, Meilisearch. |
+| [local-dev-setup](local-dev-setup/SKILL.md) | Bringing up the local stack: Postgres, Valkey, Vault, Kafka, Dapr sidecar, APISIX, Keycloak, SeaweedFS, LiveKit, Meilisearch. |
 | [seed-tenant](seed-tenant/SKILL.md) | Provisioning a tenant (with its default organization, customization data, seed users) for local development. |
 
 ## Authoring a new skill

@@ -21,15 +21,17 @@ Self-Hosted — backed by the companion **`learnstack-hub`** repository
 
 ## What state this is in
 
-**Phase 01 in progress.** The repository now has the .NET 10 solution
-scaffold under `backend/` (core + 7 modules × 4 projects + 4 test
-projects including the non-skippable `LearnStack.Tests.Architecture`),
+**Phase 01 packets 1-6 shipped.** The repository now has the .NET 10
+solution scaffold under `backend/` (core + 7 modules × 4 projects + 4
+test projects including the non-skippable `LearnStack.Tests.Architecture`),
 the `pnpm` frontend monorepo under `frontend/` (`apps/web` Next.js App
-Router + `packages/{config,ui,sdk}`), and the core local-dev compose
-stack at `infra/compose/dev.yml` (Postgres / Redis / MinIO / Mailpit /
-Meilisearch). The remaining Phase-01 packets — Keycloak, LiveKit, Kafka,
-Vault, Dapr, APISIX, `make` targets, `.env.example`, CI, `make seed` —
-land incrementally; see
+Router + `packages/{config,ui,sdk}`), and the full local-dev compose
+stack at `infra/compose/dev.yml` — PostgreSQL 18, Valkey, SeaweedFS,
+Mailpit, Meilisearch, Keycloak (two realms), LiveKit OSS + Coturn,
+Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX in file-
+driven standalone mode. The remaining Phase-01 packets (7-8) — `make`
+orchestrator, `.env.example`, pre-commit hook, `e2e.yml`, GitHub Actions
+CI, `make seed` — land incrementally; see
 [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
 Module-level code references in the docs (e.g.
 `LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
@@ -88,7 +90,7 @@ let the entry point pick it.
 - **Standards changes cite an ADR.** A new standard rule or a change to an existing one is paired with an ADR when the rule is non-trivial.
 - **Modular monolith with four cross-module mechanisms** ([ADR-0010](docs/decisions/0010-cross-module-communication.md)): application contract, intra-module domain event, integration event via outbox (dispatched through Dapr pub/sub per Amendment 1), read-model projection. No fifth.
 - **Tenant + organization isolation is defense-in-depth from day one** ([ADR-0003 Amendment 1](docs/decisions/0003-tenant-isolation-defense-in-depth.md), [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)): tenant + organization context + EF query filters + PostgreSQL RLS + architecture tests.
-- **Self-hosted infrastructure preferred** for Keycloak (auth, with two realms — `learnstack` + `learnstack-hub`), LiveKit OSS (live classroom), MinIO (object storage), Meilisearch (search), Kafka (pub/sub backend), Vault (secrets). See ADRs 0004, 0005, 0014.
+- **Self-hosted infrastructure preferred** for Keycloak (auth, with two realms — `learnstack` + `learnstack-hub`), LiveKit OSS (live classroom), SeaweedFS (object storage), Meilisearch (search), Kafka (pub/sub backend), Vault (secrets). See ADRs 0004, 0005, 0014.
 - **The core platform stays domain-generic.** Domain-specific shapes (CEFR levels, English placement-test scoring, kyu/dan ranks, yoga asana catalogs, …) live as **tenant customization data** ([ADR-0018](docs/decisions/0018-tenant-driven-customization-model.md)), never as code in any module. There is no `Verticals/` folder. ADR-0011 is superseded.
 - **Foundation building blocks are Day-1, not Phase-11.** Dapr (`IEventBus`/`ICacheService`/`ISecretProvider`), APISIX gateway, audit infrastructure, organization scope, entitlement projection socket, host-to-tenant resolver, and architecture tests all ship in Phase 02a — not as later hardening.
 - **Provider adapters everywhere.** Payments, auth, storage, search, live classroom, notifications, **event bus, cache, secrets, Hub HTTPS contract, entitlement source, host resolver** — all sit behind interfaces. No SaaS lock-in in `Domain` or `Application`. See [20-infrastructure-stack.md](docs/standards/20-infrastructure-stack.md).

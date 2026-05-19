@@ -177,7 +177,7 @@ public OrganizationId? OrganizationId { get; private set; }   // null = tenant-w
 | **Organization filter** | `organization_id` column + EF query filter + RLS policy + arch test |
 | Identity | Keycloak realm-per-tenant; `organization_id` JWT claim populated from active org |
 | Cache | Cache keys auto-prefixed `{tenant_id}:{organization_id}:{key}` when org context set |
-| Files (MinIO) | Bucket prefix `tenants/{tenant_id}/organizations/{org_id}/...` |
+| Files (SeaweedFS) | Bucket prefix `tenants/{tenant_id}/organizations/{org_id}/...` |
 | Search (Meilisearch) | Query filter `tenant_id = X AND (org_id = Y OR org_id = null)` (tenant-wide content visible to all orgs) |
 | Jobs (Hangfire) | Job payload carries both `TenantId` and `OrganizationId?` |
 | Audit | Every audit row carries `tenant_id` (mandatory) + `organization_id?` |

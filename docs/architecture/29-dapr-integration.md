@@ -5,7 +5,7 @@
 [ADR-0010](../decisions/0010-cross-module-communication.md).
 
 LearnStack uses **Dapr** (Distributed Application Runtime) for three building blocks:
-**pub/sub** (Kafka), **state store** (Redis), **secret store** (Vault). Application code
+**pub/sub** (Kafka), **state store** (Valkey), **secret store** (Vault). Application code
 interacts with Dapr only through SharedKernel abstractions (`IEventBus`, `ICacheService`,
 `ISecretProvider`) — never via `DaprClient` directly.
 
@@ -22,12 +22,12 @@ flowchart LR
 
     subgraph Backends[Backends]
         Kafka[(Kafka)]
-        Redis[(Redis)]
+        Valkey[(Valkey)]
         Vault[(HashiCorp Vault)]
     end
 
     Daprd -- pubsub.kafka --> Kafka
-    Daprd -- state.redis --> Redis
+    Daprd -- state.redis --> Valkey
     Daprd -- secretstore.hashicorp.vault --> Vault
 
     subgraph Subscribers[Subscriber side]
@@ -40,7 +40,7 @@ flowchart LR
 
 The sidecar shares the network namespace of the app pod (Docker compose
 `network_mode: "service:learnstack-api"`; Kubernetes via `dapr.io/enabled` annotation).
-The app talks to the sidecar via `localhost`, never directly to Kafka / Redis / Vault.
+The app talks to the sidecar via `localhost`, never directly to Kafka / Valkey / Vault.
 
 ## 2. Components
 
@@ -80,7 +80,16 @@ Topics follow the convention `learnstack.{module}.{aggregate}`. Examples:
 - `learnstack.hub.entitlement`        (Hub-side)
 - `learnstack.cache.invalidation`     (cross-instance L1 cache invalidation)
 
-### `statestore.yaml` — Redis state store
+### `statestore.yaml` — Valkey state store
+
+> The component below uses `spec.type: state.redis` and `redisHost` metadata —
+> these are **Dapr provider-type / RESP-protocol identifiers**, NOT vendor
+> brand markers. The actual backend is Valkey 8.x per
+> [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md); Valkey is
+> drop-in compatible on the RESP wire protocol so the Dapr `state.redis`
+> adapter consumes it unchanged. Operators read `redisHost` as "where to
+> reach the RESP-compatible store"; in dev compose the value points at the
+> `valkey` service (`infra/dapr/components/statestore-redis.yaml`).
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -137,7 +146,7 @@ Secret path schema:
 secret/learnstack/postgres            connection-string, ssl-cert
 secret/learnstack/redis               password
 secret/learnstack/keycloak            base-url, admin-username, admin-password
-secret/learnstack/minio               endpoint, access-key, secret-key
+secret/learnstack/seaweedfs               endpoint, access-key, secret-key
 secret/learnstack/meilisearch         master-key, public-key
 secret/learnstack/livekit             api-key, api-secret, ws-url
 secret/learnstack/coturn              shared-secret

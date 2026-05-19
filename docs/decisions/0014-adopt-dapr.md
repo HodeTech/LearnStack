@@ -14,9 +14,9 @@ LearnStack adopts **Dapr** (Distributed Application Runtime) for three building 
 
 | Building block | Backend (production) | Component file |
 |----------------|---------------------|----------------|
-| Pub/Sub | Apache Kafka | `dapr/components/pubsub.yaml` |
-| State store | Redis | `dapr/components/statestore.yaml` |
-| Secret store | HashiCorp Vault | `dapr/components/secretstore-vault.yaml` |
+| Pub/Sub | Apache Kafka | `infra/dapr/components/pubsub-kafka.yaml` |
+| State store | Valkey (RESP-protocol fork; see ADR-0030) | `infra/dapr/components/statestore-redis.yaml` (file name keeps the `-redis` suffix because `state.redis` is the Dapr provider-type identifier, not the vendor brand) |
+| Secret store | HashiCorp Vault | `infra/dapr/components/secretstore-vault.yaml` |
 
 Application code interacts with Dapr **exclusively through wrapped abstractions** —
 `IEventBus`, `ICacheService`, `ISecretProvider` in `LearnStack.SharedKernel` — never via
@@ -33,13 +33,13 @@ LearnStack is a modular monolith multi-tenant PaaS for education. It needs:
 - Cross-module integration events with at-least-once delivery, durable replay, multi-tenant
   fan-out. The outbox pattern (ADR-0010, ADR-0006) requires a dispatch target.
 - Distributed cache (L2) on top of in-process memory cache (L1) for tenant-scoped reads.
-- Secret access for Keycloak admin credentials, MinIO access keys, LiveKit API secrets,
+- Secret access for Keycloak admin credentials, SeaweedFS access keys, LiveKit API secrets,
   Stripe/Iyzico API keys, exchange rate API keys, etc.
 
 The platform plans triple deployment (SaaS / Dedicated / Self-Hosted; ADR-0020). All three
 must use the same backend abstractions; backend providers may differ per deployment
-(Vault in production, file-based secret store in dev; managed Redis in SaaS, self-hosted
-Redis on-prem).
+(Vault in production, file-based secret store in dev; managed Valkey in SaaS, self-hosted
+Valkey on-prem).
 
 Nexora's experience (see `Nexora/docs/architecture/COMMUNICATION_FLOW.md`,
 `Nexora/docs/decisions/0005-transactional-outbox.md`,
@@ -50,7 +50,7 @@ Nexora's experience (see `Nexora/docs/architecture/COMMUNICATION_FLOW.md`,
   module-level coupling to Dapr** — the interfaces live in SharedKernel, the
   `DaprXxxService` implementation lives in Infrastructure, and modules never import
   `Dapr.Client`.
-- Component swap (Kafka → another broker, Redis → another KV) is a configuration-only
+- Component swap (Kafka → another broker, Valkey → another KV) is a configuration-only
   change with the same interface signatures.
 - Same sidecar pattern works in Docker Compose (dev), Kubernetes (production), and air-gapped
   installations (on-prem with bundled sidecar binary).
@@ -58,7 +58,7 @@ Nexora's experience (see `Nexora/docs/architecture/COMMUNICATION_FLOW.md`,
 ## Decision drivers
 
 1. **Provider portability.** A LearnStack deployment may need to replace Kafka with RabbitMQ,
-   Redis with KeyDB, Vault with AWS Secrets Manager. Dapr's component model treats this as a
+   Valkey with KeyDB, Vault with AWS Secrets Manager. Dapr's component model treats this as a
    YAML change, not a code change.
 2. **Same abstraction across deployments.** SaaS uses managed Kafka; Self-Hosted uses bundled
    Kafka; both call the same `IEventBus.PublishAsync`. The differentiating layer is
@@ -207,7 +207,7 @@ Three architecture tests enforce the abstraction boundary (added in Phase 02):
 
 ### Positive
 
-- Provider portability: switching Kafka → RabbitMQ, Redis → KeyDB, Vault → AWS Secrets
+- Provider portability: switching Kafka → RabbitMQ, Valkey → KeyDB, Vault → AWS Secrets
   Manager is a Dapr component YAML change.
 - Same code, same components across SaaS / Dedicated / Self-Hosted.
 - Outbox + at-least-once delivery + retry + DLQ provided by Dapr pub/sub; LearnStack's

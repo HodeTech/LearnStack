@@ -1,0 +1,53 @@
+# LiveKit OSS — dev config.
+# Per ADR-0005, LiveKit is the preferred SFU; self-hosted OSS is the default
+# supported path. The .NET application talks to LiveKit through the
+# `ILiveClassProvider` abstraction (Phase 08c) — never imports the LiveKit
+# server SDK directly.
+#
+# Dev-only keys + secrets. Production replaces these with values fetched
+# from Vault via ISecretProvider per Standards 12 § Secrets Management.
+
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  # Dev: machine has no stable external IP; bind to loopback for now.
+  # Production sets `use_external_ip: true` so LiveKit auto-discovers the
+  # node's public IP for ICE candidates.
+  use_external_ip: false
+  port_range_start: 50000
+  port_range_end: 50100
+
+# Dev API key + secret. The secret MUST be >= 32 bytes (LiveKit hard rule);
+# the value below is padded to satisfy that and is checked into git only
+# because this file is the dev compose config.
+keys:
+  devkey: devsecret-32-byte-min-length-padding-xyz
+
+turn:
+  # LiveKit's built-in TURN is OFF in dev — ADR-0005 uses standalone Coturn
+  # (see the `coturn` service in dev.yml) for STUN/TURN. Built-in TURN also
+  # rejects `domain: localhost` ("TURN domain is not correct"), which would
+  # otherwise restart-loop the container. Production keeps the standalone-
+  # Coturn split for the same reason: rotating credentials and TLS termination
+  # live on the TURN side, not in the SFU.
+  enabled: false
+
+# ICE servers (Phase 08c wiring): The `coturn` service runs at host:3478 but
+# THIS file does not yet declare `rtc.turn_servers` — meaning LiveKit room
+# tokens issued from a `Room.CreateAt`-flavoured call carry no TURN reference
+# and browser clients fall back to direct ICE only. The wiring lands with the
+# `ILiveClassProvider` LiveKit adapter in Phase 08c (per ADR-0005), which
+# issues per-session credentials via the shared-secret pattern; until then,
+# dev classroom flows that need symmetric-NAT relay must be tested with
+# `--node-ip` set to the workstation's LAN IP, not 127.0.0.1.
+
+room:
+  auto_create: true
+  empty_timeout: 300
+  departure_timeout: 20
+  max_participants: 50
+
+logging:
+  level: info
+  json: false

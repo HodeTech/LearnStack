@@ -387,7 +387,7 @@ primitive based on its JSON Schema type and format, composes the result.
   aggregate's lifecycle.
 - **Authentication and authorization plumbing** — Keycloak realm structure, JWT
   emission, permission policy evaluation.
-- **Storage layout** — MinIO bucket prefixes, object key conventions.
+- **Storage layout** — SeaweedFS bucket prefixes, object key conventions.
 - **Outbox / event-bus contract** — integration event shapes are LearnStack-defined.
 - **Generic primitive set** — adding a new primitive (e.g. `whiteboard`) is a LearnStack
   release, not a tenant action. Tenants compose existing primitives.

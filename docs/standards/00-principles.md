@@ -39,8 +39,8 @@ The modular monolith works only because modules pretend to be services. Cross-mo
 Anything that crosses the LearnStack boundary — payments, email, SMS, search, storage,
 identity, live-class media, the **Hub**, **entitlement source**, **host→tenant
 resolution**, **event bus**, **cache**, **secret store** — lives behind an interface.
-The domain code knows nothing about Stripe, Postmark, MinIO, Keycloak, LiveKit, Dapr,
-Kafka, Redis, Vault, or the Hub. Provider-specific code lives in
+The domain code knows nothing about Stripe, Postmark, SeaweedFS, Keycloak, LiveKit, Dapr,
+Kafka, Valkey, Vault, or the Hub. Provider-specific code lives in
 `Infrastructure.<Provider>` packages. Swapping a provider is a composition-root edit,
 not a code change.
 
@@ -66,7 +66,7 @@ A failing test should tell a reader what behavior we promised. Test names read l
 
 ## 9. Default to Boring
 
-We use mature, well-known technologies until measured pain forces an exception. PostgreSQL, Redis, MinIO, ASP.NET Core, Next.js, Hangfire — boring on purpose. The interesting parts of LearnStack are the education domain and the platform composition, not the infrastructure choices.
+We use mature, well-known technologies until measured pain forces an exception. PostgreSQL, Valkey, SeaweedFS, ASP.NET Core, Next.js, Hangfire — boring on purpose. The interesting parts of LearnStack are the education domain and the platform composition, not the infrastructure choices.
 
 ## 10. Cost-Aware From Day One
 

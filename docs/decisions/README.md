@@ -16,7 +16,7 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | # | Title | Topic |
 |---|---|---|
 | 0001 | [Platform Name](0001-platform-name.md) | Name and naming conventions |
-| 0002 | [Initial Architecture](0002-initial-architecture.md) | .NET 10 + EF Core + PostgreSQL + Redis + MinIO + Next.js; modular monolith |
+| 0002 | [Initial Architecture](0002-initial-architecture.md) | .NET 10 + EF Core + PostgreSQL + Valkey + SeaweedFS + Next.js; modular monolith |
 | 0003 | [Tenant Isolation Defense in Depth](0003-tenant-isolation-defense-in-depth.md) | Query filters + RLS + audit + architecture tests (Amendment 1: Organization scope, 2026-05-18) |
 | 0004 | [Authentication Strategy](0004-authentication-strategy.md) | Off-the-shelf identity provider preferred over hand-rolled auth (Amendment 1: `learnstack-hub` realm, 2026-05-18) |
 | 0005 | [Live Classroom Media Stack](0005-live-classroom-media-stack.md) | LiveKit OSS self-hosted by default; LiveKit Cloud optional; no custom SFU |
@@ -28,7 +28,7 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0011 | _Superseded — see below_ | Was: Vertical Extension Points |
 | 0012 | [Search Strategy](0012-search-strategy.md) | Meilisearch; one instance per env; index-per-(kind, locale); tenant_id as query filter |
 | 0013 | [Page Block Schema Versioning](0013-page-block-schema-versioning.md) | `(key, schemaVersion)` tuple; immutable schemas; lazy + bulk migration; placeholder on unknown version |
-| 0014 | [Adopt Dapr](0014-adopt-dapr.md) | Dapr building blocks for pub/sub (Kafka), state (Redis), secrets (Vault); abstracted behind SharedKernel interfaces |
+| 0014 | [Adopt Dapr](0014-adopt-dapr.md) | Dapr building blocks for pub/sub (Kafka), state (Valkey), secrets (Vault); abstracted behind SharedKernel interfaces |
 | 0015 | [API Gateway with APISIX](0015-api-gateway-apisix.md) | APISIX standalone mode; JWT + rate limit + CORS + correlation-id at the edge; defense-in-depth |
 | 0016 | [Audit Log Subsystem](0016-audit-log-subsystem.md) | `LearnStack.Modules.Audit`; EF interceptor + `IAuditStateCapture` + `AuditLogBehavior`; partitioned `audit_log` table; retention |
 | 0017 | [Tenant + Organization Hierarchy](0017-tenant-organization-hierarchy.md) | Two-level: Tenant → Organization; permission scope Platform / Tenant / Organization |
@@ -37,6 +37,9 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0020 | [Triple Deployment + Hybrid License](0020-triple-deployment-hybrid-license.md) | SaaS / Dedicated / Self-Hosted from one codebase; phone-home + RSA-signed key + 30-day grace |
 | 0021 | [Feature-Based Entitlement](0021-feature-based-entitlement.md) | Feature flags + numeric limits per plan; typed `FeatureKeys` / `LimitKeys` registries |
 | 0022 | [Custom Domain & TLS](0022-custom-domain-tls.md) | Hub-owned custom domain admin; DNS-01 + HTTP-01 + Let's Encrypt; APISIX hot-reload |
+| 0029 | [Object Storage — SeaweedFS](0029-object-storage-seaweedfs.md) | Self-hosted SeaweedFS behind the existing `IStorageProvider` S3 contract; partially supersedes ADR-0002's MinIO row |
+| 0030 | [Redis-compatible Store — Valkey](0030-redis-compatible-store-valkey.md) | Valkey (Linux Foundation, BSD-3-Clause) for the cache + Dapr state-store backend; RESP-protocol drop-in; partially supersedes ADR-0002's Redis row |
+| 0031 | [PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) | Pin primary RDBMS major version to PostgreSQL 18; native `gen_uuid_v7()` + async I/O + longest LTS runway; partially supersedes ADR-0002's PostgreSQL row |
 
 ## Superseded ADRs
 

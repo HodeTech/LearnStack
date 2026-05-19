@@ -21,20 +21,32 @@
 > `pnpm-lock.yaml` committed; `postinstall` hook stubs `.next/types/routes.d.ts`.
 >
 > **Packet 3 — Core dev compose ✅**
-> `infra/compose/dev.yml` with PostgreSQL 16, Redis 7, MinIO + console, Mailpit
+> `infra/compose/dev.yml` with PostgreSQL 18, Valkey 7, SeaweedFS + console, Mailpit
 > (binary `readyz` healthcheck), Meilisearch — pinned tags, healthchecks,
 > named volumes, dev-only credential banners.
 >
-> **Packet 4 — Identity stack (pending)**
-> Keycloak two realms (`learnstack` + `learnstack-hub`) in dev compose, seed
-> realm config.
+> **Packet 4 — Identity stack ✅**
+> Keycloak 26 in dev compose with two realms imported on first boot
+> (`learnstack` tenant-facing + `learnstack-hub` operator), each hard-isolated
+> per ADR-0004 Amendment 1. Realm seeds at `infra/keycloak/realms/`; Postgres
+> init script provisions the Keycloak DB on the first start of the
+> `postgres-data` volume.
 >
-> **Packet 5 — Live media (pending)**
-> LiveKit OSS + Coturn in dev compose.
+> **Packet 5 — Live media ✅**
+> LiveKit OSS v1.8.0 + Coturn 4.6 in dev compose with the dev key/secret pair
+> the eventual `ILiveClassProvider` adapter (Phase 08c) will sign tokens with.
+> Configs at `infra/livekit/livekit.yaml` and `infra/coturn/turnserver.conf`.
 >
-> **Packet 6 — Eventing + secrets + gateway (pending)**
-> Kafka + kafka-ui, Vault (dev mode), Dapr sidecar + placement, APISIX
-> standalone YAML-reload + dashboard, `infra/apisix/config.yaml`.
+> **Packet 6 — Eventing + secrets + gateway ✅**
+> Kafka 7.8 in KRaft mode (no ZooKeeper) + kafka-ui, Vault 1.18 in `-dev` mode,
+> Dapr 1.14.4 sidecar (`learnstack-api` app id, `-app-channel-address
+> host.docker.internal` so subscriptions reach the workstation) + placement
+> with three components — `pubsub-kafka.yaml`, `statestore-redis.yaml`
+> (`actorStateStore: false` per ADR-0014 non-goals), `secretstore-vault.yaml`
+> — and APISIX 3.10 in file-driven standalone mode (`deployment.role:
+> data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
+> `/api/internal/*` Phase-02c surface is documented as an SSL-object +
+> ip-restriction stub (mTLS in APISIX is not a route-level plugin).
 >
 > **Packet 7 — Developer experience (pending)**
 > `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
@@ -147,9 +159,9 @@ in the `learnstack-hub` repository* per
 
 Docker Compose under `infra/compose/`:
 
-- PostgreSQL 16.
-- Redis 7.
-- MinIO + MinIO console.
+- PostgreSQL 18.
+- Valkey 7.
+- SeaweedFS + SeaweedFS console.
 - Mailpit (outbound email).
 - Meilisearch.
 - LiveKit OSS + Coturn (for in-app classroom development).
@@ -160,7 +172,7 @@ Docker Compose under `infra/compose/`:
 - **Kafka** (Dapr pub/sub backend) + kafka-ui.
 - **Vault** (Dapr secret store, dev mode).
 - **Dapr sidecar** + placement service.
-- **APISIX** (standalone YAML-reload mode) + apisix-dashboard (dev only).
+- **APISIX** (file-driven standalone `data_plane` mode per ADR-0015 — no etcd, no Admin API, no dashboard companion).
 - Optional Jaeger or Tempo (for trace inspection).
 - Optional `learnstack-hub` compose overlay for local Hub development (depends on
   the same Keycloak / Postgres / Kafka / Vault / APISIX stack).
@@ -192,7 +204,7 @@ Two compose files:
 
 - Working backend solution scaffolded with modular layout.
 - Working frontend workspace with the single Next.js app.
-- Local Docker Compose infrastructure with PostgreSQL, Redis, MinIO, Mailpit, Meilisearch, LiveKit, Coturn, Keycloak.
+- Local Docker Compose infrastructure with PostgreSQL, Valkey, SeaweedFS, Mailpit, Meilisearch, LiveKit, Coturn, Keycloak.
 - Initial CI pipeline.
 - Local development documentation.
 - `make seed` populating two demo tenants + one platform admin user.
@@ -201,7 +213,7 @@ Two compose files:
 
 - A new developer can clone the repository and start the local environment by following one document.
 - Backend API responds on `GET /healthz`.
-- PostgreSQL, Redis, MinIO, LiveKit, Coturn, Keycloak all run locally via compose.
+- PostgreSQL, Valkey, SeaweedFS, LiveKit, Coturn, Keycloak all run locally via compose.
 - Frontend builds and serves the three route segments.
 - CI passes on `main`.
 - The architecture-test project is set up and green even before domain features exist.

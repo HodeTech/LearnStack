@@ -5,7 +5,10 @@
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
-[ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md).
+[ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md),
+[ADR-0029 Object Storage — SeaweedFS](../decisions/0029-object-storage-seaweedfs.md),
+[ADR-0030 Redis-compatible Store — Valkey](../decisions/0030-redis-compatible-store-valkey.md),
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
 
 This standard defines how application code uses the foundation infrastructure introduced
 in the 2026-05-18 redesign: Dapr building blocks, the APISIX gateway, the Hub HTTPS
@@ -49,7 +52,7 @@ Rules:
 | Concern | `Development` | `SaaS` | `Dedicated` | `SelfHostedOnline` | `SelfHostedAirGapped` |
 |---|---|---|---|---|---|
 | Event bus | `InProcessEventBus` (MediatR) | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka (single-broker OK) | `DaprEventBus` → Kafka (single-broker OK) |
-| Cache | `InMemoryCacheService` | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis |
+| Cache | `InMemoryCacheService` | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey |
 | Secrets | `EnvironmentSecretProvider` | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault or file |
 | Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` (phone-home) | `SignedLicenseKeyEntitlementProvider` |
 | Host → tenant | Config / single tenant | Hub-mirrored projection | Hub-mirrored projection | Hub-mirrored projection | Config / `.lic` claim |
@@ -80,9 +83,9 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
 
 ### `ICacheService` (state)
 
-- All Redis access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
+- All Valkey access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
   `IDistributedCache` injections are forbidden by the architecture test
-  `Modules_Do_Not_Inject_Redis_Directly`.
+  `Modules_Do_Not_Inject_Valkey_Directly`.
 - Cache keys are `{tenant_id}:{module}:{logical-name}`. The
   `tenant_id` prefix is **mandatory** even when a value is platform-wide — use the
   sentinel `"platform"` tenant id rather than omitting the prefix.
@@ -99,7 +102,7 @@ The most-referenced read paths follow this layered policy; mismatches across doc
 (e.g. "60s cache" vs "15-min TTL") refer to different layers of the same cache, not
 different decisions:
 
-| Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Redis) | Eager invalidation event |
+| Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Valkey) | Eager invalidation event |
 |---|---|---|---|
 | `hub:host:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
 | `hub:entitlement:{tenant_id}` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
@@ -142,9 +145,12 @@ Rules:
   4. `proxy-rewrite` / `request-id` (correlation id injection)
   5. `prometheus` (metrics export)
 - Hub-facing internal routes (`/api/internal/*`) live under a **separate APISIX
-  instance** (or a separate `route` set with `mtls` plugin) and require the mTLS client
-  certificate signed by the LearnStack-internal CA per
-  [ADR-0019](../decisions/0019-learnstack-hub.md).
+  instance** (or a separate route set bound to a dedicated SSL object that pins
+  `client.ca` to the LearnStack-internal CA — mTLS in APISIX is SSL-object config,
+  not a route plugin) plus a route-level `ip-restriction` for the Hub egress range;
+  the client certificate must be signed by that CA per
+  [ADR-0019](../decisions/0019-learnstack-hub.md). The commented `/api/internal/*`
+  stub in `infra/apisix/apisix.yaml` documents the canonical shape.
 - Gateway config lives in `infra/apisix/` as version-controlled YAML. Hot-reload via
   `apisix reload` after a config change; no in-place edit of running configs.
 
@@ -191,8 +197,10 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 - `IFeatureFlags.IsEnabledAsync(FeatureKey)` is the only sanctioned read path. Direct
   SQL against `platform_entitlement_cache` outside the Tenancy module's infrastructure
   is forbidden (architecture test `Modules_Do_Not_Read_Entitlement_Cache_Directly`).
-- Cache TTL for the in-process / Redis layer is 60s. Eager invalidation flows from the
-  Dapr event; the TTL is the safety net, not the typical refresh window.
+- Cache TTLs: **L1 (in-process `IMemoryCache`)** = 60s; **L2 (Dapr state → Valkey)** =
+  15-minute upper bound. Eager invalidation flows from the Dapr event
+  (`learnstack.hub.entitlement` / `learnstack.cache.invalidation`); the TTLs are the
+  safety net, not the typical refresh window.
 - For air-gapped deployments, `SignedLicenseKeyEntitlementProvider` reads a signed
   `.lic` file and runs the same projection write path; the rest of the system is
   source-agnostic.
@@ -234,11 +242,11 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 
 - LearnStack monolith → APISIX edge → backend pods (1+).
 - Dapr sidecar runs alongside every backend pod.
-- Kafka, Redis, Vault are accessed only via the Dapr sidecar. No direct client
+- Kafka, Valkey, Vault are accessed only via the Dapr sidecar. No direct client
   libraries for these three in application code.
-- Postgres is accessed directly (EF Core); Dapr's state-store sits on Redis, not
+- Postgres is accessed directly (EF Core); Dapr's state-store sits on Valkey, not
   Postgres.
-- MinIO is accessed via the configured S3-compatible client (no Dapr binding).
+- SeaweedFS is accessed via the configured S3-compatible client (no Dapr binding).
 
 ## Forbidden
 

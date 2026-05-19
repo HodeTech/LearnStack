@@ -7,12 +7,12 @@
 | Backend runtime | .NET 10, ASP.NET Core Web API |
 | Language | C# |
 | ORM | Entity Framework Core |
-| Database | PostgreSQL 16+ (shared schema + RLS isolation; ADR-0003) |
-| Cache & coordination | **Redis 7+ via Dapr State Store** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
+| Database | PostgreSQL 18.x (major pinned per [ADR-0031](../decisions/0031-postgresql-major-version.md); shared schema + RLS isolation; ADR-0003) |
+| Cache & coordination | **Valkey 8.x via Dapr State Store** (Linux-Foundation BSD-3 fork of Redis 7.2.4 per [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md); [29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
 | Pub/Sub | **Apache Kafka via Dapr Pub/Sub** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) — outbox dispatch target |
 | Secrets | **HashiCorp Vault via Dapr Secret Store** (or env-var fallback in Dev) |
 | Distributed runtime | **Dapr 1.14+** sidecar pattern (pub/sub, state, secrets) |
-| Object storage | MinIO (local), S3-compatible (production) |
+| Object storage | SeaweedFS (local), S3-compatible (production) |
 | Background jobs | Hangfire (Postgres storage) |
 | Search | Meilisearch (initial), OpenSearch (later, if needed). See [ADR 0012](../decisions/0012-search-strategy.md) |
 | Auth | Keycloak (self-hosted OIDC) — two realms: `learnstack` (tenant users) + `learnstack-hub` (operators); ADR-0004 Amendment 1 |
@@ -52,8 +52,8 @@ flowchart LR
 
   subgraph data["Data Plane"]
     pg[(PostgreSQL)]
-    redis[(Redis)]
-    minio[(MinIO / S3)]
+    redis[(Valkey)]
+    seaweedfs[(SeaweedFS / S3)]
     meili[(Meilisearch)]
     kafka[(Kafka)]
     vault[(HashiCorp Vault)]
@@ -87,13 +87,13 @@ flowchart LR
   daprd2 --> vault
 
   api --> pg
-  api --> minio
+  api --> seaweedfs
   api --> meili
   api --> kc_main
   api --> lk
   workers --> pg
-  workers --> minio
-  egress --> minio
+  workers --> seaweedfs
+  egress --> seaweedfs
   lk --> egress
 
   hubapi -- "mTLS + signed JWT + HMAC<br/>POST /api/internal/*" --> api
@@ -123,7 +123,7 @@ Module boundaries and dependency rules are in [Module Boundaries](03-module-boun
 | `Api` | HTTP endpoints, auth middleware, request binding, OpenAPI emission, tenant resolution middleware. |
 | `Application` | Use cases (MediatR commands/queries), validation, transactions, pipeline behaviors. |
 | `Domain` | Entities, aggregates, value objects, domain services, domain events. |
-| `Infrastructure` | EF Core, Redis, MinIO, Hangfire, OpenTelemetry, external adapters. |
+| `Infrastructure` | EF Core, Valkey, SeaweedFS, Hangfire, OpenTelemetry, external adapters. |
 | `Modules.*` | Bounded feature areas, each with their own `Application` / `Domain` / `Infrastructure` internals and a public `Application.Contracts` surface. |
 
 ## Multi-Tenancy
@@ -207,8 +207,8 @@ Detailed conventions: [Frontend Architecture](14-frontend-architecture.md) and [
 
 ```
 postgres
-redis
-minio + minio-console
+valkey
+seaweedfs            # single dev binary: master + volume + filer + S3 gateway
 meilisearch
 keycloak
 livekit-server

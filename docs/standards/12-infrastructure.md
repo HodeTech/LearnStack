@@ -6,7 +6,10 @@
 [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
-[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md).
+[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
+[ADR-0029 Object Storage — SeaweedFS](../decisions/0029-object-storage-seaweedfs.md),
+[ADR-0030 Redis-Compatible Store — Valkey](../decisions/0030-redis-compatible-store-valkey.md),
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
 
 How LearnStack is built, packaged, deployed, configured, and observed at the
 infrastructure level. The application-code rules for the foundation building blocks
@@ -49,24 +52,30 @@ adapter table.
 
 ## Local Infrastructure (Docker Compose)
 
-```
-postgres
-redis
-minio + minio-console
-meilisearch
-keycloak                # two realms: learnstack + learnstack-hub
-livekit-server
-livekit-egress
-coturn
-mailhog
-otel-collector
+Shipped in Phase 01 packets 1-6 (`infra/compose/dev.yml`):
 
+```
+postgres                # PostgreSQL 18.x per ADR-0031
+valkey                  # Linux-Foundation BSD-3 fork of Redis 7.2.4 per ADR-0030
+seaweedfs               # single dev binary: master + volume + filer + S3 gateway per ADR-0029
+meilisearch
+mailpit
+keycloak                # two realms: learnstack + learnstack-hub
+livekit                 # SFU (livekit-server image)
+coturn                  # TURN/STUN
+kafka                   # KRaft mode (no ZooKeeper) — Dapr pub/sub backend
+kafka-ui                # ghcr.io/kafbat fork (dev only)
+vault                   # Dapr secrets backend (dev mode)
 dapr-placement          # Dapr building blocks
 dapr-sidecar-api        # one sidecar per backend service
-kafka + kafka-ui        # Dapr pub/sub backend
-vault                   # Dapr secrets backend (dev mode)
-apisix                  # gateway in standalone YAML-reload mode
-apisix-dashboard        # optional, dev only
+apisix                  # gateway in file-driven standalone (data_plane) mode — no etcd, no Admin API, no dashboard companion
+```
+
+Deferred — added by a later phase, not in the Phase 01 stack:
+
+```
+livekit-egress          # Phase 08c (recording / consent / cost model)
+otel-collector          # Phase 11 (Production hardening — observability stack)
 ```
 
 - Application projects run **outside** containers during active development; the Dapr
@@ -136,7 +145,7 @@ Rules:
 
 ## Object Storage Operations
 
-- MinIO local; S3-compatible cloud storage in production.
+- SeaweedFS local; S3-compatible cloud storage in production.
 - One bucket per environment; tenant isolation enforced by key prefix (`{tenant_id}/...`). Bucket-per-tenant is not used. See [Media Pipeline § Key Layout](../architecture/16-media-pipeline.md) and [Tenant Isolation](../architecture/09-tenant-isolation.md).
 - Lifecycle policies for recording retention.
 - Cross-region replication for production buckets (optional, behind ADR).
@@ -174,10 +183,13 @@ See [10-observability.md](10-observability.md).
 - TLS everywhere; HTTP → HTTPS redirect at the edge.
 - **APISIX is the only tenant-facing ingress** ([ADR-0015](../decisions/0015-api-gateway-apisix.md)).
   Direct ingress to backend pods is blocked by network policy.
-- The `/api/internal/*` route set is reachable only through a separate APISIX
-  route guarded by the `mtls` plugin, with the LearnStack-internal CA pinned.
+- The `/api/internal/*` route set is reachable only through an APISIX route bound
+  to an SSL object that pins the LearnStack-internal CA via `client.ca` /
+  `client.depth` (mTLS in APISIX is SSL-object config, not a route plugin), plus a
+  route-level `ip-restriction` constraint on the Hub egress range. See the commented
+  `/api/internal/*` stub in `infra/apisix/apisix.yaml` for the canonical shape.
 - Strict ingress rules; only documented ports open.
-- Private VPC for backend services; database, Redis, Kafka, Vault not on public
+- Private VPC for backend services; database, Valkey, Kafka, Vault not on public
   internet.
 - Outbound calls allow-listed where feasible. Hub outbound traffic is allow-listed
   per environment.
@@ -190,11 +202,11 @@ See [10-observability.md](10-observability.md).
 | Dapr sidecar (per API/worker pod) | 0.25 vCPU | 256 MB | runs alongside each pod |
 | Workers (per instance) | 1 vCPU | 2 GB | autoscale 1–4 |
 | Postgres | 4 vCPU | 16 GB | initial; scale as needed |
-| Redis | 1 vCPU | 2 GB | initial |
+| Valkey | 1 vCPU | 2 GB | initial |
 | Kafka (per broker) | 2 vCPU | 4 GB | 3-broker cluster baseline |
 | Vault | 1 vCPU | 1 GB | HA mode in production (3 nodes) |
 | APISIX | 1 vCPU | 1 GB | autoscale 2–4 |
-| MinIO | 2 vCPU | 4 GB | scaled by storage tier |
+| SeaweedFS | 2 vCPU | 4 GB | scaled by storage tier |
 | LiveKit SFU | 2 vCPU | 4 GB | per 250 concurrent participants |
 | LiveKit Egress | 2 vCPU | 4 GB | per ~1.5 concurrent recordings |
 | coturn | 1 vCPU | 1 GB | bandwidth-bound |

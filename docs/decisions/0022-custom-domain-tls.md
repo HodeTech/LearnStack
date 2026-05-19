@@ -345,7 +345,7 @@ public sealed class TenantMiddleware
 }
 ```
 
-`_hostToTenantResolver` is backed by `ICacheService` (Dapr State / Redis); cache key
+`_hostToTenantResolver` is backed by `ICacheService` (Dapr State / Valkey); cache key
 `hub:host:{host}` invalidated on `CustomDomainActivatedEvent` / `CustomDomainRevokedEvent`.
 
 ### Public suffix list validation

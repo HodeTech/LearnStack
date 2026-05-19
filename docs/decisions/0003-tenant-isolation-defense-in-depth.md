@@ -43,7 +43,7 @@ table without altering the tenant-level guarantees.
 | **Organization filter (new)** | `organization_id` column on org-scoped entities + EF query filter + RLS policy + architecture test |
 | Identity | Keycloak realm-per-tenant + `organization_id` JWT claim populated from active org |
 | Cache | Cache keys auto-prefixed `{tenant_id}:{organization_id}:{key}` when org context set; `{tenant_id}:{key}` otherwise |
-| Files (MinIO) | Object key prefix `tenants/{tenant_id}/organizations/{org_id}/...` when org-scoped; `tenants/{tenant_id}/...` when tenant-wide |
+| Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/organizations/{org_id}/...` when org-scoped; `tenants/{tenant_id}/...` when tenant-wide |
 | Search (Meilisearch) | Query filter `tenant_id = X AND (organization_id = Y OR organization_id IS NULL)` for org-context queries |
 | Jobs (Hangfire) | Job payload carries `TenantId` (mandatory) + `OrganizationId?` (when applicable) |
 | Audit | Every audit row carries `tenant_id` (mandatory) + `organization_id?` (when applicable) — ADR-0016 |

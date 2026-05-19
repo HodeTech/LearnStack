@@ -37,7 +37,7 @@ backend/
 
   tests/
     LearnStack.Tests.Unit/
-    LearnStack.Tests.Integration/          # Testcontainers (Postgres/Redis)
+    LearnStack.Tests.Integration/          # Testcontainers (Postgres/Valkey)
     LearnStack.Tests.Architecture/         # NetArchTest + filesystem invariants
     LearnStack.Tests.Contract/
 ```

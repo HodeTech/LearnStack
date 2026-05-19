@@ -98,8 +98,8 @@ Auto-instrument:
 - MediatR commands and queries.
 - Hangfire job invocations.
 - Outbox dispatcher batches.
-- Redis client calls.
-- MinIO/S3 SDK calls.
+- Valkey client calls.
+- SeaweedFS/S3 SDK calls.
 - LiveKit provider calls.
 
 Manual spans:

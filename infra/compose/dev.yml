@@ -1,19 +1,33 @@
-# LearnStack — local dev infrastructure (core services).
+# LearnStack — local dev infrastructure.
 #
-# Scope of THIS file (Phase 01 — packet 1-3): the data-plane services every
-# backend dev needs from day one. Keycloak, LiveKit OSS, Coturn, Kafka, Vault,
-# the Dapr sidecar, and APISIX land in subsequent Phase-01 packets per the
-# roadmap (docs/roadmap/phase-01-repository-tooling.md § Local Infrastructure).
+# Scope of THIS file (Phase 01 packets 1-6): the data-plane services
+# (PostgreSQL 18 / Valkey / SeaweedFS / Mailpit / Meilisearch), the self-hosted Keycloak
+# identity provider (two realms), the live-media stack (LiveKit OSS + Coturn),
+# Kafka (KRaft) + kafka-ui, HashiCorp Vault (-dev mode), the Dapr sidecar +
+# placement (pub/sub + state + secrets building blocks per ADR-0014), and the
+# APISIX gateway in file-driven standalone mode per ADR-0015. The DX
+# orchestrator (`make` targets, `.env.example`, e2e overlay) and CI workflow
+# arrive in Phase-01 packets 7-8.
 #
 # Operational rules: Standards 12 § Local Infrastructure + Standards 20.
-# Tenant isolation in MinIO is enforced by key prefix (`{tenant_id}/...`) —
-# never bucket-per-tenant (Standards 12 § Object Storage Operations).
+# Tenant isolation in SeaweedFS S3 is enforced by key prefix
+# (`{tenant_id}/...`) — never bucket-per-tenant (Standards 12 § Object
+# Storage Operations).
 
 name: learnstack-dev
 
+# YAML anchor for the host-gateway alias every container that has to reach
+# the workstation-local `dotnet run` process needs. Docker Desktop maps
+# `host.docker.internal` automatically; Linux requires this explicit
+# `host-gateway` entry. Anchored here so adding it to a new service is a
+# `<<: *host-gateway` one-liner.
+x-host-gateway: &host-gateway
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
   postgres:
-    image: postgres:16.6-alpine
+    image: postgres:18.4-alpine
     container_name: learnstack-postgres
     restart: unless-stopped
     environment:
@@ -24,53 +38,103 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # Postgres 18+ refuses any mount at `/var/lib/postgresql/data` — the
+      # entrypoint pre-check treats that path's existence (even when empty)
+      # as a legacy 16/17 layout and aborts (see docker-library/postgres
+      # PR #1259). The modern layout mounts the parent `/var/lib/postgresql`
+      # and lets the image place data at `/var/lib/postgresql/<major>/docker`
+      # under PGDATA's default, which is `pg_upgrade --link`-compatible.
+      - postgres-data:/var/lib/postgresql
+      # First-boot init scripts (idempotent SQL). Creates the `keycloak`
+      # database the Keycloak service uses; see the "Identity" section of
+      # ../compose/README.md for the re-seed procedure.
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
+      # `start_period: 20s` gives the first boot enough room for initdb +
+      # the `postgres-init/*.sql` scripts to complete before pg_isready
+      # starts counting failures against the retry budget. Re-boots
+      # (data already in the volume) skip this — Postgres is ready in <2s.
       test: ["CMD-SHELL", "pg_isready -U learnstack -d learnstack"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 20s
 
-  redis:
-    image: redis:7.4-alpine
-    container_name: learnstack-redis
+  # Valkey replaces Redis per ADR-0030. RESP-protocol drop-in (Dapr
+  # `state.redis` component, StackExchange.Redis library, ICacheService
+  # all continue to work unchanged — those names are the protocol /
+  # library / Dapr provider-type identifier, not the vendor brand).
+  # The service name is `valkey` so a new reader sees the right backend;
+  # `redis-cli` continues to ship inside the Valkey image as a symlink.
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    container_name: learnstack-valkey
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["valkey-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
+      - valkey-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  minio:
-    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
-    container_name: learnstack-minio
+  # SeaweedFS replaces MinIO per ADR-0029. Single dev binary packs master
+  # + volume + filer + S3 gateway; production splits them per ADR-0029
+  # § Implementation Notes. The S3 gateway is port-mapped to the same
+  # host port (9000) MinIO used so any local script / env var / test
+  # fixture that hard-coded the S3 endpoint keeps working.
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.94
+    container_name: learnstack-seaweedfs
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      # Dev-only. Production credentials come from Vault via ISecretProvider.
-      MINIO_ROOT_USER: learnstack
-      MINIO_ROOT_PASSWORD: learnstack-dev-secret
-      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
+    labels:
+      # OrbStack hint: route `seaweedfs.learnstack-dev.orb.local` to the Filer
+      # UI (8888) rather than picking the lowest EXPOSE'd port (8080 = Volume
+      # HTTP API root, which returns 400). Use explicit `:9333` / `:8333` for
+      # master / S3 when needed.
+      dev.orbstack.http-port: "8888"
+    command:
+      - server
+      - -dir=/data
+      - -master
+      - -volume
+      - -filer
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/s3-identities.json
+      - -metricsPort=9091
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # console
+      - "9000:8333"   # S3 API gateway (host:9000 matches the prior MinIO endpoint)
+      - "9001:8888"   # Filer UI (replaces the MinIO console)
+      - "9333:9333"   # Master HTTP API
+      - "8084:8080"   # Volume HTTP API (host 8084 to avoid Keycloak's 8080)
     volumes:
-      - minio-data:/data
+      - seaweedfs-data:/data
+      # Dev-only S3 identity (matches prior MinIO credentials so callers
+      # don't rebuild env vars). Production loads identities from Vault.
+      - ../seaweedfs/s3-identities.json:/etc/s3-identities.json:ro
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      # `127.0.0.1` (not `localhost`): SeaweedFS image's wget resolves
+      # `localhost` to `::1` first and does not fall back to IPv4, so a
+      # `localhost` probe gets connection-refused even though the master
+      # listens on 127.0.0.1:9333 + the container IP. `/cluster/healthz`
+      # is the master HTTP API readiness endpoint (SeaweedFS 3.x).
+      test: ["CMD-SHELL", "wget --spider -q -T 3 -t 1 http://127.0.0.1:9333/cluster/healthz"]
       interval: 10s
       timeout: 5s
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:v1.21
+    image: axllent/mailpit:v1.29.7
     container_name: learnstack-mailpit
     restart: unless-stopped
+    labels:
+      # OrbStack hint: route `mailpit.learnstack-dev.orb.local` to the Web UI
+      # (8025) rather than the SMTP listener (1025), which is not HTTP.
+      dev.orbstack.http-port: "8025"
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # web UI
@@ -90,7 +154,7 @@ services:
       retries: 10
 
   meilisearch:
-    image: getmeili/meilisearch:v1.11
+    image: getmeili/meilisearch:v1.44.0
     container_name: learnstack-meilisearch
     restart: unless-stopped
     environment:
@@ -103,13 +167,315 @@ services:
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
+      # `127.0.0.1` (not `localhost`): the Meilisearch image resolves `localhost`
+      # to `::1` while the server listens only on IPv4 0.0.0.0:7700, so a
+      # `localhost` probe gets connection-refused even when the service is up.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7700/health"]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  # ---- Identity stack (Phase 01 packet 4) ----------------------------------
+  # Self-hosted Keycloak, two realms (`learnstack` tenant-facing + `learnstack-hub`
+  # operator). Per ADR-0004 + ADR-0019 the realms are hard-isolated; tokens from
+  # one realm are never accepted on the other realm's endpoints. See
+  # ../keycloak/README.md.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: learnstack-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Dev-only. Production credentials come from Vault via ISecretProvider.
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin-dev-secret
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: learnstack
+      KC_DB_PASSWORD: learnstack
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_FEATURES: token-exchange,admin-fine-grained-authz
+    ports:
+      - "8080:8080"
+    volumes:
+      # Realm seed JSONs (learnstack + learnstack-hub) — Keycloak imports them
+      # at first start when the realms do not yet exist in the DB.
+      - ../keycloak/realms:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Realm SMTP server points at `mailpit:1025`. If Mailpit hasn't bound
+      # the SMTP listener yet when Keycloak sends its first email (password
+      # reset, verification), the send silently fails — TCP connect refused
+      # bubbles up as a generic SMTP timeout. Gating Keycloak start on
+      # mailpit-healthy closes that window.
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      # The Keycloak 26 image is UBI-9-minimal based + openjdk-21-runtime —
+      # neither curl nor wget is in the image. Bash IS available, so we use
+      # the upstream-recommended bash /dev/tcp probe against the management
+      # interface (KC_HEALTH_ENABLED=true exposes /health/ready on :9000).
+      test:
+        - CMD-SHELL
+        - |
+          exec 3<>/dev/tcp/localhost/9000 && \
+          echo -e "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && \
+          grep -q "200 OK" <&3
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  # ---- Live media stack (Phase 01 packet 5) --------------------------------
+  # Self-hosted LiveKit OSS + Coturn for the in-app classroom (ADR-0005).
+  # The .NET app talks to LiveKit through the `ILiveClassProvider` abstraction
+  # (Phase 08c); the LiveKit SDK is never imported by any module — only by
+  # `LearnStack.Infrastructure.LiveClassroom.LiveKit`.
+  livekit:
+    image: livekit/livekit-server:v1.12.0
+    container_name: learnstack-livekit
+    restart: unless-stopped
+    # `--node-ip 127.0.0.1` and `rtc.use_external_ip: false` in
+    # livekit.yaml are two ways of telling LiveKit not to auto-discover the
+    # host IP; either alone suffices in dev. Both are kept for explicitness
+    # — production sets `--node-ip <public IP>` + `use_external_ip: true`.
+    command: ["--config", "/etc/livekit.yaml", "--node-ip", "127.0.0.1", "--dev"]
+    volumes:
+      - ../livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"           # WebSocket signaling
+      - "7881:7881"           # TCP fallback
+      - "7882:7882/tcp"       # TURN/TLS
+      - "50000-50100:50000-50100/udp"  # WebRTC media plane
+    depends_on:
+      coturn:
+        condition: service_started
+    healthcheck:
+      # `--spider` issues a HEAD without downloading the body; tolerates
+      # LiveKit's WebSocket-upgrade contract changing across minor versions
+      # since we only care that the listener is bound. `127.0.0.1` (not
+      # `localhost`) for consistency with seaweedfs / meilisearch probes —
+      # the IPv6 `::1` fallback failure has bitten us on other Alpine-based
+      # minimal images, and the LiveKit image is built on the same family.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  coturn:
+    image: coturn/coturn:4.11.0
+    container_name: learnstack-coturn
+    restart: unless-stopped
+    command: ["-c", "/etc/turnserver.conf"]
+    volumes:
+      - ../coturn/turnserver.conf:/etc/turnserver.conf:ro
+    ports:
+      - "3478:3478/udp"               # STUN/TURN (UDP)
+      - "3478:3478/tcp"               # STUN/TURN (TCP)
+      - "5349:5349/tcp"               # TURN/TLS
+      - "49152-49200:49152-49200/udp" # TURN relay range (dev: narrow)
+
+  # ---- Eventing (Phase 01 packet 6) ----------------------------------------
+  # Kafka in KRaft mode (no ZooKeeper). Backs Dapr pub/sub per ADR-0014.
+  # Module code never imports `Confluent.Kafka` — only `IEventBus` via Dapr.
+  #
+  # Listener note: only the in-cluster PLAINTEXT://kafka:9092 listener is
+  # advertised. Host-side CLI tools (kcat, kafka-topics from the workstation)
+  # connect through the port mapping below but will receive `kafka:9092` as
+  # the bootstrap address and fail to resolve it unless the developer adds
+  # `127.0.0.1 kafka` to /etc/hosts (or routes them through the kafka-ui).
+  # Phase 07 (DX) ships either an explicit EXTERNAL listener or a
+  # documented kafka-ui-only workflow.
+  kafka:
+    image: confluentinc/cp-kafka:8.2.1
+    container_name: learnstack-kafka
+    restart: unless-stopped
+    environment:
+      # KRaft mode — single-node broker + controller. Production uses an
+      # external HA cluster; this is dev only.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # Stable cluster id so KRaft does not re-format the log dir on restart.
+      # Format: URL-safe Base64-encoded UUIDv4 (16-byte UUID → 22-char Base64
+      # without padding) — the format `kafka-storage.sh random-uuid` emits.
+      # This value is checked in deliberately for dev reproducibility.
+      CLUSTER_ID: ofPH0p5rSlK52BxOX3qLPQ
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  # Kafka UI — using the active community fork `kafbat/kafka-ui` because the
+  # original `provectuslabs/kafka-ui` was abandoned (no release since
+  # 2024-04). The fork preserves the same env-var contract. Pinned per
+  # Standards 12 § Image Conventions (every dev image carries an explicit
+  # tag; bump deliberately, never let `:latest` drift).
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    container_name: learnstack-kafka-ui
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: learnstack-dev
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports:
+      - "8081:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      # Spring Boot Actuator (`/actuator/health` returns 200 + `{"status":"UP"}`
+      # when the Kafka client has connected). Spring Boot startup with JDK 21
+      # + Netty native init + Kafka client discovery is slow — `start_period`
+      # buys the boot 30s before the healthcheck starts counting failures.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---- Secrets (Phase 01 packet 6) -----------------------------------------
+  # HashiCorp Vault in -dev mode. Production runs Vault in HA mode with
+  # auto-unseal + AppRole / Kubernetes auth methods (Standards 12 § Secrets
+  # Management). The root token is intentionally embedded here for dev only.
+  #
+  # IMPORTANT: the literal `learnstack-dev-root-token` appears in TWO files:
+  # this service definition AND ../dapr/components/secretstore-vault.yaml.
+  # If you change one you MUST change the other. Phase 07 (DX) wires both
+  # to a single `.env.example` source so the duplication goes away.
+  vault:
+    image: hashicorp/vault:1.21.4
+    container_name: learnstack-vault
+    restart: unless-stopped
+    command: ["server", "-dev", "-dev-root-token-id=learnstack-dev-root-token", "-dev-listen-address=0.0.0.0:8200"]
+    environment:
+      # Dev-only. Production loads tokens via Dapr `secretKeyRef` indirection
+      # so the literal never appears in component YAML.
+      VAULT_DEV_ROOT_TOKEN_ID: learnstack-dev-root-token
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- Dapr sidecar (Phase 01 packet 6) ------------------------------------
+  # Placement service required by daprd even though actors are out of scope
+  # per ADR-0014 non-goals (daprd will not boot without it).
+  dapr-placement:
+    image: daprio/placement:1.17.7
+    container_name: learnstack-dapr-placement
+    restart: unless-stopped
+    command: ["./placement", "-log-level", "info"]
+    ports:
+      - "50005:50005"
+
+  # Single sidecar bound to the learnstack-api app id. The .NET host runs
+  # OUTSIDE compose during active dev (`dotnet run` on the workstation);
+  # `-app-channel-address host.docker.internal` is what makes inbound
+  # subscription deliveries reach the host (the daprd default of 127.0.0.1
+  # would resolve to inside the sidecar container). The `extra_hosts`
+  # anchor at the top of the file maps `host.docker.internal` on Linux.
+  # See ../dapr/README.md.
+  dapr-sidecar-api:
+    image: daprio/daprd:1.17.7
+    container_name: learnstack-dapr-sidecar-api
+    restart: unless-stopped
+    <<: *host-gateway
+    command:
+      - ./daprd
+      - -app-id
+      - learnstack-api
+      - -app-port
+      - "5080"
+      - -app-channel-address
+      - host.docker.internal
+      - -dapr-http-port
+      - "3500"
+      - -dapr-grpc-port
+      - "50001"
+      - -placement-host-address
+      - dapr-placement:50005
+      - -resources-path
+      - /components
+      - -config
+      - /config/dapr-config.yaml
+      - -log-level
+      - info
+    volumes:
+      - ../dapr/components:/components:ro
+      - ../dapr/config:/config:ro
+    ports:
+      - "3500:3500"       # HTTP API
+      - "50001:50001"     # gRPC API
+    depends_on:
+      kafka:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      dapr-placement:
+        condition: service_started
+
+  # ---- Gateway (Phase 01 packet 6) -----------------------------------------
+  # APISIX in file-driven standalone mode per ADR-0015 — no etcd, no Admin
+  # API. `apisix.yaml` is the only source of truth (hot-reloaded on file
+  # change). The `apisix-dashboard` companion is intentionally absent from
+  # this stack: the dashboard needs etcd to read routes, which contradicts
+  # the standalone-no-etcd commitment of ADR-0015. Diff-review of
+  # `apisix.yaml` replaces the dashboard for the dev workflow.
+  apisix:
+    image: apache/apisix:3.16.0-debian
+    container_name: learnstack-apisix
+    restart: unless-stopped
+    <<: *host-gateway
+    volumes:
+      - ../apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ../apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    ports:
+      - "9080:9080"       # HTTP gateway
+      - "9443:9443"       # HTTPS gateway (no cert in dev)
+      - "9091:9091"       # Prometheus metrics
+    healthcheck:
+      # apache/apisix:3.16.0-debian ships NEITHER curl NOR wget (verified by
+      # inspecting the image). It does ship bash. The /dev/tcp pseudo-device
+      # is a bash builtin that opens a TCP connection — perfect lightweight
+      # listener probe. `127.0.0.1` (not `localhost`) avoids the IPv6 `::1`
+      # detour for the same reason as the seaweedfs / meilisearch probes.
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/9080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 volumes:
   postgres-data:
-  redis-data:
-  minio-data:
+  valkey-data:
+  seaweedfs-data:
   meilisearch-data:
+  kafka-data:

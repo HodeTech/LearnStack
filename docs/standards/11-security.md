@@ -127,8 +127,12 @@ layer, not the sole control — the API re-verifies everything.
 - `cors` plugin handles preflight; authenticated cross-origin traffic is allow-listed
   per environment.
 - `limit-req` / `limit-count` plugins enforce the rate-limit policy below.
-- `mtls` plugin guards the `/api/internal/*` route set; the client certificate must be
-  signed by the LearnStack-internal CA.
+- The `/api/internal/*` route set is gated by **mTLS configured on the APISIX SSL
+  object** (`client.ca` + `client.depth` per APISIX 3.x SSL-config; mTLS is not a
+  route plugin) plus an `ip-restriction` (and, when applicable, `consumer-restriction`)
+  route plugin that only admits the documented Hub egress; the client certificate
+  must be signed by the LearnStack-internal CA. The route-level pattern is shown in
+  the commented `/api/internal/*` stub in `infra/apisix/apisix.yaml`.
 - Gateway config lives in `infra/apisix/` as YAML, version-controlled. No live edits.
 
 Direct ingress to backend pods (bypassing APISIX) is blocked at the network policy
@@ -201,7 +205,7 @@ for the full strategy. Standards-side:
 - Enforce per-content-type size limits (image: 10 MB, document: 50 MB, video: 5 GB).
 - Strip EXIF where appropriate.
 - Store in tenant-scoped object storage prefix.
-- Never trust the original filename. Generate a server-side key under the canonical tenant prefix: `tenants/{tenantId}/{category}/{uuid}.{ext}` (with `organizations/{orgId}/` segment for org-scoped assets), per [09-tenant-isolation.md § Storage (MinIO)](../architecture/09-tenant-isolation.md) and [16-media-pipeline.md § Key Layout](../architecture/16-media-pipeline.md).
+- Never trust the original filename. Generate a server-side key under the canonical tenant prefix: `tenants/{tenantId}/{category}/{uuid}.{ext}` (with `organizations/{orgId}/` segment for org-scoped assets), per [09-tenant-isolation.md § Storage (SeaweedFS)](../architecture/09-tenant-isolation.md) and [16-media-pipeline.md § Key Layout](../architecture/16-media-pipeline.md).
 - Virus scan hook (ClamAV or cloud equivalent) before files become accessible.
 - Signed URLs for private files; TTL ≤ 1 hour.
 

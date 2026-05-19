@@ -59,7 +59,7 @@ They are codified in:
 Per [ADR-0014](../decisions/0014-adopt-dapr.md):
 
 - Dapr sidecar runs in dev `docker-compose.yml`. Pub/sub component → Kafka. State
-  component → Redis. Secrets component → Vault (dev mode).
+  component → Valkey. Secrets component → Vault (dev mode).
 - `DaprEventBus`, `DaprCacheService`, `DaprSecretProvider` implementations ship in
   `LearnStack.Infrastructure`.
 - Topic naming convention enforced by `Dapr_PubSub_TopicNames_FollowConvention`
@@ -74,8 +74,11 @@ Per [ADR-0015](../decisions/0015-api-gateway-apisix.md):
 - APISIX runs in standalone YAML-reload mode in dev `docker-compose.yml`.
 - `infra/apisix/config.yaml` ships with the plugin chain wired:
   `cors` → `jwt-auth` → `limit-req` → `proxy-rewrite` → `prometheus`.
-- A second route set guarded by `mtls` for the future `/api/internal/*` endpoints
-  (the endpoints themselves arrive in 02c but the gateway slot is reserved Day 1).
+- A second route set bound to a dedicated SSL object (mTLS in APISIX is SSL-object
+  config — `client.ca` / `client.depth` — not a route plugin) plus an `ip-restriction`
+  on the Hub egress range, reserved Day 1 for the future `/api/internal/*` endpoints
+  (the endpoints themselves arrive in 02c). The commented stub at the bottom of
+  `infra/apisix/apisix.yaml` documents the canonical shape.
 
 ### Tenancy Schema Foundations
 
@@ -219,7 +222,7 @@ The architecture test project starts going green during this phase. Phase 02a co
 - `Dapr_PubSub_TopicNames_FollowConvention`.
 - `AuditEntry_Inherits_Entity_Not_AuditableEntity`.
 - `LearnStack_Modules_DoNotReference_Hub`.
-- `Modules_Do_Not_Inject_Redis_Directly`, `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
+- `Modules_Do_Not_Inject_Valkey_Directly`, `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
   `Modules_Do_Not_Write_AuditLog_Directly`.
 - `Modules_Do_Not_Reference_DeploymentMode` — modules never read `DeploymentMode`
   directly; the composition root selects provider implementations once. See

@@ -1,0 +1,111 @@
+# APISIX route table — hot-reloaded on file change.
+# Per ADR-0015 the route table separates public from authenticated, and
+# CORS preflight from the authenticated path so OPTIONS bypasses
+# openid-connect.
+#
+# This packet ships the scaffold routes only:
+# - `/healthz` (priority 1, public, GET only) — proxies to the .NET API
+# - `/api/v*/**` OPTIONS (priority 99, CORS preflight)
+# - `/api/v*/**` authenticated (priority 100, GET/POST/PUT/PATCH/DELETE)
+# - `/api/internal/*` — Phase 02c surface, NOT a route plugin: mTLS is
+#   enforced on the SSL/SNI object (see the Phase-02c stub at the bottom)
+
+routes:
+  - id: 1
+    uri: /healthz
+    methods: [GET]
+    priority: 1
+    plugins:
+      cors: {}
+      limit-req:
+        rate: 10
+        burst: 5
+        key: remote_addr
+        rejected_code: 429
+      prometheus: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        # The .NET API host runs OUTSIDE compose during active dev
+        # (`dotnet run` on the workstation). `host.docker.internal` is
+        # Docker Desktop's gateway alias; Linux developers get the
+        # `host-gateway` mapping via `extra_hosts` on the apisix service
+        # in dev.yml. Phase 07 (DX packet) sorts the cross-platform
+        # case alongside `make dev`.
+        "host.docker.internal:5080": 1
+
+  - id: 99
+    uri: /api/v*/**
+    methods: [OPTIONS]
+    priority: 99
+    plugins:
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:5080": 1
+
+  - id: 100
+    uri: /api/v*/**
+    methods: [GET, POST, PUT, PATCH, DELETE]
+    priority: 100
+    plugins:
+      cors: {}
+      # openid-connect realm discovery is wired in Phase 03 against the
+      # learnstack Keycloak realm. Placeholder kept so the route schema
+      # validates today.
+      # openid-connect:
+      #   discovery: http://keycloak:8080/realms/learnstack/.well-known/openid-configuration
+      #   bearer_only: true
+      #   realm: learnstack
+      limit-req:
+        rate: 100
+        burst: 50
+        key: remote_addr
+        rejected_code: 429
+      request-id:
+        include_in_response: true
+      prometheus: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:5080": 1
+
+  # ---- Phase 02c — Hub internal API surface (RESERVED) --------------------
+  # mTLS in APISIX is NOT a route-level plugin. It is enforced on the
+  # SSL/SNI object via `client.ca` (CA bundle for verifying client certs)
+  # + `client.depth` (cert chain depth). The route below documents the
+  # Phase-02c shape; activate by:
+  #
+  #   1. Declaring an `ssls:` entry with the LearnStack-internal CA bundle
+  #      attached to the host (or sni) that fronts `/api/internal/*`.
+  #   2. Restricting the route to that host (or to an internal IP range)
+  #      via the `ip-restriction` plugin and / or a host match.
+  #   3. Routing only authenticated mTLS client certs through here; the
+  #      upstream re-validates the signed JWT + HMAC body signature
+  #      (ADR-0019 § Closed 4-endpoint internal API).
+  #
+  # - id: 50
+  #   uri: /api/internal/*
+  #   host: internal.learnstack.dev
+  #   priority: 50
+  #   plugins:
+  #     ip-restriction:
+  #       whitelist:
+  #         - 10.0.0.0/8
+  #     prometheus: {}
+  #   upstream:
+  #     type: roundrobin
+  #     nodes:
+  #       "host.docker.internal:5080": 1
+  #
+  # ssls:
+  #   - id: 1
+  #     sni: internal.learnstack.dev
+  #     cert: "<server cert>"
+  #     key:  "<server key>"
+  #     client:
+  #       ca: "<LearnStack-internal CA bundle>"
+  #       depth: 2
+
+#END

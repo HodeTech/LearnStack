@@ -1,8 +1,8 @@
 ---
 name: local-dev-setup
 description: >
-  Bring up the LearnStack local stack — Postgres, Redis, Vault, Kafka, Dapr
-  sidecar, APISIX, Keycloak (two realms), MinIO, LiveKit OSS, Meilisearch — via
+  Bring up the LearnStack local stack — Postgres, Valkey, Vault, Kafka, Dapr
+  sidecar, APISIX, Keycloak (two realms), SeaweedFS, LiveKit OSS, Meilisearch — via
   `docker-compose` plus the project's `make dev` orchestrator. USE FOR: first-time
   workstation setup, restoring a broken local environment, switching between
   `DeploymentMode` for testing. DO NOT USE FOR: production deployment (separate
@@ -15,7 +15,7 @@ description: >
 ## Purpose
 
 Stand up a full LearnStack stack on a developer workstation so backend + frontend
-can run against real Postgres / Redis / Kafka / Vault / Keycloak / MinIO /
+can run against real Postgres / Valkey / Kafka / Vault / Keycloak / SeaweedFS /
 LiveKit / Meilisearch / APISIX — the same components production uses
 ([12-infrastructure.md § Local Infrastructure](../../../docs/standards/12-infrastructure.md),
 [20-infrastructure-stack.md](../../../docs/standards/20-infrastructure-stack.md)).
@@ -45,7 +45,7 @@ LiveKit / Meilisearch / APISIX — the same components production uses
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
 | Node 20+ + pnpm | Yes | For the frontend. |
-| Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHosted`. |
+| Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
 
 ## Workflow
@@ -98,12 +98,12 @@ The components and their default ports:
 | Component | Port | Purpose |
 |-----------|------|---------|
 | Postgres | 5432 | Main DB. |
-| Redis | 6379 | Cache + Dapr state. |
+| Valkey | 6379 | Cache + Dapr state. |
 | Kafka | 9092 | Dapr pub/sub backend. |
 | Kafka UI | 9094 | Optional UI for topics. |
 | Vault (dev mode) | 8200 | Secrets backend; `root` token, **not** for production. |
 | Keycloak | 8080 | Two realms: `learnstack` (tenants) + `learnstack-hub` (operators). |
-| MinIO | 9000 (API) / 9001 (console) | Object storage. |
+| SeaweedFS | 9000 (S3 API) / 9001 (filer UI) / 9333 (master) | Object storage (single dev binary: master + volume + filer + S3 gateway). |
 | Meilisearch | 7700 | Search. |
 | LiveKit | 7880 (API) / 7881 (TLS) / 7882 (RTC) | Live classroom. |
 | coturn | 3478 / 5349 | TURN for LiveKit. |
@@ -111,8 +111,7 @@ The components and their default ports:
 | Mailhog | 8025 | Captures outbound email in dev. |
 | OTel Collector | 4317 (gRPC) | Local observability. |
 | Dapr sidecar (per service) | 3500 (HTTP) / 50001 (gRPC) | Building-block runtime. |
-| APISIX | 9080 (gateway) / 9180 (admin) | API gateway. |
-| APISIX dashboard (optional) | 9000 | Route inspection. |
+| APISIX | 9080 (HTTP gateway) / 9443 (HTTPS) / 9091 (Prometheus metrics) | File-driven standalone (`data_plane`) per ADR-0015 — no Admin API, no dashboard companion. `apisix.yaml` is the only source of truth. |
 | LearnStack API | 5100 | Backend host. |
 | LearnStack Web (`apps/web`) | 3000 | Frontend dev server. |
 
@@ -128,7 +127,7 @@ The first `make dev` run additionally:
 4. Seeds the two demo tenants' customization data (`TenantContentType`,
    `TenantPageBlock`, `TenantLevelTaxonomy`, …) so the page renderer has
    something to render.
-5. Creates the MinIO buckets.
+5. Creates the SeaweedFS buckets.
 6. Creates the Meilisearch indexes.
 
 For a clean re-seed:
@@ -150,8 +149,8 @@ curl -fsS http://localhost:9080/healthz | jq
 open http://localhost:8080/realms/learnstack/account
 open http://localhost:8080/realms/learnstack-hub/account
 
-# MinIO console
-open http://localhost:9001       # minioadmin / minioadmin
+# SeaweedFS filer UI (replaces the MinIO console of the prior stack)
+open http://localhost:9001       # S3 access: learnstack / learnstack-dev-secret
 
 # Web app
 open http://localhost:3000       # one of the demo tenants
@@ -168,9 +167,10 @@ Edit `.env` to flip `DEPLOYMENT_MODE`:
 | Value | What happens |
 |-------|--------------|
 | `Development` (default) | `InProcessEventBus` + `InMemoryCacheService` + env vars for secrets. Dapr sidecar is still present but not exercised. |
-| `SaaS` | `DaprEventBus` (Kafka) + `DaprCacheService` (Redis) + `DaprSecretProvider` (Vault) + `HubEntitlementProvider` pointing at the local Hub. Requires the `learnstack-hub` repo's `make dev` to be running. |
+| `SaaS` | `DaprEventBus` (Kafka) + `DaprCacheService` (Valkey) + `DaprSecretProvider` (Vault) + `HubEntitlementProvider` pointing at the local Hub. Requires the `learnstack-hub` repo's `make dev` to be running. |
 | `Dedicated` | Same as `SaaS` for the composition; in practice the Hub is dedicated to one tenant. |
-| `SelfHosted` | `SignedLicenseKeyEntitlementProvider` reads `.lic` from `./secrets/license.lic`; no Hub interaction. |
+| `SelfHostedOnline` | `HubEntitlementProvider` against the LearnStack-hosted Hub (phone-home daily, 30-day cached-projection grace per ADR-0020). |
+| `SelfHostedAirGapped` | `SignedLicenseKeyEntitlementProvider` reads `.lic` from `./secrets/license.lic`; no Hub interaction. |
 
 After changing `.env`, restart the API:
 

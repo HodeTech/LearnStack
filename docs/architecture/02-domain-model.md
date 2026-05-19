@@ -348,7 +348,7 @@ These entities cover the **runtime** of a Live Session: actual rooms, tokens, re
 | `LiveRoom` | Yes | Runtime room created via `ILiveClassProvider`. Lives for the duration of a `LiveSession`. |
 | `LiveRoomToken` | Inside LiveRoom | Short-lived join token; scoped to user + room + role. |
 | `LiveRoomProvider` | Reference | The provider implementation that owns this room. |
-| `LiveRecording` | Yes | Recording metadata, consent state, retention. File lives in MinIO/S3. |
+| `LiveRecording` | Yes | Recording metadata, consent state, retention. File lives in SeaweedFS/S3. |
 | `LiveSessionEvent` | Append-only | join / leave / screen-share / recording started / network drop. Feeds `ClassroomEvent` analytics. |
 
 See [In-App Live Classroom](07-in-app-live-classroom.md) for the provider abstraction.

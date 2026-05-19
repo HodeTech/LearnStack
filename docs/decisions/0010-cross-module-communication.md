@@ -65,7 +65,7 @@ The following tests live in `LearnStack.Tests.Architecture` and run on every PR:
 ## Amendment 1 — Dapr pub/sub as outbox dispatch target (2026-05-18)
 
 Per [ADR-0014](0014-adopt-dapr.md), LearnStack adopts Dapr for cross-cutting infrastructure
-(pub/sub Kafka, state Redis, secrets Vault). This amendment specifies how Mechanism #3
+(pub/sub Kafka, state Valkey, secrets Vault). This amendment specifies how Mechanism #3
 (integration event via outbox) is dispatched.
 
 **Updated dispatch flow:**

@@ -1,0 +1,14 @@
+# Dapr runtime configuration.
+# Tracing target intentionally empty in dev — Phase 11 wires Tempo/Zipkin.
+# Module code never reads this file; it tunes the sidecar's own behaviour.
+
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: dapr-config
+spec:
+  tracing:
+    samplingRate: "1"
+    zipkin:
+      endpointAddress: ""
+  features: []

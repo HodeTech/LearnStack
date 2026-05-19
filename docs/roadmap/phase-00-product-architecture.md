@@ -70,7 +70,7 @@ later should be made explicit before implementation begins.
 
 - .NET 10 backend.
 - EF Core and PostgreSQL.
-- Redis and MinIO.
+- Valkey and SeaweedFS.
 - Next.js frontend.
 - Modular monolith.
 - Shared-database multi-tenancy for the initial implementation.
