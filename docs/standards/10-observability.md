@@ -304,3 +304,7 @@ Alerts route via PagerDuty / Opsgenie; warn-level alerts go to Slack.
   module code. The `TenantContextSpanProcessor` does this centrally.
 - Importing `Sentry.SentrySdk` from any module assembly. Use
   `IErrorTrackingProvider`.
+
+The architecture tests that enforce the rules above are listed in
+[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](21-architecture-tests-catalogue.md);
+that catalogue is the canonical reference for every identifier.

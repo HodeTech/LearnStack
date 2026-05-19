@@ -191,9 +191,12 @@ The pipeline does **not** include a separate `ExceptionHandlingBehavior`.
 together cover every exception path; a third behavior would duplicate the
 responsibility.
 
-Architecture test `MediatR_Pipeline_Order_Matches_Canonical_Sequence` asserts the DI
-registration order at startup; the test fails the build if any behavior is
-missing, reordered, or duplicated.
+Architecture test
+[`MediatR_Pipeline_Order_Matches_Canonical_Sequence`](21-architecture-tests-catalogue.md#mediatr_pipeline_order_matches_canonical_sequence)
+asserts the DI registration order at startup; the test fails the build if
+any behavior is missing, reordered, or duplicated. The catalogue entry in
+[21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md) is
+the canonical reference for this identifier.
 
 ## Time
 

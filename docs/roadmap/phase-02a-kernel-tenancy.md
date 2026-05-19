@@ -308,6 +308,12 @@ The architecture test project starts going green during this phase. Phase 02a co
 - `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` — unit
   test guard.
 
+Every identifier in the cross-cutting list above is described — assertion,
+type, source ADR / standard — in
+[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](../standards/21-architecture-tests-catalogue.md).
+The catalogue is the canonical reference; rename or relocation lands there
+first.
+
 The event/outbox-specific tests (serialisable records, job payloads with `TenantId`)
 land in Phase 02b.
 

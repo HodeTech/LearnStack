@@ -176,7 +176,8 @@ rules:
   `DomainException` is reserved for programmer errors / aggregate invariant
   bugs ([ADR-0032 § Sub-decision 4](docs/decisions/0032-exception-handling-logging-and-observability.md)).
   The Roslyn analyzer `LearnStackException-DomainExceptionThrow` flags
-  violations.
+  violations; full catalogue entry in
+  [docs/standards/21-architecture-tests-catalogue.md](docs/standards/21-architecture-tests-catalogue.md).
 - Throw `FluentValidation.ValidationException` from `ValidationBehavior` —
   the behavior returns `Result.Fail(validation_failed)` and never throws.
 - Reference `Sentry.SentrySdk` directly from any module assembly — error

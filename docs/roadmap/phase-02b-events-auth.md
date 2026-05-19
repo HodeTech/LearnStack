@@ -130,6 +130,11 @@ In addition to Phase 02a's rules, this phase adds:
 - `Integration_Event_Handler_Restores_Tenant_Context` — handler scope has
   `ITenantContext.IsResolved == true` before the inner pipeline runs.
 
+The three identifiers above are catalogued (assertion, type, source) in
+[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](../standards/21-architecture-tests-catalogue.md);
+the catalogue is the canonical reference, this list is a Phase 02b
+shipping checklist.
+
 ## Deliverables
 
 - Domain and integration event infrastructure with a sample flow.

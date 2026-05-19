@@ -379,3 +379,8 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 - Importing a provider SDK exception type (`LiveKit.NET.LiveKitException`,
   `Stripe.StripeException`, …) outside the adapter's
   `LearnStack.Infrastructure.<Adapter>` namespace.
+
+The architecture tests and Roslyn analyzers that enforce the rules above
+are listed in
+[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](21-architecture-tests-catalogue.md);
+that catalogue is the canonical reference for every identifier.

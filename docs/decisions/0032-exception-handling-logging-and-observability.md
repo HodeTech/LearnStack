@@ -193,6 +193,13 @@ this ADR instead of redefining the rules.
    by walking the `Result<T>`-returning methods and asserting that the
    corresponding analyzer report is empty for the module.
 
+   *"Unreachable case branch"* uses the BCL `System.Diagnostics.UnreachableException`
+   (.NET 7+) directly — it is **not** a `LearnStackException` subclass and
+   must not be modelled as one. The L1 `IExceptionHandler` treats it the
+   same as any other unhandled exception (Sentry-captured, 500 Problem
+   Details). Per [09-error-handling.md § Hierarchy](../standards/09-error-handling.md)
+   and [33-cross-cutting-concerns.md § Two-Track Failure Model](../architecture/33-cross-cutting-concerns.md).
+
 5. **Provider-adapter resilience uses Polly v8 `ResiliencePipeline` via
    `IProviderResilience<TPort>`.** The composition root wires every
    tenant-facing third-party adapter (`LiveKitClient`,
@@ -648,6 +655,10 @@ SDK creates and disposes warm-up `Activity` instances during startup).
   — `DeploymentMode` table; this ADR adds `IErrorTrackingProvider` row.
 - [02-backend-coding.md § Pipeline Behaviors](../standards/02-backend-coding.md)
   — order list cites this ADR.
+- [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
+  — single source of truth for every architecture-test / analyzer
+  identifier this ADR introduces. Other docs cite the catalogue entry by
+  anchor link so renames touch one place.
 - [09-error-handling.md](../standards/09-error-handling.md) — implementation
   patterns for L1 / `Result<T>` / Validation / provider resilience cite this
   ADR.
