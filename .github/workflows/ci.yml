@@ -1,0 +1,233 @@
+# LearnStack — CI baseline.
+#
+# Per docs/roadmap/phase-01-repository-tooling.md § CI Baseline. Runs on
+# every push to `main` and every pull request. Required status checks on
+# `main` are listed in `.github/CONTRIBUTING.md` § Branch protection so
+# the GitHub Settings → Branches page matches the corpus.
+#
+# What lights up in Phase 01:
+#   - backend  : `dotnet build` + unit + architecture + contract tests
+#   - frontend : pnpm install + typecheck + lint + build + Vitest
+#   - meta     : `make lint`-style format verification
+#
+# Deferred to later phases (jobs are scaffolded as `if: false` placeholders
+# so the activation is a one-line flip):
+#   - backend-integration : Testcontainers needs a real Docker socket inside
+#     the runner — works on `ubuntu-latest` natively. Activates when the
+#     first integration test lands (Phase 02a) so we have something to run.
+#   - openapi-diff        : oasdiff against the prior `main` spec. Activates
+#     in Phase 03 when the first real endpoint replaces `/healthz` as the
+#     only documented surface (until then there is nothing to diff).
+#   - lighthouse-budget   : LHCI against the built Next.js app. Activates
+#     when Phase 04 ships the first content-bearing public page (the
+#     current placeholder routes are not worth scoring).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel in-progress runs on the same ref so PR force-pushes don't queue.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_SDK_VERSION: "10.0.100"
+  NODE_VERSION: "20.11.0"
+  PNPM_VERSION: "9.12.3"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  # ─── Backend ────────────────────────────────────────────────────────────
+  backend:
+    name: backend (build + unit + arch + contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore LearnStack.slnx
+
+      - name: Format verify (dotnet format)
+        working-directory: backend
+        run: dotnet format LearnStack.slnx --verify-no-changes --no-restore
+
+      - name: Build (TreatWarningsAsErrors)
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release
+
+      - name: Test (unit + architecture + contract; integration excluded)
+        working-directory: backend
+        run: |
+          dotnet test LearnStack.slnx \
+            --no-restore --no-build --configuration Release \
+            --filter "FullyQualifiedName!~LearnStack.Tests.Integration" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ../artifacts/backend-tests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: artifacts/backend-tests
+          if-no-files-found: warn
+
+  # ─── Backend integration (deferred — Testcontainers harness lights up Phase 02a) ─
+  backend-integration:
+    name: backend integration (Testcontainers — deferred)
+    runs-on: ubuntu-latest
+    if: false  # activate when LearnStack.Tests.Integration has its first test
+    steps:
+      - run: echo "Placeholder — Phase 02a wires the first Testcontainers integration test."
+
+  # ─── Frontend ───────────────────────────────────────────────────────────
+  frontend:
+    name: frontend (typecheck + lint + build + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Test (Vitest)
+        run: pnpm -r test
+
+  # ─── OpenAPI breaking-change check (deferred — Phase 03) ──────────────
+  openapi-diff:
+    name: openapi diff (deferred to Phase 03)
+    runs-on: ubuntu-latest
+    if: false  # activate when /api/v1/* endpoints replace the `/healthz` placeholder
+    steps:
+      - run: echo "Placeholder — Phase 03 wires oasdiff against the prior main spec."
+
+  # ─── Lighthouse budget (deferred — Phase 04) ──────────────────────────
+  lighthouse-budget:
+    name: lighthouse budget (deferred to Phase 04)
+    runs-on: ubuntu-latest
+    if: false  # activate when the first content-bearing public page ships
+    steps:
+      - run: echo "Placeholder — Phase 04 wires LHCI against the built Next.js app."
+
+  # ─── Meta (commit-message format, link audit) ─────────────────────────
+  meta:
+    name: meta (commit hygiene + link audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # link audit walks the full tree
+
+      - name: Markdown link audit (changed docs)
+        run: |
+          # Walk relative-path links in the changed Markdown files of this PR.
+          # On `push` events the BASE is the prior commit; on `pull_request`
+          # it is the PR base ref.
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              base="origin/${{ github.event.pull_request.base.ref }}"
+              git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+          else
+              base="${{ github.event.before }}"
+          fi
+          changed=$(git diff --name-only "$base"...HEAD -- '*.md' || true)
+          if [[ -z "$changed" ]]; then
+              echo "No changed Markdown files."
+              exit 0
+          fi
+          broken=0
+          while IFS= read -r f; do
+              while IFS= read -r link; do
+                  target_path="$(dirname "$f")/$link"
+                  if [[ ! -e "$target_path" ]]; then
+                      echo "BROKEN: $f → $link"
+                      broken=$((broken + 1))
+                  fi
+              done < <(grep -oE '\]\(\.\.?/[^)]+\)' "$f" | sed -E 's/.*\((.+)\).*/\1/' | sed -E 's/#.*$//')
+          done <<< "$changed"
+          if [[ $broken -gt 0 ]]; then
+              echo "::error::$broken broken relative link(s) in changed Markdown."
+              exit 1
+          fi
+
+      - name: docs/analysis residual scan
+        run: |
+          # Per CLAUDE.md: docs/analysis/ is gitignored and MUST NOT be
+          # *referenced* from committed files. Distinguish:
+          #   - illegal: `[text](docs/analysis/...)` Markdown link, or
+          #              `from "docs/analysis/..."` / `require('docs/analysis/...')`
+          #              / `using docs.analysis.*;` code import
+          #   - legal:   any mention inside backticks (`docs/analysis/`), inline
+          #              code, or prose about the rule itself
+          # Restrict to the link-and-import shapes so meta-references in
+          # CLAUDE.md / standards / roadmap pass cleanly.
+          residual=$(grep -rnE '\]\(docs/analysis/|from ["'"'"']docs/analysis/|require\(["'"'"']docs/analysis/' \
+                      --include='*.md' --include='*.cs' --include='*.ts' --include='*.tsx' --include='*.mjs' --include='*.cjs' . 2>/dev/null || true)
+          if [[ -n "$residual" ]]; then
+              echo "::error::Illegal references to docs/analysis/ (link target or import):"
+              echo "$residual"
+              exit 1
+          fi

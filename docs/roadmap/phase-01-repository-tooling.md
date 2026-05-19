@@ -1,7 +1,8 @@
 # Phase 01: Repository, Tooling, and Local Infrastructure
 
-> **In-progress status (2026-05-19).** The phase is implemented incrementally in
-> packets. Packets 1-3 are shipped; packets 4-8 remain.
+> **Status (2026-05-20).** Phase 01 complete. All eight packets shipped.
+> The phase was implemented incrementally — each packet is independently
+> reviewable in its own commit.
 >
 > **Packet 1 — Backend skeleton ✅**
 > .NET 10 solution scaffold, central package management, `LearnStack.slnx`, 7 core
@@ -48,16 +49,32 @@
 > `/api/internal/*` Phase-02c surface is documented as an SSL-object +
 > ip-restriction stub (mTLS in APISIX is not a route-level plugin).
 >
-> **Packet 7 — Developer experience (pending)**
-> `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
-> pre-commit hook (dotnet-format + prettier), `infra/compose/e2e.yml`
-> companion stack, optional `learnstack-hub` compose overlay.
+> **Packet 7 — Developer experience ✅**
+> Repo-root `Makefile` (`make dev` / `down` / `clean` / `logs` / `ps` /
+> `e2e-up` / `e2e-down` / `build` / `test` / `lint` / `format` / `typecheck`
+> / `seed` / `install` / `hooks`). `.env.example` at the repo root is the
+> single source of truth for dev credentials; `infra/compose/dev.yml` reads
+> via `${VAR:-default}` interpolation, and the Dapr Vault secret-store
+> component substitutes `{{env.VAULT_ROOT_TOKEN}}` so the prior two-file
+> token duplication is closed. `.githooks/pre-commit` runs `dotnet format`
+> + prettier + ESLint --fix on staged files (activated by `make install`).
+> `infra/compose/e2e.yml` overlay swaps named volumes for tmpfs for
+> ephemeral e2e runs. The `learnstack-hub` compose overlay remains deferred
+> (lives in the separate `learnstack-hub` repo per ADR-0019).
 >
-> **Packet 8 — CI baseline + seed (pending)**
-> GitHub Actions workflow (backend build + unit + arch + contract +
-> Testcontainers integration; frontend install + typecheck + build + lint +
-> component; OpenAPI breaking-change check; Lighthouse budget), `make seed`
-> with two demo tenants + platform admin, required status checks on `main`.
+> **Packet 8 — CI baseline + seed ✅**
+> `.github/workflows/ci.yml` with three required jobs — backend (build +
+> dotnet format verify + unit + architecture + contract), frontend
+> (typecheck + lint + build + Vitest), meta (broken-link sweep over
+> changed Markdown + `docs/analysis/` residual scan). Three scaffolded-but-
+> deferred jobs (`if: false`) wait for their owning phase: integration
+> tests (02a), OpenAPI diff (03), Lighthouse budget (04). `scripts/seed.sh`
+> verifies compose health + Keycloak realm readiness and prints the demo
+> credentials; the application-level tenant seeding (two demo tenants +
+> platform admin) is documented as a one-edit drop-in for Phase 02a when
+> the Tenancy module's DbContext lands. Branch-protection rules
+> (required-check names, approval count, signed-commits posture) live in
+> `.github/CONTRIBUTING.md` so GitHub Settings matches the corpus.
 
 ## Goal
 
