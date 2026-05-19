@@ -50,6 +50,7 @@ Every request, job, event handler carries:
 | `span_id` | OTel | Per operation |
 | `correlation_id` | Per request | Stable across retries; equals trace id at request boundary |
 | `tenant_id` | Resolved tenant | Always present where applicable |
+| `organization_id` | Resolved organization | Present where the resource is `[OrganizationScoped]` (per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)); nullable for tenant-wide resources |
 | `user_id` | Authenticated user | Present where applicable |
 | `module` | Logical module | `education`, `classroom`, etc. |
 | `request_path` | HTTP route template | Not the raw URL |
@@ -153,10 +154,15 @@ Required (auto-enriched by `TenantContextSpanProcessor`):
 The `TenantContextSpanProcessor : BaseProcessor<Activity>` is registered
 once at the composition root (per
 [ADR-0032 § Sub-decision 10](../decisions/0032-exception-handling-logging-and-observability.md));
-its `OnStart` hook reads `ITenantContext` and tags every span — including
-spans produced by auto-instrumentation libraries (EF Core, HttpClient,
-Valkey via Dapr, SeaweedFS S3 SDK, LiveKit) — without per-call enrichment.
-Modules never call `Activity.Current?.SetTag("tenant.id", ...)` themselves.
+its `OnStart` hook reads from the singleton `ITenantContextAccessor`
+(AsyncLocal-backed) and tags every span — including spans produced by
+auto-instrumentation libraries (EF Core, HttpClient, Valkey via Dapr,
+SeaweedFS S3 SDK, LiveKit) — without per-call enrichment. The accessor is
+populated at scope start by `TenantResolverMiddleware` (HTTP),
+`HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
+(background jobs), and the outbox / inbox handler scope (integration
+events). Modules never call `Activity.Current?.SetTag("tenant.id", ...)`
+themselves.
 
 Common (set by the respective auto-instrumentation library):
 - `http.method`, `http.route`, `http.status_code`.

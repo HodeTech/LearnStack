@@ -191,7 +191,7 @@ The pipeline does **not** include a separate `ExceptionHandlingBehavior`.
 together cover every exception path; a third behavior would duplicate the
 responsibility.
 
-Architecture test `Pipeline_Order_Matches_ADR_0032` asserts the DI
+Architecture test `MediatR_Pipeline_Order_Matches_Canonical_Sequence` asserts the DI
 registration order at startup; the test fails the build if any behavior is
 missing, reordered, or duplicated.
 

@@ -114,7 +114,24 @@ builder.Host.UseSerilog((ctx, services, cfg) => cfg
 [ADR-0032 § Sub-decision 8](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)
 forbids it.
 
-### Step 4: Wire OpenTelemetry tracing + metrics
+### Step 4: Register `ITenantContextAccessor` (singleton, AsyncLocal-backed)
+
+Per [ADR-0032 § Sub-decision 10](../../../docs/decisions/0032-exception-handling-logging-and-observability.md),
+OTel processors are singletons — they cannot inject the request-scoped
+`ITenantContext` directly. Register the singleton accessor *before* the OTel
+pipeline so `TenantContextSpanProcessor` can resolve it:
+
+```csharp
+services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+```
+
+`TenantContextAccessor` carries an `AsyncLocal<ITenantContext?>` field. The
+following sites populate it at scope start: `TenantResolverMiddleware`
+(HTTP), `HubCorrelationMiddleware` (`/api/internal/*`), Hangfire
+`JobActivator` (background jobs), outbox / inbox handler scope (integration
+events). Modules never write to the accessor.
+
+### Step 5: Wire OpenTelemetry tracing + metrics
 
 ```csharp
 services
@@ -127,7 +144,7 @@ services
         .AddHttpClientInstrumentation()
         .AddEntityFrameworkCoreInstrumentation()
         .AddSource("LearnStack.*")                    // every module's manual ActivitySource
-        .AddProcessor<TenantContextSpanProcessor>()   // ADR-0032 § Sub-decision 10
+        .AddProcessor<TenantContextSpanProcessor>()   // singleton; reads ITenantContextAccessor
         .AddOtlpExporter(o =>
         {
             o.Endpoint = new Uri(builder.Configuration["Telemetry:OtlpEndpoint"]!);
@@ -147,7 +164,7 @@ services
 For `DeploymentMode.SelfHostedAirGapped`, swap `AddOtlpExporter` for the
 file exporter pointing at `/var/learnstack/otel/`.
 
-### Step 5: Register `IErrorTrackingProvider`
+### Step 6: Register `IErrorTrackingProvider`
 
 In `LearnStack.Infrastructure.ErrorTracking` add the three implementations
 and the composition-root extension:
@@ -164,7 +181,7 @@ public static IServiceCollection AddErrorTracking(
         DeploymentMode.SelfHostedOnline      => CreateSentryOrNoOp(sp, config),
         DeploymentMode.SelfHostedAirGapped   => new LocalFileErrorTracker(
             config["ErrorTracking:LocalFile:Directory"]!),
-        _ => throw new UnreachableException($"DeploymentMode {mode}")
+        _ => throw new System.Diagnostics.UnreachableException($"DeploymentMode {mode}")
     });
     return services;
 }
@@ -173,7 +190,7 @@ public static IServiceCollection AddErrorTracking(
 Modules never reference `Sentry.SentrySdk`. The architecture test
 `Modules_Do_Not_Reference_Sentry_SDK_Directly` enforces it.
 
-### Step 6: Register the L1 `IExceptionHandler`
+### Step 7: Register the L1 `IExceptionHandler`
 
 ```csharp
 services.AddProblemDetails();
@@ -188,7 +205,7 @@ and dispatches to `IErrorTrackingProvider.CaptureAsync` only when
 `ShouldCapture(ex)` returns true (see
 [09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](../../../docs/standards/09-error-handling.md)).
 
-### Step 7: Register the MediatR pipeline (8 behaviors in order)
+### Step 8: Register the MediatR pipeline (8 behaviors in order)
 
 ```csharp
 services.AddMediatR(cfg =>
@@ -196,7 +213,7 @@ services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssemblyContaining<AssemblyMarker>();
 
     // Order matters — outermost first, innermost last.
-    // Architecture test Pipeline_Order_Matches_ADR_0032 enforces this.
+    // Architecture test MediatR_Pipeline_Order_Matches_Canonical_Sequence enforces this.
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuditLogBehavior<,>));
@@ -211,7 +228,7 @@ Do **not** add an `ExceptionHandlingBehavior`. The `AuditLogBehavior` catches
 handler exceptions, writes the failure audit, and rethrows via
 `ExceptionDispatchInfo`; the L1 `IExceptionHandler` is the final catch site.
 
-### Step 8: Register the `IProviderResilience<TPort>` extension
+### Step 9: Register the `IProviderResilience<TPort>` extension
 
 In `LearnStack.Infrastructure.Resilience`:
 
@@ -236,7 +253,7 @@ The composition root calls this extension once per provider port (see
 [add-provider-adapter](../add-provider-adapter/SKILL.md) for the per-adapter
 work).
 
-### Step 9: Wire `Result<T>.ToActionResult()` extension
+### Step 10: Wire `Result<T>.ToActionResult()` extension
 
 In `LearnStack.Api.Common`:
 
@@ -263,7 +280,7 @@ public async Task<IActionResult> Create(CreateCourseCommand cmd, CancellationTok
 
 No action filter, no `ResultUnwrapBehavior`. Explicit beats magic.
 
-### Step 10: Add the Roslyn analyzer
+### Step 11: Add the Roslyn analyzer
 
 The `LearnStackException-DomainExceptionThrow` analyzer lives in
 `backend/analyzers/` and ships as a NuGet package referenced by
@@ -271,7 +288,7 @@ The `LearnStackException-DomainExceptionThrow` analyzer lives in
 `<PackageReference Include="LearnStack.Analyzers" ... />`. Severity:
 Warning in Phase 02a, escalates to Error after Phase 03 exit.
 
-### Step 11: Register module services last
+### Step 12: Register module services last
 
 Each module's `IModule` registration runs **after** the foundation is in
 place, so behaviors and instrumentation are already wired before
@@ -292,7 +309,7 @@ services
 - `dotnet build` succeeds for `LearnStack.Api`.
 - Architecture tests pass:
   - `IExceptionHandler_Registered_AtStartup`
-  - `Pipeline_Order_Matches_ADR_0032`
+  - `MediatR_Pipeline_Order_Matches_Canonical_Sequence`
   - `ValidationBehavior_DoesNotThrow_ValidationException`
   - `OTel_Pipeline_Includes_TenantContextSpanProcessor`
   - `Logging_Goes_Through_Microsoft_Extensions_Logging`

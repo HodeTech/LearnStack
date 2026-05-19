@@ -5,6 +5,7 @@
 Accepted
 
 **Date:** 2026-05-20
+**Deciders:** @platform
 
 ## Decision Drivers
 
@@ -193,19 +194,28 @@ this ADR instead of redefining the rules.
    corresponding analyzer report is empty for the module.
 
 5. **Provider-adapter resilience uses Polly v8 `ResiliencePipeline` via
-   `IProviderResilience<TPort>`.** The composition root wires every adapter
-   (`LiveKitClient`, `StripePaymentClient`, `IyzicoPaymentClient`,
-   `MeilisearchClient`, `SeaweedFSStorageClient`, Hub HTTP clients, …) with a
-   pipeline carrying retry (exp backoff + jitter), circuit breaker, timeout,
-   and bulkhead policies declared in `appsettings.{env}.json` under the
-   `Resilience:<port-name>:` section. Adapters' only exception-related job is
-   translating provider SDK exceptions into the appropriate
-   `ProviderException` subclass (`LiveClassProviderException`,
-   `PaymentProviderException`, `StorageProviderException`, …). The
+   `IProviderResilience<TPort>`.** The composition root wires every
+   tenant-facing third-party adapter (`LiveKitClient`,
+   `StripePaymentClient`, `IyzicoPaymentClient`, `MeilisearchClient`,
+   `SeaweedFSStorageClient`, …) with a pipeline carrying retry (exp backoff
+   + jitter), circuit breaker, timeout, and bulkhead policies declared in
+   `appsettings.{env}.json` under the `Resilience:<port-name>:` section.
+   Adapters' only exception-related job is translating provider SDK
+   exceptions into the appropriate `ProviderException` subclass
+   (`LiveClassProviderException`, `PaymentProviderException`,
+   `StorageProviderException`, …). The
    `[add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)`
    skill walks the canonical wiring. Architecture test
    `Adapters_Wrap_Provider_Exceptions` asserts the SDK exception types never
-   leave `LearnStack.Infrastructure.<Adapter>` namespaces.
+   leave `LearnStack.Infrastructure.<Adapter>` namespaces. **Hub HTTP
+   clients (`IEntitlementProvider`, `IUsageReporter`, `IHubTenantSync`) are
+   excluded from this rule** — they have an additional mTLS + signed JWT +
+   HMAC wrapper per [ADR-0019](0019-learnstack-hub.md) and their resilience
+   policy lives inside that wrapper, defined by Phase 02c when the Hub
+   adapter itself lands. Re-introducing them into the standard
+   `IProviderResilience<TPort>` table would split their resilience
+   configuration across two files; the Hub-specific wrapper owns the policy
+   end-to-end.
 
 6. **Controller-to-Result mapping uses an explicit extension method.** The
    sanctioned shape:
@@ -222,22 +232,23 @@ this ADR instead of redefining the rules.
    explicit pattern keeps the diff under review honest and the debug
    experience straightforward.
 
-7. **Sentry-versus-OpenTelemetry error capture is partitioned, not duplicated.**
+7. **Sentry-versus-OpenTelemetry error capture is partitioned, not
+   duplicated.** Every failure tags its OTel span; **Sentry capture is
+   reserved for "something is wrong with our code or our infrastructure"**.
+   The pattern in short:
 
-   | Failure | OTel span | `IErrorTrackingProvider` (Sentry et al.) | Sentry rationale |
-   |---------|-----------|------------------------------------------|------------------|
-   | Unhandled `Exception` at L1 | `Activity.RecordException` + `SetStatus(Error)` | **Capture** | Unhandled = bug or infra; high-signal |
-   | `LearnStackException` subclass at L1 | `RecordException` + `SetStatus(Error)` | **Capture** | Same — these only leak from a layer that failed |
-   | `ProviderException` 5xx | `RecordException` + `SetStatus(Error)` | **Capture** | Upstream infra failure; Sentry release tag pinpoints |
-   | `ProviderException` 4xx | `SetStatus(Error)` only | **Skip** | Provider's user-error; not our bug |
-   | `Result.Fail(validation_failed)` | `SetStatus(Ok)` (200 OK on response = success at runtime) | **Skip** | Expected outcome; metric counter only |
-   | `Result.Fail(forbidden / not_found / concurrency_conflict / …)` | `SetStatus(Ok)` | **Skip** | Expected outcome; metric counter only |
-   | `Result.Fail(business_rule_violation)` | `SetStatus(Ok)` | **Skip** | Expected outcome; metric counter only |
-   | `OperationCanceledException` (client disconnect) | `SetStatus(Cancelled)` | **Skip** | Noise; not actionable |
+   - **Capture to `IErrorTrackingProvider`**: unhandled `Exception`,
+     `LearnStackException` subclasses at L1, `ProviderException` with
+     `IsClientError == false` (5xx upstream).
+   - **OTel span only (no Sentry)**: `ProviderException` with
+     `IsClientError == true` (4xx upstream), every `Result.Fail(...)`
+     outcome, `OperationCanceledException`.
 
-   The pattern: a "Sentry capture" is reserved for "something is wrong with
-   our code or our infrastructure". `Result.Fail` is the path for "we
-   correctly refused to proceed".
+   The full eight-row partition table — including the per-row `Activity`
+   status mapping and rationale — is authoritative in
+   [09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](../standards/09-error-handling.md);
+   keeping a second copy here would drift. The L1 handler's
+   `ShouldCapture(Exception ex)` switch implements the rule.
 
 8. **Serilog is the primary logger; logs reach OTel via the OTLP sink.** The
    composition root wires:
@@ -292,8 +303,18 @@ this ADR instead of redefining the rules.
             .AddOtlpExporter());
     ```
 
-    The processor reads from `ITenantContext` (request-scoped) and tags every
-    span created on the current `Activity` chain. Auto-instrumentation
+    Because OTel processors are singletons by SDK design, the processor reads
+    tenant context from **`ITenantContextAccessor`** — a singleton,
+    `AsyncLocal<T>`-backed accessor (analogous to `IHttpContextAccessor`) —
+    **not** from the request-scoped `ITenantContext` directly. The scoped
+    `ITenantContext` (handler-facing) and the singleton
+    `ITenantContextAccessor` (cross-cutting-infrastructure-facing) are two
+    contracts populated together: the `TenantResolverMiddleware` (HTTP), the
+    Hangfire `JobActivator` (background jobs), and the
+    integration-event-handler scope (outbox consumers) each set the accessor's
+    `AsyncLocal` value at scope start so any singleton (OTel processor,
+    Serilog enricher) can read the current tenant without a scope-validation
+    failure. Phase 02a ships both contracts together. Auto-instrumentation
     libraries (EF Core, HttpClient, Valkey via Dapr, …) need no per-call
     enrichment.
 
@@ -368,7 +389,7 @@ root's adapter table in [Standards 20 § Composition Root and Deployment Mode](.
 - **Standards 02 ↔ ADR-0016 ↔ Standards 09 ↔ Standards 10 collapse to one
   source of truth.** Each standard now cites this ADR for the cross-cutting
   rules instead of restating them.
-- **Architecture tests become writable.** `Pipeline_Order_Matches_ADR_0032`,
+- **Architecture tests become writable.** `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
   `Domain_Methods_Do_Not_Throw_For_Expected_Cases`,
   `Adapters_Wrap_Provider_Exceptions`,
   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
@@ -419,7 +440,7 @@ root's adapter table in [Standards 20 § Composition Root and Deployment Mode](.
 | Item | Owner | Architecture test |
 |---|---|---|
 | `LearnStackExceptionHandler : IExceptionHandler` | `LearnStack.Api` | `IExceptionHandler_Registered_AtStartup` |
-| MediatR pipeline order (8 behaviors) | `LearnStack.Application` | `Pipeline_Order_Matches_ADR_0032` |
+| MediatR pipeline order (8 behaviors) | `LearnStack.Application` | `MediatR_Pipeline_Order_Matches_Canonical_Sequence` |
 | `ValidationBehavior` returns `Result.Fail` | `LearnStack.Application` | `ValidationBehavior_DoesNotThrow_ValidationException` |
 | `AuditLogBehavior` catches + audits + rethrows via `ExceptionDispatchInfo` | `LearnStack.Infrastructure.Audit` | (covered by ADR-0016's `AuditLogBehavior_NeverBlocks_BusinessWrites`) |
 | `TenantContextSpanProcessor` registered on OTel tracing pipeline | `LearnStack.Infrastructure.Observability` | `OTel_Pipeline_Includes_TenantContextSpanProcessor` |
@@ -503,11 +524,14 @@ internal sealed class LearnStackExceptionHandler(
 ### `TenantContextSpanProcessor` shape
 
 ```csharp
-internal sealed class TenantContextSpanProcessor(ITenantContext context)
+internal sealed class TenantContextSpanProcessor(ITenantContextAccessor accessor)
     : BaseProcessor<Activity>
 {
     public override void OnStart(Activity activity)
     {
+        var context = accessor.Current;
+        if (context is null) return;        // outside any resolved scope; do not throw
+
         if (context.IsResolved)
         {
             activity.SetTag("tenant.id", context.TenantId);
@@ -517,15 +541,49 @@ internal sealed class TenantContextSpanProcessor(ITenantContext context)
                 activity.SetTag("user.id", userId);
         }
 
-        activity.SetTag("correlation.id", context.CorrelationId);
-        activity.SetTag("module", context.ModuleName);
+        if (context.CorrelationId is { } correlationId)
+            activity.SetTag("correlation.id", correlationId);
+        if (context.ModuleName is { } moduleName)
+            activity.SetTag("module", moduleName);
     }
 }
 ```
 
-`ITenantContext` is request-scoped; the processor is registered as singleton
-because `BaseProcessor<Activity>` does not need a per-request lifetime — it
-reads from the scoped context via `IServiceProvider`-backed resolution.
+`BaseProcessor<Activity>` is a singleton; injecting the **request-scoped**
+`ITenantContext` directly would fail at startup with "Cannot consume scoped
+service `ITenantContext` from singleton". The singleton accessor
+`ITenantContextAccessor` solves the lifetime mismatch:
+
+```csharp
+public interface ITenantContextAccessor
+{
+    ITenantContext? Current { get; set; }   // AsyncLocal<ITenantContext>-backed
+}
+
+internal sealed class TenantContextAccessor : ITenantContextAccessor
+{
+    private static readonly AsyncLocal<ITenantContext?> _current = new();
+    public ITenantContext? Current
+    {
+        get => _current.Value;
+        set => _current.Value = value;
+    }
+}
+```
+
+Population pattern, set at scope start:
+
+| Host | Where `accessor.Current` is set |
+|------|---------------------------------|
+| `LearnStack.Api` HTTP request | `TenantResolverMiddleware` reads JWT + host, builds `ITenantContext`, assigns to accessor |
+| Hangfire job | `JobActivator` reads `tenant_id` + `correlation_id` from payload, builds `ITenantContext`, assigns to accessor |
+| Integration-event handler | Outbox / inbox handler scope reads envelope, builds `ITenantContext`, assigns to accessor |
+| `/api/internal/*` | `HubCorrelationMiddleware` reads HMAC-verified envelope, builds `ITenantContext`, assigns to accessor |
+
+Phase 02a unit test
+`TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` asserts
+`OnStart` is safe to call before any scope has populated the accessor (the
+SDK creates and disposes warm-up `Activity` instances during startup).
 
 ### Configuration shape (`appsettings.json`)
 
@@ -539,8 +597,9 @@ reads from the scoped context via `IServiceProvider`-backed resolution.
     },
     "payment": { "...": "..." },
     "storage": { "...": "..." },
-    "search":  { "...": "..." },
-    "hub":     { "...": "..." }
+    "search":  { "...": "..." }
+    // Hub HTTP clients have their own resilience inside the mTLS + signed-JWT
+    // + HMAC wrapper per ADR-0019; not configured here. See Sub-decision 5.
   },
 
   "ErrorTracking": {

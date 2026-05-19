@@ -15,10 +15,10 @@ This standard contains the day-to-day rules.
 flowchart LR
   bug[Bug / infra failure] --> exc[Exception thrown]
   expected[Expected outcome] --> result["Result<T> returned"]
-  exc --> middleware[Global exception middleware]
-  result --> handler[Handler maps to ProblemDetails]
-  middleware --> problemDetails[Problem Details response]
-  handler --> problemDetails
+  exc --> l1[L1 IExceptionHandler]
+  result --> mapper["result.ToActionResult()"]
+  l1 --> problemDetails[Problem Details response]
+  mapper --> problemDetails
   problemDetails --> client[Client]
 ```
 
@@ -73,9 +73,14 @@ LearnStackException                  (base)
 │   ├── LiveClassProviderException
 │   ├── StorageProviderException
 │   └── ...
-├── TenantContextMissingException    (no tenant resolved where one is required)
-└── UnreachableException             (case branches that should be impossible)
+└── TenantContextMissingException    (no tenant resolved where one is required)
 ```
+
+For "case branches that should be impossible" use the BCL
+`System.Diagnostics.UnreachableException` (.NET 7+) directly — adding a
+custom subclass collides with the BCL name and forces every use site to
+disambiguate with `using` aliases. The L1 `IExceptionHandler` treats it the
+same as any unhandled exception (Sentry-captured, 500 Problem Details).
 
 Rules:
 - Throw `LearnStackException` subclasses, never raw `Exception`.
@@ -137,7 +142,7 @@ the two backends receive complementary signals:
 | `LearnStackException` subclass at L1 | `RecordException` + `SetStatus(Error)` | **Capture** | Leaked from a failing layer |
 | `ProviderException` with `IsClientError == false` (5xx upstream) | `RecordException` + `SetStatus(Error)` | **Capture** | Upstream infra failure |
 | `ProviderException` with `IsClientError == true` (4xx upstream) | `SetStatus(Error)` only | **Skip** | Provider's user-error; not our bug |
-| `Result.Fail(validation_failed / forbidden / not_found / ...)` | `SetStatus(Ok)` (the 200 response = success at runtime) | **Skip** | Expected outcome; metric counter only |
+| `Result.Fail(validation_failed / forbidden / not_found / ...)` | `SetStatus(Ok)` (runtime completed; HTTP response is the appropriate 4xx Problem Details) | **Skip** | Expected outcome; metric counter only |
 | `Result.Fail(business_rule_violation)` | `SetStatus(Ok)` | **Skip** | Expected outcome; metric counter only |
 | `OperationCanceledException` (client disconnect) | `SetStatus(Cancelled)` | **Skip** | Noise; not actionable |
 

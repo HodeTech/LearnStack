@@ -163,10 +163,20 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
   `AddProcessor<TenantContextSpanProcessor>` + `AddOtlpExporter`. Manual
   `ActivitySource` named per module (`learnstack.<module>`) for use-case
   spans.
+- **`ITenantContextAccessor`** (singleton, `AsyncLocal<ITenantContext?>`-backed)
+  lives in `LearnStack.SharedKernel` alongside the request-scoped
+  `ITenantContext`. The scoped interface is what handlers and services
+  inject; the singleton accessor is what cross-cutting infrastructure
+  (OTel processor, Serilog enricher, Sentry enricher) reads. The accessor
+  is populated at scope start by `TenantResolverMiddleware` (HTTP),
+  `HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
+  (background jobs), and the outbox / inbox handler scope (integration
+  events). Modules never write to the accessor.
 - **`TenantContextSpanProcessor : BaseProcessor<Activity>`** lives in
-  `LearnStack.Infrastructure.Observability`; reads from `ITenantContext` in
-  its `OnStart` hook and enriches every span with `tenant.id`,
-  `organization.id`, `user.id`, `module`, `correlation.id`.
+  `LearnStack.Infrastructure.Observability`; reads from
+  `ITenantContextAccessor.Current` in its `OnStart` hook and enriches every
+  span with `tenant.id`, `organization.id`, `user.id`, `module`,
+  `correlation.id`.
 - **`IErrorTrackingProvider` socket.** Three implementations land:
   `NoOpErrorTracker`, `SentryErrorTracker`, `LocalFileErrorTracker`.
   Composition root branches on `DeploymentMode`. DSN comes from
@@ -283,7 +293,7 @@ The architecture test project starts going green during this phase. Phase 02a co
   `No_Source_Folder_Named_Verticals`.
 - `IExceptionHandler_Registered_AtStartup` — every host registers
   `LearnStackExceptionHandler`.
-- `Pipeline_Order_Matches_ADR_0032` — DI registration produces the eight-step
+- `MediatR_Pipeline_Order_Matches_Canonical_Sequence` — DI registration produces the eight-step
   pipeline in the canonical order.
 - `ValidationBehavior_DoesNotThrow_ValidationException` — runtime assertion
   via an integration test that triggers a validation failure.

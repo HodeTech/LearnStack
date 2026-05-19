@@ -272,9 +272,15 @@ flowchart LR
 `TenantContextSpanProcessor` is the seam that lets auto-instrumentation
 library spans (HttpClient, EF Core, Valkey via Dapr, SeaweedFS S3 SDK,
 LiveKit) carry tenant attributes without per-call enrichment. The processor
-reads from `ITenantContext` resolved by the tenant middleware before MediatR
-ever runs, so every downstream span — even spans created by libraries the
-LearnStack codebase has no knowledge of — picks up the right tags.
+is a singleton (OTel SDK design); it reads from the singleton
+`ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed), which the
+tenant middleware populates at request start. The same accessor is set by
+the Hangfire `JobActivator` (background jobs), the outbox / inbox handler
+scope (integration events), and `HubCorrelationMiddleware`
+(`/api/internal/*`). Every downstream span — even spans created by libraries
+the LearnStack codebase has no knowledge of — picks up the right tags
+because the SDK runs the processor's `OnStart` hook synchronously inside the
+caller's async context.
 
 Sampling
 ([10-observability.md § Tracing](../standards/10-observability.md)) is
