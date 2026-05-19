@@ -55,7 +55,7 @@ recording / consent / cost-tracking story.
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
 | Kafka (KRaft) | `confluentinc/cp-kafka:8.2.1` | `localhost:9092` (in-cluster only — see note below) | none (`PLAINTEXT`, `authType: none`) |
-| kafka-ui | `ghcr.io/kafbat/kafka-ui:latest` | `localhost:8081` | open UI (dev only) |
+| kafka-ui | `ghcr.io/kafbat/kafka-ui:v1.5.0` | `localhost:8081` | open UI (dev only) |
 | Vault | `hashicorp/vault:1.21.4` | `localhost:8200` | root token `learnstack-dev-root-token` |
 | Dapr placement | `daprio/placement:1.17.7` | `localhost:50005` | — |
 | Dapr sidecar (api) | `daprio/daprd:1.17.7` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |

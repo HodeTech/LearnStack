@@ -19,7 +19,7 @@
   "quickLoginCheckMilliSeconds": 1000,
   "maxDeltaTimeSeconds": 43200,
   "failureFactor": 30,
-  "accessTokenLifespan": 3600,
+  "accessTokenLifespan": 1800,
   "accessTokenLifespanForImplicitFlow": 900,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
@@ -59,7 +59,7 @@
     {
       "clientId": "learnstack-api",
       "name": "LearnStack API (confidential service)",
-      "description": "Backend .NET API — confidential client. Standard flow + client_credentials (service account). Direct Access Grants (deprecated OIDC ROPC) disabled. webOrigins empty: the backend is not a browser-CORS surface (CORS is handled at apps/web + APISIX).",
+      "description": "Backend .NET API. Confidential client; standard flow + service-account. ROPC disabled, webOrigins empty. Dev posture (fullScopeAllowed=true) documented in infra/keycloak/README.md.",
       "enabled": true,
       "publicClient": false,
       "secret": "learnstack-api-dev-secret",
@@ -74,16 +74,15 @@
       "webOrigins": [],
       "protocol": "openid-connect",
       "attributes": {
-        "access.token.lifespan": "3600",
+        "access.token.lifespan": "1800",
         "pkce.code.challenge.method": "S256"
       },
-      "_devNote_fullScopeAllowed": "Kept true for dev simplicity so the service-account token carries every realm role automatically. Production realm provisioning (separate flow, not from this JSON) should set fullScopeAllowed=false + explicit scopeMappings per principle of least privilege.",
       "fullScopeAllowed": true
     },
     {
       "clientId": "learnstack-web",
       "name": "LearnStack Web (public PKCE)",
-      "description": "Next.js apps/web — public client, PKCE-enforced, no client secret. `fullScopeAllowed: true` kept for dev simplicity so demo users' tokens carry their realm roles without explicit scopeMappings; production realm provisioning should tighten this with explicit `defaultClientScopes`.",
+      "description": "Next.js apps/web. Public client, PKCE-enforced, no secret. Dev posture (fullScopeAllowed=true) documented in infra/keycloak/README.md.",
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,

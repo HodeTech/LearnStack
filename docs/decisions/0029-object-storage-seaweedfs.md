@@ -73,9 +73,10 @@ SaaS / Dedicated / SelfHosted). The S3 gateway exposes the same S3 API
 surface the MinIO-based adapter relied on, so adapter code remains
 unchanged in signature.
 
-Image: `chrislusf/seaweedfs:latest` (pinned to a specific tag per
-[Standards 12 § Image Conventions](../standards/12-infrastructure.md);
-the dev compose pins the current stable tag).
+Image: `chrislusf/seaweedfs:3.94` in dev (the current pinned tag in
+`infra/compose/dev.yml`); every environment carries an explicit tag per
+[Standards 12 § Image Conventions](../standards/12-infrastructure.md) —
+no environment uses `:latest`.
 
 This ADR **supersedes the storage choice in ADR-0002 only** — the rest of
 ADR-0002 (Postgres, Valkey, modular monolith) is unchanged.

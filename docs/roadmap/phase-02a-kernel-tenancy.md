@@ -74,8 +74,11 @@ Per [ADR-0015](../decisions/0015-api-gateway-apisix.md):
 - APISIX runs in standalone YAML-reload mode in dev `docker-compose.yml`.
 - `infra/apisix/config.yaml` ships with the plugin chain wired:
   `cors` → `jwt-auth` → `limit-req` → `proxy-rewrite` → `prometheus`.
-- A second route set guarded by `mtls` for the future `/api/internal/*` endpoints
-  (the endpoints themselves arrive in 02c but the gateway slot is reserved Day 1).
+- A second route set bound to a dedicated SSL object (mTLS in APISIX is SSL-object
+  config — `client.ca` / `client.depth` — not a route plugin) plus an `ip-restriction`
+  on the Hub egress range, reserved Day 1 for the future `/api/internal/*` endpoints
+  (the endpoints themselves arrive in 02c). The commented stub at the bottom of
+  `infra/apisix/apisix.yaml` documents the canonical shape.
 
 ### Tenancy Schema Foundations
 

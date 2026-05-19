@@ -43,6 +43,46 @@ The realm separation is a **hard architectural invariant** per
 The Phase 02b OIDC integration enforces this in code; the dev seed mirrors it
 in data (no shared users, no shared client IDs).
 
+## Dev-only client posture
+
+The realm JSONs keep `fullScopeAllowed: true` on every client for dev
+simplicity — service-account tokens (for `learnstack-api`) and user tokens
+(for `learnstack-web` / `learnstack-hub-web`) carry every realm role
+automatically, so demo flows work without per-client `defaultClientScopes`
+provisioning. **Production realm provisioning** (Terraform /
+keycloak-config-cli, not these JSONs) flips this:
+
+| Client | Type | Dev | Production target |
+|--------|------|-----|-------------------|
+| `learnstack-api` | confidential, service-account | `fullScopeAllowed: true`, `directAccessGrantsEnabled: false`, `webOrigins: []` | `fullScopeAllowed: false` + explicit `scopeMappings` (least-privilege) |
+| `learnstack-web` | public, PKCE | `fullScopeAllowed: true` | `fullScopeAllowed: false` + explicit `defaultClientScopes` listing the tenant-* roles only |
+| `learnstack-hub-web` | public, PKCE | `fullScopeAllowed: true` | `fullScopeAllowed: false` + explicit `defaultClientScopes` listing the hub-* roles only |
+
+These notes used to sit inline in each client's `description` field, but
+Keycloak's `CLIENT.DESCRIPTION` column is `varchar(255)` and the long
+inline notes broke realm import. The descriptions in the JSON now point
+back to this section.
+
+## Dev-only realm posture (tenant realm)
+
+The `learnstack` realm JSON carries permissive defaults so the demo flows
+work without operator intervention. Each of these defaults is **flipped**
+by the production realm-provisioning flow (Terraform / keycloak-config-cli),
+not by editing the dev JSON:
+
+| Attribute | Dev (`learnstack.json`) | Production target | Why dev value |
+|-----------|------------------------|-------------------|---------------|
+| `registrationAllowed` | `true` | `false` (invite-only) | Lets reviewers exercise the tenant sign-up flow against `localhost:3000` without seeding a user first. |
+| `verifyEmail` | `false` | `true` | Dev SMTP is Mailpit; flipping verification on would gate every demo on visiting `localhost:8025`. |
+| `accessTokenLifespan` | `1800` (matches `learnstack-hub`) | `900` recommended (≤ 15 min, refresh-token-driven) | Halves the round-trip churn of debug sessions; still short enough to surface refresh bugs. |
+| `bruteForceProtected` | `true` (same as prod) | `true` | No dev relaxation. |
+
+The `learnstack-hub` realm is **already** at the stricter posture
+(`registrationAllowed: false`, `verifyEmail: true`, `accessTokenLifespan: 1800`)
+because operators are seeded out-of-band per
+[ADR-0019](../../docs/decisions/0019-learnstack-hub.md). The tenant-realm
+fields above are the only intentional dev/prod deltas.
+
 ## MFA
 
 - `learnstack-hub` realm: `CONFIGURE_TOTP` declared as a required action so the

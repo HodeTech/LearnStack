@@ -38,7 +38,13 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # Postgres 18+ refuses any mount at `/var/lib/postgresql/data` — the
+      # entrypoint pre-check treats that path's existence (even when empty)
+      # as a legacy 16/17 layout and aborts (see docker-library/postgres
+      # PR #1259). The modern layout mounts the parent `/var/lib/postgresql`
+      # and lets the image place data at `/var/lib/postgresql/<major>/docker`
+      # under PGDATA's default, which is `pg_upgrade --link`-compatible.
+      - postgres-data:/var/lib/postgresql
       # First-boot init scripts (idempotent SQL). Creates the `keycloak`
       # database the Keycloak service uses; see the "Identity" section of
       # ../compose/README.md for the re-seed procedure.
@@ -100,9 +106,12 @@ services:
       # don't rebuild env vars). Production loads identities from Vault.
       - ../seaweedfs/s3-identities.json:/etc/s3-identities.json:ro
     healthcheck:
-      # The master HTTP API exposes /cluster/healthz; alpine-based
-      # SeaweedFS image ships wget.
-      test: ["CMD", "wget", "-qO-", "http://localhost:9333/cluster/healthz"]
+      # `127.0.0.1` (not `localhost`): SeaweedFS image's wget resolves
+      # `localhost` to `::1` first and does not fall back to IPv4, so a
+      # `localhost` probe gets connection-refused even though the master
+      # listens on 127.0.0.1:9333 + the container IP. `/cluster/healthz`
+      # is the master HTTP API readiness endpoint (SeaweedFS 3.x).
+      test: ["CMD-SHELL", "wget --spider -q -T 3 -t 1 http://127.0.0.1:9333/cluster/healthz"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -143,7 +152,10 @@ services:
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
+      # `127.0.0.1` (not `localhost`): the Meilisearch image resolves `localhost`
+      # to `::1` while the server listens only on IPv4 0.0.0.0:7700, so a
+      # `localhost` probe gets connection-refused even when the service is up.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7700/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -167,7 +179,6 @@ services:
       KC_DB_USERNAME: learnstack
       KC_DB_PASSWORD: learnstack
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
@@ -291,9 +302,11 @@ services:
 
   # Kafka UI — using the active community fork `kafbat/kafka-ui` because the
   # original `provectuslabs/kafka-ui` was abandoned (no release since
-  # 2024-04). The fork preserves the same env-var contract.
+  # 2024-04). The fork preserves the same env-var contract. Pinned per
+  # Standards 12 § Image Conventions (every dev image carries an explicit
+  # tag; bump deliberately, never let `:latest` drift).
   kafka-ui:
-    image: ghcr.io/kafbat/kafka-ui:latest
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
     container_name: learnstack-kafka-ui
     restart: unless-stopped
     environment:
@@ -414,15 +427,16 @@ services:
       - "9443:9443"       # HTTPS gateway (no cert in dev)
       - "9091:9091"       # Prometheus metrics
     healthcheck:
-      # The debian-based APISIX image ships curl; we hit the gateway port
-      # (a 404 is fine — it confirms nginx is listening). A 200 from a real
-      # route would require the .NET API host to be up, which is out of
-      # scope for this compose file.
-      test: ["CMD-SHELL", "curl -fsS -o /dev/null -w '%{http_code}' http://localhost:9080 | grep -E '^(200|404)$' || exit 1"]
+      # apache/apisix:3.16.0-debian ships NEITHER curl NOR wget (verified by
+      # inspecting the image). It does ship bash. The /dev/tcp pseudo-device
+      # is a bash builtin that opens a TCP connection — perfect lightweight
+      # listener probe. `127.0.0.1` (not `localhost`) avoids the IPv6 `::1`
+      # detour for the same reason as the seaweedfs / meilisearch probes.
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/9080"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 15s
+      start_period: 30s
 
 volumes:
   postgres-data:

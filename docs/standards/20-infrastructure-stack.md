@@ -145,9 +145,12 @@ Rules:
   4. `proxy-rewrite` / `request-id` (correlation id injection)
   5. `prometheus` (metrics export)
 - Hub-facing internal routes (`/api/internal/*`) live under a **separate APISIX
-  instance** (or a separate `route` set with `mtls` plugin) and require the mTLS client
-  certificate signed by the LearnStack-internal CA per
-  [ADR-0019](../decisions/0019-learnstack-hub.md).
+  instance** (or a separate route set bound to a dedicated SSL object that pins
+  `client.ca` to the LearnStack-internal CA — mTLS in APISIX is SSL-object config,
+  not a route plugin) plus a route-level `ip-restriction` for the Hub egress range;
+  the client certificate must be signed by that CA per
+  [ADR-0019](../decisions/0019-learnstack-hub.md). The commented `/api/internal/*`
+  stub in `infra/apisix/apisix.yaml` documents the canonical shape.
 - Gateway config lives in `infra/apisix/` as version-controlled YAML. Hot-reload via
   `apisix reload` after a config change; no in-place edit of running configs.
 

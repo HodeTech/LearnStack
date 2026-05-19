@@ -6,7 +6,10 @@
 [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
-[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md).
+[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
+[ADR-0029 Object Storage — SeaweedFS](../decisions/0029-object-storage-seaweedfs.md),
+[ADR-0030 Redis-Compatible Store — Valkey](../decisions/0030-redis-compatible-store-valkey.md),
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
 
 How LearnStack is built, packaged, deployed, configured, and observed at the
 infrastructure level. The application-code rules for the foundation building blocks
@@ -49,23 +52,30 @@ adapter table.
 
 ## Local Infrastructure (Docker Compose)
 
+Shipped in Phase 01 packets 1-6 (`infra/compose/dev.yml`):
+
 ```
 postgres                # PostgreSQL 18.x per ADR-0031
 valkey                  # Linux-Foundation BSD-3 fork of Redis 7.2.4 per ADR-0030
 seaweedfs               # single dev binary: master + volume + filer + S3 gateway per ADR-0029
 meilisearch
-keycloak                # two realms: learnstack + learnstack-hub
-livekit-server
-livekit-egress
-coturn
 mailpit
-otel-collector
-
+keycloak                # two realms: learnstack + learnstack-hub
+livekit                 # SFU (livekit-server image)
+coturn                  # TURN/STUN
+kafka                   # KRaft mode (no ZooKeeper) — Dapr pub/sub backend
+kafka-ui                # ghcr.io/kafbat fork (dev only)
+vault                   # Dapr secrets backend (dev mode)
 dapr-placement          # Dapr building blocks
 dapr-sidecar-api        # one sidecar per backend service
-kafka + kafka-ui        # Dapr pub/sub backend (kafka-ui = ghcr.io/kafbat fork)
-vault                   # Dapr secrets backend (dev mode)
 apisix                  # gateway in file-driven standalone (data_plane) mode — no etcd, no Admin API, no dashboard companion
+```
+
+Deferred — added by a later phase, not in the Phase 01 stack:
+
+```
+livekit-egress          # Phase 08c (recording / consent / cost model)
+otel-collector          # Phase 11 (Production hardening — observability stack)
 ```
 
 - Application projects run **outside** containers during active development; the Dapr
@@ -173,8 +183,11 @@ See [10-observability.md](10-observability.md).
 - TLS everywhere; HTTP → HTTPS redirect at the edge.
 - **APISIX is the only tenant-facing ingress** ([ADR-0015](../decisions/0015-api-gateway-apisix.md)).
   Direct ingress to backend pods is blocked by network policy.
-- The `/api/internal/*` route set is reachable only through a separate APISIX
-  route guarded by the `mtls` plugin, with the LearnStack-internal CA pinned.
+- The `/api/internal/*` route set is reachable only through an APISIX route bound
+  to an SSL object that pins the LearnStack-internal CA via `client.ca` /
+  `client.depth` (mTLS in APISIX is SSL-object config, not a route plugin), plus a
+  route-level `ip-restriction` constraint on the Hub egress range. See the commented
+  `/api/internal/*` stub in `infra/apisix/apisix.yaml` for the canonical shape.
 - Strict ingress rules; only documented ports open.
 - Private VPC for backend services; database, Valkey, Kafka, Vault not on public
   internet.
