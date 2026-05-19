@@ -39,7 +39,7 @@ flowchart TD
     Learner --> SFU["SFU Media Server"]
     Instructor --> SFU
     SFU --> Recording["Recording / Egress"]
-    Recording --> Storage["MinIO / S3"]
+    Recording --> Storage["SeaweedFS / S3"]
     Backend["LearnStack Backend"] --> Signaling
     Backend --> Storage
 ```

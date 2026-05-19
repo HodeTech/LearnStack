@@ -75,7 +75,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Live Attendance** | A computed or recorded record of who joined a Live Session, for how long, and in what role. |
 | **Live Session Material** | A file, link, or content entry attached to a Live Session and visible inside the classroom. |
 | **Live Session Event** | An append-only event emitted during a Live Session (join, leave, screen-share start, recording start, etc.). |
-| **Live Recording** | Metadata for a recording produced by the provider's egress pipeline. The file lives in MinIO / S3; LearnStack stores the metadata and consent state. |
+| **Live Recording** | Metadata for a recording produced by the provider's egress pipeline. The file lives in SeaweedFS / S3; LearnStack stores the metadata and consent state. |
 
 > **Cohort vs. Classroom vs. Live Session.** Cohort is a *group of people*. Live Session is a *scheduled event*. Live Room is the *runtime artifact* of a Live Session. Earlier drafts used `Classroom` for both group and runtime; the term `Classroom` is deprecated in favor of the explicit `Cohort` / `Live Session` / `Live Room` split.
 
@@ -194,7 +194,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Right to Erasure** | The user's right to have their personal data deleted, subject to retention exceptions (legal hold, financial records). |
 | **Anonymisation** | Replacement of PII fields with pseudonymous values; row stays for analytics / audit integrity. Distinct from soft delete and hard delete. |
 | **Consent Record** | An append-only per-purpose record (terms of service, recording, marketing). "Changing one's mind" creates a new record, never edits an old one. |
-| **Sub-processor** | A third-party service LearnStack uses to process tenant data (Keycloak, LiveKit, S3 / MinIO, email provider, ...). Changes require 30-day tenant notice. |
+| **Sub-processor** | A third-party service LearnStack uses to process tenant data (Keycloak, LiveKit, S3 / SeaweedFS, email provider, ...). Changes require 30-day tenant notice. |
 
 ## Audit
 

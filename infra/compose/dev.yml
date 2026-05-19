@@ -1,7 +1,7 @@
 # LearnStack — local dev infrastructure.
 #
 # Scope of THIS file (Phase 01 packets 1-6): the data-plane services
-# (Postgres / Redis / MinIO / Mailpit / Meilisearch), the self-hosted Keycloak
+# (Postgres / Redis / SeaweedFS / Mailpit / Meilisearch), the self-hosted Keycloak
 # identity provider (two realms), the live-media stack (LiveKit OSS + Coturn),
 # Kafka (KRaft) + kafka-ui, HashiCorp Vault (-dev mode), the Dapr sidecar +
 # placement (pub/sub + state + secrets building blocks per ADR-0014), and the
@@ -10,8 +10,9 @@
 # arrive in Phase-01 packets 7-8.
 #
 # Operational rules: Standards 12 § Local Infrastructure + Standards 20.
-# Tenant isolation in MinIO is enforced by key prefix (`{tenant_id}/...`) —
-# never bucket-per-tenant (Standards 12 § Object Storage Operations).
+# Tenant isolation in SeaweedFS S3 is enforced by key prefix
+# (`{tenant_id}/...`) — never bucket-per-tenant (Standards 12 § Object
+# Storage Operations).
 
 name: learnstack-dev
 
@@ -63,23 +64,39 @@ services:
       timeout: 3s
       retries: 10
 
-  minio:
-    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
-    container_name: learnstack-minio
+  # SeaweedFS replaces MinIO per ADR-0029. Single dev binary packs master
+  # + volume + filer + S3 gateway; production splits them per ADR-0029
+  # § Implementation Notes. The S3 gateway is port-mapped to the same
+  # host port (9000) MinIO used so any local script / env var / test
+  # fixture that hard-coded the S3 endpoint keeps working.
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.94
+    container_name: learnstack-seaweedfs
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      # Dev-only. Production credentials come from Vault via ISecretProvider.
-      MINIO_ROOT_USER: learnstack
-      MINIO_ROOT_PASSWORD: learnstack-dev-secret
-      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
+    command:
+      - server
+      - -dir=/data
+      - -master
+      - -volume
+      - -filer
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/s3-identities.json
+      - -metricsPort=9091
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # console
+      - "9000:8333"   # S3 API gateway (host:9000 matches the prior MinIO endpoint)
+      - "9001:8888"   # Filer UI (replaces the MinIO console)
+      - "9333:9333"   # Master HTTP API
+      - "8080:8080"   # Volume HTTP API
     volumes:
-      - minio-data:/data
+      - seaweedfs-data:/data
+      # Dev-only S3 identity (matches prior MinIO credentials so callers
+      # don't rebuild env vars). Production loads identities from Vault.
+      - ../seaweedfs/s3-identities.json:/etc/s3-identities.json:ro
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      # The master HTTP API exposes /cluster/healthz; alpine-based
+      # SeaweedFS image ships wget.
+      test: ["CMD", "wget", "-qO-", "http://localhost:9333/cluster/healthz"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -401,6 +418,6 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  minio-data:
+  seaweedfs-data:
   meilisearch-data:
   kafka-data:

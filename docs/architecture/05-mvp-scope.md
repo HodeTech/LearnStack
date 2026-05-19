@@ -121,7 +121,7 @@ customization aggregates are first-class in MVP:
 - Draft / published workflow with preview tokens.
 
 ### Media
-- Upload to MinIO via signed URLs.
+- Upload to SeaweedFS via signed URLs.
 - Asset metadata, folders, tags.
 - Image variants on upload.
 - Use assets inside content and page blocks.

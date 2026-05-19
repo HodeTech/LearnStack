@@ -92,7 +92,7 @@ Walk every item in [CLAUDE.md § Hard rules](../../../CLAUDE.md) and
 - [ ] **Tenant + organization isolation defense-in-depth from day one** —
   marker + filter + RLS + arch test wherever a tenant-owned entity lands.
 - [ ] **Self-hosted infrastructure preferred** (Keycloak with two realms,
-  LiveKit OSS, MinIO, Meilisearch, Kafka, Vault).
+  LiveKit OSS, SeaweedFS, Meilisearch, Kafka, Vault).
 - [ ] **No domain-specific code in any module.** Domain shape = tenant data
   per ADR-0018.
 - [ ] **Foundation building blocks are Day-1.** Dapr / APISIX / audit

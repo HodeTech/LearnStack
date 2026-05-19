@@ -238,7 +238,7 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
   libraries for these three in application code.
 - Postgres is accessed directly (EF Core); Dapr's state-store sits on Redis, not
   Postgres.
-- MinIO is accessed via the configured S3-compatible client (no Dapr binding).
+- SeaweedFS is accessed via the configured S3-compatible client (no Dapr binding).
 
 ## Forbidden
 

@@ -64,7 +64,7 @@ Budgets are reviewed quarterly against measured production metrics.
 ### Memory
 
 - Avoid loading whole result sets when streaming would do.
-- Stream large file uploads to MinIO/S3; never buffer the whole file in memory.
+- Stream large file uploads to SeaweedFS/S3; never buffer the whole file in memory.
 - Avoid string concatenation in tight loops; use `StringBuilder` or pooled buffers.
 
 ## Frontend Rules

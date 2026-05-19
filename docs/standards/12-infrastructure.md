@@ -52,7 +52,7 @@ adapter table.
 ```
 postgres
 redis
-minio + minio-console
+seaweedfs               # single dev binary: master + volume + filer + S3 gateway
 meilisearch
 keycloak                # two realms: learnstack + learnstack-hub
 livekit-server
@@ -136,7 +136,7 @@ Rules:
 
 ## Object Storage Operations
 
-- MinIO local; S3-compatible cloud storage in production.
+- SeaweedFS local; S3-compatible cloud storage in production.
 - One bucket per environment; tenant isolation enforced by key prefix (`{tenant_id}/...`). Bucket-per-tenant is not used. See [Media Pipeline § Key Layout](../architecture/16-media-pipeline.md) and [Tenant Isolation](../architecture/09-tenant-isolation.md).
 - Lifecycle policies for recording retention.
 - Cross-region replication for production buckets (optional, behind ADR).
@@ -194,7 +194,7 @@ See [10-observability.md](10-observability.md).
 | Kafka (per broker) | 2 vCPU | 4 GB | 3-broker cluster baseline |
 | Vault | 1 vCPU | 1 GB | HA mode in production (3 nodes) |
 | APISIX | 1 vCPU | 1 GB | autoscale 2–4 |
-| MinIO | 2 vCPU | 4 GB | scaled by storage tier |
+| SeaweedFS | 2 vCPU | 4 GB | scaled by storage tier |
 | LiveKit SFU | 2 vCPU | 4 GB | per 250 concurrent participants |
 | LiveKit Egress | 2 vCPU | 4 GB | per ~1.5 concurrent recordings |
 | coturn | 1 vCPU | 1 GB | bandwidth-bound |

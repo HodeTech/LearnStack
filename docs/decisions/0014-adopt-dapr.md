@@ -33,7 +33,7 @@ LearnStack is a modular monolith multi-tenant PaaS for education. It needs:
 - Cross-module integration events with at-least-once delivery, durable replay, multi-tenant
   fan-out. The outbox pattern (ADR-0010, ADR-0006) requires a dispatch target.
 - Distributed cache (L2) on top of in-process memory cache (L1) for tenant-scoped reads.
-- Secret access for Keycloak admin credentials, MinIO access keys, LiveKit API secrets,
+- Secret access for Keycloak admin credentials, SeaweedFS access keys, LiveKit API secrets,
   Stripe/Iyzico API keys, exchange rate API keys, etc.
 
 The platform plans triple deployment (SaaS / Dedicated / Self-Hosted; ADR-0020). All three

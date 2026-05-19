@@ -53,7 +53,7 @@ The full integration arrives in Phase 08c. Summary:
   key above; tokens scoped per `(tenant_id, session_id, user_id)` with a
   short TTL.
 - **Recording** consumes LiveKit Egress (separate service, lands in
-  Phase 08c) writing to MinIO via the existing storage provider abstraction.
+  Phase 08c) writing to SeaweedFS via the existing storage provider abstraction.
   Recording is **tenant-configurable** and **consent-aware** per ADR-0005 +
   [16-media-pipeline.md](../../docs/architecture/16-media-pipeline.md).
 - **Cost metrics** (participant minutes, bandwidth, recording minutes)

@@ -15,7 +15,7 @@ eventing → secrets → Dapr sidecar → gateway). Packets 1-6 shipped; packets
 |---------|-------|----------------|---------------------|
 | PostgreSQL 16 | `postgres:16.14-alpine` | `localhost:5432` | `learnstack` / `learnstack` |
 | Redis 7 | `redis:7.4-alpine` | `localhost:6379` | — |
-| MinIO | `minio/minio:RELEASE.2025-01-20T14-49-07Z` | `localhost:9000` (S3), `localhost:9001` (console) | `learnstack` / `learnstack-dev-secret` |
+| SeaweedFS | `chrislusf/seaweedfs:3.94` | `localhost:9000` (S3), `localhost:9001` (filer UI), `localhost:9333` (master) | S3 access `learnstack` / secret `learnstack-dev-secret` |
 | Mailpit | `axllent/mailpit:v1.29.7` | `localhost:1025` (SMTP), `localhost:8025` (UI) | accepts any auth |
 | Meilisearch | `getmeili/meilisearch:v1.44.0` | `localhost:7700` | master key `learnstack-dev-master-key` |
 
@@ -108,12 +108,18 @@ The shared credentials above are checked into the repo intentionally — they ar
 from Vault via `ISecretProvider` (Standards 12 § Secrets Management; Standards
 20). Do not reuse these strings anywhere except local Docker.
 
-### Tenant isolation in MinIO
+### Tenant isolation in SeaweedFS S3
 
 Tenant isolation in object storage is enforced by **key prefix**
 (`{tenant_id}/...`), never bucket-per-tenant — see Standards 12 § Object
 Storage Operations and [docs/architecture/16-media-pipeline.md](../../docs/architecture/16-media-pipeline.md).
-A single bucket per environment is created at first use.
+A single bucket per environment is created at first use by the
+`IStorageProvider` adapter. The rule is backend-independent — it
+applied to MinIO, it applies to SeaweedFS, it will apply to any future
+S3-compatible swap-in.
+
+See [../seaweedfs/README.md](../seaweedfs/README.md) for the SeaweedFS-
+specific dev access surface (filer UI, S3 identity config, re-seed).
 
 ## What this file deliberately does NOT bring up yet
 

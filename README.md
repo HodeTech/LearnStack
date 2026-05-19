@@ -20,7 +20,7 @@ Dedicated control plane, plan editor, custom-domain admin, and license-key issua
 Phase 01 in progress. The repository now holds the .NET 10 solution scaffold
 (7 modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
 architecture test), the `pnpm` frontend monorepo (`apps/web` + `packages/{config,ui,sdk}`),
-and the core local-dev `docker-compose` stack (Postgres / Redis / MinIO / Mailpit /
+and the core local-dev `docker-compose` stack (Postgres / Redis / SeaweedFS / Mailpit /
 Meilisearch). Keycloak, LiveKit, Kafka, Vault, Dapr, APISIX, `make` targets, and
 CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
 
@@ -35,7 +35,7 @@ CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository
   [ADR-0014](docs/decisions/0014-adopt-dapr.md).
 - **API Gateway:** **APISIX** in standalone YAML-reload mode per
   [ADR-0015](docs/decisions/0015-api-gateway-apisix.md).
-- **Object storage:** MinIO locally, S3-compatible storage in production.
+- **Object storage:** SeaweedFS locally, S3-compatible storage in production.
 - **Search:** Meilisearch initially.
 - **Frontend:** Next.js 15 (App Router), TypeScript, React. **One** application
   (`apps/web`) with route segments for public, studio, and portal — multi-app split
@@ -57,7 +57,7 @@ CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository
 - **Live classroom:** In-app WebRTC; **self-hosted LiveKit OSS** is the default;
   LiveKit Cloud available behind the same `ILiveClassProvider` interface. A custom
   WebRTC SFU is explicitly out of scope.
-- **Recording:** Supported via LiveKit Egress to S3/MinIO; tenant-configurable;
+- **Recording:** Supported via LiveKit Egress to S3/SeaweedFS; tenant-configurable;
   consent-aware; off by default.
 - **Deployment:** Triple deployment model per
   [ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md) —

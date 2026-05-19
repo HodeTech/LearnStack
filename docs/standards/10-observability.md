@@ -99,7 +99,7 @@ Auto-instrument:
 - Hangfire job invocations.
 - Outbox dispatcher batches.
 - Redis client calls.
-- MinIO/S3 SDK calls.
+- SeaweedFS/S3 SDK calls.
 - LiveKit provider calls.
 
 Manual spans:

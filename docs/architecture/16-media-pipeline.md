@@ -18,14 +18,14 @@ Both share the same object storage and tenant-scoped key layout described below.
 
 ## Object Storage
 
-- **Local development**: MinIO running in Docker Compose, S3-compatible API.
-- **Production**: S3-compatible storage. Specific provider chosen per deployment (AWS S3, Backblaze B2, Wasabi, Cloudflare R2, MinIO on owned infrastructure). The provider choice is operational, not architectural — the application sees the S3 API.
+- **Local development**: SeaweedFS running in Docker Compose, S3-compatible API.
+- **Production**: S3-compatible storage. Specific provider chosen per deployment (AWS S3, Backblaze B2, Wasabi, Cloudflare R2, SeaweedFS on owned infrastructure). The provider choice is operational, not architectural — the application sees the S3 API.
 
 Buckets are per-environment, not per-tenant. Tenant isolation in storage is enforced by the key prefix and signed-URL scoping; bucket-per-tenant explodes operational complexity and is not used.
 
 ## Key Layout
 
-Per [09-tenant-isolation.md § Storage (MinIO)](09-tenant-isolation.md) the canonical
+Per [09-tenant-isolation.md § Storage (SeaweedFS)](09-tenant-isolation.md) the canonical
 key prefix is `tenants/{tenant_id}/...` (with `organizations/{org_id}/...` segment
 for org-scoped assets). The full key layout used by the media module:
 
@@ -59,7 +59,7 @@ Direct-to-S3 with a server-issued, scoped, time-limited PUT URL. The .NET API ne
 sequenceDiagram
     participant UI as Studio
     participant API as .NET API
-    participant S3 as S3 / MinIO
+    participant S3 as S3 / SeaweedFS
     participant W as Worker
 
     UI->>API: POST /v1/media/upload-intent (filename, mime, size)
@@ -152,7 +152,7 @@ CDN-cached URLs (the public mode) are versioned by content hash so cache invalid
 A CDN sits in front of the storage backend for public and tenant-scoped reads. The CDN:
 
 - Honours `Cache-Control` set by the API.
-- Honours signed URLs (CloudFront-style or signed-cookie equivalent for private content; for fully self-hosted MinIO the application proxies private reads via a short-lived URL with no CDN caching).
+- Honours signed URLs (CloudFront-style or signed-cookie equivalent for private content; for fully self-hosted SeaweedFS the application proxies private reads via a short-lived URL with no CDN caching).
 - Provides per-tenant access metrics (bytes served, request count) that feed into the analytics pipeline.
 
 ## Recordings (Live Classroom)
@@ -188,7 +188,7 @@ sequenceDiagram
     participant Portal
     participant API
     participant Provider as Live Provider
-    participant Storage as MinIO/S3
+    participant Storage as SeaweedFS/S3
 
     Learner->>Portal: Join recorded session
     Portal->>API: Request join token
@@ -267,4 +267,4 @@ A managed adapter takes over transcoding, manifest generation, and CDN; the Lear
 - **Re-encoding profile changes** invalidate previous variants. Source retention buys re-encode capability; the schedule for retention extension is a per-tenant configuration.
 - **MIME-type lying** — clients can claim a different MIME than the file body. Always re-detect after upload using a magic-byte check before processing.
 - **Public-bucket misconfiguration** — buckets are private by default; "public" assets are served by ACL on the object, not by making the bucket public. A `public-read` bucket is an operational red flag.
-- **Storage egress in self-hosted MinIO** — when MinIO runs on owned infrastructure, the bottleneck shifts to the colo's bandwidth. Plan capacity accordingly.
+- **Storage egress in self-hosted SeaweedFS** — when SeaweedFS runs on owned infrastructure, the bottleneck shifts to the colo's bandwidth. Plan capacity accordingly.

@@ -65,7 +65,7 @@ flowchart LR
 
     subgraph Infra
         REDIS[(Redis)]
-        S3[(S3 / MinIO)]
+        S3[(S3 / SeaweedFS)]
         TURN[Coturn TURN/STUN]
     end
 
@@ -87,7 +87,7 @@ The flow:
 2. LearnStack verifies enrollment / session permission and issues a **scoped, short-lived LiveKit join token**.
 3. The client connects to LiveKit OSS via WebRTC (`wss://livekit.<tenant-domain>`), using TURN relay only when direct connectivity is blocked.
 4. LiveKit emits webhooks (`participant_joined`, `track_published`, `room_finished`, etc.); LearnStack records them as `LiveSessionEvent` rows.
-5. Optional recording: LearnStack triggers a LiveKit Egress job; the Egress worker writes the composite recording to S3/MinIO, and LearnStack stores `LiveRecording` metadata.
+5. Optional recording: LearnStack triggers a LiveKit Egress job; the Egress worker writes the composite recording to S3/SeaweedFS, and LearnStack stores `LiveRecording` metadata.
 
 ## Provider-Agnostic Core
 
@@ -180,7 +180,7 @@ Defaults:
 - Recording is **off by default** at the tenant level.
 - A tenant administrator can enable it for the entire tenant, for a course, or for a specific session.
 - Composite (single-file) recording is the default mode. Track-based recording is available for advanced post-processing scenarios.
-- Recordings are written to S3/MinIO; retention defaults to **30 days** and is configurable per tenant up to a tenant-wide retention cap. See [16-media-pipeline.md](16-media-pipeline.md) § Recordings for the storage pipeline and [23-data-protection.md](23-data-protection.md) § Right to Erasure for deletion under KVKK / GDPR.
+- Recordings are written to S3/SeaweedFS; retention defaults to **30 days** and is configurable per tenant up to a tenant-wide retention cap. See [16-media-pipeline.md](16-media-pipeline.md) § Recordings for the storage pipeline and [23-data-protection.md](23-data-protection.md) § Right to Erasure for deletion under KVKK / GDPR.
 - Recordings require consent: the classroom UI shows a "Recording" indicator while active, and the tenant onboarding agreement covers consent.
 
 ## MVP Scope for the Classroom
@@ -215,7 +215,7 @@ A working self-hosted deployment needs:
 2. **Redis** — for multi-node coordination (single-node deployments can skip but multi-node needs it).
 3. **TURN server** — Coturn behind UDP/TCP ports, plus TLS for TURNS. Required for users behind restrictive NATs and corporate networks.
 4. **Egress workers** — separate containers, started on demand by LiveKit when a recording is requested.
-5. **Object storage** — S3 or MinIO with a `recordings/` bucket.
+5. **Object storage** — S3 or SeaweedFS with a `recordings/` bucket.
 6. **Monitoring** — LiveKit exports Prometheus metrics; Grafana dashboards are available upstream.
 7. **Webhooks** — `https://api.<domain>/webhooks/livekit` with HMAC signature verification.
 

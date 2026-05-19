@@ -242,7 +242,7 @@ This is the basis for the firm decision in [ADR 0005](../decisions/0005-live-cla
 - Each tenant can enable recording, with retention configurable up to a tenant-level cap.
 - Track classroom cost metrics (participant minutes, bandwidth, recording minutes, egress CPU) from the first production deployment. See [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md).
 - Default retention: 30 days. Long-term retention requires explicit tenant action.
-- Recording files live in S3/MinIO; metadata lives in PostgreSQL. Deletion is a two-step process.
+- Recording files live in S3/SeaweedFS; metadata lives in PostgreSQL. Deletion is a two-step process.
 - Bandwidth provider choice for the SFU node is a real architectural decision. Default to a bandwidth-friendly provider; only run the SFU on AWS/GCP when there is a regulatory or proximity reason.
 
 ## Recommendation

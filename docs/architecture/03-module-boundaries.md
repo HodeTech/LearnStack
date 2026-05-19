@@ -178,7 +178,7 @@ Per-tenant block shapes resolve through Tenant Customization
 (`TenantPageBlock`).
 
 ### Media
-Owns media assets, object storage metadata, file lifecycle, variants, asset access policies. Knows about MinIO/S3 via the storage provider adapter.
+Owns media assets, object storage metadata, file lifecycle, variants, asset access policies. Knows about SeaweedFS/S3 via the storage provider adapter.
 
 ### Education Catalog
 Owns programs, courses, course versions, categories, levels, tags, instructor profiles,
@@ -261,7 +261,7 @@ backend/
     LearnStack.Api/                       # ASP.NET host (single deployment unit)
     LearnStack.Application/               # composition root, MediatR pipeline
     LearnStack.Domain/                    # shared kernel domain pieces
-    LearnStack.Infrastructure/            # EF, Redis, MinIO, OpenTelemetry, Dapr wiring
+    LearnStack.Infrastructure/            # EF, Redis, SeaweedFS, OpenTelemetry, Dapr wiring
     LearnStack.Infrastructure.Audit/      # audit interceptor + state capture + MediatR behavior
     LearnStack.SharedKernel/              # ids, audit fields, errors, paging, IEventBus,
                                           # ICacheService, ISecretProvider, IEntitlementProvider

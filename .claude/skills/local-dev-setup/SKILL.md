@@ -2,7 +2,7 @@
 name: local-dev-setup
 description: >
   Bring up the LearnStack local stack — Postgres, Redis, Vault, Kafka, Dapr
-  sidecar, APISIX, Keycloak (two realms), MinIO, LiveKit OSS, Meilisearch — via
+  sidecar, APISIX, Keycloak (two realms), SeaweedFS, LiveKit OSS, Meilisearch — via
   `docker-compose` plus the project's `make dev` orchestrator. USE FOR: first-time
   workstation setup, restoring a broken local environment, switching between
   `DeploymentMode` for testing. DO NOT USE FOR: production deployment (separate
@@ -15,7 +15,7 @@ description: >
 ## Purpose
 
 Stand up a full LearnStack stack on a developer workstation so backend + frontend
-can run against real Postgres / Redis / Kafka / Vault / Keycloak / MinIO /
+can run against real Postgres / Redis / Kafka / Vault / Keycloak / SeaweedFS /
 LiveKit / Meilisearch / APISIX — the same components production uses
 ([12-infrastructure.md § Local Infrastructure](../../../docs/standards/12-infrastructure.md),
 [20-infrastructure-stack.md](../../../docs/standards/20-infrastructure-stack.md)).
@@ -103,7 +103,7 @@ The components and their default ports:
 | Kafka UI | 9094 | Optional UI for topics. |
 | Vault (dev mode) | 8200 | Secrets backend; `root` token, **not** for production. |
 | Keycloak | 8080 | Two realms: `learnstack` (tenants) + `learnstack-hub` (operators). |
-| MinIO | 9000 (API) / 9001 (console) | Object storage. |
+| SeaweedFS | 9000 (S3 API) / 9001 (filer UI) / 9333 (master) | Object storage (single dev binary: master + volume + filer + S3 gateway). |
 | Meilisearch | 7700 | Search. |
 | LiveKit | 7880 (API) / 7881 (TLS) / 7882 (RTC) | Live classroom. |
 | coturn | 3478 / 5349 | TURN for LiveKit. |
@@ -128,7 +128,7 @@ The first `make dev` run additionally:
 4. Seeds the two demo tenants' customization data (`TenantContentType`,
    `TenantPageBlock`, `TenantLevelTaxonomy`, …) so the page renderer has
    something to render.
-5. Creates the MinIO buckets.
+5. Creates the SeaweedFS buckets.
 6. Creates the Meilisearch indexes.
 
 For a clean re-seed:
@@ -150,8 +150,8 @@ curl -fsS http://localhost:9080/healthz | jq
 open http://localhost:8080/realms/learnstack/account
 open http://localhost:8080/realms/learnstack-hub/account
 
-# MinIO console
-open http://localhost:9001       # minioadmin / minioadmin
+# SeaweedFS filer UI (replaces the MinIO console of the prior stack)
+open http://localhost:9001       # S3 access: learnstack / learnstack-dev-secret
 
 # Web app
 open http://localhost:3000       # one of the demo tenants

@@ -31,7 +31,7 @@ architecture test) plus any other invariant the change touches. See
 - Outbox → consumer round-trip.
 - Audit-pipeline-writes-the-expected-row.
 - Provider-adapter contract test that talks to a containerised real provider
-  (LiveKit OSS, MinIO, Meilisearch).
+  (LiveKit OSS, SeaweedFS, Meilisearch).
 
 ## When not to use
 
@@ -45,7 +45,7 @@ architecture test) plus any other invariant the change touches. See
 |-------|----------|-------------|
 | Scenario | Yes | A short name + setup + act + assert. |
 | Seed | Yes | Minimum tenants / orgs / users / customization data the scenario needs. |
-| Required containers | Yes | Postgres always; add Redis / Kafka / Meilisearch / LiveKit / MinIO as needed. |
+| Required containers | Yes | Postgres always; add Redis / Kafka / Meilisearch / LiveKit / SeaweedFS as needed. |
 | Tenant context | Yes | Which tenant + org the act phase runs as. |
 
 ## Workflow

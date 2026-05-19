@@ -62,7 +62,7 @@ Recording is **opt-in**, off by default per tenant. The consent flow is part of 
 - Per-participant consent state captured before the room is joined; absence blocks the join.
 - Recording metadata persisted: storage key, duration, consent state, retention deadline.
 - Recording can be configured at policy / metadata level even when execution is disabled — for tenants that want the audit trail without the bandwidth.
-- LiveKit Egress writes the recording to S3 / MinIO; LearnStack does not transcode in this phase.
+- LiveKit Egress writes the recording to S3 / SeaweedFS; LearnStack does not transcode in this phase.
 
 ### Provider Webhooks
 
@@ -104,7 +104,7 @@ Failures at any layer produce a Problem Details response with a specific `code` 
 - Cross-tenant join attempt (identity `{tenantA}:{userId}` against a room owned by tenant B) is rejected.
 - Attendance reflects participant join/leave streams correctly across reconnections.
 - Recording cannot start without consent; consent state is recorded in `LiveRecording`.
-- Recording, when enabled, writes to S3 / MinIO with the correct key prefix.
+- Recording, when enabled, writes to S3 / SeaweedFS with the correct key prefix.
 - LiveKit provider webhook handler is signature-verified, idempotent, and tenant-scoped.
 
 ## Risks

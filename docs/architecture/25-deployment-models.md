@@ -66,7 +66,7 @@ Internet
    │
    ├──► PostgreSQL (managed, RLS policies enforced)
    ├──► Redis (managed, multi-tenant via key prefix)
-   ├──► MinIO (multi-tenant via key prefix)
+   ├──► SeaweedFS (multi-tenant via key prefix)
    ├──► Meilisearch (per-tenant filter + per-locale index)
    ├──► Keycloak (single realm with multi-tenant claims)
    ├──► LiveKit (shared SFU pool)
@@ -95,7 +95,7 @@ Internet
    │
    ├──► Dedicated PostgreSQL instance (no shared rows; still RLS-protected for org scope)
    ├──► Dedicated Redis instance
-   ├──► Dedicated MinIO instance
+   ├──► Dedicated SeaweedFS instance
    ├──► Dedicated Meilisearch
    ├──► Dedicated Keycloak realm (could be in shared Keycloak cluster with realm-per-tenant)
    ├──► Shared LiveKit pool (with per-tenant resource caps) OR dedicated SFU
@@ -118,7 +118,7 @@ Internet
    │
    ├──► PostgreSQL (customer-managed)
    ├──► Redis (customer-managed)
-   ├──► MinIO or S3-compatible (customer-managed)
+   ├──► SeaweedFS or S3-compatible (customer-managed)
    ├──► Meilisearch (customer-managed)
    ├──► Keycloak (customer-managed; LearnStack ships pre-configured realm export)
    ├──► LiveKit (customer-managed OR fall back to LiveKit Cloud)

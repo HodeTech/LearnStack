@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "learnstack-dev",
+      "credentials": [
+        {
+          "accessKey": "learnstack",
+          "secretKey": "learnstack-dev-secret"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

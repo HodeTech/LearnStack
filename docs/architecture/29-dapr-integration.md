@@ -137,7 +137,7 @@ Secret path schema:
 secret/learnstack/postgres            connection-string, ssl-cert
 secret/learnstack/redis               password
 secret/learnstack/keycloak            base-url, admin-username, admin-password
-secret/learnstack/minio               endpoint, access-key, secret-key
+secret/learnstack/seaweedfs               endpoint, access-key, secret-key
 secret/learnstack/meilisearch         master-key, public-key
 secret/learnstack/livekit             api-key, api-secret, ws-url
 secret/learnstack/coturn              shared-secret

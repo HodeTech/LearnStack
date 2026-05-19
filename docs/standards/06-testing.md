@@ -11,7 +11,7 @@ Test pyramid, conventions, and what every change must cover.
 flowchart TB
   e2e[End-to-end / Playwright<br/>handful of golden flows]
   contract[Contract & API tests<br/>OpenAPI + provider fakes]
-  integration[Integration tests<br/>Testcontainers Postgres / Redis / MinIO]
+  integration[Integration tests<br/>Testcontainers Postgres / Redis / SeaweedFS]
   arch[Architecture tests<br/>module boundaries + tenant invariants]
   unit[Unit tests<br/>domain + application + UI logic]
 
@@ -39,7 +39,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 
 ### Integration Tests
 
-- Real Postgres + Redis + MinIO via Testcontainers.
+- Real Postgres + Redis + SeaweedFS via Testcontainers.
 - One Postgres database per test class (or Respawn between tests).
 - Real module configuration; no mocked repositories.
 - Cover happy path, edge cases, and **every tenant-isolation invariant**.

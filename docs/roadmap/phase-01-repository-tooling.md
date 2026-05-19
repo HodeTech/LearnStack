@@ -21,7 +21,7 @@
 > `pnpm-lock.yaml` committed; `postinstall` hook stubs `.next/types/routes.d.ts`.
 >
 > **Packet 3 — Core dev compose ✅**
-> `infra/compose/dev.yml` with PostgreSQL 16, Redis 7, MinIO + console, Mailpit
+> `infra/compose/dev.yml` with PostgreSQL 16, Redis 7, SeaweedFS + console, Mailpit
 > (binary `readyz` healthcheck), Meilisearch — pinned tags, healthchecks,
 > named volumes, dev-only credential banners.
 >
@@ -161,7 +161,7 @@ Docker Compose under `infra/compose/`:
 
 - PostgreSQL 16.
 - Redis 7.
-- MinIO + MinIO console.
+- SeaweedFS + SeaweedFS console.
 - Mailpit (outbound email).
 - Meilisearch.
 - LiveKit OSS + Coturn (for in-app classroom development).
@@ -204,7 +204,7 @@ Two compose files:
 
 - Working backend solution scaffolded with modular layout.
 - Working frontend workspace with the single Next.js app.
-- Local Docker Compose infrastructure with PostgreSQL, Redis, MinIO, Mailpit, Meilisearch, LiveKit, Coturn, Keycloak.
+- Local Docker Compose infrastructure with PostgreSQL, Redis, SeaweedFS, Mailpit, Meilisearch, LiveKit, Coturn, Keycloak.
 - Initial CI pipeline.
 - Local development documentation.
 - `make seed` populating two demo tenants + one platform admin user.
@@ -213,7 +213,7 @@ Two compose files:
 
 - A new developer can clone the repository and start the local environment by following one document.
 - Backend API responds on `GET /healthz`.
-- PostgreSQL, Redis, MinIO, LiveKit, Coturn, Keycloak all run locally via compose.
+- PostgreSQL, Redis, SeaweedFS, LiveKit, Coturn, Keycloak all run locally via compose.
 - Frontend builds and serves the three route segments.
 - CI passes on `main`.
 - The architecture-test project is set up and green even before domain features exist.
