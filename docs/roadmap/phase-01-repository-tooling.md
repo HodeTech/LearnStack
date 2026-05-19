@@ -32,8 +32,10 @@
 > init script provisions the Keycloak DB on the first start of the
 > `postgres-data` volume.
 >
-> **Packet 5 — Live media (pending)**
-> LiveKit OSS + Coturn in dev compose.
+> **Packet 5 — Live media ✅**
+> LiveKit OSS v1.8.0 + Coturn 4.6 in dev compose with the dev key/secret pair
+> the eventual `ILiveClassProvider` adapter (Phase 08c) will sign tokens with.
+> Configs at `infra/livekit/livekit.yaml` and `infra/coturn/turnserver.conf`.
 >
 > **Packet 6 — Eventing + secrets + gateway (pending)**
 > Kafka + kafka-ui, Vault (dev mode), Dapr sidecar + placement, APISIX

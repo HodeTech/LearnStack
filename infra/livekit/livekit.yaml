@@ -1,0 +1,44 @@
+# LiveKit OSS — dev config.
+# Per ADR-0005, LiveKit is the preferred SFU; self-hosted OSS is the default
+# supported path. The .NET application talks to LiveKit through the
+# `ILiveClassProvider` abstraction (Phase 08c) — never imports the LiveKit
+# server SDK directly.
+#
+# Dev-only keys + secrets. Production replaces these with values fetched
+# from Vault via ISecretProvider per Standards 12 § Secrets Management.
+
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  # Dev: machine has no stable external IP; bind to loopback for now.
+  # Production sets `use_external_ip: true` so LiveKit auto-discovers the
+  # node's public IP for ICE candidates.
+  use_external_ip: false
+  port_range_start: 50000
+  port_range_end: 50100
+
+# Dev API key + secret. The secret MUST be >= 32 bytes (LiveKit hard rule);
+# the value below is padded to satisfy that and is checked into git only
+# because this file is the dev compose config.
+keys:
+  devkey: devsecret-32-byte-min-length-padding-xyz
+
+turn:
+  enabled: true
+  domain: localhost
+  tls_port: 7882
+  udp_port: 3478
+  # No TLS cert in dev — LiveKit OSS supports plain TURN listeners on the
+  # configured ports without a cert pair. Production wires Let's Encrypt
+  # through the same provider adapter family APISIX uses (ADR-0022).
+
+room:
+  auto_create: true
+  empty_timeout: 300
+  departure_timeout: 20
+  max_participants: 50
+
+logging:
+  level: info
+  json: false

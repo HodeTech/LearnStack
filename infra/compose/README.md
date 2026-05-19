@@ -6,8 +6,7 @@ Compose stacks for local development. Operational rules live in
 ## `dev.yml`
 
 Services in order they appear in `dev.yml` (data plane → identity → media →
-eventing+secrets → gateway). Packets 1-4 shipped; 5-6 land in subsequent
-Phase-01 packets.
+eventing+secrets → gateway). Packets 1-5 shipped; packet 6 lands next.
 
 ### Data plane (Phase 01 packet 3)
 
@@ -38,6 +37,18 @@ the `keycloak` database on the first start of the `postgres-data` volume.
 Re-seeding the realm structure requires either `down -v` (wipes all volumes)
 or a manual `DROP DATABASE keycloak; CREATE DATABASE keycloak OWNER learnstack;`.
 
+### Live media (Phase 01 packet 5)
+
+| Service | Image | Local endpoint | Default credentials |
+|---------|-------|----------------|---------------------|
+| LiveKit OSS | `livekit/livekit-server:v1.8.0` | `ws://localhost:7880` (signaling), `tcp/7881` (TCP fallback), `tcp/7882` (TURN/TLS), `udp/50000-50100` (media) | API key `devkey` / secret `devsecret-32-byte-min-length-padding-xyz` |
+| Coturn | `coturn/coturn:4.6` | `udp+tcp/3478` (STUN/TURN), `tcp/5349` (TURN/TLS), `udp/49152-49200` (relay range) | TURN user `devuser` / password `devsecret` |
+
+LiveKit config at `infra/livekit/livekit.yaml`; Coturn config at
+`infra/coturn/turnserver.conf`. See [../livekit/README.md](../livekit/README.md)
+for the `ILiveClassProvider` integration plan (Phase 08c) + the
+recording / consent / cost-tracking story.
+
 ```bash
 docker compose -f infra/compose/dev.yml up -d
 docker compose -f infra/compose/dev.yml ps          # confirm healthchecks pass
@@ -64,7 +75,6 @@ A single bucket per environment is created at first use.
 Per the [Phase 01 plan](../../docs/roadmap/phase-01-repository-tooling.md),
 later packets land:
 
-- **LiveKit OSS** + **Coturn** (Phase 01 packet 5)
 - **Kafka** + **kafka-ui** (Dapr pub/sub backend; Phase 01 packet 6)
 - **Vault** (Dapr secret store, dev mode; Phase 01 packet 6)
 - **Dapr sidecar** + **placement service** (Phase 01 packet 6)

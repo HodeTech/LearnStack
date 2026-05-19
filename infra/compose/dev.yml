@@ -1,10 +1,10 @@
 # LearnStack — local dev infrastructure.
 #
-# Scope of THIS file (Phase 01 packets 1-4): the data-plane services + the
-# self-hosted Keycloak identity provider (two realms). LiveKit OSS, Coturn,
-# Kafka, Vault, the Dapr sidecar, and APISIX land in subsequent Phase-01
-# packets per the roadmap (docs/roadmap/phase-01-repository-tooling.md
-# § Local Infrastructure).
+# Scope of THIS file (Phase 01 packets 1-5): the data-plane services, the
+# self-hosted Keycloak identity provider (two realms), and the live media
+# stack (LiveKit OSS + Coturn). Kafka, Vault, the Dapr sidecar, and APISIX
+# land in subsequent Phase-01 packets per the roadmap
+# (docs/roadmap/phase-01-repository-tooling.md § Local Infrastructure).
 #
 # Operational rules: Standards 12 § Local Infrastructure + Standards 20.
 # Tenant isolation in MinIO is enforced by key prefix (`{tenant_id}/...`) —
@@ -155,6 +155,47 @@ services:
       timeout: 10s
       retries: 20
       start_period: 60s
+
+  # ---- Live media stack (Phase 01 packet 5) --------------------------------
+  # Self-hosted LiveKit OSS + Coturn for the in-app classroom (ADR-0005).
+  # The .NET app talks to LiveKit through the `ILiveClassProvider` abstraction
+  # (Phase 08c); the LiveKit SDK is never imported by any module — only by
+  # `LearnStack.Infrastructure.LiveClassroom.LiveKit`.
+  livekit:
+    image: livekit/livekit-server:v1.8.0
+    container_name: learnstack-livekit
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml", "--node-ip", "127.0.0.1", "--dev"]
+    volumes:
+      - ../livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"           # WebSocket signaling
+      - "7881:7881"           # TCP fallback
+      - "7882:7882/tcp"       # TURN/TLS
+      - "50000-50100:50000-50100/udp"  # WebRTC media plane
+    depends_on:
+      coturn:
+        condition: service_started
+    healthcheck:
+      # LiveKit serves a default 200 on `/` once the WebSocket listener is up.
+      # The image is alpine-based and ships wget.
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  coturn:
+    image: coturn/coturn:4.6
+    container_name: learnstack-coturn
+    restart: unless-stopped
+    command: ["-c", "/etc/turnserver.conf"]
+    volumes:
+      - ../coturn/turnserver.conf:/etc/turnserver.conf:ro
+    ports:
+      - "3478:3478/udp"               # STUN/TURN (UDP)
+      - "3478:3478/tcp"               # STUN/TURN (TCP)
+      - "5349:5349/tcp"               # TURN/TLS
+      - "49152-49200:49152-49200/udp" # TURN relay range (dev: narrow)
 
 volumes:
   postgres-data:
