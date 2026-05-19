@@ -1,0 +1,65 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LearnStack.SharedKernel/LearnStack.SharedKernel.csproj" />
+    <Project Path="src/LearnStack.Domain/LearnStack.Domain.csproj" />
+    <Project Path="src/LearnStack.Application.Contracts/LearnStack.Application.Contracts.csproj" />
+    <Project Path="src/LearnStack.Application/LearnStack.Application.csproj" />
+    <Project Path="src/LearnStack.Infrastructure/LearnStack.Infrastructure.csproj" />
+    <Project Path="src/LearnStack.Infrastructure.Audit/LearnStack.Infrastructure.Audit.csproj" />
+    <Project Path="src/LearnStack.Api/LearnStack.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Tenancy/">
+    <Project Path="src/Modules/Tenancy/LearnStack.Modules.Tenancy.Domain/LearnStack.Modules.Tenancy.Domain.csproj" />
+    <Project Path="src/Modules/Tenancy/LearnStack.Modules.Tenancy.Application.Contracts/LearnStack.Modules.Tenancy.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Tenancy/LearnStack.Modules.Tenancy.Application/LearnStack.Modules.Tenancy.Application.csproj" />
+    <Project Path="src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/LearnStack.Modules.Tenancy.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/LearnStack.Modules.Identity.Domain/LearnStack.Modules.Identity.Domain.csproj" />
+    <Project Path="src/Modules/Identity/LearnStack.Modules.Identity.Application.Contracts/LearnStack.Modules.Identity.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/LearnStack.Modules.Identity.Application/LearnStack.Modules.Identity.Application.csproj" />
+    <Project Path="src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure/LearnStack.Modules.Identity.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Customization/">
+    <Project Path="src/Modules/Customization/LearnStack.Modules.Customization.Domain/LearnStack.Modules.Customization.Domain.csproj" />
+    <Project Path="src/Modules/Customization/LearnStack.Modules.Customization.Application.Contracts/LearnStack.Modules.Customization.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Customization/LearnStack.Modules.Customization.Application/LearnStack.Modules.Customization.Application.csproj" />
+    <Project Path="src/Modules/Customization/LearnStack.Modules.Customization.Infrastructure/LearnStack.Modules.Customization.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Audit/">
+    <Project Path="src/Modules/Audit/LearnStack.Modules.Audit.Domain/LearnStack.Modules.Audit.Domain.csproj" />
+    <Project Path="src/Modules/Audit/LearnStack.Modules.Audit.Application.Contracts/LearnStack.Modules.Audit.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Audit/LearnStack.Modules.Audit.Application/LearnStack.Modules.Audit.Application.csproj" />
+    <Project Path="src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure/LearnStack.Modules.Audit.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Content/">
+    <Project Path="src/Modules/Content/LearnStack.Modules.Content.Domain/LearnStack.Modules.Content.Domain.csproj" />
+    <Project Path="src/Modules/Content/LearnStack.Modules.Content.Application.Contracts/LearnStack.Modules.Content.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Content/LearnStack.Modules.Content.Application/LearnStack.Modules.Content.Application.csproj" />
+    <Project Path="src/Modules/Content/LearnStack.Modules.Content.Infrastructure/LearnStack.Modules.Content.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Media/">
+    <Project Path="src/Modules/Media/LearnStack.Modules.Media.Domain/LearnStack.Modules.Media.Domain.csproj" />
+    <Project Path="src/Modules/Media/LearnStack.Modules.Media.Application.Contracts/LearnStack.Modules.Media.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Media/LearnStack.Modules.Media.Application/LearnStack.Modules.Media.Application.csproj" />
+    <Project Path="src/Modules/Media/LearnStack.Modules.Media.Infrastructure/LearnStack.Modules.Media.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Education/">
+    <Project Path="src/Modules/Education/LearnStack.Modules.Education.Domain/LearnStack.Modules.Education.Domain.csproj" />
+    <Project Path="src/Modules/Education/LearnStack.Modules.Education.Application.Contracts/LearnStack.Modules.Education.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Education/LearnStack.Modules.Education.Application/LearnStack.Modules.Education.Application.csproj" />
+    <Project Path="src/Modules/Education/LearnStack.Modules.Education.Infrastructure/LearnStack.Modules.Education.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LearnStack.Tests.Unit/LearnStack.Tests.Unit.csproj" />
+    <Project Path="tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj" />
+    <Project Path="tests/LearnStack.Tests.Architecture/LearnStack.Tests.Architecture.csproj" />
+    <Project Path="tests/LearnStack.Tests.Contract/LearnStack.Tests.Contract.csproj" />
+  </Folder>
+  <Folder Name="/solution-items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path=".editorconfig" />
+  </Folder>
+</Solution>

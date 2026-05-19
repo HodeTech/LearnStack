@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LearnStack.Modules.Content.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <ProjectReference Include="..\LearnStack.Modules.Content.Domain\LearnStack.Modules.Content.Domain.csproj" />
+    <ProjectReference Include="..\LearnStack.Modules.Content.Application.Contracts\LearnStack.Modules.Content.Application.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+</Project>

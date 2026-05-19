@@ -17,9 +17,12 @@ Dedicated control plane, plan editor, custom-domain admin, and license-key issua
 
 ## Status
 
-Pre-implementation. This repository currently holds the architecture, decisions,
-roadmap, and engineering standards that will guide the build. No application code
-exists yet.
+Phase 01 in progress. The repository now holds the .NET 10 solution scaffold
+(7 modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
+architecture test), the `pnpm` frontend monorepo (`apps/web` + `packages/{config,ui,sdk}`),
+and the core local-dev `docker-compose` stack (Postgres / Redis / MinIO / Mailpit /
+Meilisearch). Keycloak, LiveKit, Kafka, Vault, Dapr, APISIX, `make` targets, and
+CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
 
 ## Direction At A Glance
 

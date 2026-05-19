@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>LearnStack.Api</RootNamespace>
+    <UserSecretsId>learnstack-api-dev</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <ProjectReference Include="..\LearnStack.Application\LearnStack.Application.csproj" />
+    <ProjectReference Include="..\LearnStack.Application.Contracts\LearnStack.Application.Contracts.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure.Audit\LearnStack.Infrastructure.Audit.csproj" />
+
+    <ProjectReference Include="..\Modules\Tenancy\LearnStack.Modules.Tenancy.Application\LearnStack.Modules.Tenancy.Application.csproj" />
+    <ProjectReference Include="..\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\LearnStack.Modules.Identity.Application\LearnStack.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\Modules\Identity\LearnStack.Modules.Identity.Infrastructure\LearnStack.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Customization\LearnStack.Modules.Customization.Application\LearnStack.Modules.Customization.Application.csproj" />
+    <ProjectReference Include="..\Modules\Customization\LearnStack.Modules.Customization.Infrastructure\LearnStack.Modules.Customization.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Audit\LearnStack.Modules.Audit.Application\LearnStack.Modules.Audit.Application.csproj" />
+    <ProjectReference Include="..\Modules\Audit\LearnStack.Modules.Audit.Infrastructure\LearnStack.Modules.Audit.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Content\LearnStack.Modules.Content.Application\LearnStack.Modules.Content.Application.csproj" />
+    <ProjectReference Include="..\Modules\Content\LearnStack.Modules.Content.Infrastructure\LearnStack.Modules.Content.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Media\LearnStack.Modules.Media.Application\LearnStack.Modules.Media.Application.csproj" />
+    <ProjectReference Include="..\Modules\Media\LearnStack.Modules.Media.Infrastructure\LearnStack.Modules.Media.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Education\LearnStack.Modules.Education.Application\LearnStack.Modules.Education.Application.csproj" />
+    <ProjectReference Include="..\Modules\Education\LearnStack.Modules.Education.Infrastructure\LearnStack.Modules.Education.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+
+</Project>

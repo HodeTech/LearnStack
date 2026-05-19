@@ -1,0 +1,21 @@
+{
+  "name": "learnstack-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "LearnStack tenant-facing frontend monorepo (single Next.js app per ADR-0009).",
+  "packageManager": "pnpm@9.12.3",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @learnstack/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "prettier": "3.3.3"
+  }
+}

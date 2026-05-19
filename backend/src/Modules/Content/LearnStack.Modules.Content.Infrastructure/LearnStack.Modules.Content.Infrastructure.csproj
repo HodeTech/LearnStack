@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LearnStack.Modules.Content.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <ProjectReference Include="..\LearnStack.Modules.Content.Domain\LearnStack.Modules.Content.Domain.csproj" />
+    <ProjectReference Include="..\LearnStack.Modules.Content.Application\LearnStack.Modules.Content.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+</Project>

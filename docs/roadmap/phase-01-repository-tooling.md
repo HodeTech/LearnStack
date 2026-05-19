@@ -1,5 +1,19 @@
 # Phase 01: Repository, Tooling, and Local Infrastructure
 
+> **In-progress status (2026-05-19).** The phase is implemented incrementally in
+> packets. Shipped so far:
+>
+> - ✅ Repo skeleton + .NET 10 solution scaffold (core + 7 modules × 4 projects + 4 test projects)
+> - ✅ `LearnStack.Tests.Architecture` with `No_Source_Folder_Named_Verticals` (ADR-0018) and module-dependency-direction tests
+> - ✅ Frontend `pnpm` monorepo: `apps/web` (Next.js 15 App Router, `(public)`/`(studio)`/`(portal)` route groups, `api/healthz`, `lib/customization/` runtime resolver) + `packages/{config,ui,sdk}`
+> - ✅ `infra/compose/dev.yml` core services: PostgreSQL 16, Redis 7, MinIO + console, Mailpit, Meilisearch
+>
+> Still pending in subsequent packets: Keycloak (two realms), LiveKit OSS +
+> Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX, `make`
+> orchestrator, `.env.example`, pre-commit hook, `make seed`, the
+> `learnstack-hub` compose overlay, GitHub Actions CI workflow, and the
+> `e2e.yml` companion stack.
+
 ## Goal
 
 Create a development environment that is repeatable, maintainable, and ready to grow. This phase establishes the project structure, local infrastructure, CI, and engineering workflow. It does not focus on product features.

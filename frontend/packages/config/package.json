@@ -1,0 +1,17 @@
+{
+  "name": "@learnstack/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint": "./eslint/index.cjs",
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/next.json": "./tsconfig/next.json",
+    "./tailwind": "./tailwind/index.ts"
+  },
+  "files": [
+    "eslint",
+    "tsconfig",
+    "tailwind"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@learnstack/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@learnstack/sdk": "workspace:*",
+    "@learnstack/ui": "workspace:*",
+    "next": "15.0.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@learnstack/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "15.0.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

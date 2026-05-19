@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LearnStack.Tests.Architecture</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core projects -->
+    <ProjectReference Include="..\..\src\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Domain\LearnStack.Domain.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Application.Contracts\LearnStack.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Application\LearnStack.Application.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Audit\LearnStack.Infrastructure.Audit.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+
+    <!-- Modules: Tenancy -->
+    <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Domain\LearnStack.Modules.Tenancy.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Application.Contracts\LearnStack.Modules.Tenancy.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Application\LearnStack.Modules.Tenancy.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
+
+    <!-- Modules: Identity -->
+    <ProjectReference Include="..\..\src\Modules\Identity\LearnStack.Modules.Identity.Domain\LearnStack.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\LearnStack.Modules.Identity.Application.Contracts\LearnStack.Modules.Identity.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\LearnStack.Modules.Identity.Application\LearnStack.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\LearnStack.Modules.Identity.Infrastructure\LearnStack.Modules.Identity.Infrastructure.csproj" />
+
+    <!-- Modules: Customization -->
+    <ProjectReference Include="..\..\src\Modules\Customization\LearnStack.Modules.Customization.Domain\LearnStack.Modules.Customization.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Customization\LearnStack.Modules.Customization.Application.Contracts\LearnStack.Modules.Customization.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Customization\LearnStack.Modules.Customization.Application\LearnStack.Modules.Customization.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Customization\LearnStack.Modules.Customization.Infrastructure\LearnStack.Modules.Customization.Infrastructure.csproj" />
+
+    <!-- Modules: Audit -->
+    <ProjectReference Include="..\..\src\Modules\Audit\LearnStack.Modules.Audit.Domain\LearnStack.Modules.Audit.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\LearnStack.Modules.Audit.Application.Contracts\LearnStack.Modules.Audit.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\LearnStack.Modules.Audit.Application\LearnStack.Modules.Audit.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\LearnStack.Modules.Audit.Infrastructure\LearnStack.Modules.Audit.Infrastructure.csproj" />
+
+    <!-- Modules: Content -->
+    <ProjectReference Include="..\..\src\Modules\Content\LearnStack.Modules.Content.Domain\LearnStack.Modules.Content.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Content\LearnStack.Modules.Content.Application.Contracts\LearnStack.Modules.Content.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Content\LearnStack.Modules.Content.Application\LearnStack.Modules.Content.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Content\LearnStack.Modules.Content.Infrastructure\LearnStack.Modules.Content.Infrastructure.csproj" />
+
+    <!-- Modules: Media -->
+    <ProjectReference Include="..\..\src\Modules\Media\LearnStack.Modules.Media.Domain\LearnStack.Modules.Media.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Media\LearnStack.Modules.Media.Application.Contracts\LearnStack.Modules.Media.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Media\LearnStack.Modules.Media.Application\LearnStack.Modules.Media.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Media\LearnStack.Modules.Media.Infrastructure\LearnStack.Modules.Media.Infrastructure.csproj" />
+
+    <!-- Modules: Education -->
+    <ProjectReference Include="..\..\src\Modules\Education\LearnStack.Modules.Education.Domain\LearnStack.Modules.Education.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Education\LearnStack.Modules.Education.Application.Contracts\LearnStack.Modules.Education.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Education\LearnStack.Modules.Education.Application\LearnStack.Modules.Education.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Education\LearnStack.Modules.Education.Infrastructure\LearnStack.Modules.Education.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+</Project>

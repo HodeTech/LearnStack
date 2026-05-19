@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tenant theme tokens default to neutral values; layouts override per tenant
+ * via inline <style> from server-fetched tenant settings (Standards 07 §
+ * Tenant Branding). */
+:root {
+  --ls-primary: #1f6feb;
+  --ls-bg: #ffffff;
+  --ls-fg: #0f172a;
+  --ls-muted: #64748b;
+  --ls-font-sans: ui-sans-serif, system-ui, sans-serif;
+}

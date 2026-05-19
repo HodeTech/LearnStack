@@ -21,12 +21,20 @@ Self-Hosted — backed by the companion **`learnstack-hub`** repository
 
 ## What state this is in
 
-**Pre-implementation.** This repository currently contains only
-documentation: architecture, decisions, engineering standards, and a
-phased roadmap. There is no application code yet. Every code reference
-in the docs (e.g. `LearnStack.Modules.Education.Application`,
-`ILiveClassProvider`, `ITenantSearch`) describes intended shape, not
-existing files.
+**Phase 01 in progress.** The repository now has the .NET 10 solution
+scaffold under `backend/` (core + 7 modules × 4 projects + 4 test
+projects including the non-skippable `LearnStack.Tests.Architecture`),
+the `pnpm` frontend monorepo under `frontend/` (`apps/web` Next.js App
+Router + `packages/{config,ui,sdk}`), and the core local-dev compose
+stack at `infra/compose/dev.yml` (Postgres / Redis / MinIO / Mailpit /
+Meilisearch). The remaining Phase-01 packets — Keycloak, LiveKit, Kafka,
+Vault, Dapr, APISIX, `make` targets, `.env.example`, CI, `make seed` —
+land incrementally; see
+[docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
+Module-level code references in the docs (e.g.
+`LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
+`ITenantSearch`) still describe intended shape — the projects are
+scaffolded but their domain bodies are empty.
 
 ## Where to start
 

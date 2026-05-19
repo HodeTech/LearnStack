@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cs,csproj,props,targets}]
+indent_size = 4
+
+[*.{json,yml,yaml,md}]
+indent_size = 2
+
+[*.cs]
+# File-scoped namespaces (standard 02-backend-coding § Language Settings)
+csharp_style_namespace_declarations = file_scoped:error
+
+# Nullable reference types
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8601.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8603.severity = error
+dotnet_diagnostic.CS8604.severity = error
