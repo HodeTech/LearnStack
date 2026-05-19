@@ -37,9 +37,13 @@
 > the eventual `ILiveClassProvider` adapter (Phase 08c) will sign tokens with.
 > Configs at `infra/livekit/livekit.yaml` and `infra/coturn/turnserver.conf`.
 >
-> **Packet 6 — Eventing + secrets + gateway (pending)**
-> Kafka + kafka-ui, Vault (dev mode), Dapr sidecar + placement, APISIX
-> standalone YAML-reload + dashboard, `infra/apisix/config.yaml`.
+> **Packet 6 — Eventing + secrets + gateway ✅**
+> Kafka 7.8 in KRaft mode (no ZooKeeper) + kafka-ui, Vault 1.18 in `-dev` mode,
+> Dapr 1.14.4 sidecar (`learnstack-api` app id) + placement with three
+> components — `pubsub-kafka.yaml`, `statestore-redis.yaml`,
+> `secretstore-vault.yaml` per ADR-0014 — and APISIX 3.10 in standalone
+> YAML-reload mode + dashboard per ADR-0015 (`infra/apisix/{config,apisix,dashboard}.yaml`,
+> mTLS plugin slot reserved for the Phase-02c Hub internal API surface).
 >
 > **Packet 7 — Developer experience (pending)**
 > `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,

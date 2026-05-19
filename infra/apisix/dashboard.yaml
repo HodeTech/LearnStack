@@ -1,0 +1,32 @@
+# APISIX Dashboard config (dev only).
+# The dashboard is a developer convenience for browsing routes + plugins
+# in dev mode. Production deployments either run without the dashboard
+# (standalone YAML is the source of truth) or pin it behind mTLS on an
+# internal-only listener.
+
+conf:
+  listen:
+    host: 0.0.0.0
+    port: 9000
+  allow_list:
+    - 0.0.0.0/0     # Dev-only. Production tightens to operator subnet.
+  etcd:
+    # APISIX runs in standalone mode (no etcd); the dashboard cannot
+    # introspect routes without it. The endpoints below are placeholders
+    # so the dashboard boots without erroring on missing config — the
+    # route list view will be empty.
+    endpoints:
+      - http://127.0.0.1:2379
+  log:
+    error_log:
+      level: info
+      file_path: logs/error.log
+    access_log:
+      file_path: logs/access.log
+
+authentication:
+  secret: learnstack-dev-dashboard-jwt-secret
+  expire_time: 3600
+  users:
+    - username: admin
+      password: learnstack-dev-dashboard-pass

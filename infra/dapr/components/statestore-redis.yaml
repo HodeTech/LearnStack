@@ -1,0 +1,21 @@
+# Dapr state store — Redis backend.
+# Backs `ICacheService` (L2 cache) and any Dapr actor state (not adopted
+# per ADR-0014 non-goals, but the metadata is left actor-capable for
+# future Dapr feature expansion behind its own ADR). Module code never
+# imports `IDistributedCache` / `StackExchange.Redis` directly per
+# `ICacheService_Is_OnlyCacheAbstraction` architecture test.
+
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis:6379
+    - name: redisPassword
+      value: ""
+    - name: actorStateStore
+      value: "true"

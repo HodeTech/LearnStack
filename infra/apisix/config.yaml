@@ -1,0 +1,52 @@
+# APISIX main config — standalone YAML-reload mode.
+# Per ADR-0015 the standalone deployment shape (no etcd) is the default;
+# etcd-backed mode is reconsidered when an admin UI / dynamic config
+# requirement arrives. Hot-reload watches `apisix.yaml`.
+
+deployment:
+  role: traditional
+  role_traditional:
+    config_provider: yaml
+
+apisix:
+  # Dev-only admin key. Production replaces this with a Vault-sourced value
+  # and only exposes the admin API on an internal-only listener.
+  enable_admin: true
+  admin_key:
+    - name: admin
+      key: learnstack-dev-admin-key
+      role: admin
+  enable_ipv6: false
+  proxy_mode: http
+  enable_dev_mode: false
+
+nginx_config:
+  error_log_level: info
+  worker_processes: auto
+  worker_rlimit_nofile: 20480
+
+# Plugin chain available to routes. The actual per-route chain is declared
+# in apisix.yaml; this list is the universe routes may pick from.
+plugins:
+  - real-ip
+  - cors
+  - openid-connect       # JWT validation (Phase 03 wires Keycloak realm)
+  - jwt-auth
+  - limit-req
+  - limit-count
+  - request-id
+  - proxy-rewrite
+  - response-rewrite
+  - prometheus
+  - ip-restriction
+  - mtls                 # Reserved for /api/internal/* (Phase 02c)
+  - gzip
+
+plugin_attr:
+  prometheus:
+    enable_export_server: true
+    export_addr:
+      ip: "0.0.0.0"
+      port: 9091
+  request-id:
+    include_in_response: true

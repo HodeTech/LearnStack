@@ -6,7 +6,8 @@ Compose stacks for local development. Operational rules live in
 ## `dev.yml`
 
 Services in order they appear in `dev.yml` (data plane → identity → media →
-eventing+secrets → gateway). Packets 1-5 shipped; packet 6 lands next.
+eventing → secrets → Dapr sidecar → gateway). Packets 1-6 shipped; packets
+7-8 (DX orchestrator + CI) remain.
 
 ### Data plane (Phase 01 packet 3)
 
@@ -49,6 +50,40 @@ LiveKit config at `infra/livekit/livekit.yaml`; Coturn config at
 for the `ILiveClassProvider` integration plan (Phase 08c) + the
 recording / consent / cost-tracking story.
 
+### Eventing + secrets + Dapr sidecar + gateway (Phase 01 packet 6)
+
+| Service | Image | Local endpoint | Default credentials |
+|---------|-------|----------------|---------------------|
+| Kafka (KRaft) | `confluentinc/cp-kafka:7.8.0` | `localhost:9092` | none (`PLAINTEXT`, `authType: none`) |
+| kafka-ui | `provectuslabs/kafka-ui:v0.7.2` | `localhost:8081` | open UI (dev only) |
+| Vault | `hashicorp/vault:1.18` | `localhost:8200` | root token `learnstack-dev-root-token` |
+| Dapr placement | `daprio/placement:1.14.4` | `localhost:50005` | — |
+| Dapr sidecar (api) | `daprio/daprd:1.14.4` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |
+| APISIX | `apache/apisix:3.10.0-debian` | `localhost:9080` (HTTP), `localhost:9180` (admin), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | admin key `learnstack-dev-admin-key` |
+| APISIX dashboard | `apache/apisix-dashboard:3.0.1-alpine` | `localhost:9000` | `admin` / `learnstack-dev-dashboard-pass` |
+
+Configs:
+
+- Kafka runs in KRaft mode (no ZooKeeper); cluster id is pinned so the log
+  dir survives restarts without re-format.
+- Vault runs in `-dev` mode with the root token baked in — production runs
+  HA + auto-unseal + AppRole.
+- Dapr components live under `infra/dapr/components/` (`pubsub-kafka.yaml`,
+  `statestore-redis.yaml`, `secretstore-vault.yaml`). Dapr runtime config at
+  `infra/dapr/config/dapr-config.yaml`. See [../dapr/README.md](../dapr/README.md)
+  for the `IEventBus` / `ICacheService` / `ISecretProvider` consumption
+  pattern.
+- APISIX is in standalone YAML-reload mode (no etcd). Main config at
+  `infra/apisix/config.yaml`; route table at `infra/apisix/apisix.yaml`;
+  dashboard config at `infra/apisix/dashboard.yaml`. See
+  [../apisix/README.md](../apisix/README.md) for the plugin chain, route
+  table walk-through, and the `/api/internal/*` mTLS placeholder reserved
+  for Phase 02c.
+
+The .NET API host runs OUTSIDE the compose network during active dev; the
+Dapr sidecar and APISIX both target `host.docker.internal:5080` so the
+sidecar and gateway can reach the workstation-local `dotnet run` process.
+
 ```bash
 docker compose -f infra/compose/dev.yml up -d
 docker compose -f infra/compose/dev.yml ps          # confirm healthchecks pass
@@ -75,10 +110,8 @@ A single bucket per environment is created at first use.
 Per the [Phase 01 plan](../../docs/roadmap/phase-01-repository-tooling.md),
 later packets land:
 
-- **Kafka** + **kafka-ui** (Dapr pub/sub backend; Phase 01 packet 6)
-- **Vault** (Dapr secret store, dev mode; Phase 01 packet 6)
-- **Dapr sidecar** + **placement service** (Phase 01 packet 6)
-- **APISIX** (standalone YAML-reload) + **apisix-dashboard** (Phase 01 packet 6)
-
-A companion `e2e.yml` (same stack, tuned for end-to-end test runs) is also a
-later Phase 01 deliverable (packet 7).
+- `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
+  pre-commit hook (dotnet-format + prettier), and `infra/compose/e2e.yml`
+  companion stack — Phase 01 packet 7.
+- GitHub Actions CI workflow + `make seed` populating two demo tenants and a
+  platform admin — Phase 01 packet 8.

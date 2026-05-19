@@ -1,0 +1,93 @@
+# APISIX route table — hot-reloaded on file change.
+# Per ADR-0015 the route table separates public from authenticated, and
+# CORS preflight from the authenticated path so OPTIONS bypasses
+# openid-connect.
+#
+# This packet ships the scaffold routes only:
+# - `/healthz` (priority 1, public) — proxies to the .NET API host
+# - `/api/v*/**` OPTIONS (priority 99, CORS preflight) — plugin: cors only
+# - `/api/v*/**` authenticated (priority 100, all other verbs) — plugin
+#   chain with `openid-connect` placeholder (Keycloak realm discovery
+#   gets wired in Phase 03)
+# - `/api/internal/*` (priority 50, mTLS) — placeholder route disabled
+#   (the `mtls` plugin entry is commented out; Phase 02c activates it
+#   once the Hub HTTPS contract surface lands)
+
+routes:
+  - id: 1
+    uri: /healthz
+    priority: 1
+    plugins:
+      cors: {}
+      limit-req:
+        rate: 10
+        burst: 5
+        key: remote_addr
+        rejected_code: 429
+      prometheus: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        # The .NET API host runs OUTSIDE compose during active dev
+        # (`dotnet run` on the workstation). `host.docker.internal` is
+        # Docker Desktop's gateway alias; Linux developers may need to
+        # add `--add-host=host.docker.internal:host-gateway` to the
+        # apisix service. Phase 07 (DX packet) sorts the cross-platform
+        # case alongside `make dev`.
+        "host.docker.internal:5080": 1
+
+  - id: 99
+    uri: /api/v*/**
+    methods: [OPTIONS]
+    priority: 99
+    plugins:
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:5080": 1
+
+  - id: 100
+    uri: /api/v*/**
+    methods: [GET, POST, PUT, PATCH, DELETE]
+    priority: 100
+    plugins:
+      cors: {}
+      # openid-connect realm discovery is wired in Phase 03 against the
+      # learnstack Keycloak realm. Placeholder kept so the route schema
+      # validates today.
+      # openid-connect:
+      #   discovery: http://keycloak:8080/realms/learnstack/.well-known/openid-configuration
+      #   bearer_only: true
+      #   realm: learnstack
+      limit-req:
+        rate: 100
+        burst: 50
+        key: remote_addr
+        rejected_code: 429
+      request-id:
+        include_in_response: true
+      prometheus: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:5080": 1
+
+  # /api/internal/* route is RESERVED here so the plugin slot is
+  # documented; Phase 02c lands the Hub HTTPS contract surface and
+  # enables the mtls plugin against the LearnStack-internal CA.
+  # - id: 50
+  #   uri: /api/internal/*
+  #   priority: 50
+  #   plugins:
+  #     mtls:
+  #       ca_uri: /path/to/learnstack-internal-ca.crt
+  #     ip-restriction:
+  #       whitelist:
+  #         - 10.0.0.0/8
+  #   upstream:
+  #     type: roundrobin
+  #     nodes:
+  #       "host.docker.internal:5080": 1
+
+#END
