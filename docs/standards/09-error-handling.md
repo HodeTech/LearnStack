@@ -1,9 +1,13 @@
 # 09 — Error Handling Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [04-api-design.md](04-api-design.md) § Error Responses.
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (implementation patterns), [04-api-design.md](04-api-design.md) § Error Responses.
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
+
+The conceptual deep dive and diagrams live in
+[33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md).
+This standard contains the day-to-day rules.
 
 ## Two-Track Model
 
@@ -89,6 +93,58 @@ Rules:
 | `DomainException` | No |
 | `TenantContextMissingException` | No |
 
+## L1 Exception Handler
+
+The first-line catch site is `LearnStackExceptionHandler : IExceptionHandler`
+(.NET 8+) per
+[ADR-0032 § Sub-decision 1](../decisions/0032-exception-handling-logging-and-observability.md).
+Every backend host (`LearnStack.Api`, workers, background-service hosts)
+registers it the same way:
+
+```csharp
+services.AddExceptionHandler<LearnStackExceptionHandler>();
+services.AddProblemDetails();
+// in pipeline:
+app.UseExceptionHandler();
+```
+
+Responsibilities of the handler:
+
+- Map every `LearnStackException` subclass to its standard `Error.Code` and
+  HTTP status (the table under § Result Type).
+- Build the RFC 7807 Problem Details body with `correlationId` set from
+  `Activity.Current.TraceId`.
+- Call `Activity.Current.RecordException(ex) + SetStatus(Error, ...)` so
+  Tempo sees the failure.
+- Dispatch to `IErrorTrackingProvider.CaptureAsync` **only when**
+  `ShouldCapture(ex)` returns true (see § Sentry vs OpenTelemetry boundary).
+
+The older `app.UseExceptionHandler(lambda)` and `app.Use((ctx, next) => { try
+{...} catch {...} })` patterns are not used in new code. There is no
+`ExceptionHandlingBehavior` inside the MediatR pipeline —
+`AuditLogBehavior`'s catch + rethrow + the L1 handler are the only two
+catch sites below the framework.
+
+## Sentry vs OpenTelemetry — Error Capture Boundary
+
+Per
+[ADR-0032 § Sub-decision 7](../decisions/0032-exception-handling-logging-and-observability.md),
+the two backends receive complementary signals:
+
+| Failure | OTel span | `IErrorTrackingProvider` | Rationale |
+|---------|-----------|--------------------------|-----------|
+| Unhandled `Exception` at L1 | `RecordException` + `SetStatus(Error)` | **Capture** | Bug or infra; high-signal |
+| `LearnStackException` subclass at L1 | `RecordException` + `SetStatus(Error)` | **Capture** | Leaked from a failing layer |
+| `ProviderException` with `IsClientError == false` (5xx upstream) | `RecordException` + `SetStatus(Error)` | **Capture** | Upstream infra failure |
+| `ProviderException` with `IsClientError == true` (4xx upstream) | `SetStatus(Error)` only | **Skip** | Provider's user-error; not our bug |
+| `Result.Fail(validation_failed / forbidden / not_found / ...)` | `SetStatus(Ok)` (the 200 response = success at runtime) | **Skip** | Expected outcome; metric counter only |
+| `Result.Fail(business_rule_violation)` | `SetStatus(Ok)` | **Skip** | Expected outcome; metric counter only |
+| `OperationCanceledException` (client disconnect) | `SetStatus(Cancelled)` | **Skip** | Noise; not actionable |
+
+The boundary is the L1 handler's `ShouldCapture(Exception)` switch. Modules
+never reference `Sentry.SentrySdk` directly — the architecture test
+`Modules_Do_Not_Reference_Sentry_SDK_Directly` enforces it.
+
 ## API Surface
 
 All API errors are **RFC 7807 Problem Details**:
@@ -123,6 +179,61 @@ Rules:
 - Always include all failures, not just the first one.
 - Field names match the request shape (`camelCase`).
 - Messages are localizable; the API returns the locale-appropriate message based on the request's `Accept-Language` or tenant default.
+- **`ValidationBehavior` returns `Result.Fail(validation_failed, errors)` —
+  it does NOT throw `FluentValidation.ValidationException`.** Per
+  [ADR-0032 § Sub-decision 3](../decisions/0032-exception-handling-logging-and-observability.md),
+  the pipeline never raises a validation exception. The behavior aggregates
+  `ValidationResult` failures into the `Error.Details` dictionary and
+  short-circuits the request. The behavior's generic constraint is
+  `where TResponse : IResultBase`; the static factory
+  `Result.FailFor<TResponse>(error)` constructs the correct shape.
+
+## Domain Exceptions
+
+Per
+[ADR-0032 § Sub-decision 4](../decisions/0032-exception-handling-logging-and-observability.md),
+`DomainException` is reserved for **programmer errors** (bugs):
+
+- Aggregate invariant violations that signal a programming mistake (e.g. a
+  domain method was called in an impossible order, an aggregate's invariant
+  was bypassed).
+- Anything where "raising this exception means we have a bug to fix".
+
+**Expected business-rule violations** return
+`Result.Fail(business_rule_violation, ...)` from the domain method — they are
+not exceptions. Examples that **must** be `Result.Fail`, not throws:
+
+- "Course capacity reached."
+- "Tenant plan limit exceeded."
+- "Cannot enrol learner: enrolment closed."
+- "Cannot publish course: missing required lesson."
+
+Enforcement:
+
+- The Roslyn analyzer `LearnStackException-DomainExceptionThrow` flags every
+  `throw new DomainException(...)` outside aggregate invariant guards as a
+  Warning (Phase 02a) and as an Error after Phase 03 exit.
+- Architecture test `Domain_Methods_Do_Not_Throw_For_Expected_Cases` walks
+  `Result<T>`-returning methods and asserts the analyzer's report is empty.
+
+## Controller Mapping — `Result<T>` → `IActionResult`
+
+Per
+[ADR-0032 § Sub-decision 6](../decisions/0032-exception-handling-logging-and-observability.md),
+the sanctioned shape is an explicit extension method:
+
+```csharp
+[HttpPost("courses")]
+public async Task<IActionResult> Create(
+    CreateCourseCommand command, CancellationToken ct)
+    => (await _mediator.Send(command, ct)).ToActionResult();
+```
+
+`ResultExtensions.ToActionResult()` lives in `LearnStack.Api.Common`. It
+matches on `Error.Code` and emits the Problem Details body with the right
+HTTP status (per the table in § Result Type). There is no action filter, no
+MediatR `ResultUnwrapBehavior`, no implicit conversion — the explicit pattern
+keeps the diff honest and the debug experience straightforward.
 
 ## Frontend Error Handling
 
@@ -161,9 +272,63 @@ The SDK maps Problem Details payloads to `AppError`; UI code switches on `code`.
 ## Provider Failures
 
 - Wrap every provider call with `ProviderException` mapping at the adapter boundary.
-- Translate provider-specific status codes to our normalized codes.
+- Translate provider-specific status codes to our normalized codes; set
+  `ProviderException.IsClientError` based on the upstream status (`true` for
+  4xx, `false` for 5xx). The L1 handler uses this flag to decide whether to
+  Sentry-capture (5xx) or not (4xx).
 - Don't leak provider names to end users (`detail: "Recording could not be started. Please try again."` not `"LiveKit returned 503"`).
 - Capture provider raw response to logs (with redaction) for debugging.
+
+### Provider Resilience — Polly v8 ResiliencePipeline
+
+Per
+[ADR-0032 § Sub-decision 5](../decisions/0032-exception-handling-logging-and-observability.md),
+every provider adapter is wrapped with a Polly v8 `ResiliencePipeline` via
+the `IProviderResilience<TPort>` decorator pattern. The composition root
+wires every adapter:
+
+```csharp
+services.AddProviderResilience<ILiveClassProvider, LiveKitClient>("liveclass");
+services.AddProviderResilience<IPaymentProvider, StripePaymentClient>("payment");
+services.AddProviderResilience<IStorageProvider, SeaweedFSStorageClient>("storage");
+// ...
+```
+
+The decorator reads `Resilience:<portName>:` from `appsettings.{env}.json`
+and builds a pipeline with:
+
+- **Retry** — exponential backoff with jitter; only retries
+  `ProviderException` with `IsClientError == false` and `InfrastructureException`
+  (transient).
+- **Circuit breaker** — opens on `failureRatio` over `samplingDuration`;
+  shields the upstream from sustained pressure.
+- **Timeout** — bounds the longest single attempt.
+- **Bulkhead** — caps concurrent in-flight calls per upstream.
+
+The adapter's only exception-related job is **SDK → ProviderException
+translation**. The decorator is the only place retry / circuit breaker /
+timeout live. The
+[add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
+skill walks the canonical shape for every new adapter.
+
+Configuration shape (excerpt):
+
+```jsonc
+{
+  "Resilience": {
+    "liveclass": {
+      "retry": { "maxAttempts": 3, "delaySeconds": 1, "useJitter": true },
+      "circuitBreaker": { "failureRatio": 0.5, "samplingDurationSeconds": 30, "minimumThroughput": 10, "breakDurationSeconds": 30 },
+      "timeout": { "totalSeconds": 10 }
+    }
+  }
+}
+```
+
+Architecture test `Adapters_Wrap_Provider_Exceptions` asserts that SDK
+exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
+`Meilisearch.MeilisearchApiError`, …) never leave the
+`LearnStack.Infrastructure.<Adapter>` namespaces.
 
 ## Background Jobs
 
@@ -195,3 +360,17 @@ The SDK maps Problem Details payloads to `AppError`; UI code switches on `code`.
 - Including stack traces or query text in Problem Details.
 - `Result<T>` with `IsSuccess = true` but `Value = null` (use a Maybe / Option or throw at boundary).
 - Localizing error codes (codes are stable English identifiers; only `title` and `detail` are localized).
+- Throwing `DomainException` for expected business-rule violations — use
+  `Result.Fail(business_rule_violation, ...)` instead. The Roslyn analyzer
+  flags violations.
+- Throwing `FluentValidation.ValidationException` from the
+  `ValidationBehavior`. The behavior returns `Result.Fail(validation_failed)`.
+- Importing `Sentry.SentrySdk` from any module assembly. Capture happens
+  centrally via `IErrorTrackingProvider`; the L1 `IExceptionHandler` is the
+  only sanctioned caller in application code.
+- Adding an `ExceptionHandlingBehavior` to the MediatR pipeline. The
+  `AuditLogBehavior` + L1 `IExceptionHandler` cover the two needed catch
+  sites; a third behavior would duplicate the responsibility.
+- Importing a provider SDK exception type (`LiveKit.NET.LiveKitException`,
+  `Stripe.StripeException`, …) outside the adapter's
+  `LearnStack.Infrastructure.<Adapter>` namespace.

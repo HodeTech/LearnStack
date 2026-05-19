@@ -57,6 +57,8 @@ Rules:
 | Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` (phone-home) | `SignedLicenseKeyEntitlementProvider` |
 | Host → tenant | Config / single tenant | Hub-mirrored projection | Hub-mirrored projection | Hub-mirrored projection | Config / `.lic` claim |
 | Phone-home | n/a | enabled | enabled | enabled (daily, 30-day grace) | disabled |
+| Error tracking ([ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)) | `NoOpErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` (optional; `NoOp` if no DSN) | `LocalFileErrorTracker` |
+| OTLP exporter target ([ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)) | local OTel Collector (dev compose) | central Collector | central Collector | customer-managed Collector | local file `/var/learnstack/otel/` |
 
 ## Dapr Building Blocks
 
@@ -253,6 +255,9 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 - Direct `IConnectionMultiplexer` / `IDistributedCache` injection.
 - Direct `KafkaProducer` / `ConsumerBuilder` / Confluent.Kafka usage.
 - Direct `VaultClient` / Vault HTTP API calls.
+- Direct `Sentry.SentrySdk` usage — capture happens via
+  `IErrorTrackingProvider` per
+  [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md).
 - Reading `DeploymentMode` from inside a module.
 - Calling Hub endpoints from anywhere except the dedicated `IEntitlementProvider` /
   `IUsageReporter` / `IHubTenantSync` adapters.
@@ -269,8 +274,10 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 - [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
 - [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md)
+- [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 - [29-dapr-integration.md](../architecture/29-dapr-integration.md)
 - [30-api-gateway.md](../architecture/30-api-gateway.md)
+- [33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md)
 - [24-learnstack-hub.md](../architecture/24-learnstack-hub.md)
 - [25-deployment-models.md](../architecture/25-deployment-models.md)
 - [12-infrastructure.md](12-infrastructure.md) — operational rules (CI/CD, DB ops,

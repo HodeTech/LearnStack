@@ -78,6 +78,8 @@ index plus the relevant [Architecture](../../docs/architecture/) doc.
 | [add-permission](add-permission/SKILL.md) | Registering a permission key with the closed action set and scope (Platform / Tenant / Organization). |
 | [add-feature-key](add-feature-key/SKILL.md) | Adding a `FeatureKey` / `LimitKey` to the typed registry and wiring entitlement-projection reads. |
 | [wire-dapr-pubsub](wire-dapr-pubsub/SKILL.md) | Declaring a Dapr pub/sub topic with the `learnstack.{module}.{aggregate}` convention and `InProcessEventBus` dev fallback. |
+| [wire-cross-cutting-foundation](wire-cross-cutting-foundation/SKILL.md) | One-time foundation wiring per backend host — `IExceptionHandler`, 8-step MediatR pipeline, Serilog + OTel, `TenantContextSpanProcessor`, `IErrorTrackingProvider`, `IProviderResilience<TPort>`. Phase 02a deliverable per [ADR-0032](../../docs/decisions/0032-exception-handling-logging-and-observability.md). |
+| [add-provider-adapter](add-provider-adapter/SKILL.md) | Adding an external-integration adapter (LiveKit / Stripe / Iyzico / Meilisearch / SeaweedFS / Keycloak / …) with port interface, SDK-exception → `ProviderException` translation, and Polly v8 `ResiliencePipeline` via `IProviderResilience<TPort>`. |
 
 ### Backend — guard rules
 

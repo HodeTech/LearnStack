@@ -1,20 +1,44 @@
 # 10 — Observability Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (Sentry / OTel boundary, Serilog wiring, span attribute propagation, deployment-mode branching).
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
+Conceptual deep dive (logging pipeline, tracing pipeline, span enrichment
+seam, correlation across async boundaries) lives in
+[33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md).
+This standard contains the day-to-day rules.
+
 ## Stack
 
-- **OpenTelemetry** SDK for traces + metrics + (eventually) logs.
-- **Serilog** for structured logs in .NET, exported via OTLP to the collector.
+- **OpenTelemetry** SDK for traces + metrics.
+- **Serilog** as the primary logger; modules log via `ILogger<T>`
+  (`Microsoft.Extensions.Logging`), the Serilog implementation is wired once
+  at the composition root. Logs flow Serilog → OTLP sink → OTel Collector →
+  log backend. The OTel `LoggerProvider` (`AddOpenTelemetry().WithLogging()`)
+  is **not** registered alongside; double-export would duplicate every line.
+  Per [ADR-0032 § Sub-decision 8](../decisions/0032-exception-handling-logging-and-observability.md).
 - **OTel Collector** as the ingestion layer; forwards to backends.
 - **Backends:**
   - Traces → Tempo / Grafana Cloud Tempo / Jaeger.
   - Metrics → Prometheus / Grafana Mimir.
   - Logs → Loki / Elastic / equivalent.
-  - Errors → Sentry.
+  - Errors → Sentry — accessed exclusively through `IErrorTrackingProvider`
+    (per
+    [ADR-0032 § Sub-decision 9](../decisions/0032-exception-handling-logging-and-observability.md));
+    composition root selects the implementation by `DeploymentMode`:
+
+    | `DeploymentMode` | `IErrorTrackingProvider` |
+    |---|---|
+    | `Development` | `NoOpErrorTracker` |
+    | `SaaS` | `SentryErrorTracker` (DSN via `ISecretProvider`) |
+    | `Dedicated` | `SentryErrorTracker` (per-tenant DSN allowed via Hub config) |
+    | `SelfHostedOnline` | `SentryErrorTracker` (optional; `NoOpErrorTracker` if DSN absent) |
+    | `SelfHostedAirGapped` | `LocalFileErrorTracker` (writes JSON to `/var/learnstack/errors/`) |
+
+    Modules never import `Sentry.SentrySdk` directly — the architecture test
+    `Modules_Do_Not_Reference_Sentry_SDK_Directly` enforces it.
 
 ## Correlation
 
@@ -35,10 +59,25 @@ These propagate into:
 - HTTP server middleware
 - HTTP clients (typed clients via `IHttpClientFactory`)
 - MediatR pipeline behaviors
-- Background jobs (Hangfire activator + filter)
-- Outbox dispatcher
+- Background jobs (Hangfire activator + filter) — payload carries `tenant_id`
+  + `correlation_id`; activator restores `ITenantContext` before invocation
+- Outbox dispatcher — row schema carries `tenant_id`, `organization_id?`,
+  `correlation_id`, `event_id`, `occurred_at`, `type`; consumer handler
+  restores `ITenantContext` from the envelope and starts an `Activity` with
+  `traceparent` set to the row's `correlation_id`
 - Integration event handlers
 - Provider SDK calls (where the SDK exposes a hook)
+- **Hub HTTPS contract surface (`/api/internal/*`)** — `HubCorrelationMiddleware`
+  respects inbound `traceparent`; tenant context is read from the request
+  envelope's `tenantId` field after HMAC verification. Outbound calls
+  (LearnStack → Hub `POST /api/v1/internal/license/verify`, `POST
+  /api/v1/usage/report`) inject the current `traceparent`. Per
+  [ADR-0032 § Sub-decision 11](../decisions/0032-exception-handling-logging-and-observability.md).
+
+The propagation primitive is **W3C `traceparent`** end to end. Every
+cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;
+the receiving side resumes the trace by setting `Activity.ParentId =
+traceparent`.
 
 ## Logging
 
@@ -108,10 +147,18 @@ Manual spans:
 
 ### Span Attributes
 
-Required:
-- `tenant.id`, `user.id`, `module`, `correlation_id`.
+Required (auto-enriched by `TenantContextSpanProcessor`):
+- `tenant.id`, `organization.id`, `user.id`, `module`, `correlation.id`.
 
-Common:
+The `TenantContextSpanProcessor : BaseProcessor<Activity>` is registered
+once at the composition root (per
+[ADR-0032 § Sub-decision 10](../decisions/0032-exception-handling-logging-and-observability.md));
+its `OnStart` hook reads `ITenantContext` and tags every span — including
+spans produced by auto-instrumentation libraries (EF Core, HttpClient,
+Valkey via Dapr, SeaweedFS S3 SDK, LiveKit) — without per-call enrichment.
+Modules never call `Activity.Current?.SetTag("tenant.id", ...)` themselves.
+
+Common (set by the respective auto-instrumentation library):
 - `http.method`, `http.route`, `http.status_code`.
 - `db.system`, `db.operation`, `db.table`.
 - `messaging.system`, `messaging.destination`, `messaging.message_id`.
@@ -121,6 +168,19 @@ Forbidden attributes:
 - Full URLs with query strings (truncate).
 - Request bodies.
 - Tokens or secrets.
+
+### Error span semantics
+
+Per
+[ADR-0032 § Sub-decision 7](../decisions/0032-exception-handling-logging-and-observability.md)
+(see also
+[09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](09-error-handling.md)),
+the L1 `IExceptionHandler` calls `Activity.Current.RecordException` and
+`SetStatus(Error, ...)` on every unhandled exception. `Result.Fail` is **not**
+an error span — the HTTP response is still a structured outcome (the Problem
+Details with the correct 4xx status), so `SetStatus(Ok)` is the right value.
+Putting `SetStatus(Error)` on every refused request would make the trace
+backend treat business rejections as system failures.
 
 ### Sampling
 
@@ -162,10 +222,19 @@ In addition to system metrics, business KPIs:
 
 ## Errors
 
-- All `Error`+ events flow to Sentry with full context (trace id, tenant id, user id, request path).
-- Sentry events tagged with `tenant_id` to allow per-tenant inspection.
-- PII redaction applied before Sentry receives the event.
+- All `Error`+ events flow to `IErrorTrackingProvider` (Sentry in
+  SaaS / Dedicated / SelfHostedOnline; `LocalFileErrorTracker` in
+  air-gapped; `NoOpErrorTracker` in Development) with full context (trace id,
+  tenant id, organization id, user id, request path).
+- Provider events are tagged with `tenant_id` (and `organization_id` where
+  applicable) to allow per-tenant inspection.
+- PII redaction applied before the provider receives the event.
 - Sentry release tags match the deployed git sha.
+- The capture boundary — which exceptions go to the provider and which only
+  to OTel — is in
+  [09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](09-error-handling.md).
+- Modules never reference `Sentry.SentrySdk` directly. Architecture test
+  `Modules_Do_Not_Reference_Sentry_SDK_Directly` enforces it.
 
 ## Frontend Observability
 
@@ -219,3 +288,13 @@ Alerts route via PagerDuty / Opsgenie; warn-level alerts go to Slack.
 - Adding cardinality-explosion labels (e.g. user id as a metric label).
 - Custom log formatters that bypass redaction.
 - Backend metric names without the `learnstack_` prefix.
+- Registering the OpenTelemetry `LoggerProvider`
+  (`AddOpenTelemetry().WithLogging()`) alongside the Serilog OTLP sink.
+  Logs go through Serilog only; the OTel logger seam stays unused.
+- Importing `Serilog.ILogger` from any module assembly. Modules use
+  `ILogger<T>` from `Microsoft.Extensions.Logging`. Architecture test
+  `Logging_Goes_Through_Microsoft_Extensions_Logging` enforces this.
+- Per-call `Activity.Current?.SetTag("tenant.id", ...)` enrichment from
+  module code. The `TenantContextSpanProcessor` does this centrally.
+- Importing `Sentry.SentrySdk` from any module assembly. Use
+  `IErrorTrackingProvider`.
