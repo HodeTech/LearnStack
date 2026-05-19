@@ -1,21 +1,18 @@
-# APISIX main config — standalone YAML-reload mode.
+# APISIX main config — file-driven standalone mode.
 # Per ADR-0015 the standalone deployment shape (no etcd) is the default;
 # etcd-backed mode is reconsidered when an admin UI / dynamic config
-# requirement arrives. Hot-reload watches `apisix.yaml`.
+# requirement arrives. APISIX 3.2+ moved file-driven standalone behind
+# `deployment.role: data_plane` + `role_data_plane.config_provider: yaml`;
+# the older `traditional + yaml` shape is removed in 3.10. The Admin API
+# is NOT available in this mode — `apisix.yaml` is the only source of
+# truth, hot-reloaded on file change.
 
 deployment:
-  role: traditional
-  role_traditional:
+  role: data_plane
+  role_data_plane:
     config_provider: yaml
 
 apisix:
-  # Dev-only admin key. Production replaces this with a Vault-sourced value
-  # and only exposes the admin API on an internal-only listener.
-  enable_admin: true
-  admin_key:
-    - name: admin
-      key: learnstack-dev-admin-key
-      role: admin
   enable_ipv6: false
   proxy_mode: http
   enable_dev_mode: false
@@ -27,6 +24,12 @@ nginx_config:
 
 # Plugin chain available to routes. The actual per-route chain is declared
 # in apisix.yaml; this list is the universe routes may pick from.
+#
+# NOTE: mTLS is NOT a route-level plugin in APISIX — it is configured on
+# the SSL/SNI object (`client.ca` / `client.depth`) per the upstream docs.
+# The Phase-02c `/api/internal/*` surface enforces mTLS via the SSL object
+# + `ip-restriction` on the route; the plugin universe below intentionally
+# omits any `mtls` entry.
 plugins:
   - real-ip
   - cors
@@ -39,7 +42,6 @@ plugins:
   - response-rewrite
   - prometheus
   - ip-restriction
-  - mtls                 # Reserved for /api/internal/* (Phase 02c)
   - gzip
 
 plugin_attr:

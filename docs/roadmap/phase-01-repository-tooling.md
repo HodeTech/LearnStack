@@ -39,11 +39,14 @@
 >
 > **Packet 6 — Eventing + secrets + gateway ✅**
 > Kafka 7.8 in KRaft mode (no ZooKeeper) + kafka-ui, Vault 1.18 in `-dev` mode,
-> Dapr 1.14.4 sidecar (`learnstack-api` app id) + placement with three
-> components — `pubsub-kafka.yaml`, `statestore-redis.yaml`,
-> `secretstore-vault.yaml` per ADR-0014 — and APISIX 3.10 in standalone
-> YAML-reload mode + dashboard per ADR-0015 (`infra/apisix/{config,apisix,dashboard}.yaml`,
-> mTLS plugin slot reserved for the Phase-02c Hub internal API surface).
+> Dapr 1.14.4 sidecar (`learnstack-api` app id, `-app-channel-address
+> host.docker.internal` so subscriptions reach the workstation) + placement
+> with three components — `pubsub-kafka.yaml`, `statestore-redis.yaml`
+> (`actorStateStore: false` per ADR-0014 non-goals), `secretstore-vault.yaml`
+> — and APISIX 3.10 in file-driven standalone mode (`deployment.role:
+> data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
+> `/api/internal/*` Phase-02c surface is documented as an SSL-object +
+> ip-restriction stub (mTLS in APISIX is not a route-level plugin).
 >
 > **Packet 7 — Developer experience (pending)**
 > `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,

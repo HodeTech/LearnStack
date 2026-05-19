@@ -54,35 +54,45 @@ recording / consent / cost-tracking story.
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| Kafka (KRaft) | `confluentinc/cp-kafka:7.8.0` | `localhost:9092` | none (`PLAINTEXT`, `authType: none`) |
+| Kafka (KRaft) | `confluentinc/cp-kafka:7.8.0` | `localhost:9092` (in-cluster only — see note below) | none (`PLAINTEXT`, `authType: none`) |
 | kafka-ui | `provectuslabs/kafka-ui:v0.7.2` | `localhost:8081` | open UI (dev only) |
 | Vault | `hashicorp/vault:1.18` | `localhost:8200` | root token `learnstack-dev-root-token` |
 | Dapr placement | `daprio/placement:1.14.4` | `localhost:50005` | — |
 | Dapr sidecar (api) | `daprio/daprd:1.14.4` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |
-| APISIX | `apache/apisix:3.10.0-debian` | `localhost:9080` (HTTP), `localhost:9180` (admin), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | admin key `learnstack-dev-admin-key` |
-| APISIX dashboard | `apache/apisix-dashboard:3.0.1-alpine` | `localhost:9000` | `admin` / `learnstack-dev-dashboard-pass` |
+| APISIX | `apache/apisix:3.10.0-debian` | `localhost:9080` (HTTP), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | none (file-driven standalone — no Admin API) |
 
 Configs:
 
-- Kafka runs in KRaft mode (no ZooKeeper); cluster id is pinned so the log
-  dir survives restarts without re-format.
-- Vault runs in `-dev` mode with the root token baked in — production runs
-  HA + auto-unseal + AppRole.
-- Dapr components live under `infra/dapr/components/` (`pubsub-kafka.yaml`,
-  `statestore-redis.yaml`, `secretstore-vault.yaml`). Dapr runtime config at
-  `infra/dapr/config/dapr-config.yaml`. See [../dapr/README.md](../dapr/README.md)
-  for the `IEventBus` / `ICacheService` / `ISecretProvider` consumption
-  pattern.
-- APISIX is in standalone YAML-reload mode (no etcd). Main config at
-  `infra/apisix/config.yaml`; route table at `infra/apisix/apisix.yaml`;
-  dashboard config at `infra/apisix/dashboard.yaml`. See
-  [../apisix/README.md](../apisix/README.md) for the plugin chain, route
-  table walk-through, and the `/api/internal/*` mTLS placeholder reserved
-  for Phase 02c.
+- **Kafka** runs in KRaft mode (no ZooKeeper); cluster id is pinned so the
+  log dir survives restarts without re-format. Only the in-cluster
+  `PLAINTEXT://kafka:9092` listener is advertised; host-side tools (kcat,
+  kafka-topics from the workstation) will resolve the bootstrap address as
+  `kafka:9092` and fail unless `127.0.0.1 kafka` is added to `/etc/hosts`.
+  Use `kafka-ui` (`localhost:8081`) for workstation-side browsing; the
+  Phase 07 DX packet ships either an EXTERNAL listener or documents the
+  `kafka-ui`-only workflow as canonical.
+- **Vault** runs in `-dev` mode with the root token baked in — production
+  runs HA + auto-unseal + AppRole.
+- **Dapr** components live under `infra/dapr/components/`
+  (`pubsub-kafka.yaml`, `statestore-redis.yaml`, `secretstore-vault.yaml`);
+  runtime config at `infra/dapr/config/dapr-config.yaml`. The sidecar is
+  wired to call back to `host.docker.internal:5080` via the
+  `-app-channel-address` flag (daprd's default `127.0.0.1` would resolve
+  inside the sidecar container and break subscription deliveries). See
+  [../dapr/README.md](../dapr/README.md) for the
+  `IEventBus` / `ICacheService` / `ISecretProvider` consumption pattern.
+- **APISIX** runs in file-driven standalone mode (`deployment.role:
+  data_plane`) per ADR-0015 — no etcd, no Admin API, no companion
+  dashboard. Main config at `infra/apisix/config.yaml`; route table at
+  `infra/apisix/apisix.yaml`. See [../apisix/README.md](../apisix/README.md)
+  for the plugin chain, route table walk-through, and the
+  `/api/internal/*` mTLS-via-SSL-object placeholder reserved for Phase 02c.
 
-The .NET API host runs OUTSIDE the compose network during active dev; the
-Dapr sidecar and APISIX both target `host.docker.internal:5080` so the
-sidecar and gateway can reach the workstation-local `dotnet run` process.
+The .NET API host runs OUTSIDE the compose network during active dev; both
+the Dapr sidecar and APISIX target `host.docker.internal:5080` so they can
+reach the workstation-local `dotnet run` process. The
+`host.docker.internal:host-gateway` alias is wired via a YAML anchor in
+`dev.yml` so Linux developers don't need a manual override.
 
 ```bash
 docker compose -f infra/compose/dev.yml up -d

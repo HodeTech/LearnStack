@@ -5,7 +5,7 @@
 # identity provider (two realms), the live-media stack (LiveKit OSS + Coturn),
 # Kafka (KRaft) + kafka-ui, HashiCorp Vault (-dev mode), the Dapr sidecar +
 # placement (pub/sub + state + secrets building blocks per ADR-0014), and the
-# APISIX gateway + dashboard (standalone YAML-reload per ADR-0015). The DX
+# APISIX gateway in file-driven standalone mode per ADR-0015. The DX
 # orchestrator (`make` targets, `.env.example`, e2e overlay) and CI workflow
 # arrive in Phase-01 packets 7-8.
 #
@@ -14,6 +14,15 @@
 # never bucket-per-tenant (Standards 12 § Object Storage Operations).
 
 name: learnstack-dev
+
+# YAML anchor for the host-gateway alias every container that has to reach
+# the workstation-local `dotnet run` process needs. Docker Desktop maps
+# `host.docker.internal` automatically; Linux requires this explicit
+# `host-gateway` entry. Anchored here so adding it to a new service is a
+# `<<: *host-gateway` one-liner.
+x-host-gateway: &host-gateway
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
 
 services:
   postgres:
@@ -30,7 +39,8 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       # First-boot init scripts (idempotent SQL). Creates the `keycloak`
-      # database the Keycloak service uses; see ./postgres-init/README.
+      # database the Keycloak service uses; see the "Identity" section of
+      # ../compose/README.md for the re-seed procedure.
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U learnstack -d learnstack"]
@@ -149,11 +159,16 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      # Keycloak 26 exposes /health/ready on the dedicated management
-      # interface (port 9000) when KC_HEALTH_ENABLED=true. The image is
-      # UBI-9-minimal based and ships curl; this is the upstream-recommended
-      # readiness pattern.
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/health/ready || exit 1"]
+      # The Keycloak 26 image is UBI-9-minimal based + openjdk-21-runtime —
+      # neither curl nor wget is in the image. Bash IS available, so we use
+      # the upstream-recommended bash /dev/tcp probe against the management
+      # interface (KC_HEALTH_ENABLED=true exposes /health/ready on :9000).
+      test:
+        - CMD-SHELL
+        - |
+          exec 3<>/dev/tcp/localhost/9000 && \
+          echo -e "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && \
+          grep -q "200 OK" <&3
       interval: 15s
       timeout: 10s
       retries: 20
@@ -168,6 +183,10 @@ services:
     image: livekit/livekit-server:v1.8.0
     container_name: learnstack-livekit
     restart: unless-stopped
+    # `--node-ip 127.0.0.1` and `rtc.use_external_ip: false` in
+    # livekit.yaml are two ways of telling LiveKit not to auto-discover the
+    # host IP; either alone suffices in dev. Both are kept for explicitness
+    # — production sets `--node-ip <public IP>` + `use_external_ip: true`.
     command: ["--config", "/etc/livekit.yaml", "--node-ip", "127.0.0.1", "--dev"]
     volumes:
       - ../livekit/livekit.yaml:/etc/livekit.yaml:ro
@@ -180,9 +199,10 @@ services:
       coturn:
         condition: service_started
     healthcheck:
-      # LiveKit serves a default 200 on `/` once the WebSocket listener is up.
-      # The image is alpine-based and ships wget.
-      test: ["CMD", "wget", "-qO-", "http://localhost:7880"]
+      # `--spider` issues a HEAD without downloading the body; tolerates
+      # LiveKit's WebSocket-upgrade contract changing across minor versions
+      # since we only care that the listener is bound.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7880"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -203,6 +223,14 @@ services:
   # ---- Eventing (Phase 01 packet 6) ----------------------------------------
   # Kafka in KRaft mode (no ZooKeeper). Backs Dapr pub/sub per ADR-0014.
   # Module code never imports `Confluent.Kafka` — only `IEventBus` via Dapr.
+  #
+  # Listener note: only the in-cluster PLAINTEXT://kafka:9092 listener is
+  # advertised. Host-side CLI tools (kcat, kafka-topics from the workstation)
+  # connect through the port mapping below but will receive `kafka:9092` as
+  # the bootstrap address and fail to resolve it unless the developer adds
+  # `127.0.0.1 kafka` to /etc/hosts (or routes them through the kafka-ui).
+  # Phase 07 (DX) ships either an explicit EXTERNAL listener or a
+  # documented kafka-ui-only workflow.
   kafka:
     image: confluentinc/cp-kafka:7.8.0
     container_name: learnstack-kafka
@@ -253,6 +281,11 @@ services:
   # HashiCorp Vault in -dev mode. Production runs Vault in HA mode with
   # auto-unseal + AppRole / Kubernetes auth methods (Standards 12 § Secrets
   # Management). The root token is intentionally embedded here for dev only.
+  #
+  # IMPORTANT: the literal `learnstack-dev-root-token` appears in TWO files:
+  # this service definition AND ../dapr/components/secretstore-vault.yaml.
+  # If you change one you MUST change the other. Phase 07 (DX) wires both
+  # to a single `.env.example` source so the duplication goes away.
   vault:
     image: hashicorp/vault:1.18
     container_name: learnstack-vault
@@ -285,18 +318,25 @@ services:
       - "50005:50005"
 
   # Single sidecar bound to the learnstack-api app id. The .NET host runs
-  # OUTSIDE compose during active dev (`dotnet run` on the workstation); the
-  # sidecar calls back to host.docker.internal:5080. See ../dapr/README.md.
+  # OUTSIDE compose during active dev (`dotnet run` on the workstation);
+  # `-app-channel-address host.docker.internal` is what makes inbound
+  # subscription deliveries reach the host (the daprd default of 127.0.0.1
+  # would resolve to inside the sidecar container). The `extra_hosts`
+  # anchor at the top of the file maps `host.docker.internal` on Linux.
+  # See ../dapr/README.md.
   dapr-sidecar-api:
     image: daprio/daprd:1.14.4
     container_name: learnstack-dapr-sidecar-api
     restart: unless-stopped
+    <<: *host-gateway
     command:
       - ./daprd
       - -app-id
       - learnstack-api
       - -app-port
       - "5080"
+      - -app-channel-address
+      - host.docker.internal
       - -dapr-http-port
       - "3500"
       - -dapr-grpc-port
@@ -326,42 +366,34 @@ services:
         condition: service_started
 
   # ---- Gateway (Phase 01 packet 6) -----------------------------------------
-  # APISIX in standalone YAML-reload mode per ADR-0015 (no etcd).
+  # APISIX in file-driven standalone mode per ADR-0015 — no etcd, no Admin
+  # API. `apisix.yaml` is the only source of truth (hot-reloaded on file
+  # change). The `apisix-dashboard` companion is intentionally absent from
+  # this stack: the dashboard needs etcd to read routes, which contradicts
+  # the standalone-no-etcd commitment of ADR-0015. Diff-review of
+  # `apisix.yaml` replaces the dashboard for the dev workflow.
   apisix:
     image: apache/apisix:3.10.0-debian
     container_name: learnstack-apisix
     restart: unless-stopped
+    <<: *host-gateway
     volumes:
       - ../apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ../apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
     ports:
       - "9080:9080"       # HTTP gateway
-      - "9180:9180"       # Admin API (dev only)
       - "9443:9443"       # HTTPS gateway (no cert in dev)
       - "9091:9091"       # Prometheus metrics
-    extra_hosts:
-      # Lets APISIX reach the .NET host running on the developer's machine
-      # (outside the container network). Docker Desktop already maps this
-      # alias; Linux needs the explicit host-gateway entry.
-      - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9080 || curl -fsS http://localhost:9180/apisix/admin/routes -H 'X-API-KEY: learnstack-dev-admin-key' || exit 1"]
+      # The debian-based APISIX image ships curl; we hit the gateway port
+      # (a 404 is fine — it confirms nginx is listening). A 200 from a real
+      # route would require the .NET API host to be up, which is out of
+      # scope for this compose file.
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null -w '%{http_code}' http://localhost:9080 | grep -E '^(200|404)$' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 15s
-
-  apisix-dashboard:
-    image: apache/apisix-dashboard:3.0.1-alpine
-    container_name: learnstack-apisix-dashboard
-    restart: unless-stopped
-    volumes:
-      - ../apisix/dashboard.yaml:/usr/local/apisix-dashboard/conf/conf.yaml:ro
-    ports:
-      - "9000:9000"
-    depends_on:
-      apisix:
-        condition: service_started
 
 volumes:
   postgres-data:

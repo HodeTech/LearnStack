@@ -2,8 +2,8 @@
 
 LearnStack's only tenant-facing ingress, per
 [ADR-0015 (API Gateway: APISIX)](../../docs/decisions/0015-api-gateway-apisix.md).
-Standalone YAML-reload mode — no etcd, no admin-UI-driven config drift; the
-files in this directory are the source of truth.
+File-driven standalone mode — `apisix.yaml` is the only source of truth,
+hot-reloaded on file change. No etcd, no Admin API, no dashboard.
 
 ## Access
 
@@ -11,9 +11,20 @@ files in this directory are the source of truth.
 |----------|---------|---------|
 | HTTP gateway | `http://localhost:9080` | Public + authenticated routes (per `apisix.yaml`) |
 | HTTPS gateway | `https://localhost:9443` | TLS-terminated routes (no cert in dev) |
-| Admin API | `http://localhost:9180` | Route + plugin admin (dev only; `admin` key `learnstack-dev-admin-key`) |
 | Prometheus metrics | `http://localhost:9091` | Per-route + plugin metrics scraped by Prometheus (Phase 11) |
-| Dashboard | `http://localhost:9000` | Browser UI (dev only; user `admin` / pass `learnstack-dev-dashboard-pass`) |
+
+### Why no Admin API and no dashboard?
+
+APISIX 3.2+ moved file-driven standalone behind `deployment.role:
+data_plane`, which **does not expose an Admin API**. The companion
+`apisix-dashboard` reads routes from etcd; without etcd it cannot show
+anything. Both are intentionally out of this compose stack because
+ADR-0015 commits to "standalone YAML hot-reload, no etcd dependency."
+
+`apisix.yaml` is therefore the only place a developer changes routes;
+diff-review of that file replaces the dashboard for dev workflow. The
+etcd-backed deployment is reconsidered when a real admin-UI requirement
+appears, behind its own ADR.
 
 ## Plugin chain
 
@@ -26,8 +37,11 @@ real-ip → cors → openid-connect → limit-req → request-id → proxy-rewri
                                                               prometheus (response)
 ```
 
-`mtls` is **reserved** — Phase 02c (LearnStack Hub) activates it against the
-LearnStack-internal CA for the `/api/internal/*` surface.
+**mTLS is NOT a route-level plugin** in APISIX — it is configured on the
+SSL/SNI object (`client.ca` / `client.depth`). The Phase 02c
+`/api/internal/*` surface enforces mTLS through an `ssls:` entry plus
+route-level `ip-restriction`; see the commented stub at the bottom of
+`apisix.yaml`.
 
 ## Routes shipped today (`apisix.yaml`)
 
@@ -42,25 +56,17 @@ plugin against the `learnstack` Keycloak realm discovery endpoint. The
 backend re-validates the JWT (defence in depth — gateway compromise must
 not bypass auth).
 
-The `/api/internal/*` route is a **disabled placeholder**; Phase 02c
-activates it with `mtls` + `ip-restriction` against the Hub-issued client
-cert.
+The `/api/internal/*` route is a **disabled placeholder** documenting the
+SSL-object + ip-restriction shape Phase 02c activates.
 
-## Upstream addressing — why `host.docker.internal:5080`
+## Upstream addressing — `host.docker.internal:5080`
 
 The .NET API host runs **outside the container network** during active
 dev (`dotnet run` on the developer's workstation). Docker Desktop's
-`host.docker.internal` alias resolves to the host loopback; Linux developers
-without Docker Desktop need to add:
-
-```yaml
-apisix:
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
-```
-
-…in their local override (the DX packet (07) ships `make dev` with the
-cross-platform case handled).
+`host.docker.internal` alias resolves to the host loopback; the
+`extra_hosts: host.docker.internal:host-gateway` entry on the `apisix`
+service (via the `*host-gateway` YAML anchor in `dev.yml`) makes the
+alias available on Linux too — **no manual override needed**.
 
 When the .NET host moves inside compose in a later environment profile,
 the upstream nodes shift to `learnstack-api:5080` — same `apisix.yaml`,
@@ -72,15 +78,18 @@ APISIX watches `apisix.yaml` and re-applies the route table on file change.
 A malformed YAML push takes the gateway down, so changes go through CI YAML
 validation before they reach the running gateway.
 
-## Dev credentials are dev credentials
+## Dev posture
 
-Every credential in this directory (admin key, dashboard JWT secret,
-dashboard user) is dev-only. Production loads them from Vault via the
-component metadata pattern + restricts the admin API to an
-internal-only listener.
+No credentials live in this directory — file-driven standalone mode has
+no Admin API to protect, no dashboard to log into. The only sensitive
+surface is the SSL cert pair that Phase 11 introduces when TLS lands.
 
 ## What does NOT live here
 
+- etcd-backed deployment shape — reconsidered behind its own ADR if /
+  when a UI-driven admin requirement appears.
+- `apisix-dashboard` companion — see "Why no Admin API and no dashboard?"
+  above.
 - Production TLS cert (Let's Encrypt via the same adapter family ADR-0022
   picks for custom domains) — Phase 11.
 - Hub-side APISIX route block (`hub.learnstack.dev`) — Phase 02c, lives in

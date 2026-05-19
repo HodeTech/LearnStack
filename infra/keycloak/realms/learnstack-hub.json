@@ -94,7 +94,8 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["hub-operator"]
+      "realmRoles": ["hub-operator"],
+      "requiredActions": ["CONFIGURE_TOTP"]
     }
   ],
   "smtpServer": {

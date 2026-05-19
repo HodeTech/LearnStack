@@ -1,9 +1,13 @@
 # Dapr state store — Redis backend.
-# Backs `ICacheService` (L2 cache) and any Dapr actor state (not adopted
-# per ADR-0014 non-goals, but the metadata is left actor-capable for
-# future Dapr feature expansion behind its own ADR). Module code never
-# imports `IDistributedCache` / `StackExchange.Redis` directly per
+# Backs `ICacheService` (L2 cache). Module code never imports
+# `IDistributedCache` / `StackExchange.Redis` directly per
 # `ICacheService_Is_OnlyCacheAbstraction` architecture test.
+#
+# `actorStateStore: "false"` is INTENTIONAL — per ADR-0014 non-goals,
+# Dapr actors are NOT adopted. Flipping this to "true" requires a new
+# ADR + an architecture-test update. The Dapr docs are explicit that the
+# flag must be "true" only when the application code consumes the actors
+# building block; declaring it true unused signals false intent.
 
 apiVersion: dapr.io/v1alpha1
 kind: Component
@@ -18,4 +22,4 @@ spec:
     - name: redisPassword
       value: ""
     - name: actorStateStore
-      value: "true"
+      value: "false"
