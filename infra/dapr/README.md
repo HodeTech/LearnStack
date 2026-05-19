@@ -20,7 +20,7 @@ new ADR. The state store's `actorStateStore` flag is therefore pinned to
 
 Dev compose runs one sidecar bound to the `learnstack-api` app id:
 
-```
+```text
 ┌──────────────────────────┐   ┌──────────────────────────────────────────┐
 │ dotnet run                │   │ daprd                                     │
 │  → host:5080              │   │  ./daprd -app-id learnstack-api \        │

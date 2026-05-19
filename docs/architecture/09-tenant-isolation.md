@@ -195,7 +195,7 @@ Tenant + org isolation applies outside PostgreSQL too:
 
 ### Storage (SeaweedFS)
 
-```
+```text
 tenants/{tenant_id}/organizations/{org_id}/courses/{course_id}/...   ← org-scoped
 tenants/{tenant_id}/brand/...                                        ← tenant-wide
 ```

@@ -1,13 +1,15 @@
 # 05 — Database Standards
 
 **Status:** Active
-**Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md),
+**Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md)
+(Amendments 1 + 2),
 [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md)
 (Amendment 1: Organization Scope),
 [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md)
 (Amendment 1: Dapr pub/sub dispatch transport),
 [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
-[ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md).
+[ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 

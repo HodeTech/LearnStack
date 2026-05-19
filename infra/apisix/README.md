@@ -31,7 +31,7 @@ appears, behind its own ADR.
 `infra/apisix/config.yaml` declares the universe of plugins; routes pick
 from it per-request order:
 
-```
+```text
 real-ip → cors → openid-connect → limit-req → request-id → proxy-rewrite → upstream
                                                                             ↓
                                                               prometheus (response)

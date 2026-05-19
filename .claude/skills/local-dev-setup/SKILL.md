@@ -45,7 +45,7 @@ LiveKit / Meilisearch / APISIX — the same components production uses
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
 | Node 20+ + pnpm | Yes | For the frontend. |
-| Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHosted`. |
+| Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
 
 ## Workflow
@@ -111,8 +111,7 @@ The components and their default ports:
 | Mailhog | 8025 | Captures outbound email in dev. |
 | OTel Collector | 4317 (gRPC) | Local observability. |
 | Dapr sidecar (per service) | 3500 (HTTP) / 50001 (gRPC) | Building-block runtime. |
-| APISIX | 9080 (gateway) / 9180 (admin) | API gateway. |
-| APISIX dashboard (optional) | 9000 | Route inspection. |
+| APISIX | 9080 (HTTP gateway) / 9443 (HTTPS) / 9091 (Prometheus metrics) | File-driven standalone (`data_plane`) per ADR-0015 — no Admin API, no dashboard companion. `apisix.yaml` is the only source of truth. |
 | LearnStack API | 5100 | Backend host. |
 | LearnStack Web (`apps/web`) | 3000 | Frontend dev server. |
 
@@ -170,7 +169,8 @@ Edit `.env` to flip `DEPLOYMENT_MODE`:
 | `Development` (default) | `InProcessEventBus` + `InMemoryCacheService` + env vars for secrets. Dapr sidecar is still present but not exercised. |
 | `SaaS` | `DaprEventBus` (Kafka) + `DaprCacheService` (Valkey) + `DaprSecretProvider` (Vault) + `HubEntitlementProvider` pointing at the local Hub. Requires the `learnstack-hub` repo's `make dev` to be running. |
 | `Dedicated` | Same as `SaaS` for the composition; in practice the Hub is dedicated to one tenant. |
-| `SelfHosted` | `SignedLicenseKeyEntitlementProvider` reads `.lic` from `./secrets/license.lic`; no Hub interaction. |
+| `SelfHostedOnline` | `HubEntitlementProvider` against the LearnStack-hosted Hub (phone-home daily, 30-day cached-projection grace per ADR-0020). |
+| `SelfHostedAirGapped` | `SignedLicenseKeyEntitlementProvider` reads `.lic` from `./secrets/license.lic`; no Hub interaction. |
 
 After changing `.env`, restart the API:
 

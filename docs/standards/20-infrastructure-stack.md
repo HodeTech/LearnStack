@@ -5,7 +5,10 @@
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
-[ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md).
+[ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md),
+[ADR-0029 Object Storage — SeaweedFS](../decisions/0029-object-storage-seaweedfs.md),
+[ADR-0030 Redis-compatible Store — Valkey](../decisions/0030-redis-compatible-store-valkey.md),
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
 
 This standard defines how application code uses the foundation infrastructure introduced
 in the 2026-05-18 redesign: Dapr building blocks, the APISIX gateway, the Hub HTTPS
@@ -191,8 +194,10 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 - `IFeatureFlags.IsEnabledAsync(FeatureKey)` is the only sanctioned read path. Direct
   SQL against `platform_entitlement_cache` outside the Tenancy module's infrastructure
   is forbidden (architecture test `Modules_Do_Not_Read_Entitlement_Cache_Directly`).
-- Cache TTL for the in-process / Valkey layer is 60s. Eager invalidation flows from the
-  Dapr event; the TTL is the safety net, not the typical refresh window.
+- Cache TTLs: **L1 (in-process `IMemoryCache`)** = 60s; **L2 (Dapr state → Valkey)** =
+  15-minute upper bound. Eager invalidation flows from the Dapr event
+  (`learnstack.hub.entitlement` / `learnstack.cache.invalidation`); the TTLs are the
+  safety net, not the typical refresh window.
 - For air-gapped deployments, `SignedLicenseKeyEntitlementProvider` reads a signed
   `.lic` file and runs the same projection write path; the rest of the system is
   source-agnostic.

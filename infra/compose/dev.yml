@@ -93,7 +93,7 @@ services:
       - "9000:8333"   # S3 API gateway (host:9000 matches the prior MinIO endpoint)
       - "9001:8888"   # Filer UI (replaces the MinIO console)
       - "9333:9333"   # Master HTTP API
-      - "8080:8080"   # Volume HTTP API
+      - "8084:8080"   # Volume HTTP API (host 8084 to avoid Keycloak's 8080)
     volumes:
       - seaweedfs-data:/data
       # Dev-only S3 identity (matches prior MinIO credentials so callers
@@ -274,7 +274,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       # Stable cluster id so KRaft does not re-format the log dir on restart.
-      CLUSTER_ID: learnstack-dev-cluster-id-1
+      # Format: URL-safe Base64-encoded UUIDv4 (16-byte UUID → 22-char Base64
+      # without padding) — the format `kafka-storage.sh random-uuid` emits.
+      # This value is checked in deliberately for dev reproducibility.
+      CLUSTER_ID: ofPH0p5rSlK52BxOX3qLPQ
     ports:
       - "9092:9092"
     volumes:

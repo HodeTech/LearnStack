@@ -37,7 +37,13 @@
          suite only runs the WebApplicationFactory smoke test. -->
     <PackageVersion Include="Testcontainers" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
-    <PackageVersion Include="Testcontainers.Valkey" Version="3.10.0" />
+    <!-- The Testcontainers .NET library publishes its RESP-compatible test
+         container under the `Testcontainers.Redis` NuGet identifier; the
+         container itself can be pointed at any RESP-compatible image
+         (Valkey 8 per ADR-0030, Redis 7.4) via builder config. Do not
+         try to rename this to "Testcontainers.Valkey" — that package
+         does not exist on NuGet. -->
+    <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />
     <PackageVersion Include="Respawn" Version="6.2.1" />
   </ItemGroup>
 

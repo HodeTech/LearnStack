@@ -222,7 +222,7 @@ flips the decision.
 | Mode | Estimated monthly cost |
 |---|---|
 | LiveKit Cloud Scale | $500 base + ~$120 transfer overage + $4,380 recording overage ≈ **$5,000** |
-| LiveKit OSS Hetzner | 3× SFU + 2× Egress + Valkey + TURN + 1 TB recording storage ≈ **$650–800** |
+| LiveKit OSS Hetzner | 3× SFU + 2× Egress + Valkey + TURN ≈ **$650–800** compute. Recording storage at 300,000 min × 60 MB/min ≈ **18 TB** → ~€70/mo on Hetzner BX21-tier (€3.81/TB-month linear above 1 TB). **Total ≈ $720–870** |
 
 By this scale, the self-hosted advantage is ~6×.
 

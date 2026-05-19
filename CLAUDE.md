@@ -21,15 +21,17 @@ Self-Hosted — backed by the companion **`learnstack-hub`** repository
 
 ## What state this is in
 
-**Phase 01 in progress.** The repository now has the .NET 10 solution
-scaffold under `backend/` (core + 7 modules × 4 projects + 4 test
-projects including the non-skippable `LearnStack.Tests.Architecture`),
+**Phase 01 packets 1-6 shipped.** The repository now has the .NET 10
+solution scaffold under `backend/` (core + 7 modules × 4 projects + 4
+test projects including the non-skippable `LearnStack.Tests.Architecture`),
 the `pnpm` frontend monorepo under `frontend/` (`apps/web` Next.js App
-Router + `packages/{config,ui,sdk}`), and the core local-dev compose
-stack at `infra/compose/dev.yml` (Postgres / Valkey / SeaweedFS / Mailpit /
-Meilisearch). The remaining Phase-01 packets — Keycloak, LiveKit, Kafka,
-Vault, Dapr, APISIX, `make` targets, `.env.example`, CI, `make seed` —
-land incrementally; see
+Router + `packages/{config,ui,sdk}`), and the full local-dev compose
+stack at `infra/compose/dev.yml` — PostgreSQL 18, Valkey, SeaweedFS,
+Mailpit, Meilisearch, Keycloak (two realms), LiveKit OSS + Coturn,
+Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX in file-
+driven standalone mode. The remaining Phase-01 packets (7-8) — `make`
+orchestrator, `.env.example`, pre-commit hook, `e2e.yml`, GitHub Actions
+CI, `make seed` — land incrementally; see
 [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
 Module-level code references in the docs (e.g.
 `LearnStack.Modules.Education.Application`, `ILiveClassProvider`,

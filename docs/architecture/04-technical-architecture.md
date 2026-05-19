@@ -7,8 +7,8 @@
 | Backend runtime | .NET 10, ASP.NET Core Web API |
 | Language | C# |
 | ORM | Entity Framework Core |
-| Database | PostgreSQL 18+ (shared schema + RLS isolation; ADR-0003) |
-| Cache & coordination | **Valkey 7+ via Dapr State Store** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
+| Database | PostgreSQL 18.x (major pinned per [ADR-0031](../decisions/0031-postgresql-major-version.md); shared schema + RLS isolation; ADR-0003) |
+| Cache & coordination | **Valkey 8.x via Dapr State Store** (Linux-Foundation BSD-3 fork of Redis 7.2.4 per [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md); [29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
 | Pub/Sub | **Apache Kafka via Dapr Pub/Sub** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) — outbox dispatch target |
 | Secrets | **HashiCorp Vault via Dapr Secret Store** (or env-var fallback in Dev) |
 | Distributed runtime | **Dapr 1.14+** sidecar pattern (pub/sub, state, secrets) |
@@ -207,7 +207,7 @@ Detailed conventions: [Frontend Architecture](14-frontend-architecture.md) and [
 
 ```
 postgres
-redis
+valkey
 seaweedfs            # single dev binary: master + volume + filer + S3 gateway
 meilisearch
 keycloak

@@ -50,23 +50,22 @@ adapter table.
 ## Local Infrastructure (Docker Compose)
 
 ```
-postgres
-redis
-seaweedfs               # single dev binary: master + volume + filer + S3 gateway
+postgres                # PostgreSQL 18.x per ADR-0031
+valkey                  # Linux-Foundation BSD-3 fork of Redis 7.2.4 per ADR-0030
+seaweedfs               # single dev binary: master + volume + filer + S3 gateway per ADR-0029
 meilisearch
 keycloak                # two realms: learnstack + learnstack-hub
 livekit-server
 livekit-egress
 coturn
-mailhog
+mailpit
 otel-collector
 
 dapr-placement          # Dapr building blocks
 dapr-sidecar-api        # one sidecar per backend service
-kafka + kafka-ui        # Dapr pub/sub backend
+kafka + kafka-ui        # Dapr pub/sub backend (kafka-ui = ghcr.io/kafbat fork)
 vault                   # Dapr secrets backend (dev mode)
-apisix                  # gateway in standalone YAML-reload mode
-apisix-dashboard        # optional, dev only
+apisix                  # gateway in file-driven standalone (data_plane) mode — no etcd, no Admin API, no dashboard companion
 ```
 
 - Application projects run **outside** containers during active development; the Dapr

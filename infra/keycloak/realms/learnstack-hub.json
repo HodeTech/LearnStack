@@ -60,7 +60,7 @@
     {
       "clientId": "learnstack-hub-web",
       "name": "LearnStack Hub Web (public PKCE)",
-      "description": "learnstack-hub-web operator portal — public client, PKCE-enforced.",
+      "description": "learnstack-hub-web operator portal — public client, PKCE-enforced. `fullScopeAllowed: true` kept for dev simplicity so demo-operator's token carries the hub-operator realm role without explicit scopeMappings; production realm provisioning should tighten this with explicit `defaultClientScopes` listing only the hub-* roles.",
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,

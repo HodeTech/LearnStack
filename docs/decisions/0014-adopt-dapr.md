@@ -14,9 +14,9 @@ LearnStack adopts **Dapr** (Distributed Application Runtime) for three building 
 
 | Building block | Backend (production) | Component file |
 |----------------|---------------------|----------------|
-| Pub/Sub | Apache Kafka | `dapr/components/pubsub.yaml` |
-| State store | Valkey | `dapr/components/statestore.yaml` |
-| Secret store | HashiCorp Vault | `dapr/components/secretstore-vault.yaml` |
+| Pub/Sub | Apache Kafka | `infra/dapr/components/pubsub-kafka.yaml` |
+| State store | Valkey (RESP-protocol fork; see ADR-0030) | `infra/dapr/components/statestore-redis.yaml` (file name keeps the `-redis` suffix because `state.redis` is the Dapr provider-type identifier, not the vendor brand) |
+| Secret store | HashiCorp Vault | `infra/dapr/components/secretstore-vault.yaml` |
 
 Application code interacts with Dapr **exclusively through wrapped abstractions** —
 `IEventBus`, `ICacheService`, `ISecretProvider` in `LearnStack.SharedKernel` — never via

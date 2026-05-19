@@ -172,7 +172,7 @@ Docker Compose under `infra/compose/`:
 - **Kafka** (Dapr pub/sub backend) + kafka-ui.
 - **Vault** (Dapr secret store, dev mode).
 - **Dapr sidecar** + placement service.
-- **APISIX** (standalone YAML-reload mode) + apisix-dashboard (dev only).
+- **APISIX** (file-driven standalone `data_plane` mode per ADR-0015 — no etcd, no Admin API, no dashboard companion).
 - Optional Jaeger or Tempo (for trace inspection).
 - Optional `learnstack-hub` compose overlay for local Hub development (depends on
   the same Keycloak / Postgres / Kafka / Vault / APISIX stack).

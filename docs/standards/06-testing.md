@@ -8,6 +8,9 @@ Test pyramid, conventions, and what every change must cover.
 ## Test Pyramid
 
 ```mermaid
+---
+title: LearnStack Test Pyramid
+---
 flowchart TB
   e2e[End-to-end / Playwright<br/>handful of golden flows]
   contract[Contract & API tests<br/>OpenAPI + provider fakes]
@@ -17,6 +20,14 @@ flowchart TB
 
   unit --> arch --> integration --> contract --> e2e
 ```
+
+Text fallback (for renderers without Mermaid support — pyramid base → top):
+
+- **Unit tests** (base layer, widest) — domain + application + UI logic.
+- **Architecture tests** — module boundaries + tenant invariants.
+- **Integration tests** — Testcontainers Postgres / Valkey / SeaweedFS.
+- **Contract & API tests** — OpenAPI + provider fakes.
+- **End-to-end / Playwright** (top, narrowest) — handful of golden flows.
 
 We invest most at **unit + integration**. Architecture tests are zero-flake. E2E covers only what cannot be proven below.
 

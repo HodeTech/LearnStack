@@ -3,7 +3,7 @@
 ## Status
 
 Accepted with two amendments — see the bottom of this document for the dated
-amendment block. Each amendment supersedes a single backend row of the
+amendment blocks. Each amendment supersedes a single backend row of the
 original Decision section without rewriting the rest of the ADR:
 
 - **Amendment 1 (2026-05-19):** storage backend MinIO → SeaweedFS per
@@ -13,12 +13,15 @@ original Decision section without rewriting the rest of the ADR:
   version pinned to 18.x per
   [ADR-0031](0031-postgresql-major-version.md).
 
-Every other choice in this ADR — .NET 10, ASP.NET Core, EF Core, modular
-monolith, Next.js — stands.
+Every other choice in the Decision section below — .NET 10, ASP.NET Core,
+EF Core, modular monolith, Next.js — stands. The Decision + Consequences
+text is the original, immutable form per CLAUDE.md's "never edit an
+Accepted ADR's decision section" rule; read it together with the
+Amendment blocks at the bottom for the current backend choices.
 
 ## Decision
 
-LearnStack starts as a modular monolith using .NET 10, ASP.NET Core, Entity Framework Core, PostgreSQL 18.x (see Amendment 2), Valkey (see Amendment 2), SeaweedFS (see Amendment 1), and Next.js.
+LearnStack starts as a modular monolith using .NET 10, ASP.NET Core, Entity Framework Core, PostgreSQL, Redis, MinIO, and Next.js.
 
 ## Context
 
@@ -30,9 +33,9 @@ The team has stronger familiarity with .NET, so .NET 10 is preferred over Go for
 
 - The first backend implementation should use .NET 10.
 - EF Core should be the default ORM.
-- PostgreSQL 18.x should be the primary database (Amendment 2).
-- Valkey should be used for caching and distributed coordination where needed (Amendment 2).
-- SeaweedFS should be used locally for S3-compatible object storage (Amendment 1).
+- PostgreSQL should be the primary database.
+- Redis should be used for caching and distributed coordination where needed.
+- MinIO should be used locally for S3-compatible object storage.
 - Next.js should be used for public rendering, admin studio, and portals initially.
 
 ---
@@ -73,8 +76,9 @@ pre-implementation, so the migration drag is zero):
 2. **PostgreSQL major pinned to 18.x** per
    [ADR-0031](0031-postgresql-major-version.md). 18 is the longest-
    runway LTS available (EOL 2030-11), brings native `gen_uuid_v7()`
-   that the [ADR-0023 draft](README.md) can adopt without an extension,
-   and async I/O for sequential scans helps the partitioned `audit_log`
+   that the [ADR-0023 draft](README.md#open-adr-drafts) can adopt
+   without an extension, and async I/O for sequential scans helps the
+   partitioned `audit_log`
    ([ADR-0016](0016-audit-log-subsystem.md)) operator queries. RLS
    policy syntax + connection-string + role provisioning are unchanged
    from 16 / 17, so the tenant-isolation defense-in-depth pattern

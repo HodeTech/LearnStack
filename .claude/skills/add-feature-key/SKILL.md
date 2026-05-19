@@ -265,9 +265,11 @@ public async Task LimitKey_Soft_SurfaceBanner_DoesNotBlock() { ... }
 - **Writing a plan-projected key to `tenant_feature_flags`.** Architecture test
   rejects. Plan keys belong to the entitlement projection only.
 - **Reading the key from raw SQL.** Forbidden; use `IFeatureFlags`.
-- **Hot path without Valkey cache.** Each `IsEnabledAsync` call could become
-  DB-bound. The Valkey layer (60s TTL, eager-invalidated by Dapr event) is
-  load-bearing.
+- **Hot path without the cache stack.** Each `IsEnabledAsync` call could become
+  DB-bound. The two cache layers (L1 in-process `IMemoryCache` = 60s TTL;
+  L2 Dapr state → Valkey = 15-min upper bound; both eager-invalidated by the
+  `learnstack.hub.entitlement` Dapr event) are load-bearing — see Standards 20
+  § Configuration / Eager invalidation.
 - **Killswitch without runbook.** The runbook is part of the deliverable. CI does
   not enforce its presence today; review must.
 - **Removing a key without a deprecation cycle.** A rename / remove follows the

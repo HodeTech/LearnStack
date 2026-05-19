@@ -15,7 +15,7 @@ production topology splits them per ADR-0029 § Implementation Notes.
 | S3 API gateway | `http://localhost:9000` | The endpoint `IStorageProvider` talks to (drop-in port-map for the previous MinIO S3 endpoint) |
 | Filer / volume UI | `http://localhost:9001` | Bucket browser, replaces the MinIO console |
 | Master HTTP API | `http://localhost:9333` | Cluster topology + health (`/cluster/healthz`) |
-| Volume HTTP API | `http://localhost:8080` | Internal — read / write blob ops |
+| Volume HTTP API | `http://localhost:8084` | Internal — read / write blob ops. Host port 8084 (container 8080) avoids Keycloak's 8080 binding. |
 
 ## Dev credentials
 

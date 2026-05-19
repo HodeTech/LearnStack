@@ -82,6 +82,15 @@ Topics follow the convention `learnstack.{module}.{aggregate}`. Examples:
 
 ### `statestore.yaml` — Valkey state store
 
+> The component below uses `spec.type: state.redis` and `redisHost` metadata —
+> these are **Dapr provider-type / RESP-protocol identifiers**, NOT vendor
+> brand markers. The actual backend is Valkey 8.x per
+> [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md); Valkey is
+> drop-in compatible on the RESP wire protocol so the Dapr `state.redis`
+> adapter consumes it unchanged. Operators read `redisHost` as "where to
+> reach the RESP-compatible store"; in dev compose the value points at the
+> `valkey` service (`infra/dapr/components/statestore-redis.yaml`).
+
 ```yaml
 apiVersion: dapr.io/v1alpha1
 kind: Component

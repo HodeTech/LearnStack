@@ -19,7 +19,7 @@ major-version choice only; the rest of ADR-0002 stands)
   versus 16 LTS at 2028-11. Starting on 18 buys an extra two years of
   upstream patches before any forced major upgrade.
 - **`gen_uuid_v7()` is native in 18.** LearnStack's
-  [ADR-0023 (Strongly-typed ID source generator)](README.md) is a
+  [ADR-0023 (Strongly-typed ID source generator)](README.md#open-adr-drafts) is a
   pending draft considering UUIDv7 as the canonical id format
   (time-ordered, index-friendly). Postgres 18 ships a built-in
   `gen_uuid_v7()` SQL function — DB-side DEFAULT values become trivial,
@@ -178,7 +178,7 @@ preview, that preview already runs on 18 — no major upgrade needed.
 - [ADR-0002 Initial Architecture](0002-initial-architecture.md) — original PostgreSQL major-version row, now partially superseded.
 - [ADR-0003 Tenant Isolation Defense in Depth](0003-tenant-isolation-defense-in-depth.md) — RLS pattern unchanged across 16/17/18.
 - [ADR-0016 Audit Log Subsystem](0016-audit-log-subsystem.md) — partitioned `audit_log` benefits from async I/O.
-- [ADR-0023 Strongly-typed ID source generator](README.md) — draft; UUIDv7 native in 18 widens the design space.
+- [ADR-0023 Strongly-typed ID source generator](README.md#open-adr-drafts) — draft (no dedicated file yet — listed in the decisions index); UUIDv7 native in 18 widens the design space.
 - [Standards 05 — Database](../standards/05-database.md)
 - [Standards 12 § Database Operations](../standards/12-infrastructure.md)
 - PostgreSQL 18 release notes: <https://www.postgresql.org/docs/18/release-18.html>.

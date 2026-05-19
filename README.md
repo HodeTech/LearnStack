@@ -17,12 +17,14 @@ Dedicated control plane, plan editor, custom-domain admin, and license-key issua
 
 ## Status
 
-Phase 01 in progress. The repository now holds the .NET 10 solution scaffold
-(7 modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
+Phase 01 packets 1-6 shipped. The repository now holds the .NET 10 solution
+scaffold (7 modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
 architecture test), the `pnpm` frontend monorepo (`apps/web` + `packages/{config,ui,sdk}`),
-and the core local-dev `docker-compose` stack (Postgres / Valkey / SeaweedFS / Mailpit /
-Meilisearch). Keycloak, LiveKit, Kafka, Vault, Dapr, APISIX, `make` targets, and
-CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
+and the full local-dev `docker-compose` stack — PostgreSQL 18, Valkey, SeaweedFS,
+Mailpit, Meilisearch, Keycloak (two realms), LiveKit OSS + Coturn, Kafka + kafka-ui,
+Vault, Dapr sidecar + placement, APISIX (file-driven standalone). The remaining
+Phase-01 packets — `make` targets, `.env.example`, pre-commit, `e2e.yml`, GitHub
+Actions CI, `make seed` — land in packets 7-8; see [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
 
 ## Direction At A Glance
 
@@ -30,10 +32,12 @@ CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository
 - **Database:** PostgreSQL 18, with Row-Level Security from day one. Tenant + **Organization**
   defense in depth ([ADR-0003 Amendment 1](docs/decisions/0003-tenant-isolation-defense-in-depth.md),
   [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)).
-- **Cache / Pub-Sub / Secrets:** Valkey 7, Kafka, HashiCorp Vault — all accessed via
-  **Dapr** building blocks (`IEventBus`, `ICacheService`, `ISecretProvider`) per
+- **Cache / Pub-Sub / Secrets:** Valkey 8 (RESP-protocol Linux-Foundation BSD fork
+  per [ADR-0030](docs/decisions/0030-redis-compatible-store-valkey.md)), Kafka,
+  HashiCorp Vault — all accessed via **Dapr** building blocks (`IEventBus`,
+  `ICacheService`, `ISecretProvider`) per
   [ADR-0014](docs/decisions/0014-adopt-dapr.md).
-- **API Gateway:** **APISIX** in standalone YAML-reload mode per
+- **API Gateway:** **APISIX** in file-driven standalone (`data_plane`) mode per
   [ADR-0015](docs/decisions/0015-api-gateway-apisix.md).
 - **Object storage:** SeaweedFS locally, S3-compatible storage in production.
 - **Search:** Meilisearch initially.
