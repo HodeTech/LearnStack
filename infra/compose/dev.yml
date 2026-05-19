@@ -26,7 +26,7 @@ x-host-gateway: &host-gateway
 
 services:
   postgres:
-    image: postgres:16.6-alpine
+    image: postgres:16.14-alpine
     container_name: learnstack-postgres
     restart: unless-stopped
     environment:
@@ -85,7 +85,7 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:v1.21
+    image: axllent/mailpit:v1.29.7
     container_name: learnstack-mailpit
     restart: unless-stopped
     ports:
@@ -107,7 +107,7 @@ services:
       retries: 10
 
   meilisearch:
-    image: getmeili/meilisearch:v1.11
+    image: getmeili/meilisearch:v1.44.0
     container_name: learnstack-meilisearch
     restart: unless-stopped
     environment:
@@ -131,7 +131,7 @@ services:
   # one realm are never accepted on the other realm's endpoints. See
   # ../keycloak/README.md.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    image: quay.io/keycloak/keycloak:26.6.2
     container_name: learnstack-keycloak
     restart: unless-stopped
     command: ["start-dev", "--import-realm"]
@@ -180,7 +180,7 @@ services:
   # (Phase 08c); the LiveKit SDK is never imported by any module — only by
   # `LearnStack.Infrastructure.LiveClassroom.LiveKit`.
   livekit:
-    image: livekit/livekit-server:v1.8.0
+    image: livekit/livekit-server:v1.12.0
     container_name: learnstack-livekit
     restart: unless-stopped
     # `--node-ip 127.0.0.1` and `rtc.use_external_ip: false` in
@@ -208,7 +208,7 @@ services:
       retries: 10
 
   coturn:
-    image: coturn/coturn:4.6
+    image: coturn/coturn:4.11.0
     container_name: learnstack-coturn
     restart: unless-stopped
     command: ["-c", "/etc/turnserver.conf"]
@@ -232,7 +232,7 @@ services:
   # Phase 07 (DX) ships either an explicit EXTERNAL listener or a
   # documented kafka-ui-only workflow.
   kafka:
-    image: confluentinc/cp-kafka:7.8.0
+    image: confluentinc/cp-kafka:8.2.1
     container_name: learnstack-kafka
     restart: unless-stopped
     environment:
@@ -263,8 +263,11 @@ services:
       retries: 20
       start_period: 30s
 
+  # Kafka UI — using the active community fork `kafbat/kafka-ui` because the
+  # original `provectuslabs/kafka-ui` was abandoned (no release since
+  # 2024-04). The fork preserves the same env-var contract.
   kafka-ui:
-    image: provectuslabs/kafka-ui:v0.7.2
+    image: ghcr.io/kafbat/kafka-ui:latest
     container_name: learnstack-kafka-ui
     restart: unless-stopped
     environment:
@@ -287,7 +290,7 @@ services:
   # If you change one you MUST change the other. Phase 07 (DX) wires both
   # to a single `.env.example` source so the duplication goes away.
   vault:
-    image: hashicorp/vault:1.18
+    image: hashicorp/vault:1.21.4
     container_name: learnstack-vault
     restart: unless-stopped
     command: ["server", "-dev", "-dev-root-token-id=learnstack-dev-root-token", "-dev-listen-address=0.0.0.0:8200"]
@@ -310,7 +313,7 @@ services:
   # Placement service required by daprd even though actors are out of scope
   # per ADR-0014 non-goals (daprd will not boot without it).
   dapr-placement:
-    image: daprio/placement:1.14.4
+    image: daprio/placement:1.17.7
     container_name: learnstack-dapr-placement
     restart: unless-stopped
     command: ["./placement", "-log-level", "info"]
@@ -325,7 +328,7 @@ services:
   # anchor at the top of the file maps `host.docker.internal` on Linux.
   # See ../dapr/README.md.
   dapr-sidecar-api:
-    image: daprio/daprd:1.14.4
+    image: daprio/daprd:1.17.7
     container_name: learnstack-dapr-sidecar-api
     restart: unless-stopped
     <<: *host-gateway
@@ -373,7 +376,7 @@ services:
   # the standalone-no-etcd commitment of ADR-0015. Diff-review of
   # `apisix.yaml` replaces the dashboard for the dev workflow.
   apisix:
-    image: apache/apisix:3.10.0-debian
+    image: apache/apisix:3.16.0-debian
     container_name: learnstack-apisix
     restart: unless-stopped
     <<: *host-gateway

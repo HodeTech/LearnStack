@@ -13,17 +13,17 @@ eventing → secrets → Dapr sidecar → gateway). Packets 1-6 shipped; packets
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| PostgreSQL 16 | `postgres:16.6-alpine` | `localhost:5432` | `learnstack` / `learnstack` |
+| PostgreSQL 16 | `postgres:16.14-alpine` | `localhost:5432` | `learnstack` / `learnstack` |
 | Redis 7 | `redis:7.4-alpine` | `localhost:6379` | — |
 | MinIO | `minio/minio:RELEASE.2025-01-20T14-49-07Z` | `localhost:9000` (S3), `localhost:9001` (console) | `learnstack` / `learnstack-dev-secret` |
-| Mailpit | `axllent/mailpit:v1.21` | `localhost:1025` (SMTP), `localhost:8025` (UI) | accepts any auth |
-| Meilisearch | `getmeili/meilisearch:v1.11` | `localhost:7700` | master key `learnstack-dev-master-key` |
+| Mailpit | `axllent/mailpit:v1.29.7` | `localhost:1025` (SMTP), `localhost:8025` (UI) | accepts any auth |
+| Meilisearch | `getmeili/meilisearch:v1.44.0` | `localhost:7700` | master key `learnstack-dev-master-key` |
 
 ### Identity (Phase 01 packet 4)
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| Keycloak | `quay.io/keycloak/keycloak:26.0` | `localhost:8080` | master admin `admin` / `admin-dev-secret` |
+| Keycloak | `quay.io/keycloak/keycloak:26.6.2` | `localhost:8080` | master admin `admin` / `admin-dev-secret` |
 
 Two realms imported on first boot from `infra/keycloak/realms/`:
 
@@ -42,8 +42,8 @@ or a manual `DROP DATABASE keycloak; CREATE DATABASE keycloak OWNER learnstack;`
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| LiveKit OSS | `livekit/livekit-server:v1.8.0` | `ws://localhost:7880` (signaling), `tcp/7881` (TCP fallback), `tcp/7882` (TURN/TLS), `udp/50000-50100` (media) | API key `devkey` / secret `devsecret-32-byte-min-length-padding-xyz` |
-| Coturn | `coturn/coturn:4.6` | `udp+tcp/3478` (STUN/TURN), `tcp/5349` (TURN/TLS), `udp/49152-49200` (relay range) | TURN user `devuser` / password `devsecret` |
+| LiveKit OSS | `livekit/livekit-server:v1.12.0` | `ws://localhost:7880` (signaling), `tcp/7881` (TCP fallback), `tcp/7882` (TURN/TLS), `udp/50000-50100` (media) | API key `devkey` / secret `devsecret-32-byte-min-length-padding-xyz` |
+| Coturn | `coturn/coturn:4.11.0` | `udp+tcp/3478` (STUN/TURN), `tcp/5349` (TURN/TLS), `udp/49152-49200` (relay range) | TURN user `devuser` / password `devsecret` |
 
 LiveKit config at `infra/livekit/livekit.yaml`; Coturn config at
 `infra/coturn/turnserver.conf`. See [../livekit/README.md](../livekit/README.md)
@@ -54,12 +54,12 @@ recording / consent / cost-tracking story.
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| Kafka (KRaft) | `confluentinc/cp-kafka:7.8.0` | `localhost:9092` (in-cluster only — see note below) | none (`PLAINTEXT`, `authType: none`) |
-| kafka-ui | `provectuslabs/kafka-ui:v0.7.2` | `localhost:8081` | open UI (dev only) |
-| Vault | `hashicorp/vault:1.18` | `localhost:8200` | root token `learnstack-dev-root-token` |
-| Dapr placement | `daprio/placement:1.14.4` | `localhost:50005` | — |
-| Dapr sidecar (api) | `daprio/daprd:1.14.4` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |
-| APISIX | `apache/apisix:3.10.0-debian` | `localhost:9080` (HTTP), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | none (file-driven standalone — no Admin API) |
+| Kafka (KRaft) | `confluentinc/cp-kafka:8.2.1` | `localhost:9092` (in-cluster only — see note below) | none (`PLAINTEXT`, `authType: none`) |
+| kafka-ui | `ghcr.io/kafbat/kafka-ui:latest` | `localhost:8081` | open UI (dev only) |
+| Vault | `hashicorp/vault:1.21.4` | `localhost:8200` | root token `learnstack-dev-root-token` |
+| Dapr placement | `daprio/placement:1.17.7` | `localhost:50005` | — |
+| Dapr sidecar (api) | `daprio/daprd:1.17.7` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |
+| APISIX | `apache/apisix:3.16.0-debian` | `localhost:9080` (HTTP), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | none (file-driven standalone — no Admin API) |
 
 Configs:
 
