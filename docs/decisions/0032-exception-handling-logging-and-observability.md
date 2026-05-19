@@ -152,7 +152,7 @@ this ADR instead of redefining the rules.
    02 § Pipeline Behaviors and ADR-0016 § Pipeline behavior order are aligned
    to it:
 
-   ```
+   ```text
    Request
      → ValidationBehavior        (FluentValidation; returns Result.Fail on invalid)
        → LoggingBehavior         (ILogger.BeginScope + Activity + correlation tags)
@@ -340,12 +340,17 @@ this ADR instead of redefining the rules.
 12. **Outbox + Hangfire correlation propagation is contractual.** Every
     `outbox_messages` row carries `tenant_id`, `organization_id?`,
     `correlation_id`, `event_id`, `occurred_at`, `type` (already specified in
-    Phase 02b deliverables). Every integration-event handler restores
-    `ITenantContext` from the envelope and starts a new
-    `Activity` with `traceparent` set to the row's
-    `correlation_id`. Every Hangfire job payload includes `tenant_id` and
-    `correlation_id`; the job activator restores the ambient context before
-    handler invocation. The architecture tests
+    Phase 02b deliverables). The `correlation_id` column stores the **full
+    W3C `traceparent` header string**
+    (`00-<32-hex trace-id>-<16-hex parent-span-id>-<2-hex flags>`), not a
+    bare UUID — so the consumer rehydrates the trace deterministically:
+    `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var parentCtx)`,
+    then `_activitySource.StartActivity(name, kind, parentCtx)`. Every
+    integration-event handler also restores `ITenantContext` from the
+    envelope before the inner pipeline runs. Every Hangfire job payload
+    includes `tenant_id` and `correlation_id` (same `traceparent` format);
+    the job activator restores the ambient context before handler
+    invocation. The architecture tests
     `Hangfire_Job_Payloads_Include_TenantId` and
     `Outbox_Row_Carries_Correlation_Context` are added in Phase 02b.
 

@@ -27,7 +27,7 @@ Every external integration (LiveKit room creation, Stripe charge,
 Meilisearch search, SeaweedFS object PUT, Keycloak admin call, …) goes
 through the same shape:
 
-```
+```text
 Application code
   ↓ (port interface in SharedKernel)
 ResilientProviderAdapter<TPort>           ← Polly v8 ResiliencePipeline

@@ -73,7 +73,7 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the order. Reading bottom-most as innermost:
 
-```
+```text
 Request
   ▼
 [1] ValidationBehavior       ←  FluentValidation; returns Result.Fail(validation_failed)
@@ -203,7 +203,7 @@ business data" not "the user typed a bad email address". The
 Both backends receive *some* signal on every failure, but for different
 audiences:
 
-```
+```text
 OTel: every failure SetStatus(Error) on its span.
       Operators see latency + error rate; long-tail debug via Tempo.
 

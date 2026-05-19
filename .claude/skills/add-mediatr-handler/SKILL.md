@@ -250,8 +250,11 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
 
 - **Throwing for expected failures.** Use `Result.Fail(...)`. Exceptions are for
   *unexpected* paths (DB unavailable, infrastructure faults, programmer error).
-  The pipeline maps `Result.Fail` to RFC 7807 Problem Details automatically via
-  `Result<T>.ToActionResult()`. Per
+  `Result.Fail` values are converted to RFC 7807 Problem Details at the
+  **controller/API boundary** when the endpoint calls
+  `Result<T>.ToActionResult()` (Step 7 above) — the pipeline itself just
+  propagates the `Result` unchanged; the explicit `.ToActionResult()` call is
+  where the mapping happens. Per
   [ADR-0032 § Sub-decision 4](../../../docs/decisions/0032-exception-handling-logging-and-observability.md),
   `DomainException` is reserved for **bugs** — "expected business-rule
   violation" means `Result.Fail(business_rule_violation, …)`, not a throw. The

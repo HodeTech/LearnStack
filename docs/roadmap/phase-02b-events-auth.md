@@ -41,9 +41,15 @@ Decisions made in this phase:
 - Outbox row attaches `tenant_id`, `organization_id?`, `correlation_id`, `event_id`,
   `occurred_at`, versioned `type` to every event (per
   [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
-  Consumer handler restores `ITenantContext` from the envelope and starts an
-  `Activity` with `traceparent` set to the row's `correlation_id` so the
-  end-to-end trace stays continuous.
+  The `correlation_id` column is the **full W3C `traceparent` header string**
+  (`00-<32-hex trace-id>-<16-hex parent-span-id>-<2-hex flags>`), not a
+  bare UUID — so the consumer can rehydrate the trace with one call:
+  `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var parentCtx)`
+  then `_activitySource.StartActivity(name, kind, parentCtx)`. Storing the
+  full string keeps the deserialisation deterministic and avoids any
+  "how do we map a UUID back to a trace-id?" ambiguity. Consumer handler
+  also restores `ITenantContext` from the envelope before the inner
+  pipeline runs, so end-to-end trace + tenant context stay continuous.
 - Versioned integration event types in `<Module>.Application.Contracts`, inheriting
   `IntegrationEventBase`.
 - Per-module **`inbox_messages`** table + `IInboxGuard`. Every

@@ -13,7 +13,7 @@ non-goals.
 
 Phase ownership (per [phase-02a](../../docs/roadmap/phase-02a-kernel-tenancy.md)
 § Shared Kernel and § Dapr Building Blocks, and
-[phase-02b](../../docs/roadmap/phase-02b-events-outbox-identity.md)):
+[phase-02b](../../docs/roadmap/phase-02b-events-auth.md)):
 
 - **Phase 02a** declares all three interfaces in `LearnStack.SharedKernel`
   with default in-process implementations (`InProcessEventBus`,
@@ -117,7 +117,9 @@ both places together.
 ## What does NOT live here
 
 - The `IEventBus` / `ICacheService` / `ISecretProvider` implementations —
-  Phase 02b (`LearnStack.Infrastructure`).
+  the **interfaces + Dapr-backed adapters** both ship in **Phase 02a**
+  (see § Phase ownership above); only the *outbox dispatch path* that
+  becomes the sanctioned caller of `IEventBus.PublishAsync` is Phase 02b.
 - Outbox dispatcher (`OutboxProcessor` polling + dispatch) — Phase 02b.
 - Per-module `inbox_messages` table + `IInboxGuard` — Phase 02b.
 - Production Vault setup (HA mode, auto-unseal, AppRole policies) — Phase 11.
