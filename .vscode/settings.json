@@ -1,0 +1,24 @@
+{
+  "// css": "Tailwind directives confuse the built-in CSS Language Service; the Tailwind extension (recommended above) handles them. Until it loads, silence the unknown-at-rule warning.",
+  "css.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+
+  "// typescript": "Prefer the workspace TypeScript SDK so the version matches package.json + tsconfig pins, not VS Code's bundled one.",
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  "// eslint": "Treat .cjs as a known module type for the legacy .eslintrc.cjs we ship; revisit when migrating to flat config (Phase 02a).",
+  "eslint.workingDirectories": [
+    { "pattern": "frontend/apps/*" },
+    { "pattern": "frontend/packages/*" }
+  ],
+
+  "// formatter": "Project default is Prettier (frontend) + dotnet-format (backend); avoid auto-formatting C# with Prettier.",
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[javascript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[markdown]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" }
+}

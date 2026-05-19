@@ -8,12 +8,16 @@ repository — not under this `frontend/` directory.
 
 ## Route Groups
 
-| Route group | Purpose | Phase that fills it in |
-|-------------|---------|------------------------|
-| `(public)/` | Tenant-facing public site | 04 / 06 |
-| `(studio)/` | Admin + content studio | 04 / 06 |
-| `(portal)/` | Learner + instructor portal | 07 |
-| `api/` | Thin BFF route handlers (`/healthz` shipped) | 02a+ |
+Route groups (`(public)`, `(studio)`, `(portal)`) organize files without
+affecting URLs — each surface owns a distinct URL prefix so the three roots
+don't collide at `/`:
+
+| Route group | URL prefix | Purpose | Phase that fills it in |
+|-------------|------------|---------|------------------------|
+| `(public)/` | `/` | Tenant-facing public site | 04 / 06 |
+| `(studio)/studio/` | `/studio` | Admin + content studio | 04 / 06 |
+| `(portal)/portal/` | `/portal` | Learner + instructor portal | 07 |
+| `api/` | `/api/*` | Thin BFF route handlers (`/api/healthz` shipped) | 02a+ |
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),
