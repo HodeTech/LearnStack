@@ -75,13 +75,15 @@ services:
       - "1025:1025"   # SMTP
       - "8025:8025"   # web UI
     environment:
-      # Dev-only. Production credentials come from Vault via ISecretProvider.
+      # Dev-only knobs (no credentials); MP_SMTP_AUTH_ALLOW_INSECURE in
+      # particular must never be set in production.
       MP_MAX_MESSAGES: "5000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
     healthcheck:
-      # Mailpit ships a distroless image (no shell / wget / curl); use the
-      # binary's built-in readyz probe.
+      # Use the binary's built-in readyz subcommand — it hits the in-process
+      # /readyz endpoint and exits non-zero until the HTTP listener is bound.
+      # Works whether the image is Alpine (v1.21.x) or any future variant.
       test: ["CMD", "/mailpit", "readyz"]
       interval: 10s
       timeout: 5s

@@ -2,17 +2,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * Tenant + locale resolution at the edge — the only place a host maps to a
- * tenant. The real `IHostToTenantResolver` lookup is wired in Phase 02a;
- * this scaffold propagates the request headers downstream Server Components +
- * route handlers expect (`x-tenant-id`, `x-organization-id`, `x-locale`),
- * matching the shape documented in docs/architecture/14-frontend-architecture.md
- * § Tenant + Organization Resolution.
+ * tenant. The real `IHostToTenantResolver` lookup is wired in Phase 02a; this
+ * scaffold propagates `x-tenant-id` and `x-locale` only. The third documented
+ * header `x-organization-id` is intentionally OMITTED here — it lights up once
+ * Phase 02a resolves an organization context from the host or JWT claim. See
+ * [docs/architecture/14-frontend-architecture.md](../../../../docs/architecture/14-frontend-architecture.md)
+ * § Tenant + Organization Resolution for the full shape.
  *
  * Headers MUST be written to the request (via `NextResponse.next({ request })`)
  * — writing only to the response makes them visible to the browser but not to
  * downstream `headers()` calls in RSC. Real Phase 02a resolution will plug in
- * here; until then, the values are placeholders so layouts can be authored
- * against the final shape today.
+ * here; until then, the `x-tenant-id` value is a placeholder so layouts can be
+ * authored against the final shape today.
  */
 export function middleware(request: NextRequest) {
   const url = new URL(request.url);

@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    TODO(2026-05-19, @platform, phase-02a): once the 9th module lands, replace
+    the per-project ProjectReference list below with an MSBuild glob over
+    `..\..\src\Modules\**\*.csproj` (and the core src projects). The current
+    per-module enumeration is a maintenance burden that drifts the moment a
+    module is added or renamed.
+  -->
+
   <PropertyGroup>
     <RootNamespace>LearnStack.Tests.Architecture</RootNamespace>
     <IsPackable>false</IsPackable>
