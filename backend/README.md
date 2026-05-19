@@ -48,7 +48,11 @@ backend/
 
 ## Prerequisites
 
-- **.NET SDK 10.0.x** (pinned in [global.json](global.json); `rollForward: latestFeature`).
+- **.NET SDK 10.0.x is required** (pinned in [global.json](global.json)). The
+  `rollForward: latestFeature` policy only walks within the 10.0 feature band —
+  a workstation with only .NET 9 installed will fail at SDK resolution. Install
+  the .NET 10 SDK from <https://dotnet.microsoft.com/download/dotnet/10.0>
+  before `dotnet build`.
 - A local infrastructure stack — see [../infra/compose/dev.yml](../infra/compose/dev.yml).
 
 ## Common Commands

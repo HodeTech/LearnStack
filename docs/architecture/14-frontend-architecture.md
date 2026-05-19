@@ -87,11 +87,15 @@ export async function middleware(req: NextRequest) {
 
   const locale = resolveLocaleFromPathOrTenant(req.nextUrl, resolved.tenant);
 
-  const res = NextResponse.next();
-  res.headers.set('x-tenant-id', resolved.tenant.id);
-  if (resolved.organizationId) res.headers.set('x-organization-id', resolved.organizationId);
-  res.headers.set('x-locale', locale);
-  return res;
+  // Headers MUST be written to the request (not the response) — only request
+  // headers reach downstream Server Components / route handlers via
+  // `next/headers`. Writing to `res.headers` only surfaces them to the browser.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-tenant-id', resolved.tenant.id);
+  if (resolved.organizationId) requestHeaders.set('x-organization-id', resolved.organizationId);
+  requestHeaders.set('x-locale', locale);
+
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

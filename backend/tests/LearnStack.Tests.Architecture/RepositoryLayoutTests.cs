@@ -38,11 +38,9 @@ public sealed class RepositoryLayoutTests
     {
         var appsRoot = RepositoryPaths.FrontendApps();
 
-        if (!Directory.Exists(appsRoot))
-        {
-            // Phase 01 may have backend-only work in flight; absence is acceptable.
-            return;
-        }
+        Directory.Exists(appsRoot).Should().BeTrue(
+            $"`{appsRoot}` must exist — Phase 01 ships the frontend monorepo with `apps/web`. " +
+            "If you intentionally removed it, update this test and ADR-0009 together.");
 
         var appNames = Directory
             .EnumerateDirectories(appsRoot)

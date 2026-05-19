@@ -52,6 +52,7 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
+      # Dev-only. Production credentials come from Vault via ISecretProvider.
       MINIO_ROOT_USER: learnstack
       MINIO_ROOT_PASSWORD: learnstack-dev-secret
       MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
@@ -74,11 +75,14 @@ services:
       - "1025:1025"   # SMTP
       - "8025:8025"   # web UI
     environment:
+      # Dev-only. Production credentials come from Vault via ISecretProvider.
       MP_MAX_MESSAGES: "5000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
+      # Mailpit ships a distroless image (no shell / wget / curl); use the
+      # binary's built-in readyz probe.
+      test: ["CMD", "/mailpit", "readyz"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -88,6 +92,7 @@ services:
     container_name: learnstack-meilisearch
     restart: unless-stopped
     environment:
+      # Dev-only. Production credentials come from Vault via ISecretProvider.
       MEILI_ENV: development
       MEILI_MASTER_KEY: learnstack-dev-master-key
       MEILI_NO_ANALYTICS: "true"

@@ -16,12 +16,20 @@ export type ResolvedRenderer =
   | { readonly kind: 'composite'; readonly key: CompositeKey }
   | null;
 
+export function isPrimitiveKey(key: string): key is PrimitiveKey {
+  return (PRIMITIVE_KEYS as readonly string[]).includes(key);
+}
+
+export function isCompositeKey(key: string): key is CompositeKey {
+  return (COMPOSITE_KEYS as readonly string[]).includes(key);
+}
+
 export function resolveRendererKey(rawKey: string): ResolvedRenderer {
-  if ((PRIMITIVE_KEYS as readonly string[]).includes(rawKey)) {
-    return { kind: 'primitive', key: rawKey as PrimitiveKey };
+  if (isPrimitiveKey(rawKey)) {
+    return { kind: 'primitive', key: rawKey };
   }
-  if ((COMPOSITE_KEYS as readonly string[]).includes(rawKey)) {
-    return { kind: 'composite', key: rawKey as CompositeKey };
+  if (isCompositeKey(rawKey)) {
+    return { kind: 'composite', key: rawKey };
   }
   return null;
 }

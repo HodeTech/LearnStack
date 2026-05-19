@@ -4,29 +4,20 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- ASP.NET / hosting -->
+  <!--
+    Packages actively referenced by Phase-01 scaffolding.
+  -->
+  <ItemGroup Label="Phase-01 (in use)">
+    <!-- ASP.NET / hosting (Api host) -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
 
-    <!-- EF Core -->
+    <!-- EF Core (per-module Infrastructure projects) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
 
-    <!-- Application infrastructure -->
+    <!-- Application infrastructure (per-module Application projects) -->
     <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
-    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
-
-    <!-- Observability -->
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
 
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
@@ -35,15 +26,35 @@
     <PackageVersion Include="FluentAssertions" Version="6.12.2" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
 
     <!-- Architecture tests -->
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
 
-    <!-- Integration tests -->
+    <!-- Integration tests (Testcontainers) -->
     <PackageVersion Include="Testcontainers" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
+  </ItemGroup>
+
+  <!--
+    Reserved for Phase 02a wiring (Dapr building blocks, audit pipeline,
+    observability, EF Core migrations + design-time, Redis Testcontainers,
+    Respawn). Declared centrally now so the version matrix is consistent the
+    moment they are pulled in; pruning happens if a package is dropped from
+    the Phase 02a plan entirely.
+  -->
+  <ItemGroup Label="Reserved for Phase 02a">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
     <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
     <PackageVersion Include="Respawn" Version="6.2.1" />
   </ItemGroup>
 
