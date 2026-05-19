@@ -37,6 +37,7 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0020 | [Triple Deployment + Hybrid License](0020-triple-deployment-hybrid-license.md) | SaaS / Dedicated / Self-Hosted from one codebase; phone-home + RSA-signed key + 30-day grace |
 | 0021 | [Feature-Based Entitlement](0021-feature-based-entitlement.md) | Feature flags + numeric limits per plan; typed `FeatureKeys` / `LimitKeys` registries |
 | 0022 | [Custom Domain & TLS](0022-custom-domain-tls.md) | Hub-owned custom domain admin; DNS-01 + HTTP-01 + Let's Encrypt; APISIX hot-reload |
+| 0029 | [Object Storage — SeaweedFS](0029-object-storage-seaweedfs.md) | Self-hosted SeaweedFS behind the existing `IStorageProvider` S3 contract; partially supersedes ADR-0002's MinIO row |
 
 ## Superseded ADRs
 
