@@ -37,7 +37,7 @@ CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository
   [ADR-0015](docs/decisions/0015-api-gateway-apisix.md).
 - **Object storage:** MinIO locally, S3-compatible storage in production.
 - **Search:** Meilisearch initially.
-- **Frontend:** Next.js 16 (App Router), TypeScript, React. **One** application
+- **Frontend:** Next.js 15 (App Router), TypeScript, React. **One** application
   (`apps/web`) with route segments for public, studio, and portal — multi-app split
   inside this repo deferred. The operator portal (`learnstack-hub-web`) lives in the
   separate `learnstack-hub` repository.

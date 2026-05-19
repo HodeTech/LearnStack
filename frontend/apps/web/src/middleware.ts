@@ -16,12 +16,24 @@ import { NextResponse, type NextRequest } from 'next/server';
  * authored against the final shape today.
  */
 export function middleware(request: NextRequest) {
+  // Loud guard: the placeholder below trusts the client-supplied Host header.
+  // If this scaffold were ever deployed before Phase 02a wires real host →
+  // tenant resolution, tenant isolation would be decided by the caller — fail
+  // closed instead of silently degrading.
+  if (process.env.NODE_ENV === 'production') {
+    return new NextResponse(
+      'tenant resolution scaffold; production wiring lands in Phase 02a',
+      { status: 503 },
+    );
+  }
+
   const url = new URL(request.url);
   const host = request.headers.get('host') ?? 'localhost';
 
   const requestHeaders = new Headers(request.headers);
   // TODO(2026-05-19, @platform): replace placeholders once `IHostToTenantResolver`
   // is wired and the `/v1/tenants/resolve-host` endpoint exists (Phase 02a).
+  // When the real resolver lands, drop the production guard above.
   requestHeaders.set('x-tenant-id', host);
   requestHeaders.set('x-locale', extractLocaleOrDefault(url.pathname));
 

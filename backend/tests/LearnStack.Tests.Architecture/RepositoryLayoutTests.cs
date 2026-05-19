@@ -42,10 +42,13 @@ public sealed class RepositoryLayoutTests
             $"`{appsRoot}` must exist — Phase 01 ships the frontend monorepo with `apps/web`. " +
             "If you intentionally removed it, update this test and ADR-0009 together.");
 
+        // Filter dotted directories (.tmp, .cache, .turbo, etc.) — they're tool
+        // byproducts, not peer Next apps; ADR-0009 cares about the latter only.
         var appNames = Directory
             .EnumerateDirectories(appsRoot)
             .Select(Path.GetFileName)
             .Where(name => !string.IsNullOrEmpty(name))
+            .Where(name => !name!.StartsWith('.'))
             .ToArray();
 
         appNames.Should().BeEquivalentTo(

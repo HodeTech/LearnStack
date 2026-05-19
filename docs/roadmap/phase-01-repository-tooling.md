@@ -25,14 +25,16 @@ Create a development environment that is repeatable, maintainable, and ready to 
 ```text
 learnstack/
   backend/
-    src/
+    src/                      # core projects + Modules/<Name>/{Application,Application.Contracts,Domain,Infrastructure}
     tests/
   frontend/
-    app/
-    components/
-    lib/
-    extensions/
-    packages/
+    apps/
+      web/                    # single tenant-facing Next.js app (ADR-0009)
+        src/{app, components, lib/customization}
+    packages/                 # shared workspace packages (extracted only when duplication is real)
+      config/                 # eslint + tsconfig + tailwind presets
+      sdk/                    # generated typed API client
+      ui/                     # design-system primitives
   infra/
     compose/
     docker/
@@ -42,6 +44,10 @@ learnstack/
     roadmap/
     standards/
 ```
+
+There is **no `frontend/extensions/` folder** — tenant-specific renderers
+resolve through composite renderer keys against the closed primitive +
+composite sets per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md).
 
 ### Backend Scaffold
 
@@ -61,9 +67,10 @@ learnstack/
   - LearnStack.Modules.Content.{...}
   - LearnStack.Modules.Media.{...}
   - LearnStack.Modules.Education.{...}
-- Test projects:
-  - LearnStack.Tests.Unit.<Module>
-  - LearnStack.Tests.Integration.<Module>
+- Test projects (one project per suite per [Standards 06 § Backend Test Types](../standards/06-testing.md);
+  module-level classes are namespaced under the suite, e.g. `LearnStack.Tests.Unit.Education`):
+  - LearnStack.Tests.Unit
+  - LearnStack.Tests.Integration
   - LearnStack.Tests.Architecture
   - LearnStack.Tests.Contract
 
