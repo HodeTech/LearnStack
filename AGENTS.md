@@ -22,19 +22,23 @@ the **`Co-Authored-By` commit trailer**, which names the assistant that contribu
 
 If multiple agents contributed materially to the same commit, include one trailer per
 agent. The full trailer convention lives in
-[docs/standards/14-git-workflow.md § Trailers](docs/standards/14-git-workflow.md).
+[docs/standards/14-git-workflow.md § Trailers](docs/standards/14-git-workflow.md#trailers).
 
 ## Skills
 
 Both Claude Code and Codex respect skills declared as `SKILL.md` files. LearnStack's
 skill catalogue lives in [`.claude/skills/`](.claude/skills/) and applies to every
-agent runtime — there is no Codex-specific skills directory. Begin every task with
-[start-task](.claude/skills/start-task/SKILL.md) and pick the workflow-specific skill
-from the [catalogue](.claude/skills/README.md).
+agent runtime — there is no Codex-specific skills directory. Entry-point selection
+(when to use [implement-task](.claude/skills/implement-task/SKILL.md) vs
+[start-task](.claude/skills/start-task/SKILL.md) vs
+[standards-check](.claude/skills/standards-check/SKILL.md) +
+[code-review](.claude/skills/code-review/SKILL.md)) is defined once in
+[CLAUDE.md § Where to start](CLAUDE.md#where-to-start) and applies to every runtime. The full
+catalogue lives in [.claude/skills/README.md](.claude/skills/README.md).
 
 ## Maintaining this file
 
 Do **not** copy CLAUDE.md content into AGENTS.md. If a guidance rule needs to change,
 change CLAUDE.md; the rule applies everywhere by virtue of the redirect above. The
-single-source-of-truth principle ([Principles § 14](docs/standards/00-principles.md))
+single-source-of-truth principle ([Principles § 14](docs/standards/00-principles.md#14-single-source-of-truth))
 applies here too.
