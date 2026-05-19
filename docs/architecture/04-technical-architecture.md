@@ -7,8 +7,8 @@
 | Backend runtime | .NET 10, ASP.NET Core Web API |
 | Language | C# |
 | ORM | Entity Framework Core |
-| Database | PostgreSQL 16+ (shared schema + RLS isolation; ADR-0003) |
-| Cache & coordination | **Redis 7+ via Dapr State Store** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
+| Database | PostgreSQL 18+ (shared schema + RLS isolation; ADR-0003) |
+| Cache & coordination | **Valkey 7+ via Dapr State Store** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
 | Pub/Sub | **Apache Kafka via Dapr Pub/Sub** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) — outbox dispatch target |
 | Secrets | **HashiCorp Vault via Dapr Secret Store** (or env-var fallback in Dev) |
 | Distributed runtime | **Dapr 1.14+** sidecar pattern (pub/sub, state, secrets) |
@@ -52,7 +52,7 @@ flowchart LR
 
   subgraph data["Data Plane"]
     pg[(PostgreSQL)]
-    redis[(Redis)]
+    redis[(Valkey)]
     seaweedfs[(SeaweedFS / S3)]
     meili[(Meilisearch)]
     kafka[(Kafka)]
@@ -123,7 +123,7 @@ Module boundaries and dependency rules are in [Module Boundaries](03-module-boun
 | `Api` | HTTP endpoints, auth middleware, request binding, OpenAPI emission, tenant resolution middleware. |
 | `Application` | Use cases (MediatR commands/queries), validation, transactions, pipeline behaviors. |
 | `Domain` | Entities, aggregates, value objects, domain services, domain events. |
-| `Infrastructure` | EF Core, Redis, SeaweedFS, Hangfire, OpenTelemetry, external adapters. |
+| `Infrastructure` | EF Core, Valkey, SeaweedFS, Hangfire, OpenTelemetry, external adapters. |
 | `Modules.*` | Bounded feature areas, each with their own `Application` / `Domain` / `Infrastructure` internals and a public `Application.Contracts` surface. |
 
 ## Multi-Tenancy

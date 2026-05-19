@@ -63,7 +63,7 @@ Standard error codes (machine-readable, stable):
 ```
 LearnStackException                  (base)
 ├── DomainException                  (domain invariant broken from inside, programmer error)
-├── InfrastructureException          (DB, Redis, SeaweedFS transient)
+├── InfrastructureException          (DB, Valkey, SeaweedFS transient)
 ├── ProviderException                (upstream provider error)
 │   ├── PaymentProviderException
 │   ├── LiveClassProviderException

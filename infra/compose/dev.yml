@@ -1,7 +1,7 @@
 # LearnStack — local dev infrastructure.
 #
 # Scope of THIS file (Phase 01 packets 1-6): the data-plane services
-# (Postgres / Redis / SeaweedFS / Mailpit / Meilisearch), the self-hosted Keycloak
+# (PostgreSQL 18 / Valkey / SeaweedFS / Mailpit / Meilisearch), the self-hosted Keycloak
 # identity provider (two realms), the live-media stack (LiveKit OSS + Coturn),
 # Kafka (KRaft) + kafka-ui, HashiCorp Vault (-dev mode), the Dapr sidecar +
 # placement (pub/sub + state + secrets building blocks per ADR-0014), and the
@@ -27,7 +27,7 @@ x-host-gateway: &host-gateway
 
 services:
   postgres:
-    image: postgres:16.14-alpine
+    image: postgres:18.4-alpine
     container_name: learnstack-postgres
     restart: unless-stopped
     environment:
@@ -49,17 +49,23 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7.4-alpine
-    container_name: learnstack-redis
+  # Valkey replaces Redis per ADR-0030. RESP-protocol drop-in (Dapr
+  # `state.redis` component, StackExchange.Redis library, ICacheService
+  # all continue to work unchanged — those names are the protocol /
+  # library / Dapr provider-type identifier, not the vendor brand).
+  # The service name is `valkey` so a new reader sees the right backend;
+  # `redis-cli` continues to ship inside the Valkey image as a symlink.
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    container_name: learnstack-valkey
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["valkey-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
+      - valkey-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -378,7 +384,7 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       vault:
         condition: service_healthy
@@ -417,7 +423,7 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:
+  valkey-data:
   seaweedfs-data:
   meilisearch-data:
   kafka-data:

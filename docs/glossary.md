@@ -245,9 +245,9 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **Dapr Building Blocks** | The three Dapr abstractions LearnStack uses: pub/sub (Kafka), state (Redis), secrets (Vault) per [ADR-0014](decisions/0014-adopt-dapr.md). Service invocation, workflow, bindings, and actors are out of scope. |
+| **Dapr Building Blocks** | The three Dapr abstractions LearnStack uses: pub/sub (Kafka), state (Valkey), secrets (Vault) per [ADR-0014](decisions/0014-adopt-dapr.md). Service invocation, workflow, bindings, and actors are out of scope. |
 | **`IEventBus`** | Interface for publishing integration events. Backed by `DaprEventBus` (production) or `InProcessEventBus` (development). The `OutboxProcessor` is the only sanctioned caller. |
-| **`ICacheService`** | Interface for cache reads / writes. Backed by `DaprCacheService` (production, Redis-backed) or `InMemoryCacheService` (development). Cache keys carry `{tenant_id}` prefix. |
+| **`ICacheService`** | Interface for cache reads / writes. Backed by `DaprCacheService` (production, Valkey-backed) or `InMemoryCacheService` (development). Cache keys carry `{tenant_id}` prefix. |
 | **`ISecretProvider`** | Interface for secret reads. Backed by `DaprSecretProvider` (production, Vault) or `EnvironmentSecretProvider` (development). Secret namespace `learnstack/{deployment}/{module}/{key}`. |
 | **`IEntitlementProvider`** | Interface for the entitlement source. Implementations: `NullEntitlementProvider` (dev), `HubEntitlementProvider` (SaaS / Dedicated), `SignedLicenseKeyEntitlementProvider` (Self-Hosted). |
 | **`IHostToTenantResolver`** | Interface for host → `(tenant_id, organization_id?)` resolution. Backed by `platform_host_to_tenant`. |

@@ -20,17 +20,17 @@ Dedicated control plane, plan editor, custom-domain admin, and license-key issua
 Phase 01 in progress. The repository now holds the .NET 10 solution scaffold
 (7 modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
 architecture test), the `pnpm` frontend monorepo (`apps/web` + `packages/{config,ui,sdk}`),
-and the core local-dev `docker-compose` stack (Postgres / Redis / SeaweedFS / Mailpit /
+and the core local-dev `docker-compose` stack (Postgres / Valkey / SeaweedFS / Mailpit /
 Meilisearch). Keycloak, LiveKit, Kafka, Vault, Dapr, APISIX, `make` targets, and
 CI land in subsequent Phase-01 packets — see [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
 
 ## Direction At A Glance
 
 - **Backend:** .NET 10, ASP.NET Core, Entity Framework Core, MediatR.
-- **Database:** PostgreSQL 16, with Row-Level Security from day one. Tenant + **Organization**
+- **Database:** PostgreSQL 18, with Row-Level Security from day one. Tenant + **Organization**
   defense in depth ([ADR-0003 Amendment 1](docs/decisions/0003-tenant-isolation-defense-in-depth.md),
   [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)).
-- **Cache / Pub-Sub / Secrets:** Redis 7, Kafka, HashiCorp Vault — all accessed via
+- **Cache / Pub-Sub / Secrets:** Valkey 7, Kafka, HashiCorp Vault — all accessed via
   **Dapr** building blocks (`IEventBus`, `ICacheService`, `ISecretProvider`) per
   [ADR-0014](docs/decisions/0014-adopt-dapr.md).
 - **API Gateway:** **APISIX** in standalone YAML-reload mode per

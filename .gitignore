@@ -39,7 +39,7 @@ logs/
 .data/
 seaweedfs-data/
 postgres-data/
-redis-data/
+valkey-data/
 
 # Local-only analyses (not shared via git)
 docs/analysis/

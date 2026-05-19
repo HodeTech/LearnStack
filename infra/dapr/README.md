@@ -8,7 +8,7 @@ non-goals.
 | Building block | Backend (dev) | Component file | Application interface |
 |----------------|---------------|----------------|-----------------------|
 | Pub/Sub | Kafka (`kafka:9092`) | `components/pubsub-kafka.yaml` | `IEventBus` (Phase 02b) |
-| State store | Redis (`redis:6379`) | `components/statestore-redis.yaml` | `ICacheService` (Phase 02a) |
+| State store | Valkey (`valkey:6379`, RESP protocol) | `components/statestore-redis.yaml` | `ICacheService` (Phase 02a) |
 | Secret store | Vault (`http://vault:8200`, dev mode) | `components/secretstore-vault.yaml` | `ISecretProvider` (Phase 02a) |
 
 Service invocation, workflow, bindings, **actors**, configuration, and
@@ -72,7 +72,7 @@ and ship in Phase 02b. Architecture tests
 |---------|------------|
 | Vault root token | `learnstack-dev-root-token` |
 | Kafka auth | none (`authType: none`, `disableTls: true`) |
-| Redis password | (empty) |
+| Valkey password | (empty) |
 
 All dev-only. Production wires Vault with AppRole / Kubernetes auth and
 loads the token through Dapr's `secretKeyRef` indirection so the literal

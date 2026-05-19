@@ -523,7 +523,7 @@ learnstack-hub/
 ```
 
 Hub does NOT share Dapr instance with LearnStack — Hub has its own sidecar, its own
-`pubsub` component, its own state store (Hub Redis instance), its own secret store
+`pubsub` component, its own state store (Hub Valkey instance), its own secret store
 namespace (`secret/learnstack-hub/*`).
 
 **Kafka cluster topology:** Hub and LearnStack share the **same Kafka cluster** in

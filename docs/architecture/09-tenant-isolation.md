@@ -200,7 +200,7 @@ tenants/{tenant_id}/organizations/{org_id}/courses/{course_id}/...   ← org-sco
 tenants/{tenant_id}/brand/...                                        ← tenant-wide
 ```
 
-### Cache (Dapr State Store / Redis)
+### Cache (Dapr State Store / Valkey)
 
 ```
 {tenant_id}:{org_id}:{module}:{entity}:{id}     ← org context set

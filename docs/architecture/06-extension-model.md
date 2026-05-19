@@ -35,7 +35,7 @@ The core platform talks to external systems through **interfaces** in
 | Recording egress | `IRecordingEgressProvider` |
 | Identity provider | (covered by Keycloak baseline; ADR-0004) |
 | Pub/Sub | `IEventBus` → Dapr → Kafka (ADR-0014) |
-| Cache | `ICacheService` → Dapr → Redis (ADR-0014) |
+| Cache | `ICacheService` → Dapr → Valkey (ADR-0014) |
 | Secret store | `ISecretProvider` → Dapr → Vault (ADR-0014) |
 
 Implementations live in `LearnStack.Infrastructure.<Concern>.<Provider>` projects.

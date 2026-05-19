@@ -261,7 +261,7 @@ backend/
     LearnStack.Api/                       # ASP.NET host (single deployment unit)
     LearnStack.Application/               # composition root, MediatR pipeline
     LearnStack.Domain/                    # shared kernel domain pieces
-    LearnStack.Infrastructure/            # EF, Redis, SeaweedFS, OpenTelemetry, Dapr wiring
+    LearnStack.Infrastructure/            # EF, Valkey, SeaweedFS, OpenTelemetry, Dapr wiring
     LearnStack.Infrastructure.Audit/      # audit interceptor + state capture + MediatR behavior
     LearnStack.SharedKernel/              # ids, audit fields, errors, paging, IEventBus,
                                           # ICacheService, ISecretProvider, IEntitlementProvider

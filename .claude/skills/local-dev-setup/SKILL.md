@@ -1,7 +1,7 @@
 ---
 name: local-dev-setup
 description: >
-  Bring up the LearnStack local stack — Postgres, Redis, Vault, Kafka, Dapr
+  Bring up the LearnStack local stack — Postgres, Valkey, Vault, Kafka, Dapr
   sidecar, APISIX, Keycloak (two realms), SeaweedFS, LiveKit OSS, Meilisearch — via
   `docker-compose` plus the project's `make dev` orchestrator. USE FOR: first-time
   workstation setup, restoring a broken local environment, switching between
@@ -15,7 +15,7 @@ description: >
 ## Purpose
 
 Stand up a full LearnStack stack on a developer workstation so backend + frontend
-can run against real Postgres / Redis / Kafka / Vault / Keycloak / SeaweedFS /
+can run against real Postgres / Valkey / Kafka / Vault / Keycloak / SeaweedFS /
 LiveKit / Meilisearch / APISIX — the same components production uses
 ([12-infrastructure.md § Local Infrastructure](../../../docs/standards/12-infrastructure.md),
 [20-infrastructure-stack.md](../../../docs/standards/20-infrastructure-stack.md)).
@@ -98,7 +98,7 @@ The components and their default ports:
 | Component | Port | Purpose |
 |-----------|------|---------|
 | Postgres | 5432 | Main DB. |
-| Redis | 6379 | Cache + Dapr state. |
+| Valkey | 6379 | Cache + Dapr state. |
 | Kafka | 9092 | Dapr pub/sub backend. |
 | Kafka UI | 9094 | Optional UI for topics. |
 | Vault (dev mode) | 8200 | Secrets backend; `root` token, **not** for production. |
@@ -168,7 +168,7 @@ Edit `.env` to flip `DEPLOYMENT_MODE`:
 | Value | What happens |
 |-------|--------------|
 | `Development` (default) | `InProcessEventBus` + `InMemoryCacheService` + env vars for secrets. Dapr sidecar is still present but not exercised. |
-| `SaaS` | `DaprEventBus` (Kafka) + `DaprCacheService` (Redis) + `DaprSecretProvider` (Vault) + `HubEntitlementProvider` pointing at the local Hub. Requires the `learnstack-hub` repo's `make dev` to be running. |
+| `SaaS` | `DaprEventBus` (Kafka) + `DaprCacheService` (Valkey) + `DaprSecretProvider` (Vault) + `HubEntitlementProvider` pointing at the local Hub. Requires the `learnstack-hub` repo's `make dev` to be running. |
 | `Dedicated` | Same as `SaaS` for the composition; in practice the Hub is dedicated to one tenant. |
 | `SelfHosted` | `SignedLicenseKeyEntitlementProvider` reads `.lic` from `./secrets/license.lic`; no Hub interaction. |
 

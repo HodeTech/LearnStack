@@ -49,7 +49,7 @@ Rules:
 | Concern | `Development` | `SaaS` | `Dedicated` | `SelfHostedOnline` | `SelfHostedAirGapped` |
 |---|---|---|---|---|---|
 | Event bus | `InProcessEventBus` (MediatR) | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka (single-broker OK) | `DaprEventBus` → Kafka (single-broker OK) |
-| Cache | `InMemoryCacheService` | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis | `DaprCacheService` → Redis |
+| Cache | `InMemoryCacheService` | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey |
 | Secrets | `EnvironmentSecretProvider` | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault or file |
 | Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` (phone-home) | `SignedLicenseKeyEntitlementProvider` |
 | Host → tenant | Config / single tenant | Hub-mirrored projection | Hub-mirrored projection | Hub-mirrored projection | Config / `.lic` claim |
@@ -80,9 +80,9 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
 
 ### `ICacheService` (state)
 
-- All Redis access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
+- All Valkey access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
   `IDistributedCache` injections are forbidden by the architecture test
-  `Modules_Do_Not_Inject_Redis_Directly`.
+  `Modules_Do_Not_Inject_Valkey_Directly`.
 - Cache keys are `{tenant_id}:{module}:{logical-name}`. The
   `tenant_id` prefix is **mandatory** even when a value is platform-wide — use the
   sentinel `"platform"` tenant id rather than omitting the prefix.
@@ -99,7 +99,7 @@ The most-referenced read paths follow this layered policy; mismatches across doc
 (e.g. "60s cache" vs "15-min TTL") refer to different layers of the same cache, not
 different decisions:
 
-| Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Redis) | Eager invalidation event |
+| Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Valkey) | Eager invalidation event |
 |---|---|---|---|
 | `hub:host:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
 | `hub:entitlement:{tenant_id}` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
@@ -191,7 +191,7 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 - `IFeatureFlags.IsEnabledAsync(FeatureKey)` is the only sanctioned read path. Direct
   SQL against `platform_entitlement_cache` outside the Tenancy module's infrastructure
   is forbidden (architecture test `Modules_Do_Not_Read_Entitlement_Cache_Directly`).
-- Cache TTL for the in-process / Redis layer is 60s. Eager invalidation flows from the
+- Cache TTL for the in-process / Valkey layer is 60s. Eager invalidation flows from the
   Dapr event; the TTL is the safety net, not the typical refresh window.
 - For air-gapped deployments, `SignedLicenseKeyEntitlementProvider` reads a signed
   `.lic` file and runs the same projection write path; the rest of the system is
@@ -234,9 +234,9 @@ Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 
 - LearnStack monolith → APISIX edge → backend pods (1+).
 - Dapr sidecar runs alongside every backend pod.
-- Kafka, Redis, Vault are accessed only via the Dapr sidecar. No direct client
+- Kafka, Valkey, Vault are accessed only via the Dapr sidecar. No direct client
   libraries for these three in application code.
-- Postgres is accessed directly (EF Core); Dapr's state-store sits on Redis, not
+- Postgres is accessed directly (EF Core); Dapr's state-store sits on Valkey, not
   Postgres.
 - SeaweedFS is accessed via the configured S3-compatible client (no Dapr binding).
 

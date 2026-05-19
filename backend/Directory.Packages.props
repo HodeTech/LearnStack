@@ -37,7 +37,7 @@
          suite only runs the WebApplicationFactory smoke test. -->
     <PackageVersion Include="Testcontainers" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
-    <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />
+    <PackageVersion Include="Testcontainers.Valkey" Version="3.10.0" />
     <PackageVersion Include="Respawn" Version="6.2.1" />
   </ItemGroup>
 

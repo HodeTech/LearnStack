@@ -26,7 +26,7 @@ scaffold under `backend/` (core + 7 modules × 4 projects + 4 test
 projects including the non-skippable `LearnStack.Tests.Architecture`),
 the `pnpm` frontend monorepo under `frontend/` (`apps/web` Next.js App
 Router + `packages/{config,ui,sdk}`), and the core local-dev compose
-stack at `infra/compose/dev.yml` (Postgres / Redis / SeaweedFS / Mailpit /
+stack at `infra/compose/dev.yml` (Postgres / Valkey / SeaweedFS / Mailpit /
 Meilisearch). The remaining Phase-01 packets — Keycloak, LiveKit, Kafka,
 Vault, Dapr, APISIX, `make` targets, `.env.example`, CI, `make seed` —
 land incrementally; see

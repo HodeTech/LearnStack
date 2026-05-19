@@ -13,7 +13,7 @@ PostgreSQL schema, EF Core, and migration conventions.
 
 ## Database
 
-- **PostgreSQL 16+** in all environments.
+- **PostgreSQL 18+** in all environments.
 - One database per environment; single schema (`public`).
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.

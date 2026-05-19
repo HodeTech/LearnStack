@@ -78,7 +78,7 @@ Image: `chrislusf/seaweedfs:latest` (pinned to a specific tag per
 the dev compose pins the current stable tag).
 
 This ADR **supersedes the storage choice in ADR-0002 only** — the rest of
-ADR-0002 (Postgres, Redis, modular monolith) is unchanged.
+ADR-0002 (Postgres, Valkey, modular monolith) is unchanged.
 
 ## Context
 

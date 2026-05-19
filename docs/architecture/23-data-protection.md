@@ -128,7 +128,7 @@ a single LearnStack deployment. In practice:
 Within a regional instance, the following components must run in-region:
 
 - PostgreSQL primary + WAL archive.
-- Redis (entitlement cache, L1 invalidation).
+- Valkey (entitlement cache, L1 invalidation).
 - SeaweedFS / S3-compatible object storage (recordings, media).
 - Meilisearch.
 - Kafka.

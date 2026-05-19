@@ -13,8 +13,8 @@ eventing → secrets → Dapr sidecar → gateway). Packets 1-6 shipped; packets
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| PostgreSQL 16 | `postgres:16.14-alpine` | `localhost:5432` | `learnstack` / `learnstack` |
-| Redis 7 | `redis:7.4-alpine` | `localhost:6379` | — |
+| PostgreSQL 18 | `postgres:18.4-alpine` | `localhost:5432` | `learnstack` / `learnstack` |
+| Valkey 8 | `valkey/valkey:8.1-alpine` | `localhost:6379` | — |
 | SeaweedFS | `chrislusf/seaweedfs:3.94` | `localhost:9000` (S3), `localhost:9001` (filer UI), `localhost:9333` (master) | S3 access `learnstack` / secret `learnstack-dev-secret` |
 | Mailpit | `axllent/mailpit:v1.29.7` | `localhost:1025` (SMTP), `localhost:8025` (UI) | accepts any auth |
 | Meilisearch | `getmeili/meilisearch:v1.44.0` | `localhost:7700` | master key `learnstack-dev-master-key` |

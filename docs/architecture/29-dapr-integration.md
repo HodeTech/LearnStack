@@ -5,7 +5,7 @@
 [ADR-0010](../decisions/0010-cross-module-communication.md).
 
 LearnStack uses **Dapr** (Distributed Application Runtime) for three building blocks:
-**pub/sub** (Kafka), **state store** (Redis), **secret store** (Vault). Application code
+**pub/sub** (Kafka), **state store** (Valkey), **secret store** (Vault). Application code
 interacts with Dapr only through SharedKernel abstractions (`IEventBus`, `ICacheService`,
 `ISecretProvider`) — never via `DaprClient` directly.
 
@@ -22,12 +22,12 @@ flowchart LR
 
     subgraph Backends[Backends]
         Kafka[(Kafka)]
-        Redis[(Redis)]
+        Valkey[(Valkey)]
         Vault[(HashiCorp Vault)]
     end
 
     Daprd -- pubsub.kafka --> Kafka
-    Daprd -- state.redis --> Redis
+    Daprd -- state.redis --> Valkey
     Daprd -- secretstore.hashicorp.vault --> Vault
 
     subgraph Subscribers[Subscriber side]
@@ -40,7 +40,7 @@ flowchart LR
 
 The sidecar shares the network namespace of the app pod (Docker compose
 `network_mode: "service:learnstack-api"`; Kubernetes via `dapr.io/enabled` annotation).
-The app talks to the sidecar via `localhost`, never directly to Kafka / Redis / Vault.
+The app talks to the sidecar via `localhost`, never directly to Kafka / Valkey / Vault.
 
 ## 2. Components
 
@@ -80,7 +80,7 @@ Topics follow the convention `learnstack.{module}.{aggregate}`. Examples:
 - `learnstack.hub.entitlement`        (Hub-side)
 - `learnstack.cache.invalidation`     (cross-instance L1 cache invalidation)
 
-### `statestore.yaml` — Redis state store
+### `statestore.yaml` — Valkey state store
 
 ```yaml
 apiVersion: dapr.io/v1alpha1

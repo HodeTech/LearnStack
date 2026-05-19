@@ -98,7 +98,7 @@ Auto-instrument:
 - MediatR commands and queries.
 - Hangfire job invocations.
 - Outbox dispatcher batches.
-- Redis client calls.
+- Valkey client calls.
 - SeaweedFS/S3 SDK calls.
 - LiveKit provider calls.
 

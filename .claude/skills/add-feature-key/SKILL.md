@@ -265,8 +265,8 @@ public async Task LimitKey_Soft_SurfaceBanner_DoesNotBlock() { ... }
 - **Writing a plan-projected key to `tenant_feature_flags`.** Architecture test
   rejects. Plan keys belong to the entitlement projection only.
 - **Reading the key from raw SQL.** Forbidden; use `IFeatureFlags`.
-- **Hot path without Redis cache.** Each `IsEnabledAsync` call could become
-  DB-bound. The Redis layer (60s TTL, eager-invalidated by Dapr event) is
+- **Hot path without Valkey cache.** Each `IsEnabledAsync` call could become
+  DB-bound. The Valkey layer (60s TTL, eager-invalidated by Dapr event) is
   load-bearing.
 - **Killswitch without runbook.** The runbook is part of the deliverable. CI does
   not enforce its presence today; review must.

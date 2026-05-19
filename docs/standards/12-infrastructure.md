@@ -177,7 +177,7 @@ See [10-observability.md](10-observability.md).
 - The `/api/internal/*` route set is reachable only through a separate APISIX
   route guarded by the `mtls` plugin, with the LearnStack-internal CA pinned.
 - Strict ingress rules; only documented ports open.
-- Private VPC for backend services; database, Redis, Kafka, Vault not on public
+- Private VPC for backend services; database, Valkey, Kafka, Vault not on public
   internet.
 - Outbound calls allow-listed where feasible. Hub outbound traffic is allow-listed
   per environment.
@@ -190,7 +190,7 @@ See [10-observability.md](10-observability.md).
 | Dapr sidecar (per API/worker pod) | 0.25 vCPU | 256 MB | runs alongside each pod |
 | Workers (per instance) | 1 vCPU | 2 GB | autoscale 1–4 |
 | Postgres | 4 vCPU | 16 GB | initial; scale as needed |
-| Redis | 1 vCPU | 2 GB | initial |
+| Valkey | 1 vCPU | 2 GB | initial |
 | Kafka (per broker) | 2 vCPU | 4 GB | 3-broker cluster baseline |
 | Vault | 1 vCPU | 1 GB | HA mode in production (3 nodes) |
 | APISIX | 1 vCPU | 1 GB | autoscale 2–4 |

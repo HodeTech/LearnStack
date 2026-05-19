@@ -59,7 +59,7 @@ They are codified in:
 Per [ADR-0014](../decisions/0014-adopt-dapr.md):
 
 - Dapr sidecar runs in dev `docker-compose.yml`. Pub/sub component → Kafka. State
-  component → Redis. Secrets component → Vault (dev mode).
+  component → Valkey. Secrets component → Vault (dev mode).
 - `DaprEventBus`, `DaprCacheService`, `DaprSecretProvider` implementations ship in
   `LearnStack.Infrastructure`.
 - Topic naming convention enforced by `Dapr_PubSub_TopicNames_FollowConvention`
@@ -219,7 +219,7 @@ The architecture test project starts going green during this phase. Phase 02a co
 - `Dapr_PubSub_TopicNames_FollowConvention`.
 - `AuditEntry_Inherits_Entity_Not_AuditableEntity`.
 - `LearnStack_Modules_DoNotReference_Hub`.
-- `Modules_Do_Not_Inject_Redis_Directly`, `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
+- `Modules_Do_Not_Inject_Valkey_Directly`, `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
   `Modules_Do_Not_Write_AuditLog_Directly`.
 - `Modules_Do_Not_Reference_DeploymentMode` — modules never read `DeploymentMode`
   directly; the composition root selects provider implementations once. See

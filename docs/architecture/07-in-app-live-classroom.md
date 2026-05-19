@@ -64,7 +64,7 @@ flowchart LR
     end
 
     subgraph Infra
-        REDIS[(Redis)]
+        REDIS[(Valkey)]
         S3[(S3 / SeaweedFS)]
         TURN[Coturn TURN/STUN]
     end
@@ -212,7 +212,7 @@ Deferred to later phases:
 A working self-hosted deployment needs:
 
 1. **LiveKit server** — Docker container, behind a TLS reverse proxy on `wss://livekit.<domain>`.
-2. **Redis** — for multi-node coordination (single-node deployments can skip but multi-node needs it).
+2. **Valkey** — for multi-node coordination (single-node deployments can skip but multi-node needs it).
 3. **TURN server** — Coturn behind UDP/TCP ports, plus TLS for TURNS. Required for users behind restrictive NATs and corporate networks.
 4. **Egress workers** — separate containers, started on demand by LiveKit when a recording is requested.
 5. **Object storage** — S3 or SeaweedFS with a `recordings/` bucket.

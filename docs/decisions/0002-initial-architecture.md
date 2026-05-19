@@ -2,14 +2,23 @@
 
 ## Status
 
-Accepted (Amendment 1: 2026-05-19 — storage backend changed from MinIO to
-SeaweedFS per [ADR-0029](0029-object-storage-seaweedfs.md); see Amendment at
-the bottom of this document. Every other choice in this ADR — .NET 10,
-ASP.NET Core, EF Core, PostgreSQL, Redis, Next.js, modular monolith — stands.)
+Accepted with two amendments — see the bottom of this document for the dated
+amendment block. Each amendment supersedes a single backend row of the
+original Decision section without rewriting the rest of the ADR:
+
+- **Amendment 1 (2026-05-19):** storage backend MinIO → SeaweedFS per
+  [ADR-0029](0029-object-storage-seaweedfs.md).
+- **Amendment 2 (2026-05-19):** cache + state backend Redis → Valkey per
+  [ADR-0030](0030-redis-compatible-store-valkey.md); PostgreSQL major
+  version pinned to 18.x per
+  [ADR-0031](0031-postgresql-major-version.md).
+
+Every other choice in this ADR — .NET 10, ASP.NET Core, EF Core, modular
+monolith, Next.js — stands.
 
 ## Decision
 
-LearnStack starts as a modular monolith using .NET 10, ASP.NET Core, Entity Framework Core, PostgreSQL, Redis, SeaweedFS (see Amendment 1), and Next.js.
+LearnStack starts as a modular monolith using .NET 10, ASP.NET Core, Entity Framework Core, PostgreSQL 18.x (see Amendment 2), Valkey (see Amendment 2), SeaweedFS (see Amendment 1), and Next.js.
 
 ## Context
 
@@ -21,8 +30,8 @@ The team has stronger familiarity with .NET, so .NET 10 is preferred over Go for
 
 - The first backend implementation should use .NET 10.
 - EF Core should be the default ORM.
-- PostgreSQL should be the primary database.
-- Redis should be used for caching and distributed coordination where needed.
+- PostgreSQL 18.x should be the primary database (Amendment 2).
+- Valkey should be used for caching and distributed coordination where needed (Amendment 2).
 - SeaweedFS should be used locally for S3-compatible object storage (Amendment 1).
 - Next.js should be used for public rendering, admin studio, and portals initially.
 
@@ -47,3 +56,33 @@ Every doc that previously said "MinIO" should be read as "SeaweedFS" for
 operational guidance; conceptual rules ("tenant key-prefix isolation",
 "swap to AWS S3 in SaaS through `IStorageProvider`") were never
 backend-specific and stand verbatim.
+
+## Amendment 2 — Cache: Redis → Valkey; PostgreSQL: pin major to 18.x (2026-05-19)
+
+Two backend-row clarifications recorded together because they share the
+trigger (do major-version + vendor calls while LearnStack is still
+pre-implementation, so the migration drag is zero):
+
+1. **Cache + state backend Redis → Valkey** per
+   [ADR-0030](0030-redis-compatible-store-valkey.md). Redis 7.4 was the
+   last BSD-3-Clause Redis release; the 8.x line ships under a
+   triple-license (AGPLv3 / RSALv2 / SSPLv1). Valkey is the
+   Linux-Foundation-governed BSD-3-Clause fork, drop-in compatible on
+   the RESP protocol. The Dapr `state.redis` component name does not
+   change — it is the RESP-provider identifier, not a vendor brand.
+2. **PostgreSQL major pinned to 18.x** per
+   [ADR-0031](0031-postgresql-major-version.md). 18 is the longest-
+   runway LTS available (EOL 2030-11), brings native `gen_uuid_v7()`
+   that the [ADR-0023 draft](README.md) can adopt without an extension,
+   and async I/O for sequential scans helps the partitioned `audit_log`
+   ([ADR-0016](0016-audit-log-subsystem.md)) operator queries. RLS
+   policy syntax + connection-string + role provisioning are unchanged
+   from 16 / 17, so the tenant-isolation defense-in-depth pattern
+   ([ADR-0003](0003-tenant-isolation-defense-in-depth.md)) transfers
+   verbatim.
+
+Every doc that previously said "Redis 7" or "PostgreSQL 16" should be
+read as "Valkey 8" or "PostgreSQL 18". Library names + protocol
+identifiers stay (`StackExchange.Redis`, `IConnectionMultiplexer`,
+`state.redis` Dapr component, RESP) — those are protocol/library
+identifiers, not vendor brands.
