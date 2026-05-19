@@ -166,7 +166,13 @@ internal sealed class LiveKitClient(
             throw new LiveClassProviderException(
                 "provider.quota_exceeded", ex.Message, ex, isClientError: true);
         }
-        catch (HttpRequestException ex) when (IsServerError(ex))
+        // .NET 5+ exposes `HttpRequestException.StatusCode` as `HttpStatusCode?`.
+        // `null` = transport failure (DNS, connection refused, timeout) which is
+        // an infra fault → isClientError: false. 5xx upstream → isClientError: false.
+        // 4xx upstream is handled by the SDK-specific catches above; if a raw 4xx
+        // reaches this clause it falls through to the catch-all below.
+        catch (HttpRequestException ex)
+            when (ex.StatusCode is null || (int)ex.StatusCode >= 500)
         {
             throw new LiveClassProviderException(
                 "provider.unavailable", "Live-class provider unavailable.",

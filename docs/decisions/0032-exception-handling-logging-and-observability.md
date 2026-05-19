@@ -504,8 +504,19 @@ internal sealed class LearnStackExceptionHandler(
         if (captured)
             await errorTracker.CaptureAsync(ex, CapturedContext.From(context), ct);
 
-        Activity.Current?.RecordException(ex);
-        Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+        // OperationCanceledException → leave the span Unset and skip
+        // RecordException. RecordException tags the span with `exception.*`
+        // attributes which most OTel exporters render as Error in the trace
+        // UI; that would contradict Sub-decision 7's "no Sentry, no Error
+        // span" rule for client disconnects. (`ActivityStatusCode` is the
+        // 3-value OTel enum — `Unset | Ok | Error` — so a cancelled request
+        // simply stays at the default Unset, the same state the SDK assigns
+        // to any request that runs to completion without an error.)
+        if (ex is not OperationCanceledException)
+        {
+            Activity.Current?.RecordException(ex);
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+        }
 
         context.Response.StatusCode = problem.Status ?? 500;
         await context.Response.WriteAsJsonAsync(problem, ct);

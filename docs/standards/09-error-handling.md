@@ -144,7 +144,7 @@ the two backends receive complementary signals:
 | `ProviderException` with `IsClientError == true` (4xx upstream) | `SetStatus(Error)` only | **Skip** | Provider's user-error; not our bug |
 | `Result.Fail(validation_failed / forbidden / not_found / ...)` | `SetStatus(Ok)` (runtime completed; HTTP response is the appropriate 4xx Problem Details) | **Skip** | Expected outcome; metric counter only |
 | `Result.Fail(business_rule_violation)` | `SetStatus(Ok)` | **Skip** | Expected outcome; metric counter only |
-| `OperationCanceledException` (client disconnect) | `SetStatus(Cancelled)` | **Skip** | Noise; not actionable |
+| `OperationCanceledException` (client disconnect) | leave span `Unset`; **no** `RecordException` | **Skip** | Noise; not actionable. (`ActivityStatusCode` is `Unset / Ok / Error` — Unset is the right default for "we didn't finish but it wasn't a failure".) |
 
 The boundary is the L1 handler's `ShouldCapture(Exception)` switch. Modules
 never reference `Sentry.SentrySdk` directly — the architecture test

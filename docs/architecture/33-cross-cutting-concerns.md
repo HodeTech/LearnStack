@@ -61,8 +61,12 @@ The exception hierarchy
   fault; Sentry).
 - `TenantContextMissingException` — request reached the pipeline without a
   resolved tenant.
-- `UnreachableException` — case branch the type system can't prove
-  impossible.
+
+For "case branch the type system can't prove impossible" use the BCL
+`System.Diagnostics.UnreachableException` (.NET 7+) directly — it is **not**
+a `LearnStackException` subclass. The L1 handler treats it the same as any
+unhandled exception (Sentry-captured, 500 Problem Details). Per
+[09-error-handling.md § Hierarchy](../standards/09-error-handling.md).
 
 ## 2. MediatR Pipeline Order
 
@@ -211,7 +215,7 @@ Sentry: only "something is wrong with our code / our infra".
 → Exception = OTel RecordException + Sentry capture.
 → ProviderException 4xx = OTel SetStatus(Error); no Sentry.
 → ProviderException 5xx = OTel RecordException + Sentry capture.
-→ OperationCanceled = OTel SetStatus(Cancelled); no Sentry.
+→ OperationCanceled = OTel span left Unset (no RecordException); no Sentry.
 ```
 
 The `IErrorTrackingProvider.CaptureAsync` boundary lives in the L1
