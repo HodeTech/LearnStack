@@ -233,14 +233,15 @@ jobs:
                   link_path="${link%%#*}"
                   link_path="${link_path%%\?*}"
                   [[ -z "$link_path" ]] && continue
-                  # Resolve against current file's dir for ./ ../ AND against
-                  # the repo root for bare-relative (docs/, infra/, …).
-                  if [[ "$link_path" == ./* || "$link_path" == ../* ]]; then
-                      target_path="$(dirname "$f")/$link_path"
+                  # Markdown resolves relative links against the source
+                  # file's directory by default; the project ALSO uses
+                  # repo-relative shapes (`docs/foo.md`) per CLAUDE.md
+                  # § Cross-link. Try source-relative first, fall back to
+                  # repo-relative — a link that resolves either way is ok.
+                  source_relative="$(dirname "$f")/$link_path"
+                  if [[ -e "$source_relative" || -e "$link_path" ]]; then
+                      :
                   else
-                      target_path="$link_path"
-                  fi
-                  if [[ ! -e "$target_path" ]]; then
                       echo "BROKEN: $f → $link"
                       broken=$((broken + 1))
                   fi
