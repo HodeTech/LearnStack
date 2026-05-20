@@ -20,15 +20,23 @@ infra/livekit/livekit.yaml
 infra/coturn/turnserver.conf
 
 # ─── SeaweedFS S3 identities ────────────────────────────────────────────
-# `accessKey: learnstack` / `secretKey: learnstack-dev-secret` are the
-# dev S3 identity SeaweedFS reads at boot; Phase 02b storage adapter
-# wires Vault-issued credentials for non-dev modes.
+# Dev S3 access+secret pair SeaweedFS reads at boot. Phase 02b storage
+# adapter wires Vault-issued credentials for non-dev modes. (Credential
+# values not quoted here on purpose — Leakwatch scans this file too, and
+# any literal in the comment would self-flag.)
 infra/seaweedfs/s3-identities.json
 
 # ─── Keycloak realm seeds ───────────────────────────────────────────────
-# `learnstack-api-dev-secret` (confidential client secret) +
-# `demo-dev-secret` (seeded demo user passwords) — production realm
-# provisioning (Terraform / keycloak-config-cli) issues per-deployment
-# values per ADR-0004 Amendment 1.
+# Confidential-client secret + seeded demo-user passwords. Production
+# realm provisioning (Terraform / keycloak-config-cli) issues per-
+# deployment values per ADR-0004 Amendment 1.
 infra/keycloak/realms/learnstack.json
 infra/keycloak/realms/learnstack-hub.json
+
+# ─── TLS architecture documentation ─────────────────────────────────────
+# These docs include illustrative PEM blocks ("-----BEGIN ... PRIVATE
+# KEY-----") that explain how the custom-domain flow works per ADR-0022.
+# They are documentation examples, never live keys; production keys are
+# issued by Let's Encrypt and stored in Vault.
+docs/architecture/27-custom-domain-tls.md
+docs/decisions/0022-custom-domain-tls.md
