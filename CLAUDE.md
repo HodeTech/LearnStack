@@ -33,7 +33,7 @@ the full local-dev compose stack at `infra/compose/dev.yml` — PostgreSQL
 LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement,
 APISIX in file-driven standalone mode — and the DX + CI surround
 (repo-root `Makefile`, `.env.example` single source of truth,
-`.githooks/pre-commit` formatter + gitleaks, `infra/compose/e2e.yml`
+`.githooks/pre-commit` formatter + Leakwatch, `infra/compose/e2e.yml`
 ephemeral overlay, `.github/workflows/ci.yml` with backend + frontend +
 meta + secret-scan required checks, `scripts/seed.sh`).
 

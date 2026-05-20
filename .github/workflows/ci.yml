@@ -277,7 +277,7 @@ jobs:
               exit 1
           fi
 
-  # ─── Secret scan (Leakwatch; gates per Standards 20 § Secrets) ─────────
+  # ─── Secret scan (Leakwatch; gates per Standards 12 § Secrets Management) ─
   # Leakwatch is the project's chosen scanner — MIT licensed, verifier-
   # equipped, hybrid Aho-Corasick + regex + entropy engine, YAML custom
   # rules. Config lives at `.leakwatch.yaml` + `.leakwatchignore`.

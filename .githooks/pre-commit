@@ -14,7 +14,7 @@
 # are comment-heavy and prettier reflows them in a way that hurts review
 # readability. CI runs `yamllint` on those files separately.
 #
-# Secret scanning (per Standards 20 § Secrets Management): runs Leakwatch
+# Secret scanning (per Standards 12 § Secrets Management): runs Leakwatch
 # (`leakwatch scan fs <staged-file>` per file) when the binary is on PATH.
 # If not installed, the hook warns once and continues — CI re-runs the
 # same scan as a hard gate so nothing reaches main without a check. The
@@ -73,8 +73,13 @@ staged_files() {
 cs_files=()
 js_like_files=()
 prettier_only_files=()
+all_staged=()
 
+# Single staged-list walk; bucket into per-language arrays AND keep a flat
+# `all_staged` copy for the Leakwatch loop below (avoids a second `git
+# diff --cached` invocation on every commit).
 while IFS= read -r -d '' f; do
+    all_staged+=("$f")
     case "$f" in
         *.cs)                                         cs_files+=("$f") ;;
         *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)           js_like_files+=("$f") ;;
@@ -90,10 +95,6 @@ restage() { git add -- "$@"; }
 # (the alternative — `leakwatch scan fs .` — walks the entire tree).
 # Iterating costs one CLI invocation per file but each one is fast
 # (Aho-Corasick pre-filter); for small commits this is sub-second.
-all_staged=()
-while IFS= read -r -d '' f; do
-    all_staged+=("$f")
-done < <(staged_files)
 
 if command -v leakwatch >/dev/null 2>&1; then
     if [[ ${#all_staged[@]} -gt 0 ]]; then

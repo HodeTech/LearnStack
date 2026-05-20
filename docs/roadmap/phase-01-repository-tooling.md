@@ -59,8 +59,10 @@
 > against the local-env secret store (`secretstore-envvar.yaml`,
 > `auth.secretStore: envvar-secrets`) so the prior two-file token
 > duplication is closed. `.githooks/pre-commit` runs `dotnet format` +
-> prettier + ESLint --fix + (when installed) `gitleaks protect --staged`
-> on staged files (activated by `make install`). `infra/compose/e2e.yml`
+> prettier + ESLint --fix + (when installed) `leakwatch scan fs <staged-file>`
+> on staged files (activated by `make install`; install instructions in
+> [.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md)).
+> `infra/compose/e2e.yml`
 > overlay swaps named volumes for tmpfs for ephemeral e2e runs. The
 > `learnstack-hub` compose overlay is **owned by the separate
 > `learnstack-hub` repo's Phase 02c** per
@@ -72,7 +74,7 @@
 > (typecheck + lint + build + Vitest), meta (broken-link sweep over
 > changed Markdown + `docs/analysis/` residual scan), and secret-scan
 > ([Leakwatch](https://github.com/cemililik/Leakwatch) v1.5.0 per
-> Standards 20 § Secrets — MIT, verifier-equipped, hybrid Aho-Corasick
+> Standards 12 § Secrets Management — MIT, verifier-equipped, hybrid Aho-Corasick
 > + regex + entropy; configured via `.leakwatch.yaml` + `.leakwatchignore`). Three
 > scaffolded-but-deferred jobs (`if: false`) wait for their owning phase:
 > integration tests (02a), OpenAPI diff (03), Lighthouse budget (04).

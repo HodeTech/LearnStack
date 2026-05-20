@@ -40,3 +40,18 @@ infra/keycloak/realms/learnstack-hub.json
 # issued by Let's Encrypt and stored in Vault.
 docs/architecture/27-custom-domain-tls.md
 docs/decisions/0022-custom-domain-tls.md
+
+# ─── Infra README orientation tables ────────────────────────────────────
+# Each subdirectory's README documents the dev credentials inline (Vault
+# root token, Keycloak admin pass, Meilisearch master key, LiveKit dev
+# key, demo-user passwords, the SeaweedFS access pair) for orientation —
+# the README is the first file a contributor reads when standing up that
+# service. The actual literals live in `.env.example` + the corresponding
+# config file; the READMEs mirror them so the orientation table is
+# self-contained. Excluded for symmetry with the config files those
+# READMEs document.
+infra/compose/README.md
+infra/dapr/README.md
+infra/keycloak/README.md
+infra/livekit/README.md
+infra/seaweedfs/README.md

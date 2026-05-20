@@ -2,7 +2,7 @@
 #
 # Active hygiene: every commit is scanned by `leakwatch scan fs <staged>`
 # in the pre-commit hook (when the binary is on PATH) + `leakwatch scan fs .`
-# in CI (`.github/workflows/ci.yml` § secret-scan). Per Standards 20
+# in CI (`.github/workflows/ci.yml` § secret-scan). Per Standards 12
 # § Secrets Management:
 #     "No secret may appear in code, in `appsettings.*.json` checked into
 #      git, or in container env vars. The pre-commit hook scans for

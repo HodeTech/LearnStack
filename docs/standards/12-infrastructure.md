@@ -88,7 +88,14 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 
 ## Image Conventions
 
-- Base images pinned by digest.
+- **Production images pinned by digest** (`image: registry/foo@sha256:…`)
+  so a re-pushed tag cannot ship under us.
+- **Dev compose images pinned by explicit version tag** (`image: registry/foo:1.2.3`,
+  never `:latest`). Dev-side digest pinning is operationally heavy
+  (every minor bump requires `docker pull && docker inspect`); the
+  re-push risk for the official images we use is vanishingly low. The
+  tag-pin policy is documented in `infra/compose/dev.yml` and enforced
+  by code review.
 - Non-root user.
 - Read-only filesystem where feasible.
 - Drop unneeded Linux capabilities.

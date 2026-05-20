@@ -18,7 +18,12 @@
       security-sensitive CAs, our own architecture-test contract) get an
       explicit `dotnet_diagnostic.<id>.severity = error` line in the
       relevant `.editorconfig` — that posture promotes signal over churn.
-      Per ADR-0032 § Cross-cutting analyzers and Standards 17 § Code Review.
+
+      NOTE: this analyzer posture is currently a tooling choice, NOT a
+      corpus-anchored rule. The first ADR amendment that pins the
+      analyzer mode + the per-rule promotion mechanism should land in
+      Phase 02a (most likely as an ADR-0032 amendment, since the
+      cross-cutting concerns story owns developer-experience policy).
     -->
     <AnalysisMode>Recommended</AnalysisMode>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
