@@ -8,7 +8,19 @@
     <TreatWarningsAsErrors Condition="'$(CI)' == 'true'">true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest</AnalysisLevel>
-    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <!--
+      Analyzer posture: `Recommended` is the Microsoft-curated middle ground
+      (~120 rules) — security + correctness + reliability + maintainability
+      defaults that the .NET team considers the floor for production code.
+      `AllEnabledByDefault` (~450 rules) was the prior setting; it tripped
+      every Phase 01 PR on cosmetic / xunit-pattern rules that drowned out
+      the signal. The rules we specifically want UPGRADED to error (e.g.
+      security-sensitive CAs, our own architecture-test contract) get an
+      explicit `dotnet_diagnostic.<id>.severity = error` line in the
+      relevant `.editorconfig` — that posture promotes signal over churn.
+      Per ADR-0032 § Cross-cutting analyzers and Standards 17 § Code Review.
+    -->
+    <AnalysisMode>Recommended</AnalysisMode>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CA1014;CS1591</NoWarn>
     <!--
