@@ -1,0 +1,13 @@
+# LearnStack.Api scope override.
+#
+# Inherits from `backend/.editorconfig`. The single override below scopes
+# CA1515 (types should not be public unless an external consumer needs them)
+# to silent for THIS project only — the auto-generated `Program` type from
+# top-level statements MUST be public so xunit's WebApplicationFactory<Program>
+# in the test assemblies can resolve it (internal + InternalsVisibleTo is
+# documented as unreliable for the test runner's discovery path).
+#
+# All other CA rules at default severity for this project.
+
+[*.cs]
+dotnet_diagnostic.CA1515.severity = none

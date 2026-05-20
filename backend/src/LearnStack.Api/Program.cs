@@ -27,11 +27,8 @@ app.Run();
 
 // `public partial class Program` is the top-level-statements escape hatch
 // that lets WebApplicationFactory<Program> in the test assemblies resolve
-// the entry-point type. CA1515 (types should not be public unless an
-// external consumer needs them) is suppressed in the csproj's NoWarn for
-// this specific Program type — the test harness is the external consumer
-// and it cannot see `internal` types without an InternalsVisibleTo dance
-// that confuses Program-discovery in the test runner.
-#pragma warning disable CA1515 // "internal" would hide Program from xunit's WebApplicationFactory<Program>
+// the entry-point type. CA1515 is downgraded to `none` for this project
+// in `backend/src/LearnStack.Api/.editorconfig` — the test harness is the
+// external consumer and it cannot see `internal` types without an
+// InternalsVisibleTo dance that confuses Program-discovery.
 public partial class Program;
-#pragma warning restore CA1515

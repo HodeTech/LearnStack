@@ -1,0 +1,24 @@
+# Test-scope analyzer overrides.
+#
+# Inherits from `backend/.editorconfig` (file-scoped namespaces, nullable-
+# reference-type rules) — this file only DOWNGRADES rules that don't fit
+# xunit test code, mirroring the `<NoWarn>` block in `backend/Directory.Build.props`
+# under `IsTestProject == true`. The MSBuild NoWarn applies to `dotnet build`
+# diagnostics, but `dotnet format analyzers --verify-no-changes` invokes
+# Roslyn directly and respects `.editorconfig` severity overrides rather
+# than the project's NoWarn property.
+#
+# Real code-quality rules (CA1305 culture-invariant, CA1861 static-readonly
+# array) STAY at default severity — fix violations in the code.
+
+[*.cs]
+# xunit `Method_When_Returns` underscore naming is the BDD convention.
+dotnet_diagnostic.CA1707.severity = none
+# xunit instantiates fixtures via reflection; analyzer cannot see the call.
+dotnet_diagnostic.CA1812.severity = none
+# Public test classes are required for runner discovery.
+dotnet_diagnostic.CA1515.severity = none
+# Nested theory-data / fixture types are an accepted xunit pattern.
+dotnet_diagnostic.CA1034.severity = none
+# `HttpClient.GetAsync(string)` overload is fine in test assertions.
+dotnet_diagnostic.CA2234.severity = none
