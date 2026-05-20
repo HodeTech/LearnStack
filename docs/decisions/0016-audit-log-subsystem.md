@@ -292,7 +292,8 @@ Three blocker-level architecture tests are added in Phase 02:
 
 ### Negative
 
-- One more table partition to manage per month (`pg_partman` or custom Hangfire job).
+- One more table partition to manage per month (managed by a Hangfire recurring job
+  per [ADR-0028](0028-audit-log-partition-management.md)).
 - Multi-entity command JSON can be large (>100 KB for bulk updates); truncation policy
   needed for very large operations.
 - The PII-redaction obligation (ADR-0026 in Nexora, equivalent rule in LearnStack) applies

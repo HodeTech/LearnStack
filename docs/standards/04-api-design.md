@@ -31,11 +31,29 @@ Platform-admin endpoints live under `/v1/platform/...` and require platform-admi
 
 ## Versioning
 
-- URL-based: `/v1`, `/v2`. Header-based versioning is not used.
-- **Non-breaking changes** stay in the same version: additive fields, new optional query params, new endpoints.
-- **Breaking changes** require a new major version: removed/renamed fields, behavior changes, removed endpoints.
-- Deprecated fields stay one minor release minimum with `Deprecation` header and a `Sunset` date.
-- Two adjacent versions coexist; EOL is announced.
+Per [ADR-0024](../decisions/0024-api-versioning-policy.md):
+
+- **URL-based:** `/v1`, `/v2`. Header-based versioning is not used.
+- **No minor versions in the URL.** Non-breaking changes (additive fields,
+  new optional query params, new endpoints under an existing resource,
+  looser validation) ship to the same major.
+- **Breaking changes require a new major.** The full breaking / non-breaking
+  matrix lives in
+  [ADR-0024 § What counts as a breaking change](../decisions/0024-api-versioning-policy.md).
+- **Deprecation window: 6 months.** Every deprecated endpoint carries
+  RFC 8594 `Sunset`, `Deprecation` (Unix-timestamp), and `Link:
+  rel="successor-version"` HTTP response headers, plus OpenAPI
+  `deprecated: true` + `x-sunset` / `x-successor` / `x-migration-guide`
+  extensions for SDK codegen.
+- **Two adjacent majors coexist.** Three concurrent majors is not supported.
+- **Sunset response:** `410 Gone` with RFC 7807 Problem Details pointing at
+  the successor endpoint and the migration-guide URL.
+- **`/healthz` and `/readyz` are unversioned** infrastructure endpoints; the
+  versioned API surface starts at `/api/v{N}/`.
+
+The deprecation cadence applies to the *tenant-facing* `/api/v{N}/*` surface.
+The internal `/api/internal/*` Hub contract has its own versioning per
+[ADR-0019](../decisions/0019-learnstack-hub.md).
 
 ## Status Codes
 

@@ -49,11 +49,18 @@ public readonly record struct CourseId(Guid Value) : IStronglyTypedId<Guid>
 }
 ```
 
-A shared source generator (or analyzer pack) emits:
+Per [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md), the
+shared source generator is **[Vogen](https://github.com/SteveDunn/Vogen)**. The
+canonical declaration uses Vogen's `[ValueObject<Guid>(...)]` annotation on a
+partial `record struct`; Vogen emits:
 - EF Core value converter.
 - `JsonConverter`.
 - Minimal API model binder.
-- OpenAPI schema mapping.
+- OpenAPI schema mapping (Swashbuckle / Microsoft.OpenApi schema filter).
+
+The same annotation covers richer value objects (`Email`, `Slug`, `LocaleCode`,
+`Money`) — the emitter shape is identical for IDs and value objects, with the
+value-object's invariant captured in a `Validate` static method.
 
 ## Nullability
 

@@ -76,7 +76,7 @@ pre-implementation, so the migration drag is zero):
 2. **PostgreSQL major pinned to 18.x** per
    [ADR-0031](0031-postgresql-major-version.md). 18 is the longest-
    runway LTS available (EOL 2030-11), brings native `gen_uuid_v7()`
-   that the [ADR-0023 draft](README.md#open-adr-drafts) can adopt
+   that [ADR-0023](0023-strongly-typed-id-source-generator.md) adopts
    without an extension, and async I/O for sequential scans helps the
    partitioned `audit_log`
    ([ADR-0016](0016-audit-log-subsystem.md)) operator queries. RLS

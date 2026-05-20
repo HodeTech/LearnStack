@@ -37,6 +37,9 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0020 | [Triple Deployment + Hybrid License](0020-triple-deployment-hybrid-license.md) | SaaS / Dedicated / Self-Hosted from one codebase; phone-home + RSA-signed key + 30-day grace |
 | 0021 | [Feature-Based Entitlement](0021-feature-based-entitlement.md) | Feature flags + numeric limits per plan; typed `FeatureKeys` / `LimitKeys` registries |
 | 0022 | [Custom Domain & TLS](0022-custom-domain-tls.md) | Hub-owned custom domain admin; DNS-01 + HTTP-01 + Let's Encrypt; APISIX hot-reload |
+| 0023 | [Strongly-Typed ID Source Generator — Vogen](0023-strongly-typed-id-source-generator.md) | Vogen as the source generator for both IDs and value objects; `[ValueObject<Guid>]` annotation; EF + JSON + ASP.NET + OpenAPI emitters out of the box |
+| 0024 | [API Versioning Policy](0024-api-versioning-policy.md) | URL-based `/v{N}/`; 6-month deprecation window; RFC 8594 `Sunset` + `Deprecation` headers; OpenAPI `deprecated` + `x-sunset` extensions; 410 Gone with RFC 7807 on sunset |
+| 0028 | [`audit_log` Partition Management — Hangfire Recurring Job](0028-audit-log-partition-management.md) | Daily `learnstack:audit:partition-management` Hangfire job; create-ahead 2 months; drop only on platform-max retention horizon; row-level purge separate; no `pg_partman` dependency |
 | 0029 | [Object Storage — SeaweedFS](0029-object-storage-seaweedfs.md) | Self-hosted SeaweedFS behind the existing `IStorageProvider` S3 contract; partially supersedes ADR-0002's MinIO row |
 | 0030 | [Redis-compatible Store — Valkey](0030-redis-compatible-store-valkey.md) | Valkey (Linux Foundation, BSD-3-Clause) for the cache + Dapr state-store backend; RESP-protocol drop-in; partially supersedes ADR-0002's Redis row |
 | 0031 | [PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) | Pin primary RDBMS major version to PostgreSQL 18; native `gen_uuid_v7()` + async I/O + longest LTS runway; partially supersedes ADR-0002's PostgreSQL row |
@@ -70,12 +73,9 @@ table records the phase commitment so reviewers can flag late drafts.
 
 | Reserved # | Topic | Target phase (must be Accepted before) | Referenced from |
 |---|---|---|---|
-| 0023 | Strongly-typed ID source generator (Vogen vs StronglyTypedId vs custom; emitter spec) | **Phase 02a** — interceptors and value converters need the generator at compile time | [02-backend-coding.md](../standards/02-backend-coding.md) |
-| 0024 | API versioning policy (URL prefix `/v1/` stays the convention; this ADR codifies deprecation cadence, sunset headers, and the rule for breaking changes) | **Phase 02a** — OpenAPI spec + SDK generation start here | [04-technical-architecture.md § API Strategy](../architecture/04-technical-architecture.md), [04-api-design.md § Versioning](../standards/04-api-design.md) |
 | 0025 | Scoring + completion DSL sandbox engine (CEL vs restricted Lua vs custom; sandbox boundary; allowed function set) | **Phase 05** — `TenantCompletionRule` runtime evaluator lights up here; Phase 08a's assessment scoring depends on it | [ADR-0018](0018-tenant-driven-customization-model.md), [phase-05-education-learning-content.md](../roadmap/phase-05-education-learning-content.md), [phase-08a-assessment-notifications.md](../roadmap/phase-08a-assessment-notifications.md) |
 | 0026 | Release-tag scheme (`vYYYY.MM.DD.<n>` vs SemVer; SaaS continuous-deploy reconciliation; Self-Hosted release cadence) | **Phase 11** — production hardening checklist owns this | [14-git-workflow.md § Tagging and Releases](../standards/14-git-workflow.md) |
 | 0027 | Frontend i18n library pick (`next-intl` vs `react-intl` vs `lingui`) | **Phase 04** — the first CMS / page-builder surface ships locale-aware copy | [12-localization.md](../architecture/12-localization.md), [08-localization.md](../standards/08-localization.md) |
-| 0028 | `audit_log` monthly partition management (Hangfire job vs `pg_partman` extension; failure-mode comparison) | **Phase 02a** — partition policy is Day 1; the choice can be retrofitted later but must be ADR'd before production load | [ADR-0016](0016-audit-log-subsystem.md), [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) |
 
 **Reservation rule:** the numbers above are *reserved but not yet drafted*. When a
 draft lands, take its reserved number; do not let another ADR claim it. If the
