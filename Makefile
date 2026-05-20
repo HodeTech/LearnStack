@@ -131,7 +131,7 @@ install: .env hooks ## Restore backend NuGet + frontend pnpm deps + activate git
 .PHONY: hooks
 hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).
 	@git config core.hooksPath .githooks
-	@printf "$(CYAN)git hooks → .githooks/ (pre-commit: dotnet format + prettier + eslint + gitleaks if available)$(RESET)\n"
+	@printf "$(CYAN)git hooks → .githooks/ (pre-commit: dotnet format + prettier + eslint + leakwatch if available)$(RESET)\n"
 
 # ─── Env scaffolding ──────────────────────────────────────────────────────
 # `.env` is gitignored; this rule copies `.env.example` on first run so the

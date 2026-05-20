@@ -1,0 +1,86 @@
+# LearnStack — Leakwatch configuration.
+#
+# Active hygiene: every commit is scanned by `leakwatch scan fs <staged>`
+# in the pre-commit hook (when the binary is on PATH) + `leakwatch scan fs .`
+# in CI (`.github/workflows/ci.yml` § secret-scan). Per Standards 20
+# § Secrets Management:
+#     "No secret may appear in code, in `appsettings.*.json` checked into
+#      git, or in container env vars. The pre-commit hook scans for
+#      high-entropy strings; CI fails on hits."
+#
+# The intentional dev credentials in this repo (Vault root token, Keycloak
+# admin password, LiveKit dev key, …) are filtered out by:
+#   1. `detection.entropy.threshold: 4.2` — short low-entropy literals like
+#      `admin-dev-secret` / `demo-dev-secret` fall below the threshold.
+#   2. `.leakwatchignore` — env templates and dev-only config files
+#      (LiveKit's 32-byte padded secret, Coturn's user/pass, the SeaweedFS
+#      S3 identity JSON) are excluded by path.
+#   3. Inline `# leakwatch:ignore` comments where a single high-entropy
+#      literal must stay in an otherwise-scanned file.
+#
+# If a new dev-only credential surfaces and trips a real scan, prefer:
+#   inline ignore (per-line)  >  .leakwatchignore (per-path)  >  config tweaks
+# Path-level exclusions hide every detector on that file, so use sparingly.
+
+# ── Scan Engine ─────────────────────────────────────────────────────────
+scan:
+  concurrency: 4          # CI runner-friendly; raise locally if needed
+  max-file-size: 10485760 # 10 MB — skips compiled binaries / large images
+
+# ── Detection ───────────────────────────────────────────────────────────
+detection:
+  entropy:
+    enabled: true
+    threshold: 4.2        # Slightly more selective than the 4.0 default
+                          # so short low-entropy dev literals
+                          # (admin-dev-secret, demo-dev-secret) don't fire
+
+# ── Verification ────────────────────────────────────────────────────────
+# Disabled in this config: CI must stay hermetic (no outbound API calls to
+# vendor verifier endpoints for dev tokens). Local developers running
+# `leakwatch scan fs .` outside CI can override with `--verify`.
+verification:
+  enabled: false
+
+# ── Filter ──────────────────────────────────────────────────────────────
+filter:
+  exclude-paths:
+    # Build / generated artifacts (do not commit, but defense-in-depth):
+    - "node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.next/**"
+    - "**/bin/**"
+    - "**/obj/**"
+    - "**/coverage/**"
+    # Lock files (high churn, no human secrets):
+    - "**/*.lock"
+    - "**/package-lock.json"
+    - "**/yarn.lock"
+    - "**/pnpm-lock.yaml"
+    - "**/go.sum"
+    # Minified assets:
+    - "**/*.min.js"
+    - "**/*.min.css"
+    - "**/*.map"
+    # Binary assets:
+    - "**/*.png"
+    - "**/*.jpg"
+    - "**/*.jpeg"
+    - "**/*.gif"
+    - "**/*.ico"
+    - "**/*.woff"
+    - "**/*.woff2"
+    - "**/*.ttf"
+    # Local-only research (gitignored anyway):
+    - "docs/analysis/**"
+  exclude-detectors: []   # No detectors disabled globally — see ignores above
+
+# ── Output ──────────────────────────────────────────────────────────────
+# CI overrides via CLI flags (`--format sarif --output results.sarif`); the
+# defaults below cover developer-local runs.
+output:
+  format: table
+  file: ""
+  show-raw: false
+  severity-threshold: medium

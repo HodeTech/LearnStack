@@ -71,7 +71,9 @@
 > dotnet format verify + unit + architecture + contract), frontend
 > (typecheck + lint + build + Vitest), meta (broken-link sweep over
 > changed Markdown + `docs/analysis/` residual scan), and secret-scan
-> (`gitleaks/gitleaks-action@v2` per Standards 20 § Secrets). Three
+> ([Leakwatch](https://github.com/cemililik/Leakwatch) v1.5.0 per
+> Standards 20 § Secrets — MIT, verifier-equipped, hybrid Aho-Corasick
+> + regex + entropy; configured via `.leakwatch.yaml` + `.leakwatchignore`). Three
 > scaffolded-but-deferred jobs (`if: false`) wait for their owning phase:
 > integration tests (02a), OpenAPI diff (03), Lighthouse budget (04).
 > `scripts/seed.sh` verifies compose health + Keycloak realm readiness

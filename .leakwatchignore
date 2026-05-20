@@ -1,0 +1,34 @@
+# LearnStack — Leakwatch path ignores.
+#
+# Glob syntax (same as .gitignore). Each entry must cite WHY the path
+# carries intentional dev-only literals; production never reads from these
+# files, and every production credential surface goes through
+# `ISecretProvider` per Standards 20 § Secrets Management.
+#
+# Prefer inline `# leakwatch:ignore` over .leakwatchignore for single
+# literals — path-level exclusion turns off EVERY detector on the file.
+
+# ─── Env templates (carry placeholder shapes, never real secrets) ───────
+.env.example
+frontend/apps/web/.env.local.example
+
+# ─── LiveKit + Coturn dev configs ───────────────────────────────────────
+# `devsecret-32-byte-min-length-padding-xyz` is intentionally high-entropy
+# to satisfy LiveKit's 32-byte secret length requirement; production
+# rotates per-session via ILiveClassProvider per ADR-0005 / Phase 08c.
+infra/livekit/livekit.yaml
+infra/coturn/turnserver.conf
+
+# ─── SeaweedFS S3 identities ────────────────────────────────────────────
+# `accessKey: learnstack` / `secretKey: learnstack-dev-secret` are the
+# dev S3 identity SeaweedFS reads at boot; Phase 02b storage adapter
+# wires Vault-issued credentials for non-dev modes.
+infra/seaweedfs/s3-identities.json
+
+# ─── Keycloak realm seeds ───────────────────────────────────────────────
+# `learnstack-api-dev-secret` (confidential client secret) +
+# `demo-dev-secret` (seeded demo user passwords) — production realm
+# provisioning (Terraform / keycloak-config-cli) issues per-deployment
+# values per ADR-0004 Amendment 1.
+infra/keycloak/realms/learnstack.json
+infra/keycloak/realms/learnstack-hub.json

@@ -14,10 +14,12 @@
 # are comment-heavy and prettier reflows them in a way that hurts review
 # readability. CI runs `yamllint` on those files separately.
 #
-# Secret scanning (per Standards 20 § Secrets Management): runs `gitleaks
-# protect --staged` when the binary is on PATH. If not installed, the hook
-# warns once and continues — CI re-runs the same scan as a hard gate so
-# nothing reaches main without a check.
+# Secret scanning (per Standards 20 § Secrets Management): runs Leakwatch
+# (`leakwatch scan fs <staged-file>` per file) when the binary is on PATH.
+# If not installed, the hook warns once and continues — CI re-runs the
+# same scan as a hard gate so nothing reaches main without a check. The
+# project config (`.leakwatch.yaml` + `.leakwatchignore`) lives at repo
+# root and applies to both invocations.
 #
 # WIP isolation: formatters mutate the working tree, then we re-stage the
 # changed paths. Without isolation that re-stage would silently capture any
@@ -82,17 +84,35 @@ done < <(staged_files)
 
 restage() { git add -- "$@"; }
 
-# ─── Secret scanning (gitleaks if available) ────────────────────────────
-if command -v gitleaks >/dev/null 2>&1; then
-    printf "pre-commit: gitleaks protect --staged …\n"
-    if ! gitleaks protect --staged --no-banner --redact; then
-        printf "\npre-commit: gitleaks found a likely secret in the staged diff.\n" >&2
-        printf "If it is a legitimate dev credential, allow-list it in .gitleaks.toml.\n" >&2
-        exit 1
+# ─── Secret scanning (Leakwatch if available) ───────────────────────────
+# Leakwatch's CLI takes a path argument; we pass each staged file
+# individually so the scan stays scoped to what's about to be committed
+# (the alternative — `leakwatch scan fs .` — walks the entire tree).
+# Iterating costs one CLI invocation per file but each one is fast
+# (Aho-Corasick pre-filter); for small commits this is sub-second.
+all_staged=()
+while IFS= read -r -d '' f; do
+    all_staged+=("$f")
+done < <(staged_files)
+
+if command -v leakwatch >/dev/null 2>&1; then
+    if [[ ${#all_staged[@]} -gt 0 ]]; then
+        printf "pre-commit: leakwatch scan (%d file(s)) …\n" "${#all_staged[@]}"
+        for f in "${all_staged[@]}"; do
+            # Skip files that don't exist (D for delete in --diff-filter).
+            [[ -f "$f" ]] || continue
+            if ! leakwatch scan fs "$f" --config .leakwatch.yaml --min-severity medium --no-verify >/dev/null; then
+                printf "\npre-commit: leakwatch found a likely secret in %s\n" "$f" >&2
+                printf "If it is a legitimate dev credential, add an inline\n" >&2
+                printf "\`# leakwatch:ignore\` comment or extend .leakwatchignore.\n" >&2
+                exit 1
+            fi
+        done
     fi
 else
-    printf "pre-commit: gitleaks not on PATH — skipping local secret scan (CI re-runs it).\n" >&2
-    printf "  install: https://github.com/gitleaks/gitleaks#installing\n" >&2
+    printf "pre-commit: leakwatch not on PATH — skipping local secret scan (CI re-runs it).\n" >&2
+    printf "  install: brew install cemililik/tap/leakwatch\n" >&2
+    printf "       or: go install github.com/cemililik/leakwatch@latest\n" >&2
 fi
 
 # ─── Backend: dotnet format ─────────────────────────────────────────────

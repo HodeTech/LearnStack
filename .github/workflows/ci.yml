@@ -277,21 +277,48 @@ jobs:
               exit 1
           fi
 
-  # ─── Secret scan (gitleaks; gates per Standards 20 § Secrets) ──────────
+  # ─── Secret scan (Leakwatch; gates per Standards 20 § Secrets) ─────────
+  # Leakwatch is the project's chosen scanner — MIT licensed, verifier-
+  # equipped, hybrid Aho-Corasick + regex + entropy engine, YAML custom
+  # rules. Config lives at `.leakwatch.yaml` + `.leakwatchignore`.
+  #
+  # We install the CLI via `go install` (not the third-party action wrapper)
+  # so we control the version pin and the verification posture explicitly.
+  # `--no-verify` skips the live-API verifier because CI runners must stay
+  # hermetic — dev credentials are filtered out via entropy threshold +
+  # `.leakwatchignore`; production secrets never reach the repo.
   secret-scan:
-    name: secret scan (gitleaks)
+    name: secret scan (leakwatch)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # gitleaks walks history on push events
+          fetch-depth: 0   # full history so push-event scans see prior commits
           persist-credentials: false
 
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GITLEAKS_LICENSE not required for OSS projects per upstream docs.
-          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install Leakwatch
+        run: go install github.com/cemililik/leakwatch@v1.5.0
+
+      - name: Scan
+        run: |
+          leakwatch scan fs . \
+            --config .leakwatch.yaml \
+            --format sarif \
+            --output results.sarif \
+            --min-severity medium \
+            --no-verify
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leakwatch-results
+          path: results.sarif
+          if-no-files-found: warn

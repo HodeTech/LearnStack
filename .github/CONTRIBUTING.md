@@ -19,7 +19,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
     - `meta (commit hygiene + link audit)`
-    - `secret scan (gitleaks)`
+    - `secret scan (leakwatch)`
   - Deferred checks — flip the `if: false` guards in `ci.yml` AND add the
     job name here when the owning phase lands:
     - `backend integration (Testcontainers — deferred)` — Phase 02a.
@@ -69,18 +69,31 @@ make test           # unit + arch + contract + vitest
 ```
 
 The pre-commit hook (activated by `make install`) runs `dotnet format` +
-prettier + ESLint + (if installed) `gitleaks protect --staged` on staged
-files — so the lint / typecheck / test / secret-scan pass above is mostly
-a sanity check. CI re-runs every check as a hard gate, so a bypassed local
-commit will fail the PR build.
+prettier + ESLint + (if installed) `leakwatch scan fs <staged-file>` on
+staged files — so the lint / typecheck / test / secret-scan pass above is
+mostly a sanity check. CI re-runs every check as a hard gate, so a
+bypassed local commit will fail the PR build.
 
-Install gitleaks once for the local secret scan (CI runs it regardless,
-this is just earlier feedback):
+The secret scanner is [Leakwatch](https://github.com/cemililik/Leakwatch)
+— MIT licensed, verifier-equipped, hybrid Aho-Corasick + regex + entropy
+detection engine. Config lives at `.leakwatch.yaml` + `.leakwatchignore`
+at the repo root. Install once for the local pre-commit scan (CI runs it
+regardless, this is just earlier feedback):
 
 ```bash
-brew install gitleaks      # macOS
-# or download from https://github.com/gitleaks/gitleaks/releases
+brew install cemililik/tap/leakwatch      # macOS (Homebrew)
+# or:
+go install github.com/cemililik/leakwatch@latest
 ```
+
+If Leakwatch flags an intentional dev credential, prefer:
+
+1. **Inline ignore** at the literal — `# leakwatch:ignore` (or
+   `# leakwatch:ignore:<detector-id>` for a targeted skip) at the end
+   of the line carrying the dev credential. Lowest blast radius.
+2. **`.leakwatchignore`** path entry — for whole files where every
+   value is dev-only (env templates, the LiveKit / Coturn confs).
+3. **`.leakwatch.yaml` config tweak** — last resort; document the why.
 
 ## Never
 
