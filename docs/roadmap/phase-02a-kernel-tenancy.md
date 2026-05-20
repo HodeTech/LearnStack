@@ -119,7 +119,7 @@
 > `LearnStack.Modules.Customization` with `TenantContentType`,
 > `TenantPageBlock`, `TenantLessonItemType`, `TenantLevelTaxonomy`,
 > `TenantScoringRule`, `TenantCompletionRule`, `TenantCustomFieldDef`,
-> `TenantTemplateLibrary` aggregates + their schemas tables (per
+> `TenantTemplateLibrary` aggregates and their schema tables (per
 > [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).
 > Runtime read paths — JSON Schema validators and sandboxed DSL stub —
 > ship now; the Admin Studio editors land in Phase 06. A small built-in
@@ -157,40 +157,43 @@
 >
 > - From the cross-cutting ADR-0032 batch already in the catalogue
 >   (introduced by Packet 3):
->   `IExceptionHandler_Registered_AtStartup`,
->   `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
->   `ValidationBehavior_DoesNotThrow_ValidationException`,
->   `Domain_Methods_Do_Not_Throw_For_Expected_Cases` (Roslyn analyzer
->   report), `Adapters_Wrap_Provider_Exceptions`,
->   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
->   `Logging_Goes_Through_Microsoft_Extensions_Logging`,
->   `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
->   `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`.
+>   - `IExceptionHandler_Registered_AtStartup`
+>   - `MediatR_Pipeline_Order_Matches_Canonical_Sequence`
+>   - `ValidationBehavior_DoesNotThrow_ValidationException`
+>   - `Domain_Methods_Do_Not_Throw_For_Expected_Cases` (Roslyn analyzer
+>     report)
+>   - `Adapters_Wrap_Provider_Exceptions`
+>   - `Modules_Do_Not_Reference_Sentry_SDK_Directly`
+>   - `Logging_Goes_Through_Microsoft_Extensions_Logging`
+>   - `OTel_Pipeline_Includes_TenantContextSpanProcessor`
+>   - `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`
 > - From the module-dependency arm (introduced by Packet 2 / closed by
->   this packet): the Application + Infrastructure full matrix
->   extending the existing Phase-01 Packet 1 `ModuleDependencyTests`
->   TODO at [backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs:17-21](../../backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs#L17-L21);
->   plus `LearnStack_Modules_DoNotReference_Hub`,
->   `Modules_Do_Not_Inject_Valkey_Directly`,
->   `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
->   `Modules_Do_Not_Write_AuditLog_Directly`,
->   `Modules_Do_Not_Reference_DeploymentMode`,
->   `Core_Modules_HaveNo_DomainSpecific_Names`,
->   `No_Source_Folder_Named_Verticals` (already green from Phase 01).
+>   this packet):
+>   - The Application + Infrastructure full matrix extending the
+>     existing Phase-01 Packet 1 `ModuleDependencyTests` TODO at
+>     [backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs:17-21](../../backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs#L17-L21)
+>   - `LearnStack_Modules_DoNotReference_Hub`
+>   - `Modules_Do_Not_Inject_Valkey_Directly`
+>   - `Modules_Do_Not_Read_Entitlement_Cache_Directly`
+>   - `Modules_Do_Not_Write_AuditLog_Directly`
+>   - `Modules_Do_Not_Reference_DeploymentMode`
+>   - `Core_Modules_HaveNo_DomainSpecific_Names`
+>   - `No_Source_Folder_Named_Verticals` (already green from Phase 01)
 > - From the tenancy + isolation arm (introduced by Packet 7 — canonical
 >   identifiers land in the catalogue when the tests do):
->   `Every_OrgScoped_Entity_HasOrgIdAndFilter`; an
->   `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`-shaped pair for the
->   tenant dimension (final name TBD in Packet 7's catalogue entry);
->   "no `IgnoreQueryFilters()` outside the platform-admin scope" rule
->   (final identifier TBD in Packet 7's catalogue entry).
+>   - `Every_OrgScoped_Entity_HasOrgIdAndFilter`
+>   - An `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`-shaped pair
+>     for the tenant dimension (final name TBD in Packet 7's catalogue
+>     entry)
+>   - "No `IgnoreQueryFilters()` outside the platform-admin scope" rule
+>     (final identifier TBD in Packet 7's catalogue entry)
 > - From the audit arm (introduced by Packet 9):
->   `AuditEntry_Inherits_Entity_Not_AuditableEntity`;
->   `Every_TenantOwned_Command_HasAuditCoverage`; "audit-coverage matrix
->   file exists per module" rule (final identifier TBD in Packet 9's
->   catalogue entry).
+>   - `AuditEntry_Inherits_Entity_Not_AuditableEntity`
+>   - `Every_TenantOwned_Command_HasAuditCoverage`
+>   - "Audit-coverage matrix file exists per module" rule (final
+>     identifier TBD in Packet 9's catalogue entry)
 > - From the Dapr arm (introduced by Packet 5):
->   `Dapr_PubSub_TopicNames_FollowConvention`.
+>   - `Dapr_PubSub_TopicNames_FollowConvention`
 >
 > The `if: false` CI placeholder for integration tests
 > ([phase-01-repository-tooling.md § Packet 8](phase-01-repository-tooling.md))
@@ -390,7 +393,7 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
 - `LearnStack.Modules.Customization` ships with `TenantContentType`,
   `TenantPageBlock`, `TenantLessonItemType`, `TenantLevelTaxonomy`,
   `TenantScoringRule`, `TenantCompletionRule`, `TenantCustomFieldDef`,
-  `TenantTemplateLibrary` aggregates and their schemas tables.
+  `TenantTemplateLibrary` aggregates and their schema tables.
 - The runtime read paths (JSON Schema validators, sandboxed DSL stub) ship now; the
   Admin Studio editors land in Phase 06.
 - A small built-in seed (a `default-card` page-block composite, a stock `Plain` level
