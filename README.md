@@ -27,8 +27,11 @@ LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX
 `.env.example` single source of truth, `.githooks/pre-commit` formatter,
 `infra/compose/e2e.yml` ephemeral overlay, `.github/workflows/ci.yml`, and
 `scripts/seed.sh`. See [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md)
-for the per-packet history. Next: Phase 02a (Platform Kernel + Multi-Tenancy)
-and Phase 02c (Hub Foundation, parallel, separate repo).
+for the per-packet history. Phase 02a (Platform Kernel + Multi-Tenancy) has
+kicked off; see [Phase 02a Status & Packets](docs/roadmap/phase-02a-kernel-tenancy.md)
+for the 11-packet breakdown (Packet 0 — Kickoff is the most recent commit).
+Phase 02c (Hub Foundation, parallel, separate repo) starts once the 02a
+sockets it depends on are in place.
 
 ```bash
 make install   # one-time: deps + git hooks

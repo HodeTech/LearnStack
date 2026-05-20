@@ -286,6 +286,14 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Platform Entitlement Cache** | The `platform_entitlement_cache` table in LearnStack core — the read-only mirror of Hub's `Entitlement`. 15-min TTL upper bound, eager-invalidated on `learnstack.hub.entitlement` Dapr event. |
 | **Operator Portal** | `learnstack-hub-web` — the separate Next.js app for Hub operators. Authenticates against the `learnstack-hub` Keycloak realm. |
 
+## Roadmap & Delivery
+
+| Term | Meaning |
+|---|---|
+| **Phase** | A roadmap-level milestone with its own `phase-NN-topic.md` file under `docs/roadmap/`. Phases are numbered, sometimes letter-suffixed (`02a` / `02b` / `02c`) when sub-streams ship in parallel or in sequence. A phase exits via the explicit [Phase Exit Decision](roadmap/README.md) gate in its doc. |
+| **Packet** | A dependency-ordered shipping slice **within** a phase, sized to be independently reviewable in one pull request. Packet numbering restarts per phase (`P02a-0`, `P02a-1`, …); a packet is referenced as `Pase-PacketIndex` in commits and PR titles (`feat(phase-02a): packet 0 — kickoff`). A packet may ship documentation only (e.g. a kickoff packet that defines the breakdown), decisions only (an ADR move from Draft to Accepted), code only, or any combination — but always one phase's worth of progress, no cross-phase bundling. Per-phase packet history lives in the phase doc's Status block (see [phase-01-repository-tooling.md](roadmap/phase-01-repository-tooling.md) for the canonical shape). |
+| **Kickoff Packet** | The first packet of a phase when that phase is large enough to need an explicit plan up front. A kickoff packet ships only the per-packet breakdown for its phase plus any glossary / cross-reference updates the breakdown depends on; no code. Phase 01 did not need one (packets fell out cleanly from the existing scaffold targets); Phase 02a does (the foundation surface is wide). |
+
 ## Conventions
 
 - `PascalCase` for entities and aggregates.
