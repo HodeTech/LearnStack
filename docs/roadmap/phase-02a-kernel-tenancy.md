@@ -10,9 +10,10 @@
 > `main` via their own pull request.
 >
 > **Packet 0 — Kickoff ✅ (this commit)**
-> Phase 02a packet breakdown captured in this Status block. Glossary entry
-> for "Packet" added under Conventions so the term is defined in exactly
-> one place. No code, no ADR state changes — Packet 0 is a planning slice
+> Phase 02a packet breakdown captured in this Status block. Glossary
+> entries for "Phase", "Packet", and "Kickoff Packet" added under a new
+> *Roadmap & Delivery* group so the terms are defined in exactly one
+> place. No code, no ADR state changes — Packet 0 is a planning slice
 > that unblocks the rest of the phase by fixing the order.
 >
 > **Packet 1 — Foundation decisions ⏳**
@@ -108,7 +109,11 @@
 > integration tests for at least two seed tenants × two organizations each
 > (`Tenant_A_cannot_read_Tenant_B_data`,
 > `Org_X_cannot_read_Org_Y_within_TenantA`,
-> `Unsetting_tenant_context_returns_zero_rows_through_RLS`).
+> `Unsetting_tenant_context_returns_zero_rows_through_RLS`). Picks up the
+> application-level seed drop-in deferred from
+> [Phase 01 Packet 8](phase-01-repository-tooling.md) — two demo tenants
+> + platform admin user, wired through the new Tenancy module
+> `DbContext` instead of the placeholder `scripts/seed.sh`.
 >
 > **Packet 8 — Tenant Customization foundation ⏳**
 > `LearnStack.Modules.Customization` with `TenantContentType`,
@@ -145,34 +150,56 @@
 > **Packet 10 — Architecture tests catalogue green + phase exit ⏳**
 > Every Phase 02a architecture test in
 > [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
-> goes green in CI: module dependency direction (Application +
-> Infrastructure full matrix from Packet 1's
-> `ModuleDependencyTests` TODO), `[TenantOwned]` filter + RLS coverage,
-> `[OrganizationScoped]` org filter + RLS coverage,
-> `No_IgnoreQueryFilters_Outside_PlatformAdmin`,
-> `Audit_Coverage_Matrix_Exists_PerModule`,
-> `Dapr_PubSub_TopicNames_FollowConvention`,
-> `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
-> `LearnStack_Modules_DoNotReference_Hub`,
-> `Modules_Do_Not_Inject_Valkey_Directly`,
-> `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
-> `Modules_Do_Not_Write_AuditLog_Directly`,
-> `Modules_Do_Not_Reference_DeploymentMode`,
-> `Core_Modules_HaveNo_DomainSpecific_Names`,
-> `No_Source_Folder_Named_Verticals` (already green from Phase 01),
-> `IExceptionHandler_Registered_AtStartup`,
-> `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
-> `ValidationBehavior_DoesNotThrow_ValidationException`,
-> `Domain_Methods_Do_Not_Throw_For_Expected_Cases` (Roslyn analyzer
-> report), `Adapters_Wrap_Provider_Exceptions`,
-> `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
-> `Logging_Goes_Through_Microsoft_Extensions_Logging`,
-> `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
-> `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`. The
-> `if: false` CI placeholder for integration tests
+> goes green in CI. The catalogue is the canonical name registry; the
+> identifiers below either already exist there (the ADR-0032 batch) or
+> land in their owning packet and are registered then. Tests grouped by
+> introducing packet:
+>
+> - From the cross-cutting ADR-0032 batch already in the catalogue
+>   (introduced by Packet 3):
+>   `IExceptionHandler_Registered_AtStartup`,
+>   `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
+>   `ValidationBehavior_DoesNotThrow_ValidationException`,
+>   `Domain_Methods_Do_Not_Throw_For_Expected_Cases` (Roslyn analyzer
+>   report), `Adapters_Wrap_Provider_Exceptions`,
+>   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
+>   `Logging_Goes_Through_Microsoft_Extensions_Logging`,
+>   `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
+>   `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`.
+> - From the module-dependency arm (introduced by Packet 2 / closed by
+>   this packet): the Application + Infrastructure full matrix
+>   extending the existing Phase-01 Packet 1 `ModuleDependencyTests`
+>   TODO at [backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs:17-21](../../backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs#L17-L21);
+>   plus `LearnStack_Modules_DoNotReference_Hub`,
+>   `Modules_Do_Not_Inject_Valkey_Directly`,
+>   `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
+>   `Modules_Do_Not_Write_AuditLog_Directly`,
+>   `Modules_Do_Not_Reference_DeploymentMode`,
+>   `Core_Modules_HaveNo_DomainSpecific_Names`,
+>   `No_Source_Folder_Named_Verticals` (already green from Phase 01).
+> - From the tenancy + isolation arm (introduced by Packet 7 — canonical
+>   identifiers land in the catalogue when the tests do):
+>   `Every_OrgScoped_Entity_HasOrgIdAndFilter`; an
+>   `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`-shaped pair for the
+>   tenant dimension (final name TBD in Packet 7's catalogue entry);
+>   "no `IgnoreQueryFilters()` outside the platform-admin scope" rule
+>   (final identifier TBD in Packet 7's catalogue entry).
+> - From the audit arm (introduced by Packet 9):
+>   `AuditEntry_Inherits_Entity_Not_AuditableEntity`;
+>   `Every_TenantOwned_Command_HasAuditCoverage`; "audit-coverage matrix
+>   file exists per module" rule (final identifier TBD in Packet 9's
+>   catalogue entry).
+> - From the Dapr arm (introduced by Packet 5):
+>   `Dapr_PubSub_TopicNames_FollowConvention`.
+>
+> The `if: false` CI placeholder for integration tests
 > ([phase-01-repository-tooling.md § Packet 8](phase-01-repository-tooling.md))
 > is removed once the first integration test from Packet 7 is green.
-> Closes the [Phase Exit Decision](#phase-exit-decision) checklist.
+> Closes the architecture-test arm of the
+> [Phase Exit Decision](#phase-exit-decision) checklist; the remaining
+> exit gates (tenant + organization resolution, isolation tests, audit
+> pipeline, customization runtime read paths, API conventions, the three
+> blocking ADRs) close as their owning packets ship.
 
 ## Goal
 
