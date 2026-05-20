@@ -34,7 +34,9 @@ on:
 # Cancel in-progress runs on the same ref so PR force-pushes don't queue.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel stale PR builds on force-push; KEEP main builds running so
+  # back-to-back merges don't lose the signal from the older one.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -184,9 +186,14 @@ jobs:
 
       - name: Markdown link audit (changed docs)
         run: |
-          # Walk relative-path links in the changed Markdown files of this PR.
-          # On `push` events the BASE is the prior commit; on `pull_request`
-          # it is the PR base ref.
+          # Walk every relative-path link in the changed Markdown files of
+          # this PR. Externals (http(s):, mailto:) and pure-anchor links
+          # (#section) are skipped explicitly so the check stays narrow.
+          # Relative links are accepted in any shape the project uses:
+          #   [x](./foo.md)      — current-dir prefixed
+          #   [x](../foo.md)     — parent-dir prefixed
+          #   [x](docs/foo.md)   — bare repo-relative (CLAUDE.md convention)
+          # Anchors (#frag) are stripped before the file-existence check.
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               base="origin/${{ github.event.pull_request.base.ref }}"
               git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
@@ -200,13 +207,29 @@ jobs:
           fi
           broken=0
           while IFS= read -r f; do
+              # `]\(([^)#][^)]*)\)` — capture every non-anchor link target.
+              # Then filter out externals.
               while IFS= read -r link; do
-                  target_path="$(dirname "$f")/$link"
+                  # Skip external schemes.
+                  case "$link" in
+                      http://*|https://*|mailto:*|tel:*|ftp://*) continue ;;
+                  esac
+                  # Strip anchor + query suffixes for the existence check.
+                  link_path="${link%%#*}"
+                  link_path="${link_path%%\?*}"
+                  [[ -z "$link_path" ]] && continue
+                  # Resolve against current file's dir for ./ ../ AND against
+                  # the repo root for bare-relative (docs/, infra/, …).
+                  if [[ "$link_path" == ./* || "$link_path" == ../* ]]; then
+                      target_path="$(dirname "$f")/$link_path"
+                  else
+                      target_path="$link_path"
+                  fi
                   if [[ ! -e "$target_path" ]]; then
                       echo "BROKEN: $f → $link"
                       broken=$((broken + 1))
                   fi
-              done < <(grep -oE '\]\(\.\.?/[^)]+\)' "$f" | sed -E 's/.*\((.+)\).*/\1/' | sed -E 's/#.*$//')
+              done < <(grep -oE '\]\(([^)#][^)]*)\)' "$f" | sed -E 's/^\]\((.+)\)$/\1/')
           done <<< "$changed"
           if [[ $broken -gt 0 ]]; then
               echo "::error::$broken broken relative link(s) in changed Markdown."
@@ -217,17 +240,42 @@ jobs:
         run: |
           # Per CLAUDE.md: docs/analysis/ is gitignored and MUST NOT be
           # *referenced* from committed files. Distinguish:
-          #   - illegal: `[text](docs/analysis/...)` Markdown link, or
-          #              `from "docs/analysis/..."` / `require('docs/analysis/...')`
-          #              / `using docs.analysis.*;` code import
-          #   - legal:   any mention inside backticks (`docs/analysis/`), inline
-          #              code, or prose about the rule itself
-          # Restrict to the link-and-import shapes so meta-references in
-          # CLAUDE.md / standards / roadmap pass cleanly.
-          residual=$(grep -rnE '\]\(docs/analysis/|from ["'"'"']docs/analysis/|require\(["'"'"']docs/analysis/' \
-                      --include='*.md' --include='*.cs' --include='*.ts' --include='*.tsx' --include='*.mjs' --include='*.cjs' . 2>/dev/null || true)
+          #   - illegal: `[text](docs/analysis/...)` Markdown link, OR any
+          #              code-import shape that resolves to docs/analysis/:
+          #              `from "..."`, `require("...")`, `import("...")`,
+          #              `using docs.analysis.*;`
+          #   - legal:   any mention inside backticks (`docs/analysis/`),
+          #              inline code, or prose about the rule itself
+          # Restrict to link / import shapes so meta-references in CLAUDE.md
+          # / standards / roadmap pass cleanly. Extension coverage matches
+          # what the codebase actually ships (no Python / Java code paths).
+          residual=$(grep -rnE \
+              '\]\(docs/analysis/|(from|import|require)[ (]["'"'"']docs/analysis/' \
+              --include='*.md' --include='*.cs' \
+              --include='*.ts' --include='*.tsx' \
+              --include='*.js' --include='*.jsx' \
+              --include='*.mjs' --include='*.cjs' \
+              . 2>/dev/null || true)
           if [[ -n "$residual" ]]; then
               echo "::error::Illegal references to docs/analysis/ (link target or import):"
               echo "$residual"
               exit 1
           fi
+
+  # ─── Secret scan (gitleaks; gates per Standards 20 § Secrets) ──────────
+  secret-scan:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks walks history on push events
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE not required for OSS projects per upstream docs.
+          GITLEAKS_CONFIG: .gitleaks.toml

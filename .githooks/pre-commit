@@ -14,24 +14,55 @@
 # are comment-heavy and prettier reflows them in a way that hurts review
 # readability. CI runs `yamllint` on those files separately.
 #
+# Secret scanning (per Standards 20 § Secrets Management): runs `gitleaks
+# protect --staged` when the binary is on PATH. If not installed, the hook
+# warns once and continues — CI re-runs the same scan as a hard gate so
+# nothing reaches main without a check.
+#
+# WIP isolation: formatters mutate the working tree, then we re-stage the
+# changed paths. Without isolation that re-stage would silently capture any
+# unstaged edits the developer was holding back. We stash unstaged changes
+# first and pop on EXIT, so only the originally-indexed content gets
+# committed.
+#
 # Bypass once: `git commit --no-verify` (allowed for emergency fixes only;
-# CI re-checks formatting in `.github/workflows/ci.yml` so a bypassed local
-# commit will fail the PR build).
+# CI re-checks every check this hook runs so a bypassed local commit will
+# fail the PR build).
 
 set -eu -o pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# Collect newly-added or modified staged files, NUL-separated so paths with
-# spaces / unicode are safe.
+# ─── Stash unstaged changes so we only format what's actually indexed ───
+# `--keep-index` leaves staged content in place; `--include-untracked`
+# avoids losing newly-untracked files. The EXIT trap pops the stash even
+# if formatters fail, so a developer never loses their WIP.
+STASH_REF=""
+needs_stash=$(git status --porcelain | awk '$1 !~ /^M$|^A$|^D$|^R$|^C$|^\?\?$/ { found=1 } END { print found+0 }')
+unstaged_changes=$(git diff --quiet || echo "yes")
+unstaged_untracked=$(git ls-files --others --exclude-standard | head -n 1)
+if [[ -n "$unstaged_changes" || -n "$unstaged_untracked" ]]; then
+    STASH_REF="learnstack-precommit-$(date +%s)"
+    git stash push --keep-index --include-untracked --quiet -m "$STASH_REF"
+    # Capture the stash sha so we can match by message (positional refs
+    # shift if the hook is reentered concurrently).
+    pop_stash() {
+        if [[ -n "$STASH_REF" ]]; then
+            # Find the stash entry by message and pop it.
+            entry=$(git stash list | awk -F: -v m="$STASH_REF" '$0 ~ m { print $1; exit }')
+            if [[ -n "$entry" ]]; then
+                git stash pop --quiet "$entry" || \
+                    printf "pre-commit: stash pop failed for %s — recover with: git stash list\n" "$entry" >&2
+            fi
+        fi
+    }
+    trap pop_stash EXIT
+fi
+
+# ─── Collect staged paths grouped by file type ──────────────────────────
 staged_files() {
     git diff --cached --name-only --diff-filter=ACMR -z "$@"
-}
-
-# Re-stage a path after the formatter touched it.
-restage() {
-    git add -- "$@"
 }
 
 cs_files=()
@@ -46,15 +77,28 @@ while IFS= read -r -d '' f; do
     esac
 done < <(staged_files)
 
-# ─── Backend: dotnet format ───────────────────────────────────────────────
+restage() { git add -- "$@"; }
+
+# ─── Secret scanning (gitleaks if available) ────────────────────────────
+if command -v gitleaks >/dev/null 2>&1; then
+    printf "pre-commit: gitleaks protect --staged …\n"
+    if ! gitleaks protect --staged --no-banner --redact; then
+        printf "\npre-commit: gitleaks found a likely secret in the staged diff.\n" >&2
+        printf "If it is a legitimate dev credential, allow-list it in .gitleaks.toml.\n" >&2
+        exit 1
+    fi
+else
+    printf "pre-commit: gitleaks not on PATH — skipping local secret scan (CI re-runs it).\n" >&2
+    printf "  install: https://github.com/gitleaks/gitleaks#installing\n" >&2
+fi
+
+# ─── Backend: dotnet format ─────────────────────────────────────────────
 if [[ ${#cs_files[@]} -gt 0 ]]; then
     if ! command -v dotnet >/dev/null 2>&1; then
         printf "pre-commit: dotnet SDK not found — staged C# files left unformatted.\n" >&2
         exit 1
     fi
     printf "pre-commit: dotnet format (%d file(s)) …\n" "${#cs_files[@]}"
-    # `--include` takes a space-separated list relative to the solution dir.
-    # Run from backend/ so the solution resolves; paths must be relative to it.
     rel_cs=()
     for f in "${cs_files[@]}"; do
         rel_cs+=("${f#backend/}")
@@ -63,31 +107,30 @@ if [[ ${#cs_files[@]} -gt 0 ]]; then
     restage "${cs_files[@]}"
 fi
 
-# ─── Frontend: prettier + ESLint via pnpm ─────────────────────────────────
-if [[ ${#js_like_files[@]} -gt 0 || ${#prettier_only_files[@]} -gt 0 ]]; then
+# ─── Frontend: prettier + ESLint via pnpm ───────────────────────────────
+# Aggregate JS-like + JSON/MD into the prettier batch; run ESLint --fix on
+# JS-like files only. The path-rewrite (`/#/../`) turns repo-root paths into
+# frontend-relative ones since the pnpm scripts execute from `frontend/`.
+prettier_batch=("${js_like_files[@]:-}" "${prettier_only_files[@]:-}")
+real_prettier_batch=()
+for f in "${prettier_batch[@]}"; do
+    [[ -n "$f" ]] && real_prettier_batch+=("$f")
+done
+
+if [[ ${#real_prettier_batch[@]} -gt 0 || ${#js_like_files[@]} -gt 0 ]]; then
     if ! command -v pnpm >/dev/null 2>&1; then
         printf "pre-commit: pnpm not found — staged JS/JSON/MD files left unformatted.\n" >&2
         exit 1
     fi
 
-    fmt_files=("${js_like_files[@]:-}" "${prettier_only_files[@]:-}")
-    # Strip the placeholder empty entry the ${arr[@]:-} idiom leaves when the
-    # array is empty under Bash 3.x (macOS default).
-    fmt_files=("${fmt_files[@]/#}")
-    # Re-filter out any empty strings.
-    real_fmt_files=()
-    for f in "${fmt_files[@]}"; do
-        [[ -n "$f" ]] && real_fmt_files+=("$f")
-    done
-
-    if [[ ${#real_fmt_files[@]} -gt 0 ]]; then
-        printf "pre-commit: prettier --write (%d file(s)) …\n" "${#real_fmt_files[@]}"
-        (cd frontend && pnpm exec prettier --write --log-level warn "${real_fmt_files[@]/#/../}")
-        restage "${real_fmt_files[@]}"
+    if [[ ${#real_prettier_batch[@]} -gt 0 ]]; then
+        printf "pre-commit: prettier --write (%d file(s)) …\n" "${#real_prettier_batch[@]}"
+        (cd frontend && pnpm exec prettier --write --log-level warn "${real_prettier_batch[@]/#/../}")
+        restage "${real_prettier_batch[@]}"
     fi
 
     if [[ ${#js_like_files[@]} -gt 0 ]]; then
-        # ESLint runs only on JS-like files (not on JSON/MD/YAML).
+        # ESLint runs only on JS-like files (not on JSON/MD).
         # `--max-warnings 0` turns ANY warning into a hook failure.
         printf "pre-commit: eslint --fix (%d file(s)) …\n" "${#js_like_files[@]}"
         (cd frontend && pnpm exec eslint --fix --max-warnings 0 "${js_like_files[@]/#/../}")

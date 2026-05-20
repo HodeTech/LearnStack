@@ -21,26 +21,28 @@ Self-Hosted — backed by the companion **`learnstack-hub`** repository
 
 ## What state this is in
 
-**Phase 01 complete.** The repository now has the .NET 10 solution
-scaffold under `backend/` (core + 7 modules × 4 projects + 4 test
-projects including the non-skippable `LearnStack.Tests.Architecture`),
-the `pnpm` frontend monorepo under `frontend/` (`apps/web` Next.js App
-Router + `packages/{config,ui,sdk}`), the full local-dev compose stack
-at `infra/compose/dev.yml` — PostgreSQL 18, Valkey, SeaweedFS, Mailpit,
-Meilisearch, Keycloak (two realms), LiveKit OSS + Coturn, Kafka +
-kafka-ui, Vault, Dapr sidecar + placement, APISIX in file-driven
-standalone mode — and the DX + CI surround (repo-root `Makefile`,
-`.env.example` single source of truth, `.githooks/pre-commit` formatter,
-`infra/compose/e2e.yml` ephemeral overlay, `.github/workflows/ci.yml`
-with backend + frontend + meta required checks, `scripts/seed.sh`).
-Application-level tenant seeding is a one-edit drop-in waiting on the
-Phase 02a Tenancy DbContext.
+**Phase 01 complete — repository scaffolding, local infrastructure, DX,
+and CI baseline. No domain code yet — Phase 02a starts that.**
 
-Module-level code references in the docs (e.g.
-`LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
-`ITenantSearch`) still describe intended shape — the projects are
-scaffolded but their domain bodies are empty. Next phase: 02a (Platform
-Kernel + Multi-Tenancy) and 02c (Hub Foundation, parallel, separate repo).
+What shipped: the .NET 10 solution scaffold under `backend/` (core + 7
+modules × 4 projects + 4 test projects including the non-skippable
+`LearnStack.Tests.Architecture`), the `pnpm` frontend monorepo under
+`frontend/` (`apps/web` Next.js App Router + `packages/{config,ui,sdk}`),
+the full local-dev compose stack at `infra/compose/dev.yml` — PostgreSQL
+18, Valkey, SeaweedFS, Mailpit, Meilisearch, Keycloak (two realms),
+LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement,
+APISIX in file-driven standalone mode — and the DX + CI surround
+(repo-root `Makefile`, `.env.example` single source of truth,
+`.githooks/pre-commit` formatter + gitleaks, `infra/compose/e2e.yml`
+ephemeral overlay, `.github/workflows/ci.yml` with backend + frontend +
+meta + secret-scan required checks, `scripts/seed.sh`).
+
+Every module assembly is empty of domain code today. Module-level
+references in the docs (e.g. `LearnStack.Modules.Education.Application`,
+`ILiveClassProvider`, `ITenantSearch`) describe **intended** shape that
+the corpus anchors against — Phase 02a (Platform Kernel +
+Multi-Tenancy) is where those types actually land. Phase 02c (Hub
+Foundation, separate `learnstack-hub` repo) runs in parallel.
 
 ## Where to start
 

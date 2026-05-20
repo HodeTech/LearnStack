@@ -153,11 +153,16 @@ specific dev access surface (filer UI, S3 identity config, re-seed).
 
 ## What this file deliberately does NOT bring up yet
 
-Per the [Phase 01 plan](../../docs/roadmap/phase-01-repository-tooling.md),
-later packets land:
+Phase 01 is complete; the remaining deferrals belong to later phases and
+NOT to this compose stack:
 
-- `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
-  pre-commit hook (dotnet-format + prettier), and `infra/compose/e2e.yml`
-  companion stack — Phase 01 packet 7.
-- GitHub Actions CI workflow + `make seed` populating two demo tenants and a
-  platform admin — Phase 01 packet 8.
+- The .NET API host (`LearnStack.Api`) runs **outside** the compose network
+  via `dotnet run` on the developer's workstation. Moving it inside compose
+  is a Phase 11 (production hardening) decision — the dapr-sidecar-api
+  service is already pointed at `host.docker.internal:5080` so the swap
+  is a one-line `upstream` change.
+- `livekit-egress` (recording / consent) — Phase 08c.
+- OpenTelemetry Collector — Phase 11.
+- Application-level tenant seeding via `LearnStack.Tools.Seeder` —
+  Phase 02a (the `scripts/seed.sh` orchestrator stubs the activation point).
+- Production-grade Vault (HA + auto-unseal + AppRole) — Phase 11.

@@ -19,6 +19,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
     - `meta (commit hygiene + link audit)`
+    - `secret scan (gitleaks)`
   - Deferred checks — flip the `if: false` guards in `ci.yml` AND add the
     job name here when the owning phase lands:
     - `backend integration (Testcontainers — deferred)` — Phase 02a.
@@ -68,8 +69,18 @@ make test           # unit + arch + contract + vitest
 ```
 
 The pre-commit hook (activated by `make install`) runs `dotnet format` +
-prettier + ESLint on staged files — so the lint / typecheck / test pass
-above is mostly a sanity check. CI re-runs them on every push regardless.
+prettier + ESLint + (if installed) `gitleaks protect --staged` on staged
+files — so the lint / typecheck / test / secret-scan pass above is mostly
+a sanity check. CI re-runs every check as a hard gate, so a bypassed local
+commit will fail the PR build.
+
+Install gitleaks once for the local secret scan (CI runs it regardless,
+this is just earlier feedback):
+
+```bash
+brew install gitleaks      # macOS
+# or download from https://github.com/gitleaks/gitleaks/releases
+```
 
 ## Never
 

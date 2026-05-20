@@ -105,17 +105,25 @@ token never appears in the component YAML.
 
 As of Phase 07 (DX), the Vault root token lives in **one** place:
 `VAULT_ROOT_TOKEN` in the repo-root `.env.example` (copied to `.env` per
-workstation). The chain:
+workstation). The chain uses Dapr's `secretKeyRef` + local-env-secret-store
+indirection (a `{{env.VAR}}` template would be silently substituted with the
+literal — Dapr does not support that syntax in component metadata):
 
 1. `.env` — developer's actual value (gitignored).
 2. `infra/compose/dev.yml` — both the `vault` service (boots `-dev` mode
-   with that token) and the `dapr-sidecar-api` service (passes it as an
-   env var to daprd) read `${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}`.
-3. `infra/dapr/components/secretstore-vault.yaml` — `vaultToken: '{{env.VAULT_ROOT_TOKEN}}'`
-   tells Dapr to substitute the env var at component-load time.
+   with that token) and the `dapr-sidecar-api` service (passes it to
+   daprd's process env) read `${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}`.
+3. `infra/dapr/components/secretstore-envvar.yaml` registers a
+   `secretstores.local.env` component named `envvar-secrets` (loaded first
+   by daprd because no other component depends on it).
+4. `infra/dapr/components/secretstore-vault.yaml` declares
+   `auth.secretStore: envvar-secrets` and a `vaultToken` metadata entry
+   resolved via `secretKeyRef: { name: VAULT_ROOT_TOKEN, key: VAULT_ROOT_TOKEN }`.
+   Dapr pulls the literal from the process env at component-load time.
 
 Changing `.env` therefore updates every consumer at the next `docker compose
-up`. There is no longer a two-file edit risk.
+up`. There is no two-file edit risk and no literal token in any committed
+YAML metadata field.
 
 ## What does NOT live here
 

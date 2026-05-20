@@ -64,13 +64,18 @@ e2e-down: ## Stop the e2e overlay (tmpfs volumes evaporate automatically).
 .PHONY: build
 build: build-backend build-frontend ## Build backend + frontend.
 
+# Multi-line recipes that `cd` into different subdirs MUST wrap each `cd` in
+# a subshell (`(cd X && …)`), because `.ONESHELL:` keeps every line of the
+# recipe in the SAME shell — without subshells the cwd of line 1 leaks into
+# line 2 and the second `cd <relative-path>` blows up.
+
 .PHONY: build-backend
 build-backend: ## `dotnet build` the solution.
-	cd backend && dotnet build LearnStack.slnx --nologo
+	(cd backend && dotnet build LearnStack.slnx --nologo)
 
 .PHONY: build-frontend
 build-frontend: ## `pnpm -r build` the frontend monorepo.
-	cd frontend && pnpm -r build
+	(cd frontend && pnpm -r build)
 
 # ─── Tests ────────────────────────────────────────────────────────────────
 .PHONY: test
@@ -78,17 +83,17 @@ test: test-backend test-frontend ## Run all test suites (backend + frontend).
 
 .PHONY: test-backend
 test-backend: ## `dotnet test` (unit + architecture + contract; integration skipped — see test-integration).
-	cd backend && dotnet test LearnStack.slnx \
+	(cd backend && dotnet test LearnStack.slnx \
 	  --filter "FullyQualifiedName!~LearnStack.Tests.Integration" \
-	  --nologo
+	  --nologo)
 
 .PHONY: test-integration
 test-integration: ## Testcontainers-backed integration tests (requires Docker).
-	cd backend && dotnet test LearnStack.Tests.Integration --nologo
+	(cd backend && dotnet test tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj --nologo)
 
 .PHONY: test-frontend
 test-frontend: ## `pnpm -r test` (Vitest component + lib tests).
-	cd frontend && pnpm -r test
+	(cd frontend && pnpm -r test)
 
 # ─── Lint / format ────────────────────────────────────────────────────────
 .PHONY: lint
@@ -96,21 +101,21 @@ lint: lint-backend lint-frontend ## Run linters (backend dotnet-format check + f
 
 .PHONY: lint-backend
 lint-backend: ## `dotnet format` verify (no changes — fails on diff).
-	cd backend && dotnet format LearnStack.slnx --verify-no-changes --no-restore
+	(cd backend && dotnet format LearnStack.slnx --verify-no-changes --no-restore)
 
 .PHONY: lint-frontend
 lint-frontend: ## `pnpm -r lint` (Next/ESLint).
-	cd frontend && pnpm -r lint
+	(cd frontend && pnpm -r lint)
 
 .PHONY: format
 format: ## Apply formatters in place (backend dotnet-format + frontend prettier).
-	cd backend && dotnet format LearnStack.slnx --no-restore
-	cd frontend && pnpm -r exec prettier --write .
+	(cd backend && dotnet format LearnStack.slnx --no-restore)
+	(cd frontend && pnpm -r exec prettier --write .)
 
 # ─── Typecheck (frontend) ─────────────────────────────────────────────────
 .PHONY: typecheck
 typecheck: ## `pnpm -r typecheck` (tsc --noEmit across the monorepo).
-	cd frontend && pnpm -r typecheck
+	(cd frontend && pnpm -r typecheck)
 
 # ─── Seed ─────────────────────────────────────────────────────────────────
 .PHONY: seed
@@ -120,20 +125,21 @@ seed: dev ## Bring the stack up and seed demo data (idempotent).
 # ─── Bootstrap ────────────────────────────────────────────────────────────
 .PHONY: install
 install: .env hooks ## Restore backend NuGet + frontend pnpm deps + activate git hooks.
-	cd backend && dotnet restore LearnStack.slnx
-	cd frontend && pnpm install --frozen-lockfile
+	(cd backend && dotnet restore LearnStack.slnx)
+	(cd frontend && pnpm install --frozen-lockfile)
 
 .PHONY: hooks
 hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).
 	@git config core.hooksPath .githooks
-	@printf "$(CYAN)git hooks → .githooks/ (pre-commit: dotnet format + prettier + eslint)$(RESET)\n"
+	@printf "$(CYAN)git hooks → .githooks/ (pre-commit: dotnet format + prettier + eslint + gitleaks if available)$(RESET)\n"
 
 # ─── Env scaffolding ──────────────────────────────────────────────────────
 # `.env` is gitignored; this rule copies `.env.example` on first run so the
-# developer does not have to remember the step. Re-running `make dev` after
-# the file exists is a no-op (the timestamp matches).
+# developer does not have to remember the step. `cp -n` (no-clobber) is
+# portable across macOS + Linux and avoids overwriting an edited `.env`;
+# `touch .env` afterward keeps the timestamp ahead of `.env.example` so the
+# rule does not re-fire on every invocation after a rebase shifts mtimes.
 .env: .env.example
-	@if [ ! -f .env ]; then \
-	  cp .env.example .env; \
-	  printf "$(CYAN)Copied .env.example → .env.$(RESET) Edit if you need non-default values.\n"; \
-	fi
+	@cp -n .env.example .env
+	@touch .env
+	@printf "$(CYAN).env ready (copied from .env.example if missing).$(RESET)\n"
