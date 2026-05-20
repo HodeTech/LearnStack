@@ -25,4 +25,8 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
 
 app.Run();
 
-public partial class Program;
+// `internal` (not `public`) satisfies CA1515 — the only external consumers
+// are the test assemblies, which see this type via `InternalsVisibleTo` on
+// LearnStack.Api.csproj. `partial` keeps the WebApplicationFactory<Program>
+// generic argument resolvable from the test side.
+internal partial class Program;

@@ -33,4 +33,15 @@
     <PackageReference Include="MediatR" />
   </ItemGroup>
 
+  <!--
+    InternalsVisibleTo so the test assemblies can pin `WebApplicationFactory<Program>`
+    against an `internal` Program type (CA1515: app types should not leak as `public`
+    unless an external consumer truly needs them — the test harness is an
+    in-repo consumer that the analyzer cannot see, so we whitelist it here).
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="LearnStack.Tests.Contract" />
+    <InternalsVisibleTo Include="LearnStack.Tests.Integration" />
+  </ItemGroup>
+
 </Project>
