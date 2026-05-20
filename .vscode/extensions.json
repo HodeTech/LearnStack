@@ -6,6 +6,8 @@
     "ms-dotnettools.csharp",
     "ms-dotnettools.csdevkit",
     "editorconfig.editorconfig",
-    "yzhang.markdown-all-in-one"
+    "yzhang.markdown-all-in-one",
+    "redhat.vscode-yaml",
+    "ms-azuretools.vscode-docker"
   ]
 }

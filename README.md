@@ -17,14 +17,24 @@ Dedicated control plane, plan editor, custom-domain admin, and license-key issua
 
 ## Status
 
-Phase 01 packets 1-6 shipped. The repository now holds the .NET 10 solution
-scaffold (7 modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
-architecture test), the `pnpm` frontend monorepo (`apps/web` + `packages/{config,ui,sdk}`),
-and the full local-dev `docker-compose` stack — PostgreSQL 18, Valkey, SeaweedFS,
-Mailpit, Meilisearch, Keycloak (two realms), LiveKit OSS + Coturn, Kafka + kafka-ui,
-Vault, Dapr sidecar + placement, APISIX (file-driven standalone). The remaining
-Phase-01 packets — `make` targets, `.env.example`, pre-commit, `e2e.yml`, GitHub
-Actions CI, `make seed` — land in packets 7-8; see [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
+Phase 01 complete. The repository now holds the .NET 10 solution scaffold (7
+modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
+architecture test), the `pnpm` frontend monorepo (`apps/web` +
+`packages/{config,ui,sdk}`), the full local-dev `docker-compose` stack —
+PostgreSQL 18, Valkey, SeaweedFS, Mailpit, Meilisearch, Keycloak (two realms),
+LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX
+(file-driven standalone) — and the DX + CI surround: repo-root `Makefile`,
+`.env.example` single source of truth, `.githooks/pre-commit` formatter,
+`infra/compose/e2e.yml` ephemeral overlay, `.github/workflows/ci.yml`, and
+`scripts/seed.sh`. See [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md)
+for the per-packet history. Next: Phase 02a (Platform Kernel + Multi-Tenancy)
+and Phase 02c (Hub Foundation, parallel, separate repo).
+
+```bash
+make install   # one-time: deps + git hooks
+make dev       # bring local stack up
+make seed      # verify health + print demo credentials
+```
 
 ## Direction At A Glance
 

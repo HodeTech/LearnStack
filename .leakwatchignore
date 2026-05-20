@@ -1,0 +1,57 @@
+# LearnStack — Leakwatch path ignores.
+#
+# Glob syntax (same as .gitignore). Each entry must cite WHY the path
+# carries intentional dev-only literals; production never reads from these
+# files, and every production credential surface goes through
+# `ISecretProvider` per Standards 20 § Secrets Management.
+#
+# Prefer inline `# leakwatch:ignore` over .leakwatchignore for single
+# literals — path-level exclusion turns off EVERY detector on the file.
+
+# ─── Env templates (carry placeholder shapes, never real secrets) ───────
+.env.example
+frontend/apps/web/.env.local.example
+
+# ─── LiveKit + Coturn dev configs ───────────────────────────────────────
+# `devsecret-32-byte-min-length-padding-xyz` is intentionally high-entropy
+# to satisfy LiveKit's 32-byte secret length requirement; production
+# rotates per-session via ILiveClassProvider per ADR-0005 / Phase 08c.
+infra/livekit/livekit.yaml
+infra/coturn/turnserver.conf
+
+# ─── SeaweedFS S3 identities ────────────────────────────────────────────
+# Dev S3 access+secret pair SeaweedFS reads at boot. Phase 02b storage
+# adapter wires Vault-issued credentials for non-dev modes. (Credential
+# values not quoted here on purpose — Leakwatch scans this file too, and
+# any literal in the comment would self-flag.)
+infra/seaweedfs/s3-identities.json
+
+# ─── Keycloak realm seeds ───────────────────────────────────────────────
+# Confidential-client secret + seeded demo-user passwords. Production
+# realm provisioning (Terraform / keycloak-config-cli) issues per-
+# deployment values per ADR-0004 Amendment 1.
+infra/keycloak/realms/learnstack.json
+infra/keycloak/realms/learnstack-hub.json
+
+# ─── TLS architecture documentation ─────────────────────────────────────
+# These docs include illustrative PEM blocks ("-----BEGIN ... PRIVATE
+# KEY-----") that explain how the custom-domain flow works per ADR-0022.
+# They are documentation examples, never live keys; production keys are
+# issued by Let's Encrypt and stored in Vault.
+docs/architecture/27-custom-domain-tls.md
+docs/decisions/0022-custom-domain-tls.md
+
+# ─── Infra README orientation tables ────────────────────────────────────
+# Each subdirectory's README documents the dev credentials inline (Vault
+# root token, Keycloak admin pass, Meilisearch master key, LiveKit dev
+# key, demo-user passwords, the SeaweedFS access pair) for orientation —
+# the README is the first file a contributor reads when standing up that
+# service. The actual literals live in `.env.example` + the corresponding
+# config file; the READMEs mirror them so the orientation table is
+# self-contained. Excluded for symmetry with the config files those
+# READMEs document.
+infra/compose/README.md
+infra/dapr/README.md
+infra/keycloak/README.md
+infra/livekit/README.md
+infra/seaweedfs/README.md

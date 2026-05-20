@@ -1,0 +1,68 @@
+# LearnStack — end-to-end test compose overlay.
+#
+# Layered on top of `dev.yml`:
+#     docker compose -f infra/compose/dev.yml -f infra/compose/e2e.yml up
+# (the canonical `make` target is `make COMPOSE=$(COMPOSE_E2E) <target>` —
+# see the repo-root `Makefile`).
+#
+# Why an overlay instead of a separate file: the service definitions, ports,
+# images, and credentials are identical to dev — only the *operational
+# posture* changes. Keeping them as overlay tweaks means a Phase 11 image
+# bump in `dev.yml` flows into e2e without a second edit.
+#
+# Phase 01 scope: declare the overlay shape so Phase 06+ Playwright /
+# Phase 07 SDK contract tests have a stable target. The Playwright project,
+# the SDK harness, and the seeded e2e tenant land in their own phases —
+# this file is the orchestration slot, not the tests themselves.
+
+name: learnstack-e2e
+
+services:
+  # ─── Postgres — wipe between runs ───────────────────────────────────────
+  # E2E suites must start from a clean schema every run. The `tmpfs` mount
+  # replaces the named `postgres-data` volume from dev so each `docker
+  # compose up` boots a fresh DB (init scripts re-run, no stale state from
+  # the prior run). The trade-off — losing data on container restart — is
+  # exactly what e2e wants.
+  postgres:
+    tmpfs:
+      - /var/lib/postgresql
+    # `tmpfs:` and `volumes:` are mutually exclusive for the same target;
+    # overlay null'ing the dev `volumes` list keeps Compose from merging
+    # the parent's named volume back in.
+    volumes: !reset []
+
+  # ─── Mailpit — clear inbox between runs ─────────────────────────────────
+  # Mailpit stores received messages in memory by default (no persistence),
+  # so it already wipes on restart — but the dev compose tunes retention
+  # to multi-day for the developer inbox use case. Override here.
+  mailpit:
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_DATA_FILE: ""         # in-memory only
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
+  # ─── SeaweedFS — ephemeral object storage ───────────────────────────────
+  # Per Standards 12 § Object Storage Operations, e2e tenant isolation tests
+  # need an empty bucket prefix per test run. tmpfs makes that automatic.
+  seaweedfs:
+    tmpfs:
+      - /data
+    volumes: !reset []
+
+  # ─── Meilisearch — ephemeral search index ───────────────────────────────
+  meilisearch:
+    tmpfs:
+      - /meili_data
+    volumes: !reset []
+
+  # ─── Kafka — fresh broker per run ───────────────────────────────────────
+  # KRaft mode persists topic offsets + cluster id in `/var/lib/kafka/data`.
+  # E2E runs need a clean offset state so each test starts at the beginning
+  # of the topic; tmpfs accomplishes this without a one-off cluster-id
+  # regeneration script.
+  kafka:
+    tmpfs:
+      - /var/lib/kafka/data
+    volumes: !reset []

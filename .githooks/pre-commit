@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# LearnStack pre-commit hook.
+#
+# Activated via `git config core.hooksPath .githooks` (run by `make install`).
+# Formats staged files in place ONLY — never the working tree at large — so
+# the check is fast and does not pollute unrelated changes.
+#
+# Languages handled:
+#   *.cs                              → dotnet format (whitespace + style)
+#   *.{ts,tsx,js,jsx,mjs,cjs}         → prettier --write + ESLint via pnpm
+#   *.{json,md}                       → prettier --write
+#
+# Intentionally NOT handled: *.yml / *.yaml. Compose / Dapr / APISIX YAMLs
+# are comment-heavy and prettier reflows them in a way that hurts review
+# readability. CI runs `yamllint` on those files separately.
+#
+# Secret scanning (per Standards 12 § Secrets Management): runs Leakwatch
+# (`leakwatch scan fs <staged-file>` per file) when the binary is on PATH.
+# If not installed, the hook warns once and continues — CI re-runs the
+# same scan as a hard gate so nothing reaches main without a check. The
+# project config (`.leakwatch.yaml` + `.leakwatchignore`) lives at repo
+# root and applies to both invocations.
+#
+# WIP isolation: formatters mutate the working tree, then we re-stage the
+# changed paths. Without isolation that re-stage would silently capture any
+# unstaged edits the developer was holding back. We stash unstaged changes
+# first and pop on EXIT, so only the originally-indexed content gets
+# committed.
+#
+# Bypass once: `git commit --no-verify` (allowed for emergency fixes only;
+# CI re-checks every check this hook runs so a bypassed local commit will
+# fail the PR build).
+
+set -eu -o pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# ─── Stash unstaged changes so we only format what's actually indexed ───
+# `--keep-index` leaves staged content in place; `--include-untracked`
+# avoids losing newly-untracked files. The EXIT trap pops the stash even
+# if formatters fail, so a developer never loses their WIP. We detect WIP
+# two ways — `git diff --quiet` for tracked-but-unstaged changes (exit 1
+# if any), and `git ls-files --others --exclude-standard` for untracked.
+# A prior `git status --porcelain | awk` probe added nothing actionable
+# (the two checks below already cover every WIP shape) and was removed.
+STASH_REF=""
+unstaged_changes=$(git diff --quiet || echo "yes")
+unstaged_untracked=$(git ls-files --others --exclude-standard | head -n 1)
+if [[ -n "$unstaged_changes" || -n "$unstaged_untracked" ]]; then
+    STASH_REF="learnstack-precommit-$(date +%s)"
+    git stash push --keep-index --include-untracked --quiet -m "$STASH_REF"
+    # Capture the stash sha so we can match by message (positional refs
+    # shift if the hook is reentered concurrently).
+    pop_stash() {
+        if [[ -n "$STASH_REF" ]]; then
+            # Find the stash entry by message and pop it.
+            entry=$(git stash list | awk -F: -v m="$STASH_REF" '$0 ~ m { print $1; exit }')
+            if [[ -n "$entry" ]]; then
+                git stash pop --quiet "$entry" || \
+                    printf "pre-commit: stash pop failed for %s — recover with: git stash list\n" "$entry" >&2
+            fi
+        fi
+    }
+    trap pop_stash EXIT
+fi
+
+# ─── Collect staged paths grouped by file type ──────────────────────────
+staged_files() {
+    git diff --cached --name-only --diff-filter=ACMR -z "$@"
+}
+
+cs_files=()
+js_like_files=()
+prettier_only_files=()
+all_staged=()
+
+# Single staged-list walk; bucket into per-language arrays AND keep a flat
+# `all_staged` copy for the Leakwatch loop below (avoids a second `git
+# diff --cached` invocation on every commit).
+while IFS= read -r -d '' f; do
+    all_staged+=("$f")
+    case "$f" in
+        *.cs)                                         cs_files+=("$f") ;;
+        *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)           js_like_files+=("$f") ;;
+        *.json|*.md)                                  prettier_only_files+=("$f") ;;
+    esac
+done < <(staged_files)
+
+restage() { git add -- "$@"; }
+
+# ─── Secret scanning (Leakwatch if available) ───────────────────────────
+# Leakwatch's CLI takes a path argument; we pass each staged file
+# individually so the scan stays scoped to what's about to be committed
+# (the alternative — `leakwatch scan fs .` — walks the entire tree).
+# Iterating costs one CLI invocation per file but each one is fast
+# (Aho-Corasick pre-filter); for small commits this is sub-second.
+
+if command -v leakwatch >/dev/null 2>&1; then
+    if [[ ${#all_staged[@]} -gt 0 ]]; then
+        printf "pre-commit: leakwatch scan (%d file(s)) …\n" "${#all_staged[@]}"
+        for f in "${all_staged[@]}"; do
+            # Skip files that don't exist (D for delete in --diff-filter).
+            [[ -f "$f" ]] || continue
+            # Capture stdout+stderr; on failure replay the scanner output to
+            # the developer (suppressing it would leave them guessing which
+            # detector fired). Exit code drives the gate; output drives the
+            # diagnosis.
+            if ! scan_output=$(leakwatch scan fs "$f" --config .leakwatch.yaml --min-severity medium --no-verify 2>&1); then
+                printf "\npre-commit: leakwatch found a likely secret in %s\n\n" "$f" >&2
+                printf "%s\n\n" "$scan_output" >&2
+                printf "If it is a legitimate dev credential, add an inline\n" >&2
+                printf "\`# leakwatch:ignore\` comment or extend .leakwatchignore.\n" >&2
+                exit 1
+            fi
+        done
+    fi
+else
+    printf "pre-commit: leakwatch not on PATH — skipping local secret scan (CI re-runs it).\n" >&2
+    printf "  install: brew install cemililik/tap/leakwatch\n" >&2
+    printf "       or: go install github.com/cemililik/leakwatch@latest\n" >&2
+fi
+
+# ─── Backend: dotnet format ─────────────────────────────────────────────
+if [[ ${#cs_files[@]} -gt 0 ]]; then
+    if ! command -v dotnet >/dev/null 2>&1; then
+        printf "pre-commit: dotnet SDK not found — staged C# files left unformatted.\n" >&2
+        exit 1
+    fi
+    printf "pre-commit: dotnet format (%d file(s)) …\n" "${#cs_files[@]}"
+    rel_cs=()
+    for f in "${cs_files[@]}"; do
+        rel_cs+=("${f#backend/}")
+    done
+    (cd backend && dotnet format LearnStack.slnx --include "${rel_cs[@]}" --no-restore)
+    restage "${cs_files[@]}"
+fi
+
+# ─── Frontend: prettier + ESLint via pnpm ───────────────────────────────
+# Aggregate JS-like + JSON/MD into the prettier batch; run ESLint --fix on
+# JS-like files only. The path-rewrite (`/#/../`) turns repo-root paths into
+# frontend-relative ones since the pnpm scripts execute from `frontend/`.
+prettier_batch=("${js_like_files[@]:-}" "${prettier_only_files[@]:-}")
+real_prettier_batch=()
+for f in "${prettier_batch[@]}"; do
+    [[ -n "$f" ]] && real_prettier_batch+=("$f")
+done
+
+if [[ ${#real_prettier_batch[@]} -gt 0 || ${#js_like_files[@]} -gt 0 ]]; then
+    if ! command -v pnpm >/dev/null 2>&1; then
+        printf "pre-commit: pnpm not found — staged JS/JSON/MD files left unformatted.\n" >&2
+        exit 1
+    fi
+
+    if [[ ${#real_prettier_batch[@]} -gt 0 ]]; then
+        printf "pre-commit: prettier --write (%d file(s)) …\n" "${#real_prettier_batch[@]}"
+        (cd frontend && pnpm exec prettier --write --log-level warn "${real_prettier_batch[@]/#/../}")
+        restage "${real_prettier_batch[@]}"
+    fi
+
+    if [[ ${#js_like_files[@]} -gt 0 ]]; then
+        # ESLint runs only on JS-like files (not on JSON/MD).
+        # `--max-warnings 0` turns ANY warning into a hook failure.
+        printf "pre-commit: eslint --fix (%d file(s)) …\n" "${#js_like_files[@]}"
+        (cd frontend && pnpm exec eslint --fix --max-warnings 0 "${js_like_files[@]/#/../}")
+        restage "${js_like_files[@]}"
+    fi
+fi

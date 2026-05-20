@@ -1,0 +1,325 @@
+# LearnStack — CI baseline.
+#
+# Per docs/roadmap/phase-01-repository-tooling.md § CI Baseline. Runs on
+# every push to `main` and every pull request. Required status checks on
+# `main` are listed in `.github/CONTRIBUTING.md` § Branch protection so
+# the GitHub Settings → Branches page matches the corpus.
+#
+# What lights up in Phase 01:
+#   - backend  : `dotnet build` + unit + architecture + contract tests
+#   - frontend : pnpm install + typecheck + lint + build + Vitest
+#   - meta     : `make lint`-style format verification
+#
+# Deferred to later phases (jobs are scaffolded as `if: false` placeholders
+# so the activation is a one-line flip):
+#   - backend-integration : Testcontainers needs a real Docker socket inside
+#     the runner — works on `ubuntu-latest` natively. Activates when the
+#     first integration test lands (Phase 02a) so we have something to run.
+#   - openapi-diff        : oasdiff against the prior `main` spec. Activates
+#     in Phase 03 when the first real endpoint replaces `/healthz` as the
+#     only documented surface (until then there is nothing to diff).
+#   - lighthouse-budget   : LHCI against the built Next.js app. Activates
+#     when Phase 04 ships the first content-bearing public page (the
+#     current placeholder routes are not worth scoring).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel in-progress runs on the same ref so PR force-pushes don't queue.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Cancel stale PR builds on force-push; KEEP main builds running so
+  # back-to-back merges don't lose the signal from the older one.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_SDK_VERSION: "10.0.100"
+  NODE_VERSION: "20.11.0"
+  PNPM_VERSION: "9.12.3"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  # ─── Backend ────────────────────────────────────────────────────────────
+  backend:
+    name: backend (build + unit + arch + contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore LearnStack.slnx
+
+      - name: Format verify (dotnet format)
+        working-directory: backend
+        run: dotnet format LearnStack.slnx --verify-no-changes --no-restore
+
+      - name: Build (TreatWarningsAsErrors)
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release
+
+      - name: Test (unit + architecture + contract; integration excluded)
+        working-directory: backend
+        run: |
+          dotnet test LearnStack.slnx \
+            --no-restore --no-build --configuration Release \
+            --filter "FullyQualifiedName!~LearnStack.Tests.Integration" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ../artifacts/backend-tests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: artifacts/backend-tests
+          if-no-files-found: warn
+
+  # ─── Backend integration (deferred — Testcontainers harness lights up Phase 02a) ─
+  backend-integration:
+    name: backend integration (Testcontainers — deferred)
+    runs-on: ubuntu-latest
+    if: false  # activate when LearnStack.Tests.Integration has its first test
+    steps:
+      - run: echo "Placeholder — Phase 02a wires the first Testcontainers integration test."
+
+  # ─── Frontend ───────────────────────────────────────────────────────────
+  frontend:
+    name: frontend (typecheck + lint + build + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Test (Vitest)
+        run: pnpm -r test
+
+  # ─── OpenAPI breaking-change check (deferred — Phase 03) ──────────────
+  openapi-diff:
+    name: openapi diff (deferred to Phase 03)
+    runs-on: ubuntu-latest
+    if: false  # activate when /api/v1/* endpoints replace the `/healthz` placeholder
+    steps:
+      - run: echo "Placeholder — Phase 03 wires oasdiff against the prior main spec."
+
+  # ─── Lighthouse budget (deferred — Phase 04) ──────────────────────────
+  lighthouse-budget:
+    name: lighthouse budget (deferred to Phase 04)
+    runs-on: ubuntu-latest
+    if: false  # activate when the first content-bearing public page ships
+    steps:
+      - run: echo "Placeholder — Phase 04 wires LHCI against the built Next.js app."
+
+  # ─── Meta (commit-message format, link audit) ─────────────────────────
+  meta:
+    name: meta (commit hygiene + link audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # link audit walks the full tree
+          persist-credentials: false
+
+      - name: Markdown link audit (changed docs)
+        # Template values from `github.event.*` are passed through `env:` so
+        # they expand into shell variables AT THE SHELL'S quoting boundary,
+        # never as raw substitution inside the `run:` block. This is the
+        # GHA-documented script-injection defense — even though `base.ref`
+        # and `before` are not user-controlled here, defense-in-depth keeps
+        # the pattern consistent across every step that consumes context.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          # Walk every relative-path link in the changed Markdown files of
+          # this PR. Externals (http(s):, mailto:) and pure-anchor links
+          # (#section) are skipped explicitly so the check stays narrow.
+          # Relative links are accepted in any shape the project uses:
+          #   [x](./foo.md)      — current-dir prefixed
+          #   [x](../foo.md)     — parent-dir prefixed
+          #   [x](docs/foo.md)   — bare repo-relative (CLAUDE.md convention)
+          # Anchors (#frag) are stripped before the file-existence check.
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+              base="origin/${PR_BASE_REF}"
+              git fetch --no-tags --depth=1 origin "${PR_BASE_REF}"
+          else
+              base="${PUSH_BEFORE_SHA}"
+          fi
+          changed=$(git diff --name-only "$base"...HEAD -- '*.md' || true)
+          if [[ -z "$changed" ]]; then
+              echo "No changed Markdown files."
+              exit 0
+          fi
+          broken=0
+          while IFS= read -r f; do
+              # `]\(([^)#][^)]*)\)` — capture every non-anchor link target.
+              # Then filter out externals.
+              while IFS= read -r link; do
+                  # Skip external schemes.
+                  case "$link" in
+                      http://*|https://*|mailto:*|tel:*|ftp://*) continue ;;
+                  esac
+                  # Strip anchor + query suffixes for the existence check.
+                  link_path="${link%%#*}"
+                  link_path="${link_path%%\?*}"
+                  [[ -z "$link_path" ]] && continue
+                  # Markdown resolves relative links against the source
+                  # file's directory by default; the project ALSO uses
+                  # repo-relative shapes (`docs/foo.md`) per CLAUDE.md
+                  # § Cross-link. Try source-relative first, fall back to
+                  # repo-relative — a link that resolves either way is ok.
+                  source_relative="$(dirname "$f")/$link_path"
+                  if [[ -e "$source_relative" || -e "$link_path" ]]; then
+                      :
+                  else
+                      echo "BROKEN: $f → $link"
+                      broken=$((broken + 1))
+                  fi
+              done < <(grep -oE '\]\(([^)#][^)]*)\)' "$f" | sed -E 's/^\]\((.+)\)$/\1/')
+          done <<< "$changed"
+          if [[ $broken -gt 0 ]]; then
+              echo "::error::$broken broken relative link(s) in changed Markdown."
+              exit 1
+          fi
+
+      - name: docs/analysis residual scan
+        run: |
+          # Per CLAUDE.md: docs/analysis/ is gitignored and MUST NOT be
+          # *referenced* from committed files. Distinguish:
+          #   - illegal: `[text](docs/analysis/...)` Markdown link, OR any
+          #              code-import shape that resolves to docs/analysis/:
+          #              `from "..."`, `require("...")`, `import("...")`,
+          #              `using docs.analysis.*;`
+          #   - legal:   any mention inside backticks (`docs/analysis/`),
+          #              inline code, or prose about the rule itself
+          # Restrict to link / import shapes so meta-references in CLAUDE.md
+          # / standards / roadmap pass cleanly. Extension coverage matches
+          # what the codebase actually ships (no Python / Java code paths).
+          residual=$(grep -rnE \
+              '\]\(docs/analysis/|(from|import|require)[ (]["'"'"']docs/analysis/' \
+              --include='*.md' --include='*.cs' \
+              --include='*.ts' --include='*.tsx' \
+              --include='*.js' --include='*.jsx' \
+              --include='*.mjs' --include='*.cjs' \
+              . 2>/dev/null || true)
+          if [[ -n "$residual" ]]; then
+              echo "::error::Illegal references to docs/analysis/ (link target or import):"
+              echo "$residual"
+              exit 1
+          fi
+
+  # ─── Secret scan (Leakwatch; gates per Standards 12 § Secrets Management) ─
+  # Leakwatch is the project's chosen scanner — MIT licensed, verifier-
+  # equipped, hybrid Aho-Corasick + regex + entropy engine, YAML custom
+  # rules. Config lives at `.leakwatch.yaml` + `.leakwatchignore`.
+  #
+  # We install the CLI via `go install` (not the third-party action wrapper)
+  # so we control the version pin and the verification posture explicitly.
+  # `--no-verify` skips the live-API verifier because CI runners must stay
+  # hermetic — dev credentials are filtered out via entropy threshold +
+  # `.leakwatchignore`; production secrets never reach the repo.
+  secret-scan:
+    name: secret scan (leakwatch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so push-event scans see prior commits
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install Leakwatch
+        run: go install github.com/cemililik/leakwatch@v1.5.0
+
+      - name: Scan
+        run: |
+          leakwatch scan fs . \
+            --config .leakwatch.yaml \
+            --format sarif \
+            --output results.sarif \
+            --min-severity medium \
+            --no-verify
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leakwatch-results
+          path: results.sarif
+          if-no-files-found: warn

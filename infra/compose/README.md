@@ -6,8 +6,12 @@ Compose stacks for local development. Operational rules live in
 ## `dev.yml`
 
 Services in order they appear in `dev.yml` (data plane → identity → media →
-eventing → secrets → Dapr sidecar → gateway). Packets 1-6 shipped; packets
-7-8 (DX orchestrator + CI) remain.
+eventing → secrets → Dapr sidecar → gateway).
+
+Bring it up with `make dev` from the repo root (the orchestrator copies
+`.env.example` → `.env` on first run, so every `${VAR:-default}` reference
+in `dev.yml` resolves against the developer's copy). The end-to-end overlay
+adds tmpfs volumes for ephemeral test runs — see `e2e.yml` below.
 
 ### Data plane (Phase 01 packet 3)
 
@@ -95,11 +99,37 @@ reach the workstation-local `dotnet run` process. The
 `dev.yml` so Linux developers don't need a manual override.
 
 ```bash
+# Repo-root orchestrator (preferred):
+make dev                                            # bring stack up
+make ps                                             # confirm healthchecks pass
+make down                                           # stop, keep volumes
+make clean                                          # stop, wipe local data
+
+# Raw compose (equivalent — useful when `make` is unavailable):
 docker compose -f infra/compose/dev.yml up -d
-docker compose -f infra/compose/dev.yml ps          # confirm healthchecks pass
-docker compose -f infra/compose/dev.yml down        # stop, keep volumes
-docker compose -f infra/compose/dev.yml down -v     # stop, wipe local data
+docker compose -f infra/compose/dev.yml ps
+docker compose -f infra/compose/dev.yml down
+docker compose -f infra/compose/dev.yml down -v
 ```
+
+## `e2e.yml` — end-to-end overlay
+
+Layered on top of `dev.yml` to swap durable named volumes for tmpfs, so
+every run starts from a clean Postgres / SeaweedFS / Meilisearch / Kafka.
+Images, ports, and credentials are identical to dev — only the
+*operational posture* (data persistence + Mailpit retention) changes.
+
+```bash
+make e2e-up                                         # tmpfs-backed stack up
+make e2e-down                                       # stop; tmpfs evaporates
+
+# Raw equivalent:
+docker compose -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
+```
+
+Phase 06 Playwright + Phase 07 SDK contract tests run against this overlay
+in CI; the Playwright project itself lives in `frontend/apps/web/e2e/` and
+arrives in its owning phase.
 
 ### Dev credentials are dev credentials
 
@@ -123,11 +153,16 @@ specific dev access surface (filer UI, S3 identity config, re-seed).
 
 ## What this file deliberately does NOT bring up yet
 
-Per the [Phase 01 plan](../../docs/roadmap/phase-01-repository-tooling.md),
-later packets land:
+Phase 01 is complete; the remaining deferrals belong to later phases and
+NOT to this compose stack:
 
-- `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
-  pre-commit hook (dotnet-format + prettier), and `infra/compose/e2e.yml`
-  companion stack — Phase 01 packet 7.
-- GitHub Actions CI workflow + `make seed` populating two demo tenants and a
-  platform admin — Phase 01 packet 8.
+- The .NET API host (`LearnStack.Api`) runs **outside** the compose network
+  via `dotnet run` on the developer's workstation. Moving it inside compose
+  is a Phase 11 (production hardening) decision — the dapr-sidecar-api
+  service is already pointed at `host.docker.internal:5080` so the swap
+  is a one-line `upstream` change.
+- `livekit-egress` (recording / consent) — Phase 08c.
+- OpenTelemetry Collector — Phase 11.
+- Application-level tenant seeding via `LearnStack.Tools.Seeder` —
+  Phase 02a (the `scripts/seed.sh` orchestrator stubs the activation point).
+- Production-grade Vault (HA + auto-unseal + AppRole) — Phase 11.

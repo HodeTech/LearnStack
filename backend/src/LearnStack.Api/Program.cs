@@ -25,4 +25,10 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
 
 app.Run();
 
+// `public partial class Program` is the top-level-statements escape hatch
+// that lets WebApplicationFactory<Program> in the test assemblies resolve
+// the entry-point type. CA1515 is downgraded to `none` for this project
+// in `backend/src/LearnStack.Api/.editorconfig` — the test harness is the
+// external consumer and it cannot see `internal` types without an
+// InternalsVisibleTo dance that confuses Program-discovery.
 public partial class Program;

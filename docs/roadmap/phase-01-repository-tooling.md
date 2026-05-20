@@ -1,7 +1,8 @@
 # Phase 01: Repository, Tooling, and Local Infrastructure
 
-> **In-progress status (2026-05-19).** The phase is implemented incrementally in
-> packets. Packets 1-3 are shipped; packets 4-8 remain.
+> **Status (2026-05-20).** Phase 01 complete. All eight packets shipped.
+> The phase was implemented incrementally — each packet is independently
+> reviewable in its own commit.
 >
 > **Packet 1 — Backend skeleton ✅**
 > .NET 10 solution scaffold, central package management, `LearnStack.slnx`, 7 core
@@ -48,16 +49,42 @@
 > `/api/internal/*` Phase-02c surface is documented as an SSL-object +
 > ip-restriction stub (mTLS in APISIX is not a route-level plugin).
 >
-> **Packet 7 — Developer experience (pending)**
-> `Makefile` (`make dev` / `test` / `lint` / `seed`), `.env.example` per app,
-> pre-commit hook (dotnet-format + prettier), `infra/compose/e2e.yml`
-> companion stack, optional `learnstack-hub` compose overlay.
+> **Packet 7 — Developer experience ✅**
+> Repo-root `Makefile` (`make dev` / `down` / `clean` / `logs` / `ps` /
+> `e2e-up` / `e2e-down` / `build` / `test` / `lint` / `format` / `typecheck`
+> / `seed` / `install` / `hooks`). `.env.example` at the repo root is the
+> single source of truth for dev credentials; `infra/compose/dev.yml` reads
+> via `${VAR:-default}` interpolation, and the Dapr Vault secret-store
+> component resolves `vaultToken` via Dapr's `secretKeyRef` indirection
+> against the local-env secret store (`secretstore-envvar.yaml`,
+> `auth.secretStore: envvar-secrets`) so the prior two-file token
+> duplication is closed. `.githooks/pre-commit` runs `dotnet format` +
+> prettier + ESLint --fix + (when installed) `leakwatch scan fs <staged-file>`
+> on staged files (activated by `make install`; install instructions in
+> [.github/CONTRIBUTING.md](../../.github/CONTRIBUTING.md)).
+> `infra/compose/e2e.yml`
+> overlay swaps named volumes for tmpfs for ephemeral e2e runs. The
+> `learnstack-hub` compose overlay is **owned by the separate
+> `learnstack-hub` repo's Phase 02c** per
+> [ADR-0019](../decisions/0019-learnstack-hub.md); it never lives here.
 >
-> **Packet 8 — CI baseline + seed (pending)**
-> GitHub Actions workflow (backend build + unit + arch + contract +
-> Testcontainers integration; frontend install + typecheck + build + lint +
-> component; OpenAPI breaking-change check; Lighthouse budget), `make seed`
-> with two demo tenants + platform admin, required status checks on `main`.
+> **Packet 8 — CI baseline + seed ✅**
+> `.github/workflows/ci.yml` with four required jobs — backend (build +
+> dotnet format verify + unit + architecture + contract), frontend
+> (typecheck + lint + build + Vitest), meta (broken-link sweep over
+> changed Markdown + `docs/analysis/` residual scan), and secret-scan
+> ([Leakwatch](https://github.com/cemililik/Leakwatch) v1.5.0 per
+> Standards 12 § Secrets Management — MIT, verifier-equipped, hybrid Aho-Corasick
+> + regex + entropy; configured via `.leakwatch.yaml` + `.leakwatchignore`). Three
+> scaffolded-but-deferred jobs (`if: false`) wait for their owning phase:
+> integration tests (02a), OpenAPI diff (03), Lighthouse budget (04).
+> `scripts/seed.sh` verifies compose health + Keycloak realm readiness
+> and prints the demo credentials; the application-level tenant seeding
+> (two demo tenants + platform admin) is documented as a one-edit
+> drop-in for Phase 02a when
+> the Tenancy module's DbContext lands. Branch-protection rules
+> (required-check names, approval count, signed-commits posture) live in
+> `.github/CONTRIBUTING.md` so GitHub Settings matches the corpus.
 
 ## Goal
 
@@ -174,8 +201,11 @@ Docker Compose under `infra/compose/`:
 - **Dapr sidecar** + placement service.
 - **APISIX** (file-driven standalone `data_plane` mode per ADR-0015 — no etcd, no Admin API, no dashboard companion).
 - Optional Jaeger or Tempo (for trace inspection).
-- Optional `learnstack-hub` compose overlay for local Hub development (depends on
-  the same Keycloak / Postgres / Kafka / Vault / APISIX stack).
+- Optional **external** `learnstack-hub` compose overlay (maintained in the
+  separate `learnstack-hub` repository per
+  [ADR-0019](../decisions/0019-learnstack-hub.md)) for local Hub development —
+  depends on the same Keycloak / Postgres / Kafka / Vault / APISIX stack but
+  never ships in this repo.
 
 Two compose files:
 
@@ -194,10 +224,16 @@ Two compose files:
 
 - GitHub Actions workflow.
 - Backend build and unit + architecture + contract tests.
-- Integration tests with Testcontainers PostgreSQL.
+- Integration tests with Testcontainers PostgreSQL — *scaffolded as
+  `if: false` placeholder; activates in Phase 02a when the first
+  integration test lands (see Status note above).*
 - Frontend install, typecheck, build, lint, component tests.
-- OpenAPI breaking-change check.
-- Lighthouse budget check on representative public pages.
+- OpenAPI breaking-change check — *scaffolded as `if: false` placeholder;
+  activates in Phase 03 when the first real `/api/v1/*` endpoint replaces
+  the `/healthz` placeholder.*
+- Lighthouse budget check on representative public pages — *scaffolded as
+  `if: false` placeholder; activates in Phase 04 when the first content-
+  bearing public page ships.*
 - Required status checks on `main`.
 
 ## Deliverables

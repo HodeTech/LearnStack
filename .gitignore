@@ -26,10 +26,14 @@ dist/
 build/
 coverage/
 
-# Environment
+# Environment — track only the explicitly-listed *.example templates,
+# never real envs. `!*.example` would un-ignore every future `foo.example`
+# file in the tree (e.g. `infra/foo.conf.example`); the explicit allowlist
+# below keeps each new template an opt-in decision.
 .env
 .env.*
 !.env.example
+!frontend/apps/web/.env.local.example
 
 # Logs
 *.log

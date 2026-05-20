@@ -21,22 +21,28 @@ Self-Hosted — backed by the companion **`learnstack-hub`** repository
 
 ## What state this is in
 
-**Phase 01 packets 1-6 shipped.** The repository now has the .NET 10
-solution scaffold under `backend/` (core + 7 modules × 4 projects + 4
-test projects including the non-skippable `LearnStack.Tests.Architecture`),
-the `pnpm` frontend monorepo under `frontend/` (`apps/web` Next.js App
-Router + `packages/{config,ui,sdk}`), and the full local-dev compose
-stack at `infra/compose/dev.yml` — PostgreSQL 18, Valkey, SeaweedFS,
-Mailpit, Meilisearch, Keycloak (two realms), LiveKit OSS + Coturn,
-Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX in file-
-driven standalone mode. The remaining Phase-01 packets (7-8) — `make`
-orchestrator, `.env.example`, pre-commit hook, `e2e.yml`, GitHub Actions
-CI, `make seed` — land incrementally; see
-[docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md).
-Module-level code references in the docs (e.g.
-`LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
-`ITenantSearch`) still describe intended shape — the projects are
-scaffolded but their domain bodies are empty.
+**Phase 01 complete — repository scaffolding, local infrastructure, DX,
+and CI baseline. No domain code yet — Phase 02a starts that.**
+
+What shipped: the .NET 10 solution scaffold under `backend/` (core + 7
+modules × 4 projects + 4 test projects including the non-skippable
+`LearnStack.Tests.Architecture`), the `pnpm` frontend monorepo under
+`frontend/` (`apps/web` Next.js App Router + `packages/{config,ui,sdk}`),
+the full local-dev compose stack at `infra/compose/dev.yml` — PostgreSQL
+18, Valkey, SeaweedFS, Mailpit, Meilisearch, Keycloak (two realms),
+LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement,
+APISIX in file-driven standalone mode — and the DX + CI surround
+(repo-root `Makefile`, `.env.example` single source of truth,
+`.githooks/pre-commit` formatter + Leakwatch, `infra/compose/e2e.yml`
+ephemeral overlay, `.github/workflows/ci.yml` with backend + frontend +
+meta + secret-scan required checks, `scripts/seed.sh`).
+
+Every module assembly is empty of domain code today. Module-level
+references in the docs (e.g. `LearnStack.Modules.Education.Application`,
+`ILiveClassProvider`, `ITenantSearch`) describe **intended** shape that
+the corpus anchors against — Phase 02a (Platform Kernel +
+Multi-Tenancy) is where those types actually land. Phase 02c (Hub
+Foundation, separate `learnstack-hub` repo) runs in parallel.
 
 ## Where to start
 

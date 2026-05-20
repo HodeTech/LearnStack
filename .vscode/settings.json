@@ -20,5 +20,17 @@
   "[javascript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
   "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
   "[markdown]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
-  "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" }
+  "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" },
+
+  "// yaml": "Declare Compose's override-merge tags so the redhat.vscode-yaml extension stops flagging `!reset` / `!override` in `infra/compose/e2e.yml` (Compose accepts them — `docker compose config -q` validates — but generic YAML parsers don't know they exist).",
+  "yaml.customTags": [
+    "!reset",
+    "!reset sequence",
+    "!reset mapping",
+    "!reset scalar",
+    "!override",
+    "!override sequence",
+    "!override mapping",
+    "!override scalar"
+  ]
 }

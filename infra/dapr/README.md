@@ -101,18 +101,29 @@ All dev-only. Production wires Vault with AppRole / Kubernetes auth and
 loads the token through Dapr's `secretKeyRef` indirection so the literal
 token never appears in the component YAML.
 
-### Vault token duplication
+### Vault token — single source of truth
 
-The literal `learnstack-dev-root-token` appears in **two files**:
+As of Phase 01 packet 7 (DX), the Vault root token lives in **one** place:
+`VAULT_ROOT_TOKEN` in the repo-root `.env.example` (copied to `.env` per
+workstation). The chain uses Dapr's `secretKeyRef` + local-env-secret-store
+indirection (a `{{env.VAR}}` template would be silently substituted with the
+literal — Dapr does not support that syntax in component metadata):
 
-- `infra/compose/dev.yml` — `vault` service command + env var (the token
-  Vault `-dev` mode boots with).
-- `infra/dapr/components/secretstore-vault.yaml` — `vaultToken` metadata
-  (the token Dapr authenticates to Vault with).
+1. `.env` — developer's actual value (gitignored).
+2. `infra/compose/dev.yml` — both the `vault` service (boots `-dev` mode
+   with that token) and the `dapr-sidecar-api` service (passes it to
+   daprd's process env) read `${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}`.
+3. `infra/dapr/components/secretstore-envvar.yaml` registers a
+   `secretstores.local.env` component named `envvar-secrets` (loaded first
+   by daprd because no other component depends on it).
+4. `infra/dapr/components/secretstore-vault.yaml` declares
+   `auth.secretStore: envvar-secrets` and a `vaultToken` metadata entry
+   resolved via `secretKeyRef: { name: VAULT_ROOT_TOKEN, key: VAULT_ROOT_TOKEN }`.
+   Dapr pulls the literal from the process env at component-load time.
 
-These MUST stay in lockstep. Phase 07 (DX) wires both to a single
-`.env.example` source so the duplication goes away; until then, change
-both places together.
+Changing `.env` therefore updates every consumer at the next `docker compose
+up`. There is no two-file edit risk and no literal token in any committed
+YAML metadata field.
 
 ## What does NOT live here
 
