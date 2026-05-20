@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Hosting;
@@ -13,11 +12,7 @@ namespace LearnStack.Tests.Contract;
 /// <c>IsDevelopment()</c>, so without this override the endpoint would
 /// 404 in CI.
 /// </summary>
-[SuppressMessage(
-    "Performance",
-    "CA1812:Avoid uninstantiated internal classes",
-    Justification = "Instantiated by xunit through IClassFixture<T> reflection — the analyzer cannot see that callsite.")]
-internal sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

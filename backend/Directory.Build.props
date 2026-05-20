@@ -29,6 +29,25 @@
 
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
     <IsPackable>false</IsPackable>
+    <!--
+      Analyzer rules that don't fit xunit test code conventions:
+        CA1707 — `Method_When_Returns` underscore naming is THE xunit
+                 convention; renaming every test would obscure the BDD shape.
+        CA1812 — xunit instantiates test fixtures via reflection; the
+                 analyzer can't see those callsites and flags every
+                 IClassFixture target as dead code.
+        CA1515 — xunit's runner discovers `public` classes; suppressing here
+                 lets test types stay public without re-flagging.
+        CA1034 — nested test types (e.g. nested theory data classes) are an
+                 accepted xunit pattern; the rule is intended for library
+                 APIs, not test scaffolding.
+        CA2234 — `HttpClient.GetAsync(string)` overload is fine in test
+                 assertions; the Uri-overload preference is library-grade
+                 hygiene that costs readability in tests.
+      Real code-quality rules (CA1305 culture-invariant formatting, CA1861
+      static-readonly array reuse) STAY ON — fix violations in the code.
+    -->
+    <NoWarn>$(NoWarn);CA1707;CA1812;CA1515;CA1034;CA2234</NoWarn>
   </PropertyGroup>
 
 </Project>

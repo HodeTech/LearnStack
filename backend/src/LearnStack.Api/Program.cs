@@ -25,8 +25,13 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
 
 app.Run();
 
-// `internal` (not `public`) satisfies CA1515 — the only external consumers
-// are the test assemblies, which see this type via `InternalsVisibleTo` on
-// LearnStack.Api.csproj. `partial` keeps the WebApplicationFactory<Program>
-// generic argument resolvable from the test side.
-internal partial class Program;
+// `public partial class Program` is the top-level-statements escape hatch
+// that lets WebApplicationFactory<Program> in the test assemblies resolve
+// the entry-point type. CA1515 (types should not be public unless an
+// external consumer needs them) is suppressed in the csproj's NoWarn for
+// this specific Program type — the test harness is the external consumer
+// and it cannot see `internal` types without an InternalsVisibleTo dance
+// that confuses Program-discovery in the test runner.
+#pragma warning disable CA1515 // "internal" would hide Program from xunit's WebApplicationFactory<Program>
+public partial class Program;
+#pragma warning restore CA1515

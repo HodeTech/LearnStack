@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using FluentAssertions;
 using NetArchTest.Rules;
@@ -74,7 +75,7 @@ public sealed class ModuleDependencyTests
 
         foreach (var prefixTemplate in forbiddenPrefixes)
         {
-            var prefix = string.Format(prefixTemplate, moduleName);
+            var prefix = string.Format(CultureInfo.InvariantCulture, prefixTemplate, moduleName);
 
             var result = Types.InAssembly(domainAssembly)
                 .Should()

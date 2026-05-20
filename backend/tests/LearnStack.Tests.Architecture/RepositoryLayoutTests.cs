@@ -9,6 +9,10 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 public sealed class RepositoryLayoutTests
 {
+    /// <summary>Cached `["web"]` so the `BeEquivalentTo` call below does not
+    /// allocate a fresh array on every test invocation (CA1861).</summary>
+    private static readonly string[] AllowedFrontendApps = ["web"];
+
     /// <summary>
     /// ADR-0018: domain-specific shapes live as tenant customization data, not code.
     /// A `Verticals/` source folder at any level under `backend/src` is forbidden.
@@ -52,7 +56,7 @@ public sealed class RepositoryLayoutTests
             .ToArray();
 
         appNames.Should().BeEquivalentTo(
-            new[] { "web" },
+            AllowedFrontendApps,
             "ADR-0009 keeps the tenant-facing frontend as one Next.js app. " +
             "Add a new ADR before splitting (studio / portal extraction is mechanical, " +
             "but the decision must be recorded).");
