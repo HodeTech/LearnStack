@@ -102,8 +102,13 @@ if command -v leakwatch >/dev/null 2>&1; then
         for f in "${all_staged[@]}"; do
             # Skip files that don't exist (D for delete in --diff-filter).
             [[ -f "$f" ]] || continue
-            if ! leakwatch scan fs "$f" --config .leakwatch.yaml --min-severity medium --no-verify >/dev/null; then
-                printf "\npre-commit: leakwatch found a likely secret in %s\n" "$f" >&2
+            # Capture stdout+stderr; on failure replay the scanner output to
+            # the developer (suppressing it would leave them guessing which
+            # detector fired). Exit code drives the gate; output drives the
+            # diagnosis.
+            if ! scan_output=$(leakwatch scan fs "$f" --config .leakwatch.yaml --min-severity medium --no-verify 2>&1); then
+                printf "\npre-commit: leakwatch found a likely secret in %s\n\n" "$f" >&2
+                printf "%s\n\n" "$scan_output" >&2
                 printf "If it is a legitimate dev credential, add an inline\n" >&2
                 printf "\`# leakwatch:ignore\` comment or extend .leakwatchignore.\n" >&2
                 exit 1

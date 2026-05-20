@@ -201,8 +201,11 @@ Docker Compose under `infra/compose/`:
 - **Dapr sidecar** + placement service.
 - **APISIX** (file-driven standalone `data_plane` mode per ADR-0015 — no etcd, no Admin API, no dashboard companion).
 - Optional Jaeger or Tempo (for trace inspection).
-- Optional `learnstack-hub` compose overlay for local Hub development (depends on
-  the same Keycloak / Postgres / Kafka / Vault / APISIX stack).
+- Optional **external** `learnstack-hub` compose overlay (maintained in the
+  separate `learnstack-hub` repository per
+  [ADR-0019](../decisions/0019-learnstack-hub.md)) for local Hub development —
+  depends on the same Keycloak / Postgres / Kafka / Vault / APISIX stack but
+  never ships in this repo.
 
 Two compose files:
 
@@ -221,10 +224,16 @@ Two compose files:
 
 - GitHub Actions workflow.
 - Backend build and unit + architecture + contract tests.
-- Integration tests with Testcontainers PostgreSQL.
+- Integration tests with Testcontainers PostgreSQL — *scaffolded as
+  `if: false` placeholder; activates in Phase 02a when the first
+  integration test lands (see Status note above).*
 - Frontend install, typecheck, build, lint, component tests.
-- OpenAPI breaking-change check.
-- Lighthouse budget check on representative public pages.
+- OpenAPI breaking-change check — *scaffolded as `if: false` placeholder;
+  activates in Phase 03 when the first real `/api/v1/*` endpoint replaces
+  the `/healthz` placeholder.*
+- Lighthouse budget check on representative public pages — *scaffolded as
+  `if: false` placeholder; activates in Phase 04 when the first content-
+  bearing public page ships.*
 - Required status checks on `main`.
 
 ## Deliverables

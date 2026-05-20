@@ -47,8 +47,20 @@ fi
 
 elapsed=0
 while true; do
-    not_healthy=$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Name}}\t{{.Health}}' \
-                  | awk -F'\t' '$2 != "healthy" && $2 != "" {print $1 " (" $2 ")"}')
+    # Capture BOTH .State and .Health so we can distinguish:
+    #   - service running + healthcheck reports `healthy`  → ok
+    #   - service running + healthcheck still `starting`   → wait
+    #   - service running + NO healthcheck defined         → flag (every
+    #     service in dev.yml carries one per Standards 12 § Local Infra;
+    #     an empty Health column means a future regression)
+    #   - service not running (exited, dead, restarting)   → flag
+    not_healthy=$(docker compose -f "$COMPOSE_FILE" \
+                  ps --format '{{.Name}}\t{{.State}}\t{{.Health}}' \
+                  | awk -F'\t' '
+                      $2 != "running"            { print $1 " (state=" $2 ")"; next }
+                      $3 == ""                   { print $1 " (no healthcheck)"; next }
+                      $3 != "healthy"            { print $1 " (health=" $3 ")"; next }
+                    ')
     [[ -z "$not_healthy" ]] && break
     if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
         red "Services still not healthy after ${HEALTH_TIMEOUT_SECONDS}s — inspect with:"
@@ -61,7 +73,7 @@ while true; do
     sleep 3
     elapsed=$(( elapsed + 3 ))
 done
-green "  ✓ All compose services healthy."
+green "  ✓ All compose services running + healthcheck-green."
 
 # ─── Step 2: Keycloak realm verification ─────────────────────────────────
 # Realm import happens during Keycloak's first boot — even after the
