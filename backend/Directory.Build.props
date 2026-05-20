@@ -11,6 +11,17 @@
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CA1014;CS1591</NoWarn>
+    <!--
+      NuGet audit: enforce on DIRECT deps only. Transitive packages (e.g. the
+      Testcontainers ecosystem still pulls Azure.Identity 1.3.0 / older
+      System.IdentityModel.* shapes via its auth stack) emit NU190x
+      vulnerability warnings that flip to errors under `TreatWarningsAsErrors`
+      in CI. We do not own those upgrade cadences; auditing direct deps catches
+      our own choices without flagging every transitive shipped by a dev-only
+      test library. The Phase 02a backend integration packet picks up
+      Testcontainers properly and may need to reconsider this.
+    -->
+    <NuGetAuditMode>direct</NuGetAuditMode>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>

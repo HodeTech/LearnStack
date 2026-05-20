@@ -37,9 +37,12 @@ cd "$REPO_ROOT"
 # ─── Stash unstaged changes so we only format what's actually indexed ───
 # `--keep-index` leaves staged content in place; `--include-untracked`
 # avoids losing newly-untracked files. The EXIT trap pops the stash even
-# if formatters fail, so a developer never loses their WIP.
+# if formatters fail, so a developer never loses their WIP. We detect WIP
+# two ways — `git diff --quiet` for tracked-but-unstaged changes (exit 1
+# if any), and `git ls-files --others --exclude-standard` for untracked.
+# A prior `git status --porcelain | awk` probe added nothing actionable
+# (the two checks below already cover every WIP shape) and was removed.
 STASH_REF=""
-needs_stash=$(git status --porcelain | awk '$1 !~ /^M$|^A$|^D$|^R$|^C$|^\?\?$/ { found=1 } END { print found+0 }')
 unstaged_changes=$(git diff --quiet || echo "yes")
 unstaged_untracked=$(git ls-files --others --exclude-standard | head -n 1)
 if [[ -n "$unstaged_changes" || -n "$unstaged_untracked" ]]; then

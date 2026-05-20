@@ -7,51 +7,97 @@
 #      git, or in container env vars. The pre-commit hook scans for
 #      high-entropy strings; CI fails on hits."
 #
-# The allowlist below lists intentional dev-only credentials so the scan
-# stays high-signal. Every entry MUST cite WHY the credential is in-repo
-# and which production path replaces it. Anything added here lives in a
-# `Development`-deployment-only file and is *never* a production secret.
+# The allowlist below is **regex-scoped**, not path-scoped — a path-based
+# allowlist (`paths = ['^infra/compose/dev\.yml$', …]`) would suppress
+# EVERY detector on those files, so a real AWS key smuggled into
+# `dev.yml` would slip through. Listing the literal dev credentials by
+# regex keeps the file-level scanning hot; only the exact known dev
+# literals are skipped.
 
 [extend]
 # Inherit the upstream default rule set (AWS keys, GCP service accounts,
 # Stripe keys, OpenAI tokens, generic high-entropy strings, …).
 useDefault = true
 
-# ─── Dev infrastructure literals — intentional, never production ────────
-[[allowlist]]
-description = "Dev-only credentials committed for local-stack bootstrap; production loads everything via ISecretProvider per Standards 20."
+# ─── Dev-credential literals (intentional, never production) ────────────
+# Each entry MUST cite WHY the literal is in-repo and which production
+# path replaces it. Anything added here lives in a `Development`-
+# deployment-only file and is *never* a production secret.
+
+[[allowlists]]
+description = "Vault dev root token — boots Vault `-dev` mode; production uses AppRole / Kubernetes auth per ADR-0014."
+regexTarget = "match"
+regexes = [
+    '''learnstack-dev-root-token''',
+]
+
+[[allowlists]]
+description = "Keycloak admin password for the master realm in dev compose; production seeds via ISecretProvider per Standards 12."
+regexTarget = "match"
+regexes = [
+    '''admin-dev-secret''',
+]
+
+[[allowlists]]
+description = "Keycloak demo-user passwords for the seeded realm JSONs; the users themselves are scoped to the `learnstack`/`learnstack-hub` dev realms only."
+regexTarget = "match"
+regexes = [
+    '''demo-dev-secret''',
+]
+
+[[allowlists]]
+description = "Confidential client secret for the `learnstack-api` client in the dev realm seed; production realm provisioning (Terraform / keycloak-config-cli) issues a per-deployment value."
+regexTarget = "match"
+regexes = [
+    '''learnstack-api-dev-secret''',
+]
+
+[[allowlists]]
+description = "LiveKit dev API key + secret — Phase 08c wires per-session credential minting through ILiveClassProvider; the >=32-byte secret would otherwise trip the generic high-entropy rule."
+regexTarget = "match"
+regexes = [
+    '''devkey''',
+    '''devsecret-32-byte-min-length-padding-xyz''',
+]
+
+[[allowlists]]
+description = "Coturn static long-term credential pair for dev `turnutils_uclient` exploration; Phase 08c flips to `use-auth-secret` for ephemeral tokens."
+regexTarget = "match"
+regexes = [
+    '''^devuser$''',
+    '''^devsecret$''',
+]
+
+[[allowlists]]
+description = "SeaweedFS S3 dev credential pair from `infra/seaweedfs/s3-identities.json`; Phase 02b storage adapter swaps in Vault-issued credentials."
+regexTarget = "match"
+regexes = [
+    '''learnstack-dev-secret''',
+]
+
+[[allowlists]]
+description = "Meilisearch dev master key (documented in compose README); production loads via ISecretProvider per Standards 12."
+regexTarget = "match"
+regexes = [
+    '''learnstack-dev-master-key''',
+]
+
+[[allowlists]]
+description = "Kafka KRaft cluster id literal — not a secret, but the URL-safe Base64 shape (22 chars) trips the generic high-entropy rule."
+regexTarget = "match"
+regexes = [
+    '''ofPH0p5rSlK52BxOX3qLPQ''',
+]
+
+# ─── Template / example files exempt from path-only secret patterns ────
+# These files exist precisely to document credential SHAPES; gitleaks's
+# generic high-entropy heuristic flags the placeholder values even though
+# every one is overridden via `.env`. Narrow path allowlist (NOT full-file
+# rule suppression — the regex allowlists above still scope what counts as
+# a dev literal even when scanned via these paths).
+[[allowlists]]
+description = "Env templates carry placeholder shapes by design; real values live in gitignored `.env` / `.env.local`."
 paths = [
-    # Single source of truth for dev env (no real secrets — placeholders only).
     '''^\.env\.example$''',
     '''^frontend/apps/web/\.env\.local\.example$''',
-    # Compose stack — every literal has a `# Dev-only` comment + a Vault path.
-    '''^infra/compose/dev\.yml$''',
-    '''^infra/compose/postgres-init/.*\.sql$''',
-    # Keycloak realm seeds — demo users + dev client secrets per ADR-0004 Amendment 1.
-    '''^infra/keycloak/realms/.*\.json$''',
-    '''^infra/keycloak/README\.md$''',
-    # Dapr component YAMLs — vaultToken now uses `secretKeyRef` indirection,
-    # but other dev-only metadata literals (e.g. kafka authType none) live here.
-    '''^infra/dapr/components/.*\.ya?ml$''',
-    '''^infra/dapr/README\.md$''',
-    # LiveKit + Coturn dev key/secret pair (Phase 08c rotates via
-    # ILiveClassProvider; the padded 32-byte secret would otherwise trip
-    # the generic high-entropy rule).
-    '''^infra/livekit/livekit\.yaml$''',
-    '''^infra/coturn/turnserver\.conf$''',
-    # SeaweedFS S3 identity file — Phase 02b storage adapter wires Vault.
-    '''^infra/seaweedfs/s3-identities\.json$''',
-    '''^infra/seaweedfs/README\.md$''',
-    # APISIX route table — currently no credentials, but room for future
-    # dev-only JWT public-key embeds.
-    '''^infra/apisix/.*\.ya?ml$''',
-    # Compose orchestration README documents the dev credentials inline
-    # so the scanner shouldn't flag the same string twice.
-    '''^infra/compose/README\.md$''',
-    # Documentation that NAMES the dev credentials for orientation
-    # (`docs/standards/12-infrastructure.md`, the dapr README, the
-    # keycloak README, the realm-isolation note). Allow only the specific
-    # standards files that walk credential rotation policy.
-    '''^docs/standards/12-infrastructure\.md$''',
-    '''^docs/standards/20-infrastructure-stack\.md$''',
 ]

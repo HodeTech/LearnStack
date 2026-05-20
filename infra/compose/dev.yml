@@ -61,7 +61,7 @@ services:
       # the `postgres-init/*.sql` scripts to complete before pg_isready
       # starts counting failures against the retry budget. Re-boots
       # (data already in the volume) skip this — Postgres is ready in <2s.
-      test: ["CMD-SHELL", "pg_isready -U learnstack -d learnstack"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-learnstack} -d $${POSTGRES_DB:-learnstack}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -296,8 +296,10 @@ services:
   # connect through the port mapping below but will receive `kafka:9092` as
   # the bootstrap address and fail to resolve it unless the developer adds
   # `127.0.0.1 kafka` to /etc/hosts (or routes them through the kafka-ui).
-  # Phase 07 (DX) ships either an explicit EXTERNAL listener or a
-  # documented kafka-ui-only workflow.
+  # Phase 01 packet 7 (DX) shipped the kafka-ui-only workflow as canonical
+  # (see infra/compose/README.md § Eventing); an EXTERNAL listener for
+  # workstation-side kcat / kafka-topics access is a Phase 11 production-
+  # hardening item, not in scope here.
   kafka:
     image: confluentinc/cp-kafka:8.2.1
     container_name: learnstack-kafka
@@ -367,11 +369,15 @@ services:
   # auto-unseal + AppRole / Kubernetes auth methods (Standards 12 § Secrets
   # Management). The root token is intentionally embedded here for dev only.
   #
-  # Single source of truth: `VAULT_ROOT_TOKEN` from `.env.example`. The Dapr
-  # Vault secret-store component (`infra/dapr/components/secretstore-vault.yaml`)
-  # reads the same env var through Dapr's `{{env.VAULT_ROOT_TOKEN}}` template
-  # substitution, so changing the token in `.env` updates every consumer in
-  # lockstep (Phase 07 DX commitment per `infra/dapr/README.md` § Vault token).
+  # Single source of truth: `VAULT_ROOT_TOKEN` from `.env.example`. This
+  # service boots Vault `-dev` with the token via the `-dev-root-token-id`
+  # flag below; the Dapr Vault secret-store component
+  # (`infra/dapr/components/secretstore-vault.yaml`) reads the same env var
+  # through Dapr's `secretKeyRef` indirection against the local-env secret
+  # store (`secretstore-envvar.yaml`, `auth.secretStore: envvar-secrets`).
+  # Changing `VAULT_ROOT_TOKEN` in `.env` therefore propagates to both
+  # endpoints at the next `docker compose up`. See `infra/dapr/README.md`
+  # § Vault token for the full chain (Phase 01 packet 7 DX commitment).
   vault:
     image: hashicorp/vault:1.21.4
     container_name: learnstack-vault
@@ -436,9 +442,11 @@ services:
       - -log-level
       - info
     environment:
-      # `secretstore-vault.yaml` substitutes `{{env.VAULT_ROOT_TOKEN}}` at
-      # component-load time; passing the same env var here completes the
-      # single-source-of-truth chain from `.env.example` (Phase 07 DX).
+      # `secretstore-vault.yaml` resolves `vaultToken` via `secretKeyRef`
+      # against the local-env secret store (`secretstore-envvar.yaml`);
+      # passing the env var here is what makes that lookup find the token
+      # in daprd's process env, completing the single-source-of-truth
+      # chain from `.env.example` (Phase 01 packet 7 DX).
       VAULT_ROOT_TOKEN: ${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}
     volumes:
       - ../dapr/components:/components:ro

@@ -55,23 +55,29 @@
 > / `seed` / `install` / `hooks`). `.env.example` at the repo root is the
 > single source of truth for dev credentials; `infra/compose/dev.yml` reads
 > via `${VAR:-default}` interpolation, and the Dapr Vault secret-store
-> component substitutes `{{env.VAULT_ROOT_TOKEN}}` so the prior two-file
-> token duplication is closed. `.githooks/pre-commit` runs `dotnet format`
-> + prettier + ESLint --fix on staged files (activated by `make install`).
-> `infra/compose/e2e.yml` overlay swaps named volumes for tmpfs for
-> ephemeral e2e runs. The `learnstack-hub` compose overlay remains deferred
-> (lives in the separate `learnstack-hub` repo per ADR-0019).
+> component resolves `vaultToken` via Dapr's `secretKeyRef` indirection
+> against the local-env secret store (`secretstore-envvar.yaml`,
+> `auth.secretStore: envvar-secrets`) so the prior two-file token
+> duplication is closed. `.githooks/pre-commit` runs `dotnet format` +
+> prettier + ESLint --fix + (when installed) `gitleaks protect --staged`
+> on staged files (activated by `make install`). `infra/compose/e2e.yml`
+> overlay swaps named volumes for tmpfs for ephemeral e2e runs. The
+> `learnstack-hub` compose overlay is **owned by the separate
+> `learnstack-hub` repo's Phase 02c** per
+> [ADR-0019](../decisions/0019-learnstack-hub.md); it never lives here.
 >
 > **Packet 8 — CI baseline + seed ✅**
-> `.github/workflows/ci.yml` with three required jobs — backend (build +
+> `.github/workflows/ci.yml` with four required jobs — backend (build +
 > dotnet format verify + unit + architecture + contract), frontend
 > (typecheck + lint + build + Vitest), meta (broken-link sweep over
-> changed Markdown + `docs/analysis/` residual scan). Three scaffolded-but-
-> deferred jobs (`if: false`) wait for their owning phase: integration
-> tests (02a), OpenAPI diff (03), Lighthouse budget (04). `scripts/seed.sh`
-> verifies compose health + Keycloak realm readiness and prints the demo
-> credentials; the application-level tenant seeding (two demo tenants +
-> platform admin) is documented as a one-edit drop-in for Phase 02a when
+> changed Markdown + `docs/analysis/` residual scan), and secret-scan
+> (`gitleaks/gitleaks-action@v2` per Standards 20 § Secrets). Three
+> scaffolded-but-deferred jobs (`if: false`) wait for their owning phase:
+> integration tests (02a), OpenAPI diff (03), Lighthouse budget (04).
+> `scripts/seed.sh` verifies compose health + Keycloak realm readiness
+> and prints the demo credentials; the application-level tenant seeding
+> (two demo tenants + platform admin) is documented as a one-edit
+> drop-in for Phase 02a when
 > the Tenancy module's DbContext lands. Branch-protection rules
 > (required-check names, approval count, signed-commits posture) live in
 > `.github/CONTRIBUTING.md` so GitHub Settings matches the corpus.

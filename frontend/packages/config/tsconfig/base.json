@@ -1,3 +1,25 @@
 {
-  "extends": "../../../tsconfig.base.json"
+  "_comment": "Inlined from frontend/tsconfig.base.json on 2026-05-20. The prior `extends: ../../../tsconfig.base.json` form broke under pnpm's symlinked node_modules: apps/web/node_modules/@learnstack/config/tsconfig/base.json → ../../../tsconfig.base.json resolves to apps/web/node_modules/tsconfig.base.json (does not exist) instead of frontend/tsconfig.base.json. This file is now the source of truth; the repo-root frontend/tsconfig.base.json mirrors it for editor convenience only.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "jsx": "preserve",
+    "incremental": true
+  }
 }

@@ -103,7 +103,7 @@ token never appears in the component YAML.
 
 ### Vault token — single source of truth
 
-As of Phase 07 (DX), the Vault root token lives in **one** place:
+As of Phase 01 packet 7 (DX), the Vault root token lives in **one** place:
 `VAULT_ROOT_TOKEN` in the repo-root `.env.example` (copied to `.env` per
 workstation). The chain uses Dapr's `secretKeyRef` + local-env-secret-store
 indirection (a `{{env.VAR}}` template would be silently substituted with the

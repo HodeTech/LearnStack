@@ -31,43 +31,63 @@ green() { printf "\033[32m%s\033[0m\n" "$*"; }
 red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
 
 # ─── Step 1: compose health ──────────────────────────────────────────────
-cyan "▶ Step 1/3: verify compose services are healthy"
+# `make seed` declares `: dev` as a prereq, so compose `up -d` has just
+# returned and most services are in `starting` state. Poll until every
+# service reports `healthy` or until the per-step timeout expires; only
+# the "literally no services running" case is an immediate error (means
+# the developer ran seed.sh directly without `make dev`).
+cyan "▶ Step 1/3: wait for compose services to be healthy"
 
-if ! docker compose -f "$COMPOSE_FILE" ps --status running --quiet >/dev/null 2>&1; then
+# Distinguish "nothing running at all" from "still starting".
+running=$(docker compose -f "$COMPOSE_FILE" ps --status running --quiet 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$running" == "0" ]]; then
     red "No compose services running. Run \`make dev\` first."
     exit 1
 fi
 
-unhealthy=$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Name}}\t{{.Health}}' \
-            | awk -F'\t' '$2 != "healthy" && $2 != "" {print $1 " (" $2 ")"}')
-if [[ -n "$unhealthy" ]]; then
-    red "Services not healthy yet — give them another minute, then re-run \`make seed\`:"
-    while IFS= read -r line; do red "  - $line"; done <<<"$unhealthy"
-    exit 1
-fi
-green "  ✓ All compose services healthy."
-
-# ─── Step 2: Keycloak realm verification ─────────────────────────────────
-cyan "▶ Step 2/3: verify Keycloak realms imported"
-
 elapsed=0
-while ! curl -sf "$KEYCLOAK_URL/realms/$KEYCLOAK_REALM_TENANT/.well-known/openid-configuration" >/dev/null 2>&1; do
+while true; do
+    not_healthy=$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Name}}\t{{.Health}}' \
+                  | awk -F'\t' '$2 != "healthy" && $2 != "" {print $1 " (" $2 ")"}')
+    [[ -z "$not_healthy" ]] && break
     if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
-        red "Keycloak realm '$KEYCLOAK_REALM_TENANT' did not surface within ${HEALTH_TIMEOUT_SECONDS}s."
-        red "Inspect with: docker compose -f $COMPOSE_FILE logs keycloak"
+        red "Services still not healthy after ${HEALTH_TIMEOUT_SECONDS}s — inspect with:"
+        red "  docker compose -f $COMPOSE_FILE ps"
+        red "  docker compose -f $COMPOSE_FILE logs --tail=200"
+        red "Still pending:"
+        while IFS= read -r line; do red "  - $line"; done <<<"$not_healthy"
         exit 1
     fi
     sleep 3
     elapsed=$(( elapsed + 3 ))
 done
-green "  ✓ Realm '$KEYCLOAK_REALM_TENANT' OIDC discovery responds."
+green "  ✓ All compose services healthy."
 
-if ! curl -sf "$KEYCLOAK_URL/realms/$KEYCLOAK_REALM_HUB/.well-known/openid-configuration" >/dev/null 2>&1; then
-    red "Realm '$KEYCLOAK_REALM_HUB' not reachable. Was the realm JSON imported?"
-    red "  → infra/keycloak/realms/learnstack-hub.json"
-    exit 1
-fi
-green "  ✓ Realm '$KEYCLOAK_REALM_HUB' OIDC discovery responds."
+# ─── Step 2: Keycloak realm verification ─────────────────────────────────
+# Realm import happens during Keycloak's first boot — even after the
+# `keycloak` container reports healthy, the OIDC discovery endpoint can
+# take a few more seconds to surface each realm. Both realms get the same
+# bounded retry loop.
+cyan "▶ Step 2/3: verify Keycloak realms imported"
+
+wait_for_realm() {
+    local realm="$1"
+    local elapsed=0
+    while ! curl -sf "$KEYCLOAK_URL/realms/$realm/.well-known/openid-configuration" >/dev/null 2>&1; do
+        if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
+            red "Keycloak realm '$realm' did not surface within ${HEALTH_TIMEOUT_SECONDS}s."
+            red "  Was the realm JSON imported? → infra/keycloak/realms/${realm}.json"
+            red "  Inspect with: docker compose -f $COMPOSE_FILE logs keycloak"
+            return 1
+        fi
+        sleep 3
+        elapsed=$(( elapsed + 3 ))
+    done
+    green "  ✓ Realm '$realm' OIDC discovery responds."
+}
+
+wait_for_realm "$KEYCLOAK_REALM_TENANT" || exit 1
+wait_for_realm "$KEYCLOAK_REALM_HUB" || exit 1
 
 # ─── Step 3: Phase 02a deferral notice ───────────────────────────────────
 cyan "▶ Step 3/3: application-level tenant seeding (deferred to Phase 02a)"
