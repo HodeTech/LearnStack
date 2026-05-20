@@ -1,5 +1,209 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
+> **Status (2026-05-20).** Phase 02a in progress. Packet 0 (kickoff) ships the
+> breakdown plan; subsequent packets ship the foundation incrementally. Each
+> packet is independently reviewable in its own commit, matching the
+> [Phase 01 cadence](phase-01-repository-tooling.md).
+>
+> The packet order is dependency-driven: a later packet may consume any earlier
+> packet's deliverables, but never the reverse. Packets land sequentially on
+> `main` via their own pull request.
+>
+> **Packet 0 — Kickoff ✅ (this commit)**
+> Phase 02a packet breakdown captured in this Status block. Glossary
+> entries for "Phase", "Packet", and "Kickoff Packet" added under a new
+> *Roadmap & Delivery* group so the terms are defined in exactly one
+> place. No code, no ADR state changes — Packet 0 is a planning slice
+> that unblocks the rest of the phase by fixing the order.
+>
+> **Packet 1 — Foundation decisions ⏳**
+> Move the three Phase-02a-blocking drafts from
+> [decisions/README.md § Open ADR Drafts](../decisions/README.md) to
+> **Accepted**: ADR-0023 (strongly-typed ID source generator —
+> Vogen / StronglyTypedId / custom), ADR-0024 (API versioning policy —
+> `/v1/` URL convention, deprecation cadence, sunset headers), ADR-0028
+> (`audit_log` monthly partition management — Hangfire job vs `pg_partman`).
+> Decision-only; no code. Unblocks Packets 2+.
+>
+> **Packet 2 — Shared Kernel core ⏳**
+> `IClock`, `IRandom`, `IGuidFactory` (deterministic-test abstractions per
+> Standards 02 § Time), `LocalizedMessage` (carrying the `lockey_` prefix
+> invariant for `Result.Fail` payloads), `Entity<TId>` (append-only / audit
+> aggregate base), `AuditableEntity<T>` (mutable aggregate base with
+> `CreatedAt` / `CreatedBy` / `UpdatedAt` / `UpdatedBy` / `DeletedAt` /
+> `DeletedBy` / `Version`), soft-delete + optimistic concurrency primitives,
+> domain-event model (in-process MediatR `INotification`), pagination model
+> (cursor-first), strongly-typed ID emitter wired per ADR-0023. Unit tests
+> for every primitive.
+>
+> **Packet 3 — Cross-cutting foundation ⏳**
+> Wires the [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
+> surface end to end via the
+> [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)
+> skill: L1 `LearnStackExceptionHandler : IExceptionHandler`, 8-step MediatR
+> pipeline shells (Validation / Logging / AuditLog / TenantContext /
+> Authorization / Transaction / OutboxFlush / Handler — behaviors whose
+> dependencies are not yet present are scaffolded as no-op shells that later
+> packets light up), `Result<T>.ToActionResult()` extension, `DomainException`
+> Roslyn analyzer (warning class in Phase 02a, error class after Phase 03 exit),
+> `IProviderResilience<TPort>` decorator (Polly v8 ResiliencePipeline — retry +
+> circuit breaker + timeout + bulkhead — config shape
+> `appsettings.Resilience:<port-name>:`), Serilog primary logger +
+> `WriteTo.OpenTelemetry(...)` sink, OpenTelemetry SDK with
+> `AspNetCore` + `HttpClient` + `EntityFrameworkCore` instrumentation +
+> `TenantContextSpanProcessor` + OTLP exporter, `IErrorTrackingProvider`
+> socket with `NoOpErrorTracker` / `SentryErrorTracker` / `LocalFileErrorTracker`
+> + composition-root branching by `DeploymentMode`. Mediator pipeline order
+> backed by the `MediatR_Pipeline_Order_Matches_Canonical_Sequence`
+> architecture test.
+>
+> **Packet 4 — API conventions ⏳**
+> REST + URL versioning (`/v1/...` per ADR-0024), Problem Details (RFC 7807)
+> shape on every error, cursor pagination, idempotency keys for write
+> endpoints with external side effects, ETag concurrency, correlation IDs
+> in headers and logs, OpenAPI generation from code + SDK generation
+> scaffolding, tenant + organization header binding (`X-Tenant-Id`,
+> `X-Organization-Id`).
+>
+> **Packet 5 — Dapr building blocks + APISIX config ⏳**
+> `IEventBus` / `ICacheService` / `ISecretProvider` interfaces in
+> `LearnStack.SharedKernel` + `InProcessEventBus` / `InMemoryCacheService` /
+> `EnvironmentSecretProvider` defaults + `DaprEventBus` / `DaprCacheService` /
+> `DaprSecretProvider` adapters in `LearnStack.Infrastructure`. Composition-root
+> branching by `DeploymentMode` (Development / SaaS / Dedicated /
+> SelfHostedOnline / SelfHostedAirGapped). APISIX `config.yaml` finalised
+> with the documented plugin chain
+> (`cors` → `jwt-auth` → `limit-req` → `proxy-rewrite` → `prometheus`) and
+> the `/api/internal/*` SSL-object + `ip-restriction` stub reserved for the
+> Phase 02c Hub egress. `Dapr_PubSub_TopicNames_FollowConvention`
+> architecture test goes green.
+>
+> **Packet 6 — Tenancy schema foundations ⏳**
+> Migrations + EF configurations for `tenants`, `organizations` (per
+> [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
+> `tenant_domains`, `tenant_locales` (per
+> [ADR-0008](../decisions/0008-localization-schema.md)), `tenant_settings`
+> (with nullable `organization_id` for org-scoped settings),
+> `tenant_feature_flags` (tenant-flag-level only — plan-level features
+> arrive via the entitlement projection), `platform_entitlement_cache`,
+> `platform_host_to_tenant`. Default-organization seeding at tenant
+> creation. No business logic yet; later packets light up CRUD.
+>
+> **Packet 7 — Tenant + Organization resolution + isolation
+> (defense-in-depth) ⏳**
+> `IHostToTenantResolver` (Postgres-backed default reading
+> `platform_host_to_tenant`), `TenantResolverMiddleware`, request-scoped
+> `ITenantContext` (`TenantId`, `OrganizationId?`, `UserId?`), singleton
+> `ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed) populated
+> at scope start by `TenantResolverMiddleware` (HTTP),
+> `HubCorrelationMiddleware` (`/api/internal/*` — stub for 02c), Hangfire
+> `JobActivator` (background jobs), and the outbox / inbox handler scope
+> (integration events). `[TenantOwned]` and `[OrganizationScoped]` marker
+> attributes. EF global query filters on every entity implementing
+> `ITenantOwned` / `IOrganizationScoped`. PostgreSQL RLS policies on every
+> tenant-owned table, with `app.tenant_id` and `app.organization_id`
+> session variables set per connection lease via a
+> `DbConnectionInterceptor` (transaction-local `set_config(..., true)`).
+> Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the
+> narrow cross-tenant access path. Cross-tenant + cross-org isolation
+> integration tests for at least two seed tenants × two organizations each
+> (`Tenant_A_cannot_read_Tenant_B_data`,
+> `Org_X_cannot_read_Org_Y_within_TenantA`,
+> `Unsetting_tenant_context_returns_zero_rows_through_RLS`). Picks up the
+> application-level seed drop-in deferred from
+> [Phase 01 Packet 8](phase-01-repository-tooling.md) — two demo tenants
+> + platform admin user, wired through the new Tenancy module
+> `DbContext` instead of the placeholder `scripts/seed.sh`.
+>
+> **Packet 8 — Tenant Customization foundation ⏳**
+> `LearnStack.Modules.Customization` with `TenantContentType`,
+> `TenantPageBlock`, `TenantLessonItemType`, `TenantLevelTaxonomy`,
+> `TenantScoringRule`, `TenantCompletionRule`, `TenantCustomFieldDef`,
+> `TenantTemplateLibrary` aggregates and their schema tables (per
+> [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).
+> Runtime read paths — JSON Schema validators and sandboxed DSL stub —
+> ship now; the Admin Studio editors land in Phase 06. A small built-in
+> seed (a `default-card` page-block composite, a stock `Plain` level
+> taxonomy) lets early phases exercise the customization runtime without
+> a real tenant data set. The full DSL engine is gated on ADR-0025
+> (Phase 05); Packet 8 ships only the stub.
+>
+> **Packet 9 — Audit infrastructure + Entitlement socket ⏳**
+> `LearnStack.Infrastructure.Audit` with `AuditChangeTrackerInterceptor`
+> (EF SaveChanges interceptor), `IAuditStateCapture` (before / after /
+> changes JSON capture), `AuditLogBehavior` (MediatR behavior — already
+> scaffolded as a shell in Packet 3; now lights up).
+> `LearnStack.Modules.Audit` with `AuditEntry` aggregate (inheriting
+> `Entity<TId>`, **not** `AuditableEntity<T>` — guarded by the
+> `AuditEntry_Inherits_Entity_Not_AuditableEntity` architecture test) and
+> `AuditConfig`. `audit_log` table partitioned by month from Day 1 per
+> ADR-0028's chosen implementation; retention job (Hangfire) ships now
+> with the policy from
+> [18-audit-coverage.md](../standards/18-audit-coverage.md). MUST-class
+> coverage is enabled for every command and security event the seed
+> modules declare; modules added in later phases extend the catalog, not
+> the infrastructure. `IEntitlementProvider` socket declared with
+> `NullEntitlementProvider` as the default (returns "all features
+> enabled, no limits"); Hub-backed and signed-license-key implementations
+> land in Phase 02c.
+>
+> **Packet 10 — Architecture tests catalogue green + phase exit ⏳**
+> Every Phase 02a architecture test in
+> [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
+> goes green in CI. The catalogue is the canonical name registry; the
+> identifiers below either already exist there (the ADR-0032 batch) or
+> land in their owning packet and are registered then. Tests grouped by
+> introducing packet:
+>
+> - From the cross-cutting ADR-0032 batch already in the catalogue
+>   (introduced by Packet 3):
+>   - `IExceptionHandler_Registered_AtStartup`
+>   - `MediatR_Pipeline_Order_Matches_Canonical_Sequence`
+>   - `ValidationBehavior_DoesNotThrow_ValidationException`
+>   - `Domain_Methods_Do_Not_Throw_For_Expected_Cases` (Roslyn analyzer
+>     report)
+>   - `Adapters_Wrap_Provider_Exceptions`
+>   - `Modules_Do_Not_Reference_Sentry_SDK_Directly`
+>   - `Logging_Goes_Through_Microsoft_Extensions_Logging`
+>   - `OTel_Pipeline_Includes_TenantContextSpanProcessor`
+>   - `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`
+> - From the module-dependency arm (introduced by Packet 2 / closed by
+>   this packet):
+>   - The Application + Infrastructure full matrix extending the
+>     existing Phase-01 Packet 1 `ModuleDependencyTests` TODO at
+>     [backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs:17-21](../../backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs#L17-L21)
+>   - `LearnStack_Modules_DoNotReference_Hub`
+>   - `Modules_Do_Not_Inject_Valkey_Directly`
+>   - `Modules_Do_Not_Read_Entitlement_Cache_Directly`
+>   - `Modules_Do_Not_Write_AuditLog_Directly`
+>   - `Modules_Do_Not_Reference_DeploymentMode`
+>   - `Core_Modules_HaveNo_DomainSpecific_Names`
+>   - `No_Source_Folder_Named_Verticals` (already green from Phase 01)
+> - From the tenancy + isolation arm (introduced by Packet 7 — canonical
+>   identifiers land in the catalogue when the tests do):
+>   - `Every_OrgScoped_Entity_HasOrgIdAndFilter`
+>   - An `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`-shaped pair
+>     for the tenant dimension (final name TBD in Packet 7's catalogue
+>     entry)
+>   - "No `IgnoreQueryFilters()` outside the platform-admin scope" rule
+>     (final identifier TBD in Packet 7's catalogue entry)
+> - From the audit arm (introduced by Packet 9):
+>   - `AuditEntry_Inherits_Entity_Not_AuditableEntity`
+>   - `Every_TenantOwned_Command_HasAuditCoverage`
+>   - "Audit-coverage matrix file exists per module" rule (final
+>     identifier TBD in Packet 9's catalogue entry)
+> - From the Dapr arm (introduced by Packet 5):
+>   - `Dapr_PubSub_TopicNames_FollowConvention`
+>
+> The `if: false` CI placeholder for integration tests
+> ([phase-01-repository-tooling.md § Packet 8](phase-01-repository-tooling.md))
+> is removed once the first integration test from Packet 7 is green.
+> Closes the architecture-test arm of the
+> [Phase Exit Decision](#phase-exit-decision) checklist; the remaining
+> exit gates (tenant + organization resolution, isolation tests, audit
+> pipeline, customization runtime read paths, API conventions, the three
+> blocking ADRs) close as their owning packets ship.
+
 ## Goal
 
 Build the runtime foundation everything else stands on: shared kernel conventions,
@@ -189,7 +393,7 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
 - `LearnStack.Modules.Customization` ships with `TenantContentType`,
   `TenantPageBlock`, `TenantLessonItemType`, `TenantLevelTaxonomy`,
   `TenantScoringRule`, `TenantCompletionRule`, `TenantCustomFieldDef`,
-  `TenantTemplateLibrary` aggregates and their schemas tables.
+  `TenantTemplateLibrary` aggregates and their schema tables.
 - The runtime read paths (JSON Schema validators, sandboxed DSL stub) ship now; the
   Admin Studio editors land in Phase 06.
 - A small built-in seed (a `default-card` page-block composite, a stock `Plain` level
