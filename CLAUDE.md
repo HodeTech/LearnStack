@@ -18,6 +18,10 @@ tenant running the same code paths.
 LearnStack ships in three production deployment modes — SaaS, Dedicated,
 Self-Hosted — backed by the companion **`learnstack-hub`** repository
 (separate repo, see [ADR-0019](docs/decisions/0019-learnstack-hub.md)).
+The Hub repo lives at sibling path `../learnstack-hub` on developer
+workstations; GitHub: https://github.com/cemililik/LearnStack-Hub.
+Phase 02c P02c-0 (Hub repo bootstrap) shipped 2026-05-21 — see the
+Phase 02c roadmap doc for the per-packet status.
 
 ## What state this is in
 
