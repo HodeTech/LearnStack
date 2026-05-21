@@ -1,7 +1,7 @@
 # 04 — API Design Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -11,49 +11,44 @@ REST conventions for LearnStack public and admin APIs.
 - Resources are plural nouns (`/courses`, `/users`).
 - HTTP verbs used idiomatically: `GET` read, `POST` create, `PUT` replace, `PATCH` modify, `DELETE` remove.
 - JSON, `application/json`, UTF-8.
-- URL versioned: `/v1/...`.
+- URL versioned: `/api/v1/...` (canonical prefix per [ADR-0024](../decisions/0024-api-versioning-policy.md)).
 - Bodies use `camelCase`.
 
 ## URL Structure
 
 ```
-/{version}/{resource}/{id?}/{sub-resource?}
+/api/{version}/{resource}/{id?}/{sub-resource?}
 ```
 
 Examples:
-- `GET  /v1/courses?cursor=...&limit=20`
-- `POST /v1/courses`
-- `GET  /v1/courses/{id}`
-- `PATCH /v1/courses/{id}`
-- `POST /v1/courses/{id}/versions`
+- `GET  /api/v1/courses?cursor=...&limit=20`
+- `POST /api/v1/courses`
+- `GET  /api/v1/courses/{id}`
+- `PATCH /api/v1/courses/{id}`
+- `POST /api/v1/courses/{id}/versions`
 
-Platform-admin endpoints live under `/v1/platform/...` and require platform-admin scope.
+Platform-admin endpoints live under `/api/v1/platform/...` and require platform-admin scope.
 
 ## Versioning
 
-Per [ADR-0024](../decisions/0024-api-versioning-policy.md):
+The full versioning policy lives in
+[ADR-0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md).
+Summary so reviewers don't have to chase a link to know the shape:
 
-- **URL-based:** `/v1`, `/v2`. Header-based versioning is not used.
-- **No minor versions in the URL.** Non-breaking changes (additive fields,
-  new optional query params, new endpoints under an existing resource,
-  looser validation) ship to the same major.
-- **Breaking changes require a new major.** The full breaking / non-breaking
-  matrix lives in
-  [ADR-0024 § What counts as a breaking change](../decisions/0024-api-versioning-policy.md).
-- **Deprecation window: 6 months.** Every deprecated endpoint carries
-  RFC 8594 `Sunset`, `Deprecation` (Unix-timestamp), and `Link:
-  rel="successor-version"` HTTP response headers, plus OpenAPI
-  `deprecated: true` + `x-sunset` / `x-successor` / `x-migration-guide`
-  extensions for SDK codegen.
-- **Two adjacent majors coexist.** Three concurrent majors is not supported.
-- **Sunset response:** `410 Gone` with RFC 7807 Problem Details pointing at
-  the successor endpoint and the migration-guide URL.
-- **`/healthz` and `/readyz` are unversioned** infrastructure endpoints; the
-  versioned API surface starts at `/api/v{N}/`.
+- **URL-based** under `/api/v{N}/` (the only canonical public route shape;
+  matches APISIX gateway routes per ADR-0015). Header-based versioning is
+  not used.
+- **Two adjacent majors coexist**; deprecation window is **6 months**.
+- **`/healthz` and `/readyz` are unversioned** infrastructure endpoints.
+- The internal `/api/internal/*` Hub contract has its own versioning per
+  [ADR-0019](../decisions/0019-learnstack-hub.md) and is not governed by
+  ADR-0024.
 
-The deprecation cadence applies to the *tenant-facing* `/api/v{N}/*` surface.
-The internal `/api/internal/*` Hub contract has its own versioning per
-[ADR-0019](../decisions/0019-learnstack-hub.md).
+For the breaking/non-breaking matrix, the exact header set
+(`Deprecation` per RFC 9745, `Sunset` per RFC 8594, `Link:
+rel="successor-version"`), OpenAPI extensions (`x-sunset` / `x-successor`
+/ `x-migration-guide` / `x-extensible-enum`), the 410 Gone Problem Details
+shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 
 ## Status Codes
 
@@ -86,7 +81,7 @@ All errors use **Problem Details (RFC 7807)**.
   "status": 400,
   "code": "validation_failed",
   "detail": "One or more fields are invalid.",
-  "instance": "/v1/courses",
+  "instance": "/api/v1/courses",
   "correlationId": "01H7F...",
   "errors": {
     "title": ["Title is required."],
@@ -115,7 +110,7 @@ The tenant is **never** read from a request body or query param at the API edge.
 
 1. Host header → registered domain → tenant id.
 2. `tenant_id` claim in the JWT (studio / platform-admin contexts).
-3. Explicit override in `/v1/platform/...` endpoints with proper scope.
+3. Explicit override in `/api/v1/platform/...` endpoints with proper scope.
 
 A request that cannot resolve a tenant returns **404** (not 403, to avoid disclosure).
 
@@ -124,7 +119,7 @@ A request that cannot resolve a tenant returns **404** (not 403, to avoid disclo
 Cursor pagination by default:
 
 ```
-GET /v1/courses?cursor=eyJpZCI6Li4ufQ&limit=20
+GET /api/v1/courses?cursor=eyJpZCI6Li4ufQ&limit=20
 ```
 
 Response:
@@ -159,7 +154,7 @@ Rules:
 `POST` operations with external side effects accept an `Idempotency-Key` header:
 
 ```
-POST /v1/orders
+POST /api/v1/orders
 Idempotency-Key: 01HX7F...
 ```
 
@@ -174,8 +169,8 @@ Rules:
 Mutable resources expose `ETag` (or `version` field).
 
 ```
-GET /v1/courses/{id}        → ETag: "7"
-PATCH /v1/courses/{id}
+GET /api/v1/courses/{id}        → ETag: "7"
+PATCH /api/v1/courses/{id}
   If-Match: "7"
 ```
 
@@ -205,7 +200,7 @@ Version mismatch returns **409** with `concurrency_conflict`.
 
 ## Webhooks (Inbound)
 
-- Endpoint: `/v1/webhooks/{provider}`.
+- Endpoint: `/api/v1/webhooks/{provider}`.
 - Verifies provider signature with a tenant-scoped or platform-scoped secret.
 - Idempotent: `(provider, event_id)` stored; duplicates ignored.
 - Returns **200** quickly; heavy work deferred to a job.

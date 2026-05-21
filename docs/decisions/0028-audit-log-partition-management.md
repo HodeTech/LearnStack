@@ -32,7 +32,7 @@ Accepted
 - **A Hangfire job runner already exists.** The audit retention purge is already
   committed to Hangfire ([Standards 18](../standards/18-audit-coverage.md)
   § Retention; [architecture/31-audit-subsystem.md
-  § Background Jobs](../architecture/31-audit-subsystem.md)). Partition
+  § 8 Retention](../architecture/31-audit-subsystem.md)). Partition
   management can ride the same `LearnStackJob`-shaped surface instead of
   introducing a second mechanism.
 - **PostgreSQL 18** ([ADR-0031](0031-postgresql-major-version.md)) ships with
@@ -84,10 +84,12 @@ named `learnstack:audit:partition-management`, living in
   it is done by row-level delete in the
   `learnstack:audit:retention-purge` job operating inside the still-attached
   partitions.
-- **Partition shape:** `LIST` partitioning on the truncated month of
-  `occurred_at` (range partition would also work; LIST is chosen because
-  individual months are immutable atomic units — there is no "split this
-  range" operation in normal lifecycle).
+- **Partition shape:** `PARTITION BY RANGE (timestamp)` with monthly
+  partitions `audit_log_YYYY_MM` covering `[YYYY-MM-01, (YYYY-MM+1)-01)`.
+  This matches the shape defined in
+  [ADR-0016 § audit_log table](0016-audit-log-subsystem.md) and
+  [architecture/31](../architecture/31-audit-subsystem.md); this ADR owns
+  *lifecycle*, not the table layout.
 - **Failure mode:** the job is idempotent — re-running creates no duplicate
   partitions and drops no live data. If a job run fails, Hangfire retries
   the next day; if four consecutive runs fail the job emits a
@@ -145,7 +147,7 @@ The architecture splits responsibilities:
   drops only on the platform-max horizon.
 - **Retention purge** issues per-tenant per-class deletes against still-attached
   partitions on its own schedule. Bulk deletes inside partitioned tables hit
-  only the partitions relevant to the `occurred_at` range, so the pruning
+  only the partitions relevant to the `timestamp` range, so the pruning
   remains cheap.
 
 ### What would change our minds
@@ -194,7 +196,7 @@ The architecture splits responsibilities:
 - A Hangfire job that fails silently is a worse failure mode than a `pg_partman`
   + pg_cron pair, where the database itself complains. Mitigation: the
   consecutive-failure event + the architecture test
-  `Partition_Manager_Job_Is_Registered_At_Startup` listed below.
+  `Partition_Manager_Job_Is_Registered_AtStartup` listed below.
 - Adding sub-monthly partitioning later means rewriting our own scheduler logic;
   with `pg_partman` it would have been a config change.
 
@@ -225,7 +227,7 @@ The architecture splits responsibilities:
   `learnstack.audit.partition.management.failed` integration event via the
   outbox; an operator dashboard subscribes.
 - **Architecture test (lands in Phase 02a Packet 9):**
-  `Partition_Manager_Job_Is_Registered_At_Startup` — asserts the host's
+  `Partition_Manager_Job_Is_Registered_AtStartup` — asserts the host's
   `IServiceCollection` registers `AuditPartitionManagementJob` and that
   Hangfire's recurring-job catalogue contains the canonical job id at startup.
   Catalogued under
@@ -256,7 +258,7 @@ _(none yet)_
 - [Standards 18 § Retention](../standards/18-audit-coverage.md) — the per-class
   retention table that scopes the row-level purge job; partition drops use the
   platform max only.
-- [architecture/31 § Background Jobs](../architecture/31-audit-subsystem.md) —
+- [architecture/31 § 8 Retention](../architecture/31-audit-subsystem.md) —
   the canonical job-name catalogue the recurring-job id slots into.
 - [pg_partman](https://github.com/pgpartman/pg_partman) — rejected alternative;
   link kept for future revisit.

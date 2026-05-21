@@ -63,21 +63,33 @@ value objects.
 
 - Every aggregate's ID type is declared as a partial `record struct`
   annotated with `[ValueObject<Guid>(conversions: Conversions.EfCoreValueConverter |
-  Conversions.SystemTextJson | Conversions.AspNetCoreRouteParameter |
-  Conversions.TypeConverter | Conversions.SwaggerSchemaFilter)]`.
-- Vogen lives in `LearnStack.SharedKernel` as a `PrivateAssets="all"` build-time
-  package reference — the generator emits compile-time code; no runtime dependency
-  on the Vogen assembly bleeds into module assemblies.
-- Value objects with invariants (`Email`, `Slug`, `LocaleCode`, `Money`, …) follow
-  the same annotation pattern, with a `Validate` static method enforcing the
-  invariant.
+  Conversions.SystemTextJson | Conversions.TypeConverter)]`. The
+  `TypeConverter` flag is what makes ASP.NET Core route-parameter binding
+  work — Vogen does not ship a separate `AspNetCoreRouteParameter` flag.
+  OpenAPI schema customisation is wired separately (see Implementation Notes
+  § OpenAPI).
+- The Vogen **build-time** generator (`Vogen` package) is referenced via
+  `PrivateAssets="all"` on **each project that hosts `[ValueObject<...>]`
+  declarations** — `LearnStack.SharedKernel` for cross-cutting value objects
+  (`Email`, `Slug`, `LocaleCode`, `Money`), and **each
+  `LearnStack.Modules.<X>.Domain`** for the module's aggregate-root IDs. The
+  reference is centralised via `Directory.Build.props` so adding a new module
+  picks the generator up automatically. The **runtime** assembly
+  `Vogen.SharedTypes` (which carries the `Conversions` enum and a handful of
+  helper types the generated code calls into) flows transitively to
+  consumers — this is a small (~10 KB) MIT dependency, not a heavyweight
+  runtime.
+- Value objects with invariants (`Email`, `Slug`, `LocaleCode`, `Money`, …)
+  follow the same annotation pattern, with a `Validate` static method
+  enforcing the invariant.
 - The `IStronglyTypedId<TKey>` marker interface ([Standards 02
-  § Strongly-Typed Identifiers](../standards/02-backend-coding.md)) is implemented
-  by every Vogen-emitted ID struct. The interface stays; Vogen is just the body.
+  § Strongly-Typed Identifiers](../standards/02-backend-coding.md)) is
+  implemented by every Vogen-emitted ID struct. The interface stays; Vogen
+  is just the body.
 
 The choice covers the four-artefact emission requirement, the value-object case, the
 PostgreSQL 18 DB-side UUIDv7 path (Vogen can wrap any `Guid`, including those minted
-by `gen_uuid_v7()`), and the `[Description]`/`[ReadOnly]` annotation surface Roslyn
+by `gen_uuid_v7()`), and a `[Description]`/`[ReadOnly]` annotation surface Roslyn
 analyzers can read for additional compile-time rules.
 
 ## Context
@@ -181,27 +193,39 @@ Three things outweighed the appeal:
 
 - The `IStronglyTypedId<TKey>` interface in `LearnStack.SharedKernel` stays as a
   type-system contract; Vogen-generated structs implement it.
-- The `LearnStack.SharedKernel` project's `PrivateAssets="all"` Vogen reference
-  means consumer modules don't transitively reference the Vogen assembly — they only
-  consume the emitted code.
+- Consumer projects gain a small (~10 KB) **runtime** dependency on
+  `Vogen.SharedTypes` (which carries the `Conversions` enum and a handful of
+  helper types referenced by generated code). The Vogen generator package
+  itself (`Vogen`) stays build-time-only via `PrivateAssets="all"`.
 
 ## Implementation Notes
 
-- **Package reference (single place):** `Directory.Packages.props` adds
-  `<PackageVersion Include="Vogen" Version="..."` />`. `LearnStack.SharedKernel.csproj`
-  consumes it with `<PackageReference Include="Vogen" PrivateAssets="all" />`. No
-  other project references Vogen directly.
+- **Package references:** `Directory.Packages.props` pins `<PackageVersion Include="Vogen" Version="..." />`. **Every project that hosts `[ValueObject<>]` declarations** — `LearnStack.SharedKernel` (for cross-cutting value objects: `Email`, `Slug`, `LocaleCode`, `Money`) and **each `LearnStack.Modules.<X>.Domain`** (for its aggregate-root IDs) — adds `<PackageReference Include="Vogen" PrivateAssets="all" />`. A `Directory.Build.props` rule under `backend/src/Modules/` keeps the per-module addition automatic when a new module is scaffolded. Source generators only run on projects that reference the generator package; transitive references do **not** carry the generator (this is a `PrivateAssets="all"` semantics constraint, not a Vogen quirk).
 - **Naming convention (per Standards 02):** ID type names end in `Id`
   (`TenantId`, `OrganizationId`, `CourseId`, …); value object types are named
   for the concept (`Email`, not `EmailValueObject`).
 - **Default conversions enum:** every ID + value object opts into the same
-  `Conversions` mask (`EfCoreValueConverter | SystemTextJson |
-  AspNetCoreRouteParameter | TypeConverter | SwaggerSchemaFilter`). A
-  `LearnStack.SharedKernel.VogenDefaults` const captures the mask so the
+  `Conversions` mask: `EfCoreValueConverter | SystemTextJson | TypeConverter`. The
+  `TypeConverter` member carries ASP.NET Core minimal-API + MVC route-parameter
+  binding (Vogen does not expose a separate `AspNetCoreRouteParameter` flag).
+  A `LearnStack.SharedKernel.VogenDefaults` const captures the mask so the
   annotation reads `[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]`.
-- **EF Core registration:** `ModelBuilder.UseValueConverterForType<TId>()` is not
-  needed — Vogen's `EfCoreValueConverter` conversion is picked up by the EF Core
-  convention scanner when the entity property type is a Vogen-emitted struct.
+- **OpenAPI schema mapping:** Vogen does **not** ship a `Conversions.SwaggerSchemaFilter`-style
+  flag. Schema customisation is wired one of two ways: (a) an assembly-level
+  `[VogenDefaults(openApiSchemaCustomizations: ...)]` attribute in
+  `LearnStack.SharedKernel` so every emitted type advertises its primitive
+  shape, or (b) a custom `IOpenApiSchemaTransformer` in `LearnStack.Api`
+  (Microsoft.AspNetCore.OpenApi) that detects Vogen-generated wrappers via the
+  generated `IVogenValueObject<T>`-marker interface and emits the underlying
+  primitive (`format: uuid`, `format: int64`, …). Packet 4 picks one when API
+  conventions wiring lands; both paths are documented in Vogen's upstream docs.
+- **EF Core registration:** the `EfCoreValueConverter` Vogen flag **generates**
+  the converter type per ID; it does not auto-register it. Each module's
+  `DbContext.OnConfiguring` (or a shared `IModelCustomizer`) calls
+  `configurationBuilder.Properties<TId>().HaveConversion<TId.EfCoreValueConverter>()`
+  for each Vogen-emitted ID. A `LearnStack.SharedKernel.Infrastructure`
+  helper `ModelConfigurationBuilder.RegisterVogenIds(Assembly[])` reflects
+  over the Domain assemblies and applies the registration in one call.
 - **Architecture test (lands in Phase 02a Packet 2):**
   `Aggregate_Roots_Use_StronglyTypedId` — every type implementing
   `IAggregateRoot<TId>` has `TId : IStronglyTypedId<Guid>`, and every such
