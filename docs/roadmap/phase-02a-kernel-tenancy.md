@@ -228,6 +228,37 @@
 >   up — catalogue entry existed since ADR-0020 but had no implementation
 >   until now.
 >
+> Review-2 fixes:
+>
+> - **N4** — `CrossCuttingFoundationExtensions.SelectSecretProvider`
+>   becomes the single composition-root site that picks the
+>   `ISecretProvider` implementation per `DeploymentMode`. Both the DI
+>   registration and the local `AddLearnStackErrorTracking` argument
+>   read the same instance. Packet 5's `DaprSecretProvider` swap now
+>   touches one line, not two.
+> - **SU5** — `SensitiveTokenCatalog` in
+>   `LearnStack.SharedKernel/Secrets/` is the single source of truth for
+>   the sensitive-property-name token list. Both
+>   `RedactSensitiveFieldsEnricher` and
+>   `LocalFileErrorTracker.RedactSensitiveTags` consume
+>   `SensitiveTokenCatalog.IsSensitive(...)` so the two redaction
+>   surfaces cannot drift. The catalogue now includes `vkn` (Vergi
+>   Kimlik Numarası — Turkish corporate tax number, common for
+>   instructor-owned sole proprietorships) alongside `tckn`.
+> - **SU6** — `RedactSensitiveFieldsEnricher` remarks carry a dated
+>   TODO naming the Packet 7+ Roslyn analyzer that should extend
+>   `LearnStack.Analyzers` to flag string-interpolated
+>   `throw new ...Exception($"...{token}...")` patterns in `Domain` +
+>   `Application` projects. Runtime redaction covers logs / OTLP / Sentry
+>   tags; the analyzer closes the last gap (secrets in exception
+>   messages) at compile time.
+> - **SU7** — `HttpStatusMap.For(Exception)` carries a rationale comment
+>   for the non-IETF `499` "client closed request" status: matches
+>   Nginx / IIS / Envoy / APISIX behaviour, keeps client disconnects
+>   off the error-budget axis, and points at the L1 handler's skip-body
+>   contract. If a future ADR pins a different code, the one comment
+>   block is the seam to change.
+>
 > **Packet 4 — API conventions ⏳**
 > REST + URL versioning (`/v1/...` per ADR-0024), Problem Details (RFC 7807)
 > shape on every error, cursor pagination, idempotency keys for write

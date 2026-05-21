@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LearnStack.SharedKernel.Observability;
+using LearnStack.SharedKernel.Secrets;
 using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Infrastructure.ErrorTracking;
@@ -25,20 +26,11 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
     /// </summary>
     private const int MaxFileNameSegmentLength = 128;
 
-    /// <summary>
-    /// Property-name tokens that mark a tag as sensitive. AdditionalTags
-    /// whose key contains one of these (case-insensitive) are redacted
-    /// before write — air-gapped operators inherit the same Standards 11
-    /// protections as the Serilog path.
-    /// </summary>
-    private static readonly string[] SensitiveTagTokens =
-    [
-        "password", "passwd", "secret", "token", "apikey", "api_key",
-        "authorization", "auth_header", "dsn", "jwt", "credential",
-        "ssn", "tckn", "iban", "cardnumber", "card_number", "cvv", "cvc",
-    ];
-
-    private const string RedactedValue = "***REDACTED***";
+    // AdditionalTags redaction reads from the SharedKernel-side
+    // SensitiveTokenCatalog so the Serilog enricher and this air-gapped
+    // capture path stay in sync. Adding a token there lights up both
+    // surfaces together.
+    private const string RedactedValue = SensitiveTokenCatalog.RedactedValue;
 
     private readonly string _directory;
     private readonly ILogger<LocalFileErrorTracker> _logger;
@@ -119,23 +111,10 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
         var sanitised = new Dictionary<string, string>(tags.Count, StringComparer.Ordinal);
         foreach (var (key, value) in tags)
         {
-            sanitised[key] = IsSensitive(key) ? RedactedValue : value;
+            sanitised[key] = SensitiveTokenCatalog.IsSensitive(key) ? RedactedValue : value;
         }
 
         return sanitised;
-    }
-
-    private static bool IsSensitive(string key)
-    {
-        foreach (var token in SensitiveTagTokens)
-        {
-            if (key.Contains(token, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string SanitiseForFileName(string? correlationId)

@@ -43,7 +43,23 @@ public static class HttpStatusMap
 
         return exception switch
         {
-            OperationCanceledException => 499, // client closed request
+            // 499 "client closed request" is an Nginx convention, not an
+            // IETF code — Standards 09 § Result Type does not pin a status
+            // for client disconnects. We pick 499 (rather than 408 / 503 /
+            // 500) because:
+            //   * IIS, Nginx, Envoy, and APISIX all emit 499 for pre-
+            //     response client aborts; log dashboards and SLO calculators
+            //     already treat it as "not our fault".
+            //   * 408 implies a server-side timeout (we did not time out —
+            //     the client left).
+            //   * 5xx codes would inflate error-budget metrics and trip
+            //     PagerDuty rotations for nothing.
+            // L1 handler skips both Sentry capture and the response body
+            // write for OperationCanceled per ADR-0032 § Sub-decision 7;
+            // the status is set here for parity with the upstream proxy's
+            // behaviour. If a future ADR pins a different code, change
+            // this line.
+            OperationCanceledException => 499,
             ProviderException pex when pex.IsClientError => (int)HttpStatusCode.BadRequest,
             ProviderException => (int)HttpStatusCode.ServiceUnavailable,
             InfrastructureException => (int)HttpStatusCode.ServiceUnavailable,

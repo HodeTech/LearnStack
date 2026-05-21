@@ -52,11 +52,14 @@ public static class CrossCuttingFoundationExtensions
         builder.Services.AddLearnStackObservabilityServices();
 
         // ISecretProvider socket lands now so non-Dev DSN / license-key reads
-        // route through one seam. ConfigurationSecretProvider is the default
-        // — Packet 5 swaps in DaprSecretProvider once Vault is wired.
-        builder.Services.TryAddSingleton<ISecretProvider>(
-            _ => new ConfigurationSecretProvider(builder.Configuration));
-        var secretProvider = new ConfigurationSecretProvider(builder.Configuration);
+        // route through one seam. SelectSecretProvider is the SINGLE site
+        // that picks the implementation per DeploymentMode — both the DI
+        // registration and the local AddLearnStackErrorTracking call read
+        // the same instance. Packet 5 extends SelectSecretProvider with the
+        // Dapr branch so adding DaprSecretProvider touches one line, not
+        // two.
+        var secretProvider = SelectSecretProvider(deploymentMode, builder.Configuration);
+        builder.Services.TryAddSingleton<ISecretProvider>(secretProvider);
 
         WireSerilog(builder);
         WireOpenTelemetry(builder);
@@ -151,5 +154,41 @@ public static class CrossCuttingFoundationExtensions
             });
 
         _ = otel;
+    }
+
+    /// <summary>
+    /// Single composition-root site that picks the
+    /// <see cref="ISecretProvider"/> implementation per
+    /// <see cref="DeploymentMode"/>. Packet 5 extends this method with the
+    /// Dapr branch so the swap touches one line, not two. Both the DI
+    /// registration and the local <c>AddLearnStackErrorTracking</c> call
+    /// read the same instance returned here.
+    /// </summary>
+    /// <remarks>
+    /// CA1859 (prefer concrete return type for perf) is suppressed
+    /// deliberately: the interface return is the entire point of the
+    /// helper — Packet 5 returns <c>DaprSecretProvider</c> for some
+    /// modes, and the call site must not bind to a concrete type.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible for improved performance",
+        Justification = "Return type is intentionally ISecretProvider so Packet 5 can swap implementations per DeploymentMode.")]
+    private static ISecretProvider SelectSecretProvider(
+        DeploymentMode deploymentMode,
+        IConfiguration configuration)
+    {
+        // TODO(2026-05-21, @platform, phase-02a-packet-5): light up the
+        // Dapr-backed branch.
+        //   DeploymentMode.SaaS / Dedicated / SelfHostedOnline →
+        //     new DaprSecretProvider(...)  // Vault-backed
+        //   DeploymentMode.SelfHostedAirGapped →
+        //     new FileSecretProvider(...)  // disk-backed
+        //   DeploymentMode.Development →
+        //     keep ConfigurationSecretProvider (delegates to IConfiguration).
+        // The signature stays the same so AddLearnStackErrorTracking's
+        // ISecretProvider argument resolves correctly across modes.
+        _ = deploymentMode;
+        return new ConfigurationSecretProvider(configuration);
     }
 }
