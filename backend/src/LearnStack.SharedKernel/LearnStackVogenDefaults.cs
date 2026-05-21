@@ -1,13 +1,14 @@
 using Vogen;
 
-namespace LearnStack.SharedKernel.Identifiers;
+namespace LearnStack.SharedKernel;
 
 /// <summary>
 /// Canonical <c>Conversions</c> mask for every LearnStack-declared
-/// <c>[ValueObject&lt;T&gt;]</c> per ADR-0023. Using the constant keeps the
-/// annotation uniform across modules: callers write
-/// <c>[ValueObject&lt;Guid&gt;(LearnStackVogenDefaults.IdMask)]</c> rather
-/// than hand-picking the flag set.
+/// <c>[ValueObject&lt;T&gt;]</c> per ADR-0023. Lives at the SharedKernel
+/// root namespace because the mask covers both aggregate-root IDs
+/// (e.g. <c>TenantId</c>, <c>UserId</c>) and richer value objects
+/// (<c>Email</c>, <c>Slug</c>, <c>LocaleCode</c>, <c>Money</c>) — neither
+/// surface owns the constant exclusively.
 /// </summary>
 public static class LearnStackVogenDefaults
 {

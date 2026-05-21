@@ -10,8 +10,13 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// module that lands in Phase 02b. The Identity module consumes the same
 /// type once it ships; there is exactly one <c>UserId</c> shape.
 /// </summary>
+/// <remarks>
+/// There is no <c>UserId.New()</c> convenience: new <see cref="UserId"/>
+/// values are minted by aggregate methods through the injected
+/// <c>IGuidFactory</c> (<c>UserId.From(guidFactory.NewUuidV7())</c>) so
+/// tests can pin the value deterministically — see Standards 02 § Time.
+/// </remarks>
 [ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
 public readonly partial record struct UserId : IStronglyTypedId<Guid>
 {
-    public static UserId New() => From(Guid.CreateVersion7());
 }

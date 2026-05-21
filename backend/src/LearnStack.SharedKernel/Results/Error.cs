@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using LearnStack.SharedKernel.Localization;
 
@@ -20,6 +21,21 @@ namespace LearnStack.SharedKernel.Results;
 /// localization key the frontend resolves.
 /// </para>
 /// <para>
+/// The constructor takes a defensive snapshot of <see cref="Details"/>
+/// (dictionary copy + per-key <see cref="ReadOnlyCollection{T}"/> wrap) so
+/// callers cannot mutate the validation map after the Result is in flight
+/// — Problem Details bodies, audit rows, and structured logs all read
+/// <see cref="Details"/> after the handler returns, and a mutation
+/// between handler-return and serialisation would produce inconsistent
+/// output across the three sinks.
+/// </para>
+/// <para>
+/// Structural equality is overridden because <see cref="IReadOnlyDictionary{TKey,TValue}"/>
+/// uses reference equality by default — two Errors with the same Message
+/// and equivalent Details (built from different dictionary instances)
+/// would otherwise compare unequal.
+/// </para>
+/// <para>
 /// CA1716 (avoid reserved language keywords as type names) is intentionally
 /// suppressed: the project's Result+Error pattern follows the FluentResults /
 /// Ardalis.Result lineage where the type is canonically named <c>Error</c>.
@@ -31,10 +47,21 @@ namespace LearnStack.SharedKernel.Results;
     "Naming",
     "CA1716:Identifiers should not match keywords",
     Justification = "Result+Error pattern — C#-only codebase per ADR-0032; no VB consumer affected.")]
-public sealed record Error(
-    LocalizedMessage Message,
-    IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? Details = null)
+public sealed record Error
 {
+    public Error(
+        LocalizedMessage message,
+        IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? details = null)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        Message = message;
+        Details = SnapshotDetails(details);
+    }
+
+    public LocalizedMessage Message { get; }
+
+    public IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? Details { get; }
+
     /// <summary>
     /// Stable machine-readable code derived from <see cref="Message"/>'s
     /// <c>Key</c> with the <see cref="LocalizedMessage.RequiredPrefix"/>
@@ -43,4 +70,95 @@ public sealed record Error(
     /// changes per locale (Standards 09 § Forbidden).
     /// </summary>
     public string Code => Message.Key[LocalizedMessage.RequiredPrefix.Length..];
+
+    public bool Equals(Error? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        return Message.Equals(other.Message) && DetailsEqual(Details, other.Details);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Message);
+
+        if (Details is not null)
+        {
+            var detailsHash = 0;
+            foreach (var (key, list) in Details)
+            {
+                var listHash = 0;
+                foreach (var msg in list)
+                {
+                    listHash ^= msg.GetHashCode();
+                }
+
+                detailsHash ^= HashCode.Combine(key, listHash);
+            }
+
+            hash.Add(detailsHash);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private static ReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? SnapshotDetails(
+        IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? source)
+    {
+        if (source is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var snapshot = new Dictionary<string, IReadOnlyList<LocalizedMessage>>(source.Count);
+        foreach (var (key, list) in source)
+        {
+            ArgumentNullException.ThrowIfNull(list);
+            snapshot[key] = new ReadOnlyCollection<LocalizedMessage>([.. list]);
+        }
+
+        return new ReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>(snapshot);
+    }
+
+    private static bool DetailsEqual(
+        IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? a,
+        IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? b)
+    {
+        if (a is null && b is null)
+        {
+            return true;
+        }
+
+        if (a is null || b is null || a.Count != b.Count)
+        {
+            return false;
+        }
+
+        foreach (var (key, listA) in a)
+        {
+            if (!b.TryGetValue(key, out var listB) || listA.Count != listB.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < listA.Count; i++)
+            {
+                if (!listA[i].Equals(listB[i]))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
 }

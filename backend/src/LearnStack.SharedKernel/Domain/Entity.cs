@@ -25,23 +25,30 @@ namespace LearnStack.SharedKernel.Domain;
 /// instances apart so EF Core's change-tracker identity map and any
 /// <c>HashSet</c> in a collection navigation behave correctly.
 /// </para>
+/// <para>
+/// Domain-event collection state is lazily allocated: the backing
+/// <c>List</c> and its <see cref="ReadOnlyCollection{T}"/> view are only
+/// created on first raise or first read. EF Core materialises every loaded
+/// aggregate through the parameterless ctor on read paths; the lazy
+/// approach keeps materialisation allocation-free for the common
+/// query case (paginated reads, projections), and pays the allocation only
+/// when an aggregate actually raises events (command paths).
+/// </para>
 /// </remarks>
 public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
     where TId : struct, IStronglyTypedId<Guid>
 {
-    private readonly List<IDomainEvent> _domainEvents = [];
-    private readonly ReadOnlyCollection<IDomainEvent> _domainEventsView;
+    private List<IDomainEvent>? _domainEvents;
+    private ReadOnlyCollection<IDomainEvent>? _domainEventsView;
 
     protected Entity(TId id)
     {
         Id = id;
-        _domainEventsView = _domainEvents.AsReadOnly();
     }
 
     // EF Core / ORM materialization ctor.
     protected Entity()
     {
-        _domainEventsView = _domainEvents.AsReadOnly();
     }
 
     public TId Id { get; protected init; }
@@ -49,21 +56,21 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
     /// <summary>
     /// In-process domain events raised since the last <see cref="ClearDomainEvents"/>.
     /// Returns a cached <see cref="ReadOnlyCollection{T}"/> wrapper rather
-    /// than the backing list so callers cannot cast back to <c>List&lt;T&gt;</c>
-    /// and mutate the collection out from under the aggregate. The view is
-    /// initialised once per entity (cheap reference allocation) and lives
-    /// for the entity's lifetime, so the unit-of-work's hot-path access
-    /// stays allocation-free.
+    /// than the backing <c>List</c> directly so callers cannot downcast
+    /// and mutate the collection out from under the aggregate. Both the
+    /// backing list and the wrapper are lazily allocated on first
+    /// access / first raise.
     /// </summary>
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEventsView;
+    public IReadOnlyCollection<IDomainEvent> DomainEvents =>
+        _domainEventsView ??= (_domainEvents ??= []).AsReadOnly();
 
     protected void RaiseDomainEvent(IDomainEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
-        _domainEvents.Add(domainEvent);
+        (_domainEvents ??= []).Add(domainEvent);
     }
 
-    public void ClearDomainEvents() => _domainEvents.Clear();
+    public void ClearDomainEvents() => _domainEvents?.Clear();
 
     public override bool Equals(object? obj)
     {

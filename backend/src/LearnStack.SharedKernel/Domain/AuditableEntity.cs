@@ -43,8 +43,13 @@ public abstract class AuditableEntity<TId>
     public uint Version { get; protected set; }
 
     /// <summary>
-    /// Convenience projection of <see cref="DeletedAt"/>. EF global query
-    /// filters typically gate on this property.
+    /// Convenience projection of <see cref="DeletedAt"/> for in-process
+    /// callers (aggregate methods, application services, mappers). EF
+    /// global query filters should gate on <see cref="DeletedAt"/> directly
+    /// (<c>e =&gt; e.DeletedAt == null</c>) — <see cref="IsDeleted"/> is a
+    /// computed CLR property and is NOT guaranteed to translate to SQL by
+    /// EF Core's expression translator. Packet 7 wires the filters
+    /// accordingly.
     /// </summary>
     public bool IsDeleted => DeletedAt.HasValue;
 

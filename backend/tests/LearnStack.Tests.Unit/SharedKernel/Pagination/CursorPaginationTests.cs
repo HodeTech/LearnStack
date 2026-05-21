@@ -19,42 +19,49 @@ public sealed class CursorPaginationTests
     [InlineData(-1)]
     public void Ctor_LimitNonPositive_Throws(int limit)
     {
-        // The kernel-level guard belongs at construction so the invariant
-        // cannot be skipped by callers that forget to call Normalised().
+        // Kernel-level programmer-error guard. The API-layer validation
+        // turns malformed user input into validation_failed BEFORE the
+        // kernel sees the request.
         var act = () => new CursorPagination(Limit: limit);
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Fact]
-    public void Normalised_LimitAboveMax_ClampsToMaxLimit()
+    public void Ctor_LimitAboveMax_ClampsToMaxLimit()
     {
+        // Construction is the single chokepoint for the invariant - any
+        // CursorPagination instance is guaranteed to have Limit in
+        // [1, MaxLimit] without callers having to remember a separate
+        // normalisation step (the previous Normalised() method).
         var request = new CursorPagination(Limit: 500);
 
-        request.Normalised().Limit.Should().Be(CursorPagination.MaxLimit);
+        request.Limit.Should().Be(CursorPagination.MaxLimit);
     }
 
     [Fact]
-    public void Normalised_LimitWithinBounds_ReturnsEquivalentInstance()
+    public void Ctor_LimitEqualMax_IsAccepted()
+    {
+        // Off-by-one boundary: MaxLimit itself is legal, not above.
+        var request = new CursorPagination(Limit: CursorPagination.MaxLimit);
+
+        request.Limit.Should().Be(CursorPagination.MaxLimit);
+    }
+
+    [Fact]
+    public void Ctor_LimitOne_IsAccepted()
+    {
+        var request = new CursorPagination(Limit: 1);
+
+        request.Limit.Should().Be(1);
+    }
+
+    [Fact]
+    public void Ctor_CarriesCursor()
     {
         var request = new CursorPagination(Cursor: "abc", Limit: 50);
 
-        var normalised = request.Normalised();
-
-        normalised.Cursor.Should().Be(request.Cursor);
-        normalised.Limit.Should().Be(request.Limit);
-    }
-
-    [Fact]
-    public void Normalised_NeverThrows_BecauseCtorValidatesInput()
-    {
-        // After ctor validation, the only thing left to normalise is the
-        // upper-bound clamp. Calling Normalised() on any constructed
-        // instance is safe.
-        var request = new CursorPagination(Limit: CursorPagination.MaxLimit + 1);
-
-        var act = () => request.Normalised();
-
-        act.Should().NotThrow();
+        request.Cursor.Should().Be("abc");
+        request.Limit.Should().Be(50);
     }
 }

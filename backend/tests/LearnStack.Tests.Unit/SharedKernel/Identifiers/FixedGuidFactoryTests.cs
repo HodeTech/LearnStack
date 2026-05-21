@@ -38,4 +38,18 @@ public sealed class FixedGuidFactoryTests
         factory.NewUuidV4().Should().Be(G1);
         factory.NewUuidV4().Should().Be(G2);
     }
+
+    [Fact]
+    public void MixedV7AndV4_PreservesVersionPerSeed()
+    {
+        // The fixture does not synthesise version-7/-4 shapes — callers
+        // seed version-appropriate Guids and the fixture returns them
+        // verbatim. Locks the documented shared-queue contract.
+        var v7 = Guid.CreateVersion7();
+        var v4 = Guid.NewGuid();
+        var factory = new FixedGuidFactory(v7, v4);
+
+        factory.NewUuidV7().Version.Should().Be(7);
+        factory.NewUuidV4().Version.Should().Be(4);
+    }
 }

@@ -196,26 +196,35 @@ All API errors are **RFC 7807 Problem Details**:
 ```json
 {
   "type": "https://errors.learnstack.dev/validation",
-  "title": "Validation failed",
+  "title": "lockey_validation_failed",
   "status": 400,
   "code": "validation_failed",
-  "detail": "One or more fields are invalid.",
+  "messageKey": "lockey_validation_failed",
   "instance": "/v1/courses",
   "correlationId": "01H...",
   "errors": {
-    "title": ["Title is required."],
-    "slug": ["Slug already exists in this tenant."]
+    "title": [
+      { "key": "lockey_title_required" }
+    ],
+    "slug": [
+      { "key": "lockey_slug_already_exists_in_tenant", "params": { "slug": "intro" } }
+    ]
   }
 }
 ```
 
 Rules:
 - `type` is a stable URL.
-- `code` is the machine-readable identifier.
-- `detail` is human-readable but **safe to display** (no internal info).
+- `code` is the machine-readable identifier — the unprefixed `Error.Code`
+  (Standards 04 § Problem Details).
+- `messageKey` is the `LocalizedMessage.Key` (always begins with `lockey_`)
+  the frontend resolves against its i18n catalogue. The legacy
+  `detail` field is omitted — backend never returns raw English.
 - `instance` is the request path.
 - `correlationId` matches the trace id.
-- `errors` is field-level detail (validation only).
+- `errors` is field-level detail, each entry a `LocalizedMessage` payload
+  (`key` + optional `params`) so the frontend resolves field-level messages
+  through the same path as the top-level one.
 
 ## Validation Errors
 

@@ -41,22 +41,32 @@ C# / .NET conventions for LearnStack backend code.
 
 ## Strongly-Typed Identifiers
 
-```csharp
-public readonly record struct CourseId(Guid Value) : IStronglyTypedId<Guid>
-{
-    public static CourseId New() => new(Guid.NewGuid());
-    public override string ToString() => Value.ToString();
-}
-```
-
 Per [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md), the
 shared source generator is **[Vogen](https://github.com/SteveDunn/Vogen)**. The
 canonical declaration uses Vogen's `[ValueObject<Guid>(...)]` annotation on a
-partial `record struct`; Vogen emits:
+partial `record struct`:
+
+```csharp
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct CourseId : IStronglyTypedId<Guid>;
+```
+
+Vogen emits per ID:
 - EF Core value converter.
-- `JsonConverter`.
-- Minimal API model binder.
-- OpenAPI schema mapping (Swashbuckle / Microsoft.OpenApi schema filter).
+- `JsonConverter` (System.Text.Json).
+- TypeConverter (carries ASP.NET Core minimal-API + MVC route-parameter binding).
+- OpenAPI schema mapping (wired centrally in Packet 4 per ADR-0023 § Implementation
+  Notes).
+
+Construction:
+- New IDs in aggregate methods mint via the injected `IGuidFactory`:
+  `CourseId.From(guidFactory.NewUuidV7())`. **Never call `Guid.CreateVersion7()` /
+  `Guid.NewGuid()` directly in `Domain` / `Application` code** — Standards 02
+  § Time bans the symmetric `DateTime.UtcNow` for the same reason (deterministic
+  tests). High-volume append-only tables (`audit_log`, `outbox_messages`) prefer
+  DB-side `gen_uuid_v7()` (per ADR-0031).
+- ID types do **not** expose a `New()` static — explicit `From(guidFactory.NewUuidV7())`
+  at the call site keeps the dependency surface honest.
 
 The same annotation covers richer value objects (`Email`, `Slug`, `LocaleCode`,
 `Money`) — the emitter shape is identical for IDs and value objects, with the
