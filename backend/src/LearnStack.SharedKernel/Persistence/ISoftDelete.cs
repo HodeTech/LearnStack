@@ -12,9 +12,4 @@ public interface ISoftDelete
     DateTimeOffset? DeletedAt { get; }
 
     Guid? DeletedBy { get; }
-
-    /// <summary>
-    /// Convenience projection of <see cref="DeletedAt"/>.
-    /// </summary>
-    bool IsDeleted => DeletedAt.HasValue;
 }

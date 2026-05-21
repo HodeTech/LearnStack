@@ -17,6 +17,15 @@ internal sealed class TestAggregate : Entity<TestId>
 }
 
 /// <summary>
+/// Second test entity type — same TId, different runtime type. Used to
+/// verify Entity&lt;TId&gt;'s cross-runtime-type equality guard.
+/// </summary>
+internal sealed class TestAggregateSibling : Entity<TestId>
+{
+    public TestAggregateSibling(TestId id) : base(id) { }
+}
+
+/// <summary>
 /// Test double for <see cref="AuditableEntity{TId}"/>.
 /// </summary>
 internal sealed class TestAuditableAggregate : AuditableEntity<TestId>

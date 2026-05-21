@@ -4,55 +4,11 @@ using LearnStack.SharedKernel.Localization;
 namespace LearnStack.SharedKernel.Results;
 
 /// <summary>
-/// Non-generic surface every <see cref="Result{T}"/> exposes. Pipeline
-/// behaviors operate on this contract so they can construct the correct
-/// concrete <c>Result&lt;TResponse&gt;</c> shape via the
-/// <see cref="Result.FailFor{T}(Error)"/> factory (ADR-0032 § Sub-decision 3).
-/// </summary>
-/// <remarks>
-/// CA1716 (<c>Error</c> collides with VB's reserved keyword) is suppressed
-/// for the same reason it is suppressed on the <see cref="Error"/> record
-/// itself — LearnStack is C#-only per ADR-0032.
-/// </remarks>
-[SuppressMessage(
-    "Naming",
-    "CA1716:Identifiers should not match keywords",
-    Justification = "Result+Error pattern — C#-only codebase per ADR-0032; no VB consumer affected.")]
-public interface IResultBase
-{
-    bool IsSuccess { get; }
-
-    bool IsFailure { get; }
-
-    LocalizedMessage? SuccessMessage { get; }
-
-    Error? Error { get; }
-}
-
-/// <summary>
-/// Static helpers for constructing <see cref="Result{T}"/> generically
-/// when the type parameter is known only at runtime (e.g. inside
-/// <c>ValidationBehavior</c>). Per ADR-0032 § Sub-decision 3.
-/// </summary>
-public static class Result
-{
-    public static Result<T> Ok<T>(T value, LocalizedMessage? message = null) =>
-        Result<T>.Ok(value, message);
-
-    public static Result<T> Fail<T>(Error error) => Result<T>.Fail(error);
-
-    /// <summary>
-    /// Reflection-friendly failure factory used by MediatR pipeline behaviors
-    /// (<c>ValidationBehavior</c>, <c>AuthorizationBehavior</c>) that
-    /// short-circuit a generic handler without knowing <c>T</c> at compile
-    /// time. Per ADR-0032 § Sub-decision 3.
-    /// </summary>
-    public static Result<T> FailFor<T>(Error error) => Result<T>.Fail(error);
-}
-
-/// <summary>
 /// Result-pattern wrapper. Returned by every MediatR command/query handler
-/// per ADR-0032 § Error Model.
+/// per ADR-0032 § Error Model. Construction is funnelled through the
+/// <see cref="Ok"/> / <see cref="Fail"/> factories; the primary
+/// constructor is <c>internal</c> so callers cannot bypass the success-
+/// must-carry-value rule via positional record syntax.
 /// </summary>
 /// <remarks>
 /// CA1000 (do not declare static members on generic types) is intentionally
@@ -68,16 +24,47 @@ public static class Result
     "Design",
     "CA1000:Do not declare static members on generic types",
     Justification = "Result+Error factory pattern per ADR-0032 — canonical shape across FluentResults / Ardalis.Result lineage.")]
-public sealed record Result<T>(
-    bool IsSuccess,
-    T? Value,
-    Error? Error,
-    LocalizedMessage? SuccessMessage = null) : IResultBase
+public sealed record Result<T> : IResultBase
 {
+    internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null)
+    {
+        IsSuccess = isSuccess;
+        Value = value;
+        Error = error;
+        SuccessMessage = successMessage;
+    }
+
+    public bool IsSuccess { get; }
+
     public bool IsFailure => !IsSuccess;
 
-    public static Result<T> Ok(T value, LocalizedMessage? message = null) =>
-        new(true, value, null, message);
+    public T? Value { get; }
 
-    public static Result<T> Fail(Error error) => new(false, default, error);
+    public Error? Error { get; }
+
+    public LocalizedMessage? SuccessMessage { get; }
+
+    /// <summary>
+    /// Constructs a success result. Throws when <paramref name="value"/> is
+    /// <c>null</c>: Standards 09 § Forbidden bans <c>IsSuccess = true</c>
+    /// with <c>Value = null</c> — if a payload-less success shape is needed,
+    /// model it as <c>Result&lt;Unit&gt;</c>.
+    /// </summary>
+    public static Result<T> Ok(T value, LocalizedMessage? message = null)
+    {
+        if (value is null)
+        {
+            throw new ArgumentNullException(
+                nameof(value),
+                "Result<T>.Ok cannot wrap a null value. Use Result<Unit> for payload-less success per Standards 09 § Forbidden.");
+        }
+
+        return new Result<T>(isSuccess: true, value: value, error: null, successMessage: message);
+    }
+
+    public static Result<T> Fail(Error error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        return new Result<T>(isSuccess: false, value: default, error: error);
+    }
 }

@@ -7,6 +7,9 @@ namespace LearnStack.Tests.Unit.SharedKernel.Domain;
 
 public sealed class DomainEventTests
 {
+    private static readonly DateTimeOffset T0 =
+        new(2026, 01, 01, 0, 0, 0, TimeSpan.Zero);
+
     [Fact]
     public void IDomainEvent_IsAMediatRNotification()
     {
@@ -15,30 +18,17 @@ public sealed class DomainEventTests
     }
 
     [Fact]
-    public void DefaultEventId_IsUuidV7()
+    public void Stamped_Event_CarriesTheSuppliedEventIdAndOccurredAt()
     {
-        var @event = new TestDomainEvent("x");
+        var eventId = Guid.CreateVersion7();
 
-        @event.EventId.Version.Should().Be(7);
-    }
+        var @event = new TestDomainEvent("payload")
+        {
+            EventId = eventId,
+            OccurredAt = T0,
+        };
 
-    [Fact]
-    public void DefaultOccurredAt_IsRecent()
-    {
-        var before = DateTimeOffset.UtcNow;
-
-        var @event = new TestDomainEvent("x");
-
-        @event.OccurredAt.Should().BeOnOrAfter(before).And.BeOnOrBefore(DateTimeOffset.UtcNow);
-    }
-
-    [Fact]
-    public void RecordInit_AllowsTimeOverride()
-    {
-        var fixedAt = new DateTimeOffset(2026, 01, 01, 0, 0, 0, TimeSpan.Zero);
-
-        var @event = new TestDomainEvent("x") { OccurredAt = fixedAt };
-
-        @event.OccurredAt.Should().Be(fixedAt);
+        @event.EventId.Should().Be(eventId);
+        @event.OccurredAt.Should().Be(T0);
     }
 }

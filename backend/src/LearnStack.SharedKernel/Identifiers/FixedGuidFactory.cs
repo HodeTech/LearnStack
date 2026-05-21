@@ -6,6 +6,17 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// the sequence is exhausted so tests fail loud rather than silently
 /// reusing a default value.
 /// </summary>
+/// <remarks>
+/// <see cref="NewUuidV7"/> and <see cref="NewUuidV4"/> draw from the
+/// <em>same</em> queue — the fixture does not synthesise version-7 / -4
+/// shapes from the supplied <see cref="Guid"/>s. Callers that need to
+/// assert <c>guid.Version == 7</c> (or 4) seed the queue with
+/// version-appropriate values (e.g. <c>Guid.CreateVersion7()</c> minted
+/// at test setup) so the fixture's output is the exact <see cref="Guid"/>
+/// the test passes in. This keeps the fixture trivial; the production
+/// <see cref="SystemGuidFactory"/> is where the version contract is
+/// enforced.
+/// </remarks>
 public sealed class FixedGuidFactory : IGuidFactory
 {
     private readonly Queue<Guid> _sequence;

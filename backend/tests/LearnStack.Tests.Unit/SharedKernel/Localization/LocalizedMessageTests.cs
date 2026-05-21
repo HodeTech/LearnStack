@@ -25,6 +25,28 @@ public sealed class LocalizedMessageTests
         message.Params.Should().BeEquivalentTo(@params);
     }
 
+    [Fact]
+    public void Ctor_DefensivelyCopiesParams_SoCallerMutationsDoNotLeak()
+    {
+        var @params = new Dictionary<string, string> { ["field"] = "email" };
+
+        var message = new LocalizedMessage("lockey_validation_required", @params);
+        @params["field"] = "MUTATED";
+
+        message.Params!["field"].Should().Be("email", "LocalizedMessage is immutable; the snapshot was taken at ctor time");
+    }
+
+    [Fact]
+    public void Ctor_EmptyParamsDictionary_NormalisesToNull()
+    {
+        // Avoids serializers emitting an unused "params": {} field.
+        var message = new LocalizedMessage(
+            "lockey_no_params",
+            new Dictionary<string, string>());
+
+        message.Params.Should().BeNull();
+    }
+
     [Theory]
     [InlineData("validation_failed")]
     [InlineData("lockEY_wrong_case")]

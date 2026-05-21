@@ -14,14 +14,6 @@ namespace LearnStack.SharedKernel.Domain;
 /// <see cref="MarkUpdated"/> / <see cref="SoftDelete"/>, which command
 /// handlers call via the <see cref="IClock"/> they already inject.
 /// </summary>
-/// <remarks>
-/// The actor columns (<c>CreatedBy</c> / <c>UpdatedBy</c> / <c>DeletedBy</c>)
-/// store raw <see cref="Guid"/> rather than a strongly-typed <c>UserId</c>:
-/// <see cref="LearnStack.SharedKernel"/> cannot depend on the Identity
-/// module (which lands in Phase 02b), and audit metadata is not an
-/// aggregate-root reference in the Standards 02 § Strongly-Typed
-/// Identifiers sense.
-/// </remarks>
 public abstract class AuditableEntity<TId>
     : Entity<TId>, ISoftDelete, IOptimisticConcurrency
     where TId : struct, IStronglyTypedId<Guid>
@@ -38,34 +30,45 @@ public abstract class AuditableEntity<TId>
 
     public DateTimeOffset CreatedAt { get; protected set; }
 
-    public Guid CreatedBy { get; protected set; }
+    public UserId CreatedBy { get; protected set; }
 
     public DateTimeOffset? UpdatedAt { get; protected set; }
 
-    public Guid? UpdatedBy { get; protected set; }
+    public UserId? UpdatedBy { get; protected set; }
 
     public DateTimeOffset? DeletedAt { get; protected set; }
 
-    public Guid? DeletedBy { get; protected set; }
+    public UserId? DeletedBy { get; protected set; }
 
     public uint Version { get; protected set; }
 
+    // ISoftDelete declares DeletedBy as Guid? for module-agnostic readers
+    // (EF global query filters, RLS policy plumbing). Surface the raw Guid
+    // projection through explicit interface implementation so callers
+    // holding the concrete type read the strongly-typed UserId? while
+    // cross-cutting infrastructure sees a Guid? at the marker layer.
+    Guid? ISoftDelete.DeletedBy => DeletedBy?.Value;
+
     /// <summary>
-    /// Convenience projection of <see cref="DeletedAt"/>. Surfaced at this
-    /// level (rather than relying on <see cref="ISoftDelete"/>'s default
-    /// interface implementation) so callers can read the property through
-    /// the concrete aggregate type without casting.
+    /// Convenience projection of <see cref="DeletedAt"/>. EF global query
+    /// filters typically gate on this property.
     /// </summary>
     public bool IsDeleted => DeletedAt.HasValue;
 
     /// <summary>
     /// Stamps <see cref="CreatedAt"/> / <see cref="CreatedBy"/> on first
-    /// persist. Idempotent: callers may invoke it once during aggregate
-    /// construction; later calls overwrite the values, which is the
-    /// caller's bug rather than a silent no-op.
+    /// persist. Throws when the aggregate already has a non-default
+    /// <see cref="CreatedAt"/> — audit-trail integrity rules out silent
+    /// overwrites.
     /// </summary>
-    public void MarkCreated(DateTimeOffset at, Guid by)
+    public void MarkCreated(DateTimeOffset at, UserId by)
     {
+        if (CreatedAt != default)
+        {
+            throw new InvalidOperationException(
+                "MarkCreated has already been called on this aggregate; the created-at / created-by columns are immutable after first stamp.");
+        }
+
         CreatedAt = at;
         CreatedBy = by;
     }
@@ -75,20 +78,25 @@ public abstract class AuditableEntity<TId>
     /// aggregate methods that mutate state; the audit pipeline reads these
     /// values when writing the audit entry.
     /// </summary>
-    public void MarkUpdated(DateTimeOffset at, Guid by)
+    public void MarkUpdated(DateTimeOffset at, UserId by)
     {
         UpdatedAt = at;
         UpdatedBy = by;
     }
 
     /// <summary>
-    /// Marks the entity as soft-deleted. EF's global query filter excludes
-    /// soft-deleted rows by default; the platform-admin scope can opt back
-    /// in explicitly.
+    /// Marks the entity as soft-deleted. Also bumps
+    /// <see cref="UpdatedAt"/> / <see cref="UpdatedBy"/> so the
+    /// "last touched at" timestamp is monotonic — replication / sync /
+    /// reporting jobs that scan on <c>UpdatedAt</c> see soft-deletes
+    /// without keying off <c>DeletedAt</c> separately. The audit row still
+    /// classifies the action as a delete via its own operation type.
     /// </summary>
-    public void SoftDelete(DateTimeOffset at, Guid by)
+    public void SoftDelete(DateTimeOffset at, UserId by)
     {
         DeletedAt = at;
         DeletedBy = by;
+        UpdatedAt = at;
+        UpdatedBy = by;
     }
 }
