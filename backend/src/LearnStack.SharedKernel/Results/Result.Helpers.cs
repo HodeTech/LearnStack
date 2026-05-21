@@ -23,37 +23,46 @@ public static class Result
     /// Returns an instance of <typeparamref name="TResponse"/> — not
     /// <c>Result&lt;TResponse&gt;</c> — by reflecting over the closed
     /// generic to invoke the correct <c>Result&lt;TValue&gt;.Fail(error)</c>.
-    /// Per ADR-0032 § Sub-decision 3.
     /// </summary>
+    /// <remarks>
+    /// The reflected <see cref="MethodInfo"/> is cached per closed
+    /// <typeparamref name="TResponse"/> in the nested
+    /// <see cref="FailForCache{TResponse}"/> — initialised once on first
+    /// touch, zero per-call overhead afterwards. The hot path is the
+    /// MediatR pipeline behavior that runs on every command.
+    /// </remarks>
     public static TResponse FailFor<TResponse>(Error error)
         where TResponse : IResultBase
     {
         ArgumentNullException.ThrowIfNull(error);
 
-        var responseType = typeof(TResponse);
-        if (!responseType.IsGenericType
-            || responseType.GetGenericTypeDefinition() != typeof(Result<>))
+        var fail = FailForCache<TResponse>.FailMethod
+            ?? throw new InvalidOperationException(
+                $"Result.FailFor<TResponse> requires TResponse to be a closed Result<T>; got {typeof(TResponse).FullName}.");
+
+        return (TResponse)fail.Invoke(obj: null, parameters: [error])!;
+    }
+
+    private static class FailForCache<TResponse>
+        where TResponse : IResultBase
+    {
+        public static readonly MethodInfo? FailMethod = ResolveFailMethod();
+
+        private static MethodInfo? ResolveFailMethod()
         {
-            throw new InvalidOperationException(
-                $"Result.FailFor<TResponse> requires TResponse to be a closed " +
-                $"Result<T>; got {responseType.FullName}.");
+            var responseType = typeof(TResponse);
+            if (!responseType.IsGenericType
+                || responseType.GetGenericTypeDefinition() != typeof(Result<>))
+            {
+                return null;
+            }
+
+            return responseType.GetMethod(
+                nameof(Result<int>.Fail),
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: [typeof(Error)],
+                modifiers: null);
         }
-
-        var valueType = responseType.GetGenericArguments()[0];
-        var concreteResultType = typeof(Result<>).MakeGenericType(valueType);
-        var failMethod = concreteResultType.GetMethod(
-            nameof(Result<int>.Fail),
-            BindingFlags.Public | BindingFlags.Static,
-            binder: null,
-            types: [typeof(Error)],
-            modifiers: null);
-
-        if (failMethod is null)
-        {
-            throw new InvalidOperationException(
-                $"Could not locate {concreteResultType.FullName}.Fail(Error) via reflection.");
-        }
-
-        return (TResponse)failMethod.Invoke(obj: null, parameters: [error])!;
     }
 }

@@ -70,15 +70,71 @@ public sealed class AuditableEntityTests
     }
 
     [Fact]
-    public void ISoftDelete_DeletedBy_ProjectsGuidFromUserId()
+    public void ISoftDelete_DeletedBy_IsStronglyTypedUserId()
     {
         var aggregate = new TestAuditableAggregate(TestId.New());
         aggregate.MarkCreated(T0, Actor);
         aggregate.SoftDelete(T0.AddDays(1), Actor);
 
+        // The cast is the point of this test - the marker contract is what
+        // we are asserting. CA1859 would prefer the concrete type for
+        // performance.
+#pragma warning disable CA1859
         ISoftDelete view = aggregate;
+#pragma warning restore CA1859
 
-        view.DeletedBy.Should().Be(Actor.Value);
+        view.DeletedBy.Should().Be(Actor);
+    }
+
+    // Vogen prohibits constructing `default(UserId)` at compile time (VOG009),
+    // so the "empty actor" case is exercised via UserId.From(Guid.Empty) -
+    // the guard reads `by.Value == Guid.Empty`, which both forms hit.
+    private static readonly UserId EmptyActor = UserId.From(Guid.Empty);
+
+    [Fact]
+    public void MarkCreated_WithDefaultTimestamp_Throws()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        var act = () => aggregate.MarkCreated(default, Actor);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*default*");
+    }
+
+    [Fact]
+    public void MarkCreated_WithEmptyActor_Throws()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        var act = () => aggregate.MarkCreated(T0, EmptyActor);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*UserId*");
+    }
+
+    [Fact]
+    public void MarkUpdated_WithInvalidInputs_Throws()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+
+        var defaultAt = () => aggregate.MarkUpdated(default, Actor);
+        var emptyBy = () => aggregate.MarkUpdated(T0.AddHours(1), EmptyActor);
+
+        defaultAt.Should().Throw<ArgumentException>();
+        emptyBy.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void SoftDelete_WithInvalidInputs_Throws()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+
+        var defaultAt = () => aggregate.SoftDelete(default, Actor);
+        var emptyBy = () => aggregate.SoftDelete(T0.AddDays(1), EmptyActor);
+
+        defaultAt.Should().Throw<ArgumentException>();
+        emptyBy.Should().Throw<ArgumentException>();
     }
 
     [Fact]

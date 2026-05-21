@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Globalization;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.SharedKernel.Identifiers;
@@ -12,7 +14,8 @@ namespace LearnStack.Tests.Unit.SharedKernel.Identifiers;
 /// <c>[ValueObject&lt;Guid&gt;(LearnStackVogenDefaults.IdMask)]</c>; this
 /// fixture asserts the four emitted artefacts are wired:
 ///   - System.Text.Json round trip (Conversions.SystemTextJson).
-///   - TypeConverter parse/format (Conversions.TypeConverter).
+///   - TypeConverter parse/format (Conversions.TypeConverter — the path
+///     ASP.NET Core minimal-API route binding and IConfiguration use).
 ///   - <see cref="IStronglyTypedId{TKey}.Value"/> projection.
 ///   - Type-safe inequality between two arbitrary IDs.
 /// EF Core converter / minimal-API model binder are exercised at the
@@ -38,6 +41,27 @@ public sealed class VogenIdEmissionTests
         var decoded = JsonSerializer.Deserialize<TestId>(json);
 
         decoded.Should().Be(original);
+    }
+
+    [Fact]
+    public void TypeConverter_RoundTrips_ViaString()
+    {
+        // Conversions.TypeConverter is the artefact ASP.NET Core minimal-API
+        // route binding (and IConfiguration binding) rely on. Asserting the
+        // converter exists and round-trips proves the mask wired the
+        // TypeConverter the runtime will discover.
+        var original = TestId.New();
+        var converter = TypeDescriptor.GetConverter(typeof(TestId));
+
+        converter.Should().NotBeNull();
+        converter.CanConvertTo(typeof(string)).Should().BeTrue();
+        converter.CanConvertFrom(typeof(string)).Should().BeTrue();
+
+        var encoded = converter.ConvertToString(null, CultureInfo.InvariantCulture, original);
+        var decoded = (TestId)converter.ConvertFromString(null!, CultureInfo.InvariantCulture, encoded!)!;
+
+        decoded.Should().Be(original);
+        ((IStronglyTypedId<Guid>)decoded).Value.Should().Be(((IStronglyTypedId<Guid>)original).Value);
     }
 
     [Fact]

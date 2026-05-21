@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace LearnStack.SharedKernel.Localization;
 
 /// <summary>
@@ -43,12 +45,15 @@ public sealed record LocalizedMessage
         }
 
         Key = key;
-        // Defensive copy: the caller may mutate the original dictionary after
-        // construction; a LocalizedMessage is supposed to be immutable, so
-        // snapshot the contents here. The empty case is normalised to null so
-        // serializers do not emit an unused "params": {} field.
+        // Snapshot + wrap: the caller may mutate the original dictionary
+        // after construction, and IReadOnlyDictionary does not enforce
+        // immutability on its own (callers can downcast). A ReadOnlyDictionary
+        // wrapper over a defensive copy gives both: cast-safe at the API
+        // level and snapshot-stable at the data level. The empty case is
+        // normalised to null so serializers do not emit an unused
+        // "params": {} field.
         Params = @params is { Count: > 0 }
-            ? new Dictionary<string, string>(@params)
+            ? new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(@params))
             : null;
     }
 

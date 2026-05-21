@@ -8,5 +8,10 @@ namespace LearnStack.SharedKernel.Results;
 /// </summary>
 public readonly record struct Unit
 {
-    public static Unit Value { get; }
+    /// <summary>
+    /// The single canonical <see cref="Unit"/> value. All <see cref="Unit"/>
+    /// instances are equal by definition; <see cref="Value"/> is just the
+    /// idiomatic spelling at call sites.
+    /// </summary>
+    public static Unit Value => default;
 }

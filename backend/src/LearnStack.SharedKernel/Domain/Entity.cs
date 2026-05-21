@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Domain;
@@ -29,26 +30,32 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
     where TId : struct, IStronglyTypedId<Guid>
 {
     private readonly List<IDomainEvent> _domainEvents = [];
+    private readonly ReadOnlyCollection<IDomainEvent> _domainEventsView;
 
     protected Entity(TId id)
     {
         Id = id;
+        _domainEventsView = _domainEvents.AsReadOnly();
     }
 
     // EF Core / ORM materialization ctor.
     protected Entity()
     {
+        _domainEventsView = _domainEvents.AsReadOnly();
     }
 
     public TId Id { get; protected init; }
 
     /// <summary>
     /// In-process domain events raised since the last <see cref="ClearDomainEvents"/>.
-    /// Returns the backing list as <see cref="IReadOnlyCollection{T}"/> without
-    /// allocating a wrapper - the unit of work walks tracked entities on every
-    /// <c>SaveChangesAsync</c>, so the property is on a hot path.
+    /// Returns a cached <see cref="ReadOnlyCollection{T}"/> wrapper rather
+    /// than the backing list so callers cannot cast back to <c>List&lt;T&gt;</c>
+    /// and mutate the collection out from under the aggregate. The view is
+    /// initialised once per entity (cheap reference allocation) and lives
+    /// for the entity's lifetime, so the unit-of-work's hot-path access
+    /// stays allocation-free.
     /// </summary>
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents;
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEventsView;
 
     protected void RaiseDomainEvent(IDomainEvent domainEvent)
     {

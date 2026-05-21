@@ -42,13 +42,6 @@ public abstract class AuditableEntity<TId>
 
     public uint Version { get; protected set; }
 
-    // ISoftDelete declares DeletedBy as Guid? for module-agnostic readers
-    // (EF global query filters, RLS policy plumbing). Surface the raw Guid
-    // projection through explicit interface implementation so callers
-    // holding the concrete type read the strongly-typed UserId? while
-    // cross-cutting infrastructure sees a Guid? at the marker layer.
-    Guid? ISoftDelete.DeletedBy => DeletedBy?.Value;
-
     /// <summary>
     /// Convenience projection of <see cref="DeletedAt"/>. EF global query
     /// filters typically gate on this property.
@@ -63,6 +56,8 @@ public abstract class AuditableEntity<TId>
     /// </summary>
     public void MarkCreated(DateTimeOffset at, UserId by)
     {
+        EnsureValidAuditInput(at, by);
+
         if (CreatedAt != default)
         {
             throw new InvalidOperationException(
@@ -80,6 +75,8 @@ public abstract class AuditableEntity<TId>
     /// </summary>
     public void MarkUpdated(DateTimeOffset at, UserId by)
     {
+        EnsureValidAuditInput(at, by);
+
         UpdatedAt = at;
         UpdatedBy = by;
     }
@@ -94,9 +91,32 @@ public abstract class AuditableEntity<TId>
     /// </summary>
     public void SoftDelete(DateTimeOffset at, UserId by)
     {
+        EnsureValidAuditInput(at, by);
+
         DeletedAt = at;
         DeletedBy = by;
         UpdatedAt = at;
         UpdatedBy = by;
+    }
+
+    // Audit metadata must always be meaningful: the default timestamp
+    // (0001-01-01) and the default UserId (Guid.Empty) are programmer-error
+    // sentinels rather than legitimate audit values. Fail loud at the call
+    // site rather than persisting them.
+    private static void EnsureValidAuditInput(DateTimeOffset at, UserId by)
+    {
+        if (at == default)
+        {
+            throw new ArgumentException(
+                "Audit timestamp must be a meaningful instant, not default(DateTimeOffset). Pass the value from IClock.UtcNow.",
+                nameof(at));
+        }
+
+        if (by.Value == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Audit actor must be a real UserId, not default(UserId). Pass the resolved ITenantContext.UserId.",
+                nameof(by));
+        }
     }
 }
