@@ -4,4 +4,28 @@
     <RootNamespace>LearnStack.SharedKernel</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Domain-event marker. Packet 2 wires IDomainEvent : INotification so
+         aggregates can dispatch in-process events via MediatR. -->
+    <PackageReference Include="MediatR" />
+
+    <!-- ADR-0023: Vogen emits the strongly-typed ID + value-object pipeline
+         (record struct + EF converter + JSON converter + TypeConverter).
+         PrivateAssets="all" keeps the generator build-time only; the
+         Vogen.SharedTypes runtime helpers flow transitively because Vogen's
+         package opts them out of PrivateAssets internally. Every consuming
+         project (each Modules.<X>.Domain) adds its own reference too -
+         source generators only run in projects that reference them. -->
+    <PackageReference Include="Vogen" PrivateAssets="all" />
+
+    <!-- LearnStackVogenDefaults.IdMask includes Conversions.EfCoreValueConverter
+         per ADR-0023 Implementation Notes; Vogen therefore emits an
+         EFCore-aware converter type per ID that references
+         Microsoft.EntityFrameworkCore at compile time. The reference lives
+         here (and on every Modules.<X>.Domain project that emits IDs) for
+         that build-time hook only - SharedKernel does not use any EF Core
+         type directly. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
 </Project>

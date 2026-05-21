@@ -65,6 +65,26 @@ Forbidden edges:
 - Module A → Module B.Domain
 - Module A → Module B.Infrastructure
 
+### Build-time-only exceptions
+
+`SharedKernel` and every `Modules.<X>.Domain` project carries two sanctioned
+external NuGet references that the rules above would otherwise forbid:
+
+| Reference | Why | Used at | Sanctioning ADR |
+|-----------|-----|---------|-----------------|
+| `Microsoft.EntityFrameworkCore` | The Vogen-emitted `<Id>.EfCoreValueConverter` type per strongly-typed ID lives in the project that declares `[ValueObject<Guid>]`. The emitted IL carries TypeRefs to EF Core; the consuming project must reference EF Core at compile time for the converter to load. Hand-written Domain code does **not** import EF Core types. | Compile-time only | [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md) |
+| `MediatR` | `IDomainEvent : INotification` so in-process aggregate events dispatch via MediatR's publisher (the canonical pipeline per [ADR-0010](../decisions/0010-cross-module-communication.md)). | Build-time + runtime (marker only) | [ADR-0010](../decisions/0010-cross-module-communication.md) |
+
+Both references are scoped to **build-time / IL-level dependencies for
+generated or marker shapes**, not to hand-written Domain code calling EF
+Core or MediatR APIs. The follow-up architecture test
+`Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`
+catalogued under
+[21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)
+encodes the exception (lands with the first Module.Domain aggregate in
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)). Adding a
+third build-time reference to Domain or SharedKernel requires an ADR.
+
 ## Aggregate Ownership
 
 - Every entity belongs to exactly one aggregate; aggregate is owned by exactly one module.

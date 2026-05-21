@@ -200,7 +200,7 @@ Three things outweighed the appeal:
 
 ## Implementation Notes
 
-- **Package references:** `Directory.Packages.props` pins `<PackageVersion Include="Vogen" Version="..." />`. **Every project that hosts `[ValueObject<>]` declarations** — `LearnStack.SharedKernel` (for cross-cutting value objects: `Email`, `Slug`, `LocaleCode`, `Money`) and **each `LearnStack.Modules.<X>.Domain`** (for its aggregate-root IDs) — adds `<PackageReference Include="Vogen" PrivateAssets="all" />`. A `Directory.Build.props` rule under `backend/src/Modules/` keeps the per-module addition automatic when a new module is scaffolded. Source generators only run on projects that reference the generator package; transitive references do **not** carry the generator (this is a `PrivateAssets="all"` semantics constraint, not a Vogen quirk).
+- **Package references:** `Directory.Packages.props` pins `<PackageVersion Include="Vogen" Version="7.0.0" />` (see Amendment 1 below for the rationale of the 6.x → 7.0.0 drift). **Every project that hosts `[ValueObject<>]` declarations** — `LearnStack.SharedKernel` (for cross-cutting value objects: `UserId`, `Email`, `Slug`, `LocaleCode`, `Money`) and **each `LearnStack.Modules.<X>.Domain`** (for its aggregate-root IDs) — adds `<PackageReference Include="Vogen" PrivateAssets="all" />` plus a transitive `Microsoft.EntityFrameworkCore` reference (the Vogen-emitted EF converter requires it at compile time; the build-time exception is recorded in [Standards 01 § Dependency Direction](../standards/01-architecture-standards.md)). A `Directory.Build.props` rule under `backend/src/Modules/` keeps the per-module addition automatic when a new module is scaffolded. Source generators only run on projects that reference the generator package; transitive references do **not** carry the generator (this is a `PrivateAssets="all"` semantics constraint, not a Vogen quirk).
 - **Naming convention (per Standards 02):** ID type names end in `Id`
   (`TenantId`, `OrganizationId`, `CourseId`, …); value object types are named
   for the concept (`Email`, not `EmailValueObject`).
@@ -244,7 +244,29 @@ Three things outweighed the appeal:
 
 ## Amendments
 
-_(none yet)_
+### Amendment 1 — Vogen 7.0.0 pin + architecture-test placement (2026-05-21)
+
+Two clarifications surfaced when the ADR met implementation in
+[Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md):
+
+- **Pinned Vogen version is 7.0.0.** The ADR was written when 6.x was the
+  newest line; by the time `Directory.Packages.props` was wired the 6.0.x
+  series had been superseded on NuGet and the lowest available major was
+  `7.0.0`. The decision is unchanged — Vogen is still the chosen emitter
+  per the original "Decision" section; this amendment records the
+  concrete version pin for traceability. The previous-line placeholder
+  in Implementation Notes (`Version="..."`) is now read as `Version="7.0.0"`.
+
+- **`Aggregate_Roots_Use_StronglyTypedId` lands with the first aggregate,
+  not in Packet 2.** Implementation Notes originally said "lands in
+  Phase 02a Packet 2"; that placement is wrong because no module ships an
+  aggregate in Packet 2 (the first concrete aggregate IDs arrive in
+  Packet 6 — Tenancy schema foundations — and after). The test would have
+  been vacuously green for the entire Packet 2 → Packet 5 window. The
+  correct placement is alongside the first `IAggregateRoot<TId>` type,
+  catalogued under
+  [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
+  at that point.
 
 ## References
 

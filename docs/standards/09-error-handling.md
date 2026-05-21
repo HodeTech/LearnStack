@@ -30,19 +30,58 @@ Both end in **RFC 7807 Problem Details** at the API boundary.
 ## Result Type
 
 ```csharp
-public sealed record Result<T>(bool IsSuccess, T? Value, Error? Error)
+public sealed record Result<T> : IResultBase
 {
-    public static Result<T> Ok(T value) => new(true, value, null);
-    public static Result<T> Fail(Error error) => new(false, default, error);
+    internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null) { ... }
+    public bool IsSuccess { get; }
+    public bool IsFailure => !IsSuccess;
+    public T? Value { get; }
+    public Error? Error { get; }
+    public LocalizedMessage? SuccessMessage { get; }
+
+    public static Result<T> Ok(T value, LocalizedMessage? message = null); // throws on null value
+    public static Result<T> Fail(Error error);
 }
 
 public sealed record Error(
-    string Code,
-    string Message,
-    IReadOnlyDictionary<string, string[]>? Details = null);
+    LocalizedMessage Message,
+    IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? Details = null)
+{
+    public string Code => Message.Key[LocalizedMessage.RequiredPrefix.Length..];
+}
+
+public sealed record LocalizedMessage(string Key, IReadOnlyDictionary<string, string>? Params = null)
+{
+    public const string RequiredPrefix = "lockey_";
+    // ctor enforces Key.StartsWith(RequiredPrefix); see Phase 02a Packet 2.
+}
+
+public readonly record struct Unit { public static Unit Value { get; } }
 ```
 
-Standard error codes (machine-readable, stable):
+The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
+rejects any key that does not start with `lockey_`. Frontend translation
+catalogues are keyed by the same prefix; backend code never returns raw
+English. `Error.Code` is a **stable, unprefixed** projection of
+`Message.Key` (the `lockey_` prefix is stripped). Routing logic
+(`Result.ToActionResult()`, Problem Details writers) reads `Code`; the
+frontend reads `Message.Key` for locale resolution — two surfaces in
+sync by construction. Per
+[Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
+[ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
+
+`Result<T>`'s primary constructor is `internal`; callers go through
+`Ok` / `Fail` so the success-must-carry-value rule
+(see § Forbidden) cannot be bypassed via positional record syntax.
+`Result<Unit>` is the canonical payload-less success shape.
+
+Field-level errors in `Error.Details` flow as `LocalizedMessage` lists
+per key, so the `lockey_` invariant covers every user-facing string the
+API ships — not just the top-level message.
+
+Standard error codes (machine-readable, stable). The table uses the
+unprefixed shape that travels on the Problem Details `code` field; the
+matching localization key adds the `lockey_` prefix.
 
 | Code | Meaning | HTTP |
 |------|---------|------|
@@ -157,26 +196,35 @@ All API errors are **RFC 7807 Problem Details**:
 ```json
 {
   "type": "https://errors.learnstack.dev/validation",
-  "title": "Validation failed",
+  "title": "lockey_validation_failed",
   "status": 400,
   "code": "validation_failed",
-  "detail": "One or more fields are invalid.",
+  "messageKey": "lockey_validation_failed",
   "instance": "/v1/courses",
   "correlationId": "01H...",
   "errors": {
-    "title": ["Title is required."],
-    "slug": ["Slug already exists in this tenant."]
+    "title": [
+      { "key": "lockey_title_required" }
+    ],
+    "slug": [
+      { "key": "lockey_slug_already_exists_in_tenant", "params": { "slug": "intro" } }
+    ]
   }
 }
 ```
 
 Rules:
 - `type` is a stable URL.
-- `code` is the machine-readable identifier.
-- `detail` is human-readable but **safe to display** (no internal info).
+- `code` is the machine-readable identifier — the unprefixed `Error.Code`
+  (Standards 04 § Problem Details).
+- `messageKey` is the `LocalizedMessage.Key` (always begins with `lockey_`)
+  the frontend resolves against its i18n catalogue. The legacy
+  `detail` field is omitted — backend never returns raw English.
 - `instance` is the request path.
 - `correlationId` matches the trace id.
-- `errors` is field-level detail (validation only).
+- `errors` is field-level detail, each entry a `LocalizedMessage` payload
+  (`key` + optional `params`) so the frontend resolves field-level messages
+  through the same path as the top-level one.
 
 ## Validation Errors
 

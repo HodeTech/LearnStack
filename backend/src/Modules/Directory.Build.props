@@ -1,0 +1,35 @@
+<Project>
+
+  <!--
+    MSBuild stops at the first Directory.Build.props it finds walking up
+    from the project file - it does NOT merge with ancestor files. Import
+    the parent backend/Directory.Build.props explicitly so the
+    TargetFramework, LangVersion, analyzer posture, and central package
+    management settings still apply to every Modules.<X>.<Layer> project.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    Per ADR-0023 § Implementation Notes: every Modules.<X>.Domain project
+    hosts the module's [ValueObject<>] declarations (aggregate-root IDs).
+    Source generators only run in projects that reference the generator
+    package; transitive references do not carry the generator. Wiring the
+    Vogen + EF Core (for Vogen's emitted EfCoreValueConverter type)
+    references here keeps the per-module addition automatic - adding a
+    new module's Domain project picks them up by virtue of its location
+    under backend/src/Modules/.
+
+    Standards 01 § Build-time-only exceptions sanctions the EF Core
+    reference at the Domain layer for this specific Vogen-emitted-converter
+    use case.
+
+    Application / Application.Contracts / Infrastructure projects do NOT
+    need these references - the EndsWith condition scopes them to
+    Domain projects only.
+  -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Domain'))">
+    <PackageReference Include="Vogen" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+</Project>

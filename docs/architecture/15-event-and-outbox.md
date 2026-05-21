@@ -156,12 +156,12 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
         EnrollmentId = enrollment.Id.Value,
         LearnerId = cmd.LearnerId,
         CourseId = cmd.CourseId,
-        OccurredAt = DateTime.UtcNow
+        OccurredAt = _clock.UtcNow,   // IClock per Standards 02 § Time
     }, ct);
 
     await _dbContext.SaveChangesAsync(ct);    // aggregate + outbox row, atomic
 
-    return Result.Success(MapToDto(enrollment), LocalizedMessage.Of("enrollment.created"));
+    return Result<EnrollmentDto>.Ok(MapToDto(enrollment), LocalizedMessage.Of("lockey_enrollment_created"));
 }
 ```
 

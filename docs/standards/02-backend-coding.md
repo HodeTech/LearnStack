@@ -1,7 +1,7 @@
 # 02 — Backend Coding Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -36,27 +36,37 @@ C# / .NET conventions for LearnStack backend code.
 - **Records** for immutable value-like data: DTOs, integration events, configuration options.
 - **Sealed classes** by default; open inheritance is the exception.
 - **Structs** only for small, immutable, frequently-allocated values (≤ 16 bytes).
-- **Strongly-typed ids** (`record struct CourseId(Guid Value) : IStronglyTypedId`) for all entity identifiers. Never expose raw `Guid` on the public surface.
+- **Strongly-typed ids** (`partial record struct CourseId : IStronglyTypedId<Guid>;` per the [Vogen pattern below](#strongly-typed-identifiers)) for all entity identifiers. Never expose raw `Guid` on the public surface.
 - **Value objects** for domain concepts with invariants (e.g. `Email`, `Slug`, `LocaleCode`).
 
 ## Strongly-Typed Identifiers
 
-```csharp
-public readonly record struct CourseId(Guid Value) : IStronglyTypedId<Guid>
-{
-    public static CourseId New() => new(Guid.NewGuid());
-    public override string ToString() => Value.ToString();
-}
-```
-
 Per [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md), the
 shared source generator is **[Vogen](https://github.com/SteveDunn/Vogen)**. The
 canonical declaration uses Vogen's `[ValueObject<Guid>(...)]` annotation on a
-partial `record struct`; Vogen emits:
+partial `record struct`:
+
+```csharp
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct CourseId : IStronglyTypedId<Guid>;
+```
+
+Vogen emits per ID:
 - EF Core value converter.
-- `JsonConverter`.
-- Minimal API model binder.
-- OpenAPI schema mapping (Swashbuckle / Microsoft.OpenApi schema filter).
+- `JsonConverter` (System.Text.Json).
+- TypeConverter (carries ASP.NET Core minimal-API + MVC route-parameter binding).
+- OpenAPI schema mapping (wired centrally in Packet 4 per ADR-0023 § Implementation
+  Notes).
+
+Construction:
+- New IDs in aggregate methods mint via the injected `IGuidFactory`:
+  `CourseId.From(guidFactory.NewUuidV7())`. **Never call `Guid.CreateVersion7()` /
+  `Guid.NewGuid()` directly in `Domain` / `Application` code** — Standards 02
+  § Time bans the symmetric `DateTime.UtcNow` for the same reason (deterministic
+  tests). High-volume append-only tables (`audit_log`, `outbox_messages`) prefer
+  DB-side `gen_uuid_v7()` (per [ADR-0031](../decisions/0031-postgresql-major-version.md)).
+- ID types do **not** expose a `New()` static — explicit `From(guidFactory.NewUuidV7())`
+  at the call site keeps the dependency surface honest.
 
 The same annotation covers richer value objects (`Email`, `Slug`, `LocaleCode`,
 `Money`) — the emitter shape is identical for IDs and value objects, with the
@@ -86,14 +96,39 @@ Two patterns coexist:
 - **`Result<T>`** for *expected* outcomes (validation failure, not found, conflict).
 
 ```csharp
-public sealed record Result<T>(bool IsSuccess, T? Value, Error? Error)
+public sealed record Result<T> : IResultBase
 {
-    public static Result<T> Ok(T value) => new(true, value, null);
-    public static Result<T> Fail(Error error) => new(false, default, error);
+    internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null) { ... }
+
+    public bool IsSuccess { get; }
+    public bool IsFailure => !IsSuccess;
+    public T? Value { get; }
+    public Error? Error { get; }
+    public LocalizedMessage? SuccessMessage { get; }
+
+    // Throws when value is null — Standards 09 § Forbidden bans
+    // IsSuccess = true with Value = null. For payload-less success use
+    // Result<Unit>.
+    public static Result<T> Ok(T value, LocalizedMessage? message = null);
+    public static Result<T> Fail(Error error);
 }
 
-public sealed record Error(string Code, string Message, IReadOnlyDictionary<string, string[]>? Details = null);
+public sealed record Error(
+    LocalizedMessage Message,
+    IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? Details = null)
+{
+    // Stable machine-readable identifier — Standards 04 § Problem Details
+    // "code". Derived from Message.Key by stripping the lockey_ prefix so
+    // the code never drifts from the localization key by construction.
+    public string Code => Message.Key[LocalizedMessage.RequiredPrefix.Length..];
+}
 ```
+
+`LocalizedMessage`'s constructor enforces the `lockey_` key prefix; the
+constructor of `Result<T>` is `internal` so callers cannot bypass the
+`Ok` / `Fail` factory invariants via positional record syntax. See
+[09-error-handling.md § Result Type](09-error-handling.md) and
+[Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md).
 
 Use cases for `Result<T>`:
 - Validation outcomes.
