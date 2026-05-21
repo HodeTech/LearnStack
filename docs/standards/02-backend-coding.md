@@ -86,24 +86,37 @@ Two patterns coexist:
 - **`Result<T>`** for *expected* outcomes (validation failure, not found, conflict).
 
 ```csharp
-public sealed record Result<T>(
-    bool IsSuccess,
-    T? Value,
-    Error? Error,
-    LocalizedMessage? SuccessMessage = null) : IResultBase
+public sealed record Result<T> : IResultBase
 {
+    internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null) { ... }
+
+    public bool IsSuccess { get; }
     public bool IsFailure => !IsSuccess;
-    public static Result<T> Ok(T value, LocalizedMessage? message = null) => new(true, value, null, message);
-    public static Result<T> Fail(Error error) => new(false, default, error);
+    public T? Value { get; }
+    public Error? Error { get; }
+    public LocalizedMessage? SuccessMessage { get; }
+
+    // Throws when value is null — Standards 09 § Forbidden bans
+    // IsSuccess = true with Value = null. For payload-less success use
+    // Result<Unit>.
+    public static Result<T> Ok(T value, LocalizedMessage? message = null);
+    public static Result<T> Fail(Error error);
 }
 
-public sealed record Error(LocalizedMessage Message, IReadOnlyDictionary<string, string[]>? Details = null)
+public sealed record Error(
+    LocalizedMessage Message,
+    IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? Details = null)
 {
-    public string Code => Message.Key;
+    // Stable machine-readable identifier — Standards 04 § Problem Details
+    // "code". Derived from Message.Key by stripping the lockey_ prefix so
+    // the code never drifts from the localization key by construction.
+    public string Code => Message.Key[LocalizedMessage.RequiredPrefix.Length..];
 }
 ```
 
-`LocalizedMessage`'s constructor enforces a `lockey_` key prefix — see
+`LocalizedMessage`'s constructor enforces the `lockey_` key prefix; the
+constructor of `Result<T>` is `internal` so callers cannot bypass the
+`Ok` / `Fail` factory invariants via positional record syntax. See
 [09-error-handling.md § Result Type](09-error-handling.md) and
 [Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md).
 

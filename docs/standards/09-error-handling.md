@@ -30,43 +30,58 @@ Both end in **RFC 7807 Problem Details** at the API boundary.
 ## Result Type
 
 ```csharp
-public sealed record Result<T>(
-    bool IsSuccess,
-    T? Value,
-    Error? Error,
-    LocalizedMessage? SuccessMessage = null) : IResultBase
+public sealed record Result<T> : IResultBase
 {
+    internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null) { ... }
+    public bool IsSuccess { get; }
     public bool IsFailure => !IsSuccess;
-    public static Result<T> Ok(T value, LocalizedMessage? message = null) => new(true, value, null, message);
-    public static Result<T> Fail(Error error) => new(false, default, error);
+    public T? Value { get; }
+    public Error? Error { get; }
+    public LocalizedMessage? SuccessMessage { get; }
+
+    public static Result<T> Ok(T value, LocalizedMessage? message = null); // throws on null value
+    public static Result<T> Fail(Error error);
 }
 
 public sealed record Error(
     LocalizedMessage Message,
-    IReadOnlyDictionary<string, string[]>? Details = null)
+    IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>? Details = null)
 {
-    public string Code => Message.Key;
+    public string Code => Message.Key[LocalizedMessage.RequiredPrefix.Length..];
 }
 
 public sealed record LocalizedMessage(string Key, IReadOnlyDictionary<string, string>? Params = null)
 {
-    // ctor enforces Key.StartsWith("lockey_") — see Phase 02a Packet 2.
+    public const string RequiredPrefix = "lockey_";
+    // ctor enforces Key.StartsWith(RequiredPrefix); see Phase 02a Packet 2.
 }
+
+public readonly record struct Unit { public static Unit Value { get; } }
 ```
 
 The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
 rejects any key that does not start with `lockey_`. Frontend translation
 catalogues are keyed by the same prefix; backend code never returns raw
-English. `Error.Code` is a convenience projection of `Message.Key` —
-routing logic (`Result.ToActionResult()`, Problem Details writers) reads
-the projection without dereferencing the nested record. Per
+English. `Error.Code` is a **stable, unprefixed** projection of
+`Message.Key` (the `lockey_` prefix is stripped). Routing logic
+(`Result.ToActionResult()`, Problem Details writers) reads `Code`; the
+frontend reads `Message.Key` for locale resolution — two surfaces in
+sync by construction. Per
 [Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
 [ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
 
-Standard error codes (machine-readable, stable). On the wire and in code,
-every identifier below appears with the `lockey_` prefix (so
-`Error.Code == "lockey_validation_failed"`); the table omits the prefix
-for readability.
+`Result<T>`'s primary constructor is `internal`; callers go through
+`Ok` / `Fail` so the success-must-carry-value rule
+(see § Forbidden) cannot be bypassed via positional record syntax.
+`Result<Unit>` is the canonical payload-less success shape.
+
+Field-level errors in `Error.Details` flow as `LocalizedMessage` lists
+per key, so the `lockey_` invariant covers every user-facing string the
+API ships — not just the top-level message.
+
+Standard error codes (machine-readable, stable). The table uses the
+unprefixed shape that travels on the Problem Details `code` field; the
+matching localization key adds the `lockey_` prefix.
 
 | Code | Meaning | HTTP |
 |------|---------|------|

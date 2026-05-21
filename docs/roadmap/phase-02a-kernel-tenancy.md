@@ -55,6 +55,20 @@
 > `VogenIdEmissionTests` smoke test asserts the emitter pipeline
 > (Vogen `[ValueObject<Guid>]` → `IStronglyTypedId.Value` → JSON
 > round-trip) end-to-end via a synthetic `TestId` in the test project.
+> Review pass folded in (commit `7c9133a`): `Entity<TId>` equality carries
+> transient + cross-runtime-type guards; `Result.FailFor<TResponse>` returns
+> the concrete `TResponse` via reflection (not `Result<TResponse>`);
+> `Error.Code` is the unprefixed stable identifier projected from
+> `Message.Key`; `Error.Details` flows `LocalizedMessage` lists so the prefix
+> invariant covers field-level errors; `Result<T>.Ok` rejects null;
+> `UserId` is a SharedKernel-level Vogen value object used by
+> `AuditableEntity<TId>` instead of raw `Guid`; `DomainEvent.EventId` /
+> `OccurredAt` are `required init`; `MarkCreated` throws on second call;
+> `SoftDelete` bumps `UpdatedAt` for monotonic last-touched;
+> `CursorPagination` validates `Limit > 0` at the ctor. Standards 01
+> § Dependency Direction grows a "Build-time-only exceptions" sub-section
+> for the EF Core + MediatR references SharedKernel requires. 64 unit
+> tests + 17 architecture tests green.
 >
 > **Packet 3 — Cross-cutting foundation ⏳**
 > Wires the [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
