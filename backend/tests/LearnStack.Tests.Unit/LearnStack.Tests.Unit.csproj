@@ -10,6 +10,10 @@
     <ProjectReference Include="..\..\src\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Domain\LearnStack.Domain.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Application\LearnStack.Application.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Observability\LearnStack.Infrastructure.Observability.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.ErrorTracking\LearnStack.Infrastructure.ErrorTracking.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Resilience\LearnStack.Infrastructure.Resilience.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -22,6 +22,9 @@
     <ProjectReference Include="..\..\src\LearnStack.Application\LearnStack.Application.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Audit\LearnStack.Infrastructure.Audit.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Observability\LearnStack.Infrastructure.Observability.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.ErrorTracking\LearnStack.Infrastructure.ErrorTracking.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Resilience\LearnStack.Infrastructure.Resilience.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
 
     <!-- Modules: Tenancy -->

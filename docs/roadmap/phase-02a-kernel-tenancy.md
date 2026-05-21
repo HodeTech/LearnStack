@@ -71,26 +71,86 @@
 > for the EF Core + MediatR references SharedKernel requires. Unit /
 > architecture / contract suites all green in CI.
 >
-> **Packet 3 — Cross-cutting foundation ⏳**
-> Wires the [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
-> surface end to end via the
+> **Packet 3 — Cross-cutting foundation ✅**
+> The [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
+> surface is wired end to end via the
 > [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)
-> skill: L1 `LearnStackExceptionHandler : IExceptionHandler`, 8-step MediatR
-> pipeline shells (Validation / Logging / AuditLog / TenantContext /
-> Authorization / Transaction / OutboxFlush / Handler — behaviors whose
-> dependencies are not yet present are scaffolded as no-op shells that later
-> packets light up), `Result<T>.ToActionResult()` extension, `DomainException`
-> Roslyn analyzer (warning class in Phase 02a, error class after Phase 03 exit),
-> `IProviderResilience<TPort>` decorator (Polly v8 ResiliencePipeline — retry +
-> circuit breaker + timeout + bulkhead — config shape
-> `appsettings.Resilience:<port-name>:`), Serilog primary logger +
-> `WriteTo.OpenTelemetry(...)` sink, OpenTelemetry SDK with
-> `AspNetCore` + `HttpClient` + `EntityFrameworkCore` instrumentation +
-> `TenantContextSpanProcessor` + OTLP exporter, `IErrorTrackingProvider`
-> socket with `NoOpErrorTracker` / `SentryErrorTracker` / `LocalFileErrorTracker`
-> + composition-root branching by `DeploymentMode`. Mediator pipeline order
-> backed by the `MediatR_Pipeline_Order_Matches_Canonical_Sequence`
-> architecture test.
+> skill. Shipped:
+>
+> - L1 `LearnStackExceptionHandler : IExceptionHandler` registered through
+>   `services.AddExceptionHandler<T>()` + `app.UseExceptionHandler()`;
+>   `ShouldCapture(ex)` switch drives the Sentry-vs-OTel boundary per
+>   Standards 09 (`OperationCanceledException` + client-error
+>   `ProviderException` skip capture).
+> - Eight-step MediatR pipeline in `LearnStack.Application/Pipeline/`:
+>   `Validation` + `Logging` are full implementations; `AuditLog` ships the
+>   try / `ExceptionDispatchInfo` rethrow shell (audit-write lights up in
+>   Packet 9 when `IAuditStore` lands); `TenantContext` shell short-circuits
+>   with `Result.Fail(tenant_mismatch)` until the resolver middleware arrives
+>   in Packet 7; `Authorization` / `Transaction` / `OutboxFlush` pass-through
+>   shells whose registration order is the binding part. Order encoded in
+>   `MediatRPipelineRegistration.CanonicalBehaviorOrder` and asserted by the
+>   `MediatR_Pipeline_Order_Matches_Canonical_Sequence` architecture test.
+> - `Result<T>.ToActionResult()` extension in `LearnStack.Api.Common`
+>   alongside `ProblemDetailsFactory` + `HttpStatusMap`; explicit at every
+>   future controller endpoint per Standards 09.
+> - `LearnStackException` hierarchy in `LearnStack.SharedKernel/Errors/`:
+>   `DomainException`, `InfrastructureException`, `ProviderException` (with
+>   `IsClientError` flag), `TenantContextMissingException`.
+>   `LearnStackException-DomainExceptionThrow` Roslyn analyzer under
+>   `backend/analyzers/LearnStack.Analyzers/` flags `throw new DomainException`
+>   in `Domain` + `Application` (warning class in Phase 02a, escalates to
+>   error after Phase 03 exit per ADR-0032 § Sub-decision 4).
+> - `IProviderResilience<TPort>` socket in
+>   `LearnStack.SharedKernel/Resilience/` + Polly v8
+>   `ResiliencePipeline` builder in
+>   `LearnStack.Infrastructure.Resilience/`. Pipeline = retry (only
+>   `InfrastructureException` + non-client `ProviderException`) → circuit
+>   breaker → timeout. Configuration shape:
+>   `appsettings.Resilience:<portName>:` (sample lit up under
+>   `liveclass`, `payment`, `storage`, `search`). Per-adapter decoration is
+>   the adapter's responsibility — the socket is what adapters consume in
+>   Phase 02b+ via the [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
+>   skill. Hub HTTP clients excluded per Sub-decision 5.
+> - Serilog primary logger wired in `LearnStack.Api/Composition/CrossCuttingFoundationExtensions.cs`
+>   with `WriteTo.Console(RenderedCompactJsonFormatter)` +
+>   `WriteTo.OpenTelemetry(OTLP gRPC)`. The OTel `LoggerProvider` is
+>   intentionally **not** registered alongside per ADR-0032 § Sub-decision 8.
+> - OpenTelemetry SDK with `AspNetCore` + `HttpClient` +
+>   `EntityFrameworkCore` instrumentations + the OTLP exporter, plus the
+>   singleton `TenantContextSpanProcessor` from
+>   `LearnStack.Infrastructure.Observability/` that enriches every span
+>   with `tenant.id` / `organization.id` / `user.id` / `correlation.id` /
+>   `module` from the singleton
+>   `ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed).
+> - `IErrorTrackingProvider` socket in `LearnStack.SharedKernel/Observability/`
+>   with three implementations in `LearnStack.Infrastructure.ErrorTracking/`:
+>   `NoOpErrorTracker` (Development), `SentryErrorTracker` (SaaS / Dedicated /
+>   SelfHostedOnline-with-DSN), `LocalFileErrorTracker`
+>   (SelfHostedAirGapped, writes JSON envelopes to a configured directory).
+>   Composition-root branching by `DeploymentMode` per Standards 20 table.
+>   Sentry SDK is referenced only by the ErrorTracking project — enforced
+>   by the `Modules_Do_Not_Reference_Sentry_SDK_Directly` architecture test.
+> - Architecture tests green (`backend/tests/LearnStack.Tests.Architecture/CrossCuttingFoundationTests.cs`):
+>   `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
+>   `IExceptionHandler_Registered_AtStartup`,
+>   `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
+>   `Logging_Goes_Through_Microsoft_Extensions_Logging`,
+>   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
+>   `Adapters_Wrap_Provider_Exceptions`,
+>   `IErrorTrackingProvider_Is_Singleton`. Unit tests green for
+>   `ValidationBehavior` (returns `Result.Fail(validation_failed)`,
+>   never throws `ValidationException`), `AuditLogBehavior` (preserves
+>   stack via `ExceptionDispatchInfo`), `TenantContextBehavior`
+>   (short-circuits unresolved context), `TenantContextSpanProcessor`
+>   (`OnStart` is null-safe and enriches resolved spans),
+>   `ProviderResilience<TPort>` (retries non-client failures, skips
+>   client-error retries), `HttpStatusMap` (mirrors Standards 09 table),
+>   `ResultExtensions.ToActionResult()` (Problem Details shape),
+>   `LocalFileErrorTracker` (writes the JSON envelope).
+> - `LearnStack.Tests.Unit` 110/110, `LearnStack.Tests.Architecture` 24/24,
+>   `LearnStack.Tests.Contract` 1/1, `LearnStack.Tests.Integration` 1/1
+>   green under `CI=true`.
 >
 > **Packet 4 — API conventions ⏳**
 > REST + URL versioning (`/v1/...` per ADR-0024), Problem Details (RFC 7807)

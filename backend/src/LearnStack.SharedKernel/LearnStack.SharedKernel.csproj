@@ -26,6 +26,12 @@
          that build-time hook only - SharedKernel does not use any EF Core
          type directly. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+
+    <!-- ADR-0032 § Sub-decision 5: IProviderResilience<TPort> exposes the
+         Polly v8 ResiliencePipeline so adapter constructors can consume the
+         pre-built pipeline. SharedKernel owns the port-interface seam; the
+         concrete builder lives in LearnStack.Infrastructure.Resilience. -->
+    <PackageReference Include="Polly" />
   </ItemGroup>
 
 </Project>
