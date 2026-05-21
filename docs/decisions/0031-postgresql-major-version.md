@@ -19,8 +19,8 @@ major-version choice only; the rest of ADR-0002 stands)
   versus 16 LTS at 2028-11. Starting on 18 buys an extra two years of
   upstream patches before any forced major upgrade.
 - **`gen_uuid_v7()` is native in 18.** LearnStack's
-  [ADR-0023 (Strongly-typed ID source generator)](README.md#open-adr-drafts) is a
-  pending draft considering UUIDv7 as the canonical id format
+  [ADR-0023 (Strongly-typed ID source generator)](0023-strongly-typed-id-source-generator.md)
+  adopts UUIDv7 as the canonical id format
   (time-ordered, index-friendly). Postgres 18 ships a built-in
   `gen_uuid_v7()` SQL function — DB-side DEFAULT values become trivial,
   the app side keeps the strongly-typed wrapping, no extension is
@@ -97,7 +97,7 @@ extension we picked early diverges from the 18 native function.
 
 | 18 feature | LearnStack benefit |
 |------------|--------------------|
-| `gen_uuid_v7()` built-in | ADR-0023 draft can pick "DB-side DEFAULT" without committing to an extension |
+| `gen_uuid_v7()` built-in | ADR-0023 uses DB-side `DEFAULT gen_uuid_v7()` for high-volume append-only tables without committing to an extension |
 | Async I/O for sequential scans | `audit_log` partition scans (ADR-0016) — operator query latency |
 | OAuth authentication | Optional shortcut for Phase 11 break-glass paths (not adopted today) |
 | Virtual generated columns | Computed columns for `LocalizedMessage`-like derived data (Phase 02a+) |
@@ -136,7 +136,7 @@ preview, that preview already runs on 18 — no major upgrade needed.
 
 - Longest support runway (EOL 2030-11) — five-year horizon before any
   forced major upgrade.
-- Native UUIDv7 — ADR-0023 design space widens.
+- Native UUIDv7 — ADR-0023 adopts it (DB-side + app-side paths).
 - Async I/O perf — direct benefit to `audit_log` and any future
   read-heavy partitioned table.
 - Phase 11 production deployment ships on the modern LTS without a
@@ -168,8 +168,8 @@ preview, that preview already runs on 18 — no major upgrade needed.
   ADR-0002 Amendment 2 references this decision; doc sweep across
   Standards 12 / Architecture / Standards 20.
 - **Phase 02a** (Platform kernel): first EF migration targets Postgres
-  18; if ADR-0023 picks UUIDv7, evaluate DB-side `gen_uuid_v7()` as the
-  default-value generator.
+  18; ADR-0023 adopts UUIDv7 with DB-side `gen_uuid_v7()` as the
+  default-value generator for high-volume append-only tables.
 - **Phase 11** (production hardening): production sizing, backup
   cadence, replication topology — all written for 18.
 
@@ -178,7 +178,7 @@ preview, that preview already runs on 18 — no major upgrade needed.
 - [ADR-0002 Initial Architecture](0002-initial-architecture.md) — original PostgreSQL major-version row, now partially superseded.
 - [ADR-0003 Tenant Isolation Defense in Depth](0003-tenant-isolation-defense-in-depth.md) — RLS pattern unchanged across 16/17/18.
 - [ADR-0016 Audit Log Subsystem](0016-audit-log-subsystem.md) — partitioned `audit_log` benefits from async I/O.
-- [ADR-0023 Strongly-typed ID source generator](README.md#open-adr-drafts) — draft (no dedicated file yet — listed in the decisions index); UUIDv7 native in 18 widens the design space.
+- [ADR-0023 Strongly-typed ID source generator](0023-strongly-typed-id-source-generator.md) — adopts UUIDv7; PostgreSQL 18's native `gen_uuid_v7()` powers the DB-side default path.
 - [Standards 05 — Database](../standards/05-database.md)
 - [Standards 12 § Database Operations](../standards/12-infrastructure.md)
 - PostgreSQL 18 release notes: <https://www.postgresql.org/docs/18/release-18.html>.

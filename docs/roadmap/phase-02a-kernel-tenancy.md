@@ -16,14 +16,18 @@
 > place. No code, no ADR state changes — Packet 0 is a planning slice
 > that unblocks the rest of the phase by fixing the order.
 >
-> **Packet 1 — Foundation decisions ⏳**
-> Move the three Phase-02a-blocking drafts from
-> [decisions/README.md § Open ADR Drafts](../decisions/README.md) to
-> **Accepted**: ADR-0023 (strongly-typed ID source generator —
-> Vogen / StronglyTypedId / custom), ADR-0024 (API versioning policy —
-> `/v1/` URL convention, deprecation cadence, sunset headers), ADR-0028
-> (`audit_log` monthly partition management — Hangfire job vs `pg_partman`).
-> Decision-only; no code. Unblocks Packets 2+.
+> **Packet 1 — Foundation decisions ✅**
+> The three Phase-02a-blocking ADRs are now Accepted:
+> [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md)
+> picks **Vogen** as the source generator for both IDs and value objects;
+> [ADR-0024](../decisions/0024-api-versioning-policy.md) codifies
+> URL-based versioning with a **6-month deprecation window** + RFC 8594
+> `Sunset` / `Deprecation` headers + OpenAPI `x-sunset` extensions;
+> [ADR-0028](../decisions/0028-audit-log-partition-management.md) picks
+> a **Hangfire recurring job** (`learnstack:audit:partition-management`)
+> over `pg_partman` to keep the SelfHostedAirGapped story extension-free.
+> Decision-only; no code. Standards 02 § Strongly-Typed Identifiers and
+> Standards 04 § Versioning cross-link to the new ADRs.
 >
 > **Packet 2 — Shared Kernel core ⏳**
 > `IClock`, `IRandom`, `IGuidFactory` (deterministic-test abstractions per
@@ -590,15 +594,15 @@ already in place from 02a.
 
 ### ADR commitments that must land in this phase
 
-Per [decisions/README.md § Open ADR Drafts](../decisions/README.md), three drafts
-target Phase 02a and **must be Accepted before this phase exits**:
+Three ADRs targeted Phase 02a as exit blockers; all three are now Accepted
+(Packet 1):
 
-| Reserved # | Topic | Why it blocks Phase 02a |
-|---|---|---|
-| ADR-0023 | Strongly-typed ID source generator (Vogen vs StronglyTypedId vs custom) | EF interceptors and value converters depend on the emitter at compile time |
-| ADR-0024 | API versioning policy (deprecation cadence, sunset headers, `/v1/` convention) | OpenAPI spec + SDK generation start in this phase |
-| ADR-0028 | `audit_log` monthly partition management (Hangfire job vs `pg_partman`) | Partition policy ships Day 1 with the audit infrastructure |
+| # | Topic | Status | Decision |
+|---|---|---|---|
+| [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md) | Strongly-typed ID source generator | **Accepted** (2026-05-20) | Vogen as the emitter for both IDs and value objects |
+| [ADR-0024](../decisions/0024-api-versioning-policy.md) | API versioning policy | **Accepted** (2026-05-20) | URL `/v{N}/`, 6-month deprecation window, RFC 8594 `Sunset` + `Deprecation` headers, OpenAPI `x-sunset` extensions |
+| [ADR-0028](../decisions/0028-audit-log-partition-management.md) | `audit_log` monthly partition management | **Accepted** (2026-05-20) | Daily Hangfire recurring job (`learnstack:audit:partition-management`); no `pg_partman` runtime dependency |
 
-Each PR that lands one of these ADRs flips the corresponding "exit checklist"
-item; the phase is not "done" until all three are Accepted and CI exercises the
-chosen implementation.
+The remaining exit gates (tenant + organization resolution, isolation tests,
+audit pipeline, customization runtime read paths, API conventions, architecture-
+test catalogue green) close as Packets 2–10 ship.

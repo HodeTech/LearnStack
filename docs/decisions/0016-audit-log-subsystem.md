@@ -292,7 +292,8 @@ Three blocker-level architecture tests are added in Phase 02:
 
 ### Negative
 
-- One more table partition to manage per month (`pg_partman` or custom Hangfire job).
+- One more table partition to manage per month (managed by a Hangfire recurring job
+  per [ADR-0028](0028-audit-log-partition-management.md)).
 - Multi-entity command JSON can be large (>100 KB for bulk updates); truncation policy
   needed for very large operations.
 - The PII-redaction obligation (ADR-0026 in Nexora, equivalent rule in LearnStack) applies
@@ -314,8 +315,14 @@ Three blocker-level architecture tests are added in Phase 02:
   `Value` field so JSON is readable.
 - The `Changes` JSON shape: array of `{ entityType, entityId, field, old, new }` for
   multi-entity commands; flat object `{ field, old, new }` for single-entity commands.
-- Retention purge: `LearnStackJob` running monthly, dropping partitions older than the
-  tenant's configured retention window (default 7y / 2y by operation class).
+- Retention follows the split defined in
+  [ADR-0028](0028-audit-log-partition-management.md):
+  partition lifecycle (creating monthly partitions, dropping them only at the
+  platform-max horizon) is owned by the `learnstack:audit:partition-management`
+  Hangfire job; per-tenant retention enforcement (default 7y / 2y by operation
+  class) is a separate row-level delete job
+  (`learnstack:audit:retention-purge`) operating *inside* the still-attached
+  partitions — never by partition drop.
 - PII redaction handler: subscribes to `UserGdprDeletedIntegrationEvent`, runs a
   parameterised UPDATE on audit rows containing the matching user reference, replaces PII
   fields with `[REDACTED]` placeholder constant.

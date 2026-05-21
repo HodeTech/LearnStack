@@ -27,10 +27,13 @@ LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX
 `.env.example` single source of truth, `.githooks/pre-commit` formatter,
 `infra/compose/e2e.yml` ephemeral overlay, `.github/workflows/ci.yml`, and
 `scripts/seed.sh`. See [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md)
-for the per-packet history. Phase 02a (Platform Kernel + Multi-Tenancy) has
-kicked off; see [Phase 02a Status & Packets](docs/roadmap/phase-02a-kernel-tenancy.md)
-for the 11-packet breakdown. Packet 0 — Kickoff has shipped; Packet 1 —
-Foundation decisions (ADR-0023 / ADR-0024 / ADR-0028 to Accepted) is next.
+for the per-packet history. Phase 02a (Platform Kernel + Multi-Tenancy) is
+underway; see [Phase 02a Status & Packets](docs/roadmap/phase-02a-kernel-tenancy.md)
+for the 11-packet breakdown. Packets 0 (Kickoff) and 1 (Foundation decisions
+— [ADR-0023](docs/decisions/0023-strongly-typed-id-source-generator.md) Vogen,
+[ADR-0024](docs/decisions/0024-api-versioning-policy.md) API versioning,
+[ADR-0028](docs/decisions/0028-audit-log-partition-management.md) audit
+partition mgmt) have shipped; Packet 2 — Shared Kernel core is next.
 Phase 02c (Hub Foundation, parallel, separate repo) starts once the 02a
 sockets it depends on are in place.
 
