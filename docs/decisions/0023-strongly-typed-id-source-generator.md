@@ -244,7 +244,29 @@ Three things outweighed the appeal:
 
 ## Amendments
 
-_(none yet)_
+### Amendment 1 — Vogen 7.0.0 pin + architecture-test placement (2026-05-21)
+
+Two clarifications surfaced when the ADR met implementation in
+[Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md):
+
+- **Pinned Vogen version is 7.0.0.** The ADR was written when 6.x was the
+  newest line; by the time `Directory.Packages.props` was wired the 6.0.x
+  series had been superseded on NuGet and the lowest available major was
+  `7.0.0`. The decision is unchanged — Vogen is still the chosen emitter
+  per the original "Decision" section; this amendment records the
+  concrete version pin for traceability. The previous-line placeholder
+  in Implementation Notes (`Version="..."`) is now read as `Version="7.0.0"`.
+
+- **`Aggregate_Roots_Use_StronglyTypedId` lands with the first aggregate,
+  not in Packet 2.** Implementation Notes originally said "lands in
+  Phase 02a Packet 2"; that placement is wrong because no module ships an
+  aggregate in Packet 2 (the first concrete aggregate IDs arrive in
+  Packet 6 — Tenancy schema foundations — and after). The test would have
+  been vacuously green for the entire Packet 2 → Packet 5 window. The
+  correct placement is alongside the first `IAggregateRoot<TId>` type,
+  catalogued under
+  [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
+  at that point.
 
 ## References
 
