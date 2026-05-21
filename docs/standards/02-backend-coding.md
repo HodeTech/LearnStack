@@ -1,7 +1,7 @@
 # 02 — Backend Coding Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -64,7 +64,7 @@ Construction:
   `Guid.NewGuid()` directly in `Domain` / `Application` code** — Standards 02
   § Time bans the symmetric `DateTime.UtcNow` for the same reason (deterministic
   tests). High-volume append-only tables (`audit_log`, `outbox_messages`) prefer
-  DB-side `gen_uuid_v7()` (per ADR-0031).
+  DB-side `gen_uuid_v7()` (per [ADR-0031](../decisions/0031-postgresql-major-version.md)).
 - ID types do **not** expose a `New()` static — explicit `From(guidFactory.NewUuidV7())`
   at the call site keeps the dependency surface honest.
 

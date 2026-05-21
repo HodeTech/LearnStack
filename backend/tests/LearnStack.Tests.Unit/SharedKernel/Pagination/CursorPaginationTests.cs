@@ -64,4 +64,47 @@ public sealed class CursorPaginationTests
         request.Cursor.Should().Be("abc");
         request.Limit.Should().Be(50);
     }
+
+    [Fact]
+    public void ObjectInitializer_AndWithExpression_PreserveValuesAndInvariants()
+    {
+        // The Limit invariant lives in the init accessor, not the
+        // constructor, so it covers object-initializer syntax AND the
+        // record's `with` expression - neither can bypass the guard the
+        // ctor would otherwise be the only enforcer of.
+        var fromInit = new CursorPagination { Cursor = "abc", Limit = 50 };
+        var fromWith = fromInit with { Limit = 75 };
+
+        fromInit.Cursor.Should().Be("abc");
+        fromInit.Limit.Should().Be(50);
+
+        fromWith.Cursor.Should().Be("abc");
+        fromWith.Limit.Should().Be(75);
+    }
+
+    [Fact]
+    public void ObjectInitializer_ZeroLimit_Throws()
+    {
+        var act = () => new CursorPagination { Limit = 0 };
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void WithExpression_ZeroLimit_Throws()
+    {
+        var request = new CursorPagination(Limit: 50);
+
+        var act = () => request with { Limit = 0 };
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ObjectInitializer_AboveMaxLimit_Clamps()
+    {
+        var request = new CursorPagination { Limit = 500 };
+
+        request.Limit.Should().Be(CursorPagination.MaxLimit);
+    }
 }

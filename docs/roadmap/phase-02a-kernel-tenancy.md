@@ -51,7 +51,7 @@
 > `EfCoreValueConverter | SystemTextJson | TypeConverter` mask;
 > `IAggregateRoot<TId>` / `IHasId<TId>` interfaces require `TId :
 > IStronglyTypedId<Guid>` so future module aggregates inherit the
-> constraint. 71 unit tests cover the primitives; the
+> constraint. Unit / architecture / contract suites all green in CI; the
 > `VogenIdEmissionTests` smoke test asserts the emitter pipeline
 > (Vogen `[ValueObject<Guid>]` → `IStronglyTypedId.Value` → JSON
 > round-trip → `TypeConverter` round-trip) end-to-end via a synthetic
@@ -68,8 +68,8 @@
 > `SoftDelete` bumps `UpdatedAt` for monotonic last-touched;
 > `CursorPagination` validates `Limit > 0` at the ctor. Standards 01
 > § Dependency Direction grows a "Build-time-only exceptions" sub-section
-> for the EF Core + MediatR references SharedKernel requires. 71 unit
-> tests + 17 architecture tests green.
+> for the EF Core + MediatR references SharedKernel requires. Unit /
+> architecture / contract suites all green in CI.
 >
 > **Packet 3 — Cross-cutting foundation ⏳**
 > Wires the [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)

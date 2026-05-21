@@ -123,7 +123,21 @@ public sealed record Error
         foreach (var (key, list) in source)
         {
             ArgumentNullException.ThrowIfNull(list);
-            snapshot[key] = new ReadOnlyCollection<LocalizedMessage>([.. list]);
+
+            // Per-element null check: a null inside the list would later NPE
+            // in GetHashCode / DetailsEqual. Fail fast at construction with
+            // the offending key in the message so the caller can locate the
+            // bug rather than chasing a NullReferenceException down the
+            // serialisation path.
+            var copy = new LocalizedMessage[list.Count];
+            for (var i = 0; i < list.Count; i++)
+            {
+                copy[i] = list[i] ?? throw new ArgumentException(
+                    $"Error.Details['{key}'][{i}] is null. Every field-level entry must be a non-null LocalizedMessage.",
+                    nameof(source));
+            }
+
+            snapshot[key] = new ReadOnlyCollection<LocalizedMessage>(copy);
         }
 
         return new ReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>>(snapshot);
