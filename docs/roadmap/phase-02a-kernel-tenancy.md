@@ -29,16 +29,32 @@
 > Decision-only; no code. Standards 02 § Strongly-Typed Identifiers and
 > Standards 04 § Versioning cross-link to the new ADRs.
 >
-> **Packet 2 — Shared Kernel core ⏳**
-> `IClock`, `IRandom`, `IGuidFactory` (deterministic-test abstractions per
-> Standards 02 § Time), `LocalizedMessage` (carrying the `lockey_` prefix
-> invariant for `Result.Fail` payloads), `Entity<TId>` (append-only / audit
-> aggregate base), `AuditableEntity<T>` (mutable aggregate base with
+> **Packet 2 — Shared Kernel core ✅**
+> `IClock` + `SystemClock` / `FixedClock`, `IRandom` + `SystemRandom` /
+> `FixedRandom`, `IGuidFactory` + `SystemGuidFactory` / `FixedGuidFactory`
+> (deterministic-test abstractions per Standards 02 § Time);
+> `LocalizedMessage` carrying the `lockey_` prefix invariant at the
+> constructor (used by every `Result.Fail` and success-message payload);
+> `Error` refactored to wrap `LocalizedMessage` with a `Code` projection
+> over `Message.Key`; `Result<T>` extended with `IResultBase`, success-message
+> overload, and the static `Result.FailFor<T>(error)` factory ADR-0032's
+> `ValidationBehavior` consumes; `Entity<TId>` (append-only / audit
+> aggregate base) + `AuditableEntity<TId>` (mutable aggregate base with
 > `CreatedAt` / `CreatedBy` / `UpdatedAt` / `UpdatedBy` / `DeletedAt` /
-> `DeletedBy` / `Version`), soft-delete + optimistic concurrency primitives,
-> domain-event model (in-process MediatR `INotification`), pagination model
-> (cursor-first), strongly-typed ID emitter wired per ADR-0023. Unit tests
-> for every primitive.
+> `DeletedBy` / `Version` plus the `IsDeleted` projection);
+> `ISoftDelete` + `IOptimisticConcurrency` marker interfaces;
+> `IDomainEvent : INotification` + `DomainEvent` base + `IHasDomainEvents`
+> aggregate-side collector; cursor-first pagination
+> (`CursorPagination` / `Page<T>` / `PageInfo` matching Standards 04
+> § Pagination). Vogen 7.0.0 wired per ADR-0023 with
+> `LearnStackVogenDefaults.IdMask` carrying the canonical
+> `EfCoreValueConverter | SystemTextJson | TypeConverter` mask;
+> `IAggregateRoot<TId>` / `IHasId<TId>` interfaces require `TId :
+> IStronglyTypedId<Guid>` so future module aggregates inherit the
+> constraint. 54 unit tests cover the primitives; the
+> `VogenIdEmissionTests` smoke test asserts the emitter pipeline
+> (Vogen `[ValueObject<Guid>]` → `IStronglyTypedId.Value` → JSON
+> round-trip) end-to-end via a synthetic `TestId` in the test project.
 >
 > **Packet 3 — Cross-cutting foundation ⏳**
 > Wires the [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)

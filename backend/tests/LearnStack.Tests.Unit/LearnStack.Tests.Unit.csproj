@@ -19,6 +19,14 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="coverlet.collector" />
+    <!-- Vogen reference so the test project can declare a synthetic
+         [ValueObject<Guid>] ID and assert the emitter pipeline end-to-end
+         (per ADR-0023 the generator only runs in projects that reference it).
+         Microsoft.EntityFrameworkCore is the build-time hook Vogen's emitted
+         EF converter requires; the test project does not use EF Core types
+         directly. -->
+    <PackageReference Include="Vogen" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
 
 </Project>

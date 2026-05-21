@@ -30,19 +30,43 @@ Both end in **RFC 7807 Problem Details** at the API boundary.
 ## Result Type
 
 ```csharp
-public sealed record Result<T>(bool IsSuccess, T? Value, Error? Error)
+public sealed record Result<T>(
+    bool IsSuccess,
+    T? Value,
+    Error? Error,
+    LocalizedMessage? SuccessMessage = null) : IResultBase
 {
-    public static Result<T> Ok(T value) => new(true, value, null);
+    public bool IsFailure => !IsSuccess;
+    public static Result<T> Ok(T value, LocalizedMessage? message = null) => new(true, value, null, message);
     public static Result<T> Fail(Error error) => new(false, default, error);
 }
 
 public sealed record Error(
-    string Code,
-    string Message,
-    IReadOnlyDictionary<string, string[]>? Details = null);
+    LocalizedMessage Message,
+    IReadOnlyDictionary<string, string[]>? Details = null)
+{
+    public string Code => Message.Key;
+}
+
+public sealed record LocalizedMessage(string Key, IReadOnlyDictionary<string, string>? Params = null)
+{
+    // ctor enforces Key.StartsWith("lockey_") — see Phase 02a Packet 2.
+}
 ```
 
-Standard error codes (machine-readable, stable):
+The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
+rejects any key that does not start with `lockey_`. Frontend translation
+catalogues are keyed by the same prefix; backend code never returns raw
+English. `Error.Code` is a convenience projection of `Message.Key` —
+routing logic (`Result.ToActionResult()`, Problem Details writers) reads
+the projection without dereferencing the nested record. Per
+[Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
+[ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
+
+Standard error codes (machine-readable, stable). On the wire and in code,
+every identifier below appears with the `lockey_` prefix (so
+`Error.Code == "lockey_validation_failed"`); the table omits the prefix
+for readability.
 
 | Code | Meaning | HTTP |
 |------|---------|------|

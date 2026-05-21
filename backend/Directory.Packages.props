@@ -19,6 +19,12 @@
     <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
 
+    <!-- Strongly-typed ID + value object source generator (ADR-0023).
+         Referenced via PrivateAssets="all" in every project that hosts
+         [ValueObject<>] declarations (SharedKernel for cross-cutting VOs,
+         each Modules.<X>.Domain for aggregate-root IDs). -->
+    <PackageVersion Include="Vogen" Version="7.0.0" />
+
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="xunit" Version="2.9.2" />

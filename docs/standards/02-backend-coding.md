@@ -86,14 +86,26 @@ Two patterns coexist:
 - **`Result<T>`** for *expected* outcomes (validation failure, not found, conflict).
 
 ```csharp
-public sealed record Result<T>(bool IsSuccess, T? Value, Error? Error)
+public sealed record Result<T>(
+    bool IsSuccess,
+    T? Value,
+    Error? Error,
+    LocalizedMessage? SuccessMessage = null) : IResultBase
 {
-    public static Result<T> Ok(T value) => new(true, value, null);
+    public bool IsFailure => !IsSuccess;
+    public static Result<T> Ok(T value, LocalizedMessage? message = null) => new(true, value, null, message);
     public static Result<T> Fail(Error error) => new(false, default, error);
 }
 
-public sealed record Error(string Code, string Message, IReadOnlyDictionary<string, string[]>? Details = null);
+public sealed record Error(LocalizedMessage Message, IReadOnlyDictionary<string, string[]>? Details = null)
+{
+    public string Code => Message.Key;
+}
 ```
+
+`LocalizedMessage`'s constructor enforces a `lockey_` key prefix — see
+[09-error-handling.md § Result Type](09-error-handling.md) and
+[Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md).
 
 Use cases for `Result<T>`:
 - Validation outcomes.
