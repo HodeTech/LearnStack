@@ -39,15 +39,20 @@ public sealed class TenantContextSpanProcessor(ITenantContextAccessor accessor)
 
         if (context.IsResolved)
         {
-            data.SetTag("tenant.id", context.TenantId);
+            // OTel attribute types are string / long / double / bool /
+            // array. A bare Guid is ToString-projected at export time
+            // with no contract on format (some exporters use "D", others
+            // "N"). Pin the wire format here for parity with
+            // SentryErrorTracker and Loki dashboards.
+            data.SetTag("tenant.id", context.TenantId.ToString());
             if (context.OrganizationId is { } orgId)
             {
-                data.SetTag("organization.id", orgId);
+                data.SetTag("organization.id", orgId.ToString());
             }
 
             if (context.UserId is { } userId)
             {
-                data.SetTag("user.id", userId.Value);
+                data.SetTag("user.id", userId.Value.ToString());
             }
         }
 

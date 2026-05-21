@@ -59,5 +59,15 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
     /// surface. Until then the predicate is a stub returning <c>false</c> —
     /// every request needs a resolved context to proceed.
     /// </summary>
+    /// <remarks>
+    /// TODO(2026-05-21, @platform, phase-02a-packet-7): replace the stub
+    /// with a real discriminator. The intended seam is a marker attribute
+    /// (<c>[AllowsUnresolvedTenantContext]</c>) the predicate scans for
+    /// via reflection, paired with an architecture test that asserts the
+    /// attribute lives only on the narrow command-set that legitimately
+    /// runs before any tenant is resolved (e.g. <c>ProvisionTenantCommand</c>,
+    /// <c>EnterPlatformAdminScopeCommand</c>). Documenting the seam now
+    /// so Packet 7 doesn't reinvent it.
+    /// </remarks>
     private static bool AllowsUnresolvedContext(Type requestType) => false;
 }

@@ -18,6 +18,11 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+
+    <!-- Serilog enrichers ship here because they consume
+         ITenantContextAccessor; the composition root wires them through the
+         Serilog configuration in LearnStack.Api. Per ADR-0032 § Sub-decision 8. -->
+    <PackageReference Include="Serilog" />
   </ItemGroup>
 
 </Project>

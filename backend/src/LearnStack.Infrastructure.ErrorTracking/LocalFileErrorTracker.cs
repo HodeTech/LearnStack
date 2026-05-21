@@ -19,6 +19,27 @@ namespace LearnStack.Infrastructure.ErrorTracking;
 /// </remarks>
 internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
 {
+    /// <summary>
+    /// W3C traceparent is 55 chars; defensive cap above that absorbs any
+    /// inbound oddity without blowing the stack via <c>stackalloc</c>.
+    /// </summary>
+    private const int MaxFileNameSegmentLength = 128;
+
+    /// <summary>
+    /// Property-name tokens that mark a tag as sensitive. AdditionalTags
+    /// whose key contains one of these (case-insensitive) are redacted
+    /// before write — air-gapped operators inherit the same Standards 11
+    /// protections as the Serilog path.
+    /// </summary>
+    private static readonly string[] SensitiveTagTokens =
+    [
+        "password", "passwd", "secret", "token", "apikey", "api_key",
+        "authorization", "auth_header", "dsn", "jwt", "credential",
+        "ssn", "tckn", "iban", "cardnumber", "card_number", "cvv", "cvc",
+    ];
+
+    private const string RedactedValue = "***REDACTED***";
+
     private readonly string _directory;
     private readonly ILogger<LocalFileErrorTracker> _logger;
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -61,11 +82,16 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
             context.OrganizationId,
             context.UserId,
             context.ModuleName,
-            additionalTags = context.AdditionalTags,
+            additionalTags = RedactSensitiveTags(context.AdditionalTags),
         };
 
         var safeCorrelation = SanitiseForFileName(context.CorrelationId);
-        var fileName = $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}-{safeCorrelation}.json";
+        // Guid suffix guarantees uniqueness — millisecond precision +
+        // correlation id are not enough when two captures land in the same
+        // tick for the same trace (a multi-failure burst on a single
+        // request).
+        var fileName =
+            $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}-{safeCorrelation}-{Guid.NewGuid():N}.json";
         var path = Path.Combine(_directory, fileName);
 
         try
@@ -82,6 +108,36 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
         }
     }
 
+    private static IReadOnlyDictionary<string, string>? RedactSensitiveTags(
+        IReadOnlyDictionary<string, string>? tags)
+    {
+        if (tags is null or { Count: 0 })
+        {
+            return tags;
+        }
+
+        var sanitised = new Dictionary<string, string>(tags.Count, StringComparer.Ordinal);
+        foreach (var (key, value) in tags)
+        {
+            sanitised[key] = IsSensitive(key) ? RedactedValue : value;
+        }
+
+        return sanitised;
+    }
+
+    private static bool IsSensitive(string key)
+    {
+        foreach (var token in SensitiveTagTokens)
+        {
+            if (key.Contains(token, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static string SanitiseForFileName(string? correlationId)
     {
         if (string.IsNullOrWhiteSpace(correlationId))
@@ -89,8 +145,11 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
             return "noid";
         }
 
-        Span<char> buffer = stackalloc char[correlationId.Length];
-        for (var i = 0; i < correlationId.Length; i++)
+        // Defensive cap before the stackalloc: a multi-KB traceparent
+        // header from a misbehaving client must not blow the call stack.
+        var length = Math.Min(correlationId.Length, MaxFileNameSegmentLength);
+        Span<char> buffer = stackalloc char[length];
+        for (var i = 0; i < length; i++)
         {
             var c = correlationId[i];
             buffer[i] = char.IsLetterOrDigit(c) || c == '-' ? c : '_';

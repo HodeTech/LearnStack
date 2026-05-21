@@ -1,7 +1,9 @@
+using System.Threading.RateLimiting;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Resilience;
 using Polly;
 using Polly.CircuitBreaker;
+using Polly.RateLimiting;
 using Polly.Retry;
 using Polly.Timeout;
 
@@ -79,10 +81,22 @@ internal sealed class ProviderResilience<TPort> : IProviderResilience<TPort>
             });
         }
 
-        // Bulkhead is not provided by Polly v8 out of the box — Microsoft's
-        // Resilience extensions ship a rate-limiter strategy that fills the
-        // role. Lit up by AddProviderResilience when Bulkhead is configured;
-        // see ProviderResilienceRegistration for the wiring.
+        // Bulkhead — Polly v8 maps "bulkhead" onto the rate-limiter
+        // strategy backed by System.Threading.RateLimiting.ConcurrencyLimiter.
+        // Only wired when MaxConcurrency > 0 so the default options shape
+        // (Bulkhead = null) leaves the pipeline unchanged.
+        if (options.Bulkhead is { MaxConcurrency: > 0 } bulkhead)
+        {
+            builder.AddRateLimiter(new RateLimiterStrategyOptions
+            {
+                DefaultRateLimiterOptions = new ConcurrencyLimiterOptions
+                {
+                    PermitLimit = bulkhead.MaxConcurrency,
+                    QueueLimit = Math.Max(0, bulkhead.QueueLength),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                },
+            });
+        }
 
         return builder.Build();
     }

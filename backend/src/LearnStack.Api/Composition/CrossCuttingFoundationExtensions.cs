@@ -2,7 +2,9 @@ using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.ErrorTracking;
 using LearnStack.Infrastructure.Observability;
+using LearnStack.Infrastructure.Observability.Serilog;
 using LearnStack.SharedKernel.Hosting;
+using LearnStack.SharedKernel.Secrets;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -43,11 +45,24 @@ public static class CrossCuttingFoundationExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(mediatorHandlerAssemblies);
 
-        WireSerilog(builder);
+        // The Serilog OTLP sink + the OTel pipeline both need
+        // ITenantContextAccessor (via enrichers / processor). Register the
+        // observability services first so DI sees the accessor as a
+        // singleton before either pipeline builds.
         builder.Services.AddLearnStackObservabilityServices();
+
+        // ISecretProvider socket lands now so non-Dev DSN / license-key reads
+        // route through one seam. ConfigurationSecretProvider is the default
+        // — Packet 5 swaps in DaprSecretProvider once Vault is wired.
+        builder.Services.TryAddSingleton<ISecretProvider>(
+            _ => new ConfigurationSecretProvider(builder.Configuration));
+        var secretProvider = new ConfigurationSecretProvider(builder.Configuration);
+
+        WireSerilog(builder);
         WireOpenTelemetry(builder);
 
-        builder.Services.AddLearnStackErrorTracking(builder.Configuration, deploymentMode);
+        builder.Services.AddLearnStackErrorTracking(
+            secretProvider, builder.Configuration, deploymentMode);
 
         // Request-scoped ITenantContext default — Packet 7 swaps this for the
         // resolved instance produced by TenantResolverMiddleware. The
@@ -71,6 +86,15 @@ public static class CrossCuttingFoundationExtensions
                 .ReadFrom.Services(services)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("service.name", "learnstack-api")
+                // ADR-0032 § Sub-decision 8: the correlation-context enricher
+                // copies tenant.id / organization.id / user.id / module /
+                // correlation.id from the singleton ITenantContextAccessor
+                // onto every LogEvent. The redaction enricher then strips
+                // sensitive properties before the formatter touches them
+                // (Standards 11 § Sensitive Data Exposure).
+                .Enrich.With(new CorrelationContextEnricher(
+                    services.GetRequiredService<ITenantContextAccessor>()))
+                .Enrich.With<RedactSensitiveFieldsEnricher>()
                 .WriteTo.Console(new Serilog.Formatting.Compact.RenderedCompactJsonFormatter());
 
             var otlpEndpoint = ctx.Configuration["Telemetry:OtlpEndpoint"];

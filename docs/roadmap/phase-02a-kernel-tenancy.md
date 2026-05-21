@@ -148,9 +148,85 @@
 >   client-error retries), `HttpStatusMap` (mirrors Standards 09 table),
 >   `ResultExtensions.ToActionResult()` (Problem Details shape),
 >   `LocalFileErrorTracker` (writes the JSON envelope).
-> - `LearnStack.Tests.Unit` 110/110, `LearnStack.Tests.Architecture` 24/24,
->   `LearnStack.Tests.Contract` 1/1, `LearnStack.Tests.Integration` 1/1
+> - `LearnStack.Tests.Unit` 111/111, `LearnStack.Tests.Architecture` 25/25,
+>   `LearnStack.Tests.Contract` 1/1, `LearnStack.Tests.Integration` 5/5
 >   green under `CI=true`.
+>
+> Review fixes (commit `<follow-up>`):
+>
+> - **B1** — Sentry DSN now reads via the new `ISecretProvider` socket
+>   (`LearnStack.SharedKernel/Secrets/`) with `ConfigurationSecretProvider`
+>   as the Phase 02a default; Packet 5 swaps in `DaprSecretProvider` for
+>   Vault. ADR-0032 § Sub-decision 9 contract honoured.
+> - **B2** — Serilog pipeline gains `CorrelationContextEnricher`
+>   (copies tenant / org / user / correlation / module from
+>   `ITenantContextAccessor` onto every log event) +
+>   `RedactSensitiveFieldsEnricher` (scrubs password / token / secret /
+>   DSN / JWT / authorization / SSN / TCKN / card-number tokens before
+>   the formatter touches them). `LocalFileErrorTracker` redacts the
+>   same token set on `CapturedContext.AdditionalTags`.
+> - **M1** — `ProblemDetailsFactory.For(Exception)` routes status through
+>   `HttpStatusMap.For(Exception)` so `ProviderException(IsClientError:true)`
+>   returns 400 instead of falling through to 503 via the carried Error's
+>   default code.
+> - **M2** — L1 handler now skips `Activity.AddException` for
+>   `ProviderException(IsClientError:true)` per Standards 09 § Sentry vs
+>   OpenTelemetry table — `SetStatus(Error)` only, no exception event.
+> - **M3** — All 14 module Domain + Application csproj files now reference
+>   `LearnStack.Analyzers` via `OutputItemType="Analyzer"`. Future
+>   `throw new DomainException(...)` in any module fails the analyzer.
+> - **M4** — Polly `IProviderResilience<TPort>` pipeline now consumes
+>   `BulkheadOptions` via `Polly.RateLimiting`'s
+>   `AddRateLimiter(ConcurrencyLimiterOptions)`; the silent-dead config
+>   gap is closed.
+> - **N1** — `ProblemDetailsFactory` projects nested
+>   FluentValidation property paths (`Address.Street`) and acronyms
+>   (`URLValue`) to the right camelCase shape via
+>   `JsonNamingPolicy.CamelCase`.
+> - **N2** — `ToActionResult()` returns `ProblemDetailsActionResult`
+>   which builds the body inside `ExecuteResultAsync(ActionContext)`, so
+>   the sanctioned `(await Send(...)).ToActionResult()` shape populates
+>   `Instance` + `correlationId` without the caller threading
+>   `HttpContext`.
+> - **N3 / A6** — `LocalFileErrorTracker` file names suffix a Guid for
+>   guaranteed uniqueness in same-millisecond bursts; `stackalloc` is
+>   capped at 128 chars so a multi-KB inbound `traceparent` cannot blow
+>   the stack.
+> - **A5** — `AuditLogBehavior` catch filter excludes
+>   `OperationCanceledException` so client disconnects no longer churn
+>   warning logs / future audit rows.
+> - **A7** — `MediatRPipelineRegistration.CanonicalBehaviorOrder`
+>   documentation explicitly notes "7 behaviors + the handler at the
+>   innermost position = the 8 canonical steps".
+> - **A8** — `ProblemDetailsFactory` strips the `_failed` suffix from
+>   the Problem `type` URL (matches the Standards 09 § API Surface
+>   example: `/validation`, not `/validation_failed`).
+> - **A11** — New HTTP-level integration tests in
+>   `LearnStack.Tests.Integration/CrossCuttingFoundationHttpTests` exercise
+>   the L1 handler + ValidationBehavior end-to-end via
+>   `WebApplicationFactory<Program>` and a synthetic test controller. The
+>   Standards 21 catalogue row for
+>   `ValidationBehavior_DoesNotThrow_ValidationException` is updated to
+>   "unit + integration".
+> - **A12** — `LearnStackExceptionHandler` is `internal sealed` — only
+>   the framework's `AddExceptionHandler<T>()` instantiates it; tests
+>   reach the type via `InternalsVisibleTo`.
+> - **A13** — `TenantContextSpanProcessor` stringifies Guid tags
+>   (`tenant.id` / `organization.id` / `user.id`) so the wire format is
+>   stable across exporters.
+> - **S1** — `MediatR_Pipeline_Order_Matches_Canonical_Sequence` test
+>   asserts a hardcoded behavior-type sequence, not the production
+>   `CanonicalBehaviorOrder` list, so an accidental list reorder cannot
+>   sneak past.
+> - **SU1** — L1 handler skips the body write on
+>   `OperationCanceledException` / cancelled `CancellationToken`; the
+>   client has already disconnected.
+> - **SU4** — `TenantContextBehavior.AllowsUnresolvedContext` predicate
+>   carries a TODO documenting the Packet 7 marker-attribute seam
+>   (`[AllowsUnresolvedTenantContext]`).
+> - New architecture test `Modules_Do_Not_Reference_DeploymentMode` lit
+>   up — catalogue entry existed since ADR-0020 but had no implementation
+>   until now.
 >
 > **Packet 4 — API conventions ⏳**
 > REST + URL versioning (`/v1/...` per ADR-0024), Problem Details (RFC 7807)

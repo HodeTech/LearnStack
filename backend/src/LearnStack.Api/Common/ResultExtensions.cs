@@ -16,12 +16,22 @@ namespace LearnStack.Api.Common;
 /// </code>
 /// </summary>
 /// <remarks>
+/// <para>
 /// No action filter, no MediatR <c>ResultUnwrapBehavior</c>, no implicit
 /// conversion. Explicit beats magic.
+/// </para>
+/// <para>
+/// The failure path returns a <see cref="ProblemDetailsActionResult"/>
+/// that defers <see cref="Microsoft.AspNetCore.Mvc.ProblemDetails"/> assembly until
+/// <c>ExecuteResultAsync</c>; that's when ASP.NET hands us the
+/// <see cref="HttpContext"/> so <c>instance</c> and the
+/// <c>correlationId</c> extension populate without the caller having to
+/// thread the context through.
+/// </para>
 /// </remarks>
 public static class ResultExtensions
 {
-    public static IActionResult ToActionResult<T>(this Result<T> result, HttpContext? context = null)
+    public static IActionResult ToActionResult<T>(this Result<T> result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
@@ -34,10 +44,6 @@ public static class ResultExtensions
             ?? throw new InvalidOperationException(
                 "Result.IsFailure but Error is null — Result<T>.Fail enforces a non-null Error.");
 
-        var problem = ProblemDetailsFactory.For(error, context);
-        return new ObjectResult(problem)
-        {
-            StatusCode = problem.Status,
-        };
+        return new ProblemDetailsActionResult(error);
     }
 }

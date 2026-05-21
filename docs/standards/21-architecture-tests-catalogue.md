@@ -100,8 +100,15 @@ otherwise).
   outcome; a `FluentValidation.ValidationException` never escapes the
   behavior into the handler scope or up to L1.
 - **Source:** ADR-0032 § Sub-decision 3.
-- **Type:** integration test (Testcontainers).
-- **Phase:** 02a.
+- **Type:** unit (`LearnStack.Tests.Unit` —
+  `ValidationBehaviorTests.Never_Throws_ValidationException`) **+**
+  HTTP-level integration (`LearnStack.Tests.Integration` —
+  `CrossCuttingFoundationHttpTests.ValidationBehavior_Returns_400_ProblemDetails_For_Invalid_Command`,
+  via `WebApplicationFactory<Program>` and the
+  `CrossCuttingTestController.validate` endpoint). The integration
+  variant lights up the full controller → MediatR pipeline → Problem
+  Details body shape so a regression at any layer surfaces.
+- **Phase:** 02a (Packet 3 — both variants shipped).
 
 #### `Domain_Methods_Do_Not_Throw_For_Expected_Cases`
 
@@ -160,6 +167,17 @@ otherwise).
   [10-observability.md § Stack](10-observability.md).
 - **Type:** xUnit + NetArchTest.
 - **Phase:** 02a.
+
+#### `Modules_Do_Not_Reference_DeploymentMode`
+
+- **Asserts:** no module assembly references
+  `LearnStack.SharedKernel.Hosting` (the namespace that owns
+  `DeploymentMode`). The composition root is the only sanctioned read
+  site per Standards 20 § Composition Root and Deployment Mode.
+- **Source:** ADR-0020;
+  [20-infrastructure-stack.md § Composition Root and Deployment Mode](20-infrastructure-stack.md).
+- **Type:** xUnit + NetArchTest.
+- **Phase:** 02a (Packet 3 — landed alongside the cross-cutting tests).
 
 #### `OTel_Pipeline_Includes_TenantContextSpanProcessor`
 
@@ -241,9 +259,10 @@ identifiers awaiting migration:
   `NullEntitlementProvider_NotRegistered_OutsideDevelopment`,
   `LicenseKey_Validation_Is_Pinned_RSA2048`.
 - Standards 20 — composition-root + direct-injection bans:
-  `Modules_Do_Not_Reference_DeploymentMode`,
   `Modules_Do_Not_Inject_Valkey_Directly`,
   `Modules_Do_Not_Read_Entitlement_Cache_Directly`.
+  (`Modules_Do_Not_Reference_DeploymentMode` migrated to the main
+  catalogue below in Phase 02a Packet 3 — see the dedicated entry.)
 
 The next PR that edits any of these source documents folds the
 corresponding row in here.

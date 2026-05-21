@@ -61,10 +61,18 @@
         CA2234 — `HttpClient.GetAsync(string)` overload is fine in test
                  assertions; the Uri-overload preference is library-grade
                  hygiene that costs readability in tests.
+        CA1711 — xunit collection-definition classes by convention end in
+                 "Collection"; the rule was written for API surfaces, not
+                 test scaffolding.
+        CA1822 — controller actions / endpoint methods that intentionally
+                 throw for L1-handler integration tests don't access
+                 instance data; making them static is fine but
+                 ControllerBase conventions and ASP.NET routing prefer
+                 instance methods.
       Real code-quality rules (CA1305 culture-invariant formatting, CA1861
       static-readonly array reuse) STAY ON — fix violations in the code.
     -->
-    <NoWarn>$(NoWarn);CA1707;CA1812;CA1515;CA1034;CA2234</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;CA1812;CA1515;CA1034;CA2234;CA1711;CA1822</NoWarn>
   </PropertyGroup>
 
 </Project>

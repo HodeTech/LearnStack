@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Observability.Serilog;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -6,11 +7,11 @@ namespace LearnStack.Infrastructure.Observability;
 
 /// <summary>
 /// Composition-root extension that registers the singleton
-/// <see cref="ITenantContextAccessor"/> + <see cref="TenantContextSpanProcessor"/>.
-/// The OpenTelemetry tracing pipeline itself is wired in
-/// <c>LearnStack.Api.Composition.CrossCuttingFoundationExtensions</c>; this
-/// extension only registers the types the pipeline depends on, so the
-/// singleton lifetimes are correct before the SDK builds.
+/// <see cref="ITenantContextAccessor"/>, the
+/// <see cref="TenantContextSpanProcessor"/>, and the Serilog enrichers
+/// (<see cref="RedactSensitiveFieldsEnricher"/> +
+/// <see cref="CorrelationContextEnricher"/>) so the Serilog and OTel
+/// pipelines wired by <c>LearnStack.Api</c> can resolve them as singletons.
 /// </summary>
 public static class ObservabilityRegistration
 {
@@ -21,6 +22,8 @@ public static class ObservabilityRegistration
 
         services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.TryAddSingleton<TenantContextSpanProcessor>();
+        services.TryAddSingleton<RedactSensitiveFieldsEnricher>();
+        services.TryAddSingleton<CorrelationContextEnricher>();
 
         return services;
     }

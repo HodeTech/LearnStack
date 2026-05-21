@@ -14,6 +14,15 @@ namespace LearnStack.Api.Common;
 /// carries <c>code</c>, <c>messageKey</c>, <c>correlationId</c>, optional
 /// <c>errors</c>.
 /// </summary>
+/// <remarks>
+/// <see cref="ProblemDetails.Title"/> intentionally carries the
+/// <c>lockey_*</c> localization key (matches the Standards 09 § API Surface
+/// example). The frontend resolves the key against its i18n catalogue; the
+/// wire value is stable across locales so support staff debugging in
+/// Insomnia / curl can match the lockey back to the catalogue entry. A
+/// future LocalizedMessage → text projector (Phase 02b, Accept-Language
+/// binding) may compose a human-readable Title alongside.
+/// </remarks>
 public static class ProblemDetailsFactory
 {
     private const string ProblemTypePrefix = "https://errors.learnstack.dev/";
@@ -36,16 +45,29 @@ public static class ProblemDetailsFactory
     {
         ArgumentNullException.ThrowIfNull(exception);
 
+        // Status MUST come from HttpStatusMap.For(Exception) so
+        // ProviderException(IsClientError = true) returns 400 instead of
+        // falling through to the carried Error.Code's 503 default. Code +
+        // messageKey still come from the carried Error so the wire shape
+        // stays consistent. Standards 09 § Provider Failures + ADR-0032
+        // § Sub-decision 7.
+        var status = HttpStatusMap.For(exception);
+
         if (exception is LearnStackException known)
         {
-            return For(known.Error, context);
+            var problem = BuildBase(known.Error.Code, known.Error.Message.Key, status, context);
+            if (known.Error.Details is { Count: > 0 })
+            {
+                problem.Extensions["errors"] = ProjectDetails(known.Error.Details);
+            }
+            return problem;
         }
 
         // Unhandled / unknown — surface a stable generic shape.
         return BuildBase(
             code: "internal_error",
             messageKey: "lockey_internal_error",
-            status: HttpStatusMap.For(exception),
+            status: status,
             context: context);
     }
 
@@ -53,7 +75,11 @@ public static class ProblemDetailsFactory
     {
         var problem = new ProblemDetails
         {
-            Type = ProblemTypePrefix + code,
+            // Standards 09 § API Surface example uses the short slug
+            // (e.g. /validation, not /validation_failed). Strip the
+            // trailing _failed when present so the URL stays clean across
+            // codes; other codes ride through unchanged.
+            Type = ProblemTypePrefix + TrimFailedSuffix(code),
             Title = messageKey,
             Status = status,
             Instance = context?.Request.Path.Value,
@@ -64,6 +90,11 @@ public static class ProblemDetailsFactory
         problem.Extensions["correlationId"] = ResolveCorrelationId(context);
         return problem;
     }
+
+    private static string TrimFailedSuffix(string code) =>
+        code.EndsWith("_failed", StringComparison.Ordinal)
+            ? code[..^"_failed".Length]
+            : code;
 
     private static string? ResolveCorrelationId(HttpContext? context)
     {
@@ -79,11 +110,6 @@ public static class ProblemDetailsFactory
     private static Dictionary<string, IReadOnlyList<object>> ProjectDetails(
         IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>> details)
     {
-        // Per Standards 09 § Validation Errors field names use the request's
-        // camelCase shape on the wire. The validator typically returns
-        // PascalCase property names; lower-case the first char so the
-        // payload matches what the SDK expects without losing the source
-        // information.
         var projected = new Dictionary<string, IReadOnlyList<object>>(StringComparer.Ordinal);
         foreach (var (key, list) in details)
         {
@@ -99,13 +125,32 @@ public static class ProblemDetailsFactory
         return projected;
     }
 
-    private static string ToCamelCase(string value)
+    /// <summary>
+    /// Projects FluentValidation property paths to the request's camelCase
+    /// shape per Standards 09 § Validation Errors. Handles nested paths
+    /// (<c>Address.Street</c> → <c>address.street</c>) and acronyms via
+    /// <see cref="System.Text.Json.JsonNamingPolicy.CamelCase"/>, which
+    /// lowercases only the leading run of uppercase letters
+    /// (<c>URLValue</c> → <c>urlValue</c>).
+    /// </summary>
+    private static string ToCamelCase(string propertyPath)
     {
-        if (string.IsNullOrEmpty(value) || char.IsLower(value[0]))
+        if (string.IsNullOrEmpty(propertyPath))
         {
-            return value;
+            return propertyPath;
         }
 
-        return char.ToLowerInvariant(value[0]) + value[1..];
+        if (!propertyPath.Contains('.', StringComparison.Ordinal))
+        {
+            return System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(propertyPath);
+        }
+
+        var segments = propertyPath.Split('.');
+        for (var i = 0; i < segments.Length; i++)
+        {
+            segments[i] = System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(segments[i]);
+        }
+
+        return string.Join('.', segments);
     }
 }

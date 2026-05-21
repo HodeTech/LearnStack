@@ -32,6 +32,13 @@
          pre-built pipeline. SharedKernel owns the port-interface seam; the
          concrete builder lives in LearnStack.Infrastructure.Resilience. -->
     <PackageReference Include="Polly" />
+
+    <!-- Standards 20 § ISecretProvider + ADR-0032 § Sub-decision 9: the
+         ConfigurationSecretProvider default delegates to IConfiguration so
+         every secret-bearing value (Sentry DSN, signed-license key paths,
+         provider credentials) reads through one seam. The Vault-backed
+         DaprSecretProvider lands in Packet 5. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
   </ItemGroup>
 
 </Project>

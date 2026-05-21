@@ -15,7 +15,13 @@ namespace LearnStack.Api.Common;
 /// when <see cref="ShouldCapture(Exception)"/> returns <c>true</c>
 /// (Standards 09 § Sentry vs OpenTelemetry — Error Capture Boundary).
 /// </summary>
-public sealed class LearnStackExceptionHandler(
+/// <remarks>
+/// <c>internal sealed</c> — modules do not (and per ADR-0032 § Sub-decision 1
+/// must not) instantiate it; the framework's
+/// <c>services.AddExceptionHandler&lt;T&gt;()</c> is the only entry. Tests
+/// reach the type through <c>InternalsVisibleTo</c>.
+/// </remarks>
+internal sealed class LearnStackExceptionHandler(
     IErrorTrackingProvider errorTracker,
     ITenantContextAccessor tenantContextAccessor,
     ILogger<LearnStackExceptionHandler> logger) : IExceptionHandler
@@ -30,13 +36,23 @@ public sealed class LearnStackExceptionHandler(
 
         var problem = ProblemDetailsFactory.For(exception, httpContext);
         var capture = ShouldCapture(exception);
+        var isProviderClientError = exception is ProviderException { IsClientError: true };
+        var isCancellation = exception is OperationCanceledException;
 
-        // OperationCanceled stays on Unset — RecordException would tag the
-        // span as error and Tempo would render the client disconnect as a
-        // failure. See ADR-0032 § Sub-decision 7 + Implementation Notes.
-        if (exception is not OperationCanceledException)
+        // Span semantics per Standards 09 § Sentry vs OpenTelemetry table:
+        //   OperationCanceled   → leave span Unset, no RecordException
+        //   Provider 4xx        → SetStatus(Error), no RecordException
+        //   everything else     → RecordException + SetStatus(Error)
+        // Activity.AddException is the .NET 9+ replacement for the legacy
+        // Activity.RecordException — the ADR's Implementation Notes still
+        // reference the older name; both add the same exception.* tags.
+        if (!isCancellation)
         {
-            Activity.Current?.AddException(exception);
+            if (!isProviderClientError)
+            {
+                Activity.Current?.AddException(exception);
+            }
+
             Activity.Current?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
         }
 
@@ -52,7 +68,16 @@ public sealed class LearnStackExceptionHandler(
             LogSkipped(logger, exception.GetType().FullName ?? "<unknown>", null);
         }
 
+        // OperationCanceled means the client has already disconnected. The
+        // outbound flush would throw on the closed socket anyway and the
+        // body would not reach a reader. Set the status for completeness
+        // and skip the body.
         httpContext.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
+        if (isCancellation || cancellationToken.IsCancellationRequested)
+        {
+            return true;
+        }
+
         httpContext.Response.ContentType = "application/problem+json";
         await httpContext.Response.WriteAsJsonAsync(
                 problem,

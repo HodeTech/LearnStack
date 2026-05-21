@@ -51,9 +51,12 @@ public sealed class TenantContextSpanProcessorTests
 
         processor.OnStart(activity);
 
-        activity.GetTagItem("tenant.id").Should().Be(tenantId);
-        activity.GetTagItem("organization.id").Should().Be(organizationId);
-        activity.GetTagItem("user.id").Should().Be(userId.Value);
+        // OTel attribute types are string / long / double / bool / array.
+        // The processor projects Guid via ToString() (default "D" format)
+        // so the wire format is stable across exporters — review-2 fix.
+        activity.GetTagItem("tenant.id").Should().Be(tenantId.ToString());
+        activity.GetTagItem("organization.id").Should().Be(organizationId.ToString());
+        activity.GetTagItem("user.id").Should().Be(userId.Value.ToString());
         activity.GetTagItem("correlation.id").Should().Be("00-aabbccdd-eeff0011-01");
         activity.GetTagItem("module").Should().Be("education");
     }

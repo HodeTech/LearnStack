@@ -64,7 +64,11 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             return response;
         }
 #pragma warning disable CA1031 // Do not catch general exception types — ADR-0016 binds the audit-then-rethrow contract here.
-        catch (Exception ex)
+        // Cancellation = client disconnect = noise per Standards 09 §
+        // Sentry vs OpenTelemetry table; the L1 handler already swallows
+        // it, and an audit entry for "user pressed Stop" is not useful.
+        // Skip the catch and rethrow naturally.
+        catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
             // TODO(2026-05-21, @platform, phase-02a-packet-9): write the

@@ -13,9 +13,13 @@ namespace LearnStack.Application.Pipeline;
 public static class MediatRPipelineRegistration
 {
     /// <summary>
-    /// The behaviors in canonical order. Architecture tests reflect on this
-    /// list to assert the runtime registration matches the contract; **do
-    /// not** reorder without amending ADR-0032.
+    /// The 7 pipeline behaviors in canonical order. ADR-0032
+    /// § Sub-decision 2 describes the chain as "eight steps" — these 7
+    /// behaviors plus the handler at the innermost position make up that
+    /// sequence. MediatR resolves the handler after the behavior chain
+    /// unwinds; it is not registered here. Architecture tests reflect on
+    /// this list to assert the runtime DI order matches the contract;
+    /// **do not** reorder without amending ADR-0032.
     /// </summary>
     public static IReadOnlyList<Type> CanonicalBehaviorOrder { get; } =
     [
@@ -26,6 +30,7 @@ public static class MediatRPipelineRegistration
         typeof(AuthorizationBehavior<,>),
         typeof(TransactionBehavior<,>),
         typeof(OutboxFlushBehavior<,>),
+        // Step 8 (the handler) is resolved by MediatR itself.
     ];
 
     /// <summary>

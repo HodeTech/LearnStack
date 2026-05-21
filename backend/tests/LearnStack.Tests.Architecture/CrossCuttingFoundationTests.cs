@@ -54,8 +54,23 @@ public sealed class CrossCuttingFoundationTests
     public void MediatR_Pipeline_Order_Matches_Canonical_Sequence()
     {
         // ADR-0032 § Sub-decision 2 — outermost (validation) first,
-        // innermost (handler) last. The architecture test reflects on the
-        // DI registration order MediatR emits via AddBehavior(...).
+        // innermost (handler) last. The expected list is hardcoded here on
+        // purpose so a future edit of MediatRPipelineRegistration's
+        // CanonicalBehaviorOrder can't sneak past the test by also
+        // reordering the test fixture. The catalogue entry
+        // MediatR_Pipeline_Order_Matches_Canonical_Sequence is the
+        // canonical reference for the contract.
+        Type[] expectedOrder =
+        [
+            typeof(ValidationBehavior<,>),
+            typeof(LoggingBehavior<,>),
+            typeof(AuditLogBehavior<,>),
+            typeof(TenantContextBehavior<,>),
+            typeof(AuthorizationBehavior<,>),
+            typeof(TransactionBehavior<,>),
+            typeof(OutboxFlushBehavior<,>),
+        ];
+
         var services = new ServiceCollection();
         services.AddLearnStackMediatRPipeline();
 
@@ -67,10 +82,21 @@ public sealed class CrossCuttingFoundationTests
             .ToArray();
 
         behaviorTypes.Should().Equal(
-            MediatRPipelineRegistration.CanonicalBehaviorOrder.ToArray(),
-            "ADR-0032 § Sub-decision 2 pins the eight-step order; the catalogue entry "
-            + "MediatR_Pipeline_Order_Matches_Canonical_Sequence is the canonical name. "
-            + "Changing the order requires a new ADR.");
+            expectedOrder,
+            "ADR-0032 § Sub-decision 2 pins the canonical 7-behavior order "
+            + "(plus the handler at the innermost position). Changing the order "
+            + "requires a new ADR; this hardcoded list is the test's "
+            + "drift-proof anchor.");
+
+        // Belt-and-suspenders: the production CanonicalBehaviorOrder list
+        // must match the same hardcoded sequence so reflection-based
+        // consumers (e.g. the registration extension) see the same
+        // contract.
+        MediatRPipelineRegistration.CanonicalBehaviorOrder
+            .Should()
+            .Equal(expectedOrder,
+                "the production CanonicalBehaviorOrder is the public surface; "
+                + "it must match the hardcoded ADR-0032 sequence.");
     }
 
     [Fact]
@@ -208,6 +234,31 @@ public sealed class CrossCuttingFoundationTests
                     $"{assembly!.GetName().Name} references {sdkPrefix}. SDK exception types "
                     + "must stay inside LearnStack.Infrastructure.<Adapter>.");
             }
+        }
+    }
+
+    [Fact]
+    public void Modules_Do_Not_Reference_DeploymentMode()
+    {
+        // Standards 20 § Composition Root and Deployment Mode — the
+        // composition root selects provider implementations once;
+        // modules must NEVER read DeploymentMode directly. The catalogue
+        // entry of the same name has lived without an implementation
+        // until now (Phase 02a Packet 3 review finding).
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var assembly = TryLoadAssembly(name);
+            if (assembly is null) continue;
+
+            var result = Types.InAssembly(assembly)
+                .Should()
+                .NotHaveDependencyOn("LearnStack.SharedKernel.Hosting")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{name} references LearnStack.SharedKernel.Hosting (the DeploymentMode "
+                + "namespace). Composition-root branching is the only sanctioned read site "
+                + "(Standards 20 § Composition Root).");
         }
     }
 

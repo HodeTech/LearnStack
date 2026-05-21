@@ -11,6 +11,8 @@
   <ItemGroup>
     <PackageReference Include="Polly" />
     <PackageReference Include="Polly.Extensions" />
+    <!-- Bulkhead = AddConcurrencyLimiter strategy (System.Threading.RateLimiting). -->
+    <PackageReference Include="Polly.RateLimiting" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
