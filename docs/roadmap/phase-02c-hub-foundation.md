@@ -1,5 +1,69 @@
 # Phase 02c: LearnStack Hub Foundation (parallel track)
 
+> **Status (2026-05-21).** Phase 02c in progress.
+>
+> **P02c-0 — Repository bootstrap ✅**
+> Sibling `learnstack-hub` git repository created (GitHub:
+> https://github.com/cemililik/LearnStack-Hub). Backend solution
+> (`LearnStack.Hub.slnx`) with 7 core projects + 4 test projects builds
+> green (0 warnings, 0 errors); 4 architecture tests + 1 smoke test pass.
+> Frontend pnpm monorepo (`apps/operator-portal` + `packages/{config,sdk,ui}`)
+> typechecks, lints, and builds. Hub-side compose stack
+> (Dapr placement + sidecar on 50006 / 3501 / 50002, APISIX on 9180,
+> Postgres init for the `learnstack_hub` database) declared; shares
+> LearnStack core's Postgres / Valkey / Vault / Kafka / Keycloak / Mailpit
+> via `host.docker.internal`. Hub CI workflow (backend + frontend + meta
+> + secret-scan) mirrors LearnStack core's shape. Documentation skeleton
+> in place: `docs/architecture/contract-with-learnstack.md` points to
+> LearnStack-side authority for the four-endpoint contract surface;
+> `docs/decisions/` reserves the `HUB-NNNN` Hub-internal ADR series;
+> `docs/glossary.md` covers Hub-specific terms. No Hub domain code yet —
+> that lands in P02c-1.
+>
+> **P02c-1 — Hub Domain Core ⏳ Next**
+> `LearnStackTenant` (mirror), `Plan`, `HubSubscription`, `Entitlement`
+> aggregates + per-module DbContexts + initial EF migrations; Hub-side
+> equivalent of LearnStack core P02a-2 (SharedKernel: `Result<T>`,
+> `Entity<TId>`, `IClock`, Vogen) + P02a-3 (cross-cutting foundation).
+> `Hub_NeverStores_TenantData` and
+> `Hub_Modules_DoNotReference_LearnStack_Internals` architecture tests
+> become real once modules land.
+>
+> **P02c-2 — Hub-side Internal API + Outbound `LearnStackApiClient` ⏳**
+> `POST /api/v1/internal/license/verify` + `POST /api/v1/usage/report`
+> handlers, mTLS + signed JWT + HMAC body-signature chain, Hub OpenAPI
+> spec generation + frontend SDK generation.
+>
+> **P02c-3 — LearnStack core PR ⏳ blocked on LearnStack P02a-5/6/7/9**
+> `HubEntitlementProvider` (production-complete) + `IUsageReporter`
+> adapter on the LearnStack side; APISIX `/api/internal/*` stub activation;
+> `POST /api/internal/tenants` + `PUT /api/internal/tenants/{id}/entitlements`
+> handlers; Dapr `learnstack.hub.entitlement` consumer; architecture test
+> catalogue migration of `LearnStack_Modules_DoNotReference_Hub` +
+> `IEntitlementProvider_Implementations_Are_Three` +
+> `NullEntitlementProvider_NotRegistered_OutsideDevelopment`.
+>
+> **P02c-4 — Operator Portal MVP ⏳**
+> Keycloak `learnstack-hub` realm OIDC + PKCE BFF login, tenant list
+> (filterable), tenant detail (entitlement read-only viewer), plan list
+> (read-only), dashboard stub. MFA enforced.
+>
+> **P02c-5 — Custom Domain Lifecycle ⏳**
+> `CustomDomain` aggregate + state machine, DNS-01 / HTTP-01 challenge
+> runner, Let's Encrypt provider adapter,
+> `learnstack.hub.custom-domain.activated/.deactivated/.renewed` event
+> publish; LearnStack-side `platform_host_to_tenant` mirror handler per
+> ADR-0022 Amendment 1 (Hub never writes LearnStack K8s state).
+>
+> **P02c-6 — License Key (functional skeleton) ⏳**
+> `LicenseKey` aggregate + RSA-2048 keypair + `.lic` file format
+> (JWT-style claims); LearnStack-side `SignedLicenseKeyEntitlementProvider`
+> skeleton.
+>
+> **P02c-7 — End-to-End Exit Gate ⏳**
+> Full SaaS scenario + Self-Hosted bootstrap rehearsal; Hub + LearnStack
+> architecture suites green.
+
 ## Goal
 
 Bootstrap the **separate `learnstack-hub` repository** and stand up the foundation

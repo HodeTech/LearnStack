@@ -15,6 +15,11 @@ LearnStack ships in three production deployment modes — SaaS, Dedicated, Self-
 backed by the companion **`learnstack-hub`** repository which provides the SaaS /
 Dedicated control plane, plan editor, custom-domain admin, and license-key issuance.
 
+The Hub repo is expected to live at `../learnstack-hub` (sibling to this repo on the
+developer's workstation) so the cross-repo doc cross-links resolve. See
+[learnstack-hub on GitHub](https://github.com/cemililik/LearnStack-Hub) and
+[docs/roadmap/phase-02c-hub-foundation.md](docs/roadmap/phase-02c-hub-foundation.md).
+
 ## Status
 
 Phase 01 complete. The repository now holds the .NET 10 solution scaffold (7
