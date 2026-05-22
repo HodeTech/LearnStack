@@ -299,7 +299,11 @@ by:
 
 - The `LoggingBehavior` (request duration histogram, request count counter,
   outcome label from `Result.Code` or exception type).
-- Module-specific code via injected `IMeterFactory.Create("learnstack")`.
+- Module-specific code via injected `IMeterFactory.Create("learnstack.<module>")`
+  (dotted, lowercase — the composition root registers the OTel meter filter as
+  `AddMeter("learnstack.*")`, so a bare `"learnstack"` name without the dotted
+  segment would not match; mirror the `learnstack.<module>` ActivitySource
+  convention).
 - Adapter code via the resilience pipeline's built-in telemetry hooks
   (`learnstack_provider_request_duration_seconds`,
   `learnstack_provider_request_total{provider=...,outcome=...}`).

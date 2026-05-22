@@ -58,10 +58,16 @@ When a test is retired:
 | Convention | Example |
 |---|---|
 | Architecture test class / fact | `Subject_Constraint`: `Modules_Do_Not_Reference_DeploymentMode`, `Every_TenantOwned_Command_HasAuditCoverage`, `MediatR_Pipeline_Order_Matches_Canonical_Sequence` |
-| Roslyn analyzer ID | `LearnStackException-<Topic>`: `LearnStackException-DomainExceptionThrow` |
+| Roslyn analyzer **rule name** | `LearnStackException-<Topic>`: `LearnStackException-DomainExceptionThrow` |
+| Roslyn analyzer **diagnostic id** | `LS####` (valid C# identifier): `LS0001` |
 
-The two namespaces are disjoint by prefix — a Roslyn analyzer's diagnostic
-ID never collides with an architecture test fact name.
+A Roslyn diagnostic id **must be a valid identifier** (letters/digits, no
+hyphens) — Roslyn raises `AD0001` at report time otherwise (see ADR-0032
+Amendment 1). The hyphenated `LearnStackException-<Topic>` form is the
+human-readable **rule name** carried in the analyzer title / help text; the
+wire-level **diagnostic id** is the `LS####` form. The architecture-test
+fact namespace and both analyzer namespaces are disjoint, so identifiers
+never collide.
 
 ## Catalogue
 
@@ -113,26 +119,61 @@ otherwise).
 #### `Domain_Methods_Do_Not_Throw_For_Expected_Cases`
 
 - **Asserts:** the Roslyn analyzer `LearnStackException-DomainExceptionThrow`
-  produces zero Warnings inside `Domain` + `Application` projects of every
-  module. Walks `Result<T>`-returning methods and asserts the analyzer
-  report is empty for the module.
+  (diagnostic id `LS0001`) produces zero Warnings inside `Domain` +
+  `Application` projects of every module. Walks `Result<T>`-returning
+  methods and asserts the analyzer report is empty for the module.
 - **Source:** ADR-0032 § Sub-decision 4;
   [09-error-handling.md § Domain Exceptions](09-error-handling.md).
 - **Type:** xUnit + Roslyn analyzer report inspection.
-- **Phase:** 02a (Warning); escalates to Error after Phase 03 exit.
+- **Status:** **Deferred** — not yet implemented as a discrete architecture
+  test. The enforcement it represents is already live: the `LS0001`
+  analyzer runs in every module's `Domain` + `Application` build and the
+  `DomainExceptionThrowAnalyzerTests` unit tests lock its behaviour. The
+  report-walking architecture test lands when module domain code exists to
+  walk (Packet 6+). Until then this row documents the intent, not a shipped
+  test.
+- **Phase:** target 02a (Warning); escalates to Error after Phase 03 exit.
 
 #### `LearnStackException-DomainExceptionThrow` (Roslyn analyzer)
 
-- **Diagnostic ID prefix:** `LearnStackException-DomainExceptionThrow`.
-- **Asserts:** every `throw new DomainException(...)` outside aggregate
-  invariant guards is flagged. The analyzer ships in
-  `backend/analyzers/LearnStack.Analyzers` and is referenced by
-  `Domain` + `Application` projects via `<PackageReference Include="LearnStack.Analyzers" ... />`.
-- **Severity:** Warning in Phase 02a; flipped to Error after the Phase 03
-  exit gate is green across all modules.
-- **Source:** ADR-0032 § Sub-decision 4;
+- **Rule name:** `LearnStackException-DomainExceptionThrow`.
+- **Diagnostic id:** `LS0001` (Roslyn ids must be valid identifiers; the
+  hyphenated rule name is the human-readable title — see ADR-0032
+  Amendment 1).
+- **Asserts:** every `throw new DomainException(...)` is flagged so the
+  "DomainException = programmer error" discipline is mechanical, not
+  reviewer-dependent. Genuine aggregate-invariant throws (the sanctioned
+  use) are the rare sites that suppress with justification
+  (`#pragma warning disable LS0001`). The analyzer ships in
+  `backend/analyzers/LearnStack.Analyzers` and is referenced by every
+  module's `Domain` + `Application` project (and the core `LearnStack.Domain`
+  / `LearnStack.Application`) via
+  `<ProjectReference ... OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`
+  (NOT a PackageReference — the analyzer is built in-tree, not packed).
+- **Severity:** Warning in Phase 02a; listed in `WarningsNotAsErrors`
+  (Directory.Build.props) so it does not break CI under
+  `TreatWarningsAsErrors` before the documented escalation. Flipped to Error
+  (and removed from `WarningsNotAsErrors`) after the Phase 03 exit gate is
+  green across all modules.
+- **Tests:** `DomainExceptionThrowAnalyzerTests`
+  (`LearnStack.Tests.Unit`) runs the analyzer over synthetic compilations
+  and asserts `LS0001` is reported (and no `AD0001` crash).
+- **Source:** ADR-0032 § Sub-decision 4 + Amendment 1;
   [09-error-handling.md § Domain Exceptions](09-error-handling.md).
 - **Phase:** 02a.
+
+#### `Handlers_Return_Result`
+
+- **Asserts:** every `IRequestHandler<TRequest, TResponse>` implementation
+  in a `*.Application` assembly has `TResponse : IResultBase`. A handler
+  that returns a raw DTO would satisfy none of the
+  `where TResponse : IResultBase`-constrained pipeline behaviors and so
+  would silently bypass validation / audit / tenant-context + RLS.
+- **Source:** ADR-0032 § Sub-decision 2;
+  [02-backend-coding.md § MediatR Use Cases](02-backend-coding.md).
+- **Type:** xUnit + reflection over `IRequestHandler<,>` implementations.
+- **Phase:** 02a (Packet 3 — lands now while the pipeline contract is
+  fresh; vacuous until handlers exist, active the moment they land).
 
 #### `Adapters_Wrap_Provider_Exceptions`
 

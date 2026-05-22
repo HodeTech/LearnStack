@@ -13,10 +13,25 @@ namespace LearnStack.SharedKernel.Errors;
 /// SDK exception types never leave the adapter assembly.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The <see cref="IsClientError"/> flag splits the Sentry-capture boundary
 /// (Standards 09 § Sentry vs OpenTelemetry — Error Capture Boundary):
 /// <c>true</c> for 4xx upstream (provider's user-mistake, no Sentry capture),
 /// <c>false</c> for 5xx upstream / timeouts (Sentry-captured infra failure).
+/// It does <strong>not</strong> drive the HTTP status returned to the
+/// client.
+/// </para>
+/// <para>
+/// The HTTP status comes from the carried <see cref="Error"/>'s code (see
+/// <c>HttpStatusMap.For(Exception)</c>), so the response status and the
+/// Problem Details <c>code</c> field can never disagree. The convenience
+/// ctor defaults to <c>dependency_unavailable</c> (→ 503), which is the
+/// right shape for an unspecified provider failure. When an adapter wants to
+/// surface a provider 4xx as a client-actionable status, it passes an
+/// explicit <see cref="Error"/> (e.g. <c>validation_failed</c> → 400) via
+/// the error-carrying ctor — that error then drives both the body code and
+/// the status consistently.
+/// </para>
 /// </remarks>
 public class ProviderException : LearnStackException
 {

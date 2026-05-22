@@ -7,24 +7,41 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace LearnStack.Analyzers;
 
 /// <summary>
-/// LearnStackException-DomainExceptionThrow — flags every
+/// Rule "LearnStackException-DomainExceptionThrow" (Roslyn diagnostic id
+/// <see cref="DiagnosticId"/> = <c>LS0001</c>) — flags every
 /// <c>throw new DomainException(...)</c> in Domain / Application code per
 /// ADR-0032 § Sub-decision 4. Expected business-rule violations return
 /// <c>Result.Fail(business_rule_violation, ...)</c>; the exception is
 /// reserved for programmer errors.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The Roslyn diagnostic id MUST be a valid identifier (letters/digits, no
+/// hyphens) — Roslyn throws <c>AD0001</c> at report time otherwise. The
+/// human-readable rule name <c>LearnStackException-DomainExceptionThrow</c>
+/// (ADR-0032 / Standards 21 naming convention) is carried in the title and
+/// help text; the wire-level id is <c>LS0001</c>. See ADR-0032 Amendment 1.
+/// </para>
+/// <para>
 /// Severity: <see cref="DiagnosticSeverity.Warning"/> in Phase 02a. Per
 /// ADR-0032 the severity escalates to <see cref="DiagnosticSeverity.Error"/>
 /// after Phase 03 exit when every existing call site has been migrated.
+/// Until then <c>LS0001</c> is listed in <c>WarningsNotAsErrors</c>
+/// (Directory.Build.props) so a legitimate aggregate-invariant throw does
+/// not break CI under <c>TreatWarningsAsErrors</c> before the documented
+/// escalation point.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class DomainExceptionThrowAnalyzer : DiagnosticAnalyzer
 {
-    public const string DiagnosticId = "LearnStackException-DomainExceptionThrow";
+    public const string DiagnosticId = "LS0001";
+
+    /// <summary>The human-readable rule name (ADR-0032 / Standards 21).</summary>
+    public const string RuleName = "LearnStackException-DomainExceptionThrow";
 
     private static readonly LocalizableString Title =
-        "Avoid throwing DomainException for expected business-rule violations";
+        "Avoid throwing DomainException for expected business-rule violations (LearnStackException-DomainExceptionThrow)";
 
     private static readonly LocalizableString MessageFormat =
         "DomainException is reserved for programmer errors. " +
@@ -44,7 +61,7 @@ public sealed class DomainExceptionThrowAnalyzer : DiagnosticAnalyzer
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: Description,
-        helpLinkUri: "https://github.com/cemililik/learnstack/blob/main/docs/decisions/0032-exception-handling-logging-and-observability.md");
+        helpLinkUri: "https://github.com/cemililik/LearnStack/blob/main/docs/decisions/0032-exception-handling-logging-and-observability.md");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics
         => ImmutableArray.Create(Rule);

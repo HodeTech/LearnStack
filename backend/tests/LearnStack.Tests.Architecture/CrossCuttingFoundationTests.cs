@@ -5,6 +5,7 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Observability;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Observability;
+using LearnStack.SharedKernel.Results;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
@@ -233,6 +234,55 @@ public sealed class CrossCuttingFoundationTests
                 result.IsSuccessful.Should().BeTrue(
                     $"{assembly!.GetName().Name} references {sdkPrefix}. SDK exception types "
                     + "must stay inside LearnStack.Infrastructure.<Adapter>.");
+            }
+        }
+    }
+
+    [Fact]
+    public void Handlers_Return_Result()
+    {
+        // The 8-step MediatR pipeline behaviors are constrained
+        // `where TResponse : IResultBase`; MediatR only instantiates an
+        // open-generic behavior for requests whose response satisfies the
+        // constraint. A handler declared IRequestHandler<TReq, RawDto>
+        // would therefore run with NO behaviors — no validation, no audit,
+        // and (once Packet 7 lands) no TenantContextBehavior (where RLS GUCs
+        // get set). This test locks the "handlers return Result<T>" invariant
+        // now, while the pipeline contract is fresh. Vacuous today (no
+        // handlers yet); active the moment they land. Standards 02 § MediatR
+        // Use Cases (review-4 M1).
+        var applicationAssemblies = ModuleAssemblyShapes
+            .Where(n => n.EndsWith(".Application", StringComparison.Ordinal))
+            .Append("LearnStack.Application")
+            .Select(TryLoadAssembly)
+            .Where(a => a is not null)
+            .ToArray();
+
+        foreach (var assembly in applicationAssemblies)
+        {
+            foreach (var type in assembly!.GetTypes())
+            {
+                if (type.IsAbstract || type.IsInterface)
+                {
+                    continue;
+                }
+
+                foreach (var contract in type.GetInterfaces())
+                {
+                    if (!contract.IsGenericType
+                        || contract.GetGenericTypeDefinition() != typeof(IRequestHandler<,>))
+                    {
+                        continue;
+                    }
+
+                    var responseType = contract.GetGenericArguments()[1];
+                    typeof(IResultBase).IsAssignableFrom(responseType).Should().BeTrue(
+                        $"{type.FullName} handles a request whose response ({responseType.Name}) "
+                        + "does not implement IResultBase. Handlers must return Result<T> so the "
+                        + "MediatR pipeline (validation / audit / tenant-context + RLS) applies "
+                        + "— a raw-DTO response silently bypasses every behavior. "
+                        + "Standards 02 § MediatR Use Cases.");
+                }
             }
         }
     }

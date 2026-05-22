@@ -7,6 +7,36 @@ Accepted
 **Date:** 2026-05-20
 **Deciders:** @platform
 
+## Amendments
+
+### Amendment 1 — Roslyn diagnostic id + CI severity (2026-05-22)
+
+Sub-decision 4 and the Standards 21 naming convention referred to the
+analyzer's identifier as `LearnStackException-DomainExceptionThrow`. Roslyn
+**diagnostic ids must be valid identifiers** (letters/digits, no hyphens);
+reporting a hyphenated id throws `AD0001` at analysis time, which under CI's
+`TreatWarningsAsErrors` would break the build the first time a
+`DomainException` is thrown. This amendment clarifies, without changing the
+intent of Sub-decision 4:
+
+- The analyzer's Roslyn **diagnostic id is `LS0001`**. The hyphenated
+  `LearnStackException-DomainExceptionThrow` is retained as the
+  human-readable **rule name** (analyzer title / help text), and remains the
+  catalogue/cross-link handle.
+- The analyzer is referenced by the consuming `Domain` + `Application`
+  projects as an in-tree analyzer
+  (`<ProjectReference ... OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`),
+  not via a packed `<PackageReference>`.
+- The "Warning in Phase 02a, Error after Phase 03 exit" escalation is
+  honoured against CI by listing `LS0001` in `WarningsNotAsErrors`
+  (Directory.Build.props) until the Phase 03 exit gate, so a legitimate
+  aggregate-invariant throw does not fail CI before the documented
+  escalation point. At Phase 03 exit the analyzer's default severity flips
+  to Error and `LS0001` is removed from `WarningsNotAsErrors`.
+
+The Decision section below is unchanged; this amendment records the
+implementation-level correction.
+
 ## Decision Drivers
 
 - **Standards 09 ↔ Standards 02 ↔ ADR-0016 are out of step.** Standards 02 §

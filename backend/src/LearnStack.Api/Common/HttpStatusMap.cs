@@ -60,10 +60,17 @@ public static class HttpStatusMap
             // behaviour. If a future ADR pins a different code, change
             // this line.
             OperationCanceledException => 499,
-            ProviderException pex when pex.IsClientError => (int)HttpStatusCode.BadRequest,
-            ProviderException => (int)HttpStatusCode.ServiceUnavailable,
-            InfrastructureException => (int)HttpStatusCode.ServiceUnavailable,
-            TenantContextMissingException => (int)HttpStatusCode.NotFound,
+
+            // Every LearnStackException carries a structured Error; the HTTP
+            // status is derived from that Error.Code so the response status
+            // and the Problem Details `code` field can NEVER disagree. In
+            // particular `ProviderException.IsClientError` is an
+            // observability concern (it gates Sentry capture in
+            // ShouldCapture), NOT an HTTP-status concern: a bare provider
+            // failure carries `dependency_unavailable` → 503, and an adapter
+            // that wants to surface a provider 4xx as a client-actionable
+            // status passes an explicit Error (e.g. validation_failed → 400).
+            // Deriving from the code keeps body+status consistent for both.
             LearnStackException known => For(known.Error),
             _ => (int)HttpStatusCode.InternalServerError,
         };

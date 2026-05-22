@@ -259,6 +259,71 @@
 >   contract. If a future ADR pins a different code, the one comment
 >   block is the seam to change.
 >
+> Review-3/4 fixes:
+>
+> - **H1 (blocker)** — the `DomainExceptionThrow` analyzer used a hyphenated
+>   Roslyn diagnostic id, which Roslyn rejects (`AD0001` crash at report
+>   time → CI build break under `TreatWarningsAsErrors` the first time a
+>   `DomainException` is thrown). Fixed: diagnostic id is now `LS0001`
+>   (valid identifier); `LearnStackException-DomainExceptionThrow` is
+>   retained as the human-readable rule name. `LS0001` is listed in
+>   `WarningsNotAsErrors` until the Phase 03 escalation so a legitimate
+>   aggregate-invariant throw does not break CI. New
+>   `DomainExceptionThrowAnalyzerTests` (`LearnStack.Tests.Unit`) run the
+>   analyzer over synthetic compilations and assert `LS0001` is emitted
+>   (no `AD0001`). Recorded as [ADR-0032 Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md);
+>   Standards 21 naming convention + analyzer entry updated.
+> - **Provider error body/status consistency** — `HttpStatusMap.For(Exception)`
+>   now derives the HTTP status from the carried `Error.Code` for every
+>   `LearnStackException`, instead of special-casing
+>   `ProviderException.IsClientError → 400`. `IsClientError` is purely an
+>   observability concern (it gates Sentry capture), so a bare provider
+>   failure is `dependency_unavailable` → 503 and an adapter surfacing a
+>   provider 4xx passes an explicit `Error` (e.g. `validation_failed` → 400);
+>   either way body code and status agree. Tests updated to assert both.
+> - **Redaction over-match + nesting** — `SensitiveTokenCatalog.IsSensitive`
+>   now matches on word-segment boundaries (camelCase / `_ . -`) instead of
+>   raw substrings, so `ClassName` / `BusinessName` are no longer redacted
+>   by the `ssn` token while `Password` / `ApiKey` / `SSNToken` still are.
+>   `RedactSensitiveFieldsEnricher` recurses into destructured objects,
+>   dictionaries, and sequences so a sensitive field nested in a
+>   non-sensitive top-level property (`User.Password`) is scrubbed; lazy
+>   reconstruction keeps clean events allocation-free. New
+>   `SensitiveTokenCatalogTests` + `RedactSensitiveFieldsEnricherTests`.
+> - **OTel naming + air-gapped** — the manual `AddSource` / `AddMeter`
+>   filters use the documented lowercase `learnstack.*` convention (matching
+>   the `learnstack.mediatr` ActivitySource without relying on
+>   case-insensitive wildcard matching). `WireSerilog` / `WireOpenTelemetry`
+>   now take `DeploymentMode`; `SelfHostedAirGapped` never wires the network
+>   OTLP exporters (no-egress contract), with a dated TODO for the
+>   `/var/learnstack/otel/` file target deferred to Phase 11 ops.
+> - **M1** — new `Handlers_Return_Result` architecture test asserts every
+>   `IRequestHandler<,TResponse>` has `TResponse : IResultBase`, so a
+>   raw-DTO handler can't silently bypass the pipeline (validation / audit /
+>   tenant-context + RLS). Vacuous today, active when handlers land.
+> - **L4** — the Serilog enrichers are resolved from DI (the singletons
+>   registered in `AddLearnStackObservabilityServices`) instead of being
+>   `new()`'d in the pipeline, so there are no dead registrations.
+> - **Docs** — `Domain_Methods_Do_Not_Throw_For_Expected_Cases` marked
+>   **deferred** in Standards 21 (the `LS0001` analyzer already enforces the
+>   rule at build time; the report-walking architecture test lands with
+>   module domain code in Packet 6+). LoggingBehavior activity-name doc,
+>   `correlationId`-as-full-traceparent in Standards 09/10, and the
+>   `IMeterFactory.Create("learnstack.<module>")` example in architecture 33
+>   reconciled with the code.
+> - **Skipped (with reason)** — the resilience pipeline order
+>   (retry → breaker → timeout → bulkhead) is left as-is: it is faithful to
+>   ADR-0032 § Sub-decision 5's stated order. Whether the concurrency
+>   limiter should sit outermost (to cap total in-flight including retries,
+>   per the `Microsoft.Extensions.Resilience` standard handler) is an
+>   ADR-level question for a future amendment, not a code defect in this
+>   packet.
+>
+> Validation after review-3/4: `dotnet build LearnStack.slnx` (CI=true)
+> clean; `LearnStack.Tests.Unit` 154/154, `LearnStack.Tests.Architecture`
+> 26/26, `LearnStack.Tests.Integration` 5/5, `LearnStack.Tests.Contract`
+> 1/1 green.
+>
 > **Packet 4 — API conventions ⏳**
 > REST + URL versioning (`/v1/...` per ADR-0024), Problem Details (RFC 7807)
 > shape on every error, cursor pagination, idempotency keys for write

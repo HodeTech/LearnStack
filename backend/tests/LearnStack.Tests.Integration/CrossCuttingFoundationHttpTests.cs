@@ -5,6 +5,7 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Errors;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using FluentValidation;
 using LearnStack.SharedKernel.Identifiers;
@@ -51,14 +52,19 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
     }
 
     [Fact]
-    public async Task L1_Handler_Returns_400_For_Client_Side_ProviderException()
+    public async Task L1_Handler_Returns_Consistent_Body_And_Status_For_Client_Side_ProviderException()
     {
         var response = await _client.GetAsync(new Uri("/test/throw-provider-4xx", UriKind.Relative));
 
-        // ProviderException(IsClientError: true) must map to 400 — the
-        // production bug the review caught: bypassing HttpStatusMap.For(Exception)
-        // mapped it to 503 via the LearnStackException default Error.Code.
+        // An adapter surfacing a provider 4xx as client-actionable passes an
+        // explicit Error (here validation_failed). HTTP status is derived
+        // from that code, so body code and status agree — 400 + validation_failed,
+        // NOT a 400 carrying dependency_unavailable. IsClientError only gates
+        // Sentry capture, not the status.
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("validation_failed");
+        problem.GetProperty("messageKey").GetString().Should().Be("lockey_validation_failed");
     }
 
     [Fact]
@@ -162,7 +168,11 @@ public sealed class CrossCuttingTestController(IMediator mediator) : ControllerB
     [SuppressMessage("Performance", "CA1822:Mark members as static",
         Justification = "Controller actions are instance methods by ASP.NET routing convention.")]
     public IActionResult ThrowClientProvider() =>
-        throw new ProviderException("test-provider", "upstream returned 4xx", isClientError: true);
+        throw new ProviderException(
+            error: new Error(new LocalizedMessage("lockey_validation_failed")),
+            providerName: "test-provider",
+            message: "upstream returned 4xx",
+            isClientError: true);
 
     [HttpPost("validate")]
     public async Task<IActionResult> Validate(

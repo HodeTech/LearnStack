@@ -61,8 +61,8 @@ public static class CrossCuttingFoundationExtensions
         var secretProvider = SelectSecretProvider(deploymentMode, builder.Configuration);
         builder.Services.TryAddSingleton<ISecretProvider>(secretProvider);
 
-        WireSerilog(builder);
-        WireOpenTelemetry(builder);
+        WireSerilog(builder, deploymentMode);
+        WireOpenTelemetry(builder, deploymentMode);
 
         builder.Services.AddLearnStackErrorTracking(
             secretProvider, builder.Configuration, deploymentMode);
@@ -81,7 +81,7 @@ public static class CrossCuttingFoundationExtensions
         return builder;
     }
 
-    private static void WireSerilog(WebApplicationBuilder builder)
+    private static void WireSerilog(WebApplicationBuilder builder, DeploymentMode deploymentMode)
     {
         builder.Host.UseSerilog((ctx, services, cfg) =>
         {
@@ -94,14 +94,25 @@ public static class CrossCuttingFoundationExtensions
                 // correlation.id from the singleton ITenantContextAccessor
                 // onto every LogEvent. The redaction enricher then strips
                 // sensitive properties before the formatter touches them
-                // (Standards 11 § Sensitive Data Exposure).
-                .Enrich.With(new CorrelationContextEnricher(
-                    services.GetRequiredService<ITenantContextAccessor>()))
-                .Enrich.With<RedactSensitiveFieldsEnricher>()
+                // (Standards 11 § Sensitive Data Exposure). Both are resolved
+                // from DI (registered as singletons in
+                // AddLearnStackObservabilityServices) so the instances in the
+                // pipeline are the registered ones — no parallel new()'d copy.
+                .Enrich.With(services.GetRequiredService<CorrelationContextEnricher>())
+                .Enrich.With(services.GetRequiredService<RedactSensitiveFieldsEnricher>())
                 .WriteTo.Console(new Serilog.Formatting.Compact.RenderedCompactJsonFormatter());
 
+            // Air-gapped never egresses logs over the network (Standards 20
+            // § Composition Root and Deployment Mode). The console sink above
+            // is the operator's local capture; the OTLP sink is wired only
+            // for the network-capable modes.
+            // TODO(2026-05-22, @platform): Phase 11 ops — add a Serilog file
+            // sink under /var/learnstack/otel/ for SelfHostedAirGapped (the
+            // contract target in Standards 20). Deferred pending the
+            // file-target package decision.
             var otlpEndpoint = ctx.Configuration["Telemetry:OtlpEndpoint"];
-            if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+            if (deploymentMode != DeploymentMode.SelfHostedAirGapped
+                && !string.IsNullOrWhiteSpace(otlpEndpoint))
             {
                 cfg.WriteTo.OpenTelemetry(o =>
                 {
@@ -119,11 +130,25 @@ public static class CrossCuttingFoundationExtensions
         });
     }
 
-    private static void WireOpenTelemetry(WebApplicationBuilder builder)
+    private static void WireOpenTelemetry(WebApplicationBuilder builder, DeploymentMode deploymentMode)
     {
         var serviceName = builder.Configuration["Telemetry:Service:Name"] ?? "learnstack-api";
         var serviceVersion = builder.Configuration["Telemetry:Service:Version"] ?? "0.0.0-dev";
         var otlpEndpoint = builder.Configuration["Telemetry:OtlpEndpoint"];
+
+        // Air-gapped must not phone home to a network collector (Standards 20
+        // § Composition Root and Deployment Mode). The exporter is wired only
+        // for the network-capable modes; air-gapped relies on the local
+        // capture path. The source / meter filters use the documented
+        // lowercase convention (learnstack.<module>) so they match the manual
+        // ActivitySource / Meter names without depending on case-insensitive
+        // wildcard matching.
+        // TODO(2026-05-22, @platform): Phase 11 ops — add an OTLP file
+        // exporter under /var/learnstack/otel/ for SelfHostedAirGapped (the
+        // Standards 20 contract target). Deferred pending the file-exporter
+        // package decision; until then air-gapped traces/metrics stay in-process.
+        var exportOverNetwork = deploymentMode != DeploymentMode.SelfHostedAirGapped
+            && !string.IsNullOrWhiteSpace(otlpEndpoint);
 
         var otel = builder.Services
             .AddOpenTelemetry()
@@ -135,21 +160,21 @@ public static class CrossCuttingFoundationExtensions
                 t.AddAspNetCoreInstrumentation();
                 t.AddHttpClientInstrumentation();
                 t.AddEntityFrameworkCoreInstrumentation();
-                t.AddSource("LearnStack.*");
+                t.AddSource("learnstack.*");
                 t.AddProcessor<TenantContextSpanProcessor>();
-                if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                if (exportOverNetwork)
                 {
-                    t.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+                    t.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint!));
                 }
             })
             .WithMetrics(m =>
             {
                 m.AddAspNetCoreInstrumentation();
                 m.AddHttpClientInstrumentation();
-                m.AddMeter("LearnStack.*");
-                if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                m.AddMeter("learnstack.*");
+                if (exportOverNetwork)
                 {
-                    m.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+                    m.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint!));
                 }
             });
 

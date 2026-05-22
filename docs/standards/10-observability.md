@@ -48,7 +48,7 @@ Every request, job, event handler carries:
 |-------|--------|-------|
 | `trace_id` | OTel trace context | W3C `traceparent` propagated end to end |
 | `span_id` | OTel | Per operation |
-| `correlation_id` | Per request | Stable across retries; equals trace id at request boundary |
+| `correlation_id` | Per request | Full W3C traceparent (`Activity.Current.Id`, `00-<trace>-<span>-<flags>`); embeds the trace id and is stable across retries. Surfaced on the Problem Details body + error-tracker captures so all three correlate |
 | `tenant_id` | Resolved tenant | Always present where applicable |
 | `organization_id` | Resolved organization | Present where the resource is `[OrganizationScoped]` (per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)); nullable for tenant-wide resources |
 | `user_id` | Authenticated user | Present where applicable |

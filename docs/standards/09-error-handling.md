@@ -156,8 +156,12 @@ Responsibilities of the handler:
 
 - Map every `LearnStackException` subclass to its standard `Error.Code` and
   HTTP status (the table under § Result Type).
-- Build the RFC 7807 Problem Details body with `correlationId` set from
-  `Activity.Current.TraceId`.
+- Build the RFC 7807 Problem Details body with `correlationId` set from the
+  full W3C traceparent (`Activity.Current.Id`, the
+  `00-<trace>-<span>-<flags>` string) — not the bare 32-hex trace id — so the
+  Problem Details body, the captured Sentry/LocalFile context, and
+  `ITenantContext.CorrelationId` all carry the same handle. Falls back to
+  `HttpContext.TraceIdentifier` when no `Activity` is current.
 - Call `Activity.Current.RecordException(ex) + SetStatus(Error, ...)` so
   Tempo sees the failure.
 - Dispatch to `IErrorTrackingProvider.CaptureAsync` **only when**
@@ -221,7 +225,9 @@ Rules:
   the frontend resolves against its i18n catalogue. The legacy
   `detail` field is omitted — backend never returns raw English.
 - `instance` is the request path.
-- `correlationId` matches the trace id.
+- `correlationId` is the full W3C traceparent (`Activity.Current.Id`),
+  which embeds the trace id; falls back to the request id when no trace is
+  active.
 - `errors` is field-level detail, each entry a `LocalizedMessage` payload
   (`key` + optional `params`) so the frontend resolves field-level messages
   through the same path as the top-level one.

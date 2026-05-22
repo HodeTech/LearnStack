@@ -10,9 +10,9 @@ namespace LearnStack.Application.Pipeline;
 /// MediatR pipeline behavior — step 2 of the canonical 8-step order
 /// (ADR-0032 § Sub-decision 2). Opens an <see cref="ILogger.BeginScope"/>
 /// carrying the eight correlation fields (Standards 10 § Correlation),
-/// starts a manual <see cref="Activity"/> named
-/// <c>learnstack.&lt;module&gt;.&lt;use-case&gt;</c>, and measures the
-/// handler latency for downstream histogram reporting.
+/// starts a manual <see cref="Activity"/> named <c>mediatr.&lt;RequestName&gt;</c>
+/// on the <c>learnstack.mediatr</c> <see cref="ActivitySource"/>, and
+/// measures the handler latency for downstream histogram reporting.
 /// </summary>
 /// <remarks>
 /// <para>
