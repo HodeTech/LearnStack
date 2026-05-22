@@ -29,8 +29,8 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// exception messages) so the boundary stays honest.
 /// </para>
 /// <para>
-/// TODO(2026-05-21, @platform, phase-02b-or-later): augment the Serilog
-/// pipeline with a Roslyn analyzer (extending <c>LearnStack.Analyzers</c>)
+/// TODO(2026-05-21, @platform): augment the Serilog pipeline with a Roslyn
+/// analyzer (extending <c>LearnStack.Analyzers</c>) in Phase 02b or later
 /// that flags string-interpolated <c>throw new ...Exception($"...{token}...")</c>
 /// patterns in <c>Domain</c> + <c>Application</c> projects. Today the
 /// "no secrets in exception messages" rule rests on Standards 11 review
@@ -48,13 +48,30 @@ public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher
         ArgumentNullException.ThrowIfNull(logEvent);
         ArgumentNullException.ThrowIfNull(propertyFactory);
 
-        foreach (var propertyName in logEvent.Properties.Keys.ToArray())
+        // Two-pass to avoid a steady-state per-event allocation: the common
+        // case (no sensitive properties) allocates nothing. The `sensitive`
+        // list materialises only when the first match is found, so we never
+        // ToArray the key set up front. The collect-then-mutate split is
+        // also what keeps us from mutating logEvent.Properties while
+        // enumerating it.
+        List<string>? sensitive = null;
+        foreach (var propertyName in logEvent.Properties.Keys)
         {
             if (SensitiveTokenCatalog.IsSensitive(propertyName))
             {
-                logEvent.AddOrUpdateProperty(
-                    propertyFactory.CreateProperty(propertyName, RedactedValue));
+                (sensitive ??= []).Add(propertyName);
             }
+        }
+
+        if (sensitive is null)
+        {
+            return;
+        }
+
+        foreach (var propertyName in sensitive)
+        {
+            logEvent.AddOrUpdateProperty(
+                propertyFactory.CreateProperty(propertyName, RedactedValue));
         }
     }
 }

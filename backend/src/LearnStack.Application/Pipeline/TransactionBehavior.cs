@@ -31,7 +31,7 @@ public sealed class TransactionBehavior<TRequest, TResponse>
     {
         ArgumentNullException.ThrowIfNull(next);
 
-        // TODO(2026-05-21, @platform, phase-02a-packet-6): open the UoW
+        // TODO(2026-05-21, @platform): Phase 02a Packet 6 — open the UoW
         // transaction (per-module DbContext.Database.BeginTransactionAsync),
         // commit on success-Result, rollback on fail-Result, and rollback +
         // rethrow on exception (preserving the rethrow that AuditLogBehavior

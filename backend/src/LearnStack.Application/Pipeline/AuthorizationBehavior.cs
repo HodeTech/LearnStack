@@ -31,7 +31,7 @@ public sealed class AuthorizationBehavior<TRequest, TResponse>
     {
         ArgumentNullException.ThrowIfNull(next);
 
-        // TODO(2026-05-21, @platform, phase-03): resolve the request's
+        // TODO(2026-05-21, @platform): Phase 03 — resolve the request's
         // [Authorize(Policy)] attribute, call IAuthorizationService.AuthorizeAsync
         // with the tenant + organization-scoped resource, and return
         // Result.FailFor<TResponse>(forbidden) on deny.

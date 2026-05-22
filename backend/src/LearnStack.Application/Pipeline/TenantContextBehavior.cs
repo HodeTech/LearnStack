@@ -43,7 +43,7 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
             return Task.FromResult(Result.FailFor<TResponse>(TenantMismatchError));
         }
 
-        // TODO(2026-05-21, @platform, phase-02a-packet-7): set the PostgreSQL
+        // TODO(2026-05-21, @platform): Phase 02a Packet 7 — set the PostgreSQL
         // RLS GUCs via a DbConnectionInterceptor (transaction-local
         // set_config('app.tenant_id', ..., true) /
         // set_config('app.organization_id', ..., true)). The interceptor
@@ -60,7 +60,7 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
     /// every request needs a resolved context to proceed.
     /// </summary>
     /// <remarks>
-    /// TODO(2026-05-21, @platform, phase-02a-packet-7): replace the stub
+    /// TODO(2026-05-21, @platform): Phase 02a Packet 7 — replace the stub
     /// with a real discriminator. The intended seam is a marker attribute
     /// (<c>[AllowsUnresolvedTenantContext]</c>) the predicate scans for
     /// via reflection, paired with an architecture test that asserts the

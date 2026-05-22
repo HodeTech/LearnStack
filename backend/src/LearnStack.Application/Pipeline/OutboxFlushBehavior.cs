@@ -28,7 +28,7 @@ public sealed class OutboxFlushBehavior<TRequest, TResponse>
     {
         ArgumentNullException.ThrowIfNull(next);
 
-        // TODO(2026-05-21, @platform, phase-02b): on a success-Result, flush
+        // TODO(2026-05-21, @platform): Phase 02b — on a success-Result, flush
         // IOutbox messages collected during the handler into outbox_messages
         // via the unit-of-work seam so Dapr pub/sub dispatches them after
         // commit. Per ADR-0006 + ADR-0014 + ADR-0032 § Sub-decision 12.

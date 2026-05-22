@@ -54,7 +54,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         {
             var response = await next().ConfigureAwait(false);
 
-            // TODO(2026-05-21, @platform, phase-02a-packet-9): on success,
+            // TODO(2026-05-21, @platform): Phase 02a Packet 9 — on success,
             // resolve IAuditStateCapture for the request type and write the
             // success-class audit entry through IAuditStore. Per ADR-0016 +
             // Standards 18 audit-coverage matrix. The shell shape here keeps
@@ -71,7 +71,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
-            // TODO(2026-05-21, @platform, phase-02a-packet-9): write the
+            // TODO(2026-05-21, @platform): Phase 02a Packet 9 — write the
             // failure-class audit entry to audit_log via IAuditStore. The
             // shell logs the audit-intent so we do not silently lose the
             // failure visibility while Packet 9 is pending.

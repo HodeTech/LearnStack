@@ -14,5 +14,14 @@ internal sealed class NoOpErrorTracker : IErrorTrackingProvider
     public ValueTask CaptureAsync(
         Exception exception,
         CapturedContext context,
-        CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+        CancellationToken cancellationToken = default)
+    {
+        // Guard for parity with the Sentry / LocalFile implementations so a
+        // null argument fails the same way in Development as it would in
+        // production — a contract bug surfaces locally instead of hiding
+        // behind the no-op.
+        ArgumentNullException.ThrowIfNull(exception);
+        ArgumentNullException.ThrowIfNull(context);
+        return ValueTask.CompletedTask;
+    }
 }

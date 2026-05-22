@@ -277,6 +277,17 @@ public sealed class CrossCuttingFoundationTests
         providers.Should().HaveCount(1,
             "exactly one IErrorTrackingProvider is registered per DeploymentMode "
             + "(ADR-0032 § Sub-decision 9).");
+
+        // Registration count is necessary but not sufficient — assert the
+        // singleton *lifetime* by resolving twice from the root and once
+        // from a fresh scope; all three must be the same instance.
+        var first = application.Services.GetRequiredService<IErrorTrackingProvider>();
+        var second = application.Services.GetRequiredService<IErrorTrackingProvider>();
+        using var scope = application.Services.CreateScope();
+        var scoped = scope.ServiceProvider.GetRequiredService<IErrorTrackingProvider>();
+
+        second.Should().BeSameAs(first, "the provider is registered as a singleton.");
+        scoped.Should().BeSameAs(first, "a singleton resolves to the same instance across scopes.");
     }
 
     private static WebApplication BuildMinimalApiHost()

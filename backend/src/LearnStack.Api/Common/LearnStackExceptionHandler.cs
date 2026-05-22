@@ -58,10 +58,25 @@ internal sealed class LearnStackExceptionHandler(
 
         if (capture)
         {
-            var capturedContext = BuildCapturedContext(httpContext);
-            await errorTracker.CaptureAsync(exception, capturedContext, cancellationToken)
-                .ConfigureAwait(false);
-            LogCaptured(logger, exception.GetType().FullName ?? "<unknown>", exception);
+            // The error-tracking provider must never abort the L1 handler —
+            // it is the last line of defense and the Problem Details
+            // response has to be written even if Sentry / the local-file
+            // sink throws (network blip, full disk, mis-configuration).
+            // Swallow + log the capture failure; the response write below
+            // always runs.
+            try
+            {
+                var capturedContext = BuildCapturedContext(httpContext);
+                await errorTracker.CaptureAsync(exception, capturedContext, cancellationToken)
+                    .ConfigureAwait(false);
+                LogCaptured(logger, exception.GetType().FullName ?? "<unknown>", exception);
+            }
+#pragma warning disable CA1031 // L1 must complete; provider failure cannot escape.
+            catch (Exception captureFailure)
+#pragma warning restore CA1031
+            {
+                LogCaptureFailed(logger, exception.GetType().FullName ?? "<unknown>", captureFailure);
+            }
         }
         else
         {
@@ -106,10 +121,19 @@ internal sealed class LearnStackExceptionHandler(
     private CapturedContext BuildCapturedContext(HttpContext httpContext)
     {
         var context = tenantContextAccessor.Current;
-        var traceId = Activity.Current?.TraceId.ToString();
+
+        // Prefer the full W3C traceparent (00-trace-span-flags) per the
+        // ITenantContext.CorrelationId contract — Activity.Current.Id
+        // carries it, whereas TraceId is only the 32-hex trace component.
+        // Fall through to the resolved context's CorrelationId, then the
+        // ASP.NET request id so a capture is never left without a handle
+        // that correlates to the client's Problem Details body.
+        var correlationId = Activity.Current?.Id
+            ?? context?.CorrelationId
+            ?? httpContext.TraceIdentifier;
 
         return new CapturedContext(
-            CorrelationId: traceId ?? context?.CorrelationId,
+            CorrelationId: correlationId,
             RequestPath: httpContext.Request.Path.Value,
             RequestMethod: httpContext.Request.Method,
             TenantId: context?.IsResolved == true ? context.TenantId : null,
@@ -130,4 +154,10 @@ internal sealed class LearnStackExceptionHandler(
             LogLevel.Information,
             new EventId(2, nameof(LogSkipped)),
             "L1 exception handler skipped Sentry capture for {ExceptionType} per Standards 09 boundary.");
+
+    private static readonly Action<ILogger, string, Exception?> LogCaptureFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(3, nameof(LogCaptureFailed)),
+            "L1 exception handler failed to capture {ExceptionType} to IErrorTrackingProvider; Problem Details response still written.");
 }

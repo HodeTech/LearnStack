@@ -178,7 +178,7 @@ public static class CrossCuttingFoundationExtensions
         DeploymentMode deploymentMode,
         IConfiguration configuration)
     {
-        // TODO(2026-05-21, @platform, phase-02a-packet-5): light up the
+        // TODO(2026-05-21, @platform): Phase 02a Packet 5 — light up the
         // Dapr-backed branch.
         //   DeploymentMode.SaaS / Dedicated / SelfHostedOnline →
         //     new DaprSecretProvider(...)  // Vault-backed

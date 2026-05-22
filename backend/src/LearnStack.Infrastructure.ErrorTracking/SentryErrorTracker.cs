@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Observability;
+using LearnStack.SharedKernel.Secrets;
 using Sentry;
 
 namespace LearnStack.Infrastructure.ErrorTracking;
@@ -65,7 +66,17 @@ internal sealed class SentryErrorTracker : IErrorTrackingProvider
             {
                 foreach (var (key, value) in context.AdditionalTags)
                 {
-                    scope.SetTag(key, value);
+                    // Redact sensitive tag values before they leave the
+                    // process — Sentry is external egress. Uses the same
+                    // SensitiveTokenCatalog the Serilog enricher + the
+                    // air-gapped LocalFileErrorTracker share so the three
+                    // surfaces cannot drift (Standards 11 § Sensitive Data
+                    // Exposure).
+                    scope.SetTag(
+                        key,
+                        SensitiveTokenCatalog.IsSensitive(key)
+                            ? SensitiveTokenCatalog.RedactedValue
+                            : value);
                 }
             }
         });

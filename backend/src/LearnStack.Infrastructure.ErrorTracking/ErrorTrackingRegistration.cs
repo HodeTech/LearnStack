@@ -95,11 +95,18 @@ public static class ErrorTrackingRegistration
                 + "fall-through). Per ADR-0032 § Sub-decision 9.");
         }
 
+        // Sentry's TracesSampleRate setter throws when the value is outside
+        // [0, 1]. A mis-typed appsettings value (e.g. 1.5) would otherwise
+        // crash startup with a cryptic Sentry error; clamp defensively so
+        // the misconfiguration degrades to "sample everything / nothing"
+        // rather than a boot failure.
+        var sampleRate = Math.Clamp(options.TracesSampleRate, 0.0, 1.0);
+
         SentrySdk.Init(o =>
         {
             o.Dsn = dsn;
             o.Environment = options.Environment;
-            o.TracesSampleRate = options.TracesSampleRate;
+            o.TracesSampleRate = sampleRate;
         });
     }
 }

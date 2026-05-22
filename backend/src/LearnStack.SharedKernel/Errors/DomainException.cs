@@ -19,8 +19,15 @@ namespace LearnStack.SharedKernel.Errors;
 /// </remarks>
 public sealed class DomainException : LearnStackException
 {
+    // A DomainException reaching the L1 handler is a *bug* — an invariant
+    // was bypassed, not an expected outcome. Its default code must map to a
+    // 500 (programmer / internal error), NOT business_rule_violation (409),
+    // which is reserved for the Result.Fail path. Using
+    // lockey_business_rule_violation here would misclassify a crash as a
+    // refused business operation. Per ADR-0032 § Sub-decision 4 +
+    // Standards 09 § Domain Exceptions.
     private static readonly Error DefaultError = new(
-        new LocalizedMessage("lockey_business_rule_violation"));
+        new LocalizedMessage("lockey_internal_error"));
 
     public DomainException(string message, Exception? innerException = null)
         : base(DefaultError, message, innerException)

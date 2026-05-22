@@ -98,10 +98,15 @@ public static class ProblemDetailsFactory
 
     private static string? ResolveCorrelationId(HttpContext? context)
     {
-        var traceId = Activity.Current?.TraceId.ToString();
-        if (!string.IsNullOrWhiteSpace(traceId))
+        // Activity.Current.Id is the full W3C traceparent
+        // (00-trace-span-flags) — matches the ITenantContext.CorrelationId
+        // contract and what the L1 handler tags Sentry / LocalFile captures
+        // with, so the Problem Details body and the captured error share one
+        // handle. TraceId alone is only the 32-hex trace component.
+        var traceParent = Activity.Current?.Id;
+        if (!string.IsNullOrWhiteSpace(traceParent))
         {
-            return traceId;
+            return traceParent;
         }
 
         return context?.TraceIdentifier;
