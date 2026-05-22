@@ -322,7 +322,40 @@
 > Validation after review-3/4: `dotnet build LearnStack.slnx` (CI=true)
 > clean; `LearnStack.Tests.Unit` 154/154, `LearnStack.Tests.Architecture`
 > 26/26, `LearnStack.Tests.Integration` 5/5, `LearnStack.Tests.Contract`
-> 1/1 green.
+> 1/1 green. (CI's `dotnet format --verify-no-changes` step also gates the
+> backend job — run `dotnet format LearnStack.slnx --verify-no-changes`
+> locally before pushing.)
+>
+> **Deferred follow-ups carried out of Packet 3** (each is recorded in its
+> owning packet/phase below so it does not slip; no separate issue tracker
+> needed — the roadmap is the backlog):
+>
+> - **Strongly-typed IDs for `ITenantContext` + `CapturedContext`** →
+>   **Packet 7** (after the `TenantId` / `OrganizationId` Vogen value
+>   objects land in Packet 6). Both contracts use raw `Guid` in Packet 3
+>   because those VOs don't exist yet (only `UserId` does); they convert
+>   together in one pass to avoid a half-typed intermediate.
+> - **`[AllowsUnresolvedTenantContext]` marker attribute** for the
+>   `TenantContextBehavior` opt-out (tenant-provisioning / platform-admin
+>   commands) → **Packet 7**.
+> - **`TransactionBehavior` / `OutboxFlushBehavior` shells light up** →
+>   **Packet 6** (UoW transaction, per-module `DbContext`) and **Phase 02b**
+>   (outbox enrolment) respectively.
+> - **`AuthorizationBehavior` shell lights up** + **`LS0001` analyzer
+>   severity escalates Warning → Error** (and is removed from
+>   `WarningsNotAsErrors`) → **Phase 03 exit**.
+> - **`Domain_Methods_Do_Not_Throw_For_Expected_Cases`** report-walking
+>   architecture test → **Packet 10** (needs module domain code to walk; the
+>   `LS0001` analyzer already enforces the rule at build time meanwhile).
+> - **Air-gapped OTLP file target** (`/var/learnstack/otel/`) → **Phase 11**
+>   ops (the no-egress branch already prevents network export in
+>   `SelfHostedAirGapped`; the file sink needs an exporter-package decision).
+> - **"No secrets in exception messages" Roslyn analyzer** (compile-time
+>   complement to the runtime redactor) → **Phase 02b or later** (code TODO
+>   in `RedactSensitiveFieldsEnricher`).
+> - **Resilience pipeline order** (should the concurrency limiter sit
+>   outermost to cap total in-flight incl. retries?) → **future ADR-0032
+>   amendment**; the current order is faithful to ADR-0032 § Sub-decision 5.
 >
 > **Packet 4 — API conventions ⏳**
 > REST + URL versioning (`/v1/...` per ADR-0024), Problem Details (RFC 7807)
@@ -356,6 +389,15 @@
 > `platform_host_to_tenant`. Default-organization seeding at tenant
 > creation. No business logic yet; later packets light up CRUD.
 >
+> Carries two Packet 3 follow-ups: (1) introduces the `TenantId` /
+> `OrganizationId` Vogen value objects in `LearnStack.SharedKernel`
+> alongside the schema (the kernel-level IDs that Packet 7 then threads
+> through `ITenantContext` / `CapturedContext`); (2) the Packet 3
+> `TransactionBehavior` shell lights up here once the per-module
+> `DbContext` exists — UoW begin / commit-on-success-`Result` /
+> rollback-on-failure, preserving the `ExceptionDispatchInfo` rethrow
+> `AuditLogBehavior` owns one frame out.
+>
 > **Packet 7 — Tenant + Organization resolution + isolation
 > (defense-in-depth) ⏳**
 > `IHostToTenantResolver` (Postgres-backed default reading
@@ -381,6 +423,18 @@
 > [Phase 01 Packet 8](phase-01-repository-tooling.md) — two demo tenants
 > + platform admin user, wired through the new Tenancy module
 > `DbContext` instead of the placeholder `scripts/seed.sh`.
+>
+> Carries two Packet 3 follow-ups: (1) converts `ITenantContext` **and**
+> `CapturedContext` (`LearnStack.SharedKernel.Observability`) from raw
+> `Guid` / `Guid?` to the strongly-typed `TenantId` / `OrganizationId`
+> value objects (created in Packet 6) in a single pass — Packet 3 used raw
+> `Guid` only because those VOs did not exist yet, and the two contracts
+> convert together to avoid a half-typed intermediate; (2) replaces the
+> `TenantContextBehavior.AllowsUnresolvedContext` stub with a real
+> `[AllowsUnresolvedTenantContext]` marker-attribute discriminator (for
+> tenant-provisioning / `EnterPlatformAdminScope` commands that legitimately
+> run before a tenant is resolved), backed by an architecture test that the
+> attribute lives only on that narrow command set.
 >
 > **Packet 8 — Tenant Customization foundation ⏳**
 > `LearnStack.Modules.Customization` with `TenantContentType`,
@@ -428,7 +482,12 @@
 >   - `MediatR_Pipeline_Order_Matches_Canonical_Sequence`
 >   - `ValidationBehavior_DoesNotThrow_ValidationException`
 >   - `Domain_Methods_Do_Not_Throw_For_Expected_Cases` (Roslyn analyzer
->     report)
+>     report) — **deferred to this packet from Packet 3**: the report-walking
+>     test needs module domain code to walk, which does not exist until
+>     Packet 6+. The underlying rule is already enforced from Packet 3 by the
+>     `LS0001` analyzer running in every module's `Domain` + `Application`
+>     build (+ `DomainExceptionThrowAnalyzerTests`); this packet adds the
+>     report-walking architecture test once there is code to assert against.
 >   - `Adapters_Wrap_Provider_Exceptions`
 >   - `Modules_Do_Not_Reference_Sentry_SDK_Directly`
 >   - `Logging_Goes_Through_Microsoft_Extensions_Logging`

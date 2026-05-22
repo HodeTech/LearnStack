@@ -36,6 +36,11 @@ Decisions made in this phase:
 - Integration event publishing via outbox; **`OutboxProcessor`** (BackgroundService)
   polls every 200ms with `FOR UPDATE SKIP LOCKED` and dispatches through `IEventBus`
   (which wraps Dapr pub/sub → Kafka in non-dev modes, in-process publisher in dev).
+- **Lights up the Phase 02a Packet 3 `OutboxFlushBehavior` shell** — on a
+  success-`Result` the behavior enrols `IOutbox` messages in the current
+  unit-of-work transaction so they ship after commit (per
+  [ADR-0006](../decisions/0006-events-and-outbox.md) +
+  [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
 - Retry with exponential backoff (1s, 5s, 30s, 5min, 1h); dead-letter after max
   attempts (5). Dead-letter visible via the `OutboxStatusEndpoints` admin API.
 - Outbox row attaches `tenant_id`, `organization_id?`, `correlation_id`, `event_id`,
