@@ -100,76 +100,76 @@ public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher
         switch (value)
         {
             case StructureValue structure:
-            {
-                List<LogEventProperty>? newProps = null;
-                for (var i = 0; i < structure.Properties.Count; i++)
                 {
-                    var prop = structure.Properties[i];
-                    var newValue = SensitiveTokenCatalog.IsSensitive(prop.Name)
-                        ? RedactedScalar
-                        : Redact(prop.Value);
-
-                    if (newProps is null && ReferenceEquals(newValue, prop.Value))
+                    List<LogEventProperty>? newProps = null;
+                    for (var i = 0; i < structure.Properties.Count; i++)
                     {
-                        continue;
+                        var prop = structure.Properties[i];
+                        var newValue = SensitiveTokenCatalog.IsSensitive(prop.Name)
+                            ? RedactedScalar
+                            : Redact(prop.Value);
+
+                        if (newProps is null && ReferenceEquals(newValue, prop.Value))
+                        {
+                            continue;
+                        }
+
+                        newProps ??= [.. structure.Properties.Take(i)];
+                        newProps.Add(new LogEventProperty(prop.Name, newValue));
                     }
 
-                    newProps ??= [.. structure.Properties.Take(i)];
-                    newProps.Add(new LogEventProperty(prop.Name, newValue));
+                    return newProps is null
+                        ? structure
+                        : new StructureValue(newProps, structure.TypeTag);
                 }
-
-                return newProps is null
-                    ? structure
-                    : new StructureValue(newProps, structure.TypeTag);
-            }
 
             case DictionaryValue dictionary:
-            {
-                // DictionaryValue.Elements is keyed by ScalarValue (not an
-                // indexable list). On the first change, copy the whole map
-                // then overwrite the changed keys; a clean dictionary returns
-                // by reference.
-                Dictionary<ScalarValue, LogEventPropertyValue>? newElements = null;
-                foreach (var element in dictionary.Elements)
                 {
-                    var keyName = element.Key.Value?.ToString();
-                    var newValue = keyName is not null && SensitiveTokenCatalog.IsSensitive(keyName)
-                        ? RedactedScalar
-                        : Redact(element.Value);
-
-                    if (ReferenceEquals(newValue, element.Value))
+                    // DictionaryValue.Elements is keyed by ScalarValue (not an
+                    // indexable list). On the first change, copy the whole map
+                    // then overwrite the changed keys; a clean dictionary returns
+                    // by reference.
+                    Dictionary<ScalarValue, LogEventPropertyValue>? newElements = null;
+                    foreach (var element in dictionary.Elements)
                     {
-                        continue;
+                        var keyName = element.Key.Value?.ToString();
+                        var newValue = keyName is not null && SensitiveTokenCatalog.IsSensitive(keyName)
+                            ? RedactedScalar
+                            : Redact(element.Value);
+
+                        if (ReferenceEquals(newValue, element.Value))
+                        {
+                            continue;
+                        }
+
+                        newElements ??= new Dictionary<ScalarValue, LogEventPropertyValue>(dictionary.Elements);
+                        newElements[element.Key] = newValue;
                     }
 
-                    newElements ??= new Dictionary<ScalarValue, LogEventPropertyValue>(dictionary.Elements);
-                    newElements[element.Key] = newValue;
+                    return newElements is null
+                        ? dictionary
+                        : new DictionaryValue(newElements);
                 }
-
-                return newElements is null
-                    ? dictionary
-                    : new DictionaryValue(newElements);
-            }
 
             case SequenceValue sequence:
-            {
-                List<LogEventPropertyValue>? newItems = null;
-                for (var i = 0; i < sequence.Elements.Count; i++)
                 {
-                    var item = sequence.Elements[i];
-                    var newItem = Redact(item);
-
-                    if (newItems is null && ReferenceEquals(newItem, item))
+                    List<LogEventPropertyValue>? newItems = null;
+                    for (var i = 0; i < sequence.Elements.Count; i++)
                     {
-                        continue;
+                        var item = sequence.Elements[i];
+                        var newItem = Redact(item);
+
+                        if (newItems is null && ReferenceEquals(newItem, item))
+                        {
+                            continue;
+                        }
+
+                        newItems ??= [.. sequence.Elements.Take(i)];
+                        newItems.Add(newItem);
                     }
 
-                    newItems ??= [.. sequence.Elements.Take(i)];
-                    newItems.Add(newItem);
+                    return newItems is null ? sequence : new SequenceValue(newItems);
                 }
-
-                return newItems is null ? sequence : new SequenceValue(newItems);
-            }
 
             default:
                 return value; // ScalarValue and unknown value kinds pass through.
