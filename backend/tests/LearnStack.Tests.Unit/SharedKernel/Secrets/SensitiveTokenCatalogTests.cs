@@ -24,6 +24,8 @@ public sealed class SensitiveTokenCatalogTests
     [InlineData("card_number")]
     [InlineData("Authorization")]
     [InlineData("auth_header")]
+    [InlineData("AuthHeader")]
+    [InlineData("authheader")]    // joined, no separator/case transition to split on
     [InlineData("Dsn")]
     [InlineData("Jwt")]
     [InlineData("Secret")]

@@ -21,9 +21,15 @@ namespace LearnStack.Infrastructure.Resilience;
 /// the Polly recommended ordering: retries see the underlying failure;
 /// the breaker opens against sustained failure ratios; the timeout bounds
 /// a single attempt; the bulkhead caps concurrent in-flight calls so a
-/// slow upstream cannot starve the host. Retry only applies when the
-/// exception is a non-client <see cref="ProviderException"/> or a
-/// transient <see cref="InfrastructureException"/>.
+/// slow upstream cannot starve the host. Retry and the circuit breaker
+/// apply when the exception is a non-client <see cref="ProviderException"/>,
+/// a transient <see cref="InfrastructureException"/>, or a
+/// <see cref="TimeoutRejectedException"/> raised by this pipeline's own
+/// timeout strategy (Standards 09 § Retry vs. Don't Retry lists timeouts as
+/// retryable). Polly's timeout strategy signals its own elapsed timeout via
+/// <see cref="TimeoutRejectedException"/>, not <see cref="OperationCanceledException"/>,
+/// so genuine caller-initiated cancellation is never mistaken for a
+/// retryable timeout.
 /// </remarks>
 internal sealed class ProviderResilience<TPort> : IProviderResilience<TPort>
     where TPort : class
@@ -51,7 +57,8 @@ internal sealed class ProviderResilience<TPort> : IProviderResilience<TPort>
             {
                 ShouldHandle = new PredicateBuilder()
                     .Handle<InfrastructureException>()
-                    .Handle<ProviderException>(static ex => !ex.IsClientError),
+                    .Handle<ProviderException>(static ex => !ex.IsClientError)
+                    .Handle<TimeoutRejectedException>(),
                 MaxRetryAttempts = options.Retry.MaxAttempts,
                 Delay = TimeSpan.FromSeconds(options.Retry.DelaySeconds),
                 BackoffType = DelayBackoffType.Exponential,
@@ -65,7 +72,8 @@ internal sealed class ProviderResilience<TPort> : IProviderResilience<TPort>
             {
                 ShouldHandle = new PredicateBuilder()
                     .Handle<InfrastructureException>()
-                    .Handle<ProviderException>(static ex => !ex.IsClientError),
+                    .Handle<ProviderException>(static ex => !ex.IsClientError)
+                    .Handle<TimeoutRejectedException>(),
                 FailureRatio = options.CircuitBreaker.FailureRatio,
                 SamplingDuration = TimeSpan.FromSeconds(options.CircuitBreaker.SamplingDurationSeconds),
                 MinimumThroughput = options.CircuitBreaker.MinimumThroughput,

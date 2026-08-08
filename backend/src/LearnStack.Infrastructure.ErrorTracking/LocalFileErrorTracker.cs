@@ -85,18 +85,40 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
         var fileName =
             $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}-{safeCorrelation}-{Guid.NewGuid():N}.json";
         var path = Path.Combine(_directory, fileName);
+        // Serialize into a sibling .tmp file and move it into place only
+        // once the write succeeds, so a crash or cancellation mid-write
+        // never leaves a truncated/corrupt envelope at the final path.
+        var tempPath = path + ".tmp";
 
         try
         {
-            await using var stream = File.Create(path);
-            await JsonSerializer.SerializeAsync(stream, envelope, SerializerOptions, cancellationToken)
-                .ConfigureAwait(false);
+            await using (var stream = File.Create(tempPath))
+            {
+                await JsonSerializer.SerializeAsync(stream, envelope, SerializerOptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            File.Move(tempPath, path);
         }
 #pragma warning disable CA1031 // Air-gapped capture is best-effort; swallow the write failure but log it.
         catch (Exception writeFailure)
 #pragma warning restore CA1031
         {
+            DeleteBestEffort(tempPath);
             LogWriteFailure(_logger, path, writeFailure);
+        }
+    }
+
+    private static void DeleteBestEffort(string tempPath)
+    {
+        try
+        {
+            File.Delete(tempPath);
+        }
+#pragma warning disable CA1031 // Cleanup itself is best-effort; a failed delete just leaves an orphaned .tmp file.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
         }
     }
 

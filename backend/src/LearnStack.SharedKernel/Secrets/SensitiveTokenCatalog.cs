@@ -97,7 +97,7 @@ public static class SensitiveTokenCatalog
         // the single-word set already covers, so this is implicit.
         for (var i = 0; i < segments.Count; i++)
         {
-            if (SingleWordTokens.Contains(segments[i]))
+            if (SingleWordTokens.Contains(segments[i]) || TwoWordTokens.Contains(segments[i]))
             {
                 return true;
             }

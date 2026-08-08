@@ -81,6 +81,14 @@ This phase is not only about performance. It covers security, observability, bac
   network exporter is not wired there); this packet picks the concrete
   file-exporter package and points Serilog + the OTel SDK at the directory so
   air-gapped traces / metrics / logs land on disk for off-network shipping.
+  This packet also defines the operational controls around that directory —
+  rotation cadence and size/age retention limits, owning user/group and a
+  restrictive permission mode, and the write-failure behavior when the
+  volume fills (best-effort, logged, never blocking the request path, per
+  the pattern `LocalFileErrorTracker` already follows for
+  `/var/learnstack/errors/`) — and adds a test asserting no network
+  telemetry exporter is ever wired when `DeploymentMode` is
+  `SelfHostedAirGapped`.
 
 ### Performance
 

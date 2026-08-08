@@ -106,7 +106,7 @@
 >   `ResiliencePipeline` builder in
 >   `LearnStack.Infrastructure.Resilience/`. Pipeline = retry (only
 >   `InfrastructureException` + non-client `ProviderException`) → circuit
->   breaker → timeout. Configuration shape:
+>   breaker → timeout → bulkhead. Configuration shape:
 >   `appsettings.Resilience:<portName>:` (sample lit up under
 >   `liveclass`, `payment`, `storage`, `search`). Per-adapter decoration is
 >   the adapter's responsibility — the socket is what adapters consume in
@@ -148,9 +148,10 @@
 >   client-error retries), `HttpStatusMap` (mirrors Standards 09 table),
 >   `ResultExtensions.ToActionResult()` (Problem Details shape),
 >   `LocalFileErrorTracker` (writes the JSON envelope).
-> - `LearnStack.Tests.Unit` 111/111, `LearnStack.Tests.Architecture` 25/25,
->   `LearnStack.Tests.Contract` 1/1, `LearnStack.Tests.Integration` 5/5
->   green under `CI=true`.
+> - Initial validation (pre-review): `LearnStack.Tests.Unit` 111/111,
+>   `LearnStack.Tests.Architecture` 25/25, `LearnStack.Tests.Contract` 1/1,
+>   `LearnStack.Tests.Integration` 5/5 green under `CI=true`. Superseded by
+>   the post-review-3/4 counts below.
 >
 > Review fixes (commit `<follow-up>`):
 >
@@ -345,11 +346,19 @@
 >   severity escalates Warning → Error** (and is removed from
 >   `WarningsNotAsErrors`) → **Phase 03 exit**.
 > - **`Domain_Methods_Do_Not_Throw_For_Expected_Cases`** report-walking
->   architecture test → **Packet 10** (needs module domain code to walk; the
->   `LS0001` analyzer already enforces the rule at build time meanwhile).
+>   architecture test → **Packet 10** (needs module domain code to walk;
+>   until then the `LS0001` analyzer only does partial detection — it
+>   reports every direct `throw new DomainException(...)` in `Domain` /
+>   `Application` as a build-time Warning, non-blocking under
+>   `WarningsNotAsErrors` until the Phase 03 exit escalation above, and does
+>   not replace the broader report-walking test).
 > - **Air-gapped OTLP file target** (`/var/learnstack/otel/`) → **Phase 11**
 >   ops (the no-egress branch already prevents network export in
->   `SelfHostedAirGapped`; the file sink needs an exporter-package decision).
+>   `SelfHostedAirGapped`; the file sink needs an exporter-package decision,
+>   the operational controls in
+>   [phase-11-production-hardening.md](phase-11-production-hardening.md#observability),
+>   and a test asserting no network telemetry exporter is ever wired under
+>   `SelfHostedAirGapped`).
 > - **"No secrets in exception messages" Roslyn analyzer** (compile-time
 >   complement to the runtime redactor) → **Phase 02b or later** (code TODO
 >   in `RedactSensitiveFieldsEnricher`).

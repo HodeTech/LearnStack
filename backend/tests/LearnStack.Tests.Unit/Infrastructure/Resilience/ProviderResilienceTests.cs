@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Resilience;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Resilience;
+using Polly.Timeout;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Resilience;
@@ -77,5 +78,61 @@ public sealed class ProviderResilienceTests
 
         await act.Should().ThrowAsync<ProviderException>();
         attempts.Should().Be(1, "client errors are not retried — Standards 09 § Retry vs Don't Retry");
+    }
+
+    [Fact]
+    public async Task Retry_Activates_On_Pipeline_Timeout()
+    {
+        var options = new ResilienceOptions
+        {
+            Retry = new RetryOptions { MaxAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
+            CircuitBreaker = new CircuitBreakerOptions { Enabled = false },
+            Timeout = new TimeoutOptions { Enabled = true, TotalSeconds = 0.05 },
+        };
+
+        var sut = new ProviderResilience<ITestPort>("test", options);
+        var attempts = 0;
+
+        var act = async () => await sut.Pipeline.ExecuteAsync(async ct =>
+        {
+            attempts++;
+            // Observes the token the Timeout strategy cancels — mirrors how
+            // a real provider call (e.g. HttpClient) respects the ambient
+            // cancellation token instead of blocking past it.
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        });
+
+        await act.Should().ThrowAsync<TimeoutRejectedException>();
+        attempts.Should().Be(3, "MaxAttempts = 2 retries means 1 initial + 2 retries = 3 invocations, each timing out");
+    }
+
+    [Fact]
+    public async Task Caller_Cancellation_Is_Not_Retried_As_A_Timeout()
+    {
+        // Same enabled retry as Retry_Activates_On_Pipeline_Timeout, but the
+        // callback cancels the caller's own token mid-execution instead of
+        // hitting the pipeline's Timeout strategy — retry's ShouldHandle
+        // must tell the two apart and let real cancellation through.
+        var options = new ResilienceOptions
+        {
+            Retry = new RetryOptions { MaxAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
+            CircuitBreaker = new CircuitBreakerOptions { Enabled = false },
+            Timeout = new TimeoutOptions { Enabled = false },
+        };
+
+        var sut = new ProviderResilience<ITestPort>("test", options);
+        var attempts = 0;
+        using var cts = new CancellationTokenSource();
+
+        var act = async () => await sut.Pipeline.ExecuteAsync(async (ct) =>
+        {
+            attempts++;
+            cts.Cancel();
+            ct.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+        }, cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        attempts.Should().Be(1, "caller-initiated cancellation must propagate immediately, not be retried as a timeout");
     }
 }

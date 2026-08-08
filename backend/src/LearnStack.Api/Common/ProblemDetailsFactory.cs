@@ -115,19 +115,31 @@ public static class ProblemDetailsFactory
     private static Dictionary<string, IReadOnlyList<object>> ProjectDetails(
         IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>> details)
     {
-        var projected = new Dictionary<string, IReadOnlyList<object>>(StringComparer.Ordinal);
+        // Two distinct source keys can normalize to the same camelCase key
+        // (e.g. "UserId" and "UserID" both project to "userId") — merge
+        // their messages instead of letting the later key win and silently
+        // drop the earlier one's entries.
+        var merged = new Dictionary<string, List<object>>(StringComparer.Ordinal);
         foreach (var (key, list) in details)
         {
-            projected[ToCamelCase(key)] = list
-                .Select(m => (object)new
-                {
-                    key = m.Key,
-                    @params = m.Params,
-                })
-                .ToArray();
+            var camelKey = ToCamelCase(key);
+            if (!merged.TryGetValue(camelKey, out var messages))
+            {
+                messages = [];
+                merged[camelKey] = messages;
+            }
+
+            messages.AddRange(list.Select(m => (object)new
+            {
+                key = m.Key,
+                @params = m.Params,
+            }));
         }
 
-        return projected;
+        return merged.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<object>)kv.Value,
+            StringComparer.Ordinal);
     }
 
     /// <summary>
