@@ -68,8 +68,13 @@ public static class SensitiveTokenCatalog
             "authheader",  // auth_header / AuthHeader
         };
 
-    /// <summary>The canonical token list (for docs / tests).</summary>
-    public static IReadOnlyCollection<string> DefaultTokens => SingleWordTokens;
+    /// <summary>
+    /// The canonical token list (for docs / tests). Returns a snapshot, not
+    /// the backing <see cref="SingleWordTokens"/> set, so a caller casting the
+    /// result cannot mutate the catalogue.
+    /// </summary>
+    public static IReadOnlyCollection<string> DefaultTokens =>
+        Array.AsReadOnly(SingleWordTokens.ToArray());
 
     /// <summary>
     /// Returns <c>true</c> when any whole segment of <paramref name="propertyName"/>

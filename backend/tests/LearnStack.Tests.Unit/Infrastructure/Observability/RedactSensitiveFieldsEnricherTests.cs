@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Observability.Serilog;
+using LearnStack.SharedKernel.Secrets;
 using Serilog.Core;
 using Serilog.Events;
 using Serilog.Parsing;
@@ -14,8 +15,7 @@ namespace LearnStack.Tests.Unit.Infrastructure.Observability;
 /// </summary>
 public sealed class RedactSensitiveFieldsEnricherTests
 {
-    private const string Redacted = SensitiveTokenCatalog_RedactedValue;
-    private const string SensitiveTokenCatalog_RedactedValue = "***REDACTED***";
+    private const string Redacted = SensitiveTokenCatalog.RedactedValue;
 
     [Fact]
     public void Redacts_Top_Level_Sensitive_Property()
