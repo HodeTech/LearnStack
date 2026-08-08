@@ -124,7 +124,20 @@ here:
   two URLs.
 - Frontend tests covering tenant resolution and the public / authenticated route split
   — the first real tests in `apps/web`, replacing the `--passWithNoTests` placeholder
-  removed in [Phase 02a Packet 5](phase-02a-kernel-tenancy.md).
+  removed in [Phase 02a Packet 3b](phase-02a-kernel-tenancy.md).
+- **Two CI jobs activate here.** [Phase 01](phase-01-repository-tooling.md) scaffolded
+  three `if: false` placeholders against the phase each expected to unblock it; two of
+  them unblock now, earlier than that phase predicted:
+  - **OpenAPI breaking-change check** — Phase 01 expected Phase 03, because that was
+    where the first real `/api/v1/*` endpoint was going to replace `/healthz`. The two
+    read endpoints above are that first endpoint.
+  - **Lighthouse budget** — Phase 01 expected Phase 04, because that was where the
+    first content-bearing public page was going to ship. The catalog and lesson pages
+    above are that first page, and they are the right ones to hold a budget against:
+    they are what a visitor actually loads.
+
+  The third placeholder, the integration-test job, activates earlier still — in
+  [Phase 02a Packet 7](phase-02a-kernel-tenancy.md), with the first isolation test.
 
 ## Completion Criteria
 
