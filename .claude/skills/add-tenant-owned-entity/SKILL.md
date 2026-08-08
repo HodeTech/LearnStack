@@ -174,19 +174,40 @@ migrationBuilder.Sql("""
     -- becomes visible to every tenant. A second policy may only ever be RESTRICTIVE.
     CREATE POLICY <name_plural>_isolation ON <name_plural>
         USING (
-            tenant_id = current_setting('app.tenant_id', true)::uuid
+            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
             AND (
                 organization_id IS NULL                                                   -- drop these three
-                OR organization_id = current_setting('app.organization_id', true)::uuid   -- lines entirely if
+                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid   -- lines entirely if
                 OR current_setting('app.scope', true) = 'tenant'                          -- not org-scoped
             )
         )
         WITH CHECK (
-            tenant_id = current_setting('app.tenant_id', true)::uuid
+            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
             AND (
                 organization_id IS NULL
-                OR organization_id = current_setting('app.organization_id', true)::uuid
+                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
             )
+        );
+
+    -- ORG-SCOPED TABLES ONLY. The app.scope='tenant' hatch above widens READS
+    -- across organizations. It must not widen writes — but USING also selects
+    -- which rows an UPDATE may target, and for DELETE it is the ONLY gate
+    -- (PostgreSQL has no WITH CHECK for DELETE). Without these two RESTRICTIVE
+    -- policies a tenant-scope session could delete another organization's rows
+    -- or reassign them to itself. RESTRICTIVE policies AND together, so they
+    -- can only narrow.
+    CREATE POLICY <name_plural>_org_write_guard ON <name_plural>
+        AS RESTRICTIVE FOR UPDATE
+        USING (
+            organization_id IS NULL
+            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+        );
+
+    CREATE POLICY <name_plural>_org_delete_guard ON <name_plural>
+        AS RESTRICTIVE FOR DELETE
+        USING (
+            organization_id IS NULL
+            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
         );
     """);
 ```

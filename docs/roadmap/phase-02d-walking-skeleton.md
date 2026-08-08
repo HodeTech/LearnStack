@@ -33,20 +33,27 @@ which there is nothing to render:
   and a published / draft state. No versioning, no programs, no cohorts.
 - `Lesson` — ordered within a course, with slug, title, and a body rendered from a
   single built-in content primitive. No lesson items, no lesson item types, no
-  completion semantics.
+  completion semantics. Its foreign key to `Course` is **composite on `tenant_id`**
+  (`FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)`): PostgreSQL
+  evaluates referential integrity with Row Level Security bypassed, so a single-column
+  key would let one tenant's lesson reference another tenant's course, invisibly. See
+  [Database Standards § Foreign keys between tenant-owned tables](../standards/05-database.md).
 
-Both carry `[TenantOwned]`, an EF global query filter, and a Row Level Security policy
-built from the canonical template in
-[Database Standards](../standards/05-database.md) — the isolation machinery is
-exercised by real domain tables here, not only by fixtures.
+Both carry `[TenantOwned]`, an EF global query filter, and the Row Level Security
+policy set from the canonical template in
+[Database Standards](../standards/05-database.md) — the permissive isolation policy plus,
+where the table is org-scoped, the two `AS RESTRICTIVE` write guards. The isolation
+machinery is exercised by real domain tables here, not only by fixtures. This is the
+first time the template is applied to anything, so it is also the first chance to find
+out that it is wrong: treat a surprising query result as a template bug, not a data bug.
 
 ### Read API — two endpoints
 
 From [Phase 05](phase-05-education-learning-content.md), through the API conventions
 established in [Phase 02a Packet 4](phase-02a-kernel-tenancy.md):
 
-- `GET /v1/courses/{slug}` — course detail with its lesson list.
-- `GET /v1/courses/{slug}/lessons/{lessonSlug}` — lesson detail.
+- `GET /api/v1/courses/{slug}` — course detail with its lesson list.
+- `GET /api/v1/courses/{slug}/lessons/{lessonSlug}` — lesson detail.
 
 Both are anonymous, both resolve tenant and organization from the host, both return
 RFC 7807 Problem Details on failure, both flow through the MediatR pipeline and return
@@ -122,9 +129,11 @@ here:
   with a course and a handful of lessons each.
 - A demo script (`make demo` or equivalent) that boots the stack, seeds, and prints the
   two URLs.
-- Frontend tests covering tenant resolution and the public / authenticated route split
-  — the first real tests in `apps/web`, replacing the `--passWithNoTests` placeholder
-  removed in [Phase 02a Packet 3b](phase-02a-kernel-tenancy.md).
+- Frontend tests covering host-to-tenant resolution and `(public)` route rendering —
+  the first real tests in `apps/web`, replacing the `--passWithNoTests` placeholder
+  removed in [Phase 02a Packet 3b](phase-02a-kernel-tenancy.md). There is no
+  authenticated route to test against yet; that split arrives with
+  [Phase 02b](phase-02b-events-auth.md)'s session.
 - **Two CI jobs activate here.** [Phase 01](phase-01-repository-tooling.md) scaffolded
   three `if: false` placeholders against the phase each expected to unblock it; two of
   them unblock now, earlier than that phase predicted:

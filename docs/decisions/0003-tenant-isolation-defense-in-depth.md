@@ -134,14 +134,32 @@ The canonical, corrected template lives in exactly one place —
 [Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
 [Tenant Isolation](../architecture/09-tenant-isolation.md) and
 [ADR-0017](0017-tenant-organization-hierarchy.md) link to it instead of repeating it.
-Its three binding properties:
+Its binding properties:
 
-1. **One policy per table, one `AND`-ed predicate.** Tenant and organization scope are
-   evaluated in a single policy. Splitting them across two permissive policies is what
-   caused the defect; a second policy may only be added `AS RESTRICTIVE`.
-2. **`ENABLE` *and* `FORCE` row level security** on every tenant-owned table.
-3. **An explicit `WITH CHECK`** that constrains writes to the caller's tenant, and to
-   either the caller's organization or a tenant-wide row. The `app.scope = 'tenant'`
+1. **One permissive policy per table, one `AND`-ed predicate.** Tenant and organization
+   scope are evaluated in a single policy. Splitting them across two permissive policies
+   is what caused the defect; a second policy may only be added `AS RESTRICTIVE`, which
+   combines with `AND` and therefore cannot widen.
+2. **Two `AS RESTRICTIVE` write guards on org-scoped tables**, one `FOR UPDATE` and one
+   `FOR DELETE`. The `app.scope = 'tenant'` term is a *read* hatch, but `USING` also
+   selects which rows an `UPDATE` may target, and for `DELETE` it is the only gate —
+   PostgreSQL has no `WITH CHECK` for `DELETE`. Without the guards a tenant-scope
+   reporting session can delete another organization's rows or reassign them to itself.
+3. **`ENABLE` *and* `FORCE` row level security** on every tenant-owned table.
+4. **An explicit `WITH CHECK`** that constrains writes to the caller's tenant, and to
+   either the caller's organization or a tenant-wide row.
+5. **Every `current_setting` read wrapped in `NULLIF(..., '')`.** A dotted GUC becomes a
+   session placeholder the first time it is assigned and its reset value is the empty
+   string, not "undefined" — so on a pooled connection whose previous transaction set
+   the value and whose next one does not, `''::uuid` *raises* instead of filtering.
+   `NULLIF` turns that into `NULL`, and a `NULL` policy result is false for both
+   `USING` and `WITH CHECK`. This is what makes
+   `Unsetting_tenant_context_returns_zero_rows_through_RLS` able to pass at all.
+6. **Composite foreign keys on `tenant_id` between tenant-owned tables.** PostgreSQL
+   evaluates referential integrity with Row Level Security bypassed, so a single-column
+   foreign key lets a row in one tenant reference a row in another — invisibly, because
+   no policy runs. See
+   [Database Standards § Foreign keys between tenant-owned tables](../standards/05-database.md). The `app.scope = 'tenant'`
    escape hatch applies to reads only — a tenant-scope reporting query may read across
    organizations, but no query may write outside its organization.
 

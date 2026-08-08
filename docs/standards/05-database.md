@@ -47,11 +47,14 @@ may be tenant-wide), and the organization term is `AND`-ed into that same policy
 [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) and
 [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
 
-> **One policy per table.** The natural instinct is to write a tenant policy and an
-> organization policy. Do not. `CREATE POLICY` is permissive by default and PostgreSQL
-> combines permissive policies with `OR`, so a second policy **widens** access instead
-> of narrowing it. This is not theoretical — it is the defect ADR-0003 Amendment 3
-> corrects, and it made every tenant-wide row visible to every tenant.
+> **One permissive policy per table.** The natural instinct is to write a tenant policy
+> and an organization policy. Do not. `CREATE POLICY` is permissive by default and
+> PostgreSQL combines permissive policies with `OR`, so a second permissive policy
+> **widens** access instead of narrowing it. This is not theoretical — it is the defect
+> ADR-0003 Amendment 3 corrects, and it made every tenant-wide row visible to every
+> tenant. A second policy is allowed only when it is declared `AS RESTRICTIVE`, which
+> combines with `AND` and therefore cannot widen anything. The template below uses
+> exactly one of each.
 
 ```sql
 CREATE TABLE courses (
@@ -66,37 +69,95 @@ CREATE TABLE courses (
     updated_at      timestamptz NOT NULL DEFAULT now(),
     updated_by      uuid NOT NULL,
     row_version     bigint NOT NULL DEFAULT 0,
-    CONSTRAINT ux_courses_tenant_id_slug UNIQUE (tenant_id, slug)
+    CONSTRAINT ux_courses_tenant_id_slug UNIQUE (tenant_id, slug),
+    -- Composite unique on (tenant_id, id) exists solely so child tables can
+    -- carry a composite FK. See § Foreign keys between tenant-owned tables.
+    CONSTRAINT ux_courses_tenant_id_id   UNIQUE (tenant_id, id)
 );
 
 -- Enable *and* force: without FORCE, the table owner bypasses its own policies.
 ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE courses FORCE  ROW LEVEL SECURITY;
 
--- ONE policy, ONE AND-ed predicate. Two permissive policies would be OR-ed
--- together and a tenant-wide row (organization_id IS NULL) would satisfy the
--- organization half on its own — visible to every tenant.
+-- ONE permissive policy, ONE AND-ed predicate. Two permissive policies would be
+-- OR-ed together and a tenant-wide row (organization_id IS NULL) would satisfy
+-- the organization half on its own — visible to every tenant.
+--
+-- NULLIF(..., '') is not decoration. A customized (dotted) GUC becomes a session
+-- placeholder the first time it is assigned, and its reset value is the empty
+-- string, not "undefined". On a pooled connection whose previous transaction set
+-- app.tenant_id and whose next one forgets to, current_setting(..., true) returns
+-- '' and ''::uuid RAISES instead of filtering. NULLIF turns that into NULL, and a
+-- NULL policy result is false for both USING and WITH CHECK — fail-closed for the
+-- never-set path and the reset path alike.
 CREATE POLICY courses_isolation ON courses
     USING (
-        tenant_id = current_setting('app.tenant_id', true)::uuid
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
         AND (
-            organization_id IS NULL                                                   -- tenant-wide row
-            OR organization_id = current_setting('app.organization_id', true)::uuid   -- caller's org
-            OR current_setting('app.scope', true) = 'tenant'                          -- tenant-scope read
+            organization_id IS NULL                                                                -- tenant-wide row
+            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid    -- caller's org
+            OR current_setting('app.scope', true) = 'tenant'                                       -- tenant-scope READ
         )
     )
     WITH CHECK (
-        tenant_id = current_setting('app.tenant_id', true)::uuid
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
         AND (
             organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
+            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
         )
+    );
+
+-- The tenant-scope hatch above widens READS across organizations, which is what
+-- cross-org reporting needs. It must not widen writes — but USING is also what
+-- selects the rows an UPDATE may target, and for DELETE it is the ONLY gate
+-- (PostgreSQL has no WITH CHECK for DELETE). Without the restrictive policy
+-- below, a tenant-scope session could delete another organization's rows, or
+-- reassign them to itself.
+CREATE POLICY courses_org_write_guard ON courses
+    AS RESTRICTIVE FOR UPDATE
+    USING (
+        organization_id IS NULL
+        OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+    );
+
+CREATE POLICY courses_org_delete_guard ON courses
+    AS RESTRICTIVE FOR DELETE
+    USING (
+        organization_id IS NULL
+        OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
     );
 
 CREATE INDEX ix_courses_tenant_id ON courses (tenant_id);
 CREATE INDEX ix_courses_organization_id ON courses (organization_id)
     WHERE organization_id IS NOT NULL;
 ```
+
+### Foreign keys between tenant-owned tables
+
+**Every foreign key between two tenant-owned tables is composite on `tenant_id`.**
+
+PostgreSQL evaluates referential integrity as a security-restricted operation on behalf
+of the table owner, and RI checks are **not subject to Row Level Security**. A
+single-column `lessons.course_id → courses.id` therefore lets a row in tenant A
+reference a row in tenant B: the child's own `WITH CHECK` passes because its
+`tenant_id` is A's, and the FK check passes because it can see B's row. The result is a
+permanent cross-tenant reference in the one system whose top-line threat is
+cross-tenant leakage — and it is invisible to every policy, because no policy ran.
+
+```sql
+CREATE TABLE lessons (
+    id          uuid PRIMARY KEY,
+    tenant_id   uuid NOT NULL,
+    course_id   uuid NOT NULL,
+    -- ... domain columns ...
+    CONSTRAINT fk_lessons_course
+        FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)
+);
+```
+
+The parent therefore carries `UNIQUE (tenant_id, id)` purely to be referenceable this
+way. The cost is one redundant-looking unique index per parent table; the alternative is
+a class of cross-tenant corruption that no RLS policy can catch.
 
 This block is the **single canonical RLS template**.
 [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md),

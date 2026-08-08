@@ -492,7 +492,7 @@
 >   from the environment. Bind to loopback; read from `.env`.
 >
 > **Packet 4 — API conventions ⏳**
-> REST + URL versioning (`/v1/...` per
+> REST + URL versioning (`/api/v1/...` per
 > [ADR-0024](../decisions/0024-api-versioning-policy.md)), Problem Details
 > (RFC 7807) on every error, cursor pagination, idempotency keys for write
 > endpoints with external side effects, ETag concurrency, correlation IDs in
@@ -1084,7 +1084,7 @@ row across tenants. Isolation is a runtime property; only a runtime test observe
 
 Per [API Standards](../standards/04-api-design.md):
 
-- REST + URL versioning (`/v1/...`).
+- REST + URL versioning (`/api/v1/...`).
 - Problem Details (RFC 7807) for errors.
 - Cursor pagination.
 - Idempotency keys for write endpoints with external side effects.

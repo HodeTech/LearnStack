@@ -334,7 +334,7 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 
 | Surface | Limit |
 |---------|-------|
-| `/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
+| `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
 | Anonymous API | 60 req/min per IP |
 | Authenticated API | 600 req/min per token |
 | Write endpoints | 60 req/min per token |

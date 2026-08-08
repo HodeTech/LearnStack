@@ -198,19 +198,36 @@ ALTER TABLE tenant_template_library FORCE  ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_template_library_isolation ON tenant_template_library
     USING (
-        tenant_id = current_setting('app.tenant_id', true)::uuid
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
         AND (
             organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
+            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
             OR current_setting('app.scope', true) = 'tenant'
         )
     )
     WITH CHECK (
-        tenant_id = current_setting('app.tenant_id', true)::uuid
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
         AND (
             organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
+            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
         )
+    );
+
+-- The app.scope='tenant' hatch widens reads across organizations; these two
+-- RESTRICTIVE policies stop it widening writes. USING also selects which rows an
+-- UPDATE may target, and for DELETE it is the only gate.
+CREATE POLICY tenant_template_library_org_write_guard ON tenant_template_library
+    AS RESTRICTIVE FOR UPDATE
+    USING (
+        organization_id IS NULL
+        OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+    );
+
+CREATE POLICY tenant_template_library_org_delete_guard ON tenant_template_library
+    AS RESTRICTIVE FOR DELETE
+    USING (
+        organization_id IS NULL
+        OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
     );
 ```
 
