@@ -268,7 +268,11 @@ trusts the gateway alone.
 
 - Phase 01 — Repository tooling: APISIX in `docker-compose.yml`; `infra/apisix/` with
   `config.yaml` (deployment mode) and `apisix.yaml` (routes).
-- Phase 02a — Platform kernel: APISIX route table covers all known endpoints; CORS
+- Phase 11 — Production hardening (moved from Phase 02a by
+  [ADR-0035](0035-demand-gated-infrastructure.md); the gateway is demand-gated on
+  "a non-dev deployment needs edge rate limiting, host routing, or JWT
+  pre-validation", and ASP.NET middleware carries those responsibilities until
+  then): APISIX route table covers all known endpoints; CORS
   allow-list for `localhost:3000` (web) and `localhost:3001` (studio); the
   mTLS-guarded route set for `/api/internal/*` is reserved as a separate APISIX route
   group (endpoints arrive in Phase 02c).

@@ -34,7 +34,7 @@ course tree, all as **data**, so:
 ## When not to use
 
 - Production tenant create. That's an operator action from the Hub portal
-  (`learnstack-hub-web`) via `POST /api/internal/tenants`.
+  (`operator-portal`) via `POST /api/internal/tenants`.
 - Self-Hosted license issuance. Hub-side (Phase 02c / 09b).
 - Reseeding production data. Never.
 

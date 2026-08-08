@@ -27,7 +27,7 @@ flowchart TB
     subgraph Hub["learnstack-hub (separate repo)"]
         HubApi["LearnStack.Hub.Api"]
         HubDb[("Hub Postgres<br/>(tenant metadata only,<br/>no tenant content)")]
-        HubWeb["learnstack-hub-web<br/>(operator portal Next.js)"]
+        HubWeb["operator-portal<br/>(operator portal Next.js)"]
     end
 
     subgraph External
@@ -448,7 +448,7 @@ sequenceDiagram
 
 ## 6. Operator portal (frontend)
 
-`learnstack-hub-web` is a separate Next.js 16 app deployed at `hub.learnstack.dev`.
+`operator-portal` is a separate Next.js 16 app deployed at `hub.learnstack.dev`.
 Authenticates against `learnstack-hub` Keycloak realm. Operators see:
 
 ```

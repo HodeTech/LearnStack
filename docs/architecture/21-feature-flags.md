@@ -278,7 +278,7 @@ Both surfaces are MUST-audit security-events (see
 - **Phase 06** — Admin Studio surface for editing per-tenant flag overrides and
   viewing the entitlement projection. The Studio screen for `platform_entitlement_cache`
   is **read-only** — actual plan edits happen in the operator portal
-  (`learnstack-hub-web`).
+  (`operator-portal`).
 - **Phase 09** — Audit + observability hooks for both flag writes and entitlement
   refreshes plug into the audit + analytics pipeline.
 - **Phase 11** — Quarterly hygiene review and CI surfacing of stale flags become

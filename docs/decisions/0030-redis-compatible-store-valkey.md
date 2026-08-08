@@ -163,9 +163,13 @@ table entirely.
 - **This commit** (Phase 01 packet 6 cleanup): dev compose service swap;
   Dapr component `redisHost` update; doc + standards sweep; `.gitignore`
   volume name update.
-- **Phase 02a** (Cache adapter): `LearnStack.Infrastructure.Caching.Dapr`
-  consumes `state.redis` component against Valkey — no code-level
-  awareness of the backend vendor.
+- **Phase 02a** (Cache port): `ICacheService` ships with `InMemoryCacheService`
+  as the only registered implementation.
+- **Phase 11** (Cache adapter — moved from Phase 02a by
+  [ADR-0035](0035-demand-gated-infrastructure.md), demand-gated on "more than one
+  application instance runs concurrently"): `LearnStack.Infrastructure.Caching.Dapr`
+  consumes the `state.redis` component against Valkey — no code-level awareness of
+  the backend vendor.
 - **Phase 11** (production hardening): production sizing + Valkey HA
   topology decision (Sentinel vs Cluster mode) lives in its own ADR if
   it diverges from the default.

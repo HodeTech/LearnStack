@@ -358,7 +358,7 @@ ghcr.io/learnstack/learnstack-api:v1.0.1
 ghcr.io/learnstack/learnstack-hub-api:v1.0.0
 ghcr.io/learnstack/learnstack-hub-api:v1.0.1
 ghcr.io/learnstack/learnstack-web:v1.0.0
-ghcr.io/learnstack/learnstack-hub-web:v1.0.0
+ghcr.io/learnstack/learnstack-hub-operator-portal:v1.0.0
 ```
 
 For Self-Hosted Air-Gapped, customers pull images into their own registry (script in

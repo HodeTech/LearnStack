@@ -24,8 +24,12 @@ Run an end-to-end online English-learning tenant on LearnStack, where:
   scoring rule, speaking-practice lesson item, lesson-package custom fields) is loaded
   from `TenantContentType`, `TenantLevelTaxonomy`, `TenantScoringRule`, etc. **No
   English-specific code lives in any module.**
-- A second tenant exists in parallel with a **different** domain shape (e.g. coding or
-  yoga) loaded from its own customization data, proving the substrate is generic.
+- A second tenant — a **yoga studio** — has existed since
+  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), with its own
+  taxonomy, content types and branding loaded from its own customization data. The
+  substrate-genericity proof is therefore continuous from
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) onward, not a checkbox at MVP
+  exit.
 
 ## Vertical Slice First
 
@@ -217,8 +221,12 @@ Delivered as **tenant customization data** loaded at provisioning, **not** as co
   etc.
 - `TenantTemplateLibrary` populated with English-locale email templates.
 
-The same provisioning pipeline loads a **second tenant** with a non-English customization
-data set (the second tenant is the substrate-genericity proof; see Exit Criteria).
+The **second tenant already exists** — the yoga studio seeded in
+[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) and rendered in a browser
+since [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Phase 10 is therefore a
+**depth** showcase rather than a breadth one: its job is to exercise *every*
+customization aggregate against one real tenant, proving the customization surface is
+complete. Genericity is already proven, and re-proven on every CI run.
 
 ## Deferred
 
@@ -270,9 +278,19 @@ extend a customization aggregate?" — not "should we add a core module?".
   instructor and tenant admin. Recording execution itself is **tenant-configurable and
   off by default** ([16-media-pipeline.md](16-media-pipeline.md)); whether any session
   actually records during MVP exit depends on the tenant's policy.
-- A **second tenant** exists in parallel with a different customization data set (e.g.
-  a coding bootcamp with `Track` levels and `CodeChallenge` lesson items); cross-tenant
-  isolation tests pass and the same code paths serve both tenants without modification.
+- The **second tenant** (the yoga studio, seeded in
+  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md)) still runs on the same
+  code paths with a different customization data set; cross-tenant isolation tests pass
+  under the `learnstack_app` role.
+
+  > A coding bootcamp was the other candidate and was **dropped**. Its distinguishing
+  > feature — running a learner's submitted code — falls outside the genericity
+  > boundary drawn in
+  > [ADR-0018's amendment](../decisions/0018-tenant-driven-customization-model.md):
+  > external capability invocation needs a sandbox, a runtime and a resource budget,
+  > so it is a plan-gated platform feature written by LearnStack, not a customization
+  > row. Choosing it as the genericity proof would have proven the opposite of the
+  > intended point.
 - Every MUST-class audit event in [Audit Coverage Standard](../standards/18-audit-coverage.md)
   is captured for both tenants and queryable via the Audit admin API.
 - LearnStack runs against either `NullEntitlementProvider` (no Hub) or against a real

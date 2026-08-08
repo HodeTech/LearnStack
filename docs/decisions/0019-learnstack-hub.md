@@ -292,7 +292,7 @@ learnstack-web         → app.learnstack.dev          (tenant SaaS)
                        → {tenant-custom-domain}      (tenant production)
                        (one Next.js app, route groups (public)/(studio)/(portal))
 
-learnstack-hub-web     → hub.learnstack.dev          (operator portal)
+operator-portal        → hub.learnstack.dev          (operator portal)
                        (separate Next.js app, in learnstack-hub repo)
 ```
 

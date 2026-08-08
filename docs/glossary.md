@@ -12,7 +12,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Organization** | A sub-unit within a tenant — a branch, campus, studio, department, or cohort. Two-level hierarchy strict (`Tenant → Organization`, no nesting) per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). Every tenant has at least one default organization. |
 | **Brand** | Synonym for Tenant in product-facing language. In code, prefer `Tenant`. |
 | **Platform Admin** | A LearnStack operator who manages tenants, plans, infrastructure-level settings. Authenticates against the `learnstack-hub` Keycloak realm. Operates above tenants. |
-| **Hub Operator** | A subset of Platform Admins who use the operator portal (`learnstack-hub-web`). Same Keycloak realm; finer-grained roles (`hub-platform-admin`, `hub-operator`, `hub-billing-viewer`). |
+| **Hub Operator** | A subset of Platform Admins who use the operator portal (`operator-portal`). Same Keycloak realm; finer-grained roles (`hub-platform-admin`, `hub-operator`, `hub-billing-viewer`). |
 | **Tenant Admin** | A user with administrative rights inside a single tenant. Authenticates against the `learnstack` Keycloak realm. Cannot see other tenants. |
 | **Org Admin** | A user with administrative rights inside a single organization within a tenant. |
 | **Deployment Mode** | One of `Development` / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` per [ADR-0020](decisions/0020-triple-deployment-hybrid-license.md). Selected at composition root; module code never branches on it. The two `SelfHosted*` variants differ on phone-home availability (entitlement source). |
@@ -298,7 +298,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Phone-Home** | The 24h verify call a Self-Hosted instance makes against Hub's `POST /api/v1/internal/license/verify`. Optional; can be disabled for air-gapped operation. |
 | **Grace Period** | The 30-day window during which an instance keeps operating after the last successful phone-home. Bounded by `grace_until` in the **durable** `platform_entitlement_cache` row — never by a cache TTL. Collapsing the two makes the advertised 30 days into 15 minutes; see [26-hybrid-license-model.md § 5](architecture/26-hybrid-license-model.md). |
 | **Platform Entitlement Cache** | The `platform_entitlement_cache` table in LearnStack core — the **durable** read-only mirror of the Hub-side Entitlement Aggregate, carrying `valid_until` and `grace_until`. Despite the name it is a projection store, not a cache: the volatile layers are L1 and L2 in front of it. Third in the normative read path `L1 → L2 → platform_entitlement_cache → Hub` ([ADR-0034](decisions/0034-hub-contract-surface-invariant.md)). Eager-invalidated on the entitlement-updated event; modules never read the table directly (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). |
-| **Operator Portal** | `learnstack-hub-web` — the separate Next.js app for Hub operators. Authenticates against the `learnstack-hub` Keycloak realm. |
+| **Operator Portal** | `operator-portal` — the separate Next.js app for Hub operators. Authenticates against the `learnstack-hub` Keycloak realm. |
 
 ## Roadmap & Delivery
 

@@ -187,7 +187,7 @@ See [add-feature-gated-ui](../add-feature-gated-ui/SKILL.md) for hook usage.
 
 ### Step 4: Hub-side plan editor (if PlanProjected)
 
-For plan-projected keys, the Hub operator portal (`learnstack-hub-web` in the
+For plan-projected keys, the Hub operator portal (`operator-portal` in the
 separate repo) lists every key declared in the `FeatureKeys` catalogue. The Hub
 plan editor surfaces them as toggle checkboxes. The Hub publishes the resulting
 JSON entitlement projection to LearnStack via

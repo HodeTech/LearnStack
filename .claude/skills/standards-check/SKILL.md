@@ -95,12 +95,20 @@ Walk every item in [CLAUDE.md § Hard rules](../../../CLAUDE.md) and
   LiveKit OSS, SeaweedFS, Meilisearch, Kafka, Vault).
 - [ ] **No domain-specific code in any module.** Domain shape = tenant data
   per ADR-0018.
-- [ ] **Foundation building blocks are Day-1.** Dapr / APISIX / audit
-  infrastructure / org scope / entitlement projection / host resolver / arch
-  tests all in Phase 02a, not later.
+- [ ] **Irreversible now, additive on demand — the one-way-door test**
+  (ADR-0035). Tenant + org isolation, the outbox table, typed IDs, the
+  localization schema, audit *correctness*, and the foundation **ports** are
+  Phase 02a. The Dapr / Kafka / APISIX / Vault **adapters**, the Hub
+  integration, signed licence keys, custom-domain TLS automation and
+  `audit_log` partitioning are demand-gated to their owning phase against a
+  written trigger — shipping them early is a finding, not a bonus.
 - [ ] **Provider adapters everywhere.** No SaaS lock-in in Domain /
   Application.
-- [ ] **Hub HTTPS surface closed at 4 endpoints.** Adding a 5th = new ADR.
+- [ ] **Hub contract surface honours its two invariants** (ADR-0034): the Hub
+  stores no tenant content, and every crossing goes through
+  `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`. Nothing else
+  holds a Hub client; nothing resolves a host by calling the Hub. Adding an
+  endpoint still needs an ADR — it is a cross-repository contract.
 - [ ] **Three deployment modes, one binary.** Module code never branches on
   `DeploymentMode`.
 
@@ -300,7 +308,8 @@ domain the diff doesn't touch.
 - [ ] Topic naming `learnstack.{module}.{aggregate}`.
 - [ ] APISIX in standalone YAML-reload mode; routes under `infra/apisix/` per
   [30-api-gateway.md § 2](../../../docs/architecture/30-api-gateway.md).
-- [ ] Hub HTTPS contract surface untouched (still 4 endpoints).
+- [ ] Hub contract surface still satisfies ADR-0034's two invariants; any new
+  endpoint carries its ADR and lands in both repositories.
 - [ ] Outbox + inbox usage correct (atomic with aggregate write; inbox guard
   in every consumer).
 

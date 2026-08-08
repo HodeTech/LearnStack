@@ -313,7 +313,7 @@ In `docs/modules/<module>/providers.md`, add the adapter:
 - Adapter: `LearnStack.Infrastructure.LiveClassroom.LiveKit.LiveKitClient`
 - Resilience section: `Resilience:liveclass:`
 - Exception subclass: `LiveClassProviderException`
-- ADR: [ADR-0005](../../decisions/0005-live-classroom-media-stack.md)
+- ADR: [ADR-0005](../../../docs/decisions/0005-live-classroom-media-stack.md)
 ```
 
 ## Validation
