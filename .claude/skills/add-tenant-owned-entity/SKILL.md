@@ -135,7 +135,15 @@ dotnet ef migrations add Add_<Name> \
   --startup-project backend/src/LearnStack.Api
 ```
 
-Edit the generated migration to add **both** RLS policies:
+Edit the generated migration to add the table and **one** RLS policy.
+
+> **The canonical template lives in
+> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md).**
+> The block below mirrors it so this skill is executable without a second file open.
+> If the two ever disagree, the standard wins and this skill is the bug — a template
+> copied into several places is exactly how the pre-2026-08-08 version drifted into
+> four divergent copies, one of which leaked every tenant-wide row across tenants
+> ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)).
 
 ```csharp
 migrationBuilder.Sql("""
@@ -155,22 +163,56 @@ migrationBuilder.Sql("""
     CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
         WHERE organization_id IS NOT NULL;   -- omit if not org-scoped
 
+    -- Enable AND force: without FORCE, the table owner bypasses its own policies,
+    -- and the default EF Core arrangement makes the application that owner.
     ALTER TABLE <name_plural> ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE <name_plural> FORCE  ROW LEVEL SECURITY;
 
-    CREATE POLICY <name_plural>_tenant_isolation ON <name_plural>
-        USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
-    -- org policy: omit if not org-scoped
-    CREATE POLICY <name_plural>_organization_isolation ON <name_plural>
+    -- ONE policy, ONE AND-ed predicate. Two policies would both be PERMISSIVE and
+    -- PostgreSQL OR-s them together — under which a tenant-wide row
+    -- (organization_id IS NULL) satisfies the organization half on its own and
+    -- becomes visible to every tenant. A second policy may only ever be RESTRICTIVE.
+    CREATE POLICY <name_plural>_isolation ON <name_plural>
         USING (
-            organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
+            tenant_id = current_setting('app.tenant_id', true)::uuid
+            AND (
+                organization_id IS NULL                                                   -- drop these three
+                OR organization_id = current_setting('app.organization_id', true)::uuid   -- lines entirely if
+                OR current_setting('app.scope', true) = 'tenant'                          -- not org-scoped
+            )
+        )
+        WITH CHECK (
+            tenant_id = current_setting('app.tenant_id', true)::uuid
+            AND (
+                organization_id IS NULL
+                OR organization_id = current_setting('app.organization_id', true)::uuid
+            )
         );
     """);
 ```
 
-The session-variable names are **canonical**: `app.tenant_id`, `app.organization_id`
-([05-database.md](../../../docs/standards/05-database.md)). Other names break RLS.
+Three things in that block are load-bearing and must not be "simplified":
+
+- **`FORCE ROW LEVEL SECURITY`** — without it the owner bypasses the policy and the
+  whole layer is inert while every structural test stays green.
+- **One policy with an `AND`-ed predicate** — splitting the tenant and organization
+  terms into two policies inverts the meaning from AND to OR.
+- **`WITH CHECK`** — `USING` governs reads; without `WITH CHECK` a write can place a
+  row in another tenant. Note the `app.scope = 'tenant'` term is deliberately absent
+  from `WITH CHECK`: tenant-scope reporting may *read* across organizations, but
+  nothing may *write* outside its own.
+
+Always call `current_setting` with the second argument `true`. Without it an unset
+context raises inside a pooled connection instead of simply filtering the row out.
+
+The session-variable names are **canonical**: `app.tenant_id`, `app.organization_id`,
+`app.scope` ([05-database.md](../../../docs/standards/05-database.md)). Other names
+break RLS silently.
+
+The runtime connects as **`learnstack_app`** (`NOBYPASSRLS`, not the table owner);
+migrations run as `learnstack_migration`, which owns the table. Integration tests for
+this entity must connect as `learnstack_app` — a test that connects as the owner passes
+against an inert policy and proves nothing.
 
 ### Step 4: Architecture test (already covered by convention)
 

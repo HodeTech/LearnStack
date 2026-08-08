@@ -194,9 +194,33 @@ CREATE TABLE tenant_template_library (
 );
 
 ALTER TABLE tenant_template_library ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_template_library_tenant_isolation ON tenant_template_library
-    USING (tenant_id = current_setting('app.tenant_id')::uuid);
+ALTER TABLE tenant_template_library FORCE  ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_template_library_isolation ON tenant_template_library
+    USING (
+        tenant_id = current_setting('app.tenant_id', true)::uuid
+        AND (
+            organization_id IS NULL
+            OR organization_id = current_setting('app.organization_id', true)::uuid
+            OR current_setting('app.scope', true) = 'tenant'
+        )
+    )
+    WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)::uuid
+        AND (
+            organization_id IS NULL
+            OR organization_id = current_setting('app.organization_id', true)::uuid
+        )
+    );
 ```
+
+This table is org-scoped (`organization_id` is nullable and participates in the
+uniqueness constraint), so its organization term lives **inside** the single policy —
+per the canonical template in
+[Database Standards](../standards/05-database.md) and
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md). A
+separate organization policy would be `PERMISSIVE` and `OR`-ed with this one, which
+would expose every tenant-wide template to every tenant.
 
 Dispatch (in the Notifications module) resolves the recipient's preferred locale,
 applies the organization → tenant → tenant-default fallback chain, then renders the

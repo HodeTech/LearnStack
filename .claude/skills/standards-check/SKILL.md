@@ -188,10 +188,21 @@ domain the diff doesn't touch.
 #### `05-database.md`
 - [ ] Naming conventions (snake_case, plural tables, `ix_` / `ux_` / `ck_` /
   `tg_` / `fn_` prefixes).
-- [ ] Every `[TenantOwned]` table has `tenant_id` + index, RLS enabled,
-  policy keyed on `current_setting('app.tenant_id')`.
+- [ ] Every `[TenantOwned]` table has `tenant_id` + index, `ENABLE` **and**
+  `FORCE ROW LEVEL SECURITY`, and **exactly one** policy whose `USING` predicate
+  `AND`-s the tenant term with the organization term, plus an explicit `WITH CHECK`.
+  **Two policies is a defect, not a style choice** — both are `PERMISSIVE`, PostgreSQL
+  `OR`-s them, and the intended `AND` becomes an `OR` that exposes every tenant-wide
+  row across tenants
+  ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)).
 - [ ] Every `[OrganizationScoped]` table additionally has nullable
-  `organization_id` + index + RLS policy on `app.organization_id`.
+  `organization_id` + index, and its organization term is **inside** that same policy —
+  not in a second one.
+- [ ] `current_setting` is always called with the missing-OK second argument
+  (`current_setting('app.tenant_id', true)`).
+- [ ] Isolation tests for the table connect as **`learnstack_app`**, not as the owner
+  or a `BYPASSRLS` role. A test that connects as the owner passes against an inert
+  policy and proves nothing.
 - [ ] Mutable aggregates carry the audit columns (`created_at` /
   `created_by` / `updated_at` / `updated_by` / `row_version`).
 - [ ] Migrations forward-only by default; destructive change has a two-step

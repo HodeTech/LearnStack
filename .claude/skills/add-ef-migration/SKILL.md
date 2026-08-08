@@ -94,21 +94,45 @@ migrationBuilder.Sql("""
     CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
         WHERE organization_id IS NOT NULL;
 
+    -- Enable AND force: without FORCE the table owner bypasses its own policies.
     ALTER TABLE <name_plural> ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE <name_plural> FORCE  ROW LEVEL SECURITY;
 
-    CREATE POLICY <name_plural>_tenant_isolation ON <name_plural>
-        USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
-    CREATE POLICY <name_plural>_organization_isolation ON <name_plural>
+    -- ONE policy, ONE AND-ed predicate. Two policies are both PERMISSIVE and
+    -- PostgreSQL OR-s them, which turns the intended AND into an OR and makes every
+    -- tenant-wide row visible across tenants. A second policy may only be RESTRICTIVE.
+    CREATE POLICY <name_plural>_isolation ON <name_plural>
         USING (
-            organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
+            tenant_id = current_setting('app.tenant_id', true)::uuid
+            AND (
+                organization_id IS NULL                                                   -- omit these three
+                OR organization_id = current_setting('app.organization_id', true)::uuid   -- lines if the table
+                OR current_setting('app.scope', true) = 'tenant'                          -- is not org-scoped
+            )
+        )
+        WITH CHECK (
+            tenant_id = current_setting('app.tenant_id', true)::uuid
+            AND (
+                organization_id IS NULL
+                OR organization_id = current_setting('app.organization_id', true)::uuid
+            )
         );
     """);
 ```
 
-**Session variable names** are canonical: `app.tenant_id` / `app.organization_id`.
-Architecture test `Every_TenantOwned_Table_HasRls_With_AppTenantId` enforces.
+> The canonical template is
+> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md);
+> this is a mirror. If they disagree, the standard wins. See
+> [ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)
+> for why the two-policy shape was withdrawn.
+
+**Session variable names** are canonical: `app.tenant_id` / `app.organization_id` /
+`app.scope`. Always pass the second `true` argument so an unset context filters the row
+out instead of raising on a pooled connection.
+
+**Roles.** Migrations run as `learnstack_migration` (the table owner);
+the application connects as `learnstack_app` (`NOBYPASSRLS`, not the owner). Grant the
+new table to `learnstack_app` in the same migration, or the application cannot read it.
 
 ### Step 4: Append-only / partitioned table
 

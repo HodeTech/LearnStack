@@ -241,7 +241,11 @@ CREATE INDEX ix_audit_log_actor_timestamp
 CREATE INDEX ix_audit_log_correlation
     ON audit_log (correlation_id) WHERE correlation_id IS NOT NULL;
 
--- RLS
+-- RLS  ⚠ superseded shape — see the banner at the top of this ADR.
+-- The binding template is Standards 05 (one AND-ed policy, FORCE ROW LEVEL
+-- SECURITY, explicit WITH CHECK); the DDL above additionally declares a
+-- primary key twice, which PostgreSQL rejects. ADR-0033 carries the corrected
+-- table definition.
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY audit_log_tenant_isolation ON audit_log
     USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
