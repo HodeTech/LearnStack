@@ -9,6 +9,30 @@ Accepted
 
 ## Amendments
 
+### Amendment 2 — Two corrections from the 2026-08-08 restructure
+
+Neither changes a sub-decision; both correct text that would mislead an implementer.
+
+1. **The `IProviderResilience<TPort>` registration example does not compile.**
+   Sub-decision 5 shows `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;
+   C# forbids using a type parameter as a base type, so `ResilientProviderAdapter<TPort>`
+   cannot satisfy `: TPort`. The **shipped** registration in
+   `LearnStack.Infrastructure.Resilience` is correct — it registers
+   `IProviderResilience<TPort>` as a singleton that adapters take as a collaborator
+   rather than decorating the port itself. Read the code, not the example.
+2. **The "Hub HTTPS contract is closed at four endpoints" decision driver is
+   superseded** by [ADR-0034](0034-hub-contract-surface-invariant.md), which replaces
+   the count with two invariants (the Hub stores no tenant content; every crossing goes
+   through a named adapter). The driver's substantive point is unaffected: inbound
+   `/api/internal/*` calls carry no tenant JWT, so their correlation comes from
+   `traceparent` plus the request envelope rather than from `ITenantContext`.
+
+Separately, note that the **audit durability contract** referenced throughout this ADR
+now comes from [ADR-0033](0033-audit-durability-model.md), which supersedes ADR-0016.
+The pipeline order fixed by this ADR is unchanged; what changed is that `AuditLogBehavior`
+records outcomes while MUST-class audit rows are written as a durable intent inside the
+business transaction by the EF interceptor.
+
 ### Amendment 1 — Roslyn diagnostic id + CI severity (2026-05-22)
 
 Sub-decision 4 and the Standards 21 naming convention referred to the

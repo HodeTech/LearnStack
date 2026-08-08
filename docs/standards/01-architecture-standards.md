@@ -4,8 +4,10 @@
 **Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md),
 [ADR-0010 Cross-Module Communication](../decisions/0010-cross-module-communication.md)
 (Amendment 1: outbox dispatch via Dapr pub/sub),
-[ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
-[ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md),
+[ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md)
+(scheduled by [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)),
+[ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+(supersedes [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md)),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
 (supersedes ADR-0011 Vertical Extension Points).

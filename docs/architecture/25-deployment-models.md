@@ -4,8 +4,19 @@
 [ADR-0019](../decisions/0019-learnstack-hub.md).
 
 LearnStack supports three deployment models from **one codebase, one Helm chart, one set
-of container images**. The differentiator across modes is configuration + Dapr component
-YAML + `IEntitlementProvider` implementation choice — never application code.
+of container images**. The differentiator across modes is configuration + component
+wiring + `IEntitlementProvider` implementation choice — never application code.
+
+> **Support state (2026-08-08).** The `DeploymentMode` enum has five values and the
+> composition root branches on all five. Only **`Development`** and **`SaaS`** are wired
+> and tested end to end today. `Dedicated`, `SelfHostedOnline`, and
+> `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until
+> [Phase 11](../roadmap/phase-11-production-hardening.md) builds their adapters and
+> integration suites, per
+> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). See
+> [§ 5](#5-deploymentmode-configuration) for what "prepared seam" means concretely. The
+> rest of this document describes the target topologies; it is a design document for all
+> five, and a description of running systems for two.
 
 ## 1. The three modes
 
@@ -83,8 +94,29 @@ Internet
   time: < 1 minute.
 - **Tenant URL**: Starts on `{slug}.learnstack.app`; upgrades to custom domain on
   Growth+ tier.
-- **Failure isolation**: RLS protects tenant rows; one tenant's burst doesn't starve
-  others (rate limits per remote_addr; Phase 11+ per-tenant consumer keys).
+- **Failure isolation**: two different problems, and only one of them is solved today.
+  **Correctness** isolation — no tenant can read or write another tenant's rows — is
+  covered by tenant context + EF query filters + Row Level Security + architecture tests
+  ([ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)).
+  **Resource** isolation — no tenant can starve another of connections, CPU, or job
+  workers — is **not** covered by any of those. Row Level Security is a visibility
+  predicate: it filters rows, and a filtered query consumes exactly as much of the
+  database as an unfiltered one. A single tenant running an unbounded report can hold a
+  connection, saturate the pool, and degrade every other tenant on the instance while
+  every isolation test stays green.
+
+  What exists today: APISIX `limit-req` keyed on `remote_addr`, which throttles a noisy
+  client but not a noisy tenant — one tenant behind many IPs is unaffected, and many
+  tenants behind one NAT are punished together.
+
+  What is required, and where it lives: **resource fairness is
+  [Phase 11](../roadmap/phase-11-production-hardening.md)** — `statement_timeout` per
+  connection class, per-tenant connection-pool partitioning, query cost ceilings on
+  report and export paths, Hangfire queue fairness so one tenant's bulk import cannot
+  monopolise the workers, and per-tenant rate limiting keyed on the resolved tenant
+  rather than on the client address. No earlier phase owns this work, and until Phase 11
+  ships it, SaaS multi-tenancy is protected against **leakage** but not against
+  **contention**.
 
 ## 3. Dedicated mode
 
@@ -188,17 +220,46 @@ public enum DeploymentMode
 }
 ```
 
-`Program.cs` wires the entitlement provider based on this value (see ADR-0020).
+`Program.cs` wires the entitlement provider based on this value (see ADR-0020). Modules
+never read the enum — `Modules_Do_Not_Reference_DeploymentMode` enforces that the
+composition root branches once.
 
-Other config settings switched by mode:
+### Supported today versus prepared seam
+
+| Value | State | What that means concretely |
+|---|---|---|
+| `Development` | **Supported** | Wired, run daily, covered by the integration suite |
+| `SaaS` | **Supported** | Wired and covered end to end from [Phase 02c](../roadmap/phase-02c-hub-foundation.md) |
+| `Dedicated` | Prepared seam | The branch exists and resolves to the default implementations; no dedicated-topology integration suite, no operational runbook |
+| `SelfHostedOnline` | Prepared seam | Same; the phone-home path needs the Hub adapter and its failure-mode tests |
+| `SelfHostedAirGapped` | Prepared seam | Same, plus a signed-licence provider and a no-egress telemetry target that do not exist yet |
+
+A prepared seam is a **branch point with no adapter behind it**: the value is accepted,
+the composition root routes it, and the implementations it selects are the same defaults
+`Development` gets. It is honest to design for it; it is not honest to sell it. Each seam
+becomes a supported mode in [Phase 11](../roadmap/phase-11-production-hardening.md) when
+its trigger fires — for `SelfHostedAirGapped`, that trigger is a signed Self-Hosted
+contract ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+
+The same ADR adds a rule that this document must obey: **a deployment mode without a
+signed contract cannot be the deciding factor in a technical choice.** It may break a tie
+between otherwise-equal options. It may not, on its own, reject a dependency or justify
+an abstraction.
+
+### Other config settings switched by mode
 
 - **Hub URL** — pointed at LearnStack-hosted (SaaS / Dedicated / SelfHostedOnline) OR
   customer-hosted (rare) OR not set (SelfHostedAirGapped).
-- **Default secret store** — Dapr Vault (most modes) OR file-based (air-gapped optional).
+- **Secret store** — `EnvironmentSecretProvider` today in every mode; the Vault-backed
+  provider is demand-gated to Phase 11 behind `ISecretProvider`, triggered by secrets
+  needing rotation without a redeploy or by a non-development deployment existing.
 - **Telemetry sink** — LearnStack OTel collector (SaaS / Dedicated) OR customer OTel
-  (Self-Hosted).
-- **Dapr pub/sub component** — Kafka backend differs by deployment (managed Kafka vs
-  bundled Kafka).
+  (Self-Hosted). `SelfHostedAirGapped` wires no network exporter at all; its file target
+  lands in Phase 11.
+- **Event transport** — `InProcessEventBus` today in every mode; the Dapr pub/sub
+  component and its Kafka backend land in Phase 11, triggered by a second process needing
+  to consume an integration event. See
+  [15-event-and-outbox.md](15-event-and-outbox.md).
 
 ## 6. Same Helm chart
 
@@ -254,12 +315,14 @@ Same chart. Same templates. Different values.
 
 ## 7. Deployment-mode-conditional behaviour
 
-A small list of behaviours change across modes:
+A small list of behaviours change across modes. This is the **target** table; the two
+supported modes reach it today and the three seams reach it in Phase 11.
 
 | Behaviour | SaaS | Dedicated | Self-Hosted Online | Self-Hosted Air-Gapped |
 |-----------|------|-----------|--------------------|------------------------|
 | `IEntitlementProvider` | Hub | Hub | Hub | SignedLicenseKey |
-| `ISecretProvider` | Dapr → Vault | Dapr → Vault | Dapr → Vault | Dapr → Vault OR file |
+| `ISecretProvider` (target) | Vault | Vault | Vault | Vault OR file |
+| `ISecretProvider` (today) | `EnvironmentSecretProvider` in every mode — the Vault adapter is demand-gated to Phase 11 | ← | ← | ← |
 | Phone-home enabled | Yes | Yes | Yes | No |
 | Outbound HTTP to Hub | Yes | Yes | Yes | No |
 | OTel collector endpoint | LearnStack-hosted | LearnStack-hosted | Customer-hosted | Customer-hosted |
@@ -324,6 +387,9 @@ To be authored:
 - `docs/operations/migration-orchestration.md` — Schema migration coordination.
 - `docs/operations/security-incident.md` — Security incident response.
 - `docs/operations/data-export-and-portability.md` — GDPR data export per tenant.
+- `docs/operations/resource-fairness.md` — the SaaS contention controls named in
+  [§ 2](#2-saas-mode): `statement_timeout` classes, pool partitioning, query cost
+  ceilings, Hangfire queue fairness, per-tenant rate limits.
 
 ## 12. Non-goals
 
@@ -338,6 +404,12 @@ To be authored:
 
 - ADR-0020 — Triple Deployment + Hybrid License.
 - ADR-0019 — LearnStack Hub.
+- [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) — what
+  Row Level Security does and does not guarantee.
+- [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — which modes are
+  supported, which are seams, and what promotes a seam.
 - [26-hybrid-license-model.md](26-hybrid-license-model.md) — license payload + lifecycle.
 - [24-learnstack-hub.md](24-learnstack-hub.md) — Hub architecture.
 - [04-technical-architecture.md](04-technical-architecture.md) — overall stack.
+- [Phase 11: Production Hardening, Operations, and Scale](../roadmap/phase-11-production-hardening.md)
+  — owns resource fairness and the three prepared seams.

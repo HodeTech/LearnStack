@@ -332,7 +332,7 @@ checklist:
   `docs/modules/<m>/permissions.md` updated.
 - [ ] Frontend i18n key changed → `I18n:` commit trailer present.
 - [ ] Hub-side change in this repo → flagged for coordination with
-  `learnstack-hub` repo (the four-endpoint contract is shared).
+  `learnstack-hub` repo (the contract surface is shared; see ADR-0034).
 
 ### Step 6 — Output
 

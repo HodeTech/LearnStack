@@ -1,146 +1,57 @@
-# Phase 09b: Hub Billing and Invoicing (parallel track)
+# Phase 09b: Hub Billing (pointer)
+
+> **Pointer document.** The authoritative plan for Hub billing lives in the
+> **`learnstack-hub`** repository at `docs/roadmap/hub-billing.md`. This file records
+> only what a LearnStack reader needs: why the phase exists, where the repository
+> boundary falls, what starts the work, and the one LearnStack-side dependency. The Hub
+> billing aggregates, the dunning and grace state machine, the invoice ledger and the
+> operator portal surface are Hub concerns and are described there, not here.
 
 ## Goal
 
-Extend the **`learnstack-hub`** repository with the **platform-level billing** that
-governs each tenant's LearnStack subscription: `Plan` ↔ `HubSubscription` lifecycle,
-`HubInvoice` / `HubInvoiceLine` ledger, payment-provider adapter, usage-based
-metering integration, dunning and grace-period rules, and the operator UI for these.
+Let the LearnStack vendor charge a tenant for that tenant's LearnStack subscription —
+plan and subscription lifecycle, invoicing, payment collection, dunning, grace, and the
+operator surface over all of it. Every line of that is Hub-side code in the Hub
+repository ([ADR-0019](../decisions/0019-learnstack-hub.md),
+[ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md)).
 
-Runs **in parallel** with Phase 09 (LearnStack-side tenant storefront billing). Both
-phases own their own surfaces and do not overlap:
+## Division of responsibility
 
-| Concern | Owner |
-|---------|-------|
-| Tenant sells courses to learners | **Phase 09** (LearnStack core's `Billing` module — storefront) |
-| LearnStack vendor charges a tenant for the LearnStack subscription | **Phase 09b** (Hub-side platform billing) |
+Two different billing relationships exist. Conflating them is the most common reading
+error in this corpus, so it is written out:
 
-Phase 02c shipped `Plan` and `HubSubscription` as **provisioning** primitives; this
-phase fills in the **commercial** side.
+| Money flows | Phase | Where the code lives |
+|---|---|---|
+| A learner pays a **tenant** for a course | [Phase 09](phase-09-billing-integrations-analytics.md) — storefront billing | LearnStack core, behind `IPaymentProvider` |
+| A tenant pays the **LearnStack vendor** for the platform | Phase 09b — platform billing | `learnstack-hub`, behind `IHubPaymentProvider` |
 
-Decisions referenced:
+The two ports share a shape — idempotency key, webhook signature verification, status
+mapping — and never run in the same process. Self-Hosted tenants skip this phase
+entirely: they buy a licence key rather than a subscription.
 
-- [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md)
-- [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
-- [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md)
+## Scope on the LearnStack side
 
-## Scope
+Deliberately almost nothing. The only standing dependency is **usage reporting**: the
+`IUsageReporter` adapter and `POST /api/v1/usage/report`, which ship in
+[Phase 02c](phase-02c-hub-foundation.md) and are already part of the contract surface
+enumerated in [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md). Phase 09b
+aggregates and bills against that stream; it does not extend it.
 
-### Hub-Side Aggregates
+A read-only subscription view inside Studio is optional and, if built, reads through
+`IEntitlementProvider` — no LearnStack module gains a dependency on Hub billing, and
+`LearnStack_Modules_DoNotReference_Hub` stays green. Any new endpoint the Hub billing
+design needs requires an ADR, per ADR-0034's second invariant.
 
-- `HubInvoice` / `HubInvoiceLine` — invoice ledger per tenant.
-- `UsageAggregate` — aggregated usage by tenant + month (concurrent classroom
-  sessions, total minutes, storage GB, learner count, custom-domain count).
-- `DunningPolicy` — per-plan rules for missed-payment escalation.
-- `PaymentProviderAccount` (Hub-side) — Stripe / iyzico / wire-only configurations
-  for vendor's own payment collection.
-- Extension of `HubSubscription` with `billing_state`, `current_period_start`,
-  `current_period_end`, `cancel_at_period_end`, `dunning_state`, `grace_until`.
+## Trigger
 
-### Usage Ingestion
-
-- LearnStack core's `POST /api/v1/usage/report` (already shipped in Phase 02c)
-  produces the raw stream; this phase adds **aggregation** on Hub side: a Hangfire
-  job rolls raw reports into `UsageAggregate` daily.
-- Soft-limit alerts (`usage.alert.soft_limit_reached` event, already produced in
-  Phase 02c) surface in the operator portal and (optionally) email the tenant admin.
-
-### Billing Lifecycle
-
-- New subscription on tenant create (via the existing Phase-02c flow) starts with
-  `billing_state = trial`.
-- Trial → active transition triggers the first invoice generation.
-- Period-end (monthly / annual) closes the current period, generates an invoice
-  (`HubInvoice`), and emits `learnstack.hub.invoice.generated` Dapr event.
-- Failed payment enters `dunning_state = grace` for the configured window
-  (default 14 days); during grace, the entitlement projection stays active. On grace
-  expiry, the projection downgrades to a `read-only` feature set and a notice banner
-  is pushed via the next entitlement refresh.
-- Cancellation honours `cancel_at_period_end` (no immediate access loss).
-
-### Payment Provider Adapters
-
-- Stripe adapter (cards + ACH + SEPA).
-- iyzico adapter (Turkish market).
-- Manual / wire-transfer adapter (operator marks payment received).
-- All three implement `IHubPaymentProvider`; adding a fourth is a code edit, not an
-  ADR.
-
-> **Naming.** Hub-side `IHubPaymentProvider` is **distinct** from the LearnStack-core
-> `IPaymentProvider` (Phase 09's tenant-facing storefront billing). The two
-> interfaces share a common shape (idempotency key, webhook signature verification,
-> status mapping) but are scoped to different billing relationships:
-> `IPaymentProvider` charges *learners* on behalf of a tenant; `IHubPaymentProvider`
-> charges *tenants* on behalf of LearnStack for their LearnStack subscription. Hub
-> adapters live in the `learnstack-hub` repo's
-> `Hub.Infrastructure.Payments.{Stripe,Iyzico,Manual}` packages; LearnStack-core
-> adapters live in `LearnStack.Infrastructure.Payments.{...}` in this repo.
-> Mixing them in one process is forbidden by the Hub / LearnStack codebase
-> separation invariant ([ADR-0019](../decisions/0019-learnstack-hub.md)).
-
-### Operator Portal Extensions
-
-- Per-tenant billing tab: subscription state, current period, recent invoices,
-  payment-provider info, dunning state, grace expiry.
-- Invoice viewer + PDF export.
-- Plan-change workflow: operator switches a tenant's plan; entitlement projection is
-  re-pushed; pro-rated invoice generated.
-- Bulk invoice export (CSV) for accounting.
-
-### Tenant-Facing Hooks (in LearnStack core, **not** new code in Hub)
-
-- A read-only billing tab in Studio (LearnStack core) shows the tenant their own
-  subscription state, recent invoices, and "next payment due" — sourced from a thin
-  proxy API that calls the Hub. The proxy lives in LearnStack core and uses
-  `IEntitlementProvider`'s billing-info extension; **no new Hub endpoint** is added
-  to the four-endpoint contract surface.
-
-### Compliance
-
-- Tax handling per region (Stripe Tax for the Stripe adapter; manual table for
-  others).
-- Invoice retention 7 years (per the Hub-side audit retention floor).
-- Hub-side audit entries for every operator billing action (plan change, manual
-  invoice, refund).
-
-## Deliverables
-
-- Hub-side billing aggregates + schema + Hangfire jobs.
-- Stripe + iyzico + manual payment-provider adapters.
-- Operator portal billing surface.
-- LearnStack-core proxy endpoint that the tenant's Studio billing tab consumes.
-- Dunning + grace-period state machine working end-to-end.
-- Invoice PDF generation pipeline.
-
-## Completion Criteria
-
-- An operator can move a tenant from trial → active → cancelled with appropriate
-  invoices generated and entitlement projection refreshes.
-- A failed payment triggers dunning; the tenant continues operating until grace
-  expiry; on expiry, the projection downgrades to read-only and Studio shows the
-  notice banner.
-- The tenant's Studio billing tab shows accurate subscription + invoice data, sourced
-  via the proxy from Hub.
-- Operator audit log captures every billing action with `actor.hubOperator = true`.
-- Hub-side architecture tests green; LearnStack-core architecture tests
-  (`LearnStack_Modules_DoNotReference_Hub`, no new endpoints on internal API) still
-  green.
-
-## Risks
-
-- **Two-billing confusion**: tenant admins conflating their own storefront billing
-  with the platform billing they pay for LearnStack. Mitigated by clear UI separation
-  (storefront in Studio's "Catalog → Products"; platform billing under
-  "Settings → Subscription") + consistent terminology.
-- **Payment provider drift**: Stripe / iyzico API breaking changes. Mitigated by
-  adapter pattern + contract tests against recorded fixtures.
-- **Grace period gaming**: tenants entering grace repeatedly. Mitigated by
-  `IUsageReporter` continuing to report during grace; operator portal surfaces
-  serial-grace tenants.
+Phase 09b starts when a tenant must be invoiced commercially — a signed SaaS or
+Dedicated contract with a paying customer. Until then the roadmap holds the slot and the
+Hub repository holds the design.
 
 ## Phase Exit Decision
 
-Phase 09b is complete when SaaS deployment can charge a real tenant end-to-end:
-operator provisions tenant → trial → active → invoice generated → payment captured
-→ next period rolls over. Self-Hosted tenants do not need Phase 09b (they pay via
-license-key purchase, not subscription billing).
+Phase 09b is complete when a SaaS deployment charges a real tenant end to end: operator
+provisions the tenant, trial converts to active, an invoice is generated, payment is
+captured, and the next period rolls over — with LearnStack unchanged apart from the
+usage it was already reporting. The exit criteria in detail live in the Hub repository's
+`docs/roadmap/hub-billing.md`.

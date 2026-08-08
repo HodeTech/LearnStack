@@ -2,7 +2,24 @@
 
 ## Status
 
-Accepted
+Accepted — **amended by [ADR-0034](0034-hub-contract-surface-invariant.md) (2026-08-08)**
+
+> **What ADR-0034 changed.** The separate-repository decision, the mTLS + RS256 JWT +
+> HMAC auth chain, and the "Hub holds tenant metadata, never tenant content" rule all
+> stand unchanged. What ADR-0034 replaces is the **"closed at four endpoints"** framing
+> that a later amendment to this ADR introduced.
+>
+> That framing was never accurate: the Decision section below enumerates **six** paths
+> and does not use the word "four". Protecting the number then damaged the design —
+> [ADR-0022](0022-custom-domain-tls.md) Amendment 1 routes host mappings *and TLS
+> private keys* through the entitlement-push payload specifically to avoid declaring a
+> fifth endpoint.
+>
+> ADR-0034 replaces the count with two enforceable invariants: **the Hub stores no
+> tenant content**, and **every LearnStack↔Hub crossing goes through a named adapter**
+> (`IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`). Adding an endpoint
+> still requires an ADR — the surface is a cross-repository contract. Read ADR-0034 for
+> the enumerated endpoint set.
 
 ## Date
 

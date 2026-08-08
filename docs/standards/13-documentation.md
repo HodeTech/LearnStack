@@ -213,7 +213,7 @@ Amendments must not change the Decision section. If the decision itself changes,
 | New translatable content type | i18n strategy doc |
 | New Tenant Customization aggregate | [32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md) + glossary |
 | New feature key or limit key | [21-feature-flags.md](../architecture/21-feature-flags.md) catalog + matching `FeatureKeys` / `LimitKeys` entry |
-| New Hub endpoint | New ADR (the four-endpoint surface is closed) + [24-learnstack-hub.md](../architecture/24-learnstack-hub.md) |
+| New Hub endpoint | New ADR (the surface is a cross-repository contract; see [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)) + [24-learnstack-hub.md](../architecture/24-learnstack-hub.md) |
 | Standards rule change | The standard itself + an ADR if non-trivial |
 
 ## Documentation Reviews

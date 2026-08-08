@@ -187,7 +187,9 @@ Rules:
 
 Standard MediatR pipeline (in order; outermost first, innermost last). Bound by
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
-and consistent with [ADR-0016 § Pipeline behavior order](../decisions/0016-audit-log-subsystem.md):
+and consistent with [ADR-0033](../decisions/0033-audit-durability-model.md), which keeps
+this order and changes only the durability contract of what step 3 records
+(ADR-0033 supersedes ADR-0016):
 
 1. **`ValidationBehavior`** — FluentValidation. Invalid input → returns
    `Result.Fail(validation_failed, errors)`; never throws
@@ -197,29 +199,61 @@ and consistent with [ADR-0016 § Pipeline behavior order](../decisions/0016-audi
    correlation fields ([10-observability.md § Correlation](10-observability.md)),
    starts the manual `<module>.<operation>` `Activity`, and measures handler
    latency for the histogram metric.
-3. **`AuditLogBehavior`** — Per [ADR-0016](../decisions/0016-audit-log-subsystem.md),
-   wraps the inner pipeline with `try / catch`. On exception, writes a
-   failure-class audit entry and rethrows via `ExceptionDispatchInfo` to
-   preserve the original stack. On success, reads `IAuditStateCapture` and
-   writes the success entry. Failure of `IAuditStore` itself is logged but
-   never blocks the business operation.
+3. **`AuditLogBehavior`** — Wraps the inner pipeline with `try / catch`. On
+   exception, records a failure-class audit entry and rethrows via
+   `ExceptionDispatchInfo` to preserve the original stack. On success, reads
+   `IAuditStateCapture` and records the success entry.
+
+   Per [ADR-0033](../decisions/0033-audit-durability-model.md) this behavior
+   keeps its position and its responsibility; what changed is **where
+   durability comes from**. A **MUST-class** row is enrolled by `IAuditStore`
+   in the same `DbContext.SaveChanges` as the business write, deeper in the
+   pipeline — so it commits with the write or not at all, it executes while
+   `app.tenant_id` is set and Row Level Security accepts it, and it is
+   *already durable* by the time step 3's success path runs. A MUST-class
+   audit failure therefore **fails closed**: the operation is rejected rather
+   than committing unaudited. **SHOULD/MAY-class** entries stay best-effort —
+   enriched and dispatched after commit, logged on failure, never blocking the
+   business operation.
 4. **`TenantContextBehavior`** — Asserts `ITenantContext.IsResolved` (the
    `TenantResolverMiddleware` populated it from the inbound HTTP request,
    the Hangfire `JobActivator` populated it from the job payload, or the
-   integration-event handler scope populated it from the event envelope);
-   sets the `app.tenant_id` and `app.organization_id` PostgreSQL session
-   variables via the `DbConnectionInterceptor` so RLS sees the right values.
+   integration-event handler scope populated it from the event envelope)
+   and carries the resolved tenant + organization forward for the rest of
+   the pipeline. Unresolved context short-circuits with
+   `Result.Fail(tenant_mismatch)` unless the request carries
+   `[AllowsUnresolvedTenantContext]`.
+
+   This behavior does **not** set the PostgreSQL session variables. It runs
+   at step 4; the transaction opens at step 6; and
+   `set_config('app.tenant_id', …, true)` / `SET LOCAL` are
+   **transaction-local**, so a value set here is discarded before the
+   transaction that needs it ever begins. The same objection rules out a
+   `DbConnectionInterceptor`, which fires at connection open rather than at
+   transaction start.
+   [Security Standards § Tenant Context](11-security.md) is the single
+   authority for where the session variables are set; the canonical policy
+   template that reads them lives in
+   [Database Standards § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 5. **`AuthorizationBehavior`** — `IAuthorizationService.AuthorizeAsync`
    against the command's resource. Denial returns
    `Result.Fail(forbidden)`; no exception.
-6. **`TransactionBehavior`** — Opens a `DbContext.Database` transaction (UoW).
-   Commits on a success-`Result`; rolls back on a fail-`Result` or any
-   exception that bubbles through. No transaction for forbidden or
-   validation-failed requests because those short-circuit upstream.
+6. **`TransactionBehavior`** — Opens a `DbContext.Database` transaction (UoW)
+   and, as its **first statement inside that transaction**, issues
+   `SET LOCAL app.tenant_id` / `app.organization_id` from the
+   `ITenantContext` step 4 asserted, so Row Level Security evaluates every
+   subsequent statement — including the MUST-class audit insert — against
+   the right values. Commits on a success-`Result`; rolls back on a
+   fail-`Result` or any exception that bubbles through. No transaction for
+   forbidden or validation-failed requests because those short-circuit
+   upstream.
 7. **`OutboxFlushBehavior`** — Per
    [15-event-and-outbox.md](../architecture/15-event-and-outbox.md), enrols
-   `IOutbox` messages in the current transaction; they ship via
-   `DaprEventBus` on commit.
+   `IOutbox` messages in the current transaction; the dispatcher ships them
+   through the registered `IEventBus` after commit. The registered
+   implementation is `InProcessEventBus` until the Dapr adapter's trigger
+   fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md));
+   handler code is identical either way, which is the point of the port.
 8. **Handler** — domain logic; returns `Result<T>`. **No** `throw new
    DomainException` for expected business-rule violations — use
    `Result.Fail(business_rule_violation, ...)`. The

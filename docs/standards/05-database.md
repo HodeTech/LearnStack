@@ -31,7 +31,7 @@ PostgreSQL schema, EF Core, and migration conventions.
 | Indexes | `ix_<table>_<columns>` | `ix_courses_tenant_id_slug` |
 | Unique indexes | `ux_<table>_<columns>` | `ux_courses_tenant_id_slug` |
 | Check constraints | `ck_<table>_<rule>` | `ck_courses_slug_format` |
-| RLS policies | `<table>_tenant_isolation` | `courses_tenant_isolation` |
+| RLS policies | `<table>_isolation` (one per table) | `courses_isolation` |
 | Triggers | `tg_<table>_<purpose>` | `tg_courses_set_updated_at` |
 | Functions | `fn_<purpose>` | `fn_set_updated_at` |
 | Read-model tables | `public_<module>_<concept>` | `public_education_course_summaries` |
@@ -41,10 +41,17 @@ PostgreSQL schema, EF Core, and migration conventions.
 
 ## Tenant-Owned and Organization-Scoped Tables
 
-Every tenant-owned table **must** carry `tenant_id` + RLS policy + EF filter.
-Org-scoped tables additionally carry an `organization_id` column (nullable when the
-row may be tenant-wide) and an org-aware RLS policy per
-[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md).
+Every tenant-owned table **must** carry `tenant_id` + one RLS policy + an EF filter.
+Org-scoped tables additionally carry an `organization_id` column (nullable when the row
+may be tenant-wide), and the organization term is `AND`-ed into that same policy per
+[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) and
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
+
+> **One policy per table.** The natural instinct is to write a tenant policy and an
+> organization policy. Do not. `CREATE POLICY` is permissive by default and PostgreSQL
+> combines permissive policies with `OR`, so a second policy **widens** access instead
+> of narrowing it. This is not theoretical — it is the defect ADR-0003 Amendment 3
+> corrects, and it made every tenant-wide row visible to every tenant.
 
 ```sql
 CREATE TABLE courses (
@@ -62,17 +69,28 @@ CREATE TABLE courses (
     CONSTRAINT ux_courses_tenant_id_slug UNIQUE (tenant_id, slug)
 );
 
+-- Enable *and* force: without FORCE, the table owner bypasses its own policies.
 ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE courses FORCE  ROW LEVEL SECURITY;
 
--- Tenant isolation (mandatory):
-CREATE POLICY courses_tenant_isolation ON courses
-    USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
--- Organization isolation (only for [OrganizationScoped] tables):
-CREATE POLICY courses_organization_isolation ON courses
+-- ONE policy, ONE AND-ed predicate. Two permissive policies would be OR-ed
+-- together and a tenant-wide row (organization_id IS NULL) would satisfy the
+-- organization half on its own — visible to every tenant.
+CREATE POLICY courses_isolation ON courses
     USING (
-        organization_id IS NULL
-        OR organization_id = current_setting('app.organization_id', true)::uuid
+        tenant_id = current_setting('app.tenant_id', true)::uuid
+        AND (
+            organization_id IS NULL                                                   -- tenant-wide row
+            OR organization_id = current_setting('app.organization_id', true)::uuid   -- caller's org
+            OR current_setting('app.scope', true) = 'tenant'                          -- tenant-scope read
+        )
+    )
+    WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)::uuid
+        AND (
+            organization_id IS NULL
+            OR organization_id = current_setting('app.organization_id', true)::uuid
+        )
     );
 
 CREATE INDEX ix_courses_tenant_id ON courses (tenant_id);
@@ -80,24 +98,56 @@ CREATE INDEX ix_courses_organization_id ON courses (organization_id)
     WHERE organization_id IS NOT NULL;
 ```
 
+This block is the **single canonical RLS template**.
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md),
+[Tenant Isolation](../architecture/09-tenant-isolation.md) and
+[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) link here rather than
+repeating it — a template copied into four documents is a template that drifts in four
+directions.
+
 Rules:
 - `tenant_id` is the **first column** of every composite index unless profiling proves
   otherwise.
-- Every tenant-owned table has an RLS policy keyed on
-  `current_setting('app.tenant_id')`. The session variable name `app.tenant_id` is the
-  canonical convention; do not use other names (`app.current_tenant_id`,
-  `learnstack.tenant_id`, etc.) — the architecture test
-  `Every_TenantOwned_Table_HasRls_With_AppTenantId` enforces this.
-- Org-scoped tables additionally enforce isolation against
-  `current_setting('app.organization_id', true)`. The second argument `true`
-  (missing-OK) lets the predicate degrade to "tenant-wide row" when no org context is
-  set.
-- Application sets `app.tenant_id` and (where relevant) `app.organization_id` on the
-  ambient transaction via `SET LOCAL`. The interceptor that performs this also asserts
-  the values are set before any query executes.
-- Platform-admin operations use a separate database role (`learnstack_platform`) that
-  bypasses RLS; the outbox processor uses `learnstack_outbox_admin` for the same
-  reason (see [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)).
+- Every tenant-owned table carries **exactly one** policy whose predicate `AND`s the
+  tenant term with the organization term. A tenant-wide table simply omits the
+  organization half. If a second policy is ever genuinely needed it must be declared
+  `AS RESTRICTIVE`; a second permissive policy widens access rather than narrowing it.
+- Every tenant-owned table declares both `ENABLE` and `FORCE ROW LEVEL SECURITY`.
+- Every policy carries an explicit `WITH CHECK`. `USING` governs which rows are
+  visible; `WITH CHECK` governs which rows may be written. The `app.scope = 'tenant'`
+  escape hatch is deliberately **absent** from `WITH CHECK`: a tenant-scope reporting
+  query may read across organizations, but nothing may write outside its organization.
+- The session variable names `app.tenant_id`, `app.organization_id` and `app.scope`
+  are canonical; do not invent alternatives (`app.current_tenant_id`,
+  `learnstack.tenant_id`, …). Always call `current_setting` with the second argument
+  `true` (missing-OK) so an unset context yields `NULL` and the predicate filters the
+  row out, rather than raising inside a pooled connection.
+- The application sets `app.tenant_id` and `app.organization_id` with `SET LOCAL`
+  **inside the ambient transaction**, after it opens. These settings are
+  transaction-local: set before the transaction begins — in a MediatR behavior that
+  runs earlier, or in a connection interceptor that fires at connection open — they are
+  discarded before the query they are meant to protect ever runs. See
+  [Security Standards § Tenant Context](11-security.md).
+
+### Database roles
+
+| Role | Used by | RLS posture |
+|------|---------|-------------|
+| `learnstack_migration` | EF Core migrations; **owns** every tenant-owned table | `NOBYPASSRLS` — `FORCE ROW LEVEL SECURITY` denies ownership any bypass |
+| `learnstack_app` | The application's runtime connection; not an owner | `NOBYPASSRLS`; granted only `SELECT, INSERT, UPDATE, DELETE` |
+| `learnstack_platform` | Cross-tenant platform-admin work, entered only through the audited `EnterPlatformAdminScope(reason)` path | `BYPASSRLS` |
+| `learnstack_outbox_admin` | The outbox dispatcher — see [Events and Outbox](../architecture/15-event-and-outbox.md) | `BYPASSRLS` |
+
+```sql
+CREATE ROLE learnstack_migration LOGIN NOBYPASSRLS;
+CREATE ROLE learnstack_app       LOGIN NOBYPASSRLS;
+
+ALTER TABLE courses OWNER TO learnstack_migration;
+GRANT SELECT, INSERT, UPDATE, DELETE ON courses TO learnstack_app;
+```
+
+**Isolation tests connect as `learnstack_app`.** A test that connects as the owner or
+as a `BYPASSRLS` role passes even when every policy is inert, so it proves nothing.
 
 ## Audit Columns
 
@@ -201,10 +251,19 @@ CREATE INDEX ix_outbox_messages_tenant_pending
     WHERE processed_at IS NULL;
 
 ALTER TABLE outbox_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY outbox_messages_tenant_isolation ON outbox_messages
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
--- OutboxProcessor uses the learnstack_outbox_admin role that bypasses RLS to read
--- all tenants' rows for dispatch. See ADR-0006 Amendment 1 and 15-event-and-outbox.md.
+ALTER TABLE outbox_messages FORCE  ROW LEVEL SECURITY;
+
+-- Tenant-wide table: no organization term, but the same one-policy,
+-- USING + WITH CHECK, FORCE-enabled shape as every other tenant-owned table.
+CREATE POLICY outbox_messages_isolation ON outbox_messages
+    USING      (tenant_id = current_setting('app.tenant_id', true)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+-- The OutboxProcessor connects as learnstack_outbox_admin, which holds BYPASSRLS so it
+-- can read every tenant's pending rows for dispatch. That bypass is the reason the
+-- table's own policy still matters: application code writing an outbox row does so as
+-- learnstack_app, inside the business transaction, and WITH CHECK pins the row to the
+-- caller's tenant. See ADR-0006 Amendment 1 and 15-event-and-outbox.md.
 ```
 
 `correlation_id` is `text NULL` (not `uuid NOT NULL`): APISIX's `request-id` plugin

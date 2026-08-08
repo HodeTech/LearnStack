@@ -252,19 +252,21 @@ operational discipline:
 
 Both repositories carry a row for a tenant. Each field belongs to **exactly one** of
 the two as the source of truth; the other side mirrors read-only and is invalidated
-by integration events. The closed Hub HTTPS contract surface (four endpoints,
-ADR-0019) means the only legitimate cross-system writes flow through one of those
-endpoints.
+by integration events. The Hub HTTPS contract surface
+([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)) means the only
+legitimate cross-system writes flow through one of its enumerated endpoints, and every
+one of them goes through a named adapter — `IEntitlementProvider`, `IUsageReporter` or
+`IHubTenantSync`.
 
 | Field | Authoritative side | Mirrored side | Sync direction & event |
 |-------|--------------------|---------------|------------------------|
 | `tenant_id` (UUID) | Hub (issued on tenant create) | LearnStack | One-time push at provisioning via `POST /api/internal/tenants` |
 | `slug` (handle) | Hub | LearnStack | `POST /api/internal/tenants` at create; renames require an ADR (none today) |
 | `display_name` | **LearnStack** | Hub | LearnStack publishes `learnstack.tenancy.tenant.renamed`; Hub consumer updates its mirror |
-| `status` (Trial/Active/Suspended/Archived) | Hub | LearnStack | `PUT /api/internal/tenants/{id}/entitlements` carries the status; or a dedicated lifecycle endpoint to be added by future ADR |
+| `status` (Trial/Active/Suspended/Archived) | Hub | LearnStack | `PUT /api/internal/tenants/{id}/status` |
 | `plan_code` | Hub | LearnStack | Carried inside entitlement projection (`PUT /api/internal/tenants/{id}/entitlements`) |
 | `features` / `limits` / `compliance` | Hub | LearnStack (`platform_entitlement_cache`) | `PUT /api/internal/tenants/{id}/entitlements`; eagerly invalidated by Dapr event `learnstack.hub.entitlement` |
-| Custom-domain `host → tenant` mapping | Hub | LearnStack (`platform_host_to_tenant`) | Hub pushes after DNS / TLS verification; Dapr event `learnstack.hub.custom-domain.activated` / `.deactivated` |
+| Custom-domain `host → tenant` mapping | Hub | LearnStack (`platform_host_to_tenant`) | Hub pushes after DNS / TLS verification via `PUT /api/internal/tenants/{id}/host-mappings`, which carries the tuple only — certificate material moves by secret-store replication and is referenced by path. LearnStack resolves hosts from `platform_host_to_tenant` and **never** calls the Hub |
 | Branding (logo, colours, typography) | **LearnStack** | Hub (denormalised summary only, optional) | LearnStack-side write only; no sync needed today |
 | Organizations + memberships | **LearnStack** | — | Hub does not mirror; tenant-internal shape |
 | Course / content / lesson / enrollment / progress data | **LearnStack** | — | Hub never stores tenant content (invariant #3 above) |
@@ -274,9 +276,9 @@ endpoints.
 
 **Rename rule.** The two fields that can change after provisioning
 (`display_name`, branding) are LearnStack-authoritative — there is no Hub endpoint to
-write them, only a LearnStack-published event the Hub consumer mirrors. This keeps the
-four-endpoint contract closed; adding a Hub-side write for `display_name` would
-require a new ADR.
+write them, only a LearnStack-published event the Hub consumer mirrors. Adding a
+Hub-side write for `display_name` would require a new ADR, because the contract surface
+is a cross-repository agreement.
 
 **Mirror staleness budget.** The entitlement projection is **eagerly** invalidated via
 Dapr and otherwise has a 15-min TTL. The host → tenant mapping is invalidated by Dapr

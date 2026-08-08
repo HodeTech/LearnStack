@@ -323,13 +323,26 @@ table extends with two new rows from this architecture:
 | Error tracking | `NoOpErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` (optional) | `LocalFileErrorTracker` |
 | OTLP exporter target | local OTel Collector (dev compose) | central Collector | central Collector | customer-managed Collector | local file `/var/learnstack/otel/` |
 
-Air-gapped Self-Hosted is the load-bearing case here: every backend (Sentry,
-the central Collector, possibly even DNS) is unreachable. The
-`LocalFileErrorTracker` writes structured-JSON error records to a configured
-directory; an operator's runbook explains how to ship those off-network later
-if the customer ever wants them. The OTLP exporter can be configured to
-write to a file sink instead of a network endpoint via the standard OTel
-file-exporter.
+The `IErrorTrackingProvider` abstraction earns its place on the ordinary grounds: it
+keeps a vendor SDK out of every module assembly, which is the same reason every other
+provider sits behind a port.
+
+Air-gapped Self-Hosted is the *most demanding* configuration of that abstraction —
+every backend (Sentry, the central Collector, possibly even DNS) is unreachable — but
+it is deliberately **not** the justification for it. Per
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) and
+[Engineering Principles](../standards/00-principles.md), a deployment mode without a
+signed contract cannot be the deciding factor in a technical choice; it may only break
+a tie between otherwise-equal alternatives. `SelfHostedAirGapped` ships no earlier than
+[Phase 11](../roadmap/phase-11-production-hardening.md), and the same abstraction is
+justified without it.
+
+`LocalFileErrorTracker` writes structured-JSON error records to a configured directory;
+an operator's runbook explains how to ship those off-network later if the customer ever
+wants them. The OTLP exporter can be configured to write to a file sink instead of a
+network endpoint via the standard OTel file exporter; that file target itself lands in
+[Phase 11](../roadmap/phase-11-production-hardening.md), alongside a test asserting no
+network telemetry exporter is ever wired under `SelfHostedAirGapped`.
 
 Modules **never** branch on `DeploymentMode`. The composition root selects
 the adapter at startup; the architecture test

@@ -1,7 +1,9 @@
 # 18 — Audit Coverage Standards
 
 **Status:** Active
-**Derives from:** [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md),
+**Derives from:** [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+(supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md), which remains the
+subsystem's context),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [11-security.md](11-security.md) § Audit Log,
 [01-architecture-standards.md](01-architecture-standards.md).
@@ -169,7 +171,17 @@ A tenant cannot reduce retention below the platform-defined floor for `security-
 
 ## Required Behaviours
 
-- Every command handler that mutates a MUST-audit resource writes the audit entry in the **same transaction** as the state change (via the outbox if dispatching to consumers, but the audit row itself is local).
+- Every command handler that mutates a MUST-audit resource writes the audit entry in the
+  **same transaction** as the state change — enrolled in the same `SaveChanges`, per
+  [ADR-0033](../decisions/0033-audit-durability-model.md). If the audit row cannot be
+  written, the business transaction **fails closed**: the operation is rejected rather
+  than committing unaudited. This is what ADR-0016's "audit never blocks business logic"
+  now means for SHOULD/MAY-class entries only.
+- Reading the audit configuration is part of that guarantee. A failure to resolve
+  `AuditConfig` fails closed; it does not silently skip the entry. A tenant override may
+  narrow SHOULD/MAY coverage and may never remove baseline MUST coverage.
+- Fan-out to external sinks rides the outbox and is best-effort; the **local audit row**
+  is not.
 - Failed `denied` outcomes are audited even though no state changed.
 - Background jobs that mutate MUST-audit resources receive the `actor` via job payload (operator id, or the seed of a system actor with a stable id) and write the entry under that identity.
 - Integration event handlers that mutate state are treated as actors of type `system` and audited accordingly.

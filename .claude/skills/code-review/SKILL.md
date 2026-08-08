@@ -262,7 +262,8 @@ Author intent: <one-paragraph restatement>
   `Asana`, `Kyu`, `CodeChallenge` — all forbidden; live as
   `TenantContentType` / `TenantLevelTaxonomy` / `TenantScoringRule` data).
 - **No `Verticals/` folder.** ADR-0018 superseded ADR-0011.
-- **Hub HTTPS contract surface closed at four endpoints.** Adding a fifth
+- **Hub HTTPS contract surface governed by two invariants** (the Hub stores no tenant
+  content; every crossing goes through a named adapter — ADR-0034). Adding an endpoint
   requires a new ADR.
 - **No direct `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` injection** (per [CLAUDE.md hard rules](../../../CLAUDE.md) and

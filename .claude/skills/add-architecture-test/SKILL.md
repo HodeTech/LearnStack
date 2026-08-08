@@ -120,7 +120,7 @@ The current set lives across these files; add yours to the right one:
 | `AuditTests.cs` | `AuditEntry` inheritance, no direct `audit_log` writes. |
 | `EntitlementTests.cs` | Plan-projected vs tenant-flag separation, FeatureKey registry. |
 | `PermissionTests.cs` | Closed action set, scope correctness, denied-test presence. |
-| `HubContractTests.cs` | No direct Hub-URL references, four-endpoint surface enforcement. |
+| `HubContractTests.cs` | No direct Hub-URL references; Hub clients only inside the named adapters (ADR-0034). |
 | `DomainGenericTests.cs` | `Core_Modules_HaveNo_DomainSpecific_Names`, no `Verticals/`. |
 | `DaprDirectInjectionTests.cs` | No `IConnectionMultiplexer` / `KafkaProducer` / `VaultClient` in modules. |
 | `ConventionTests.cs` | Strongly-typed ids in commands, validator pairing, etc. |

@@ -182,43 +182,58 @@ erDiagram
 
 ## 3. Communication contracts
 
-### Contract surface — "closed at four"
+### Contract surface — two invariants, not a count
 
-The **closed Hub HTTPS contract surface** is the set of endpoints that the
-`LearnStack_Modules_DoNotReference_Hub` architecture test and the "no fifth without
-ADR" rule (per [ADR-0019](../decisions/0019-learnstack-hub.md) and
-[20-infrastructure-stack.md § Hub HTTPS Contract Surface](../standards/20-infrastructure-stack.md))
-guard. Those four endpoints are the **load-bearing entitlement + lifecycle + telemetry
-contract**:
+Per [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md), the Hub contract
+surface is governed by two properties rather than by an endpoint count:
 
-| # | Direction | Method | Path | Purpose |
-|---|-----------|--------|------|---------|
-| 1 | Hub → LS | POST | `/api/internal/tenants` | Create tenant + default organization |
-| 2 | Hub → LS | PUT | `/api/internal/tenants/{id}/entitlements` | Push updated entitlement projection (status, features, limits, compliance.caps) |
-| 3 | LS → Hub | POST | `/api/v1/internal/license/verify` | Pull / verify entitlement (called by `HubEntitlementProvider`) |
-| 4 | LS → Hub | POST | `/api/v1/usage/report` | Report usage metric (idempotent; Hub aggregates per period) |
+1. **The Hub stores no tenant content.** Courses, lessons, learners, enrollments,
+   classroom sessions, media and content entries live exclusively in LearnStack. The
+   Hub holds tenant *metadata*: plan, subscription, licence, custom domain, compliance
+   caps, aggregated usage. Enforced by `Hub_NeverStores_TenantData`.
+2. **Every crossing goes through a named adapter** — `IEntitlementProvider`,
+   `IUsageReporter`, `IHubTenantSync`. No other type holds a Hub client, and nothing
+   resolves a host by calling the Hub. Enforced by
+   `LearnStack_Modules_DoNotReference_Hub` and
+   `Hub_Client_Referenced_Only_By_Named_Adapters`.
 
-Adding a fifth endpoint to this closed set requires a new ADR.
+This section previously declared the surface "closed at four" and then listed four
+further endpoints as "specializations" that did not count. An HTTP endpoint is a path
+plus a method; `DELETE /api/internal/tenants/{id}` is not `POST /api/internal/tenants`
+because one is the inverse of the other. Worse, the pressure to keep the count at four
+is what drove [ADR-0022](../decisions/0022-custom-domain-tls.md) Amendment 1 to tunnel
+TLS private keys through the entitlement payload. The invariants above are what anyone
+actually needed the count to stand for.
 
-### Auxiliary lifecycle endpoints (within the closed surface)
+**Hub → LearnStack** (`/api/internal/*`, internal listener only):
 
-The operational endpoints below are **specializations of endpoint #2** in the closed
-set — they share the same `/api/internal/tenants/{id}` resource, the same
-mTLS + signed JWT + HMAC chain, the same `Hub → LearnStack` direction, and the same
-authorization scope. They are listed separately for clarity but do not count as new
-contract entries:
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/internal/tenants` | Create tenant + default organization |
+| `PUT` | `/api/internal/tenants/{id}/entitlements` | Push the entitlement projection |
+| `PUT` | `/api/internal/tenants/{id}/status` | Suspend / activate / archive |
+| `DELETE` | `/api/internal/tenants/{id}` | Terminate |
+| `GET` | `/api/internal/tenants/{id}/usage` | Pull aggregated usage |
+| `PUT` | `/api/internal/tenants/{id}/host-mappings` | Push host → `(tenant_id, organization_id?)` mappings. Carries the tuple only — certificate material moves by secret-store replication and is referenced by path |
 
-| Method | Path | Purpose | Belongs to closed-set # |
-|--------|------|---------|--------------------------|
-| PUT | `/api/internal/tenants/{id}/status` | Suspend / activate / archive (status field of entitlement projection) | #2 |
-| GET | `/api/internal/tenants/{id}/usage` | Pull aggregated usage metrics (Hub-side mirror of #4 reports) | #4 |
-| DELETE | `/api/internal/tenants/{id}` | Terminate (hard delete with confirmation) | #1 (inverse) |
-| POST | `/api/v1/internal/license/refresh` | Phone-home refresh used by `SelfHostedOnline` mode — a scheduled call shape of #3 | #3 |
+**LearnStack → Hub:**
 
-If any of these auxiliary endpoints needs a contract or auth model that **differs**
-from its parent (different role, different rate limit, different payload shape that
-isn't a subset of the parent), it must be promoted to a new ADR-registered closed-set
-entry.
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/v1/internal/license/verify` | Verify / pull the entitlement projection |
+| `POST` | `/api/v1/internal/license/refresh` | Scheduled phone-home refresh |
+| `POST` | `/api/v1/usage/report` | Report a usage metric (idempotent) |
+
+Every one of these carries the same auth chain: mTLS with LearnStack-internal CA-signed
+client certificates, an RS256 JWT with `aud=learnstack-internal` and `exp ≤ 5min`
+replay-protected on `jti`, and an HMAC-SHA256 body signature in `X-Signature`.
+
+Adding an endpoint still requires an ADR — not because the count is sacred, but because
+the surface is a cross-repository contract and both repositories have to agree.
+
+The Hub's own tenant-facing and operator-facing APIs (`/api/v1/tenants/*`,
+`/api/v1/subscriptions/*`, `/api/v1/webhooks/*`) are **not** part of this surface; they
+are the Hub's public API, governed by the Hub repository.
 
 ### Authentication chain (applies to every endpoint above)
 

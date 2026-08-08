@@ -1,42 +1,81 @@
 # Audit Subsystem
 
-**Derives from:** [ADR-0016](../decisions/0016-audit-log-subsystem.md),
+**Derives from:** [ADR-0033](../decisions/0033-audit-durability-model.md)
+(supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md)),
 [ADR-0017 (Tenant + Organization)](../decisions/0017-tenant-organization-hierarchy.md),
 [18-audit-coverage.md](../standards/18-audit-coverage.md).
 
 The audit subsystem captures and persists an append-only history of security- and
 compliance-relevant operations across every LearnStack module. This document describes
-the three-piece pipeline, data model, retention, redaction, and operational concerns.
+the pipeline, the durability model, the data model, retention, redaction, and operational
+concerns.
 
-## 1. Pipeline overview
+## 1. Two durability classes
+
+The single most important thing to understand about this subsystem is that **audit is not
+one mechanism**. ADR-0016 treated it as one and inherited a contradiction: Standards 18
+required MUST-class rows to be written in the same transaction as the change they record,
+while ADR-0016 required that audit never block business logic. Under the shipped MediatR
+order — `Validation → Logging → AuditLog → TenantContext → Authorization → Transaction →
+OutboxFlush → Handler` — `AuditLogBehavior` wraps `TransactionBehavior` from the outside,
+so its write lands **after** the business transaction has already committed or rolled
+back. Both requirements could not hold.
+
+Worse, once the corrected Row Level Security template from
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) lands, an
+audit insert executed outside that transaction runs with no `app.tenant_id` set. The
+policy's `WITH CHECK` rejects the row, and a catch-and-log posture swallows the
+rejection: the audit log would record nothing while reporting success. A silent, complete
+audit failure is strictly worse than a loud one.
+
+[ADR-0033](../decisions/0033-audit-durability-model.md) resolves it by splitting the
+classes rather than reordering the pipeline:
+
+| Class | Where the row is written | On failure | Rationale |
+|---|---|---|---|
+| **MUST** — security, compliance, privileged access | **Inside the business transaction**, enrolled in the same `DbContext.SaveChanges` as the state change | **Fail closed** — the business operation is rejected | For these events the audit row *is* part of the operation's contract. "Platform admin read tenant B's learner records" with no audit row is an audit finding |
+| **SHOULD / MAY** — operational, diagnostic | Outside the transaction, best-effort | Logged and dropped; the accepted loss is written down, not assumed | Losing "course renamed" costs a support conversation |
+
+Enrichment, redaction, projection and external fan-out always happen **after** the
+commit, reading the durable row. ADR-0016's "audit never blocks business logic" is
+preserved for that second stage and withdrawn for the first.
+
+## 2. Pipeline overview
 
 ```mermaid
-flowchart LR
+flowchart TB
     Cmd["Command / Query / Action"] --> Behavior["AuditLogBehavior<br/>(MediatR pipeline)"]
-    Behavior --> Handler["Module handler<br/>(business logic)"]
-    Handler --> SaveChanges["DbContext.SaveChangesAsync"]
+    Behavior --> Config["IAuditConfigService<br/>classify MUST / SHOULD / MAY"]
+    Config -->|"lookup fails"| Closed["FAIL CLOSED<br/>reject the operation"]
+    Config --> Handler["Module handler<br/>(business logic)"]
+    Handler --> Enroll["MUST-class: IAuditStore enrols the row<br/>in the SAME DbContext"]
+    Enroll --> SaveChanges["DbContext.SaveChangesAsync"]
     SaveChanges --> Interceptor["AuditChangeTrackerInterceptor<br/>(EF SaveChangesInterceptor)"]
     Interceptor --> Buffer["IAuditStateCapture<br/>(scoped buffer)"]
-    Handler --> ReturnsResult["Handler returns Result<T>"]
-    ReturnsResult --> Behavior
-    Behavior --> Buffer
-    Behavior --> Build["Build AuditEntry"]
-    Build --> Store["IAuditStore.SaveAsync"]
-    Store --> Table[("audit_log<br/>(partitioned by month)")]
+    SaveChanges --> Commit[("COMMIT — business rows + MUST audit row,<br/>atomically, with app.tenant_id set")]
+    Commit --> Behavior
+    Behavior --> Post["After commit: enrich, redact, project,<br/>fan out via outbox; SHOULD/MAY written here"]
 ```
 
-Three pieces, separated concerns:
+Read as text: the behavior classifies the operation; a configuration-read failure rejects
+the operation rather than proceeding unaudited. The handler runs, and for a MUST-class
+operation the audit row is enrolled in the same `SaveChanges` as the business write — so
+it commits with it or not at all, and so it executes while `app.tenant_id` is set and Row
+Level Security accepts it. Everything after the commit — enrichment, redaction, external
+fan-out, and SHOULD/MAY rows — is best-effort and never blocks.
 
-1. **`AuditChangeTrackerInterceptor`** — runs inside `DbContext.SaveChangesAsync`,
-   walks the ChangeTracker, snapshots state for every entity inheriting `AuditableEntity<T>`.
-2. **`IAuditStateCapture`** — a scoped (per-request) buffer that holds entity snapshots
+Three components, separated concerns:
+
+1. **`AuditChangeTrackerInterceptor`** — runs inside `DbContext.SaveChangesAsync`, walks
+   the ChangeTracker, snapshots state for every entity inheriting `AuditableEntity<T>`.
+2. **`IAuditStateCapture`** — a scoped (per-request) buffer holding entity snapshots
    until the MediatR behavior reads them.
-3. **`AuditLogBehavior<TRequest, TResponse>`** — wraps the handler, awaits it (catching
-   exceptions to still audit failed operations), reads the buffer, builds one `AuditEntry`
-   per request, writes via `IAuditStore.SaveAsync`. Failure to write never blocks the
-   business response.
+3. **`AuditLogBehavior<TRequest, TResponse>`** — keeps its shipped position and its
+   shipped responsibility: catch handler exceptions, record the outcome, rethrow via
+   `ExceptionDispatchInfo`. What changed is that the MUST-class row it records is
+   **already durable** by the time it runs.
 
-## 2. The interceptor
+## 3. The interceptor
 
 ```csharp
 namespace LearnStack.Infrastructure.Audit;
@@ -91,7 +130,7 @@ Pattern explicitly mirrors Nexora's `AuditChangeTrackerInterceptor` (see
 `Nexora/docs/decisions/0009-audit-repository-pattern.md`) — verbatim port to
 LearnStack naming.
 
-## 3. The scoped buffer
+## 4. The scoped buffer
 
 ```csharp
 namespace LearnStack.SharedKernel.Abstractions.Audit;
@@ -119,7 +158,7 @@ public sealed class AuditStateCapture : IAuditStateCapture
 Registered as **scoped** in DI (per-request lifetime). Cleared at the end of every
 request to prevent cross-request bleed (architecture test enforces this).
 
-## 4. The MediatR behavior
+## 5. The MediatR behavior
 
 ```csharp
 namespace LearnStack.Infrastructure.Behaviors;
@@ -141,22 +180,35 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         if (requestKind == RequestKind.Other) return await next();
 
         var (module, operation) = ExtractModuleAndOperation(request, requestKind);
-        var defaultEnabled = requestKind == RequestKind.Command;
 
-        bool auditEnabled;
+        // Classification is a decision, not a toggle: it returns Must | Should | May | Off.
+        // A tenant AuditConfig override may narrow Should/May. It can never remove
+        // baseline Must coverage — the catalogue's Must floor is applied after the
+        // override, not before it.
+        AuditClassification classification;
         try
         {
-            auditEnabled = await configService.IsEnabledAsync(module, operation, ct, defaultEnabled);
+            classification = await configService.ClassifyAsync(module, operation, ct);
         }
         catch (Exception ex)
         {
-            // Audit config check failed → skip audit; never block business write.
-            logger.LogError(ex, "Audit config check failed for {Module}.{Operation}",
+            // FAIL CLOSED. A single unreadable config row, or a config-store outage,
+            // must not silently switch off mandatory security auditing. Rejecting the
+            // operation is loud, recoverable, and visible; proceeding unaudited is none
+            // of those. Per ADR-0033.
+            logger.LogError(ex, "Audit classification unavailable for {Module}.{Operation}; rejecting",
                 module, operation);
-            return await next();
+            return Result.FailFor<TResponse>(AuditErrors.ConfigurationUnavailable);
         }
 
-        if (!auditEnabled) return await next();
+        if (classification == AuditClassification.Off) return await next();
+
+        // MUST-class: the audit row is enrolled by IAuditStore into the SAME DbContext
+        // the handler writes through, so it commits with the business write or not at
+        // all — and so it executes with app.tenant_id set. If the enrolment or the
+        // commit fails, the whole operation fails; that is the point.
+        if (classification == AuditClassification.Must)
+            auditStore.EnrolDurableIntent(BuildIntent(module, operation, request));
 
         TResponse response;
         bool handlerFailed = false;
@@ -201,12 +253,17 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 Changes:     SerializeChanges(stateCapture.Changes),
                 Timestamp:   DateTimeOffset.UtcNow);
 
-            await auditStore.SaveAsync(entry, ct);
+            // MUST-class: completes the already-durable row (enrichment only — the row's
+            // existence is not in question here). SHOULD/MAY-class: writes it now,
+            // outside the transaction, best-effort.
+            await auditStore.CompleteOrSaveAsync(entry, classification, ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (classification != AuditClassification.Must)
         {
-            // Audit save failed → log, never block business write.
-            logger.LogError(ex, "Audit save failed for {Module}.{Operation}", module, operation);
+            // SHOULD/MAY only: log and drop. The accepted loss is written down in the
+            // module's audit-coverage matrix, not assumed.
+            logger.LogError(ex, "Best-effort audit save failed for {Module}.{Operation}",
+                module, operation);
         }
         finally
         {
@@ -220,22 +277,32 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     }
 
     // ClassifyRequest, ExtractModuleAndOperation, DetermineOutcome, DeriveOperationType,
-    // DeriveOperationClass, SerializeBefore/After/Changes are private static helpers.
+    // BuildIntent, SerializeBefore/After/Changes are private helpers.
 }
 ```
 
 Key invariants enforced by this behavior:
 
-- **Audit failure never blocks business write.** The `try { auditStore.SaveAsync(...) }
-  catch { log }` and the surrounding `finally { stateCapture.Clear(); }` guarantee that
-  even a totally broken audit store doesn't reject business commands.
+- **Audit configuration failure fails closed.** A configuration-store outage, or a single
+  unreadable `audit_config` row, rejects the operation. It does not switch off mandatory
+  security auditing — which is exactly what the previous `catch → return await next()`
+  did, and what made a config-store incident indistinguishable from a period of clean
+  behaviour in the log.
+- **MUST-class audit failure fails the operation.** The exception filter above
+  deliberately excludes `Must`, so a MUST-class audit problem propagates. This is a real
+  availability trade-off, stated in
+  [ADR-0033 § Consequences](../decisions/0033-audit-durability-model.md) and required to
+  be visible in the operational runbooks.
+- **SHOULD/MAY audit failure never blocks the business write.** The cheap path stays
+  cheap; the platform does not pay compliance-grade cost for "a course was renamed".
 - **Failed handlers still get audited.** The behavior catches the handler exception,
-  writes an audit entry with `IsSuccess=false`, then re-throws via `ExceptionDispatchInfo`
-  to preserve the original stack trace.
-- **Per-(module, operation) toggling.** `IAuditConfigService.IsEnabledAsync` reads from
-  per-tenant config (`audit_config` table) with module-declared defaults.
+  records `IsSuccess=false`, then rethrows via `ExceptionDispatchInfo` so the original
+  stack trace survives.
+- **A tenant override cannot remove MUST coverage.** `IAuditConfigService.ClassifyAsync`
+  applies the per-tenant `audit_config` override and then re-applies the catalogue's MUST
+  floor. A tenant may audit *more* than the baseline, never less.
 
-## 5. Pipeline order
+## 6. Pipeline order
 
 MediatR pipeline behaviors are registered in this order in
 `LearnStack.Infrastructure.DependencyInjection`:
@@ -244,7 +311,7 @@ MediatR pipeline behaviors are registered in this order in
 services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AuditLogBehavior<,>));
-services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TenantContextCheckBehavior<,>));
+services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TenantContextBehavior<,>));
 services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
 services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
 services.AddTransient(typeof(IPipelineBehavior<,>), typeof(OutboxFlushBehavior<,>));
@@ -256,15 +323,30 @@ Effective execution order (outer → inner):
 Request
   → Validation        (reject before any work; FluentValidation)
   → Logging           (request scope; correlation id)
-  → AuditLog          (wraps the rest; audit failure never blocks)
-  → TenantContextCheck (assert tenant_id resolved)
+  → AuditLog          (classifies; fails closed on config failure)
+  → TenantContext     (assert tenant_id resolved)
   → Authorization     (resource-scoped checks beyond endpoint-level [Authorize])
-  → Transaction       (begin transaction; commit/rollback on outcome)
+  → Transaction       (begin transaction; SET LOCAL app.tenant_id; commit/rollback)
   → OutboxFlush       (flush outbox writes to DbContext before commit)
   → Handler           (business logic)
 ```
 
-## 6. Data model
+**The order did not change, and does not need to.** `AuditLogBehavior` still sits outside
+`TransactionBehavior`, which is exactly why its *own* write cannot be the durable one.
+The durable MUST-class row is enrolled through `IAuditStore` into the `DbContext` that
+`TransactionBehavior` owns, so it is flushed and committed by that inner behavior — the
+row travels inward through the pipeline even though the behavior that decided on it sits
+outward. `AuditLogBehavior` then completes the row's enrichment on the way back out.
+
+The alternative — moving `TransactionBehavior` outward so it wraps `AuditLogBehavior` —
+was considered and rejected in
+[ADR-0033 § Considered Options](../decisions/0033-audit-durability-model.md): it would
+also drag `TenantContext` and `Authorization` inside the transaction and open the
+transaction before validation has finished, changing a shipped, test-asserted global
+ordering (`MediatR_Pipeline_Order_Matches_Canonical_Sequence`) to solve a problem
+belonging to one behavior.
+
+## 7. Data model
 
 ### `AuditEntry` aggregate
 
@@ -325,6 +407,29 @@ public enum OperationClass { Must, Should, May }
 
 ### `audit_log` table
 
+`audit_log` ships in [Phase 02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) as a
+**single, plain, correct table**. Monthly partitioning, the partition-management job, and
+the retention purge from [ADR-0028](../decisions/0028-audit-log-partition-management.md)
+move to [Phase 11](../roadmap/phase-11-production-hardening.md) per
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md), against the trigger
+"measured `audit_log` growth justifies partition maintenance". Audit **correctness**
+cannot be added later; audit **scale** can, and the platform has no rows yet to scale.
+
+Two details that a partition-ready design gets wrong if it is copied carelessly:
+
+- The primary key is the **composite** `(id, timestamp)`. ADR-0016's DDL declared a
+  primary key twice — inline on `id` and again as a table constraint on `(id, timestamp)`
+  — and PostgreSQL rejects that table outright. When partitioning arrives, a partitioned
+  table must include every partition-key column in its primary key, so the composite is
+  the correct one and the inline declaration was the error. Shipping the composite now
+  means Phase 11 adds `PARTITION BY RANGE (timestamp)` without a key migration.
+- Cross-tenant reads use **`learnstack_platform`**, entered through the audited
+  `EnterPlatformAdminScope(reason)` path. There is no separate `learnstack_audit_admin`
+  role: the database role model fixed by
+  [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) has
+  exactly four roles, and every additional `BYPASSRLS` role is a hole in the isolation
+  model that would need its own ADR.
+
 ```sql
 CREATE TABLE audit_log (
     id               uuid NOT NULL,
@@ -348,14 +453,11 @@ CREATE TABLE audit_log (
     user_agent       text NULL,
     timestamp        timestamptz NOT NULL DEFAULT now(),
     metadata         jsonb NULL,
-    PRIMARY KEY (id, timestamp)
-) PARTITION BY RANGE (timestamp);
-
-CREATE TABLE audit_log_2026_05 PARTITION OF audit_log
-    FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
-CREATE TABLE audit_log_2026_06 PARTITION OF audit_log
-    FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
--- ... auto-created monthly by a Hangfire recurring job (LearnStackJob)
+    CONSTRAINT audit_log_pkey PRIMARY KEY (id, timestamp)
+);
+-- Phase 11 adds PARTITION BY RANGE (timestamp) and the monthly partitions.
+-- The composite key above is already partition-compatible, so that change is
+-- additive rather than a key migration.
 
 CREATE INDEX ix_audit_log_tenant_timestamp
     ON audit_log (tenant_id, timestamp DESC);
@@ -368,12 +470,24 @@ CREATE INDEX ix_audit_log_correlation
 CREATE INDEX ix_audit_log_module_operation_timestamp
     ON audit_log (module, operation, timestamp DESC);
 
--- RLS
+-- RLS: built from the canonical template in Database Standards § Tenant-Owned and
+-- Organization-Scoped Tables — one AND-ed policy, ENABLE *and* FORCE, explicit
+-- WITH CHECK. Do not hand-write it here; the template is the single source of truth.
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY audit_log_tenant_isolation ON audit_log
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
--- Platform admin role bypasses RLS via SET role learnstack_audit_admin (audited).
+ALTER TABLE audit_log FORCE  ROW LEVEL SECURITY;
+CREATE POLICY audit_log_isolation ON audit_log
+    USING      (tenant_id = current_setting('app.tenant_id', true)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+-- Cross-tenant reads run as learnstack_platform, entered through the audited
+-- EnterPlatformAdminScope(reason) path.
 ```
+
+The `WITH CHECK` clause is the reason MUST-class audit **has** to be written inside the
+business transaction. Outside it, `app.tenant_id` is unset, `current_setting` returns
+null, the predicate fails, and the insert is rejected — which the old catch-and-log
+posture would have swallowed. See
+[Database Standards](../standards/05-database.md) for the template and
+[ADR-0033](../decisions/0033-audit-durability-model.md) for the durability rule.
 
 ### `audit_config` table
 
@@ -389,14 +503,22 @@ CREATE TABLE audit_config (
     UNIQUE (tenant_id, module, operation)
 );
 ALTER TABLE audit_config ENABLE ROW LEVEL SECURITY;
-CREATE POLICY audit_config_tenant_isolation ON audit_config
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+ALTER TABLE audit_config FORCE  ROW LEVEL SECURITY;
+CREATE POLICY audit_config_isolation ON audit_config
+    USING      (tenant_id = current_setting('app.tenant_id', true)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
 ```
 
 Defaults declared in each module via `IModule.RegisterAuditDefaults()`; the table holds
 per-tenant overrides only.
 
-## 7. Per-module coverage matrix (baseline)
+`is_enabled` is deliberately **not** the whole story. A row here can narrow SHOULD/MAY
+coverage; it cannot switch off an operation the catalogue classifies MUST.
+`ClassifyAsync` applies the override and then re-applies the MUST floor, and a read
+failure against this table rejects the operation rather than defaulting it — see
+[§ 5](#5-the-mediatr-behavior).
+
+## 8. Per-module coverage matrix (baseline)
 
 Standard 18 defines the MUST / SHOULD / MAY matrix per module. Excerpt for Tier-1 core
 modules:
@@ -417,7 +539,7 @@ modules:
 Hub-side modules audit to **Hub's own audit stream**, separate from LearnStack's; same
 shape, different table.
 
-## 8. Retention
+## 9. Retention
 
 Default retention by operation class (per-tenant overridable within plan limits):
 
@@ -429,18 +551,22 @@ Default retention by operation class (per-tenant overridable within plan limits)
 | ReadSensitive | **2 years** | 6 months – 5 years |
 | Other Action | **1 year** | 3 months – 3 years |
 
-Retention purge runs as a Hangfire recurring job (`LearnStackJob` analog):
+Both retention jobs run **daily**. Three documents previously disagreed — daily in
+[Audit Coverage Standards](../standards/18-audit-coverage.md) and
+[ADR-0028](../decisions/0028-audit-log-partition-management.md), weekly here — and this
+document was the outlier. Daily is correct: a weekly purge means a tenant's stated
+retention can be exceeded by up to six days, which is a compliance answer nobody wants to
+give.
 
-- `learnstack:audit:partition-management` — runs daily; creates next month's partition
-  (if not exists); drops partitions older than max retention window across all tenants
-  (10y for safety; tenant-specific retention enforced by row-level deletes within
-  partition).
-- `learnstack:audit:retention-purge` — runs weekly; deletes individual rows per tenant's
-  configured retention. Uses tenant-config retention values; bypasses RLS via
-  `learnstack_audit_admin` role; the purge itself emits a `SecurityEvent` audit row
-  summarising what was deleted.
+Both jobs land in [Phase 11](../roadmap/phase-11-production-hardening.md) alongside
+partitioning; until then `audit_log` is a single table and nothing purges it.
 
-## 9. GDPR / PII redaction
+| Hangfire recurring job | Cadence | What it does |
+|---|---|---|
+| `learnstack:audit:partition-management` | Daily | Creates next month's partition if absent; drops partitions older than the maximum retention window across all tenants (10y for safety) |
+| `learnstack:audit:retention-purge` | **Daily** | Deletes individual rows per the tenant's configured retention, in batches. Runs as `learnstack_platform` through the audited platform-admin scope. The purge itself emits a `SecurityEvent` audit row summarising what was deleted |
+
+## 10. GDPR / PII redaction
 
 When a user is GDPR-erased (`UserGdprDeletedIntegrationEvent` published), audit rows
 containing that user's PII are **redacted in place** (not deleted — the audit row's
@@ -488,7 +614,7 @@ Every module that stores user references in audit payloads must register an
 `IUserReferenceLocator` implementation (architecture test enforces this — same shape as
 Nexora's `IContactReferenceLocator`).
 
-## 10. Querying audit log
+## 11. Querying audit log
 
 The Audit module's admin API exposes:
 
@@ -508,7 +634,7 @@ Required permission: `audit.events.read` (tenant scope).
 Required for export: `audit.events.export`.
 Required for cross-tenant query (platform admin only): `platform.audit.events.read`.
 
-## 11. Hub-side audit stream
+## 12. Hub-side audit stream
 
 Hub maintains a parallel audit stream in its own database (`hub_audit_log`), capturing
 operator actions:
@@ -523,43 +649,66 @@ operator actions:
 Cross-stream correlation by `correlation_id`. A regulatory inquiry covering "what
 happened to tenant X on date Y" pulls from both streams and joins by correlation.
 
-## 12. Architecture tests
+## 13. Architecture tests
 
-Five blocker-level tests added in Phase 02:
+Blocker-level tests, registered in
+[Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md) by
+[Phase 02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md):
 
-1. `Every_Command_HasAuditCoverage` — auto-discovers commands by interface
-   (`ICommand<TResponse>`); for each, asserts the (module, operation) appears in
-   `IAuditConfigService.GetCoverageMatrix()` with at least SHOULD classification.
-2. `AuditEntry_Is_AppendOnly` — `AuditEntry` does not implement `ISoftDeletable`; has no
-   `Update*` public methods; reflection assertion.
-3. `AuditLogBehavior_NeverBlocks_BusinessWrites` — integration test asserts that when
-   `IAuditStore.SaveAsync` throws, the command result is still returned (handler success
-   path).
-4. `AuditStateCapture_ClearedPerRequest` — integration test asserts that after a request
-   completes (success or failure), the scoped `IAuditStateCapture.Changes` collection is
-   empty for the next request.
-5. `Every_PII_Module_RegistersUserReferenceLocator` — modules storing user references in
-   audit payloads (declared via `[StoresUserReference]` attribute or
-   `IModule.RegisterUserReferences()`) must register an `IUserReferenceLocator` impl.
+1. `Every_TenantOwned_Command_HasAuditCoverage` — auto-discovers commands by interface;
+   for each, asserts the (module, operation) appears in the coverage matrix with at least
+   a SHOULD classification.
+2. `AuditEntry_Inherits_Entity_Not_AuditableEntity` — append-only by construction: an
+   audit row that carries `UpdatedAt` / `DeletedAt` is a contradiction.
+3. `MustClass_Audit_Writes_Share_The_Business_Transaction` — the binding test for
+   [ADR-0033](../decisions/0033-audit-durability-model.md). One command produces exactly
+   one `audit_log` row; a command whose audit write is forced to fail produces **zero**
+   business rows.
+4. `Audit_Config_Failure_Rejects_Operation` — with `IAuditConfigService` throwing, a
+   MUST-class command returns a failure `Result` and writes nothing. This is the
+   fail-closed guarantee; without it, a config-store outage is indistinguishable from a
+   quiet day.
+5. `AuditStateCapture_ClearedPerRequest` — after a request completes, success or failure,
+   the scoped `IAuditStateCapture.Changes` collection is empty for the next request.
+6. `Every_Module_Has_An_AuditCoverage_Matrix` — a module without a matrix cannot classify
+   its operations, and under ADR-0033 classification is functional, not documentary.
+7. `Every_PII_Module_RegistersUserReferenceLocator` — modules storing user references in
+   audit payloads must register an `IUserReferenceLocator`.
 
-## 13. Phasing
+`AuditLogBehavior_NeverBlocks_BusinessWrites` from the ADR-0016 era is **replaced**: the
+property it asserted is now true only for SHOULD/MAY-class operations, and asserting it
+for MUST-class would lock in exactly the defect ADR-0033 removes.
+
+## 14. Phasing
 
 | Phase | Deliverable |
 |-------|-------------|
-| 02 | Infrastructure: `AuditChangeTrackerInterceptor`, `IAuditStateCapture` + impl, `AuditLogBehavior`, `IAuditStore` + `PostgresAuditStore`, `audit_log` table + first month partition, `LearnStackJob` for partition management. |
-| 03 | `LearnStack.Modules.Audit`: `AuditEntry` aggregate, repository, admin API endpoints. `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
-| 06+ | Admin Studio audit UI: timeline view, filter by user/module/operation/operation_class/timestamp, diff viewer, CSV / JSON export. |
-| 09 | Hub-side `hub_audit_log` + cross-stream correlation query. |
-| 11 | Production: long-term partition lifecycle automation, off-archive policy for partitions > 1 year (e.g. move to cheaper storage tier), per-tenant retention enforcement under plan limits. |
+| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor`, `IAuditStateCapture` + impl, `AuditLogBehavior` lit up per ADR-0033, `IAuditStore` + `PostgresAuditStore`, `AuditEntry` aggregate, `AuditConfig` with the fail-closed MUST floor, `audit_log` as a **single plain table** with the composite primary key. |
+| [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
+| [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
+| [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |
+| [11](../roadmap/phase-11-production-hardening.md) | **Scale, not correctness**: `PARTITION BY RANGE (timestamp)` plus monthly partitions, the daily partition-management job, the daily retention purge, off-archive policy for partitions older than a year, per-tenant retention enforcement under plan limits. Trigger: measured `audit_log` growth ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). |
 
 ## References
 
-- ADR-0016 — Audit Log Subsystem.
-- ADR-0003 Amendment 1 — Organization scope (audit row carries organization_id).
+- [ADR-0033](../decisions/0033-audit-durability-model.md) — Audit Durability Model
+  (supersedes ADR-0016); the two durability classes, the fail-closed rules, and the
+  corrected `audit_log` primary key.
+- [ADR-0016](../decisions/0016-audit-log-subsystem.md) — Audit Log Subsystem
+  (**superseded**; retained for its data model and coverage rationale).
+- [ADR-0003 Amendment 1 + Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
+  — organization scope on the audit row; the corrected RLS template and four-role model.
+- [ADR-0028](../decisions/0028-audit-log-partition-management.md) — partition management
+  via Hangfire; lands in Phase 11.
+- [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — why partitioning is
+  demand-gated and correctness is not.
+- [Database Standards](../standards/05-database.md) — the canonical RLS template.
 - [18-audit-coverage.md](../standards/18-audit-coverage.md) — MUST/SHOULD/MAY matrix
   (standard).
+- [15-event-and-outbox.md](15-event-and-outbox.md) — audit fan-out to external sinks
+  rides the outbox; MUST-class audit does not.
 - [29-dapr-integration.md](29-dapr-integration.md) — `UserGdprDeletedIntegrationEvent`
-  arrives via Dapr pub/sub.
+  transport.
 - Nexora reference: `Nexora/docs/modules/tier-1-core/audit/SPEC.md`,
   `Nexora/docs/decisions/0009-audit-repository-pattern.md`,
   `Nexora/docs/standards/audit-coverage.md`.

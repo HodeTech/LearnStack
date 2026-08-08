@@ -15,14 +15,47 @@ The model handles all three deployment modes (SaaS / Dedicated / Self-Hosted) wi
 common implementation. This document describes the license payload, lifecycle, signing
 procedure, refresh cadence, revocation flow, and operational runbook.
 
+## 0. Canonical key vocabulary
+
+The corpus has carried two incompatible spellings for the same cross-repository
+projection: `classroom.recording` versus `classroom.recording.enabled`, and
+`tenancy.max_learners` versus `limits.max_users` versus a bare `max_users`. Since the
+payload is parsed by two repositories and cached in a third place, "close enough" means a
+feature silently reads `false`.
+
+**One form is canonical, and it is the one fixed by
+[ADR-0021 Amendment 1 (2026-05-18)](../decisions/0021-feature-based-entitlement.md) and
+[21-feature-flags.md](21-feature-flags.md):**
+
+| Rule | Canonical | Not canonical |
+|---|---|---|
+| Every key is `{area}.{name}`, lowercase, dot-separated, `snake_case` within a segment | `classroom.recording` | `recording`, `Classroom.Recording` |
+| Feature keys carry **no** `.enabled` suffix — a `FeatureKey` is boolean by construction | `classroom.recording` | `classroom.recording.enabled` |
+| Limit keys are prefixed by their **subject area**, never by the word `limits` | `tenancy.max_learners` | `limits.max_users`, `max_users` |
+| The area is the capability's owner, not the payload section it appears in | `media.storage_gb` | `limits.media_storage_gb` |
+
+Two further rules make the vocabulary enforceable rather than aspirational:
+
+- **A key that is not in `FeatureKeys` / `LimitKeys` may not appear in a payload.** The
+  registries in [21-feature-flags.md](21-feature-flags.md) are the closed set; adding a
+  key is a code change in both repositories plus a plan-editor update, not a Hub-side
+  string.
+- **`FeatureKey_AllReferences_AreInRegistry`** (catalogued in
+  [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md)) fails
+  the build on a free-form string, and the schema snapshot test in
+  [§ 5](#5-entitlement-read-path-and-grace-enforcement) fails on a payload that carries
+  an unregistered key.
+
+Every older spelling elsewhere in the corpus is superseded by this table. Where a
+document still shows `limits.max_users`, it is stale, not an alternative.
+
 ## 1. License key payload
 
 The key is a JWT-style RS256-signed token with a custom header `typ: "LSL"`
-("LearnStack License"). The embedded `entitlement.features` key strings follow
-the typed `FeatureKey` catalog in
-[21-feature-flags.md](21-feature-flags.md) and
-[ADR-0021 Amendment 1](../decisions/0021-feature-based-entitlement.md) — the
-trailing `.enabled` suffix used in earlier drafts has been dropped.
+("LearnStack License"). Its `entitlement` object is the **same shape** the Hub pushes
+over `PUT /api/internal/tenants/{id}/entitlements` and the same shape
+`platform_entitlement_cache` stores — one wire contract, three carriers — and it is
+pinned by `entitlement-v1.schema.json` (see [§ 5](#5-entitlement-read-path-and-grace-enforcement)).
 
 ```json
 {
@@ -51,13 +84,13 @@ trailing `.enabled` suffix used in earlier drafts has been dropped.
         "compliance.data_residency": true
       },
       "limits": {
-        "limits.max_users": 50000,
-        "limits.max_organizations": 100,
-        "limits.classroom_minutes_per_month": -1,
-        "limits.recording_storage_gb": 10000,
-        "limits.media_storage_gb": 50000,
-        "limits.media_bandwidth_gb_per_month": -1,
-        "limits.api_rate_per_minute": 60000
+        "tenancy.max_learners": 50000,
+        "tenancy.max_organizations": 100,
+        "classroom.minutes_per_month": -1,
+        "classroom.recording_storage_gb": 10000,
+        "media.storage_gb": 50000,
+        "media.bandwidth_gb_per_month": -1,
+        "integrations.api_rate": 60000
       },
       "compliance": {
         "caps": {
@@ -186,46 +219,126 @@ public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
 hit Hub at the same time. The job adds a random 0-119 minute offset per tenant when first
 enqueued.
 
-## 5. Grace period enforcement
+## 5. Entitlement read path and grace enforcement
 
-`HubEntitlementProvider.GetAsync(tenantId)`:
+### What was wrong
+
+The earlier `HubEntitlementProvider.GetAsync` had two defects that cancelled out the
+guarantee this whole document exists to provide:
+
+1. **No cold-start fallback.** On a cache miss it called the Hub unguarded. A Hub outage
+   therefore threw a transport exception **out of a feature-flag check** — so a pod
+   restart during a Hub incident turned "is recording enabled?" into a 500 on an
+   unrelated request path.
+2. **The durable table was never read.** `platform_entitlement_cache` — the table that
+   carries `valid_until` and `grace_until` — did not appear anywhere in the read path.
+   Grace was evaluated against whatever happened to be in the distributed cache, whose
+   TTL is ≤ 15 minutes. The advertised **30-day grace period was, in practice, a 15-minute
+   cache TTL**: on eviction, the only source left was the Hub, which was the thing that
+   was down.
+
+Those are the same defect seen twice: a *freshness* mechanism (cache TTL) was being used
+as an *authorisation* mechanism (grace window). They are different clocks and they need
+different storage.
+
+### The normative order
+
+[ADR-0034 § The entitlement read path](../decisions/0034-hub-contract-surface-invariant.md)
+fixes the order, and the order is normative — an implementation may not skip a layer:
+
+```text
+L1 in-process cache                 (per pod; seconds)
+  → L2 distributed cache             (ICacheService; ≤ 15 min TTL — freshness only)
+    → platform_entitlement_cache     (durable table; carries valid_until + grace_until)
+      → Hub  POST /api/v1/internal/license/verify   (last resort, always guarded)
+```
 
 ```csharp
-public async Task<Entitlement> GetAsync(Guid tenantId, CancellationToken ct)
+public async Task<EntitlementLookup> GetAsync(TenantId tenantId, CancellationToken ct)
 {
-    var cached = await _cache.GetAsync<Entitlement>(CacheKey(tenantId), ct);
-    if (cached is null)
+    // 1-2. L1 → L2, both pure freshness layers.
+    if (await _cache.GetAsync<Entitlement>(CacheKey(tenantId), ct) is { } cached)
+        return Evaluate(cached, source: EntitlementSource.Cache);
+
+    // 3. Durable projection. This is the layer that makes grace real: it survives pod
+    //    restarts, cache flushes and Hub outages, and it is the only place valid_until /
+    //    grace_until are authoritative.
+    var durable = await _entitlementCacheStore.FindAsync(tenantId, ct);
+
+    // 4. Hub — only when the durable row is missing or stale, and never unguarded.
+    if (durable is null || _clock.UtcNow >= durable.ValidUntil)
     {
-        // First access; fetch from Hub
-        cached = await _hubClient.VerifyAsync(tenantId, ct);
-        await _cache.SetAsync(CacheKey(tenantId), cached, ct);
-        return cached;
+        try
+        {
+            var refreshed = await _hubClient.VerifyAsync(tenantId, ct);
+            await _entitlementCacheStore.UpsertAsync(refreshed, ct);   // durable first
+            await _cache.SetAsync(CacheKey(tenantId), refreshed, ct);  // then fast layers
+            return Evaluate(refreshed, source: EntitlementSource.Hub);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A control-plane outage must not throw out of a feature-flag check.
+            _logger.LogWarning(ex, "Hub verify failed for {TenantId}; falling back", tenantId);
+            _metrics.HubVerifyFailed();
+            if (durable is null)
+                return EntitlementLookup.Unresolved(tenantId);   // policy table below decides
+        }
     }
 
-    var now = _clock.UtcNow;
-    if (now < cached.ExpiresAt)
-    {
-        return cached;                               // Fresh; serve as-is
-    }
-
-    if (cached.GraceUntil is not null && now < cached.GraceUntil)
-    {
-        _logger.LogWarning("Entitlement for {TenantId} in grace period (expired {Expiry}, grace until {Grace})",
-            tenantId, cached.ExpiresAt, cached.GraceUntil);
-        return cached with { InGracePeriod = true };   // Serve cached; flag for UI banner
-    }
-
-    // Past grace; read-only mode
-    return Entitlement.ReadOnly(tenantId, cached.Generation);
+    await _cache.SetAsync(CacheKey(tenantId), durable!, ct);
+    return Evaluate(durable!, source: EntitlementSource.Durable);
 }
 ```
 
-When in grace, the Admin Studio surfaces a banner: "Your license is in a 30-day grace
-period. Contact support / renew via Hub."
+`Evaluate` applies the lifecycle from [§ 3](#3-lifecycle): fresh → serve; past
+`valid_until` but within `grace_until` → serve with `InGracePeriod = true`; past
+`grace_until` → read-only.
 
-When past grace, every feature flag returns `false`; every limit returns `0`. Writes
-return `Result.Failure("license.expired_read_only")`. Reads continue (so customers don't
-lose access to their own data).
+The provider **never throws** out of a feature-flag or limit check. Every path returns an
+`EntitlementLookup` carrying the values, the source, and whether the answer is degraded.
+
+### Failure policy by key class
+
+`EntitlementLookup.Unresolved` — no cache, no durable row, no Hub — is the only genuinely
+hard case, and one blanket answer is wrong for it. Each key class declares its posture
+**explicitly in the registry**, so the behaviour is a property of the key rather than of
+the call site:
+
+| Key class | Posture when unresolved | Why |
+|---|---|---|
+| Compliance caps (`compliance.*`, `audit.retention.days`, `data.residency.region`) | **Fail closed** — reject the operation that depends on the cap | An unknown residency or retention cap must never be read as permissive; a wrong answer here is a regulatory finding |
+| Security-surface features (`identity.sso.saml`, `identity.scim`, `audit.export`, `integrations.api_access`) | **Fail closed** — treat as disabled | An unknown answer must not open an export or an API surface |
+| Product capability features (`classroom.recording`, `classroom.breakout_rooms`, `tenancy.custom_domain`, `analytics.advanced_reporting`) | **Fail closed on a cold start, fail open to the last known value otherwise** | A paying tenant mid-class should not lose recording because the Hub is down — but the platform must not invent an entitlement it has never seen |
+| Numeric limits (`tenancy.*`, `classroom.*`, `media.*`, `integrations.api_rate`) | **Fall back to the built-in floor** — the Starter-tier defaults compiled into the binary. Never `-1`, never `0` | Unlimited is a gift; zero is an outage. The floor keeps a tenant working at the smallest plan's ceiling until the answer arrives |
+
+Two consequences worth naming:
+
+- Cold-start-unresolved is **rare and loud**: it requires an empty L1, an empty L2, no
+  durable row, and an unreachable Hub. It is alerted on
+  `learnstack_entitlement_unresolved_total{tenant_id}`, not silently absorbed.
+- The source of every answer is observable —
+  `learnstack_entitlement_source_total{source}` over `cache | durable | hub | floor`. A
+  rising `durable` share means the Hub is degraded; a non-zero `floor` share means
+  tenants are being served the fallback and someone must know.
+
+### The wire contract is pinned
+
+The projection's shape is checked into **both** repositories as
+`entitlement-v1.schema.json`, and a snapshot test in each fails the build when the
+serialised payload drifts from it. This is what makes the read path above safe to
+evolve: a Hub-side field rename that LearnStack cannot parse breaks a test in the Hub
+repository, not a tenant's feature flag in production.
+
+The schema also encodes the vocabulary from [§ 0](#0-canonical-key-vocabulary) —
+`features` and `limits` keys are validated against the registry — so an unregistered key
+cannot reach a payload that LearnStack will cache.
+
+### UI surface
+
+When in grace, Admin Studio surfaces a banner: "Your license is in a 30-day grace period.
+Contact support / renew via Hub." When past grace, every feature flag returns `false` and
+every limit returns `0`; writes return `Result.Fail("license.expired_read_only")` and
+reads continue, so customers never lose access to their own data.
 
 ## 6. Signed-key delivery (air-gapped)
 
@@ -306,7 +419,8 @@ Hub operator portal exposes:
 | Customer extending license offline | License is RSA-signed; customer cannot forge a new signature |
 | Customer tampering with cached entitlement | Cache table protected by RLS + DB-level read-only role for non-admin paths |
 | Stolen Hub API key | Per-tenant API key; rotatable; scope limited to license verify + usage report |
-| Revoked license still cached | Cache TTL ≤ 15 min; eager invalidation via Dapr event when revoked online; revocation list pulled daily |
+| Revoked license still cached | Revocation invalidates **all four** layers, in the order that closes the window: `platform_entitlement_cache` row first, then L2, then L1 via the invalidation event. Invalidating only the fast layers leaves the durable row to re-serve the revoked entitlement on the next miss. Cache TTL ≤ 15 min and the daily revocation-list pull are the backstops, not the mechanism |
+| Grace window silently collapsing to a cache TTL | `valid_until` / `grace_until` are read from `platform_entitlement_cache`, never from a cache entry. An integration test flushes both cache layers, stops the Hub, and asserts the tenant still resolves through the durable row for the full grace window |
 
 ## 10. Architecture tests
 
@@ -317,17 +431,32 @@ Hub operator portal exposes:
 3. `NullEntitlementProvider_RejectedInProduction` — runtime startup check: in any non-
    Development environment, `IEntitlementProvider` is `HubEntitlementProvider` or
    `SignedLicenseKeyEntitlementProvider`; never `NullEntitlementProvider`.
-4. `LicenseKey_Payload_MatchesSchema` — `entitlement-v1.schema.json` snapshot test; any
-   breaking change requires schema-version bump.
+4. `LicenseKey_Payload_MatchesSchema` — `entitlement-v1.schema.json` snapshot test, run
+   in **both** repositories against the same checked-in schema; any breaking change
+   requires a schema-version bump and a coordinated change in both. A snapshot test in
+   only one repository proves only that that repository is self-consistent.
+5. `Entitlement_Read_Path_Falls_Through_To_Durable_Row` — integration test: flush L1 and
+   L2, make the Hub unreachable, assert the tenant resolves from
+   `platform_entitlement_cache` and that no exception escapes the feature-flag call.
+6. `FeatureKey_AllReferences_AreInRegistry` — catalogued in
+   [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md);
+   backs the vocabulary rule in [§ 0](#0-canonical-key-vocabulary).
 
 ## 11. Phasing
 
-| Phase | Deliverable |
-|-------|-------------|
-| 02 | `IEntitlementProvider` interface in SharedKernel. `NullEntitlementProvider` default. `platform_entitlement_cache` table. `DeploymentMode` config enum. |
-| 02c | `HubEntitlementProvider` (calls Hub `/internal/license/verify`); Hub-side `Entitlement` recompute on subscription change. |
-| 09b | License-key issuance UI in Hub operator portal. |
-| 11 | `SignedLicenseKeyEntitlementProvider` (air-gapped). Revocation list signing + distribution. Phone-home retry / backoff tuning. Grace period enforcement integration tests. SIGHUP hot-reload. Key rotation procedure documented. |
+Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), the port ships early
+and each implementation ships against a written trigger.
+
+| Phase | Deliverable | Trigger |
+|-------|-------------|---------|
+| [02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | `platform_entitlement_cache` table; `DeploymentMode` config enum | One-way door — the durable projection's schema and ownership |
+| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `IEntitlementProvider` socket; `NullEntitlementProvider` (all features enabled, no limits) as the **only** implementation | — |
+| [02c](../roadmap/phase-02c-hub-foundation.md) | `HubEntitlementProvider` with the four-layer read path above; `entitlement-v1.schema.json` in both repositories; Hub-side `Entitlement` recompute on subscription change | A tenant must be billed or plan-gated |
+| [09b](../roadmap/phase-09b-hub-billing.md) | License-key issuance UI in the Hub operator portal | Commercial billing needed |
+| [11](../roadmap/phase-11-production-hardening.md) | `SignedLicenseKeyEntitlementProvider` (air-gapped); revocation-list signing + distribution; phone-home retry / backoff tuning; grace-period integration tests; SIGHUP hot-reload; key-rotation procedure | A Self-Hosted contract is signed |
+
+`NullEntitlementProvider` must not be registered outside `Development` once Phase 02c
+lands (`NullEntitlementProvider_NotRegistered_OutsideDevelopment`).
 
 ## 12. Operational runbook (Phase 11)
 
@@ -339,8 +468,13 @@ Hub operator portal exposes:
 ## References
 
 - ADR-0020 — Triple Deployment + Hybrid License.
-- ADR-0021 — Feature-Based Entitlement.
+- ADR-0021 (Amendment 1) — Feature-Based Entitlement; the canonical key vocabulary.
 - ADR-0019 — LearnStack Hub.
+- [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) — the normative
+  entitlement read path and the Hub contract surface invariants.
+- [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — which entitlement
+  implementation ships when.
+- [21-feature-flags.md](21-feature-flags.md) — the `FeatureKeys` / `LimitKeys` registries.
 - [25-deployment-models.md](25-deployment-models.md) — three-mode topology.
 - [24-learnstack-hub.md](24-learnstack-hub.md) — Hub architecture.
 - Nexora reference: `Nexora/docs/decisions/0030-license-hot-reload-mechanism.md`,

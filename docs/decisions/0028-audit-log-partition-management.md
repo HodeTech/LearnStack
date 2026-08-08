@@ -242,7 +242,35 @@ The architecture splits responsibilities:
 
 ## Amendments
 
-_(none yet)_
+### 2026-08-08 — Schedule moved to Phase 11; the `pg_partman` rejection is re-opened for review
+
+Two clarifications. Neither changes the Decision.
+
+**Schedule.** Partition management is no longer a Phase 02a deliverable. Per
+[ADR-0035](0035-demand-gated-infrastructure.md), Phase 02a Packet 9 ships `audit_log`
+as a single correct table and the partitioning plus retention job land in
+[Phase 11](../roadmap/phase-11-production-hardening.md), triggered by measured
+`audit_log` growth. Audit *correctness* cannot be retrofitted; audit *scale* can, and
+fixing a partition strategy before any volume exists fixes it against a guess. The
+choice made here — a Hangfire recurring job rather than a PostgreSQL extension — is
+unchanged.
+
+**The `pg_partman` rejection warrants re-review.** This ADR's Context concedes that
+`pg_partman` is technically the stronger option and rejects it primarily to keep the
+`SelfHostedAirGapped` story extension-free. `SelfHostedAirGapped` has no signed
+contract and ships no earlier than Phase 11, and
+[Engineering Principles](../standards/00-principles.md) now states that a deployment
+mode or customer segment without a signed contract cannot be the deciding factor in a
+technical choice — it may only break a tie between otherwise-equal alternatives. Here
+the alternatives were **not** equal by this ADR's own assessment.
+
+The decision stands until it is re-examined. When Phase 11 implements partitioning, the
+implementer re-runs the comparison against the deployment modes that actually exist by
+then. If `pg_partman` wins, that is a new ADR superseding this one — not an edit here.
+
+**Corrected DDL.** The `audit_log` DDL this ADR's partition strategy assumes is the one
+in [ADR-0033](0033-audit-durability-model.md), not the one in ADR-0016, which declares
+a primary key twice and is rejected by PostgreSQL.
 
 ## References
 

@@ -1,177 +1,414 @@
-# Phase 02b: Events, Outbox, and Identity Integration
+# Phase 02b: Identity Integration, Session, and Events
 
 ## Goal
 
-Wire the **outbox dispatcher** and **identity integration** on top of the Phase 02a
-foundation. Phase 02a already shipped `IEventBus`, `ICacheService`, `ISecretProvider`,
-the Dapr sidecar in dev compose, and the audit infrastructure; this phase delivers the
-durable outbox pattern (write → poll → dispatch via `IEventBus` to Dapr pub/sub →
-Kafka), the per-module inbox guard, Hangfire background job conventions, and Keycloak
-OIDC integration sufficient for admin login from the studio.
+Give the platform a signed-in user and a durable cross-module event path.
 
-Phase 02c (LearnStack Hub Foundation, separate `learnstack-hub` repo) runs in
-**parallel** with this phase — both depend only on the 02a sockets and do not block
-each other.
+[Phase 02d](phase-02d-walking-skeleton.md) already put two tenants' public sites in a
+browser without either. That is why it runs first: an anonymous read path needs a host
+resolver, tenant context and Row Level Security — not an identity provider. Everything
+after it needs to know who is asking, and needs a state change in one module to reach
+another module without a shared table.
 
-Decisions made in this phase:
+Phase 02b delivers three things and corrects four defects that would otherwise be built
+on top of:
+
+- **Identity integration** — Keycloak OIDC for the `learnstack` realm, JWKS validation,
+  and a BFF cookie session, so that the request pipeline can carry a `UserId` and the
+  `AuthorizationBehavior` shell has something to authorize in
+  [Phase 03](phase-03-identity-admin.md).
+- **The durable outbox dispatcher** over `outbox_messages` — the table itself shipped in
+  [Phase 02a Packet 6](phase-02a-kernel-tenancy.md), where its schema and its ownership
+  by LearnStack were the one-way door. Dispatch is the additive half, and it lands here.
+- **Hangfire background jobs** with a tenant-aware `JobActivator`, so that work outside
+  an HTTP request still runs inside a tenant context.
+
+### What this phase is not
+
+**It is not the phase where a transport is chosen.** `IEventBus` and `InProcessEventBus`
+shipped in [Phase 02a Packet 5](phase-02a-kernel-tenancy.md) as a **first-class
+transport** — the same `IIntegrationEventHandler<T>`, the same `IInboxGuard`, the same
+tenant-context restoration as any durable path. Phase 02b adds *durability and
+redelivery* on top of that transport; it does not add a second one.
+
+The Dapr pub/sub and Kafka adapters are **not in this phase**. They are demand-gated to
+[Phase 11](phase-11-production-hardening.md) by
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md), whose trigger is "a second
+process needs to consume an integration event". Until that is true, a cross-process
+broker moves an event from one thread to another thread in the same process, through two
+network hops and a serialization boundary, and adds a fourteenth service to the
+development loop. [ADR-0006 Amendment 1](../decisions/0006-events-and-outbox.md) and
+[ADR-0014](../decisions/0014-adopt-dapr.md) remain the decision about **which** transport
+LearnStack uses when it needs one; ADR-0035 decides **when**, and the answer is not this
+phase.
+
+Because the transport is swappable, everything this phase builds — the outbox row shape,
+the claim protocol, the partition key, the inbox guard, the dead-letter contract — is
+written against `IEventBus`, not against Dapr. Swapping the implementation later changes
+one composition-root registration.
+
+Decisions made or referenced in this phase:
 
 - [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
-  (Accepted: self-hosted Keycloak; Amendment 1 adds the `learnstack-hub` realm — that
-  realm itself ships in Phase 02c)
-- [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md) (Accepted;
-  Amendment 1: Dapr pub/sub as the dispatch transport)
+  (Accepted: self-hosted Keycloak. Amendment 1 adds the `learnstack-hub` realm; that
+  realm belongs to the Hub repository and is not built here.)
+- [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md)
 - [ADR-0010 Cross-Module Communication](../decisions/0010-cross-module-communication.md)
-  (Amendment 1: outbox dispatch target is Dapr pub/sub)
-- [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md) (sidecar wired in 02a; the
-  dispatch path lands here)
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
-  (outbox / Hangfire correlation propagation; Hub HTTPS surface correlation
-  middleware)
+- [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+  (supersedes ADR-0016)
+- [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 
 ## Scope
 
-### Event Infrastructure
+### Durable outbox dispatch
 
-- Domain event publishing (in-process, MediatR-style, internal to the module).
-- Integration event publishing via outbox; **`OutboxProcessor`** (BackgroundService)
-  polls every 200ms with `FOR UPDATE SKIP LOCKED` and dispatches through `IEventBus`
-  (which wraps Dapr pub/sub → Kafka in non-dev modes, in-process publisher in dev).
-- **Lights up the Phase 02a Packet 3 `OutboxFlushBehavior` shell** — on a
-  success-`Result` the behavior enrols `IOutbox` messages in the current
-  unit-of-work transaction so they ship after commit (per
-  [ADR-0006](../decisions/0006-events-and-outbox.md) +
-  [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
-- Retry with exponential backoff (1s, 5s, 30s, 5min, 1h); dead-letter after max
-  attempts (5). Dead-letter visible via the `OutboxStatusEndpoints` admin API.
-- Outbox row attaches `tenant_id`, `organization_id?`, `correlation_id`, `event_id`,
-  `occurred_at`, versioned `type` to every event (per
-  [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
-  The `correlation_id` column is the **full W3C `traceparent` header string**
-  (`00-<32-hex trace-id>-<16-hex parent-span-id>-<2-hex flags>`), not a
-  bare UUID — so the consumer can rehydrate the trace with one call:
-  `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var parentCtx)`
-  then `_activitySource.StartActivity(name, kind, parentCtx)`. Storing the
-  full string keeps the deserialisation deterministic and avoids any
-  "how do we map a UUID back to a trace-id?" ambiguity. Consumer handler
-  also restores `ITenantContext` from the envelope before the inner
-  pipeline runs, so end-to-end trace + tenant context stay continuous.
-- Versioned integration event types in `<Module>.Application.Contracts`, inheriting
-  `IntegrationEventBase`.
-- Per-module **`inbox_messages`** table + `IInboxGuard`. Every
-  `IIntegrationEventHandler<T>` invokes `IsAlreadyProcessedAsync` before business
-  logic and `MarkAsProcessed` inside the same `DbContext` SaveChanges as the business
-  write.
-- Tenant + organization context restored in every event handler scope from the event
-  envelope.
-- A worked sample flow (e.g., synthetic `PlatformPingedV1`) demonstrates end-to-end
-  dispatch + idempotent consumption.
-- Cross-instance L1 cache invalidation rides on `learnstack.cache.invalidation` topic
-  (modules with their own L1 caches subscribe here).
+The producer side already exists: a handler calls `IOutbox.EnqueueAsync`, the row is
+written in the same `SaveChanges` as the aggregate change, and the Phase 02a Packet 3
+`OutboxFlushBehavior` shell lights up here to enrol those messages on a success-`Result`.
+What lands in this phase is the consumer side.
 
-Outbox table schema, dispatcher behaviour, and dead-letter handling:
-[Events and Outbox](../architecture/15-event-and-outbox.md), enforced by
-[Architecture Standards](../standards/01-architecture-standards.md) and
-[Infrastructure Stack Standards](../standards/20-infrastructure-stack.md).
+- **`OutboxProcessor`** as a `BackgroundService` polling `outbox_messages` with
+  `FOR UPDATE SKIP LOCKED`, dispatching each message through `IEventBus`, and marking it
+  processed.
+- **Retry with exponential backoff** — 1s, 5s, 30s, 5min, 1h — driven by
+  `available_after`, with `attempts` and `last_error` recorded on the row.
+- **Per-module `inbox_messages` table and `IInboxGuard`.** Every
+  `IIntegrationEventHandler<T>` calls `IsAlreadyProcessedAsync` before business logic and
+  `MarkAsProcessed` inside the same `SaveChanges` as the business write. Dispatch is
+  at-least-once; the inbox is what makes consumption effectively once.
+- **Tenant and organization context restored from the envelope** in every handler scope,
+  before the inner pipeline runs. A consumer that runs without tenant context writes
+  rows that Row Level Security rejects, or worse, does not.
+- **Versioned integration event types** in `<Module>.Application.Contracts`, inheriting
+  `IntegrationEventBase`, carrying `EventId`, `TenantId`, `OccurredAt` and
+  `CorrelationId`. The `correlation_id` column holds the **full W3C `traceparent`
+  string**, not a bare UUID, so a consumer rehydrates the trace with
+  `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var parentCtx)` and
+  starts its activity from `parentCtx`
+  ([ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
+- **A worked sample flow** — a synthetic `PlatformPingedV1` published by one module and
+  consumed idempotently by another — so the path is exercised before a real consumer
+  depends on it.
 
-### Background Jobs
+#### Correction: the dispatcher's claim is released before the work is done
 
-- Hangfire wired with Postgres storage; queue naming policy.
-- Job activator restores tenant context from the payload before any work runs.
-- Job payloads without `TenantId` fail at enqueue time (architecture test enforces).
-- Dead-letter handling for poisoned jobs.
-- Outbox dispatcher runs as a recurring job; pending count and dispatch latency are surfaced as metrics.
+The dispatcher published in
+[Events and Outbox](../architecture/15-event-and-outbox.md) opens a transaction, selects
+a batch with `FOR UPDATE SKIP LOCKED`, and then **commits that transaction immediately to
+release the row locks** before publishing anything. `SKIP LOCKED` only skips rows that are
+locked *right now*. The instant the claiming transaction commits, those rows are unlocked
+and still have `processed_at IS NULL`, so a second `OutboxProcessor` — the horizontal
+scaling the same document advertises — selects the same batch and publishes every message
+a second time.
 
-### Identity Integration
+The document states the opposite as an invariant: *"multiple OutboxProcessor instances
+across pods can run concurrently without double-dispatch."* That claim is false as
+written, and it is the kind of false claim that is expensive later: consumers are built
+against it, and the duplicates only appear under the load that makes them hardest to
+diagnose.
 
-LearnStack identity domain (`Membership`, `Role`, `Permission`, `Invitation`) lands in
-Phase 03. Phase 02b delivers the **authentication** plumbing for the `learnstack`
-realm (the `learnstack-hub` realm is a separate concern that ships in Phase 02c):
+This phase fixes the mechanism and deletes the claim. Two implementations are acceptable
+and the packet picks one:
 
-- Keycloak realm configuration for `learnstack`.
-- OIDC PKCE flow integration with the .NET API (JWT validation against Keycloak JWKS,
-  key caching + rotation handling).
-- BFF callback handler in the Next.js app for the cookie session (HttpOnly + Secure +
-  SameSite=Lax).
-- Silent refresh through the BFF; the frontend never holds a refresh token.
-- Seed users for development (platform admin + 2 tenant admins per tenant, each tenant
-  with 2 organizations, idempotent on `make seed`).
-- Active access-token TTL ≤ 1 hour; refresh flow tested end to end.
-- Tenant + organization claim cross-check: a request whose host-derived
-  `(tenant_id, organization_id)` disagrees with the JWT claims returns 404.
+- **Hold the claim across the batch.** The selecting transaction stays open until every
+  message in the batch is dispatched and marked. Simple and correct; the cost is that a
+  long batch holds locks and a crashed processor's rows wait for the transaction to be
+  reaped.
+- **Add a lease column.** The claim is a durable `UPDATE` that stamps
+  `locked_by` / `locked_until` inside a short transaction; dispatch runs outside it, and
+  a sweeper reclaims expired leases. More moving parts, but a crash releases work in
+  bounded time rather than at connection teardown.
 
-LearnStack does not implement password hashing, password reset rendering, MFA
-enrolment flows, or refresh-token rotation. Those live in Keycloak; see
-[13-identity-and-auth.md](../architecture/13-identity-and-auth.md) for the split.
+Either way, the guarantee LearnStack states is **at-least-once dispatch with
+consumer-side idempotency**, not "exactly once". `IInboxGuard` is not an optimisation
+around a rare duplicate — it is the correctness mechanism, and the dispatcher must not
+claim to make it redundant.
 
-### Audit Coverage Wiring
+#### Correction: ordering is promised through partition keys that nothing sets
 
-The cross-cutting audit pipeline lit up in Phase 02a; Phase 02b now adds the
-**event-stream consumers** to it: outbox dead-letter entries write through it,
-Keycloak-mirrored events (`user.created`, `password.reset.requested`) flow as
-`learnstack.identity.user` Dapr events into the audit module's consumers, and
-platform-admin scope entries from auth-related operations get the same treatment.
-The `AuditEntry` aggregate is owned by the **Audit module** ([ADR-0016](../decisions/0016-audit-log-subsystem.md))
-and shipped in Phase 02a — Phase 03 plugs Identity's events into it, not the other
-way around.
+[Events and Outbox](../architecture/15-event-and-outbox.md) states that per-partition
+ordering is preserved "by partition-keying on the aggregate id when ordering is
+required". No integration event carries a partition key, `IntegrationEventBase` declares
+none, and no publish path sets one. The promise is unenforceable, and a consumer that
+depends on seeing `Created` before `Updated` gets whichever order the transport happens
+to produce.
 
-See [18-audit-coverage.md](../standards/18-audit-coverage.md).
+This phase specifies it:
 
-### Architecture Tests (event + identity layer)
+- `IntegrationEventBase` exposes a **`PartitionKey`** derived from the aggregate
+  identifier, defaulting to `TenantId` when an event is not aggregate-scoped. A tenant's
+  events therefore never interleave with another tenant's on a shared partition.
+- `IEventBus.PublishAsync` passes the key to the transport. `InProcessEventBus` uses it
+  to serialize handler invocation per key; the Phase 11 Kafka adapter maps it to the
+  message key.
+- An architecture test asserts every `IIntegrationEvent` resolves a non-null partition
+  key, so a new event cannot silently opt out of ordering.
 
-In addition to Phase 02a's rules, this phase adds:
+#### Correction: nothing says what happens to a subscriber that exhausts its retries
 
-- Integration event types are JSON-serialisable records inheriting
-  `IntegrationEventBase` (`Integration_Events_Inherit_From_IntegrationEventBase`).
-- Read-model tables follow the `public_<module>_<concept>` naming.
-- Hangfire job payloads include `tenant_id` (and `organization_id?` where the job
-  touches org-scoped state).
-- Provider SDK types (LiveKit, Stripe, Keycloak, Kafka, Vault) are not imported in
-  `Domain` or `Application`.
-- Outbox writes happen inside the same transaction as the originating domain change
-  (interceptor-instrumented).
-- `Integration_Event_Handlers_Use_InboxGuard` — every consumer invokes the inbox
-  guard before processing.
-- `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — integration test asserts one
-  poisoned message doesn't prevent others in the batch from processing.
-- `Outbox_Row_Carries_Correlation_Context` — every persisted outbox row has
-  non-null `tenant_id` and `correlation_id` per
-  [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md).
-- `Hangfire_Job_Payloads_Include_TenantId` — enqueue-time guard rejects
-  payloads missing `tenant_id` or `correlation_id`.
-- `Integration_Event_Handler_Restores_Tenant_Context` — handler scope has
+The corpus describes the **producer** dead-letter path — max attempts, terminal state,
+manual review through the `OutboxStatusEndpoints` admin API. It says nothing about the
+**consumer** side: a handler that throws on every delivery. Without a written fate, the
+default is an infinite redelivery loop that consumes the dispatcher and hides the
+failure in log noise.
+
+The subscriber-side contract lands here:
+
+- A handler failure is retried on the same backoff schedule as a dispatch failure, with
+  the attempt count tracked **per (event, consumer)** in `inbox_messages` — not per
+  event, because one poisoned consumer must not dead-letter an event that four other
+  consumers handled cleanly.
+- After the maximum attempts, the `(event, consumer)` pair moves to a terminal
+  `dead_lettered` state with the last exception recorded. Redelivery stops.
+- Dead-lettering emits a metric and writes a MUST-class audit entry through
+  [ADR-0033](../decisions/0033-audit-durability-model.md)'s durable path — a silently
+  dropped integration event is a data-integrity event, not a log line.
+- Replay is an explicit operator action through the admin API, and it re-enters the
+  normal inbox-guarded path.
+
+#### Observability
+
+- `learnstack_outbox_pending_count{tenant_id}` (gauge) and dispatch-latency histogram.
+- `learnstack_outbox_dispatch_failed_total{event_type}` and
+  `learnstack_inbox_dead_lettered_total{module, event_type}` (counters).
+- The dispatcher runs as a recurring job with its pending count and lag surfaced as
+  metrics, so a stalled dispatcher is visible without reading the table.
+
+Cross-instance L1 cache invalidation (`learnstack.cache.invalidation`) is **declared as a
+topic and consumed in-process** here, but it has no cross-instance effect until more than
+one application instance runs — which is precisely
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s trigger for the
+distributed `ICacheService` adapter in [Phase 11](phase-11-production-hardening.md).
+Wiring the subscription now means the Phase 11 adapter has a consumer waiting rather than
+a code path to invent.
+
+### Background jobs
+
+- Hangfire wired against PostgreSQL storage, with a queue-naming policy.
+- A tenant-aware `JobActivator` that restores `ITenantContext` from the payload before
+  any work runs, populating the same singleton `ITenantContextAccessor` the HTTP path
+  uses.
+- Job payloads without `tenant_id` and `correlation_id` **fail at enqueue time**, not at
+  activation. The failure is loud and belongs to the caller who can fix it.
+- Poisoned-job handling matches the outbox dead-letter contract above: bounded retries,
+  a terminal state, a metric, and an operator-initiated replay.
+- The `OutboxProcessor` runs under this scheduler rather than as a bare loop, so its
+  liveness is observable through the same surface as every other recurring job.
+
+### Identity integration — the `learnstack` realm
+
+The LearnStack identity **domain** (`User`, `Membership`, `Role`, `Permission`,
+`Invitation`) lands in [Phase 03](phase-03-identity-admin.md). This phase delivers only
+the authentication plumbing, for the tenant-facing `learnstack` realm. The
+`learnstack-hub` operator realm belongs to the Hub repository and is referenced from
+[Phase 02c](phase-02c-hub-foundation.md).
+
+- Keycloak realm configuration for `learnstack`, with the seed users a development
+  environment needs: a platform admin plus two tenant admins per seed tenant, across both
+  organizations of each tenant, idempotent under `make seed`.
+- OIDC Authorization Code flow with PKCE against the .NET API: JWT validation against the
+  Keycloak JWKS endpoint, with key caching and rotation handling.
+- A BFF callback handler in `frontend/apps/web` establishing the cookie session
+  (`HttpOnly`, `Secure`, `SameSite=Lax`). Silent refresh runs through the BFF; the
+  browser never holds a refresh token.
+- Access-token TTL capped at one hour, with the refresh path tested end to end.
+- **Tenant and organization claim cross-check.** A request whose host-derived
+  `(tenant_id, organization_id)` disagrees with the JWT claims returns 404 — not 403,
+  which would confirm the resource exists — and writes an audit entry.
+
+LearnStack does not implement password hashing, password-reset rendering, MFA enrolment,
+or refresh-token rotation. Those live in Keycloak; the split is described in
+[Identity and Auth](../architecture/13-identity-and-auth.md).
+
+#### Correction: the realm emits no `tenant_id` claim at all
+
+The cross-check above is the **first** layer of tenant defense-in-depth
+([ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)), and today it cannot
+run. `infra/keycloak/realms/learnstack.json` stores `tenant_id` as a **user attribute**
+and declares **zero protocol mappers**. Keycloak does not put user attributes into tokens
+unless a mapper says so, so every issued JWT reaches the API with no `tenant_id` claim.
+Any code that reads one reads `null`, and a cross-check against `null` either fails every
+request or — the likelier outcome under delivery pressure — is written to skip when the
+claim is absent, which turns the whole layer off.
+
+Two changes, both in the realm import:
+
+- Add an **`oidc-usermodel-attribute-mapper`** on the `learnstack-api` client (or on a
+  dedicated client scope shared by `learnstack-api` and `learnstack-web`) that projects
+  the `tenant_id` user attribute into the access token and the ID token, with
+  `access.token.claim` and `id.token.claim` both enabled, typed as `String`. The same
+  treatment applies to `organization_id` once memberships exist in
+  [Phase 03](phase-03-identity-admin.md).
+- Change the seeded value from the slug `"tenant-a"` to the seed tenant's **UUID**. The
+  claim is consumed as a `TenantId` — a Vogen value object over `Guid` introduced in
+  [Phase 02a Packet 6](phase-02a-kernel-tenancy.md) — so a slug cannot be parsed and the
+  cross-check throws instead of comparing. The seed script and the realm import read the
+  same identifiers, so the two cannot drift.
+
+An integration test asserts the shape rather than the configuration file: a token issued
+by the dev realm for a seed user carries a `tenant_id` claim that parses to the seed
+tenant's `TenantId`. A realm export that loses the mapper fails the test.
+
+### Audit coverage wiring
+
+The audit pipeline itself lit up in [Phase 02a Packet 9](phase-02a-kernel-tenancy.md)
+under [ADR-0033](../decisions/0033-audit-durability-model.md). This phase adds its
+event-stream feeds:
+
+- Outbox and inbox dead-letter transitions write through `IAuditStore`.
+- Keycloak-mirrored identity events (`user.created`, `password.reset.requested`) arrive
+  as `learnstack.identity.user` integration events and are consumed by the Audit module's
+  handlers.
+- Platform-admin scope entries opened by authentication-related operations get the same
+  treatment.
+
+The `AuditEntry` aggregate is owned by the **Audit** module and shipped in Phase 02a;
+[Phase 03](phase-03-identity-admin.md) plugs the Identity domain into it, not the reverse.
+See [Audit Coverage Standards](../standards/18-audit-coverage.md).
+
+### Compile-time secret leakage (carried out of Phase 02a Packet 3)
+
+Packet 3 shipped runtime redaction — `RedactSensitiveFieldsEnricher` scrubs sensitive
+tokens from log events, and `LocalFileErrorTracker` scrubs the same set from error
+envelopes, both through the single `SensitiveTokenCatalog`. Runtime redaction covers
+logs, OTLP and error-tracker tags. It does not cover an exception **message**, because
+by the time the string exists the secret is already inside it, and a Problem Details
+response can carry it to a client.
+
+This phase adds the compile-time complement: a second diagnostic in
+`LearnStack.Analyzers`, id **`LS0002`**, that flags interpolated or concatenated
+`throw new …Exception($"…{token}…")` patterns in `Domain` and `Application` where the
+interpolated symbol's name matches `SensitiveTokenCatalog`. It ships as a Warning listed
+in `WarningsNotAsErrors`, escalating to Error alongside `LS0001` at the
+[Phase 03](phase-03-identity-admin.md) exit — the same cadence, for the same reason:
+a rule that breaks the build before its violations are cleaned up gets suppressed rather
+than obeyed.
+
+The analyzer's own tests run it over synthetic compilations and assert that `LS0002` is
+reported and no `AD0001` crash occurs — the failure mode
+[ADR-0032 Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md)
+records for `LS0001`.
+
+### Architecture tests
+
+New rules this phase introduces, in addition to the Phase 02a set:
+
+- `Integration_Events_Inherit_From_IntegrationEventBase` — every `IIntegrationEvent` is a
+  JSON-serialisable record extending the base.
+- `Integration_Event_Handlers_Use_InboxGuard` — every consumer calls
+  `IInboxGuard.IsAlreadyProcessedAsync` before business logic.
+- `Integration_Event_Handler_Restores_Tenant_Context` — the handler scope has
   `ITenantContext.IsResolved == true` before the inner pipeline runs.
+- `Outbox_Row_Carries_Correlation_Context` — every persisted row has non-null `tenant_id`
+  and `correlation_id`.
+- `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — one poisoned message does not
+  prevent the rest of its batch from processing.
+- `Outbox_Claim_IsHeld_Until_Dispatch_Completes` — **new.** Two concurrent processors over
+  one pending batch dispatch each message exactly once. This is the test that would have
+  caught the defect above, and its absence is why the false invariant survived review.
+- `Integration_Event_Declares_PartitionKey` — **new.** Every `IIntegrationEvent` resolves
+  a non-null partition key.
+- `Hangfire_Job_Payloads_Include_TenantId` — enqueue rejects payloads missing `tenant_id`
+  or `correlation_id`.
+- Read-model tables follow the `public_<module>_<concept>` naming.
+- Provider SDK types (Keycloak, Kafka, Vault, LiveKit, Stripe) are not imported in
+  `Domain` or `Application`.
+- Outbox writes happen inside the same transaction as the originating domain change.
 
-The three identifiers above are catalogued (assertion, type, source) in
-[21-architecture-tests-catalogue.md § Cross-cutting: error handling, logging, observability](../standards/21-architecture-tests-catalogue.md);
-the catalogue is the canonical reference, this list is a Phase 02b
-shipping checklist.
+`Dapr_PubSub_TopicNames_FollowConvention` applies in this phase to the topic-name
+resolver that `IEventBus` uses; its `[Topic]`-attribute scan activates with the Dapr
+adapter in [Phase 11](phase-11-production-hardening.md). The topic naming convention
+`learnstack.{module}.{aggregate}` is transport-independent and is enforced from here.
+
+The catalogue in
+[Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md) is the
+canonical reference for every identifier above, including the two new rows; this list is
+a Phase 02b shipping checklist.
 
 ## Deliverables
 
-- Domain and integration event infrastructure with a sample flow.
-- Outbox dispatcher with retry, backoff, dead-letter, and dashboards.
-- Hangfire wired with tenant-aware job activator.
-- Keycloak OIDC integration sufficient for admin login from the studio.
-- BFF session cookie established; silent refresh works.
-- Audit pipeline accepts entries from platform-admin scope and from Keycloak-mirrored events.
-- Full architecture test suite green.
+- A durable `OutboxProcessor` with a claim protocol that survives two concurrent
+  instances, exponential backoff, and a producer-side dead-letter state.
+- A subscriber-side dead-letter contract: per-`(event, consumer)` attempt tracking, a
+  terminal state, an audit entry, a metric, and operator-initiated replay.
+- `PartitionKey` on `IntegrationEventBase`, threaded through `IEventBus` and honoured by
+  `InProcessEventBus`.
+- Per-module `inbox_messages` tables and `IInboxGuard`, with tenant-context restoration
+  in every handler scope.
+- A worked end-to-end sample flow: publish → outbox → dispatch → idempotent consumption.
+- Hangfire on PostgreSQL storage with a tenant-aware `JobActivator` and an enqueue-time
+  guard.
+- Keycloak `learnstack` realm with a working `oidc-usermodel-attribute-mapper` for
+  `tenant_id`, UUID-valued seed attributes, and idempotent seed users.
+- OIDC PKCE login through the BFF, JWKS validation with rotation handling, cookie session,
+  and silent refresh.
+- Host-vs-JWT tenant cross-check returning 404 and writing an audit entry.
+- `LS0002` analyzer shipping as a Warning, with its own analyzer tests.
+- Corrections landed in [Events and Outbox](../architecture/15-event-and-outbox.md): the
+  false "no double dispatch" invariant deleted, the claim protocol described as
+  implemented, the partition-key requirement made concrete, and the subscriber dead-letter
+  fate written down.
 
 ## Completion Criteria
 
-- Domain + integration event infrastructure works with at least one sample flow end to end (publish → outbox → dispatch → idempotent consumer).
-- A failed dispatch retries with backoff and dead-letters cleanly after the max attempt.
-- A background job rejects payloads without a tenant id.
-- A login flow against Keycloak completes in dev with the seed admin user; the JWT validates against JWKS; refresh works through the BFF.
-- A request with mismatched host tenant vs JWT tenant returns 404 and writes an audit entry.
+- A sample integration event travels publish → outbox → dispatch → consumer and is
+  handled exactly once, with the consumer's business write and its inbox marker committing
+  together.
+- Two `OutboxProcessor` instances running against one pending batch dispatch every message
+  exactly once; the test that proves it is in CI.
+- Two events for the same aggregate arrive at their consumer in publish order.
+- A handler that throws on every delivery reaches a terminal `dead_lettered` state for
+  that consumer only, leaves other consumers of the same event unaffected, emits a metric,
+  and produces an audit entry.
+- A failed dispatch retries on the documented backoff and dead-letters cleanly at the
+  maximum attempt.
+- A background job enqueued without a tenant id fails at enqueue time.
+- A login against the dev Keycloak realm with a seed user completes through the BFF; the
+  JWT validates against JWKS; refresh works; and the token **carries a `tenant_id` claim
+  that parses to the seed tenant's `TenantId`**.
+- A request whose host-derived tenant disagrees with its JWT tenant returns 404 and writes
+  an audit entry.
+- `LS0002` reports on a synthetic violation and produces no `AD0001`.
 - The full architecture test suite is green and not skippable.
 
 ## Risks
 
-- Forgetting tenant context in background jobs; mitigated by the job activator + enqueue guard.
-- Treating outbox as an optional layer ("we'll add it for module X later"); mitigated by architecture test requiring same-transaction writes.
-- Mixing Keycloak claims with LearnStack-side authorization decisions — see [13-identity-and-auth.md](../architecture/13-identity-and-auth.md) for the strict split.
-- Keycloak as a sign-in bottleneck; mitigated by HA from the start with PostgreSQL as Keycloak's store and JWKS caching.
+- **The claim fix is treated as a detail.** Both candidate implementations are a few
+  dozen lines, which makes them easy to defer past a green build — single-instance
+  development never reproduces the failure. The concurrency test is the mitigation, and
+  it lands with the fix, not after it.
+- **The partition key is added but never meaningful.** A key derived from the event's own
+  `EventId`, or one defaulted per event type, satisfies the architecture test and orders
+  nothing. Reviewers check that the key is the aggregate identifier.
+- **Dead-lettering becomes invisible.** A terminal state that only appears in a database
+  column is a silent data loss. The metric and the MUST-class audit entry are part of the
+  deliverable, not follow-up work.
+- **The Keycloak mapper regresses on the next realm export.** Realm JSON is regenerated by
+  hand and by the Keycloak admin console, and a mapper is easy to lose. The integration
+  test asserts the issued token, not the file.
+- **Tenant context is forgotten in background jobs.** Mitigated by the `JobActivator` plus
+  the enqueue-time guard, and by the architecture test that covers both.
+- **The outbox is treated as optional** — "module X will adopt it later". Mitigated by the
+  architecture test requiring same-transaction outbox writes, which fails the moment a
+  module publishes outside its unit of work.
+- **Keycloak becomes a sign-in bottleneck.** Mitigated by PostgreSQL-backed Keycloak
+  storage and JWKS caching from the start.
+- **Keycloak claims leak into authorization decisions.** Keycloak authenticates;
+  LearnStack authorizes. The split is in
+  [Identity and Auth](../architecture/13-identity-and-auth.md), and
+  [Phase 03](phase-03-identity-admin.md) is where the LearnStack side is built.
 
 ## Phase Exit Decision
 
-Phase 03 (Identity domain, RBAC, Admin Foundation) can begin when the event/outbox baseline, background-job tenant context, and Keycloak login are stable and green in CI.
+[Phase 03](phase-03-identity-admin.md) begins when a seed user can sign in through the
+BFF against the dev realm with a `tenant_id` claim that resolves to a real `TenantId`;
+when the sample integration event flows publish → outbox → dispatch → idempotent
+consumption under two concurrent dispatchers with no duplicate handling; when a poisoned
+consumer dead-letters visibly instead of looping; and when the background-job tenant
+guard and the full architecture suite are green in CI.
+
+[Phase 02c](phase-02c-hub-foundation.md) is unblocked by this phase but does not gate it.
+Phase 02c hangs off the spine and starts only when its own trigger fires — a tenant that
+must be billed or plan-gated
+([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).

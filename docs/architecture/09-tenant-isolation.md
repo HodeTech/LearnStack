@@ -66,38 +66,31 @@ sequenceDiagram
 
 ## RLS policy templates
 
-### Tenant-only entity
+The **canonical SQL template** — for both the tenant-only and the tenant + organization
+shape — lives in exactly one place:
+[Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
+It is not repeated here. Copying it into a second document is how the four divergent
+copies that preceded [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
+came about.
 
-```sql
-ALTER TABLE <table> ADD COLUMN tenant_id uuid NOT NULL;
-CREATE INDEX ix_<table>_tenant_id ON <table> (tenant_id);
+Three properties of that template matter to the isolation model described on this page:
 
-ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY <table>_tenant_isolation ON <table>
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-```
-
-### Tenant + Organization entity
-
-```sql
-ALTER TABLE <table> ADD COLUMN tenant_id uuid NOT NULL;
-ALTER TABLE <table> ADD COLUMN organization_id uuid NULL;
-CREATE INDEX ix_<table>_tenant_org ON <table> (tenant_id, organization_id);
-
-ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY <table>_tenant_isolation ON <table>
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-CREATE POLICY <table>_organization_isolation ON <table>
-    USING (
-        organization_id IS NULL                                                  -- tenant-wide row, visible to all orgs in tenant
-        OR organization_id = current_setting('app.organization_id', true)::uuid  -- org-scoped row, only matching org
-        OR current_setting('app.scope', true) = 'tenant'                         -- tenant-scope operation (admin / reporting) sees all orgs
-    );
-```
+- **One policy, one `AND`-ed predicate.** Tenant and organization scope are evaluated
+  together. Two separate policies would both be *permissive*, and PostgreSQL combines
+  permissive policies with `OR` — under which a tenant-wide row (`organization_id IS
+  NULL`) satisfies the organization half on its own and becomes visible to every
+  tenant. A second policy may only ever be added `AS RESTRICTIVE`.
+- **`ENABLE` and `FORCE ROW LEVEL SECURITY`.** Without `FORCE`, the table owner
+  bypasses its own policies — and the default Entity Framework Core arrangement makes
+  the application that owner.
+- **An explicit `WITH CHECK`.** `USING` decides what is readable; `WITH CHECK` decides
+  what is writable.
 
 The `app.scope = 'tenant'` setting is set by middleware when the request comes from a
-tenant-admin role with a tenant-wide operation flag (e.g. cross-org reporting). The
-default scope (`null` or `'organization'`) honours both filters strictly.
+tenant-admin role with a tenant-wide operation flag (e.g. cross-org reporting). It
+widens **reads** across organizations within the caller's tenant; it never widens
+writes, and it never crosses a tenant boundary. The default scope (`null` or
+`'organization'`) restricts reads to the caller's organization plus tenant-wide rows.
 
 ## Default org semantics
 

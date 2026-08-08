@@ -454,6 +454,49 @@ Three blocker-level architecture tests added in Phase 02:
 The full data model, ER diagram, schema versioning rules, and Admin Studio screens live
 in [32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md).
 
+## Amendments
+
+### 2026-08-08 — Genericity boundary
+
+This ADR is read across the corpus as an unlimited claim: that any education domain can
+be expressed as tenant customization data. Stress-testing the model against three
+concrete tenants shows where that claim holds and where it breaks, and the boundary
+belongs in the decision record rather than in a reader's head.
+
+**Inside the boundary — tenant data, no code change:**
+
+| Dimension | Example |
+|---|---|
+| Content shape | A vocabulary card, an asana pose, a grammar topic — declared as a `TenantContentType` JSON Schema |
+| Presentation | Which blocks compose a page, which fields a card renders, what the level taxonomy is called |
+| Pure rule evaluation | A placement test's answer map mapped to a recommended level; a lesson's completion predicate over already-recorded facts |
+
+The discriminating property is that all three are **pure functions of tenant data and
+already-recorded state**. Nothing in this column needs to hold new state or reach
+outside the process.
+
+**Outside the boundary — platform features, written by LearnStack and gated by plan:**
+
+| Dimension | Example | Why it cannot be data |
+|---|---|---|
+| Stateful entitlement | A yoga studio's ten-session credit pack; a "three make-up classes per term" allowance | Requires a balance that is decremented, refunded, expired and audited. A JSON Schema declares shape; it cannot declare a ledger |
+| External capability invocation | Running a learner's submitted code; scoring pronunciation from an audio clip | Requires a sandbox, a runtime, a resource budget and a security boundary. A rule DSL evaluates; it does not execute arbitrary programs |
+
+A tenant that needs something in the second column needs a **LearnStack release**, or an
+integration with an external provider through an adapter. It does not need — and cannot
+have — a customization row.
+
+**Consequences for the corpus.** Identifiers in the core that name a specific domain
+(`code-challenge-shell`, `FeatureKeys.CodeChallengeRunner`) are renamed to describe the
+capability rather than the domain, per the hard rule that no module carries
+domain-specific names. The narrowed claim is stated in
+[Platform Vision § Genericity boundary](../architecture/01-platform-vision.md); the two
+outside-the-boundary dimensions are named there as platform capabilities rather than
+quietly implied to be customization.
+
+The Decision above is unchanged: domain-specific shapes remain tenant customization
+data, and there is no `Verticals/` folder.
+
 ## References
 
 - **Supersedes** ADR-0011 (Extension Points).

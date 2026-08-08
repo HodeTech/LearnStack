@@ -7,6 +7,26 @@
 LearnStack uses **Apache APISIX** in standalone mode as the API gateway in front of both
 the LearnStack core API and the LearnStack Hub API.
 
+> **Status (2026-08-08).** APISIX is **demand-gated to
+> [Phase 11](../roadmap/phase-11-production-hardening.md)** per
+> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md); its trigger is a non-development
+> deployment that needs edge rate limiting, host routing, or JWT pre-validation. Until
+> then the same responsibilities are carried by ASP.NET middleware inside the API
+> process: correlation-id assignment, CORS, JWT bearer validation, rate limiting, and
+> header normalisation. [ADR-0015](../decisions/0015-api-gateway-apisix.md) stands as the
+> decision that APISIX is the gateway LearnStack uses; ADR-0035 decides when.
+>
+> **A gap worth naming rather than discovering.** In the shipped
+> `infra/apisix/apisix.yaml`, route 100's `openid-connect` block is **commented out**, so
+> today every `/api/v*` request reaches the backend unauthenticated **at the gateway**.
+> That is a defense-in-depth gap, not an open door: the backend re-validates every token
+> independently ([§ 5](#5-defense-in-depth-jwt-validated-twice)) and rejects
+> unauthenticated requests on its own. But it means the gateway is currently contributing
+> nothing to authentication, and the "validated twice" property in § 5 describes the
+> Phase 11 target, not the running system. The block is uncommented in
+> [Phase 03](../roadmap/phase-03-identity-admin.md), when the Keycloak realm it discovers
+> against exists.
+
 ## 1. Topology
 
 ```mermaid
@@ -137,72 +157,153 @@ plugins:
 
 ## 4. Route table
 
-`apisix.yaml` declares routes with priority bands:
+Three rules govern this table, and each exists because its violation has already been
+found in the corpus.
+
+### Rule 1 — the URI wildcard is a single trailing `*`
+
+`lua-resty-radixtree`, the matcher APISIX uses, supports **one** wildcard and only at the
+**end** of the path. There is no `**` form, and a `*` in the middle of a path is not a
+wildcard — it is a literal asterisk. A route declared as `/api/v*/**` therefore does not
+mean "any version, any sub-path"; it means something no client will ever send.
+
+Because [ADR-0024](../decisions/0024-api-versioning-policy.md) puts the version in the
+URL and the version set is small and enumerable, the correct spelling is one route per
+live version:
+
+| Wrong | Right |
+|---|---|
+| `/api/v*/**` | `/api/v1/*` (and `/api/v2/*` when v2 ships) |
+| `/api/v*/localization/*` | `/api/v1/localization/*` |
+
+Adding a version adds routes. That is the intended cost of URL versioning, and it keeps
+the deprecation window in ADR-0024 visible in the gateway config rather than hidden
+behind a wildcard.
+
+### Rule 2 — every route declares an explicit `priority`
+
+APISIX resolves overlapping routes by `priority`, **higher wins**, and an omitted
+`priority` defaults to `0`. The `id` field is an identifier, not an ordering — a fact the
+earlier version of this table obscured by using `id` values that looked like priority
+bands.
+
+The consequence of that confusion was concrete: the public `GET /api/v*/localization/*`
+route carried no `priority` (so `0`) while the authenticated catch-all carried
+`priority: 100`. Both matched a localization request, the catch-all won, and **a route
+documented as public anonymous would have demanded a bearer token** — an anonymous
+learner loading a public page would have received 401 from the gateway.
+
+The banding is therefore **specific-beats-general, written down**:
+
+| Band | Priority | Contents |
+|---|---|---|
+| Infrastructure | 400 | `/healthz`, `/openapi/*` (environment-gated), `/admin/hangfire*` |
+| Public anonymous | 300 | Named public paths: localization, public catalog reads, auth endpoints with their own strict limits |
+| CORS preflight | 200 | `OPTIONS` on the versioned prefix — must beat the authenticated band so preflight never reaches `openid-connect` |
+| Authenticated catch-all | 100 | Everything else under the versioned prefix |
+
+**A public route always outranks the catch-all.** The invariant is asserted in CI: the
+route-table lint fails when any route omits `priority`, and when any route whose plugin
+set lacks `openid-connect` shares a path prefix with a higher-or-equal-priority route
+that has it.
+
+### Rule 3 — one trust domain per credential
+
+Route 100 previously carried
+`client_secret_ref: vault://learnstack/hub/internal-api-hmac-key`. That path is the
+**Hub internal API HMAC body-signing key** — a credential from an entirely different
+trust domain, whose possession lets the holder forge a signed entitlement push for **any
+tenant**. Handing it to the edge gateway as an OIDC client secret placed the platform's
+highest-value secret on its most exposed component.
+
+The line is **deleted**, and no substitute is needed: the route is `bearer_only: true`,
+which means APISIX validates a presented bearer token against the realm's public JWKS and
+never performs a code exchange. A `bearer_only` OIDC route has no use for a client
+secret at all.
 
 ```yaml
 routes:
-  # Public anonymous — priority 1
+  # ---- Infrastructure band — priority 400 -------------------------------
   - id: 1
-    uri: /health
+    uri: /healthz
+    methods: [GET]
+    priority: 400
     plugins:
-      limit-req:
-        rate: 10
-        burst: 5
-        rejected_code: 429
-        key: remote_addr
+      limit-req: { rate: 10, burst: 5, key: remote_addr, rejected_code: 429 }
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
 
   - id: 2
-    uri: /api/v*/localization/*
-    methods: [GET]
-    plugins:
-      cors:
-        allow_origins: "https://app.learnstack.dev,https://hub.learnstack.dev"
-      limit-req: { rate: 50, burst: 20, key: remote_addr }
-    upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
-
-  - id: 3
     uri: /openapi/*
+    priority: 400
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
-    # Dev-only; rejected by environment-gated NGINX rule in production.
+    # Dev-only; environment-gated to 404 in production.
 
-  # CORS preflight separation — priority 99 (just above main authenticated band)
-  # OPTIONS bypasses openid-connect (which would reject preflight without Authorization header).
-  - id: 99
-    uri: /api/v*/**
+  # Hangfire dashboard — defense-in-depth: gateway BasicAuth + backend role check
+  - id: 3
+    uri: /admin/hangfire*
+    priority: 400
+    plugins:
+      basic-auth: {}             # consumer credentials from the secret store
+    upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
+
+  # ---- Public anonymous band — priority 300 -----------------------------
+  # MUST outrank the authenticated catch-all, or these become 401s.
+  - id: 10
+    uri: /api/v1/localization/*
+    methods: [GET]
+    priority: 300
+    plugins:
+      cors: { allow_origins: "https://app.learnstack.dev,https://hub.learnstack.dev" }
+      limit-req: { rate: 50, burst: 20, key: remote_addr, rejected_code: 429 }
+    upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
+
+  - id: 11
+    uri: /api/v1/auth/*
+    methods: [POST]
+    priority: 300
+    plugins:
+      cors: { allow_origins: "https://app.learnstack.dev,*.learnstack.app" }
+      limit-count: { count: 5, time_window: 60, key: remote_addr, rejected_code: 429 }
+    upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
+
+  # ---- CORS preflight band — priority 200 -------------------------------
+  # OPTIONS carries no Authorization header; openid-connect would reject it.
+  - id: 20
+    uri: /api/v1/*
     methods: [OPTIONS]
+    priority: 200
     plugins:
       cors:
         allow_origins: "https://app.learnstack.dev,*.learnstack.app"
         allow_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-        allow_headers: "Authorization,Content-Type,X-Tenant-Id,X-Correlation-Id"
+        allow_headers: "Authorization,Content-Type,X-Tenant-Id,X-Organization-Id,X-Correlation-Id"
         max_age: 3600
 
-  # Authenticated band — priority 100
+  # ---- Authenticated catch-all — priority 100 ---------------------------
   - id: 100
-    uri: /api/v*/**
+    uri: /api/v1/*
     methods: [GET, POST, PUT, PATCH, DELETE]
+    priority: 100
     plugins:
       openid-connect:
         client_id: learnstack-gateway
-        client_secret_ref: vault://learnstack/hub/internal-api-hmac-key   # via Vault Agent sidecar
         discovery: http://keycloak:8080/realms/learnstack/.well-known/openid-configuration
-        bearer_only: true
-        realm: learnstack
+        bearer_only: true          # validates a presented token; no code exchange,
+        realm: learnstack          # therefore no client secret — see Rule 3
         scope: openid
         set_access_token_header: true
         access_token_in_authorization_header: true
-      cors:
-        allow_origins: "https://app.learnstack.dev,*.learnstack.app"
-      limit-req: { rate: 100, burst: 50, key: remote_addr }
+      cors: { allow_origins: "https://app.learnstack.dev,*.learnstack.app" }
+      limit-req: { rate: 100, burst: 50, key: remote_addr, rejected_code: 429 }
       request-id: { include_in_response: true }
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
 
-  # Hub host band — priority 200
+  # ---- Hub host — same banding, scoped by host --------------------------
   - id: 200
     host: hub.learnstack.dev
-    uri: /api/v*/**
+    uri: /api/v1/*
     methods: [OPTIONS]
+    priority: 200
     plugins:
       cors:
         allow_origins: "https://hub.learnstack.dev"
@@ -211,27 +312,26 @@ routes:
 
   - id: 201
     host: hub.learnstack.dev
-    uri: /api/v*/**
+    uri: /api/v1/*
     methods: [GET, POST, PUT, PATCH, DELETE]
+    priority: 100
     plugins:
       openid-connect:
         client_id: learnstack-hub-gateway
         discovery: http://keycloak:8080/realms/learnstack-hub/.well-known/openid-configuration
         bearer_only: true
         realm: learnstack-hub
-      cors:
-        allow_origins: "https://hub.learnstack.dev"
-      limit-req: { rate: 60, burst: 30, key: remote_addr }   # stricter on Hub
+      cors: { allow_origins: "https://hub.learnstack.dev" }
+      limit-req: { rate: 60, burst: 30, key: remote_addr, rejected_code: 429 }   # stricter on Hub
       request-id: { include_in_response: true }
     upstream: { type: roundrobin, nodes: { "learnstack-hub:5000": 1 } }
-
-  # Hangfire dashboard — defense-in-depth: gateway BasicAuth + backend role check
-  - id: 300
-    uri: /admin/hangfire*
-    plugins:
-      basic-auth: {}             # consumer credentials in Vault
-    upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
 ```
+
+The corrections in Rules 1–3 land in the shipped `infra/apisix/apisix.yaml` in
+[Phase 03](../roadmap/phase-03-identity-admin.md), alongside uncommenting the
+`openid-connect` block against the realm that exists by then. APISIX becomes a real
+gateway — TLS termination, consumer-keyed limits, WAF — in
+[Phase 11](../roadmap/phase-11-production-hardening.md).
 
 ## 5. Defense-in-depth: JWT validated twice
 
@@ -246,6 +346,13 @@ routes:
 If APISIX is misconfigured, bypassed (someone hits the backend directly on the internal
 network), or compromised, the backend still rejects unauthenticated requests. This is
 non-negotiable.
+
+That property is what makes today's state a gap rather than a breach: with route 100's
+`openid-connect` block commented out, layer 1 is absent and layer 2 carries the whole
+load. The system is not open — it is running on one line of defense where the design
+calls for two, and the cheap fast rejection at the edge is not happening. Restoring
+layer 1 is [Phase 03](../roadmap/phase-03-identity-admin.md) work; nothing about the
+backend's obligations changes when it lands.
 
 ```csharp
 // LearnStack.Host/Program.cs
@@ -274,15 +381,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 | Surface | Rate | Burst | Key |
 |---------|------|-------|-----|
-| `/health` | 10/s | 5 | remote_addr |
-| `/api/v*/localization/*` | 50/s | 20 | remote_addr |
+| `/healthz` | 10/s | 5 | remote_addr |
+| `/api/v1/localization/*` | 50/s | 20 | remote_addr |
+| `/api/v1/auth/*` (login, password reset) | 5/min | 0 | remote_addr |
 | Authenticated GET/POST/PUT/PATCH/DELETE (main API) | 100/s | 50 | remote_addr |
 | Hub authenticated API | 60/s | 30 | remote_addr |
-| `/api/v*/auth/*` (login, password reset) | 5/min | 0 | remote_addr |
-| Write endpoints (POST/PUT/PATCH/DELETE) on authenticated routes | 60/min/token | — | consumer (when consumer-key authn enabled, Phase 11) |
+| Write endpoints (POST/PUT/PATCH/DELETE) on authenticated routes | 60/min/token | — | consumer (when consumer-key authn is wired, Phase 11) |
 
-Phase 11+ moves from `remote_addr`-keyed limits to consumer-key-keyed limits when APISIX
-consumer support is wired (etcd-backed mode required for dynamic consumer issuance).
+`remote_addr` keying limits a noisy **client**, not a noisy **tenant**: one tenant behind
+many addresses is unaffected, and many tenants behind one NAT are throttled together.
+Per-tenant fairness — at the gateway and inside the database — is
+[Phase 11](../roadmap/phase-11-production-hardening.md) work, described in
+[25-deployment-models.md § 2](25-deployment-models.md). Consumer-key-keyed limits require
+etcd-backed mode for dynamic consumer issuance and land in the same phase.
 
 ## 7. CORS preflight separation
 
@@ -290,9 +401,11 @@ The `openid-connect` plugin **rejects OPTIONS requests** because they don't carr
 `Authorization` header. This breaks browser CORS preflight unless OPTIONS is handled
 separately.
 
-Solution: a higher-priority OPTIONS-only route (id 99 / 200) carries the `cors` plugin
-without `openid-connect`. The browser's preflight succeeds; the subsequent actual
-request (with the `Authorization` header) hits the authenticated route.
+Solution: an OPTIONS-only route in the **preflight band (priority 200)** carries the
+`cors` plugin without `openid-connect`. Because 200 outranks the authenticated
+catch-all's 100, the browser's preflight succeeds; the subsequent actual request, with
+its `Authorization` header and a non-OPTIONS method, falls through to the authenticated
+route.
 
 Nexora pattern verbatim (see `Nexora/docs/decisions/0003-deployment-strategy.md` and
 `Nexora/docs/operations/HELM_INSTALLATION.md`).
@@ -351,10 +464,18 @@ Phase 11 deliverables:
 ## 11. Architecture tests
 
 - `Apisix_RouteYaml_IsValid` — CI step running `apisix test` against `apisix.yaml`.
+- `Apisix_Routes_Declare_Explicit_Priority` — route-table lint: every route sets
+  `priority`; a default-`0` route is a latent ordering bug (Rule 2).
+- `Apisix_Public_Routes_Outrank_Authenticated_Catchall` — route-table lint: no route
+  lacking `openid-connect` shares a path prefix with a higher-or-equal-priority route
+  that has it (Rule 2).
+- `Apisix_Uri_Patterns_Are_RadixtreeValid` — route-table lint: at most one `*`, and only
+  as the final path segment (Rule 1).
 - `Apisix_NeverFronts_InternalApi` — integration test asserts requests to
   `app.learnstack.dev/api/internal/*` return 404 from APISIX (route not defined).
 - `Backend_RequiresJwt_OnAllAuthenticatedRoutes` — `WebApplicationFactory` integration
   test: every endpoint outside the public allow-list returns 401 without a bearer token.
+  This is the test that holds the line while the gateway's OIDC block is commented out.
 
 ## 12. Non-goals
 
@@ -367,7 +488,11 @@ Phase 11 deliverables:
 
 ## References
 
-- ADR-0015 — API Gateway with APISIX.
+- ADR-0015 — API Gateway with APISIX (what).
+- [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — Demand-gated
+  infrastructure (when), and what carries the gateway's responsibilities until then.
+- [ADR-0024](../decisions/0024-api-versioning-policy.md) — URL versioning; why the route
+  table enumerates versions instead of wildcarding them.
 - ADR-0004 Amendment 1 — `learnstack-hub` realm.
 - [11-security.md](../standards/11-security.md) — defense-in-depth.
 - [13-identity-and-auth.md](13-identity-and-auth.md) — Keycloak realm

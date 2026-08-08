@@ -91,7 +91,7 @@ Trailers go at the **end** of the body (after a blank line). The supported set:
 Pick the trailer that matches the agent that did material work:
 
 - Claude Code session:
-  `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 - OpenAI Codex session:
   `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>`
 
@@ -110,7 +110,7 @@ access shares the per-learner entitlement read path with free access.
 
 ADR: 0010
 Module: Enrollment, Billing
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```

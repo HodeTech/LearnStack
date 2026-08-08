@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted (Amendment 1: 2026-05-18 — adds Organization scope; see bottom of document)
+Accepted (Amendment 1: 2026-05-18 — adds Organization scope; Amendment 2: 2026-05-19 —
+identity row terminology; **Amendment 3: 2026-08-08 — corrects the RLS policy template
+and adds the database role model**; see bottom of document)
 
 ## Decision
 
@@ -48,16 +50,11 @@ table without altering the tenant-level guarantees.
 | Jobs (Hangfire) | Job payload carries `TenantId` (mandatory) + `OrganizationId?` (when applicable) |
 | Audit | Every audit row carries `tenant_id` (mandatory) + `organization_id?` (when applicable) — ADR-0016 |
 
-**RLS policy template for org-scoped tables:**
-
-```sql
-CREATE POLICY <table>_organization_isolation ON <table>
-    USING (
-        organization_id IS NULL
-        OR organization_id = current_setting('app.organization_id', true)::uuid
-        OR current_setting('app.scope', true) = 'tenant'
-    );
-```
+**RLS policy template for org-scoped tables:** superseded by
+[Amendment 3](#amendment-3--rls-policy-template-correction-and-database-role-model-2026-08-08).
+The template originally published here created a **second permissive policy**, which
+PostgreSQL combines with `OR`. The canonical template now lives in exactly one place:
+[Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
 
 **Org-scope opt-in.** A tenant-owned entity may be **tenant-wide** (no `organization_id`)
 or **org-scoped** (`organization_id` populated). Entities mark themselves via
@@ -86,4 +83,107 @@ architecture guide [09-tenant-isolation.md](../architecture/09-tenant-isolation.
 reflects the corrected wording.
 
 This is a documentation clarification; the Decision is unchanged.
+
+---
+
+## Amendment 3 — RLS policy template correction and database role model (2026-08-08)
+
+Amendment 1 published an RLS template that **does not deliver the isolation this ADR
+decides**. This amendment corrects the mechanism. The Decision — defense in depth with
+PostgreSQL RLS as one of its layers — is unchanged; what changes is the SQL that
+implements it, plus two layers that were never specified at all.
+
+### What was wrong
+
+`CREATE POLICY` produces a **permissive** policy by default, and PostgreSQL combines
+multiple permissive policies for the same command with `OR`. Only `AS RESTRICTIVE`
+policies are combined with `AND`.
+
+Amendment 1's template created a separate `<table>_organization_isolation` policy
+alongside `<table>_tenant_isolation`. The intended predicate was:
+
+```text
+tenant matches AND (organization matches OR row is tenant-wide)
+```
+
+The predicate PostgreSQL actually evaluated was:
+
+```text
+tenant matches OR organization matches OR row is tenant-wide OR scope = 'tenant'
+```
+
+`organization_id IS NULL` satisfies the organization policy on its own — and per
+[ADR-0017](0017-tenant-organization-hierarchy.md), a null `organization_id` is the
+**defined representation of a tenant-wide row**. Every tenant-wide row in an
+org-scoped table was therefore readable by **every tenant**.
+
+Three further gaps compounded it:
+
+- **No `FORCE ROW LEVEL SECURITY`.** A table's owner bypasses that table's policies
+  unless the table forces them. The default Entity Framework Core setup — migrations
+  and the application connecting as the same role — puts the application in exactly
+  that position, so the RLS layer could have shipped inert.
+- **No `WITH CHECK`.** A `USING` clause constrains reads. Without an explicit
+  `WITH CHECK`, writes are unconstrained for the commands where the two differ.
+- **No database role model.** No document named the role the application connects as,
+  so nothing prevented it from being the owner or from holding `BYPASSRLS`.
+
+### The correction
+
+The canonical, corrected template lives in exactly one place —
+[Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
+[Tenant Isolation](../architecture/09-tenant-isolation.md) and
+[ADR-0017](0017-tenant-organization-hierarchy.md) link to it instead of repeating it.
+Its three binding properties:
+
+1. **One policy per table, one `AND`-ed predicate.** Tenant and organization scope are
+   evaluated in a single policy. Splitting them across two permissive policies is what
+   caused the defect; a second policy may only be added `AS RESTRICTIVE`.
+2. **`ENABLE` *and* `FORCE` row level security** on every tenant-owned table.
+3. **An explicit `WITH CHECK`** that constrains writes to the caller's tenant, and to
+   either the caller's organization or a tenant-wide row. The `app.scope = 'tenant'`
+   escape hatch applies to reads only — a tenant-scope reporting query may read across
+   organizations, but no query may write outside its organization.
+
+### Database role model
+
+Four roles, distinct responsibilities:
+
+| Role | Used by | RLS posture |
+|-------|---------|-------------|
+| `learnstack_migration` | EF Core migrations. **Owns** every tenant-owned table. | `NOBYPASSRLS`; `FORCE ROW LEVEL SECURITY` means ownership grants no bypass |
+| `learnstack_app` | The application's runtime connection. Not an owner. | `NOBYPASSRLS`; holds only `SELECT, INSERT, UPDATE, DELETE` |
+| `learnstack_platform` | Cross-tenant platform-admin operations, entered only through the audited `EnterPlatformAdminScope(reason)` path | `BYPASSRLS` |
+| `learnstack_outbox_admin` | The outbox dispatcher, per [Events and Outbox](../architecture/15-event-and-outbox.md) | `BYPASSRLS` |
+
+### Session-variable placement
+
+The RLS predicates read `app.tenant_id` and `app.organization_id`, set with
+`set_config(..., true)` / `SET LOCAL`. Both are **transaction-local**: they are
+discarded when the transaction ends. They must therefore be set **inside the ambient
+transaction**, after it opens — not in a MediatR behavior that runs before the
+transaction begins, and not in a connection interceptor, which fires when the
+connection opens rather than when the transaction starts.
+[Security Standards § Tenant Context](../standards/11-security.md) is the authority
+for this placement.
+
+### Test requirement
+
+Isolation tests connect as **`learnstack_app`**. A test that connects as the owner or
+as a `BYPASSRLS` role passes even when every policy is inert, and therefore proves
+nothing. The suite must include, at minimum:
+
+- a tenant-wide (`organization_id IS NULL`) row of tenant B is invisible to tenant A —
+  the exact case Amendment 1's template leaked;
+- an organization-scoped row of organization Y is invisible inside organization X of
+  the same tenant;
+- clearing the tenant context returns zero rows rather than all rows;
+- a write carrying a foreign `tenant_id` is rejected by `WITH CHECK`.
+
+### Where this lands
+
+The corrected template is applied by the **first migration**, in
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md); the role model, the
+transaction-local session variables and the tests land in **Packet 7**. No migration
+may be written against the superseded template.
 

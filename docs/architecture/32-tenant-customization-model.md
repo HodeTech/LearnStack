@@ -89,20 +89,27 @@ These map 1:1 to JSON Schema `type` + `format` combinations:
 
 ```typescript
 const COMPOSITE_RENDERERS = {
-  'default-card':    DefaultCardRenderer,      // image + title + description
-  'content-list':    ContentListRenderer,      // grid / carousel / list of items
-  'media-gallery':   MediaGalleryRenderer,
-  'rich-page':       RichPageRenderer,
-  'lesson-shell':    LessonShellRenderer,      // standard lesson play UI
-  'quiz-shell':      QuizShellRenderer,
-  'placement-shell': PlacementShellRenderer,
-  'live-shell':      LiveShellRenderer,
+  'default-card':     DefaultCardRenderer,      // image + title + description
+  'content-list':     ContentListRenderer,      // grid / carousel / list of items
+  'media-gallery':    MediaGalleryRenderer,
+  'rich-page':        RichPageRenderer,
+  'lesson-shell':     LessonShellRenderer,      // standard lesson play UI
+  'quiz-shell':       QuizShellRenderer,
+  'placement-shell':  PlacementShellRenderer,
+  'live-shell':       LiveShellRenderer,
+  'submission-shell': SubmissionShellRenderer,  // prompt + authoring surface + submit + result
   // ... small, fixed list
 } as const;
 ```
 
 Adding a new primitive or composite renderer is a LearnStack release (CODEOWNERS rule on
 this folder). Tenants compose existing primitives — they cannot bring custom JSX.
+
+**Every key in both registries is named for a capability, never for a domain.** A
+`cefr-level-badge` or `asana-card` key would fail
+`Core_Modules_HaveNo_DomainSpecific_Names`. When a tenant needs a domain-flavoured
+presentation, it declares a `TenantPageBlock` row pointing at a generic composite — the
+domain lives in the row's display name and its schema, not in the registry.
 
 ## 3. Worked example: three tenants, same modules
 
@@ -253,14 +260,39 @@ Same modules. Different data.
       "difficulty":     { "type": "string", "x-taxonomy": "coding-difficulty" }
     }
   },
-  "renderer_key": "code-challenge-shell"
+  "renderer_key": "submission-shell"
 }
 ```
 
-Note: `code-challenge-shell` is a **composite renderer** that LearnStack ships (since
-running test suites server-side is a paid LearnStack feature, gated by
-`FeatureKeys.CodeChallengeRunner`). The composite is generic — it works for any language
-declared in the schema; the tenant doesn't bring custom JSX.
+**Two naming rules meet in this example, and they point in opposite directions.**
+
+The content type's `key` is `code-challenge`. That is fine: it is a **row in the tenant's
+database**, authored by the tenant, and it may name its domain as specifically as the
+tenant likes. `vocabulary-card`, `asana-pose`, `code-challenge` and `breath-technique`
+are all legitimate tenant data.
+
+The renderer key and the feature key are **code**, and code may not name a domain. Both
+were previously named for the first tenant that asked for them:
+
+| Was | Is | Why |
+|---|---|---|
+| `code-challenge-shell` (composite renderer) | **`submission-shell`** | The capability is "prompt + authoring surface + submit + evaluated result panel". It serves a code exercise, a pronunciation recording, an essay, and a portfolio upload equally |
+| `FeatureKeys.CodeChallengeRunner` | **`FeatureKeys.SandboxedEvaluation`** (`assessment.sandboxed_evaluation`) | The capability is "evaluate a learner's submitted artefact in a sandbox with a resource budget". Nothing about it is specific to code |
+
+The rule is not stylistic. `Core_Modules_HaveNo_DomainSpecific_Names` enforces it
+mechanically from
+[Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) — a module type, namespace
+or registry key matching `Cefr`, `Asana`, `CodeChallenge`, `English*`, `Yoga*` fails the
+build. The old names would have failed it.
+
+`submission-shell` is also where this document meets the **genericity boundary**. The
+renderer is presentation and therefore inside the boundary; the *evaluation* it triggers
+is external capability invocation and therefore outside it. Running a learner's submitted
+program needs a sandbox, a runtime, a resource budget and a security boundary that
+survives hostile input — none of which a JSON Schema or a rule DSL can declare. It is a
+**platform feature gated by plan**, written by LearnStack, not a customization row. See
+[ADR-0018 Amendment (2026-08-08)](../decisions/0018-tenant-driven-customization-model.md)
+and [Platform Vision § Genericity boundary](01-platform-vision.md).
 
 ## 4. Schema versioning
 
@@ -360,7 +392,158 @@ expression: |
 
 Same sandbox engine as scoring rules (decision pending).
 
-## 8. What cannot be customized
+## 8. Runtime cost model
+
+Everything above describes what a tenant *can* declare. This section describes what it
+*costs* to serve, because a customization model without a cost model is an invitation to
+declare something the runtime cannot render inside a request budget. Every limit here is
+enforced at write time, so a tenant learns about it while authoring rather than a learner
+discovering it on a page load.
+
+### 8.1 Validation timing — write time, not read time
+
+| Validation | When | Failure mode |
+|---|---|---|
+| The `json_schema` is itself a valid JSON Schema (draft 2020-12), and every `x-renderer` / `x-taxonomy` / `x-language` extension resolves to a registry entry | **On saving the content type / block / lesson item type** | 400 with Problem Details naming the offending JSON pointer |
+| A content entry conforms to its content type's schema at its pinned `schema_version` | **On saving the entry** | 400; the entry is not persisted |
+| The declared limits in § 8.3 | **On saving the schema** | 400 |
+| Renderer resolution: does `renderer_key` exist in `COMPOSITE_RENDERERS`? | **On saving**, again on **server render** as a cheap dictionary lookup | Save is rejected; a stale reference renders a fallback block plus a logged warning, never an exception |
+
+**Nothing is schema-validated on the read path.** A published content entry has already
+been validated against its pinned schema version, and re-validating it on every page load
+would put a JSON Schema evaluation in the hot path of anonymous traffic for a result that
+cannot have changed. The consequence is stated plainly: **the schema is a write-time
+contract, and the read path trusts the database.** Anything that can write a content-entry
+row without going through the validating command path — a manual `INSERT`, a bad
+migration, a future bulk importer — breaks that trust for every subsequent read. Bulk
+import therefore goes through the same validator, at
+[Phase 04](../roadmap/phase-04-cms-media-pages.md).
+
+The one read-time check is **structural, not semantic**: the renderer walks the entry's
+JSON against the schema's field list and skips unknown fields. That is an O(fields) pass,
+not a validation.
+
+### 8.2 Cache strategy
+
+Customization definitions are read on nearly every request and written a handful of times
+per tenant per month. That ratio is the whole design.
+
+| What | Layer | Key | TTL | Invalidated by |
+|---|---|---|---|---|
+| `TenantContentType` set for a tenant | L1 + L2 | `cust:{tenant_id}:content-types:{generation}` | L1 60s, L2 15 min | Generation bump |
+| `TenantLevelTaxonomy` by key | L1 + L2 | `cust:{tenant_id}:taxonomy:{key}:{generation}` | same | Generation bump |
+| `TenantPageBlock` set | L1 + L2 | `cust:{tenant_id}:blocks:{generation}` | same | Generation bump |
+| Compiled JSON Schema validator | L1 only, per pod | `(tenant_id, content_type_key, schema_version)` | Process lifetime, bounded LRU | Immutable — a schema version never changes |
+
+Two rules make this safe:
+
+- **A generation counter, not prefix eviction.** Each tenant carries a
+  `customization_generation` integer, bumped in the same transaction as any customization
+  write. Cache keys embed it, so a write makes every stale key unreachable at once,
+  across every pod, without enumerating keys. This is deliberate: the published
+  `ICacheService.RemoveByPrefixAsync` contract cannot be honoured across instances by any
+  candidate backend, and it is removed or redesigned to exactly this pattern before
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) ships.
+- **Compiled validators are cached separately from definitions**, keyed by an immutable
+  `(key, schema_version)` tuple. Compiling a JSON Schema is the expensive part; because a
+  published schema version is immutable ([§ 4](#4-schema-versioning)), the compiled form
+  never needs invalidating — it only needs bounding, hence the LRU.
+
+Cache misses cost one indexed query per tenant per definition set. A cold pod serving its
+first request for a tenant performs at most four such queries, not one per entry.
+
+### 8.3 The N+1 problem, and the limits that bound it
+
+The guided-sequence example in [§ 3](#3-worked-example-three-tenants-same-modules) is a
+textbook N+1 and it is worth being explicit about, because it is the shape tenants will
+naturally author:
+
+```json
+"poses": { "type": "array", "items": { "$ref": "#/$defs/pose-ref" } }
+```
+
+Each `pose-ref` carries `{ content_type: "asana-pose", content_id: "<uuid>" }`. A naive
+renderer resolves each reference with its own query, so a 40-pose sequence issues 40
+round trips — and a lesson page containing three such sequences issues 120. At 2 ms per
+round trip that is a quarter-second of pure latency for a page that reads four rows'
+worth of actual information.
+
+**The resolution contract:**
+
+1. The renderer **collects every reference in the whole payload first**, walking the
+   entry's JSON once and gathering `(content_type, content_id)` pairs into a set.
+2. It issues **one batched query per content type** — `WHERE tenant_id = @t AND
+   content_type = @ct AND id = ANY(@ids)` — not one per reference. Duplicated references
+   to the same entry cost nothing extra.
+3. It hydrates the payload from the resulting dictionary.
+4. References that do not resolve render a placeholder and emit a warning. A dangling
+   reference is a data problem, never an exception on a public page.
+
+Total cost for any entry: **one query per distinct referenced content type**, regardless
+of reference count. Reference resolution is capped at **depth 2** — an entry may
+reference entries, and those may not reference further. Deeper composition is a
+[Phase 05](../roadmap/phase-05-education-learning-content.md) decision with its own
+batching design, not something a tenant can reach by nesting `$ref`s.
+
+The `Customization_Reference_Resolution_Is_Batched` integration test asserts the query
+count for a 40-reference entry is a small constant, not 40. Without a test that counts
+queries, this contract silently regresses the first time someone writes a convenient
+`foreach`.
+
+### 8.4 Declared limits
+
+Every limit is checked at write time and returns Problem Details naming the limit that
+was exceeded. They are deliberately generous — they exist to stop pathological documents,
+not to constrain reasonable authoring.
+
+| Limit | Value | Why this one |
+|---|---|---|
+| `$ref` / `$defs` nesting depth inside one schema | 5 | JSON Schema validators are recursive; unbounded depth is a stack-exhaustion vector on a tenant-authored document |
+| Reference resolution depth (entry → entry) | 2 | Bounds the batched-query fan-out at § 8.3 to a fixed small number of round trips |
+| Properties in one content type | 100 | Beyond this the authoring UI is unusable and the row is a schema smell |
+| Array `maxItems` where the schema omits it | 200 (applied as a default, not a rejection) | An unbounded array in a JSONB column is an unbounded render loop |
+| References in one content entry | 500 | Caps the `ANY(@ids)` parameter list and the hydration dictionary |
+| Block instances on one page | 100 | Each instance is a render subtree; the page is a document, not an application |
+| Serialised size of one content entry | 1 MB | PostgreSQL will happily TOAST more; the browser will not happily render it |
+| Content types per tenant | Plan-gated via `FeatureKeys` / `LimitKeys` | Unlimited content types is a Growth+ feature ([ADR-0021](../decisions/0021-feature-based-entitlement.md)) |
+
+A schema that violates a structural limit is rejected on save. An **existing** entry that
+would violate a newly tightened limit still renders — limits are enforced forward, and a
+tightening ships with the migration that reports which existing rows exceed it.
+
+### 8.5 The `embed-html` sanitisation contract
+
+`embed-html` is the one primitive that takes an **HTML sink authored by a lower-trust
+actor** and puts it in the tenant's page. Everything else in the primitive set renders
+structured data through React text nodes and is safe by construction. This one is not
+safe by construction; it is safe by contract, and the contract has to be written down —
+calling the primitive set "closed and safe" without stating it is precisely the gap that
+lets a reviewer approve an unsanitised path.
+
+**The threat model.** A tenant's content editor is not the tenant's security team. In a
+multi-branch business, an organization-level editor at one studio can author an
+`embed-html` block that renders on a page a learner from another organization loads. The
+actor is semi-trusted, the audience is not the actor, and the two may sit in different
+organizations of the same tenant.
+
+**The contract:**
+
+| Rule | Detail |
+|---|---|
+| Sanitise **on write and on render** | Write-time sanitisation gives the author immediate feedback and keeps the stored value clean. Render-time sanitisation is the one that actually protects the learner, because it is the only one that also covers rows written before the current allow-list |
+| Allow-list, never block-list | Elements: structural and text markup plus `iframe` (see below). Attributes: `class`, `id`, `href`, `src`, `alt`, `title`, `width`, `height`, `colspan`, `rowspan`. Everything else is stripped |
+| No script execution surface | `<script>`, `<style>`, `<object>`, `<embed>`, `<form>`, every `on*` handler attribute, and `javascript:` / `data:` / `vbscript:` URL schemes are stripped unconditionally |
+| `iframe` is allow-listed **by host** | An empty allow-list by default. A tenant admin — not a content editor — adds permitted embed hosts in Admin Studio; a frame whose `src` host is not listed is dropped. This is what makes "embed a YouTube video" possible without making "embed anything" possible |
+| Rendered `sandbox` on every surviving frame | `sandbox="allow-scripts allow-same-origin"` is **not** used together; a frame gets `allow-scripts` **or** `allow-same-origin`, never both, because the combination lets the framed document remove its own sandbox |
+| Never `dangerouslySetInnerHTML` on unsanitised input | The primitive is the **only** component in `apps/web` permitted to call it, and it does so exclusively on the sanitiser's output. `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` enforces the rule as a lint |
+| CSP is the backstop, not the mechanism | The page's Content-Security-Policy forbids inline script regardless. A sanitiser bug is then a rendering defect rather than a stored-XSS incident |
+| Plan-gated and audited | Authoring an `embed-html` block is a `MUST`-class audit operation: it is a content-injection surface, and "who added this frame" is the first question in any incident |
+
+The sanitiser's allow-list lives in one module with a CODEOWNERS rule, alongside the
+primitive registry. Widening it is a LearnStack release and a security review, not a
+configuration change.
+
+## 9. What cannot be customized
 
 LearnStack core owns:
 
@@ -376,7 +559,24 @@ LearnStack core owns:
   closed (no `eval`, no HTTP, no file I/O).
 - **Tenant isolation** — RLS / EF filters / architecture tests are not bypassable.
 
-## 9. Admin Studio surface
+Two further categories sit outside the model for a reason worth stating rather than
+discovering, per
+[ADR-0018 Amendment (2026-08-08)](../decisions/0018-tenant-driven-customization-model.md):
+
+- **Stateful entitlement** — a ten-session credit pack, a "three make-up classes per
+  term" allowance, a per-learner session quota. These need a balance that is decremented,
+  refunded, expired and reconstructible in a dispute. A JSON Schema declares a shape; it
+  cannot declare a ledger.
+- **External capability invocation** — running a learner's submitted program, scoring
+  pronunciation from an audio clip, automated proctoring. These need a sandbox, a
+  runtime, a resource budget and a security boundary that survives hostile input. A rule
+  DSL evaluates; it does not execute arbitrary programs.
+
+Both are **platform features written by LearnStack and gated by plan** — generically
+named, offered to every tenant, never per-vertical code. A tenant needing either needs a
+LearnStack release or a provider integration, not a customization row.
+
+## 10. Admin Studio surface
 
 A tenant admin defines customization data via Admin Studio screens:
 
@@ -406,45 +606,76 @@ Admin Studio
     └── Compliance           ← view-only summary of operator-set caps (ADR-0019)
 ```
 
-Phase 06+ ships visual schema editors; Phase 04-05 ships JSON form editors first.
+[Phase 04](../roadmap/phase-04-cms-media-pages.md) and
+[Phase 05](../roadmap/phase-05-education-learning-content.md) ship JSON form editors
+first; [Phase 06](../roadmap/phase-06-renderer-admin-studio.md) replaces them with the
+visual schema editor and preview pane. The screen tree above is the target; each row
+arrives with the aggregate it edits, per [§ 12](#12-phasing).
 
-## 10. Hard architectural invariants
+## 11. Hard architectural invariants
 
 Architecture tests enforce:
 
 1. **No domain-specific names in LearnStack modules.** `Cefr`, `Asana`, `CodeChallenge`,
-   `English*`, `Yoga*`, `Coding*` — none appear in any LearnStack module type / namespace
-   / file. Static analyser fails the build on violation.
-2. **No `LearnStack.Verticals.*` source folder.** Architecture test asserts the folder
-   doesn't exist.
+   `English*`, `Yoga*`, `Coding*` — none appear in any LearnStack module type, namespace,
+   file, renderer key, or feature key. `Core_Modules_HaveNo_DomainSpecific_Names`
+   enforces it from
+   [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md); it is the mechanical
+   guarantee behind the platform's entire premise, and the rename in
+   [§ 3](#3-worked-example-three-tenants-same-modules) exists because the old names would
+   have failed it.
+2. **No `LearnStack.Verticals.*` source folder.** `No_Source_Folder_Named_Verticals`
+   asserts the folder doesn't exist.
 3. **Primitive renderer set is closed.** Adding to `PRIMITIVE_RENDERERS` requires
    CODEOWNERS approval (LearnStack team only).
 4. **Composite renderer set is closed.** Same as primitives.
-5. **`tenant_*` customization tables have RLS.** Migration scan asserts the policy is
-   present on every customization table.
+5. **`tenant_*` customization tables have RLS**, built from the canonical template in
+   [Database Standards](../standards/05-database.md) — one `AND`-ed policy, `ENABLE`
+   **and** `FORCE`, explicit `WITH CHECK`. A migration scan asserts the policy is present
+   on every customization table; the binding proof is the isolation suite running as
+   `learnstack_app`.
 6. **`tenant_*` customization keys are scoped to tenant.** `UNIQUE (tenant_id, key)` on
    every customization table.
 7. **Scoring rule + completion rule expressions evaluate inside the sandbox.** Integration
    test asserts that an expression attempting to call `System.IO.File.ReadAllText` (or
    equivalent) is rejected at evaluation time.
+8. **Reference resolution is batched.** `Customization_Reference_Resolution_Is_Batched`
+   asserts a constant query count for a many-reference entry — see [§ 8.3](#8-runtime-cost-model).
+9. **Only the sanitised-HTML primitive may call `dangerouslySetInnerHTML`.**
+   `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is a frontend lint, and it
+   is the rule that keeps [§ 8.5](#8-runtime-cost-model)'s contract from being bypassed by
+   a convenient one-off.
 
-## 11. Phasing
+## 12. Phasing
+
+The set was reduced in the 2026-08-08 restructure: two aggregates ship in Phase 02a
+because [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) needs them to render two
+tenants; the rest land with their consumers, so no aggregate ships years before anything
+reads it.
 
 | Phase | Deliverable |
 |-------|-------------|
-| 02 | Customization tables created (empty); primitive renderer set scaffolded; `IModule.RegisterCustomizationSurface` interface for default seeds. |
-| 04 | CMS / Page Builder: page blocks as data; first composite renderers; JSON form editor for content types. |
-| 05 | Catalog / Learning Content: lesson item types as data; lesson player composites. |
-| 06 | Admin Studio polish: visual schema editor (drag-and-drop field builder); preview pane. |
-| 08a | Assessment: scoring rule DSL + sandbox; level taxonomies; completion rules. |
-| 12 (opt) | Content template marketplace: pre-built JSON Schema + scoring rule + level taxonomy bundles tenants can install with one click (data sharing only, no code). |
+| [02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md) | `LearnStack.Modules.Customization` with **two** aggregates: `TenantContentType` and `TenantLevelTaxonomy`. Scoring and completion rule bodies stored as **opaque `text` with a `dialect` discriminator** — the engine is chosen in ADR-0025 and the three candidates do not share a column type. Primitive renderer set scaffolded; a small built-in seed (`default-card`, a stock `Plain` taxonomy). |
+| [02d](../roadmap/phase-02d-walking-skeleton.md) | Both seed tenants render their own taxonomy and content shape from these two aggregates. First proof that the model works. |
+| [03](../roadmap/phase-03-identity-admin.md) | `TenantCustomFieldDef`. |
+| [04](../roadmap/phase-04-cms-media-pages.md) | `TenantPageBlock`; CMS / Page Builder; JSON form editor for content types; validating bulk import. |
+| [05](../roadmap/phase-05-education-learning-content.md) | **ADR-0025** picks the rule-evaluation engine; `TenantLessonItemType`; `TenantScoringRule` / `TenantCompletionRule` evaluation; the reference-resolution batching and limits in [§ 8](#8-runtime-cost-model) get their integration tests. |
+| [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio polish: visual schema editor, preview pane. |
+| [08a](../roadmap/phase-08a-assessment-notifications.md) | `TenantTemplateLibrary`; assessment surfaces over the rule engine. |
+| [12 (optional)](../roadmap/phase-12-hub-marketplace.md) | Content template marketplace: pre-built schema + rule + taxonomy bundles installable in one click (data sharing only, no code). |
 
 ## References
 
-- ADR-0018 — Tenant-Driven Customization Model (supersedes ADR-0011).
+- ADR-0018 — Tenant-Driven Customization Model (supersedes ADR-0011). The 2026-08-08
+  **Amendment** draws the genericity boundary and requires the domain-neutral renaming in
+  [§ 3](#3-worked-example-three-tenants-same-modules).
 - ADR-0013 — Page Block Schema Versioning.
 - ADR-0017 — Tenant + Organization Hierarchy (custom fields can be org-scoped or
   tenant-wide).
 - ADR-0021 — Feature-Based Entitlement (some customization surfaces gated by plan tier).
+- [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) — the
+  RLS template every `tenant_*` table is built from.
+- [Platform Vision § Genericity boundary](01-platform-vision.md) — the product-facing
+  statement of what is data and what is a platform feature.
 - [06-extension-model.md](06-extension-model.md) — rewritten to reflect this document.
 - [02-domain-model.md](02-domain-model.md) — customization aggregates added.

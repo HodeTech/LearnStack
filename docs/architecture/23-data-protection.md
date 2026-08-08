@@ -145,9 +145,10 @@ not residency-bound.
 Two flows legitimately cross regions:
 
 - **LearnStack ↔ Hub** internal API. Hub may live in a single region (e.g. eu-west)
-  while serving tenants in multiple regions. The four-endpoint contract is small,
-  audit-friendly, and carries no tenant content — only plan / entitlement / license
-  metadata. Tenants whose plan forbids cross-region operator access are served by a
+  while serving tenants in multiple regions. The contract surface is small,
+  audit-friendly, and — by the first invariant of
+  [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) — carries no tenant
+  content, only plan / entitlement / licence metadata. Tenants whose plan forbids cross-region operator access are served by a
   region-local Hub instance (Hub federation is a Phase-11+ topic, not MVP).
 - **Telemetry → centralised OpenTelemetry collector**. Trace and metric data can be
   shipped cross-region for unified observability; PII redaction in the pipeline keeps

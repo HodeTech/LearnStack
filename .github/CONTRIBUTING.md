@@ -44,7 +44,7 @@ Per CLAUDE.md § Commit conventions:
 - **Conventional Commits**: `type(scope): subject` with subject in
   imperative mood, ≤ 72 chars.
 - AI-assisted commits carry the trailer
-  `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
   (replace the model name when authoring with a different assistant).
 - `docs(scope)` for doc-only commits; scope ∈ `architecture | decisions |
   standards | roadmap` or omitted for cross-cutting changes.
