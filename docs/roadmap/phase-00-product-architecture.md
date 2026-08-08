@@ -8,6 +8,22 @@
 > **tenant customization data**. Read "vertical product" as "tenant" throughout this
 > document. The deliverables list is accurate; the rationale is preserved for
 > historical context.
+>
+> **Two later corrections (2026-08-08).** Neither reopens this phase.
+>
+> - § Key Questions says a second non-English tenant "runs in parallel" with Phase 10.
+>   It does not — it moved forward. The second tenant (a **yoga studio**) is seeded in
+>   [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) and rendered in a browser from
+>   [Phase 02d](phase-02d-walking-skeleton.md), so the substrate-genericity claim is
+>   tested continuously rather than at MVP exit.
+>   [Phase 10](phase-10-english-learning-mvp.md) is now a **depth** showcase: it
+>   exercises every customization aggregate against one real tenant.
+> - § Risks lists "code-challenge" among the domain shapes that must not be hardcoded.
+>   That instinct was right and the boundary is now explicit: per
+>   [ADR-0018's genericity-boundary amendment](../decisions/0018-tenant-driven-customization-model.md),
+>   running a learner's submitted code is **not** expressible as tenant data at all —
+>   external capability invocation is a plan-gated platform feature LearnStack writes.
+>   See [Platform Vision § Genericity boundary](../architecture/01-platform-vision.md).
 
 ## Goal
 

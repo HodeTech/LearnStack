@@ -370,7 +370,31 @@
 >
 > **Restructure (2026-08-08).** Packets 4–10 below were re-scoped after a
 > four-report audit of the corpus. Packets 0–3 are shipped and their records
-> above are unchanged. Three things moved:
+> above are unchanged.
+>
+> **Two things in the Packet 2 and Packet 3 records above are now known to be
+> wrong. Do not act on them; Packet 3b corrects both:**
+>
+> - The Packet 3 `TenantContextBehavior` TODO names a `DbConnectionInterceptor`
+>   as the mechanism for setting the Row Level Security session variables. That
+>   is the wrong option. Interceptors fire when the connection opens, not when
+>   the transaction starts, and `set_config(..., true)` is transaction-local —
+>   so the value would be discarded before the query it protects ever runs. The
+>   GUCs are set with `SET LOCAL` **inside the ambient transaction**, per
+>   [Security Standards § Tenant Context](../standards/11-security.md), and
+>   Packet 7 implements it.
+> - The Packet 2 Shared Kernel shipped three defects that get more expensive
+>   with every consumer: `Results.Unit` collides with `MediatR.Unit`,
+>   `Result<T>` carries no `[MemberNotNullWhen]`, and `Entity<TId>` implements
+>   neither `IEquatable<>` nor `operator ==` so every comparison boxes. All
+>   three are repaired in Packet 3b, before the first handler exists.
+>
+> Separately, [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)'s
+> `IProviderResilience<TPort>` registration **example** does not compile, but
+> the code Packet 3 actually shipped is correct — read the code, not the ADR
+> snippet. ADR-0032 Amendment 2 records this.
+>
+> Three things moved:
 >
 > - **Correctness moved earlier.** The Row Level Security template published in
 >   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) Amendment 1 and

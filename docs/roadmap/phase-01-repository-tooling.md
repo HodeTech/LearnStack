@@ -86,6 +86,65 @@
 > (required-check names, approval count, signed-commits posture) live in
 > `.github/CONTRIBUTING.md` so GitHub Settings matches the corpus.
 
+> ---
+>
+> ## What changed after this phase closed (2026-08-08)
+>
+> **This phase is complete and its record above is unchanged.** The notes below
+> exist because a four-audit review on 2026-08-08 restructured the roadmap, and
+> several statements in this document were true when written but are no longer
+> the plan. Read this block before acting on anything below it.
+>
+> Nothing here reopens Phase 01. Every item names the packet or phase that owns
+> it now.
+>
+> ### Claims in this document that are no longer accurate
+>
+> | Where | What it says | What is true now |
+> |---|---|---|
+> | § Frontend Scaffold | The operator portal is `learnstack-hub-web` | The app is **`operator-portal`** (`frontend/apps/operator-portal` in the Hub repository, asserted by its `Frontend_Has_Only_The_OperatorPortal_App` test). The name was renamed corpus-wide; this line is left as the historical record |
+> | § Deliverables | "`make seed` populating two demo tenants + one platform admin user" | `scripts/seed.sh` seeds **Keycloak identity only**. Application-level tenant seeding was always a documented drop-in for Phase 02a, and now lands in [Packet 7](phase-02a-kernel-tenancy.md) with two tenants — an English school and a **yoga studio** |
+> | § Completion Criteria | "CI passes on `main`" | True, but the frontend job passes with **zero tests** (`vitest run --passWithNoTests` against no test files). [Packet 3b](phase-02a-kernel-tenancy.md) makes a zero test count a failure; the first real tests arrive with [Phase 02d](phase-02d-walking-skeleton.md) |
+> | § Local Infrastructure | The 14-service compose stack is the development environment | Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), **Dapr, Kafka, APISIX and Vault move behind a non-default compose profile** in [Packet 5](phase-02a-kernel-tenancy.md). Their ports ship with in-process defaults; the adapters land in [Phase 11](phase-11-production-hardening.md) against written triggers. The daily loop runs roughly seven services |
+> | § CI Baseline | OpenAPI diff activates in Phase 03; Lighthouse in Phase 04 | Both move earlier: [Phase 02d](phase-02d-walking-skeleton.md) ships the first real `/v1/*` endpoints **and** the first content-bearing public pages |
+> | § CI Baseline | Integration tests activate "in Phase 02a" | More precisely: [Packet 7](phase-02a-kernel-tenancy.md), when the first cross-tenant isolation test lands. The `if: false` placeholder is removed there |
+>
+> ### Known defects this phase shipped with, and where they are fixed
+>
+> All of these are remediated in **[Phase 02a Packet 3b](phase-02a-kernel-tenancy.md)**,
+> which exists precisely so that Phase 01's record does not have to be rewritten:
+>
+> - `make seed`'s health gate requires every compose service to report healthy, but
+>   `coturn`, `dapr-placement` and `dapr-sidecar-api` declare no healthcheck — so the
+>   gate times out and the script exits non-zero on **every** run. This is step three of
+>   the quickstart.
+> - `infra/compose/e2e.yml` leaves Valkey on its named volume, so cache and rate-limit
+>   state leaks between runs; and its `volumes: !reset []` discards the PostgreSQL init
+>   script and the SeaweedFS S3 identity file.
+> - `infra/dapr/components/secretstore-vault.yaml` sets `vaultKVPrefix: secret`, which
+>   resolves reads to `secret/data/secret/<key>` rather than the documented
+>   `secret/learnstack/<area>` layout.
+> - Every published port in `infra/compose/dev.yml` binds `0.0.0.0` with committed
+>   development credentials, and `MEILI_MASTER_KEY` is hardcoded rather than read from
+>   the environment.
+> - Branch protection requires four checks but **zero approvals** and does not enforce
+>   for administrators, which does not match
+>   [Git Workflow Standards](../standards/14-git-workflow.md). The setting and the
+>   standard must agree; a security rule that differs from the live platform setting
+>   makes a green build look stronger than it is.
+>
+> ### Conventions introduced after this phase
+>
+> - Every phase document now carries a **`## Phase Exit Decision`** section. This
+>   document predates that convention and does not have one; its exit was the Status
+>   block above. Do not treat its absence as an omission to fix here.
+> - The phase order changed. [Phase 02d](phase-02d-walking-skeleton.md) — a two-tenant
+>   walking skeleton — now follows Phase 02a and precedes Phase 02b. The
+>   [roadmap README](README.md) dependency map is authoritative for order; filename
+>   order is not.
+>
+> ---
+
 ## Goal
 
 Create a development environment that is repeatable, maintainable, and ready to grow. This phase establishes the project structure, local infrastructure, CI, and engineering workflow. It does not focus on product features.
