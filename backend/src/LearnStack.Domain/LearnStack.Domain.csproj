@@ -6,6 +6,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+
+    <!-- ADR-0032 § Sub-decision 4: LearnStackException-DomainExceptionThrow
+         analyzer flags `throw new DomainException(...)` outside aggregate
+         invariant guards. Warning in Phase 02a; flips to Error after
+         Phase 03 exit. OutputItemType="Analyzer" +
+         ReferenceOutputAssembly="false" wires the analyzer DLL into the
+         compiler pipeline without dragging the analyzer's assembly into
+         the runtime closure. -->
+    <ProjectReference Include="..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

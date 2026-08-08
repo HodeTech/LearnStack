@@ -8,11 +8,22 @@
     <ProjectReference Include="..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
     <ProjectReference Include="..\LearnStack.Domain\LearnStack.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Application.Contracts\LearnStack.Application.Contracts.csproj" />
+
+    <!-- ADR-0032 § Sub-decision 4: LearnStackException-DomainExceptionThrow
+         analyzer flags `throw new DomainException(...)` in Application code
+         too (handlers should return Result.Fail, not throw). -->
+    <ProjectReference Include="..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MediatR" />
     <PackageReference Include="FluentValidation" />
+    <!-- Pipeline behaviors require logging + DI abstractions; the concrete
+         implementations are wired by the composition root in LearnStack.Api. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 
 </Project>

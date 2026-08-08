@@ -8,6 +8,9 @@
     <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Identity.Domain\LearnStack.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Identity.Application.Contracts\LearnStack.Modules.Identity.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

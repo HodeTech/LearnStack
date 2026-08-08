@@ -1,19 +1,24 @@
-// TODO(2026-05-19, @platform, phase-02a): wire OpenTelemetry — traces +
-// metrics + logs via AddOpenTelemetry(); the OpenTelemetry.* packages are
-// already reserved in Directory.Packages.props. LearnStack.Tests.Contract
-// should then assert /openapi/v1.json advertises the correlation-id header.
-//
-// TODO(2026-05-19, @platform, phase-02a): revisit appsettings.Development.json
-// EF Core logging level — currently `Information` logs every SQL statement
-// including parameter values. Once handlers land and parameters may carry PII,
-// drop to `Warning` and route SQL traces through OpenTelemetry instead
-// (Standards 11 § Logging Hygiene).
+using LearnStack.Api.Composition;
+using LearnStack.SharedKernel.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Resolve the deployment mode once at the composition root. Modules never
+// read DeploymentMode (architecture test
+// Modules_Do_Not_Reference_DeploymentMode enforces it); the value selects
+// the right error tracker, OTLP exporter target, and (later packets) the
+// right Dapr / entitlement / host-resolver implementations per
+// docs/standards/20-infrastructure-stack.md § Composition Root.
+var deploymentMode = builder.Configuration.GetValue("Deployment:Mode", DeploymentMode.Development);
+
+builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
+
 builder.Services.AddOpenApi();
+builder.Services.AddControllers();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
@@ -22,6 +27,8 @@ if (app.Environment.IsDevelopment())
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
     .WithName("HealthCheck");
+
+app.MapControllers();
 
 app.Run();
 

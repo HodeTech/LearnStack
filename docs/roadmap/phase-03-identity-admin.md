@@ -61,6 +61,23 @@ LearnStack does **not** implement password hashing, password reset email renderi
 - Resource-scoped policies (e.g., "instructor edits only own courses").
 - Admin and Studio route guards.
 - API authorization policies.
+- **Lights up the Phase 02a Packet 3 `AuthorizationBehavior` shell** —
+  resolves each command's `[Authorize(Policy)]`, calls
+  `IAuthorizationService.AuthorizeAsync` against the tenant +
+  organization-scoped resource, and returns
+  `Result.FailFor<TResponse>(forbidden)` on deny (per
+  [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)).
+
+### Cross-cutting follow-up at phase exit
+
+- **Escalate the `LS0001`
+  ("LearnStackException-DomainExceptionThrow") analyzer from Warning to
+  Error** and remove `LS0001` from `WarningsNotAsErrors`
+  (`backend/Directory.Build.props`) once the codebase reaches the green-bar
+  threshold — the documented escalation point per
+  [ADR-0032 § Sub-decision 4 + Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md).
+  Until this exit gate the analyzer fires as a Warning so legitimate
+  aggregate-invariant throws do not break CI.
 
 ### Invitation Flow
 

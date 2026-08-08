@@ -10,6 +10,14 @@
     <ProjectReference Include="..\..\src\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Domain\LearnStack.Domain.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Application\LearnStack.Application.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Observability\LearnStack.Infrastructure.Observability.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.ErrorTracking\LearnStack.Infrastructure.ErrorTracking.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Resilience\LearnStack.Infrastructure.Resilience.csproj" />
+    <!-- Plain reference (NOT OutputItemType=Analyzer) so the test can
+         instantiate DomainExceptionThrowAnalyzer and run it over a sample
+         compilation — locks the LS0001 regression (review-4 H1). -->
+    <ProjectReference Include="..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +27,9 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="coverlet.collector" />
+    <!-- Drives the DomainExceptionThrow analyzer over a synthetic compilation
+         in DomainExceptionThrowAnalyzerTests (review-4 H1). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!-- Vogen reference so the test project can declare a synthetic
          [ValueObject<Guid>] ID and assert the emitter pipeline end-to-end
          (per ADR-0023 the generator only runs in projects that reference it).

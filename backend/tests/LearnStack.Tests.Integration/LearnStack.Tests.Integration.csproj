@@ -28,6 +28,12 @@
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Respawn" />
     <PackageReference Include="coverlet.collector" />
+    <!-- HTTP-level integration tests (CrossCuttingFoundationHttpTests)
+         declare a synthetic test controller + MediatR command + FluentValidation
+         validator that exercise the L1 handler and ValidationBehavior
+         against the real LearnStack.Api host. -->
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
 </Project>

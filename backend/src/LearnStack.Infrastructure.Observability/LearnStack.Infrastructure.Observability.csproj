@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LearnStack.Infrastructure.Observability</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TenantContextSpanProcessor is a BaseProcessor<Activity>; the OTel
+         tracing pipeline wires it once via AddProcessor<T>(). The composition
+         root in LearnStack.Api owns Serilog + OTel SDK registration; this
+         project ships the processor type + the singleton ITenantContextAccessor
+         implementation only. -->
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+
+    <!-- Serilog enrichers ship here because they consume
+         ITenantContextAccessor; the composition root wires them through the
+         Serilog configuration in LearnStack.Api. Per ADR-0032 § Sub-decision 8. -->
+    <PackageReference Include="Serilog" />
+  </ItemGroup>
+
+</Project>

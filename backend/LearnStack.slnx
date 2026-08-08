@@ -6,7 +6,13 @@
     <Project Path="src/LearnStack.Application/LearnStack.Application.csproj" />
     <Project Path="src/LearnStack.Infrastructure/LearnStack.Infrastructure.csproj" />
     <Project Path="src/LearnStack.Infrastructure.Audit/LearnStack.Infrastructure.Audit.csproj" />
+    <Project Path="src/LearnStack.Infrastructure.Observability/LearnStack.Infrastructure.Observability.csproj" />
+    <Project Path="src/LearnStack.Infrastructure.ErrorTracking/LearnStack.Infrastructure.ErrorTracking.csproj" />
+    <Project Path="src/LearnStack.Infrastructure.Resilience/LearnStack.Infrastructure.Resilience.csproj" />
     <Project Path="src/LearnStack.Api/LearnStack.Api.csproj" />
+  </Folder>
+  <Folder Name="/analyzers/">
+    <Project Path="analyzers/LearnStack.Analyzers/LearnStack.Analyzers.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Tenancy/">
     <Project Path="src/Modules/Tenancy/LearnStack.Modules.Tenancy.Domain/LearnStack.Modules.Tenancy.Domain.csproj" />

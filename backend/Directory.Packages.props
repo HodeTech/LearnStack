@@ -54,22 +54,66 @@
   </ItemGroup>
 
   <!--
-    Reserved for Phase 02a wiring (Dapr building blocks, audit pipeline,
-    observability, EF Core migrations + design-time). Declared centrally now
-    so the version matrix is consistent the moment they are pulled in;
-    pruning happens if a package is dropped from the Phase 02a plan entirely.
+    Phase 02a Packet 3 — Cross-cutting foundation (ADR-0032).
+    Serilog primary logger + OTLP sink, OpenTelemetry SDK with the canonical
+    instrumentations + TenantContextSpanProcessor + OTLP exporter, Polly v8
+    Resilience for IProviderResilience<TPort>, and the Sentry SDK referenced
+    only by LearnStack.Infrastructure.ErrorTracking (enforced by the
+    Modules_Do_Not_Reference_Sentry_SDK_Directly architecture test).
   -->
-  <ItemGroup Label="Reserved for Phase 02a">
+  <ItemGroup Label="Phase 02a (in use)">
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
+
+    <!-- Serilog (primary logger; OTel via OTLP sink, no AddOpenTelemetry().WithLogging()). -->
+    <PackageVersion Include="Serilog" Version="4.1.0" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.1.1" />
+    <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
+
+    <!-- OpenTelemetry SDK + canonical instrumentations + OTLP exporter. -->
+    <PackageVersion Include="OpenTelemetry" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.15.1-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+
+    <!-- Polly v8 + the Microsoft.Extensions.Resilience surface used by
+         IProviderResilience<TPort>. -->
+    <PackageVersion Include="Polly" Version="8.5.0" />
+    <PackageVersion Include="Polly.Extensions" Version="8.5.0" />
+    <PackageVersion Include="Polly.RateLimiting" Version="8.5.0" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="9.0.0" />
+
+    <!-- Sentry SDK — referenced ONLY by LearnStack.Infrastructure.ErrorTracking
+         per ADR-0032 § Sub-decision 9. The architecture test
+         Modules_Do_Not_Reference_Sentry_SDK_Directly enforces the scope. -->
+    <PackageVersion Include="Sentry" Version="5.0.0" />
+  </ItemGroup>
+
+  <!--
+    Reserved for later Phase 02a packets (EF migrations + design-time).
+  -->
+  <ItemGroup Label="Reserved for later Phase 02a packets">
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
-    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
+  </ItemGroup>
+
+  <!--
+    Roslyn analyzer host packages — referenced by backend/analyzers/.
+    Pin to the Microsoft.CodeAnalysis.CSharp version that ships with the .NET 10 SDK.
+  -->
+  <ItemGroup Label="Analyzers">
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
   </ItemGroup>
 
 </Project>

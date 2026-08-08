@@ -11,6 +11,9 @@
     <ProjectReference Include="..\LearnStack.Application.Contracts\LearnStack.Application.Contracts.csproj" />
     <ProjectReference Include="..\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
     <ProjectReference Include="..\LearnStack.Infrastructure.Audit\LearnStack.Infrastructure.Audit.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure.Observability\LearnStack.Infrastructure.Observability.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure.ErrorTracking\LearnStack.Infrastructure.ErrorTracking.csproj" />
+    <ProjectReference Include="..\LearnStack.Infrastructure.Resilience\LearnStack.Infrastructure.Resilience.csproj" />
 
     <ProjectReference Include="..\Modules\Tenancy\LearnStack.Modules.Tenancy.Application\LearnStack.Modules.Tenancy.Application.csproj" />
     <ProjectReference Include="..\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
@@ -31,6 +34,20 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="MediatR" />
+
+    <!-- Cross-cutting foundation (ADR-0032). Serilog wires through the
+         OpenTelemetry OTLP sink; the OTel SDK runs traces + metrics.
+         FluentValidation.DependencyInjectionExtensions lets the composition
+         root scan validator types from module assemblies. -->
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
 
 </Project>

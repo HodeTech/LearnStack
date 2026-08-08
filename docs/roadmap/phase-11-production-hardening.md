@@ -73,6 +73,22 @@ This phase is not only about performance. It covers security, observability, bac
   rate, custom-domain pipeline state).
 - **Outbox lag** (`learnstack_outbox_pending_count`) alerts above threshold per
   module.
+- **Air-gapped OTLP file target** — wire the `SelfHostedAirGapped` telemetry
+  path (Phase 02a Packet 3 left it as a documented seam) to a local file
+  exporter under `/var/learnstack/otel/`, the contract target in
+  [20-infrastructure-stack.md § Composition Root and Deployment Mode](../standards/20-infrastructure-stack.md).
+  Packet 3 already guarantees no network egress in air-gapped mode (the OTLP
+  network exporter is not wired there); this packet picks the concrete
+  file-exporter package and points Serilog + the OTel SDK at the directory so
+  air-gapped traces / metrics / logs land on disk for off-network shipping.
+  This packet also defines the operational controls around that directory —
+  rotation cadence and size/age retention limits, owning user/group and a
+  restrictive permission mode, and the write-failure behavior when the
+  volume fills (best-effort, logged, never blocking the request path, per
+  the pattern `LocalFileErrorTracker` already follows for
+  `/var/learnstack/errors/`) — and adds a test asserting no network
+  telemetry exporter is ever wired when `DeploymentMode` is
+  `SelfHostedAirGapped`.
 
 ### Performance
 
