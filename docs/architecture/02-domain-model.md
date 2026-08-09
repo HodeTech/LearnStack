@@ -130,7 +130,7 @@ flowchart LR
 
   subgraph enrollment["Enrollment"]
     Enrollment
-    Entitlement
+    CourseAccess
     Cohort
     Progress
   end
@@ -298,7 +298,7 @@ per ADR-0018, not on `Membership` extension tables.
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
 | `Enrollment` | Yes | Grant of access to a `CourseVersion` (optionally bound to a `Cohort`). Has status (active, suspended, completed, cancelled) and source (manual, billing, invitation, integration). |
-| `Entitlement` | Yes | Right to access a paid or assigned capability. Enrollment is one source. |
+| `CourseAccess` | Yes | A learner's right to open a specific course. Sources: manual grant, invitation, cohort membership, billing. Not an `Entitlement` — that term is reserved for the Hub-owned, tenant-subject projection (see [glossary](../glossary.md)). |
 | `Cohort` | Yes | Group of learners progressing on a shared timeline through a `CourseVersion`. Has its own lifecycle (open → in-progress → completed → archived). |
 | `Progress` | Inside Enrollment | Learner advancement record. |
 
@@ -365,7 +365,7 @@ See [In-App Live Classroom](07-in-app-live-classroom.md) for the provider abstra
 | `InvoiceReference` | Inside Order | Pointer to external invoice/payment record. |
 | `PaymentProviderAccount` | Yes | Per-tenant provider configuration. |
 
-Billing produces `Entitlement`s; the Enrollment module consumes them through an integration event.
+Billing produces `CourseAccess` grants; the Enrollment module creates them on consuming `OrderPaidV1`.
 
 ## Analytics
 

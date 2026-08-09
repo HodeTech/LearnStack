@@ -25,13 +25,13 @@ for it.
 - Subscription.
 - Invoice reference.
 - Payment provider account.
-- **Billing-source entitlement bridge.** Phase 09 does not own the `Entitlement`
+- **Billing-source entitlement bridge.** Phase 09 does not own the `CourseAccess`
   aggregate ([Phase 07](phase-07-enrollment-learner-portal.md) does). It owns the
   producer side: a paid `Order` emits an `OrderPaidV1` integration event through the
   outbox, carrying the buyer's user id, the granted product (course / program /
   package), and the tenant context. The Enrollment module consumes it and creates an
-  `Entitlement` with `source = billing`. See
-  [Phase 07 § Entitlements](phase-07-enrollment-learner-portal.md) for the consumer
+  `CourseAccess` with `source = billing`. See
+  [Phase 07 § Course access](phase-07-enrollment-learner-portal.md) for the consumer
   contract, and [ADR-0010](../decisions/0010-cross-module-communication.md) for why this
   crossing is an integration event rather than a direct call.
 
@@ -43,23 +43,23 @@ draws the genericity boundary here explicitly: a ten-session credit pack or a
 customization data. A `TenantContentType` JSON Schema can declare a shape; it cannot
 declare a ledger that is decremented, refunded, expired and audited.
 
-So the capability is built in code, once, generically, and gated by plan:
+So the capability is built in code, once, generically — but **no phase in this roadmap
+builds it**. [Phase 07 § What `CourseAccess` is not](phase-07-enrollment-learner-portal.md)
+and [Phase 10](phase-10-english-learning-mvp.md) both say so, and this phase agrees: a
+ledger that is decremented, refunded, expired and audited is a platform feature needing
+its own ADR and its own release, not a field bolted onto an access grant.
 
-- Phase 09 owns the **purchase**: a credit-pack `Product` with a quantity, sold through
-  the same `Order` path as anything else, producing the same `OrderPaidV1`.
-- [Phase 07](phase-07-enrollment-learner-portal.md) owns the **balance**: the pack lands
-  as an `Entitlement` carrying a remaining count and an expiry, and every movement is
-  audited.
-- [Phase 08b](phase-08b-scheduling.md) owns the **decrement point**: confirming a
-  `LiveBooking` consumes a credit; cancelling inside the tenant's window refunds it.
+What Phase 09 does own is the **purchase**: a credit-pack `Product` carries a quantity
+and sells through the same `Order` path as anything else, producing the same
+`OrderPaidV1`. The pack's size, price, expiry window and refund rule are tenant
+configuration.
 
-Naming these three in one place matters because the failure mode is a balance that two
-modules both believe they own. If Phase 07's `Entitlement` has no room for a countable
-balance, this phase is where that is discovered, and the fix belongs in Phase 07's
-aggregate rather than in a second ledger here.
-
-The pack's **size, price, expiry window and refund rule** are tenant configuration. The
-ledger is not.
+When the ledger is built, three things move together and none of them belongs here: the
+balance aggregate, its decrement point at `LiveBooking` confirmation
+([Phase 08b](phase-08b-scheduling.md)), and its refund rule. Naming them together is the
+point — the failure mode is a balance that two modules both believe they own. Until that
+ADR exists, a tenant that needs prepaid sessions sells them as a `Product` and tracks
+consumption outside the platform.
 
 ### Payment provider adapter
 
@@ -286,7 +286,7 @@ schema that can never change.
 
 - Product, plan, and price can be created for a tenant.
 - The manual payment provider drives an order to paid through the adapter, and a paid
-  order produces an `Entitlement` in the Enrollment module via `OrderPaidV1`.
+  order produces a `CourseAccess` in the Enrollment module via `OrderPaidV1`.
 - A credit pack can be bought, its balance decremented by a confirmed booking, and
   refunded by a cancellation inside the tenant's window.
 - Webhook idempotency is tested: the same provider event delivered twice produces one
@@ -312,7 +312,7 @@ schema that can never change.
   manual provider shipping first is the mitigation: a domain that models manual payment
   cleanly is a domain nobody shaped around Stripe.
 - **Merging billing and enrollment into the same model.** The bridge is one integration
-  event in one direction. If Phase 09 code reads `Entitlement` or Phase 07 code reads
+  event in one direction. If Phase 09 code reads `CourseAccess` or Phase 07 code reads
   `Order`, the boundary is gone.
 - **A second credit ledger.** The most likely place is a "remaining sessions" counter
   added here for convenience while Phase 07 holds the authoritative one. Two counters
@@ -340,8 +340,8 @@ schema that can never change.
 find something.
 
 Concretely: an order goes from created to paid through the payment adapter and grants an
-`Entitlement` the learner can act on; a credit pack's balance survives a purchase, a
-booking and a cancellation without disagreeing with itself; search runs on Meilisearch
+`CourseAccess` the learner can act on; a credit-pack `Product` sells and produces its
+order without the platform pretending to track a balance; search runs on Meilisearch
 with cross-tenant leakage blocked by the engine and demonstrated under a test that
 removes the application-layer filter on purpose; the index count is independent of
 tenant count; and the analytics read models — including the classroom cost report —

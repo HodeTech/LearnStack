@@ -104,7 +104,7 @@ pinned by `entitlement-v1.schema.json` (see [§ 5](#5-entitlement-read-path-and-
     "expires_at": "2028-05-18T00:00:00Z",
     "grace_until": "2028-06-17T00:00:00Z",
     "phone_home_url": "https://hub.learnstack.dev/api/v1/internal/license/refresh",
-    "revocation_list_url": "https://hub.learnstack.dev/api/v1/internal/license/revocations"
+    "revocation_list_url": "https://hub.learnstack.dev/.well-known/learnstack/revocation-list.signed.json"
   },
   "signature": "base64url-encoded-RS256-signature-over-base64url(header).base64url(payload)"
 }
@@ -362,11 +362,23 @@ Same pattern as Nexora's license hot-reload
 
 ## 7. Revocation
 
+The revocation list is a **signed static artefact at a fixed URL**, not an internal-API
+endpoint:
+
 ```
-GET https://hub.learnstack.dev/api/v1/internal/license/revocations
+https://hub.learnstack.dev/.well-known/learnstack/revocation-list.signed.json
 ```
 
-Returns a signed bundle:
+It is deliberately **not** part of the Hub contract surface
+([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)), and it is
+unauthenticated: the RS256 signature is its authentication, and its contents are opaque
+licence ids — no tenant name, no slug, no plan. An unauthenticated reader learns how many
+licences were revoked, not whose. This is also the only form an air-gapped customer can
+consume: a file they can carry in on media, verify offline, and place next to their
+licence. [ADR-0020 § Revocation](../decisions/0020-triple-deployment-hybrid-license.md)
+names the same artefact. Moving it onto an endpoint would require an ADR.
+
+The bundle:
 
 ```json
 {
@@ -382,8 +394,12 @@ Returns a signed bundle:
 }
 ```
 
-LearnStack runtime (any deployment mode) fetches this bundle daily via a Hangfire job.
-The signed bundle is cached locally; signature verified against the same key set.
+The fetch is performed by `SignedLicenseKeyEntitlementProvider` on a daily Hangfire job
+— the same named adapter that reads the `.lic` file, so no unnamed type holds a Hub
+reference and [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)'s second
+invariant holds. Because the artefact is static, signed and unauthenticated, the fetch is
+not a contract-surface crossing. The bundle is cached locally; the signature is verified
+against the same key set.
 
 License verification:
 

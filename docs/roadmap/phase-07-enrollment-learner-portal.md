@@ -21,7 +21,7 @@ Worth stating plainly, because a walking skeleton is easy to over-read:
 
 [Phase 02d](phase-02d-walking-skeleton.md) is **anonymous and read-only**. It renders a
 catalog page and a lesson page for two tenants through two anonymous `GET` endpoints.
-There is no user, no enrollment, no entitlement, no progress row, and no learner-side
+There is no user, no enrollment, no course access, no progress row, and no learner-side
 write path anywhere behind it. The lesson page it produced has no "mark complete"
 control and nothing to store if it had one.
 
@@ -52,7 +52,7 @@ path exists to contrast the entitled one against.
   - `manual` — admin grants directly (here).
   - `invitation` — tenant invitation accepted with a course attached (here).
   - `billing` — a paid order emits an integration event that Enrollment consumes
-    ([Phase 09](phase-09-billing-integrations-analytics.md); see § Entitlements).
+    ([Phase 09](phase-09-billing-integrations-analytics.md); see § Course access).
   - `integration` — external LMS / SSO push. Lands with the integration registry and
     LTI / xAPI readiness in [Phase 09](phase-09-billing-integrations-analytics.md).
   - `bulk_import` — **no phase in this roadmap builds it.** The enum value is reserved
@@ -96,33 +96,37 @@ Named out of scope here, with owners, so nothing about cohorts is homeless eithe
 | Cohort classroom rooms and attendance | [Phase 08c](phase-08c-classroom.md) |
 | Cohort-level reporting and analytics | [Phase 09](phase-09-billing-integrations-analytics.md) |
 
-### Entitlements
+### Course access
 
-Phase 07 owns the **`Entitlement` aggregate** and the **enrollment-source entitlement**
+Phase 07 owns the **`CourseAccess` aggregate** and the **enrollment-source grant**
 path:
 
-- The `Entitlement` aggregate (id, tenant, user, scope, source, granted-at, revoked-at).
+- The `CourseAccess` aggregate (id, tenant, user, scope, source, granted-at, revoked-at).
+  Named per [the glossary's *Course Access* entry](../glossary.md) — it is **not** an
+  `Entitlement`, whose subject is always a tenant and whose only author is the Hub.
 - Source `manual` and `invitation` populated directly by this phase.
-- Permissions `enrollment.entitlement.read` / `enrollment.entitlement.write`
+- Permissions `enrollment.course_access.read` / `enrollment.course_access.write`
   ([19-permissions.md](../standards/19-permissions.md)).
-- Access checks at the lesson-content boundary use `Entitlement`, not raw enrollment
+- Access checks at the lesson-content boundary use `CourseAccess`, not raw enrollment
   state — so paid access (Phase 09) and free access (Phase 07) share one read path.
 
-**Billing-source entitlements** are produced in
+**Billing-source course access** is produced in
 [Phase 09](phase-09-billing-integrations-analytics.md): a paid `Order` emits `OrderPaidV1`
-which the Enrollment module consumes and converts into an `Entitlement` with
+which the Enrollment module consumes and converts into a `CourseAccess` with
 `source = billing`. Phase 07 ships the consumer contract; Phase 09 ships the producer.
 The hand-off seam is the integration event, not a shared table.
 
-**What `Entitlement` is not.** It is a boolean grant, not a balance. A consumable
+**What `CourseAccess` is not.** It is a boolean grant, not a balance. A consumable
 allowance — a ten-session credit pack, "three make-up classes per term" — is *stateful
-entitlement*, and the genericity boundary in
+course access*, and the genericity boundary in
 [ADR-0018 Amendment (2026-08-08)](../decisions/0018-tenant-driven-customization-model.md)
 places it outside tenant customization data: a ledger that is decremented, refunded,
 expired and audited cannot be declared by a JSON Schema. No phase in this roadmap builds
-one. When a paying tenant needs it, it extends
-[Phase 09](phase-09-billing-integrations-analytics.md)'s billing primitives as a platform
-feature and arrives in a LearnStack release, not in a customization row.
+one. When a paying tenant needs it, it arrives as a platform feature in a LearnStack
+release — its own ADR, built on
+[Phase 09](phase-09-billing-integrations-analytics.md)'s billing primitives and
+[Phase 08b](phase-08b-scheduling.md)'s booking lifecycle — never as a customization
+row.
 
 ### Learner Portal
 
@@ -189,7 +193,7 @@ consumes the stream for reporting.
 
 ### Isolation and Audit
 
-- `Enrollment`, `Entitlement`, `Cohort`, and `Progress` are `[TenantOwned]`; `Enrollment`
+- `Enrollment`, `CourseAccess`, `Cohort`, and `Progress` are `[TenantOwned]`; `Enrollment`
   and `Cohort` are additionally `[OrganizationScoped]`. Each carries an EF global query
   filter and an RLS policy from the canonical template in
   [Database Standards](../standards/05-database.md).
@@ -197,17 +201,17 @@ consumes the stream for reporting.
   `learnstack_app`, the non-owning application role — a test that runs as the table owner
   passes even when every policy is inert.
 - Baseline MUST-audit coverage applies: enrollment created / suspended / cancelled /
-  completed, and entitlement granted / revoked
+  completed, and course access granted / revoked
   ([18-audit-coverage.md](../standards/18-audit-coverage.md)). Per
   [ADR-0033](../decisions/0033-audit-durability-model.md) those rows are durable intent
-  written inside the same transaction as the business change. A granted entitlement whose
+  written inside the same transaction as the business change. A granted course access whose
   audit row was silently dropped is precisely the failure ADR-0033 exists to prevent.
 
 ## Deliverables
 
 - Enrollment API with manual and invitation sources, bound to `CourseVersion`.
 - `Cohort` aggregate, roster, lifecycle, and derived cohort progress projection.
-- `Entitlement` aggregate with the `OrderPaidV1` consumer contract in place for
+- `CourseAccess` aggregate with the `OrderPaidV1` consumer contract in place for
   [Phase 09](phase-09-billing-integrations-analytics.md).
 - Learner portal MVP under the `(portal)` route group.
 - Lesson player MVP dispatching built-in and tenant-defined item types.
@@ -231,8 +235,8 @@ consumes the stream for reporting.
   `LiveBooking` has a real type to reference.
 - An unentitled user requesting private lesson content receives 404.
 - Cross-tenant and cross-organization isolation tests covering `Enrollment`,
-  `Entitlement`, `Cohort`, and `Progress` are green under `learnstack_app`.
-- MUST-class audit entries for enrollment and entitlement operations are present and
+  `CourseAccess`, `Cohort`, and `Progress` are green under `learnstack_app`.
+- MUST-class audit entries for enrollment and course-access operations are present and
   committed with their business transaction.
 - Learning events reach a consumer through the outbox at least once, idempotently.
 
@@ -262,7 +266,7 @@ tenant can be enrolled — manually and by invitation — open the portal, compl
 and see progress computed by that tenant's own `TenantCompletionRule` through the
 Phase 05 evaluator; when an unentitled request for private lesson content returns 404;
 when a cohort with real members exposes a correct derived progress read; and when the
-isolation suite covering `Enrollment`, `Entitlement`, `Cohort`, and `Progress` is green
+isolation suite covering `Enrollment`, `CourseAccess`, `Cohort`, and `Progress` is green
 under `learnstack_app` with MUST-class audit rows committed alongside their business
 transactions.
 

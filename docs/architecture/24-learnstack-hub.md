@@ -563,7 +563,7 @@ In Self-Hosted (especially air-gapped) deployments, Hub may not exist at all; th
 
 Hub's `LearnStack.Hub.Architecture.Tests` runs:
 
-1. `Hub_NeverStores_TenantContent` — Hub DbContext does not contain `Course`, `Lesson`,
+1. `Hub_NeverStores_TenantData` — Hub DbContext does not contain `Course`, `Lesson`,
    `User`, `Enrollment`, `LiveSession`, `LessonItem` entities (or any LearnStack core
    aggregate). Migration scan asserts the absence.
 2. `Hub_Modules_DoNotReference_LearnStack_Internals` — Hub modules reference only
@@ -575,7 +575,15 @@ Hub's `LearnStack.Hub.Architecture.Tests` runs:
    `LearnStack.Hub.Modules.Subscriptions.Infrastructure.Stripe`.
 5. `Iyzico_SDK_Types_NotImportedOutsideInfrastructure` — same for `Iyzipay.*`.
 6. `Hub_Operator_JWT_NeverAccepted_On_LearnStack_Routes` — integration test asserts a
-   `learnstack-hub` realm JWT is rejected by any LearnStack tenant-facing endpoint.
+   `learnstack-hub` realm JWT is rejected by any LearnStack tenant-facing endpoint, and a
+   `learnstack` realm token by `/api/internal/*`.
+7. `Hub_Client_Referenced_Only_By_Named_Adapters` — the second invariant of
+   [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md): a Hub client type is
+   referenced only from `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`
+   implementations, never from a module assembly.
+
+`LearnStack_Modules_DoNotReference_Hub` is the mirror of test 2 and is owned and run by
+the **LearnStack** repository, which is why it does not appear in this list.
 
 ## 11. Phasing
 

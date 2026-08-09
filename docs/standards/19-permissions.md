@@ -19,7 +19,7 @@ Permissions are dotted, lowercase, three-part keys:
 Examples:
 
 - `education.course.write`
-- `enrollment.entitlement.read`
+- `enrollment.course_access.read`
 - `classroom.recording.delete`
 - `tenancy.feature_flag.admin`
 - `identity.membership.write`
@@ -65,7 +65,7 @@ disjoint and validated at seed time.
 | Scope | Examples | Granted to |
 |-------|----------|------------|
 | **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read`, `platform.hub.operator` | Only platform admins / Hub operators; never assignable to a tenant role. |
-| **Tenant** | `education.course.write`, `enrollment.entitlement.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
+| **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
 | **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Org-scoped roles; permission check requires `Membership.OrganizationId` matches the resource's `OrganizationId` (or the role is tenant-scoped). |
 
 Tenant permissions are only meaningful inside a resolved tenant context. Org-scoped
@@ -92,8 +92,8 @@ public sealed class EnrollmentModule : IModule
         registry.Tenant("enrollment.enrollment.read",   "View enrollments");
         registry.Tenant("enrollment.enrollment.write",  "Create or update enrollments");
         registry.Tenant("enrollment.enrollment.delete", "Cancel enrollments");
-        registry.Tenant("enrollment.entitlement.read",  "View entitlements");
-        registry.Tenant("enrollment.entitlement.write", "Grant or revoke entitlements");
+        registry.Tenant("enrollment.course_access.read",  "View course access");
+        registry.Tenant("enrollment.course_access.write", "Grant or revoke course access");
         registry.Tenant("enrollment.cohort.read",       "View cohorts");
         registry.Tenant("enrollment.cohort.write",      "Create or update cohorts");
         registry.Tenant("enrollment.cohort.delete",     "Delete cohorts");
