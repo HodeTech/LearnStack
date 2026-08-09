@@ -76,9 +76,10 @@ in **ADR-0025** (open; see
 [decisions/README.md § Open ADR Drafts](../decisions/README.md)) and its sandboxed
 runtime ships in [Phase 05](phase-05-education-learning-content.md), one phase before
 this one, because `TenantCompletionRule` needs the same engine. Rule bodies are stored as
-opaque `text` with a `dialect` discriminator from
-[Phase 02a Packet 8](phase-02a-kernel-tenancy.md) onward precisely so that this
-dependency can be authored against before the engine exists.
+opaque `text` with a `dialect` discriminator — the shape fixed in
+[Phase 02a Packet 8](phase-02a-kernel-tenancy.md) and materialised as tables in
+[Phase 05](phase-05-education-learning-content.md), precisely so the engine choice did
+not have to precede the schema.
 
 Phase 08a is a **consumer**: it supplies the answer map, invokes the evaluator, and
 projects the result onto a level recommendation. Built-in primitive operators (sum,
@@ -174,6 +175,9 @@ infrastructure.
 
 ## Deliverables
 
+- `LearnStack.Modules.Assessment` and `LearnStack.Modules.Notifications` scaffolded —
+  each with `{Domain, Application, Application.Contracts, Infrastructure}`, its `IModule`
+  registration, its `docs/modules/<module>/audit.md`, and its permission-catalogue rows.
 - Assessment MVP: assessments, question bank, attempts, grading, result visibility.
 - Placement-test path scored through the Phase 05 `TenantScoringRule` evaluator, with the
   result-band → level projection.

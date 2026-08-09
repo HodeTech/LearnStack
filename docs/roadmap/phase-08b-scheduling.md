@@ -54,6 +54,9 @@ Every table behind these concepts is `[TenantOwned]`, and the scheduling ones ar
 
 ## Deliverables
 
+- `LearnStack.Modules.Scheduling` scaffolded — `{Domain, Application, Application.Contracts, Infrastructure}`,
+  its `IModule` registration, `docs/modules/scheduling/audit.md`, and its
+  permission-catalogue rows.
 - Scheduling API.
 - Booking flow end to end (admin / learner / instructor).
 - Session material attachment.

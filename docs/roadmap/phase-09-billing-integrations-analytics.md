@@ -268,6 +268,10 @@ schema that can never change.
 
 ## Deliverables
 
+- `LearnStack.Modules.Billing`, `LearnStack.Modules.Analytics` and
+  `LearnStack.Modules.Integrations` scaffolded — each with
+  `{Domain, Application, Application.Contracts, Infrastructure}`, its `IModule`
+  registration, its `docs/modules/<module>/audit.md`, and its permission-catalogue rows.
 - Billing domain primitives and the `OrderPaidV1` producer path.
 - Payment adapter infrastructure with the manual provider working end to end.
 - Credit-pack purchase path, with the balance boundary against

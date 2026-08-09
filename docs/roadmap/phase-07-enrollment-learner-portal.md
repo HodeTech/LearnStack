@@ -209,6 +209,11 @@ consumes the stream for reporting.
 
 ## Deliverables
 
+- `LearnStack.Modules.Enrollment` scaffolded — `{Domain, Application, Application.Contracts, Infrastructure}`,
+  its `IModule` registration, `docs/modules/enrollment/audit.md`, and its
+  permission-catalogue rows. Per
+  [architecture 03](../architecture/03-module-boundaries.md) this module covers enrollment
+  **and** progress; there is no separate `Progress` assembly.
 - Enrollment API with manual and invitation sources, bound to `CourseVersion`.
 - `Cohort` aggregate, roster, lifecycle, and derived cohort progress projection.
 - `CourseAccess` aggregate with the `OrderPaidV1` consumer contract in place for

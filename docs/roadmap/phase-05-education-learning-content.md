@@ -151,8 +151,11 @@ and primitive renderer sets those keys resolve against are closed and canonical 
 
 ### Scoring and completion rule runtime
 
-The `TenantScoringRule` and `TenantCompletionRule` **runtime** lands here — also moved
-out of Phase 02a Packet 8, and blocked until ADR-0025 is Accepted.
+The `TenantScoringRule` and `TenantCompletionRule` aggregates, their tables, and their
+evaluation runtime all land here — moved out of Phase 02a Packet 8, and blocked until
+ADR-0025 is Accepted. The body column is `text` with a `dialect` discriminator, the shape
+[Phase 02a Packet 8](phase-02a-kernel-tenancy.md) fixed so that the engine choice did not
+have to be made first.
 
 Built-in primitive completion checks:
 
@@ -313,6 +316,9 @@ cross-phase screen ownership table lives in **one** place —
   consumed by `TenantCompletionRule` here and by assessment scoring in
   [Phase 08a](phase-08a-assessment-notifications.md).
 - `TenantLessonItemType` aggregate, migrations, editor and renderer dispatch.
+- `TenantScoringRule` and `TenantCompletionRule` aggregates with their migrations, both
+  `[TenantOwned]` with query filters, RLS policies and isolation tests, bodies stored as
+  `text` + `dialect`.
 - Education catalog API — programs, courses, versions, categories, levels, tags, SEO.
 - Versioned course structure with draft / publish / clone.
 - Lesson content management with lesson items across both registry tiers.

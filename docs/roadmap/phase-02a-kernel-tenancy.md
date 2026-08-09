@@ -672,8 +672,18 @@
 > the two the runtime needs before [Phase 02d](phase-02d-walking-skeleton.md) can
 > render two different tenants; the rest have no consumer for several phases.
 >
-> Rule bodies for scoring and completion are stored as **opaque `text` with a
-> `dialect` discriminator**. The evaluation engine is not chosen yet — ADR-0025
+> Both tables ship the versioned key shape —
+> `UNIQUE (tenant_id, key, schema_version)` plus the partial index
+> `UNIQUE (tenant_id, key) WHERE status = 'active'`. Not `UNIQUE (tenant_id, key)`:
+> that rejects the second revision of any key. See
+> [`## Scope` § Tenant Customization Foundation](#tenant-customization-foundation).
+>
+> This packet also **fixes the storage shape** for scoring and completion rule bodies
+> without creating their tables: **opaque `text` with a `dialect` discriminator**. The
+> aggregates and their migrations land with their first consumer in
+> [Phase 05](phase-05-education-learning-content.md); the column type is settled here
+> because it is the part that cannot be changed later without a migration. The
+> evaluation engine is not chosen yet — ADR-0025
 > decides between CEL, a restricted Lua, and a custom AST in
 > [Phase 05](phase-05-education-learning-content.md), and the three candidates do
 > not share a column type. Storing the body opaquely lets tenants author rules
@@ -687,7 +697,7 @@
 > | `TenantPageBlock` | [Phase 04](phase-04-cms-media-pages.md) |
 > | `TenantCustomFieldDef` | [Phase 03](phase-03-identity-admin.md) |
 > | `TenantLessonItemType` | [Phase 05](phase-05-education-learning-content.md) |
-> | `TenantScoringRule` / `TenantCompletionRule` evaluation | [Phase 05](phase-05-education-learning-content.md) |
+> | `TenantScoringRule` / `TenantCompletionRule` — aggregates, tables and evaluation | [Phase 05](phase-05-education-learning-content.md) |
 > | `TenantTemplateLibrary` | [Phase 08a](phase-08a-assessment-notifications.md) |
 >
 > A small built-in seed — one `default-card` composite renderer and a stock
@@ -1075,8 +1085,17 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
   `TenantLessonItemType` and the `TenantScoringRule` / `TenantCompletionRule` runtime
   in [Phase 05](phase-05-education-learning-content.md), and
   `TenantTemplateLibrary` in [Phase 08a](phase-08a-assessment-notifications.md).
-- Rule bodies for scoring and completion are stored as **opaque `text` with a
-  `dialect` discriminator**. The evaluation engine is not chosen yet — ADR-0025 decides
+- Both aggregates carry the versioned key shape from their first migration:
+  `UNIQUE (tenant_id, key, schema_version)` for the revision, plus the partial index
+  `UNIQUE (tenant_id, key) WHERE status = 'active'` for the live definition.
+  [Phase 04](phase-04-cms-media-pages.md) § Customization Key Shape and Immutable Schema
+  Versions is the authority; the constraint ships here because this is the table's first
+  migration and ADR-0013's version history cannot be retrofitted onto
+  `UNIQUE (tenant_id, key)`.
+- The **storage shape** — not the tables — for scoring and completion rule bodies is
+  fixed here; the aggregates and their migrations land in
+  [Phase 05](phase-05-education-learning-content.md) with their first consumer. Rule
+  bodies are stored as **opaque `text` with a `dialect` discriminator**. The evaluation engine is not chosen yet — ADR-0025 decides
   between CEL, a restricted Lua and a custom AST in
   [Phase 05](phase-05-education-learning-content.md), and the three candidates do not
   share a column type. Storing the body opaquely lets rules be authored before the

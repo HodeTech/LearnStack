@@ -234,6 +234,9 @@ which means the answer defaults to "no" forever.
 
 ## Deliverables
 
+- `LearnStack.Modules.Classroom` scaffolded — `{Domain, Application, Application.Contracts, Infrastructure}`,
+  its `IModule` registration, `docs/modules/classroom/audit.md`, and its
+  permission-catalogue rows.
 - `ILiveClassProvider` port and the `LiveKitProvider` adapter, target-selectable by
   configuration, wrapped in `IProviderResilience<ILiveClassProvider>`.
 - `ManualMeetingLinkProvider` escape hatch.

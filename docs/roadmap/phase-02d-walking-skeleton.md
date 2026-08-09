@@ -34,7 +34,12 @@ which there is nothing to render:
   `course_translations`, not on the parent — see § Localization schema below. No
   versioning, no programs, no cohorts.
 - `Lesson` — ordered within a course, with a body rendered from a single built-in content
-  primitive; its title and per-locale slug likewise live in `lesson_translations`. No
+  primitive; its title and per-locale slug likewise live in `lesson_translations`. Which
+  fields that primitive renders is driven by the tenant's own `TenantContentType`, so the
+  two tenants' lesson pages differ in **shape**, not only in copy — no `ContentEntry`
+  aggregate and no authoring surface, which are
+  [Phase 04](phase-04-cms-media-pages.md); the lesson body carries its field values
+  inline and validates against the declared schema on write. No
   lesson items, no lesson item types, no completion semantics. Its foreign key to
   `Course` is **composite on `tenant_id`**
   (`FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)`): PostgreSQL
@@ -134,8 +139,9 @@ From [Phase 06](phase-06-renderer-admin-studio.md), in `frontend/apps/web` under
 - Lesson page — renders a lesson body.
 
 Both are Server Components fetching through the typed SDK. Both read the tenant's
-branding tokens and level taxonomy from customization data. Layout, typography and
-colour come from `TenantSettings`, not from a hard-coded theme.
+branding tokens, level taxonomy and lesson-body `TenantContentType` from customization
+data — the lesson page renders the field list the tenant declared, not a fixed one.
+Layout, typography and colour come from `TenantSettings`, not from a hard-coded theme.
 
 ### Host-based tenant resolution, end to end
 
@@ -228,6 +234,9 @@ here:
   opening host B shows the yoga studio's catalog with its own difficulty taxonomy and
   branding. One binary, one database, one schema.
 - Clicking through to a lesson on either host renders that tenant's lesson body.
+- The two lesson pages render **different field sets**, driven by each tenant's
+  `TenantContentType` — not the same template with different strings. A reviewer can see
+  the difference without reading the seed data.
 - Requesting tenant B's course slug on tenant A's host returns 404 — not tenant B's
   course, and not a 500.
 - The two-locale tenant serves the same course at two different slugs under two locale

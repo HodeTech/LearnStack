@@ -634,8 +634,13 @@ Architecture tests enforce:
    **and** `FORCE`, explicit `WITH CHECK`. A migration scan asserts the policy is present
    on every customization table; the binding proof is the isolation suite running as
    `learnstack_app`.
-6. **`tenant_*` customization keys are scoped to tenant.** `UNIQUE (tenant_id, key)` on
-   every customization table.
+6. **`tenant_*` customization keys are scoped to tenant and versioned.**
+   `UNIQUE (tenant_id, key, schema_version)` identifies one immutable revision;
+   `UNIQUE (tenant_id, key) WHERE status = 'active'` (a partial index) keeps at most one
+   live definition per concept. `UNIQUE (tenant_id, key)` alone would reject the second
+   revision of any key and make the first breaking change ADR-0013 requires impossible —
+   see [§ 4](#4-schema-versioning) and
+   [Phase 04 § Customization Key Shape and Immutable Schema Versions](../roadmap/phase-04-cms-media-pages.md).
 7. **Scoring rule + completion rule expressions evaluate inside the sandbox.** Integration
    test asserts that an expression attempting to call `System.IO.File.ReadAllText` (or
    equivalent) is rejected at evaluation time.
@@ -659,7 +664,7 @@ reads it.
 | [02d](../roadmap/phase-02d-walking-skeleton.md) | Both seed tenants render their own taxonomy and content shape from these two aggregates. First proof that the model works. |
 | [03](../roadmap/phase-03-identity-admin.md) | `TenantCustomFieldDef`. |
 | [04](../roadmap/phase-04-cms-media-pages.md) | `TenantPageBlock`; CMS / Page Builder; JSON form editor for content types; validating bulk import. |
-| [05](../roadmap/phase-05-education-learning-content.md) | **ADR-0025** picks the rule-evaluation engine; `TenantLessonItemType`; `TenantScoringRule` / `TenantCompletionRule` evaluation; the reference-resolution batching and limits in [§ 8](#8-runtime-cost-model) get their integration tests. |
+| [05](../roadmap/phase-05-education-learning-content.md) | **ADR-0025** picks the rule-evaluation engine; `TenantLessonItemType`; `TenantScoringRule` / `TenantCompletionRule` aggregates + evaluation; the reference-resolution batching and limits in [§ 8](#8-runtime-cost-model) get their integration tests. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio polish: visual schema editor, preview pane. |
 | [08a](../roadmap/phase-08a-assessment-notifications.md) | `TenantTemplateLibrary`; assessment surfaces over the rule engine. |
 | [12 (optional)](../roadmap/phase-12-hub-marketplace.md) | Content template marketplace: pre-built schema + rule + taxonomy bundles installable in one click (data sharing only, no code). |
