@@ -36,9 +36,15 @@ depends on this phase.
 - A new Hub endpoint for bundle install. That requires its own ADR — not because the
   contract surface has a fixed size, but because it is a cross-repository contract that
   both repositories must agree on
-  ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). The invariant that
-  matters holds: the Hub still stores no tenant content, since a published bundle is
-  schema and rule text, never a tenant's rows.
+  ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)).
+- **Whether a published bundle counts as tenant content under ADR-0034's first
+  invariant is unresolved, and it blocks the track.** A listing is authored by a
+  tenant, describes that tenant's product, and may carry sample fixtures drawn from
+  that tenant's data. The Hub repository's `hub-marketplace.md` § The unresolved
+  collision with ADR-0034 states the three candidate answers — metadata-in-Hub with
+  the body outside, a separate service, or a narrow amendment — and requires an
+  accepted ADR before any code. That is the same ADR named in the bullet above; it
+  answers where listings live, not merely how they are installed.
 
 ## Pricing and revenue
 

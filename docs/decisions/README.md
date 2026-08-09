@@ -99,7 +99,10 @@ Decision lines reference this list.
 
 ## Authoring an ADR
 
-1. Pick the next available 4-digit number.
+1. Pick the number: if your topic is in § Open ADR Drafts above, use its reserved
+   number; otherwise take the next number **after the highest in the Active list**.
+   Never take a reserved number for an unrelated topic, and never reuse a superseded
+   one — see § Reservation rule.
 2. Use the template (see existing ADRs).
 3. Status starts as `Proposed`; flip to `Accepted` once team agrees.
 4. Link the ADR from the relevant architecture or standard document.

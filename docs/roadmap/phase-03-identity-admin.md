@@ -337,8 +337,10 @@ MAY matrix.
 
 ### Cross-cutting follow-up at phase exit
 
-- **Escalate the `LS0001` (`LearnStackException-DomainExceptionThrow`) analyzer from
-  Warning to Error** and remove `LS0001` from `WarningsNotAsErrors` in
+- **Escalate both analyzers from Warning to Error** — `LS0001`
+  (`LearnStackException-DomainExceptionThrow`) and `LS0002` (the
+  secrets-in-exception-message rule introduced in
+  [Phase 02b](phase-02b-events-auth.md)) — and remove both from `WarningsNotAsErrors` in
   `backend/Directory.Build.props` — the documented escalation point per
   [ADR-0032 § Sub-decision 4 + Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md).
   Until this gate the analyzer fires as a Warning so that a legitimate
@@ -365,7 +367,7 @@ MAY matrix.
   `IEventBus` → Audit consumer working end to end.
 - Corrected APISIX route table: explicit priorities on every route, and no Hub HMAC
   reference anywhere in gateway configuration.
-- `LS0001` escalated to Error.
+- `LS0001` and `LS0002` escalated to Error.
 
 ## Completion Criteria
 
@@ -450,8 +452,8 @@ MAY matrix.
   retention are driven by the definitions rather than by the JSONB blob.
 - `AuthorizationBehavior` is a real implementation and every write endpoint carries an
   explicit policy.
-- `LS0001` is an Error, removed from `WarningsNotAsErrors`, and the solution builds
-  clean.
+- `LS0001` and `LS0002` are Errors, both removed from `WarningsNotAsErrors`, and the
+  solution builds clean.
 - The corrected APISIX route table is committed with explicit priorities and no Hub
   HMAC reference. The gateway adapter itself remains
   [Phase 11](phase-11-production-hardening.md) work.

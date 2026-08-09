@@ -249,8 +249,19 @@ nothing. The suite must include, at minimum:
 
 ### Where this lands
 
-The corrected template is applied by the **first migration**, in
-[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md); the role model, the
-transaction-local session variables and the tests land in **Packet 7**. No migration
-may be written against the superseded template.
+The corrected template **and the four-role model** are applied by the **first
+migration**, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md). They are
+one deliverable, not two: `ALTER TABLE … OWNER TO learnstack_migration` and the
+runtime grants to `learnstack_app` are DDL in the same migration as the policies, and
+`FORCE ROW LEVEL SECURITY` has no effect worth having while the connecting role is
+still the owner.
+
+The transaction-local session variables (`SET LOCAL` inside the ambient transaction)
+and the isolation suite land in **Packet 7**, with `TenantResolverMiddleware`. Between
+the two packets no tenant-owned table is read on a request path: with the policies
+live and `app.tenant_id` unset, every predicate evaluates to `NULL` and every query
+correctly returns zero rows. Any seeding Packet 6 performs runs inside a transaction
+that sets `app.tenant_id` for the tenant being created.
+
+No migration may be written against the superseded template.
 

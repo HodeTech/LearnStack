@@ -653,10 +653,10 @@ Architecture tests enforce:
    test asserts that an expression attempting to call `System.IO.File.ReadAllText` (or
    equivalent) is rejected at evaluation time.
 8. **Reference resolution is batched.** `Customization_Reference_Resolution_Is_Batched`
-   asserts a constant query count for a many-reference entry — see [§ 8.3](#8-runtime-cost-model).
+   asserts a constant query count for a many-reference entry — see [§ 8.3](#83-the-n1-problem-and-the-limits-that-bound-it).
 9. **Only the sanitised-HTML primitive may call `dangerouslySetInnerHTML`.**
    `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is a frontend lint, and it
-   is the rule that keeps [§ 8.5](#8-runtime-cost-model)'s contract from being bypassed by
+   is the rule that keeps [§ 8.5](#85-the-embed-html-sanitisation-contract)'s contract from being bypassed by
    a convenient one-off.
 
 ## 12. Phasing

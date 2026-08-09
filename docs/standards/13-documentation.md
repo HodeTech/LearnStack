@@ -149,6 +149,8 @@ Common diagram types:
 - Use tables when comparing options or listing rules.
 - Code samples short, compilable in principle, using project conventions.
 - Cross-link liberally: glossary terms, related architecture docs, standards, ADRs.
+- Markdown prose hard-wraps at 88 columns. Tables, fenced code blocks and long URLs
+  are exempt.
 
 ## Glossary
 

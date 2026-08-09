@@ -15,7 +15,7 @@ description: >
 ## Purpose
 
 Write a command/query handler that participates correctly in the LearnStack MediatR
-pipeline: `Validation → Logging → Audit → TenantContext → Authorization →
+pipeline: `Validation → Logging → AuditLog → TenantContext → Authorization →
 Transaction → OutboxFlush → Handler`. The pipeline is shared (per
 [ADR-0032 § Sub-decision 2](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)
 and [Standards 02 § Pipeline Behaviors](../../../docs/standards/02-backend-coding.md)),

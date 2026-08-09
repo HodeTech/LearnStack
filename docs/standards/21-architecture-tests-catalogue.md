@@ -872,7 +872,7 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
 
 #### `IEntitlementProvider_Implementations_Are_Three`
 
-- **Asserts:** exactly three `IEntitlementProvider` implementations exist —
+- **Asserts:** no `IEntitlementProvider` implementation exists outside the named three —
   `NullEntitlementProvider`, `HubEntitlementProvider`,
   `SignedLicenseKeyEntitlementProvider` — and the composition root selects one by
   `DeploymentMode`.

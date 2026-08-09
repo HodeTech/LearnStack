@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — **amended 2026-08-08** (see [Amendments](#amendments))
 
 **Date:** 2026-05-20
 **Deciders:** @platform

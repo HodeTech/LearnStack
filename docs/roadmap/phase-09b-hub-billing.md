@@ -31,7 +31,8 @@ entirely: they buy a licence key rather than a subscription.
 
 ## Scope on the LearnStack side
 
-Deliberately almost nothing. The only standing dependency is **usage reporting**: the
+Deliberately almost nothing — but **two** things, not one. The first is **usage
+reporting**: the
 `IUsageReporter` adapter and `POST /api/v1/usage/report`, which ship in
 [Phase 02c](phase-02c-hub-foundation.md) and are already part of the contract surface
 enumerated in [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md). Phase 09b

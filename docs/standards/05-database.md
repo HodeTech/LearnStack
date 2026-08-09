@@ -4,7 +4,8 @@
 **Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md)
 (Amendments 1 + 2),
 [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md)
-(Amendment 1: Organization Scope),
+(Amendment 1: Organization Scope; **Amendment 3: corrected RLS policy template and
+database role model**),
 [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md)
 (Amendment 1: Dapr pub/sub dispatch transport),
 [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
@@ -130,9 +131,13 @@ CREATE POLICY courses_org_delete_guard ON courses
         OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
     );
 
-CREATE INDEX ix_courses_tenant_id ON courses (tenant_id);
-CREATE INDEX ix_courses_organization_id ON courses (organization_id)
-    WHERE organization_id IS NOT NULL;
+-- No standalone index on tenant_id: ux_courses_tenant_id_slug_key and
+-- ux_courses_tenant_id_id are both b-trees with tenant_id leading, and either serves
+-- a tenant-only lookup. One composite index carries the organization dimension.
+-- Deliberately NOT partial: the policy's `organization_id IS NULL` branch matches
+-- every tenant-wide row, and a b-tree indexes NULLs, so the non-partial form serves
+-- both branches of the predicate.
+CREATE INDEX ix_courses_tenant_id_organization_id ON courses (tenant_id, organization_id);
 ```
 
 ### Foreign keys between tenant-owned tables
@@ -609,7 +614,17 @@ A shared EF interceptor populates these on `SaveChanges`.
 - Pure-SQL data migrations live in migration files when small.
 - Larger data migrations are idempotent Hangfire jobs.
 - Always re-runnable.
-- Tenant-aware: per-tenant data migrations use the tenant role and `SET LOCAL app.tenant_id = ...` per tenant (and `app.organization_id` where applicable).
+- Tenant-aware: per-tenant data migrations run as `learnstack_migration` and issue
+  `SET LOCAL app.tenant_id = '<id>'` inside a transaction **per tenant** — and, on
+  org-scoped tables, `SET LOCAL app.organization_id = '<id>'` inside a transaction
+  **per organization**. Both are mandatory, not hygiene. `learnstack_migration` is
+  `NOBYPASSRLS` and every tenant-owned table is `FORCE ROW LEVEL SECURITY`, so a
+  backfill that skips the tenant variable matches **zero rows** and still reports
+  success; and because the two `AS RESTRICTIVE` write guards deliberately ignore
+  `app.scope = 'tenant'`, a tenant-scope session cannot span organizations for
+  `UPDATE` or `DELETE` — it would silently touch only the tenant-wide
+  (`organization_id IS NULL`) rows. Granting `BYPASSRLS` to the migration role is
+  **not** the fix: it removes the third defense layer for every table in the database.
 
 ## Read Models
 
@@ -633,6 +648,7 @@ CREATE TABLE outbox_messages (
     actor_user_id   uuid NULL,
     type            text NOT NULL,         -- assembly-qualified event type name
     topic           text NOT NULL,         -- "learnstack.{module}.{aggregate}"
+    partition_key   text NOT NULL,         -- ordering domain: aggregate id, else tenant_id
     payload         jsonb NOT NULL,
     metadata        jsonb NULL,
     processed_at    timestamptz NULL,

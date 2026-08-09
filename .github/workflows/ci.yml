@@ -16,11 +16,11 @@
 #     the runner — works on `ubuntu-latest` natively. Activates when the
 #     first integration test lands (Phase 02a) so we have something to run.
 #   - openapi-diff        : oasdiff against the prior `main` spec. Activates
-#     in Phase 03 when the first real endpoint replaces `/healthz` as the
-#     only documented surface (until then there is nothing to diff).
+#     in Phase 02d, which ships the first real `/api/v1/*` read endpoints and
+#     retires `/healthz` as the only documented surface.
 #   - lighthouse-budget   : LHCI against the built Next.js app. Activates
-#     when Phase 04 ships the first content-bearing public page (the
-#     current placeholder routes are not worth scoring).
+#     in Phase 02d, which ships the first content-bearing public pages (the
+#     two tenant catalog / lesson pages a visitor actually loads).
 
 name: ci
 
@@ -163,7 +163,7 @@ jobs:
 
   # ─── OpenAPI breaking-change check (deferred — Phase 03) ──────────────
   openapi-diff:
-    name: openapi diff (deferred to Phase 03)
+    name: openapi diff (deferred to Phase 02d)
     runs-on: ubuntu-latest
     if: false  # activate when /api/v1/* endpoints replace the `/healthz` placeholder
     steps:
@@ -171,7 +171,7 @@ jobs:
 
   # ─── Lighthouse budget (deferred — Phase 04) ──────────────────────────
   lighthouse-budget:
-    name: lighthouse budget (deferred to Phase 04)
+    name: lighthouse budget (deferred to Phase 02d)
     runs-on: ubuntu-latest
     if: false  # activate when the first content-bearing public page ships
     steps:

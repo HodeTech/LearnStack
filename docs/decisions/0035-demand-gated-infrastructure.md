@@ -91,7 +91,7 @@ otherwise equal. This rule is added to
 | Custom-domain TLS automation | `IHostToTenantResolver` + `ITlsCertificateProvider` | `platform_host_to_tenant` rows managed by configuration | [Phase 11](../roadmap/phase-11-production-hardening.md) | A tenant needs its own domain in production |
 | `audit_log` partitioning + retention job | — (schema-internal) | Single correct table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
 | Meilisearch | `ITenantSearch` | PostgreSQL full-text search | [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | Search quality or scale exceeds PostgreSQL FTS |
-| LiveKit | `ILiveClassProvider` | — (no default; the phase that needs it brings it) | [Phase 08c](../roadmap/phase-08c-classroom.md) | The classroom phase begins |
+| LiveKit | `ILiveClassProvider` | — (scheduled, not gated — see the exception below) | [Phase 08c](../roadmap/phase-08c-classroom.md) | Live classes become a product requirement |
 | Managed video transcoding | `IVideoTranscoder` | ffmpeg-backed worker ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) | [Phase 11](../roadmap/phase-11-production-hardening.md) | In-house transcode backlog or per-minute cost exceeds the managed alternative |
 
 `DeploymentMode` keeps all five of its values and the composition root keeps branching
@@ -165,8 +165,10 @@ not **whether**.
   [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md). Together they are the
   **only** registered implementations in every deployment mode until Phase 11.
 - `InProcessEventBus` is a first-class transport, not a stub: it uses the same
-  `IIntegrationEventHandler<T>` interface, the same `IInboxGuard`, and the same
-  tenant-context restoration as the durable path. A dev path that skips those is a dev
+  `IIntegrationEventHandler<T>` interface, the same `IInboxGuard`, the same
+  tenant-context restoration, and the same per-partition-key ordering (concurrent
+  across keys, sequential within one) as the durable path — see
+  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md). A dev path that skips those is a dev
   path that never exercises the isolation code.
 - `ICacheService.RemoveByPrefixAsync` is removed or redesigned before Packet 5 ships:
   the current contract cannot be honoured across instances by any of the candidate

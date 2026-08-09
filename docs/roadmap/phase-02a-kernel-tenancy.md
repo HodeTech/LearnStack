@@ -365,8 +365,11 @@ The remaining aggregates land with their consumers:
 
 A small built-in seed — one `default-card` composite renderer and a stock
 `Plain` level taxonomy — lets early phases exercise the customization runtime
-before a tenant data set exists. Admin Studio editors land in
-[Phase 06](phase-06-renderer-admin-studio.md).
+before a tenant data set exists. Admin Studio editors land with their consuming
+phases — the `TenantContentType` editor in [Phase 04](phase-04-cms-media-pages.md), the
+`TenantLevelTaxonomy` editor in [Phase 05](phase-05-education-learning-content.md);
+[Phase 06](phase-06-renderer-admin-studio.md) consolidates them into one editing idiom,
+and its Studio screen ownership table is the single ownership record.
 
 **Packet 9 — Audit infrastructure and the entitlement socket ⏳**
 `LearnStack.Infrastructure.Audit` with `AuditChangeTrackerInterceptor` (an EF
@@ -505,7 +508,7 @@ here with **working default implementations**; the vendor adapters ship on a tri
   restoration as the durable path, so development exercises the isolation code and no
   consumer needs two implementations.
 - `ICacheService` with `InMemoryCacheService`. `RemoveByPrefixAsync` is removed from
-  the interface or redesigned to a generation-key pattern before this phase exits — the
+  the interface or redesigned to a generation-key pattern before Packet 5 ships — the
   published contract iterates an instance-local key set and cannot be honoured across
   instances by any candidate backend.
 - `ISecretProvider` with `ConfigurationSecretProvider`.
@@ -639,9 +642,12 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
 - **MediatR pipeline behaviors (eight-step canonical order).**
   `ValidationBehavior` (returns `Result.Fail(validation_failed)` — never
   throws), `LoggingBehavior` (opens the 8-field `ILogger` scope + manual
-  `Activity` + latency histogram), `AuditLogBehavior` (per ADR-0016 — wraps
-  inner pipeline with try/catch + audit-fail entry + ExceptionDispatchInfo
-  rethrow), `TenantContextBehavior` (asserts resolved; does **not** set the RLS
+  `Activity` + latency histogram), `AuditLogBehavior` (per
+  [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes ADR-0016 —
+  keeps its shipped pipeline position and its try/catch + audit-fail entry +
+  `ExceptionDispatchInfo` rethrow; MUST-class rows are written on the ambient
+  transaction by `TransactionBehavior` immediately before `COMMIT`, so they commit
+  with the state change or not at all), `TenantContextBehavior` (asserts resolved; does **not** set the RLS
   GUCs — see [Security Standards § Tenant Context](../standards/11-security.md)),
   `AuthorizationBehavior` (returns `Result.Fail(forbidden)` on deny),
   `TransactionBehavior` (UoW), `OutboxFlushBehavior` (enrols outbox writes
@@ -723,8 +729,11 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
   engine exists without committing the schema to a choice not yet made.
 - A small built-in seed (a `default-card` composite renderer, a stock `Plain` level
   taxonomy) lets early phases exercise the customization runtime without depending on a
-  real tenant data set. Admin Studio editors land in
-  [Phase 06](phase-06-renderer-admin-studio.md).
+  real tenant data set. Admin Studio editors land with their consuming phases — the
+  `TenantContentType` editor in [Phase 04](phase-04-cms-media-pages.md), the
+  `TenantLevelTaxonomy` editor in [Phase 05](phase-05-education-learning-content.md);
+  [Phase 06](phase-06-renderer-admin-studio.md) consolidates them into one editing
+  idiom, and its Studio screen ownership table is the single ownership record.
 
 ### Tenant + Organization Resolution
 

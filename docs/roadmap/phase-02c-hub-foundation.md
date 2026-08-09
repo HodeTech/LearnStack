@@ -12,7 +12,7 @@
 > **Status (2026-08-08).** The Hub plan moved to the Hub repository. `P02c-1`
 > through `P02c-7` — Hub domain core, Hub-side internal API, operator portal,
 > custom-domain lifecycle, licence keys and the Hub exit gate — are now planned,
-> tracked and shipped in `learnstack-hub/docs/roadmap/`, one document per packet.
+> tracked and shipped in `../LearnStack-Hub/docs/roadmap/`, one document per packet.
 > The `P02c-N` identifiers are unchanged; they are load-bearing across both
 > repositories. This document is no longer a status mirror. It carries **only the
 > LearnStack-side work**, which is the half that lands in this repository.
@@ -50,7 +50,7 @@ this phase starts, and the Hub-side `P02c-1` branch unfreezes with it.
 Everything Hub-side — `Plan`, `HubSubscription`, `Entitlement`, `LicenseKey`,
 `CustomDomain`, `CompliancePolicy`, the `learnstack-hub` Keycloak realm, the operator
 portal, the DNS/ACME challenge runner, and Hub's own observability — is planned and built
-in the Hub repository under `learnstack-hub/docs/roadmap/`. Do not restate it here; a
+in the Hub repository under `../LearnStack-Hub/docs/roadmap/`. Do not restate it here; a
 second copy of a plan is a plan that will be wrong.
 
 Decisions this phase implements:
@@ -73,7 +73,7 @@ Decisions this phase implements:
 ## Scope
 
 Everything below lands in **this** repository. Each item has a Hub-side counterpart
-tracked in `learnstack-hub/docs/roadmap/`.
+tracked in `../LearnStack-Hub/docs/roadmap/`.
 
 ### `HubEntitlementProvider`
 
@@ -277,8 +277,9 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
   payload shape and that every key resolves in the registry.
 - An `IIntegrationEventHandler<T>` for `learnstack.hub.entitlement`, in-process until
   Phase 11.
-- `platform_host_to_tenant` mirroring from the host-mapping endpoint, with certificate
-  material referenced by secret-store path rather than carried by value.
+- `IHubTenantSync` — the `PUT /api/internal/tenants/{id}/host-mappings` handler and its
+  `platform_host_to_tenant` mirroring, with certificate material referenced by
+  secret-store path rather than carried by value.
 - Audit coverage for every internal-API handler, MUST-class and durable.
 - The six architecture tests above, green in CI.
 - A `Development`-mode integration suite that runs the whole path against a Hub test

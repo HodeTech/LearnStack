@@ -13,7 +13,7 @@ That claim has a stated edge: see
 
 The roadmap also references the **`learnstack-hub`** companion (separate repository, see
 [ADR-0019](../decisions/0019-learnstack-hub.md)). Hub's own plan lives in **its own
-repository** at `learnstack-hub/docs/roadmap/`; the phases here cover only LearnStack's
+repository** at `../LearnStack-Hub/docs/roadmap/`; the phases here cover only LearnStack's
 side of the boundary.
 
 ## Sequencing principle
@@ -108,7 +108,7 @@ billed or plan-gated, which is the trigger condition
 | Track | Relationship to the spine | Trigger |
 |---|---|---|
 | Phase 02c — Hub Integration | Parallel from Phase 02b onward; never blocks | A tenant must be billed or plan-gated |
-| Hub repository work (`P02c-*`) | Independent repository, own cadence | See `learnstack-hub/docs/roadmap/` |
+| Hub repository work (`P02c-*`) | Independent repository, own cadence | See `../LearnStack-Hub/docs/roadmap/` |
 | Phase 09b — Hub Billing | Pointer; the plan lives in the Hub repository | Commercial billing needed |
 | Phase 12 — Hub Marketplace | Pointer; post-MVP, optional | Product-market evidence |
 | Demand-gated adapters (Dapr, Kafka, APISIX, Vault, licence keys, custom-domain TLS, `audit_log` partitioning) | Land in Phase 11 unless their trigger fires earlier | Per the table in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) |
@@ -150,7 +150,8 @@ retrofit**, and **thin where it is not**:
 
 ## Phase Structure
 
-Every phase document carries the same six sections:
+Every phase document carries the same six sections, with three declared exceptions
+noted below the table:
 
 | Section | What it answers |
 |---|---|
@@ -160,6 +161,17 @@ Every phase document carries the same six sections:
 | `## Completion Criteria` | Observable statements a reviewer can check |
 | `## Risks` | What tends to go wrong here, and the mitigation |
 | `## Phase Exit Decision` | The gate: what must be true before the next phase begins |
+
+Three exceptions, all deliberate:
+
+- [Phase 09b](phase-09b-hub-billing.md) and [Phase 12](phase-12-hub-marketplace.md) are
+  **pointer documents** into the `learnstack-hub` repository, which owns their plan.
+  They carry Goal, Scope on the LearnStack side, Trigger and Phase Exit Decision only;
+  Deliverables, Completion Criteria and Risks live in the Hub's own roadmap. Restating
+  them here would duplicate a plan this repository does not own.
+- [Phase 01](phase-01-repository-tooling.md) predates the `## Phase Exit Decision`
+  convention and carries `## Technical Notes` instead. Its annotation block records
+  this; it is not a gap to fill.
 
 Phases in progress additionally carry a dated `> **Status**` block at the top, listing
 packets and their state. A **packet** is an independently reviewable, independently

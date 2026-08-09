@@ -225,8 +225,8 @@ policy, on `platform_host_to_tenant`.
 
 ### The rule
 
-`app.tenant_id` and `app.organization_id` are set with **`SET LOCAL`, inside the ambient
-transaction, as the first statement after it opens** — in practice by
+`app.tenant_id`, `app.organization_id` **and `app.scope`** are set with **`SET LOCAL`,
+inside the ambient transaction, as the first statement after it opens** — in practice by
 `TransactionBehavior` (step 6 of the MediatR pipeline), from the `ITenantContext` that
 `TenantContextBehavior` asserted at step 4.
 
