@@ -1,812 +1,33 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-05-20).** Phase 02a in progress. Packet 0 (kickoff) ships the
-> breakdown plan; subsequent packets ship the foundation incrementally. Each
-> packet is independently reviewable in its own commit, matching the
-> [Phase 01 cadence](phase-01-repository-tooling.md).
->
-> The packet order is dependency-driven: a later packet may consume any earlier
-> packet's deliverables, but never the reverse. Packets land sequentially on
-> `main` via their own pull request.
->
-> **Packet 0 — Kickoff ✅ (this commit)**
-> Phase 02a packet breakdown captured in this Status block. Glossary
-> entries for "Phase", "Packet", and "Kickoff Packet" added under a new
-> *Roadmap & Delivery* group so the terms are defined in exactly one
-> place. No code, no ADR state changes — Packet 0 is a planning slice
-> that unblocks the rest of the phase by fixing the order.
->
-> **Packet 1 — Foundation decisions ✅**
-> The three Phase-02a-blocking ADRs are now Accepted:
-> [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md)
-> picks **Vogen** as the source generator for both IDs and value objects;
-> [ADR-0024](../decisions/0024-api-versioning-policy.md) codifies
-> URL-based versioning with a **6-month deprecation window** + RFC 8594
-> `Sunset` / `Deprecation` headers + OpenAPI `x-sunset` extensions;
-> [ADR-0028](../decisions/0028-audit-log-partition-management.md) picks
-> a **Hangfire recurring job** (`learnstack:audit:partition-management`)
-> over `pg_partman` to keep the SelfHostedAirGapped story extension-free.
-> Decision-only; no code. Standards 02 § Strongly-Typed Identifiers and
-> Standards 04 § Versioning cross-link to the new ADRs.
->
-> **Packet 2 — Shared Kernel core ✅**
-> `IClock` + `SystemClock` / `FixedClock`, `IRandom` + `SystemRandom` /
-> `FixedRandom`, `IGuidFactory` + `SystemGuidFactory` / `FixedGuidFactory`
-> (deterministic-test abstractions per Standards 02 § Time);
-> `LocalizedMessage` carrying the `lockey_` prefix invariant at the
-> constructor (used by every `Result.Fail` and success-message payload);
-> `Error` refactored to wrap `LocalizedMessage` with a `Code` projection
-> over `Message.Key`; `Result<T>` extended with `IResultBase`, success-message
-> overload, and the static `Result.FailFor<T>(error)` factory ADR-0032's
-> `ValidationBehavior` consumes; `Entity<TId>` (append-only / audit
-> aggregate base) + `AuditableEntity<TId>` (mutable aggregate base with
-> `CreatedAt` / `CreatedBy` / `UpdatedAt` / `UpdatedBy` / `DeletedAt` /
-> `DeletedBy` / `Version` plus the `IsDeleted` projection);
-> `ISoftDelete` + `IOptimisticConcurrency` marker interfaces;
-> `IDomainEvent : INotification` + `DomainEvent` base + `IHasDomainEvents`
-> aggregate-side collector; cursor-first pagination
-> (`CursorPagination` / `Page<T>` / `PageInfo` matching Standards 04
-> § Pagination). Vogen 7.0.0 wired per ADR-0023 with
-> `LearnStackVogenDefaults.IdMask` carrying the canonical
-> `EfCoreValueConverter | SystemTextJson | TypeConverter` mask;
-> `IAggregateRoot<TId>` / `IHasId<TId>` interfaces require `TId :
-> IStronglyTypedId<Guid>` so future module aggregates inherit the
-> constraint. Unit / architecture / contract suites all green in CI; the
-> `VogenIdEmissionTests` smoke test asserts the emitter pipeline
-> (Vogen `[ValueObject<Guid>]` → `IStronglyTypedId.Value` → JSON
-> round-trip → `TypeConverter` round-trip) end-to-end via a synthetic
-> `TestId` in the test project.
-> Review pass folded in (commit `7c9133a`): `Entity<TId>` equality carries
-> transient + cross-runtime-type guards; `Result.FailFor<TResponse>` returns
-> the concrete `TResponse` via reflection (not `Result<TResponse>`);
-> `Error.Code` is the unprefixed stable identifier projected from
-> `Message.Key`; `Error.Details` flows `LocalizedMessage` lists so the prefix
-> invariant covers field-level errors; `Result<T>.Ok` rejects null;
-> `UserId` is a SharedKernel-level Vogen value object used by
-> `AuditableEntity<TId>` instead of raw `Guid`; `DomainEvent.EventId` /
-> `OccurredAt` are `required init`; `MarkCreated` throws on second call;
-> `SoftDelete` bumps `UpdatedAt` for monotonic last-touched;
-> `CursorPagination` validates `Limit > 0` at the ctor. Standards 01
-> § Dependency Direction grows a "Build-time-only exceptions" sub-section
-> for the EF Core + MediatR references SharedKernel requires. Unit /
-> architecture / contract suites all green in CI.
->
-> **Packet 3 — Cross-cutting foundation ✅**
-> The [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
-> surface is wired end to end via the
-> [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)
-> skill. Shipped:
->
-> - L1 `LearnStackExceptionHandler : IExceptionHandler` registered through
->   `services.AddExceptionHandler<T>()` + `app.UseExceptionHandler()`;
->   `ShouldCapture(ex)` switch drives the Sentry-vs-OTel boundary per
->   Standards 09 (`OperationCanceledException` + client-error
->   `ProviderException` skip capture).
-> - Eight-step MediatR pipeline in `LearnStack.Application/Pipeline/`:
->   `Validation` + `Logging` are full implementations; `AuditLog` ships the
->   try / `ExceptionDispatchInfo` rethrow shell (audit-write lights up in
->   Packet 9 when `IAuditStore` lands); `TenantContext` shell short-circuits
->   with `Result.Fail(tenant_mismatch)` until the resolver middleware arrives
->   in Packet 7; `Authorization` / `Transaction` / `OutboxFlush` pass-through
->   shells whose registration order is the binding part. Order encoded in
->   `MediatRPipelineRegistration.CanonicalBehaviorOrder` and asserted by the
->   `MediatR_Pipeline_Order_Matches_Canonical_Sequence` architecture test.
-> - `Result<T>.ToActionResult()` extension in `LearnStack.Api.Common`
->   alongside `ProblemDetailsFactory` + `HttpStatusMap`; explicit at every
->   future controller endpoint per Standards 09.
-> - `LearnStackException` hierarchy in `LearnStack.SharedKernel/Errors/`:
->   `DomainException`, `InfrastructureException`, `ProviderException` (with
->   `IsClientError` flag), `TenantContextMissingException`.
->   `LearnStackException-DomainExceptionThrow` Roslyn analyzer under
->   `backend/analyzers/LearnStack.Analyzers/` flags `throw new DomainException`
->   in `Domain` + `Application` (warning class in Phase 02a, escalates to
->   error after Phase 03 exit per ADR-0032 § Sub-decision 4).
-> - `IProviderResilience<TPort>` socket in
->   `LearnStack.SharedKernel/Resilience/` + Polly v8
->   `ResiliencePipeline` builder in
->   `LearnStack.Infrastructure.Resilience/`. Pipeline = retry (only
->   `InfrastructureException` + non-client `ProviderException`) → circuit
->   breaker → timeout → bulkhead. Configuration shape:
->   `appsettings.Resilience:<portName>:` (sample lit up under
->   `liveclass`, `payment`, `storage`, `search`). Per-adapter decoration is
->   the adapter's responsibility — the socket is what adapters consume in
->   Phase 02b+ via the [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
->   skill. Hub HTTP clients excluded per Sub-decision 5.
-> - Serilog primary logger wired in `LearnStack.Api/Composition/CrossCuttingFoundationExtensions.cs`
->   with `WriteTo.Console(RenderedCompactJsonFormatter)` +
->   `WriteTo.OpenTelemetry(OTLP gRPC)`. The OTel `LoggerProvider` is
->   intentionally **not** registered alongside per ADR-0032 § Sub-decision 8.
-> - OpenTelemetry SDK with `AspNetCore` + `HttpClient` +
->   `EntityFrameworkCore` instrumentations + the OTLP exporter, plus the
->   singleton `TenantContextSpanProcessor` from
->   `LearnStack.Infrastructure.Observability/` that enriches every span
->   with `tenant.id` / `organization.id` / `user.id` / `correlation.id` /
->   `module` from the singleton
->   `ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed).
-> - `IErrorTrackingProvider` socket in `LearnStack.SharedKernel/Observability/`
->   with three implementations in `LearnStack.Infrastructure.ErrorTracking/`:
->   `NoOpErrorTracker` (Development), `SentryErrorTracker` (SaaS / Dedicated /
->   SelfHostedOnline-with-DSN), `LocalFileErrorTracker`
->   (SelfHostedAirGapped, writes JSON envelopes to a configured directory).
->   Composition-root branching by `DeploymentMode` per Standards 20 table.
->   Sentry SDK is referenced only by the ErrorTracking project — enforced
->   by the `Modules_Do_Not_Reference_Sentry_SDK_Directly` architecture test.
-> - Architecture tests green (`backend/tests/LearnStack.Tests.Architecture/CrossCuttingFoundationTests.cs`):
->   `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
->   `IExceptionHandler_Registered_AtStartup`,
->   `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
->   `Logging_Goes_Through_Microsoft_Extensions_Logging`,
->   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
->   `Adapters_Wrap_Provider_Exceptions`,
->   `IErrorTrackingProvider_Is_Singleton`. Unit tests green for
->   `ValidationBehavior` (returns `Result.Fail(validation_failed)`,
->   never throws `ValidationException`), `AuditLogBehavior` (preserves
->   stack via `ExceptionDispatchInfo`), `TenantContextBehavior`
->   (short-circuits unresolved context), `TenantContextSpanProcessor`
->   (`OnStart` is null-safe and enriches resolved spans),
->   `ProviderResilience<TPort>` (retries non-client failures, skips
->   client-error retries), `HttpStatusMap` (mirrors Standards 09 table),
->   `ResultExtensions.ToActionResult()` (Problem Details shape),
->   `LocalFileErrorTracker` (writes the JSON envelope).
-> - Initial validation (pre-review): `LearnStack.Tests.Unit` 111/111,
->   `LearnStack.Tests.Architecture` 25/25, `LearnStack.Tests.Contract` 1/1,
->   `LearnStack.Tests.Integration` 5/5 green under `CI=true`. Superseded by
->   the post-review-3/4 counts below.
->
-> Review fixes (commit `<follow-up>`):
->
-> - **B1** — Sentry DSN now reads via the new `ISecretProvider` socket
->   (`LearnStack.SharedKernel/Secrets/`) with `ConfigurationSecretProvider`
->   as the Phase 02a default; Packet 5 swaps in `DaprSecretProvider` for
->   Vault. ADR-0032 § Sub-decision 9 contract honoured.
-> - **B2** — Serilog pipeline gains `CorrelationContextEnricher`
->   (copies tenant / org / user / correlation / module from
->   `ITenantContextAccessor` onto every log event) +
->   `RedactSensitiveFieldsEnricher` (scrubs password / token / secret /
->   DSN / JWT / authorization / SSN / TCKN / card-number tokens before
->   the formatter touches them). `LocalFileErrorTracker` redacts the
->   same token set on `CapturedContext.AdditionalTags`.
-> - **M1** — `ProblemDetailsFactory.For(Exception)` routes status through
->   `HttpStatusMap.For(Exception)` so `ProviderException(IsClientError:true)`
->   returns 400 instead of falling through to 503 via the carried Error's
->   default code.
-> - **M2** — L1 handler now skips `Activity.AddException` for
->   `ProviderException(IsClientError:true)` per Standards 09 § Sentry vs
->   OpenTelemetry table — `SetStatus(Error)` only, no exception event.
-> - **M3** — All 14 module Domain + Application csproj files now reference
->   `LearnStack.Analyzers` via `OutputItemType="Analyzer"`. Future
->   `throw new DomainException(...)` in any module fails the analyzer.
-> - **M4** — Polly `IProviderResilience<TPort>` pipeline now consumes
->   `BulkheadOptions` via `Polly.RateLimiting`'s
->   `AddRateLimiter(ConcurrencyLimiterOptions)`; the silent-dead config
->   gap is closed.
-> - **N1** — `ProblemDetailsFactory` projects nested
->   FluentValidation property paths (`Address.Street`) and acronyms
->   (`URLValue`) to the right camelCase shape via
->   `JsonNamingPolicy.CamelCase`.
-> - **N2** — `ToActionResult()` returns `ProblemDetailsActionResult`
->   which builds the body inside `ExecuteResultAsync(ActionContext)`, so
->   the sanctioned `(await Send(...)).ToActionResult()` shape populates
->   `Instance` + `correlationId` without the caller threading
->   `HttpContext`.
-> - **N3 / A6** — `LocalFileErrorTracker` file names suffix a Guid for
->   guaranteed uniqueness in same-millisecond bursts; `stackalloc` is
->   capped at 128 chars so a multi-KB inbound `traceparent` cannot blow
->   the stack.
-> - **A5** — `AuditLogBehavior` catch filter excludes
->   `OperationCanceledException` so client disconnects no longer churn
->   warning logs / future audit rows.
-> - **A7** — `MediatRPipelineRegistration.CanonicalBehaviorOrder`
->   documentation explicitly notes "7 behaviors + the handler at the
->   innermost position = the 8 canonical steps".
-> - **A8** — `ProblemDetailsFactory` strips the `_failed` suffix from
->   the Problem `type` URL (matches the Standards 09 § API Surface
->   example: `/validation`, not `/validation_failed`).
-> - **A11** — New HTTP-level integration tests in
->   `LearnStack.Tests.Integration/CrossCuttingFoundationHttpTests` exercise
->   the L1 handler + ValidationBehavior end-to-end via
->   `WebApplicationFactory<Program>` and a synthetic test controller. The
->   Standards 21 catalogue row for
->   `ValidationBehavior_DoesNotThrow_ValidationException` is updated to
->   "unit + integration".
-> - **A12** — `LearnStackExceptionHandler` is `internal sealed` — only
->   the framework's `AddExceptionHandler<T>()` instantiates it; tests
->   reach the type via `InternalsVisibleTo`.
-> - **A13** — `TenantContextSpanProcessor` stringifies Guid tags
->   (`tenant.id` / `organization.id` / `user.id`) so the wire format is
->   stable across exporters.
-> - **S1** — `MediatR_Pipeline_Order_Matches_Canonical_Sequence` test
->   asserts a hardcoded behavior-type sequence, not the production
->   `CanonicalBehaviorOrder` list, so an accidental list reorder cannot
->   sneak past.
-> - **SU1** — L1 handler skips the body write on
->   `OperationCanceledException` / cancelled `CancellationToken`; the
->   client has already disconnected.
-> - **SU4** — `TenantContextBehavior.AllowsUnresolvedContext` predicate
->   carries a TODO documenting the Packet 7 marker-attribute seam
->   (`[AllowsUnresolvedTenantContext]`).
-> - New architecture test `Modules_Do_Not_Reference_DeploymentMode` lit
->   up — catalogue entry existed since ADR-0020 but had no implementation
->   until now.
->
-> Review-2 fixes:
->
-> - **N4** — `CrossCuttingFoundationExtensions.SelectSecretProvider`
->   becomes the single composition-root site that picks the
->   `ISecretProvider` implementation per `DeploymentMode`. Both the DI
->   registration and the local `AddLearnStackErrorTracking` argument
->   read the same instance. Packet 5's `DaprSecretProvider` swap now
->   touches one line, not two.
-> - **SU5** — `SensitiveTokenCatalog` in
->   `LearnStack.SharedKernel/Secrets/` is the single source of truth for
->   the sensitive-property-name token list. Both
->   `RedactSensitiveFieldsEnricher` and
->   `LocalFileErrorTracker.RedactSensitiveTags` consume
->   `SensitiveTokenCatalog.IsSensitive(...)` so the two redaction
->   surfaces cannot drift. The catalogue now includes `vkn` (Vergi
->   Kimlik Numarası — Turkish corporate tax number, common for
->   instructor-owned sole proprietorships) alongside `tckn`.
-> - **SU6** — `RedactSensitiveFieldsEnricher` remarks carry a dated
->   TODO naming the Packet 7+ Roslyn analyzer that should extend
->   `LearnStack.Analyzers` to flag string-interpolated
->   `throw new ...Exception($"...{token}...")` patterns in `Domain` +
->   `Application` projects. Runtime redaction covers logs / OTLP / Sentry
->   tags; the analyzer closes the last gap (secrets in exception
->   messages) at compile time.
-> - **SU7** — `HttpStatusMap.For(Exception)` carries a rationale comment
->   for the non-IETF `499` "client closed request" status: matches
->   Nginx / IIS / Envoy / APISIX behaviour, keeps client disconnects
->   off the error-budget axis, and points at the L1 handler's skip-body
->   contract. If a future ADR pins a different code, the one comment
->   block is the seam to change.
->
-> Review-3/4 fixes:
->
-> - **H1 (blocker)** — the `DomainExceptionThrow` analyzer used a hyphenated
->   Roslyn diagnostic id, which Roslyn rejects (`AD0001` crash at report
->   time → CI build break under `TreatWarningsAsErrors` the first time a
->   `DomainException` is thrown). Fixed: diagnostic id is now `LS0001`
->   (valid identifier); `LearnStackException-DomainExceptionThrow` is
->   retained as the human-readable rule name. `LS0001` is listed in
->   `WarningsNotAsErrors` until the Phase 03 escalation so a legitimate
->   aggregate-invariant throw does not break CI. New
->   `DomainExceptionThrowAnalyzerTests` (`LearnStack.Tests.Unit`) run the
->   analyzer over synthetic compilations and assert `LS0001` is emitted
->   (no `AD0001`). Recorded as [ADR-0032 Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md);
->   Standards 21 naming convention + analyzer entry updated.
-> - **Provider error body/status consistency** — `HttpStatusMap.For(Exception)`
->   now derives the HTTP status from the carried `Error.Code` for every
->   `LearnStackException`, instead of special-casing
->   `ProviderException.IsClientError → 400`. `IsClientError` is purely an
->   observability concern (it gates Sentry capture), so a bare provider
->   failure is `dependency_unavailable` → 503 and an adapter surfacing a
->   provider 4xx passes an explicit `Error` (e.g. `validation_failed` → 400);
->   either way body code and status agree. Tests updated to assert both.
-> - **Redaction over-match + nesting** — `SensitiveTokenCatalog.IsSensitive`
->   now matches on word-segment boundaries (camelCase / `_ . -`) instead of
->   raw substrings, so `ClassName` / `BusinessName` are no longer redacted
->   by the `ssn` token while `Password` / `ApiKey` / `SSNToken` still are.
->   `RedactSensitiveFieldsEnricher` recurses into destructured objects,
->   dictionaries, and sequences so a sensitive field nested in a
->   non-sensitive top-level property (`User.Password`) is scrubbed; lazy
->   reconstruction keeps clean events allocation-free. New
->   `SensitiveTokenCatalogTests` + `RedactSensitiveFieldsEnricherTests`.
-> - **OTel naming + air-gapped** — the manual `AddSource` / `AddMeter`
->   filters use the documented lowercase `learnstack.*` convention (matching
->   the `learnstack.mediatr` ActivitySource without relying on
->   case-insensitive wildcard matching). `WireSerilog` / `WireOpenTelemetry`
->   now take `DeploymentMode`; `SelfHostedAirGapped` never wires the network
->   OTLP exporters (no-egress contract), with a dated TODO for the
->   `/var/learnstack/otel/` file target deferred to Phase 11 ops.
-> - **M1** — new `Handlers_Return_Result` architecture test asserts every
->   `IRequestHandler<,TResponse>` has `TResponse : IResultBase`, so a
->   raw-DTO handler can't silently bypass the pipeline (validation / audit /
->   tenant-context + RLS). Vacuous today, active when handlers land.
-> - **L4** — the Serilog enrichers are resolved from DI (the singletons
->   registered in `AddLearnStackObservabilityServices`) instead of being
->   `new()`'d in the pipeline, so there are no dead registrations.
-> - **Docs** — `Domain_Methods_Do_Not_Throw_For_Expected_Cases` marked
->   **deferred** in Standards 21 (the `LS0001` analyzer already enforces the
->   rule at build time; the report-walking architecture test lands with
->   module domain code in Packet 6+). LoggingBehavior activity-name doc,
->   `correlationId`-as-full-traceparent in Standards 09/10, and the
->   `IMeterFactory.Create("learnstack.<module>")` example in architecture 33
->   reconciled with the code.
-> - **Skipped (with reason)** — the resilience pipeline order
->   (retry → breaker → timeout → bulkhead) is left as-is: it is faithful to
->   ADR-0032 § Sub-decision 5's stated order. Whether the concurrency
->   limiter should sit outermost (to cap total in-flight including retries,
->   per the `Microsoft.Extensions.Resilience` standard handler) is an
->   ADR-level question for a future amendment, not a code defect in this
->   packet.
->
-> Validation after review-3/4: `dotnet build LearnStack.slnx` (CI=true)
-> clean; `LearnStack.Tests.Unit` 154/154, `LearnStack.Tests.Architecture`
-> 26/26, `LearnStack.Tests.Integration` 5/5, `LearnStack.Tests.Contract`
-> 1/1 green. (CI's `dotnet format --verify-no-changes` step also gates the
-> backend job — run `dotnet format LearnStack.slnx --verify-no-changes`
-> locally before pushing.)
->
-> **Deferred follow-ups carried out of Packet 3** (each is recorded in its
-> owning packet/phase below so it does not slip; no separate issue tracker
-> needed — the roadmap is the backlog):
->
-> - **Strongly-typed IDs for `ITenantContext` + `CapturedContext`** →
->   **Packet 7** (after the `TenantId` / `OrganizationId` Vogen value
->   objects land in Packet 6). Both contracts use raw `Guid` in Packet 3
->   because those VOs don't exist yet (only `UserId` does); they convert
->   together in one pass to avoid a half-typed intermediate.
-> - **`[AllowsUnresolvedTenantContext]` marker attribute** for the
->   `TenantContextBehavior` opt-out (tenant-provisioning / platform-admin
->   commands) → **Packet 7**.
-> - **`TransactionBehavior` / `OutboxFlushBehavior` shells light up** →
->   **Packet 6** (UoW transaction, per-module `DbContext`) and **Phase 02b**
->   (outbox enrolment) respectively.
-> - **`AuthorizationBehavior` shell lights up** + **`LS0001` analyzer
->   severity escalates Warning → Error** (and is removed from
->   `WarningsNotAsErrors`) → **Phase 03 exit**.
-> - **`Domain_Methods_Do_Not_Throw_For_Expected_Cases`** report-walking
->   architecture test → **Packet 10** (needs module domain code to walk;
->   until then the `LS0001` analyzer only does partial detection — it
->   reports every direct `throw new DomainException(...)` in `Domain` /
->   `Application` as a build-time Warning, non-blocking under
->   `WarningsNotAsErrors` until the Phase 03 exit escalation above, and does
->   not replace the broader report-walking test).
-> - **Air-gapped OTLP file target** (`/var/learnstack/otel/`) → **Phase 11**
->   ops (the no-egress branch already prevents network export in
->   `SelfHostedAirGapped`; the file sink needs an exporter-package decision,
->   the operational controls in
->   [phase-11-production-hardening.md](phase-11-production-hardening.md#observability),
->   and a test asserting no network telemetry exporter is ever wired under
->   `SelfHostedAirGapped`).
-> - **"No secrets in exception messages" Roslyn analyzer** (compile-time
->   complement to the runtime redactor) → **Phase 02b or later** (code TODO
->   in `RedactSensitiveFieldsEnricher`).
-> - **Resilience pipeline order** (should the concurrency limiter sit
->   outermost to cap total in-flight incl. retries?) → **future ADR-0032
->   amendment**; the current order is faithful to ADR-0032 § Sub-decision 5.
->
-> ---
->
-> **Restructure (2026-08-08).** Packets 4–10 below were re-scoped after a
-> four-report audit of the corpus. Packets 0–3 are shipped and their records
-> above are unchanged.
->
-> **Two things in the Packet 2 and Packet 3 records above are now known to be
-> wrong. Do not act on them; Packet 3b corrects both:**
->
-> - The Packet 3 `TenantContextBehavior` TODO names a `DbConnectionInterceptor`
->   as the mechanism for setting the Row Level Security session variables. That
->   is the wrong option. Interceptors fire when the connection opens, not when
->   the transaction starts, and `set_config(..., true)` is transaction-local —
->   so the value would be discarded before the query it protects ever runs. The
->   GUCs are set with `SET LOCAL` **inside the ambient transaction**, per
->   [Security Standards § Tenant Context](../standards/11-security.md), and
->   Packet 7 implements it.
-> - The Packet 2 Shared Kernel shipped three defects that get more expensive
->   with every consumer: `Results.Unit` collides with `MediatR.Unit`,
->   `Result<T>` carries no `[MemberNotNullWhen]`, and `Entity<TId>` implements
->   neither `IEquatable<>` nor `operator ==` so every comparison boxes. All
->   three are repaired in Packet 3b, before the first handler exists.
->
-> Separately, [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)'s
-> `IProviderResilience<TPort>` registration **example** does not compile, but
-> the code Packet 3 actually shipped is correct — read the code, not the ADR
-> snippet. ADR-0032 Amendment 2 records this.
->
-> Three things moved:
->
-> - **Correctness moved earlier.** The Row Level Security template published in
->   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) Amendment 1 and
->   copied into three further documents created two *permissive* policies, which
->   PostgreSQL combines with `OR` — making every tenant-wide row visible across
->   tenants. [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
->   corrects it, and Packet 6 is now the packet that must not be written against
->   the old template. Audit durability moved with it:
->   [ADR-0033](../decisions/0033-audit-durability-model.md) makes MUST-class
->   audit a durable intent inside the business transaction, which is also what
->   stops the corrected RLS policy from silently rejecting every audit insert.
-> - **Additive infrastructure moved later.** Per
->   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), Packet 5 now
->   ships the foundation **ports and their default implementations**; the Dapr,
->   Kafka, APISIX and Vault adapters land in
->   [Phase 11](phase-11-production-hardening.md) against written trigger
->   conditions. Packet 8 drops from eight customization aggregates to two, and
->   Packet 9's `audit_log` partitioning moves to Phase 11.
-> - **Proof moved earlier.** The second tenant — the artefact that tests the
->   genericity claim — moves from [Phase 10](phase-10-english-learning-mvp.md)
->   into Packet 7, where two seed tenants already exist for isolation testing.
->   [Phase 02d](phase-02d-walking-skeleton.md) then renders both of them in a
->   browser.
->
-> **Packet 3b — Decision repair ⏳**
-> A repair slice. Packets 0–3 are shipped and their records above stand; what
-> they left behind lands here rather than being edited into their history. This
-> packet exists so that no migration, no module and no adapter is written on top
-> of a defect that is currently one constant or one attribute wide.
->
-> Suffix lettering follows the precedent already in this roadmap (`02a`/`02b`/`02c`,
-> `08a`/`08b`/`08c`) and keeps every existing cross-reference intact — including
-> the Hub repository's "blocked on P02a-5/6/7/9" table, which renumbering would
-> orphan.
->
-> **Shared Kernel repairs** (carried out of Packet 2):
->
-> - `Results.Unit` collides with `MediatR.Unit`. Any handler file that imports
->   both namespaces gets an ambiguous reference, and every handler file will
->   import both. Rename before the first handler exists —
->   [Phase 02d](phase-02d-walking-skeleton.md) writes it.
-> - `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
->   cannot prove `Value` is non-null after an `IsSuccess` check. Without them
->   every consumer writes `!` or a justification comment, in every module, for
->   the lifetime of the codebase.
-> - `Entity<TId>` overrides `Equals(object?)` but implements neither
->   `IEquatable<Entity<TId>>` nor `operator ==`. Every equality comparison boxes,
->   and the EF change tracker compares constantly.
->
-> **Corpus repairs:**
->
-> - [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)'s
->   `IProviderResilience<TPort>` example shows
->   `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`, which does not
->   compile — C# forbids using a type parameter as a base type. The **shipped**
->   registration is correct (`AddSingleton<IProviderResilience<TPort>>` with an
->   injected collaborator); only the ADR text is wrong. Documentation fix, not a
->   design change.
-> - Eight shipped source comments schedule the Dapr-backed `ISecretProvider` to
->   "Packet 5" — `LearnStack.SharedKernel.csproj`, `ISecretProvider.cs`,
->   `ConfigurationSecretProvider.cs`, `CrossCuttingFoundationExtensions.cs` (five
->   sites including the `TODO(2026-05-21, @platform)`), and
->   `ErrorTrackingRegistration.cs`. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
->   moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
->   against a written trigger, so those comments now point at a packet that will
->   not ship them. The seam they describe is correct and unchanged — only the
->   phase pointer is stale. Comment-only edit; no behaviour change.
-> - The Packet 3 `TenantContextBehavior` TODO names a `DbConnectionInterceptor`
->   as the mechanism for setting the Row Level Security session variables.
->   Interceptors fire when the connection opens, not when the transaction starts,
->   and `set_config(..., true)` is transaction-local — so the value would be gone
->   before the query it protects. The TODO is corrected to point at
->   [Security Standards § Tenant Context](../standards/11-security.md) and at
->   Packet 7, which implements it.
->
-> **Development-loop and CI repairs.** [Phase 01](phase-01-repository-tooling.md)
-> is complete and its record stands; the gaps it shipped with are remediated
-> here:
->
-> - `make seed`'s health gate requires every compose service to report healthy,
->   but `coturn`, `dapr-placement` and `dapr-sidecar-api` declare no healthcheck —
->   so the gate times out and the script exits non-zero on **every** run. This is
->   step three of the quickstart.
-> - `infra/compose/e2e.yml` resets PostgreSQL, SeaweedFS, Meilisearch and Kafka to
->   `tmpfs` but leaves Valkey on its named volume, so cache and rate-limit state
->   leaks between end-to-end runs. Its `volumes: !reset []` additionally discards
->   the PostgreSQL init script and the SeaweedFS S3 identity file — which breaks
->   the moment [Phase 06](phase-06-renderer-admin-studio.md) starts running
->   browser tests against it.
-> - `frontend/apps/web` runs `vitest run --passWithNoTests` against zero test
->   files, so the frontend CI check is green without asserting anything. The job
->   is changed to fail on a zero test count; the first real tests arrive with
->   [Phase 02d](phase-02d-walking-skeleton.md).
-> - Branch protection requires four checks but zero approvals and does not enforce
->   for administrators, which contradicts
->   [Git Workflow Standards](../standards/14-git-workflow.md). Either the setting
->   or the standard changes — a security rule that differs from the live platform
->   setting makes a green build look stronger than it is.
-> - `infra/dapr/components/secretstore-vault.yaml` sets `vaultKVPrefix: secret`,
->   resolving reads to `secret/data/secret/<key>` instead of the documented
->   `secret/learnstack/<area>` layout.
-> - Every published port in `infra/compose/dev.yml` binds `0.0.0.0` with committed
->   development credentials, and `MEILI_MASTER_KEY` is hardcoded rather than read
->   from the environment. Bind to loopback; read from `.env`.
->
-> **Packet 4 — API conventions ⏳**
-> REST + URL versioning (`/api/v1/...` per
-> [ADR-0024](../decisions/0024-api-versioning-policy.md)), Problem Details
-> (RFC 7807) on every error, cursor pagination, idempotency keys for write
-> endpoints with external side effects, ETag concurrency, correlation IDs in
-> headers and logs, OpenAPI generated from code, tenant + organization header
-> binding (`X-Tenant-Id`, `X-Organization-Id`).
->
-> Carries one correctness fix: `CursorPagination`'s constructor validation
-> currently surfaces as an unhandled `ArgumentOutOfRangeException` during model
-> binding, producing a 500 where a malformed cursor is a client error. Binding
-> failures return **400** with Problem Details.
->
-> SDK generation ships as a wired-but-empty scaffold — there are no endpoints to
-> generate from until [Phase 02d](phase-02d-walking-skeleton.md).
->
-> **Packet 5 — Foundation ports and default implementations ⏳**
-> `IEventBus` / `ICacheService` / `ISecretProvider` in
-> `LearnStack.SharedKernel`, with `InProcessEventBus` / `InMemoryCacheService` in
-> `LearnStack.Infrastructure` — `ISecretProvider` and `ConfigurationSecretProvider`
-> already shipped in Packet 3 — as the **only
-> registered implementations**. Composition-root branching on `DeploymentMode`
-> is present and exercised, with `Development` and `SaaS` wired; the remaining
-> three values resolve to the same defaults until
-> [Phase 11](phase-11-production-hardening.md) builds their adapters and
-> integration suites, per
-> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
->
-> `InProcessEventBus` is a **first-class transport, not a stub**: same
-> `IIntegrationEventHandler<T>` interface, same `IInboxGuard`, same
-> tenant-context restoration as the durable path. A development path that skips
-> those is a development path that never exercises the isolation code, and every
-> consumer would end up with two implementations.
->
-> `ICacheService.RemoveByPrefixAsync` is **removed or redesigned** before this
-> packet ships. The published implementation iterates an instance-local key set,
-> so keys written by another instance are never evicted — the contract cannot be
-> honoured by any candidate backend. Either the method leaves the interface, or
-> it is replaced by a generation-key pattern whose guarantee is achievable.
->
-> The Dapr sidecar, Kafka, APISIX and Vault adapters are **not** in this packet.
-> They are demand-gated with written triggers in
-> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md); the local compose
-> stack moves them behind a non-default profile so the daily loop runs the
-> services the backend can actually call.
->
-> **Packet 6 — Tenancy schema and the corrected RLS template ⏳**
-> Migrations and EF configurations for `tenants`, `organizations` (per
-> [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
-> `tenant_domains`, `tenant_locales` (per
-> [ADR-0008](../decisions/0008-localization-schema.md)), `tenant_settings` (with
-> nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
-> (tenant-flag level only — plan-level features arrive through the entitlement
-> projection), `platform_entitlement_cache`, `platform_host_to_tenant`, and
-> `outbox_messages`. Default-organization seeding at tenant creation.
->
-> The `outbox_messages` table ships here even though nothing dispatches from it
-> until [Phase 02b](phase-02b-events-auth.md): the table's schema and its
-> ownership by LearnStack are a one-way door, and that ownership is precisely
-> what makes the dispatch transport swappable later.
->
-> **The first migration is written against the corrected template**, not the one
-> that was published in four documents before
-> [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md):
-> one policy per table with an `AND`-ed predicate, `ENABLE` **and** `FORCE ROW
-> LEVEL SECURITY`, an explicit `WITH CHECK`, and the four-role model
-> (`learnstack_migration` owns, `learnstack_app` connects with `NOBYPASSRLS`,
-> `learnstack_platform` and `learnstack_outbox_admin` hold audited bypasses). The
-> canonical SQL lives in exactly one place:
-> [Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
->
-> The migration also declares each table's **class** — tenant-owned, tenant-owned
-> self-keyed (`tenants`), or platform-scoped (`platform_host_to_tenant`) — because
-> two of the nine cannot take the template verbatim: `tenants` has no `tenant_id`
-> column, and `platform_host_to_tenant` is read in order to determine the tenant, so
-> a tenant-keyed predicate would make host resolution return zero rows forever. See
-> [Database Standards § Table classes](../standards/05-database.md). Every table's
-> `GRANT`s are written in this migration too; there are no `ALTER DEFAULT PRIVILEGES`
-> grants, so a table nobody granted fails loudly rather than inheriting DML — and can
-> never silently widen a `BYPASSRLS` role. Row security is enabled and forced on all
-> nine, so the structural scan needs no exception list.
->
-> Introduces the `TenantId` / `OrganizationId` Vogen value objects in
-> `LearnStack.SharedKernel` alongside the schema — the kernel-level identifiers
-> Packet 7 threads through `ITenantContext` and `CapturedContext`. The Packet 3
-> `TransactionBehavior` shell lights up here once the per-module `DbContext`
-> exists: unit-of-work begin, commit on success-`Result`, rollback on failure,
-> preserving the `ExceptionDispatchInfo` rethrow `AuditLogBehavior` owns one
-> frame out.
->
-> **Packet 7 — Tenant and organization resolution, isolation, two tenants ⏳**
-> `IHostToTenantResolver` backed by `platform_host_to_tenant` and **nothing
-> else** — never the Hub, per
-> [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); an anonymous
-> page load must not depend on a control plane being reachable.
-> `TenantResolverMiddleware`, request-scoped `ITenantContext` (`TenantId`,
-> `OrganizationId?`, `UserId?`), singleton `ITenantContextAccessor`
-> (`AsyncLocal<ITenantContext?>`-backed) populated at scope start by
-> `TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
-> (`/api/internal/*`), the Hangfire `JobActivator` (background jobs), and the
-> outbox / inbox handler scope (integration events). `[TenantOwned]` and
-> `[OrganizationScoped]` marker attributes. EF global query filters on every
-> entity implementing `ITenantOwned` / `IOrganizationScoped`.
->
-> **The RLS session variables are set with `SET LOCAL` inside the ambient
-> transaction**, after it opens. `set_config(..., true)` is transaction-local: set
-> from a MediatR behavior that runs before `TransactionBehavior`, or from a
-> connection interceptor that fires at connection open, it is discarded before the
-> query it is meant to protect ever runs. The corpus previously described all
-> three placements; [Security Standards § Tenant Context](../standards/11-security.md)
-> is now the single authority, and the Packet 3 `TenantContextBehavior` TODO —
-> which names the connection-interceptor option — is corrected here.
->
-> Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the narrow
-> cross-tenant access path. It reaches `learnstack_platform` through a **second,
-> separately-credentialed connection** (`ConnectionStrings:PlatformAdmin`), never
-> through `SET ROLE`: `learnstack_app` is not a member of `learnstack_platform`,
-> because membership would make `BYPASSRLS` a standing capability of the application
-> role, a plain `SET ROLE` survives `COMMIT` and would persist on a PgBouncer
-> transaction-pooled connection into the next tenant's request, and per-role settings
-> such as `statement_timeout` are applied at login and do not follow a role switch.
-> The composition root registers the platform data source as a keyed singleton that
-> only `PlatformAdminScope` may resolve
-> (`Platform_DataSource_Resolved_Only_By_PlatformAdminScope`). The scope writes its
-> own `SecurityEvent` audit row, as `learnstack_platform` and under the sentinel
-> platform tenant id, before the operation runs — so an operation that later fails is
-> still recorded.
->
-> `IHostToTenantResolver` sets `SET LOCAL app.resolving_host` inside its own short
-> read-only transaction before the lookup, because `SET LOCAL` outside a transaction
-> block has no effect and a session-level setting would leak across a pooled
-> connection. `app.resolving_host` is the fourth and last canonical session variable.
->
-> **Two seed tenants in unrelated domains**, each with two organizations: an
-> English school and a **yoga studio**. This is the artefact that tests the
-> genericity claim, and it moves here from
-> [Phase 10](phase-10-english-learning-mvp.md) because Packet 7 already needs two
-> tenants for isolation testing — the marginal cost is the second tenant's
-> customization data, and the marginal benefit is that every phase from
-> [Phase 02d](phase-02d-walking-skeleton.md) onward is tested against two shapes
-> instead of one. Picks up the application-level seed drop-in deferred from
-> [Phase 01 Packet 8](phase-01-repository-tooling.md), wired through the Tenancy
-> module `DbContext` rather than the placeholder `scripts/seed.sh`.
->
-> Cross-tenant and cross-organization isolation integration tests **run as
-> `learnstack_app`**. A test that connects as the table owner or as a `BYPASSRLS`
-> role passes even when every policy is inert, and therefore proves nothing. The
-> suite includes at minimum:
->
-> - `Tenant_A_cannot_read_Tenant_B_data`
-> - `Org_X_cannot_read_Org_Y_within_TenantA`
-> - `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` — the exact case the
->   superseded template leaked
-> - `Unsetting_tenant_context_returns_zero_rows_through_RLS`
-> - `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
->
-> Carries two Packet 3 follow-ups: converting `ITenantContext` **and**
-> `CapturedContext` from raw `Guid` / `Guid?` to the strongly-typed `TenantId` /
-> `OrganizationId` value objects created in Packet 6, in a single pass to avoid a
-> half-typed intermediate; and replacing the `TenantContextBehavior.AllowsUnresolvedContext`
-> stub with a real `[AllowsUnresolvedTenantContext]` marker attribute for
-> tenant-provisioning and platform-admin commands that legitimately run before a
-> tenant is resolved, backed by an architecture test that the attribute appears
-> only on that narrow command set.
->
-> **Packet 8 — Tenant Customization foundation ⏳**
-> `LearnStack.Modules.Customization` with **two** aggregates:
-> `TenantContentType` (JSON Schema declaring a content shape) and
-> `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary). These are
-> the two the runtime needs before [Phase 02d](phase-02d-walking-skeleton.md) can
-> render two different tenants; the rest have no consumer for several phases.
->
-> Both tables ship the versioned key shape —
-> `UNIQUE (tenant_id, key, schema_version)` plus the partial index
-> `UNIQUE (tenant_id, key) WHERE status = 'active'`. Not `UNIQUE (tenant_id, key)`:
-> that rejects the second revision of any key. See
-> [`## Scope` § Tenant Customization Foundation](#tenant-customization-foundation).
->
-> This packet also **fixes the storage shape** for scoring and completion rule bodies
-> without creating their tables: **opaque `text` with a `dialect` discriminator**. The
-> aggregates and their migrations land with their first consumer in
-> [Phase 05](phase-05-education-learning-content.md); the column type is settled here
-> because it is the part that cannot be changed later without a migration. The
-> evaluation engine is not chosen yet — ADR-0025
-> decides between CEL, a restricted Lua, and a custom AST in
-> [Phase 05](phase-05-education-learning-content.md), and the three candidates do
-> not share a column type. Storing the body opaquely lets tenants author rules
-> before the engine exists without committing the schema to a choice not yet
-> made.
->
-> The remaining aggregates land with their consumers:
->
-> | Aggregate | Owning phase |
-> |---|---|
-> | `TenantPageBlock` | [Phase 04](phase-04-cms-media-pages.md) |
-> | `TenantCustomFieldDef` | [Phase 03](phase-03-identity-admin.md) |
-> | `TenantLessonItemType` | [Phase 05](phase-05-education-learning-content.md) |
-> | `TenantScoringRule` / `TenantCompletionRule` — aggregates, tables and evaluation | [Phase 05](phase-05-education-learning-content.md) |
-> | `TenantTemplateLibrary` | [Phase 08a](phase-08a-assessment-notifications.md) |
->
-> A small built-in seed — one `default-card` composite renderer and a stock
-> `Plain` level taxonomy — lets early phases exercise the customization runtime
-> before a tenant data set exists. Admin Studio editors land in
-> [Phase 06](phase-06-renderer-admin-studio.md).
->
-> **Packet 9 — Audit infrastructure and the entitlement socket ⏳**
-> `LearnStack.Infrastructure.Audit` with `AuditChangeTrackerInterceptor` (an EF
-> `SaveChanges` interceptor), `IAuditStateCapture` (before / after / changes JSON
-> capture), and the Packet 3 `AuditLogBehavior` shell lit up per
-> [ADR-0033](../decisions/0033-audit-durability-model.md): **MUST-class audit
-> rows are enrolled in the same `SaveChanges` as the business write**, so they
-> commit with it or not at all, and so they execute while `app.tenant_id` is set
-> and Row Level Security accepts them. SHOULD/MAY-class audit stays best-effort,
-> with its accepted loss written down. `AuditConfig` may narrow SHOULD/MAY
-> coverage but never removes baseline MUST coverage, and a configuration-read
-> failure **fails closed**.
->
-> `LearnStack.Modules.Audit` with the `AuditEntry` aggregate — inheriting
-> `Entity<TId>`, **not** `AuditableEntity<T>`, guarded by
-> `AuditEntry_Inherits_Entity_Not_AuditableEntity` — and `AuditConfig`.
-> `audit_log` ships as a **single correct table** with the composite primary key
-> `(id, timestamp)`; the DDL in the superseded ADR-0016 declares a primary key
-> twice and PostgreSQL rejects it. Monthly partitioning, the retention job and
-> the lifecycle policy from
-> [ADR-0028](../decisions/0028-audit-log-partition-management.md) move to
-> [Phase 11](phase-11-production-hardening.md) per
-> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — audit
-> correctness cannot be added later, audit scale can.
->
-> `IEntitlementProvider` is declared with `NullEntitlementProvider` (all features
-> enabled, no limits) as the **only** implementation. The Hub-backed and
-> signed-licence implementations land in
-> [Phase 02c](phase-02c-hub-foundation.md) and
-> [Phase 11](phase-11-production-hardening.md) respectively, against the triggers
-> in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
->
-> **Packet 10 — Architecture tests green and phase exit ⏳**
-> Every Phase 02a rule in
-> [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md)
-> green in CI, under reconciled canonical names — the catalogue currently carries
-> six spellings of the tenant-isolation rule and five of the organization-scope
-> rule, drift it exists specifically to prevent. Reconciling now is a
-> find-and-replace in Markdown; reconciling after the tests exist is a refactor
-> across a dozen files.
->
-> Implements `Core_Modules_HaveNo_DomainSpecific_Names` — the mechanical
-> guarantee behind the platform's entire premise, and currently unimplemented
-> while its far weaker sibling `No_Source_Folder_Named_Verticals` is green.
->
-> One rule is restated rather than renamed. The catalogue's
-> `Every_TenantOwned_Table_HasRls_With_AppTenantId` asserts that a policy
-> **exists** and mentions `app.tenant_id`. The superseded template satisfied that
-> assertion perfectly while leaking every tenant-wide row across tenants — a
-> structure-shaped test that passes against a broken policy is worse than no test,
-> because it converts an open question into a false answer. Structural assertions
-> stay, but the binding proof is the Packet 7 integration suite running as
-> `learnstack_app`: isolation is a runtime property and only a runtime test can
-> observe it.
->
-> Tests grouped by introducing packet:
->
-> - From the cross-cutting [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
->   batch (introduced by Packet 3, already green):
->   `IExceptionHandler_Registered_AtStartup`,
->   `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
->   `ValidationBehavior_DoesNotThrow_ValidationException`,
->   `Adapters_Wrap_Provider_Exceptions`,
->   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
->   `Logging_Goes_Through_Microsoft_Extensions_Logging`,
->   `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
->   `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`,
->   `IErrorTrackingProvider_Is_Singleton`, `Handlers_Return_Result`.
->   `Domain_Methods_Do_Not_Throw_For_Expected_Cases` — the report-walking test —
->   lands here, because it needs module domain code to walk and none existed
->   until Packet 6. The underlying rule is enforced from Packet 3 by the `LS0001`
->   analyzer.
-> - From the module-dependency arm (introduced by Packet 2, closed here): the
->   Application + Infrastructure matrix extending
->   [`ModuleDependencyTests`](../../backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs),
->   `LearnStack_Modules_DoNotReference_Hub`,
->   `Modules_Do_Not_Inject_Valkey_Directly`,
->   `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
->   `Modules_Do_Not_Write_AuditLog_Directly`,
->   `Modules_Do_Not_Reference_DeploymentMode`,
->   **`Core_Modules_HaveNo_DomainSpecific_Names`**,
->   `No_Source_Folder_Named_Verticals` (green since Phase 01).
-> - From the tenancy and isolation arm (introduced by Packet 7):
->   `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`,
->   `Every_OrgScoped_Entity_HasOrgIdAndFilter`,
->   `No_IgnoreQueryFilters_Outside_PlatformAdminScope`,
->   `AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`.
-> - From the audit arm (introduced by Packet 9):
->   `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
->   `Every_TenantOwned_Command_HasAuditCoverage`,
->   `MustClass_Audit_Writes_Share_The_Business_Transaction`,
->   `Every_Module_Has_An_AuditCoverage_Matrix`.
->
-> Every standard in [the standards corpus](../standards/README.md) is
-> re-stated against reality: a standard with no implementing code moves from
-> `Active` to `Adopted`. All twenty-two currently claim `Active`, which makes the
-> three-state model decorative.
->
-> The `if: false` CI placeholder for integration tests
-> ([Phase 01 Packet 8](phase-01-repository-tooling.md)) is removed once Packet
-> 7's first isolation test is green. Closes the architecture-test arm of the
-> [Phase Exit Decision](#phase-exit-decision); the remaining gates close as their
-> owning packets ship.
+> **Status (2026-08-09).** Phase 02a in progress. Packets 0–3 shipped; the 2026-08-08
+> restructure re-scoped packets 4–10 and added packet 3b. Each packet is independently
+> reviewable in its own commit, matching the
+> [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
+> later packet may consume any earlier packet's deliverables, never the reverse.
+>
+> | Packet | Title | State |
+> |---|---|---|
+> | 0 | Kickoff | ✅ [record](#delivery-record-packets-03) |
+> | 1 | Foundation decisions | ✅ [record](#delivery-record-packets-03) |
+> | 2 | Shared Kernel core | ✅ [record](#delivery-record-packets-03) |
+> | 3 | Cross-cutting foundation | ✅ [record](#delivery-record-packets-03) |
+> | 3b | Decision repair | ⏳ [scope](#packet-sequence) |
+> | 4 | API conventions | ⏳ [scope](#packet-sequence) |
+> | 5 | Foundation ports and default implementations | ⏳ [scope](#packet-sequence) |
+> | 6 | Tenancy schema and the corrected RLS template | ⏳ [scope](#packet-sequence) |
+> | 7 | Tenant and organization resolution, isolation, two tenants | ⏳ [scope](#packet-sequence) |
+> | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
+> | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
+> | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
+>
+> **[`## Packet Sequence`](#packet-sequence) says which packet lands which part, in what
+> order, and what gates it. [`## Scope`](#scope) says the same work grouped by subsystem —
+> read it when you want the shape of a subsystem, read the sequence when you want the
+> order. The shipped Packet 0–3 records are at the end of this document under
+> [`## Delivery Record (Packets 0–3)`](#delivery-record-packets-03) and are not
+> rewritten.**
+
 ## Goal
 
 Build the runtime foundation everything else stands on — and **only** that.
@@ -850,6 +71,403 @@ They are codified in:
 [ADR-0015 (APISIX)](../decisions/0015-api-gateway-apisix.md) remain accepted decisions
 about **what** LearnStack uses; ADR-0035 decides **when** each arrives, and the answer
 is not this phase.
+
+## Packet Sequence
+
+The forward plan for packets 3b–10. Each entry states what the packet lands, what it
+depends on, and what gates it. The subsystem view of the same work is [`## Scope`](#scope);
+where the two overlap, Scope is the authority on shape and this section on order.
+
+**Packet 3b — Decision repair ⏳**
+A repair slice. Packets 0–3 are shipped and their records stand — see
+[`## Delivery Record`](#delivery-record-packets-03) at the end of this document; what
+they left behind lands here rather than being edited into their history. This
+packet exists so that no migration, no module and no adapter is written on top
+of a defect that is currently one constant or one attribute wide.
+
+Suffix lettering follows the precedent already in this roadmap (`02a`/`02b`/`02c`,
+`08a`/`08b`/`08c`) and keeps every existing cross-reference intact — including
+the Hub repository's "blocked on P02a-5/6/7/9" table, which renumbering would
+orphan.
+
+**Shared Kernel repairs** (carried out of Packet 2):
+
+- `Results.Unit` collides with `MediatR.Unit`. Any handler file that imports
+  both namespaces gets an ambiguous reference, and every handler file will
+  import both. Rename before the first handler exists —
+  [Phase 02d](phase-02d-walking-skeleton.md) writes it.
+- `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
+  cannot prove `Value` is non-null after an `IsSuccess` check. Without them
+  every consumer writes `!` or a justification comment, in every module, for
+  the lifetime of the codebase.
+- `Entity<TId>` overrides `Equals(object?)` but implements neither
+  `IEquatable<Entity<TId>>` nor `operator ==`. Every equality comparison boxes,
+  and the EF change tracker compares constantly.
+
+**Corpus repairs:**
+
+- [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)'s
+  `IProviderResilience<TPort>` example shows
+  `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`, which does not
+  compile — C# forbids using a type parameter as a base type. The **shipped**
+  registration is correct (`AddSingleton<IProviderResilience<TPort>>` with an
+  injected collaborator); only the ADR text is wrong. Documentation fix, not a
+  design change.
+- Eight shipped source comments schedule the Dapr-backed `ISecretProvider` to
+  "Packet 5" — `LearnStack.SharedKernel.csproj`, `ISecretProvider.cs`,
+  `ConfigurationSecretProvider.cs`, `CrossCuttingFoundationExtensions.cs` (five
+  sites including the `TODO(2026-05-21, @platform)`), and
+  `ErrorTrackingRegistration.cs`. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+  moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
+  against a written trigger, so those comments now point at a packet that will
+  not ship them. The seam they describe is correct and unchanged — only the
+  phase pointer is stale. Comment-only edit; no behaviour change.
+- The Packet 3 `TenantContextBehavior` TODO names a `DbConnectionInterceptor`
+  as the mechanism for setting the Row Level Security session variables.
+  Interceptors fire when the connection opens, not when the transaction starts,
+  and `set_config(..., true)` is transaction-local — so the value would be gone
+  before the query it protects. The TODO is corrected to point at
+  [Security Standards § Tenant Context](../standards/11-security.md) and at
+  Packet 7, which implements it.
+
+**Development-loop and CI repairs.** [Phase 01](phase-01-repository-tooling.md)
+is complete and its record stands; the gaps it shipped with are remediated
+here:
+
+- `make seed`'s health gate requires every compose service to report healthy,
+  but `coturn`, `dapr-placement` and `dapr-sidecar-api` declare no healthcheck —
+  so the gate times out and the script exits non-zero on **every** run. This is
+  step three of the quickstart.
+- `infra/compose/e2e.yml` resets PostgreSQL, SeaweedFS, Meilisearch and Kafka to
+  `tmpfs` but leaves Valkey on its named volume, so cache and rate-limit state
+  leaks between end-to-end runs. Its `volumes: !reset []` additionally discards
+  the PostgreSQL init script and the SeaweedFS S3 identity file — which breaks
+  the moment [Phase 06](phase-06-renderer-admin-studio.md) starts running
+  browser tests against it.
+- `frontend/apps/web` runs `vitest run --passWithNoTests` against zero test
+  files, so the frontend CI check is green without asserting anything. The job
+  is changed to fail on a zero test count; the first real tests arrive with
+  [Phase 02d](phase-02d-walking-skeleton.md).
+- Branch protection requires four checks but zero approvals and does not enforce
+  for administrators, which contradicts
+  [Git Workflow Standards](../standards/14-git-workflow.md). Either the setting
+  or the standard changes — a security rule that differs from the live platform
+  setting makes a green build look stronger than it is.
+- `infra/dapr/components/secretstore-vault.yaml` sets `vaultKVPrefix: secret`,
+  resolving reads to `secret/data/secret/<key>` instead of the documented
+  `secret/learnstack/<area>` layout.
+- Every published port in `infra/compose/dev.yml` binds `0.0.0.0` with committed
+  development credentials, and `MEILI_MASTER_KEY` is hardcoded rather than read
+  from the environment. Bind to loopback; read from `.env`.
+
+**Packet 4 — API conventions ⏳**
+REST + URL versioning (`/api/v1/...` per
+[ADR-0024](../decisions/0024-api-versioning-policy.md)), Problem Details
+(RFC 7807) on every error, cursor pagination, idempotency keys for write
+endpoints with external side effects, ETag concurrency, correlation IDs in
+headers and logs, OpenAPI generated from code, tenant + organization header
+binding (`X-Tenant-Id`, `X-Organization-Id`).
+
+Carries one correctness fix: `CursorPagination`'s constructor validation
+currently surfaces as an unhandled `ArgumentOutOfRangeException` during model
+binding, producing a 500 where a malformed cursor is a client error. Binding
+failures return **400** with Problem Details.
+
+SDK generation ships as a wired-but-empty scaffold — there are no endpoints to
+generate from until [Phase 02d](phase-02d-walking-skeleton.md).
+
+**Packet 5 — Foundation ports and default implementations ⏳**
+`IEventBus` / `ICacheService` / `ISecretProvider` in
+`LearnStack.SharedKernel`, with `InProcessEventBus` / `InMemoryCacheService` in
+`LearnStack.Infrastructure` — `ISecretProvider` and `ConfigurationSecretProvider`
+already shipped in Packet 3 — as the **only
+registered implementations**. Composition-root branching on `DeploymentMode`
+is present and exercised, with `Development` and `SaaS` wired; the remaining
+three values resolve to the same defaults until
+[Phase 11](phase-11-production-hardening.md) builds their adapters and
+integration suites, per
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
+
+`InProcessEventBus` is a **first-class transport, not a stub**: same
+`IIntegrationEventHandler<T>` interface, same `IInboxGuard`, same
+tenant-context restoration as the durable path. A development path that skips
+those is a development path that never exercises the isolation code, and every
+consumer would end up with two implementations.
+
+`ICacheService.RemoveByPrefixAsync` is **removed or redesigned** before this
+packet ships. The published implementation iterates an instance-local key set,
+so keys written by another instance are never evicted — the contract cannot be
+honoured by any candidate backend. Either the method leaves the interface, or
+it is replaced by a generation-key pattern whose guarantee is achievable.
+
+The Dapr sidecar, Kafka, APISIX and Vault adapters are **not** in this packet.
+They are demand-gated with written triggers in
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md); the local compose
+stack moves them behind a non-default profile so the daily loop runs the
+services the backend can actually call.
+
+**Packet 6 — Tenancy schema and the corrected RLS template ⏳**
+Migrations and EF configurations for `tenants`, `organizations` (per
+[ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
+`tenant_domains`, `tenant_locales` (per
+[ADR-0008](../decisions/0008-localization-schema.md)), `tenant_settings` (with
+nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
+(tenant-flag level only — plan-level features arrive through the entitlement
+projection), `platform_entitlement_cache`, `platform_host_to_tenant`, and
+`outbox_messages`. Default-organization seeding at tenant creation.
+
+The `outbox_messages` table ships here even though nothing dispatches from it
+until [Phase 02b](phase-02b-events-auth.md): the table's schema and its
+ownership by LearnStack are a one-way door, and that ownership is precisely
+what makes the dispatch transport swappable later.
+
+**The first migration is written against the corrected template**, not the one
+that was published in four documents before
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md):
+one policy per table with an `AND`-ed predicate, `ENABLE` **and** `FORCE ROW
+LEVEL SECURITY`, an explicit `WITH CHECK`, and the four-role model
+(`learnstack_migration` owns, `learnstack_app` connects with `NOBYPASSRLS`,
+`learnstack_platform` and `learnstack_outbox_admin` hold audited bypasses). The
+canonical SQL lives in exactly one place:
+[Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
+
+The migration also declares each table's **class** — tenant-owned, tenant-owned
+self-keyed (`tenants`), or platform-scoped (`platform_host_to_tenant`) — because
+two of the nine cannot take the template verbatim: `tenants` has no `tenant_id`
+column, and `platform_host_to_tenant` is read in order to determine the tenant, so
+a tenant-keyed predicate would make host resolution return zero rows forever. See
+[Database Standards § Table classes](../standards/05-database.md). Every table's
+`GRANT`s are written in this migration too; there are no `ALTER DEFAULT PRIVILEGES`
+grants, so a table nobody granted fails loudly rather than inheriting DML — and can
+never silently widen a `BYPASSRLS` role. Row security is enabled and forced on all
+nine, so the structural scan needs no exception list.
+
+Introduces the `TenantId` / `OrganizationId` Vogen value objects in
+`LearnStack.SharedKernel` alongside the schema — the kernel-level identifiers
+Packet 7 threads through `ITenantContext` and `CapturedContext`. The Packet 3
+`TransactionBehavior` shell lights up here once the per-module `DbContext`
+exists: unit-of-work begin, commit on success-`Result`, rollback on failure,
+preserving the `ExceptionDispatchInfo` rethrow `AuditLogBehavior` owns one
+frame out.
+
+**Packet 7 — Tenant and organization resolution, isolation, two tenants ⏳**
+`IHostToTenantResolver` backed by `platform_host_to_tenant` and **nothing
+else** — never the Hub, per
+[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); an anonymous
+page load must not depend on a control plane being reachable.
+`TenantResolverMiddleware`, request-scoped `ITenantContext` (`TenantId`,
+`OrganizationId?`, `UserId?`), singleton `ITenantContextAccessor`
+(`AsyncLocal<ITenantContext?>`-backed) populated at scope start by
+`TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
+(`/api/internal/*`), the Hangfire `JobActivator` (background jobs), and the
+outbox / inbox handler scope (integration events). `[TenantOwned]` and
+`[OrganizationScoped]` marker attributes. EF global query filters on every
+entity implementing `ITenantOwned` / `IOrganizationScoped`.
+
+**The RLS session variables are set with `SET LOCAL` inside the ambient
+transaction**, after it opens. `set_config(..., true)` is transaction-local: set
+from a MediatR behavior that runs before `TransactionBehavior`, or from a
+connection interceptor that fires at connection open, it is discarded before the
+query it is meant to protect ever runs. The corpus previously described all
+three placements; [Security Standards § Tenant Context](../standards/11-security.md)
+is now the single authority, and the Packet 3 `TenantContextBehavior` TODO —
+which names the connection-interceptor option — is corrected here.
+
+Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the narrow
+cross-tenant access path. It reaches `learnstack_platform` through a **second,
+separately-credentialed connection** (`ConnectionStrings:PlatformAdmin`), never
+through `SET ROLE`: `learnstack_app` is not a member of `learnstack_platform`,
+because membership would make `BYPASSRLS` a standing capability of the application
+role, a plain `SET ROLE` survives `COMMIT` and would persist on a PgBouncer
+transaction-pooled connection into the next tenant's request, and per-role settings
+such as `statement_timeout` are applied at login and do not follow a role switch.
+The composition root registers the platform data source as a keyed singleton that
+only `PlatformAdminScope` may resolve
+(`Platform_DataSource_Resolved_Only_By_PlatformAdminScope`). The scope writes its
+own `SecurityEvent` audit row, as `learnstack_platform` and under the sentinel
+platform tenant id, before the operation runs — so an operation that later fails is
+still recorded.
+
+`IHostToTenantResolver` sets `SET LOCAL app.resolving_host` inside its own short
+read-only transaction before the lookup, because `SET LOCAL` outside a transaction
+block has no effect and a session-level setting would leak across a pooled
+connection. `app.resolving_host` is the fourth and last canonical session variable.
+
+**Two seed tenants in unrelated domains**, each with two organizations: an
+English school and a **yoga studio**. This is the artefact that tests the
+genericity claim, and it moves here from
+[Phase 10](phase-10-english-learning-mvp.md) because Packet 7 already needs two
+tenants for isolation testing — the marginal cost is the second tenant's
+customization data, and the marginal benefit is that every phase from
+[Phase 02d](phase-02d-walking-skeleton.md) onward is tested against two shapes
+instead of one. Picks up the application-level seed drop-in deferred from
+[Phase 01 Packet 8](phase-01-repository-tooling.md), wired through the Tenancy
+module `DbContext` rather than the placeholder `scripts/seed.sh`.
+
+Cross-tenant and cross-organization isolation integration tests **run as
+`learnstack_app`**. A test that connects as the table owner or as a `BYPASSRLS`
+role passes even when every policy is inert, and therefore proves nothing. The
+suite includes at minimum:
+
+- `Tenant_A_cannot_read_Tenant_B_data`
+- `Org_X_cannot_read_Org_Y_within_TenantA`
+- `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` — the exact case the
+  superseded template leaked
+- `Unsetting_tenant_context_returns_zero_rows_through_RLS`
+- `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
+
+Carries two Packet 3 follow-ups: converting `ITenantContext` **and**
+`CapturedContext` from raw `Guid` / `Guid?` to the strongly-typed `TenantId` /
+`OrganizationId` value objects created in Packet 6, in a single pass to avoid a
+half-typed intermediate; and replacing the `TenantContextBehavior.AllowsUnresolvedContext`
+stub with a real `[AllowsUnresolvedTenantContext]` marker attribute for
+tenant-provisioning and platform-admin commands that legitimately run before a
+tenant is resolved, backed by an architecture test that the attribute appears
+only on that narrow command set.
+
+**Packet 8 — Tenant Customization foundation ⏳**
+`LearnStack.Modules.Customization` with **two** aggregates:
+`TenantContentType` (JSON Schema declaring a content shape) and
+`TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary). These are
+the two the runtime needs before [Phase 02d](phase-02d-walking-skeleton.md) can
+render two different tenants; the rest have no consumer for several phases.
+
+Both tables ship the versioned key shape —
+`UNIQUE (tenant_id, key, schema_version)` plus the partial index
+`UNIQUE (tenant_id, key) WHERE status = 'active'`. Not `UNIQUE (tenant_id, key)`:
+that rejects the second revision of any key. See
+[`## Scope` § Tenant Customization Foundation](#tenant-customization-foundation).
+
+This packet also **fixes the storage shape** for scoring and completion rule bodies
+without creating their tables: **opaque `text` with a `dialect` discriminator**. The
+aggregates and their migrations land with their first consumer in
+[Phase 05](phase-05-education-learning-content.md); the column type is settled here
+because it is the part that cannot be changed later without a migration. The
+evaluation engine is not chosen yet — ADR-0025
+decides between CEL, a restricted Lua, and a custom AST in
+[Phase 05](phase-05-education-learning-content.md), and the three candidates do
+not share a column type. Storing the body opaquely lets tenants author rules
+before the engine exists without committing the schema to a choice not yet
+made.
+
+The remaining aggregates land with their consumers:
+
+| Aggregate | Owning phase |
+|---|---|
+| `TenantPageBlock` | [Phase 04](phase-04-cms-media-pages.md) |
+| `TenantCustomFieldDef` | [Phase 03](phase-03-identity-admin.md) |
+| `TenantLessonItemType` | [Phase 05](phase-05-education-learning-content.md) |
+| `TenantScoringRule` / `TenantCompletionRule` — aggregates, tables and evaluation | [Phase 05](phase-05-education-learning-content.md) |
+| `TenantTemplateLibrary` | [Phase 08a](phase-08a-assessment-notifications.md) |
+
+A small built-in seed — one `default-card` composite renderer and a stock
+`Plain` level taxonomy — lets early phases exercise the customization runtime
+before a tenant data set exists. Admin Studio editors land in
+[Phase 06](phase-06-renderer-admin-studio.md).
+
+**Packet 9 — Audit infrastructure and the entitlement socket ⏳**
+`LearnStack.Infrastructure.Audit` with `AuditChangeTrackerInterceptor` (an EF
+`SaveChanges` interceptor), `IAuditStateCapture` (before / after / changes JSON
+capture), and the Packet 3 `AuditLogBehavior` shell lit up per
+[ADR-0033](../decisions/0033-audit-durability-model.md): **MUST-class audit
+rows are enrolled in the same `SaveChanges` as the business write**, so they
+commit with it or not at all, and so they execute while `app.tenant_id` is set
+and Row Level Security accepts them. SHOULD/MAY-class audit stays best-effort,
+with its accepted loss written down. `AuditConfig` may narrow SHOULD/MAY
+coverage but never removes baseline MUST coverage, and a configuration-read
+failure **fails closed**.
+
+`LearnStack.Modules.Audit` with the `AuditEntry` aggregate — inheriting
+`Entity<TId>`, **not** `AuditableEntity<T>`, guarded by
+`AuditEntry_Inherits_Entity_Not_AuditableEntity` — and `AuditConfig`.
+`audit_log` ships as a **single correct table** with the composite primary key
+`(id, timestamp)`; the DDL in the superseded ADR-0016 declares a primary key
+twice and PostgreSQL rejects it. Monthly partitioning, the retention job and
+the lifecycle policy from
+[ADR-0028](../decisions/0028-audit-log-partition-management.md) move to
+[Phase 11](phase-11-production-hardening.md) per
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — audit
+correctness cannot be added later, audit scale can.
+
+`IEntitlementProvider` is declared with `NullEntitlementProvider` (all features
+enabled, no limits) as the **only** implementation. The Hub-backed and
+signed-licence implementations land in
+[Phase 02c](phase-02c-hub-foundation.md) and
+[Phase 11](phase-11-production-hardening.md) respectively, against the triggers
+in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
+
+**Packet 10 — Architecture tests green and phase exit ⏳**
+Every Phase 02a rule in
+[Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md)
+green in CI, under reconciled canonical names — the catalogue currently carries
+six spellings of the tenant-isolation rule and five of the organization-scope
+rule, drift it exists specifically to prevent. Reconciling now is a
+find-and-replace in Markdown; reconciling after the tests exist is a refactor
+across a dozen files.
+
+Implements `Core_Modules_HaveNo_DomainSpecific_Names` — the mechanical
+guarantee behind the platform's entire premise, and currently unimplemented
+while its far weaker sibling `No_Source_Folder_Named_Verticals` is green.
+
+One rule is restated rather than renamed. The catalogue's
+`Every_TenantOwned_Table_HasRls_With_AppTenantId` asserts that a policy
+**exists** and mentions `app.tenant_id`. The superseded template satisfied that
+assertion perfectly while leaking every tenant-wide row across tenants — a
+structure-shaped test that passes against a broken policy is worse than no test,
+because it converts an open question into a false answer. Structural assertions
+stay, but the binding proof is the Packet 7 integration suite running as
+`learnstack_app`: isolation is a runtime property and only a runtime test can
+observe it.
+
+Tests grouped by introducing packet:
+
+- From the cross-cutting [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
+  batch (introduced by Packet 3, already green):
+  `IExceptionHandler_Registered_AtStartup`,
+  `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
+  `ValidationBehavior_DoesNotThrow_ValidationException`,
+  `Adapters_Wrap_Provider_Exceptions`,
+  `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
+  `Logging_Goes_Through_Microsoft_Extensions_Logging`,
+  `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
+  `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing`,
+  `IErrorTrackingProvider_Is_Singleton`, `Handlers_Return_Result`.
+  `Domain_Methods_Do_Not_Throw_For_Expected_Cases` — the report-walking test —
+  lands here, because it needs module domain code to walk and none existed
+  until Packet 6. The underlying rule is enforced from Packet 3 by the `LS0001`
+  analyzer.
+- From the module-dependency arm (introduced by Packet 2, closed here): the
+  Application + Infrastructure matrix extending
+  [`ModuleDependencyTests`](../../backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs),
+  `LearnStack_Modules_DoNotReference_Hub`,
+  `Modules_Do_Not_Inject_Valkey_Directly`,
+  `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
+  `Modules_Do_Not_Write_AuditLog_Directly`,
+  `Modules_Do_Not_Reference_DeploymentMode`,
+  **`Core_Modules_HaveNo_DomainSpecific_Names`**,
+  `No_Source_Folder_Named_Verticals` (green since Phase 01).
+- From the tenancy and isolation arm (introduced by Packet 7):
+  `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`,
+  `Every_OrgScoped_Entity_HasOrgIdAndFilter`,
+  `No_IgnoreQueryFilters_Outside_PlatformAdminScope`,
+  `AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`.
+- From the audit arm (introduced by Packet 9):
+  `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
+  `Every_TenantOwned_Command_HasAuditCoverage`,
+  `MustClass_Audit_Writes_Share_The_Business_Transaction`,
+  `Every_Module_Has_An_AuditCoverage_Matrix`.
+
+Every standard in [the standards corpus](../standards/README.md) is
+re-stated against reality: a standard with no implementing code moves from
+`Active` to `Adopted`. All twenty-two currently claim `Active`, which makes the
+three-state model decorative.
+
+The `if: false` CI placeholder for integration tests
+([Phase 01 Packet 8](phase-01-repository-tooling.md)) is removed once Packet
+7's first isolation test is green. Closes the architecture-test arm of the
+[Phase Exit Decision](#phase-exit-decision); the remaining gates close as their
+owning packets ship.
+
 
 ## Scope
 
@@ -1399,3 +1017,424 @@ The remaining exit gates (tenant + organization resolution, isolation tests runn
 `learnstack_app`, the durable audit pipeline, customization runtime read paths, API
 conventions, two seed tenants, architecture-test catalogue green) close as Packets
 3b–10 ship.
+
+
+
+## Delivery Record (Packets 0–3)
+
+Shipped history, kept verbatim. Packets 0–3 and the 2026-08-08 restructure annotation
+are frozen: read them, do not edit them. They were written when they sat at the top of
+this file, so where they say "below" and "above" they mean the original layout — the
+forward plan they point at is [`## Packet Sequence`](#packet-sequence), now above them.
+Nothing in them was reworded when they moved.
+
+> **Packet 0 — Kickoff ✅ (this commit)**
+> Phase 02a packet breakdown captured in this Status block. Glossary
+> entries for "Phase", "Packet", and "Kickoff Packet" added under a new
+> *Roadmap & Delivery* group so the terms are defined in exactly one
+> place. No code, no ADR state changes — Packet 0 is a planning slice
+> that unblocks the rest of the phase by fixing the order.
+>
+> **Packet 1 — Foundation decisions ✅**
+> The three Phase-02a-blocking ADRs are now Accepted:
+> [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md)
+> picks **Vogen** as the source generator for both IDs and value objects;
+> [ADR-0024](../decisions/0024-api-versioning-policy.md) codifies
+> URL-based versioning with a **6-month deprecation window** + RFC 8594
+> `Sunset` / `Deprecation` headers + OpenAPI `x-sunset` extensions;
+> [ADR-0028](../decisions/0028-audit-log-partition-management.md) picks
+> a **Hangfire recurring job** (`learnstack:audit:partition-management`)
+> over `pg_partman` to keep the SelfHostedAirGapped story extension-free.
+> Decision-only; no code. Standards 02 § Strongly-Typed Identifiers and
+> Standards 04 § Versioning cross-link to the new ADRs.
+>
+> **Packet 2 — Shared Kernel core ✅**
+> `IClock` + `SystemClock` / `FixedClock`, `IRandom` + `SystemRandom` /
+> `FixedRandom`, `IGuidFactory` + `SystemGuidFactory` / `FixedGuidFactory`
+> (deterministic-test abstractions per Standards 02 § Time);
+> `LocalizedMessage` carrying the `lockey_` prefix invariant at the
+> constructor (used by every `Result.Fail` and success-message payload);
+> `Error` refactored to wrap `LocalizedMessage` with a `Code` projection
+> over `Message.Key`; `Result<T>` extended with `IResultBase`, success-message
+> overload, and the static `Result.FailFor<T>(error)` factory ADR-0032's
+> `ValidationBehavior` consumes; `Entity<TId>` (append-only / audit
+> aggregate base) + `AuditableEntity<TId>` (mutable aggregate base with
+> `CreatedAt` / `CreatedBy` / `UpdatedAt` / `UpdatedBy` / `DeletedAt` /
+> `DeletedBy` / `Version` plus the `IsDeleted` projection);
+> `ISoftDelete` + `IOptimisticConcurrency` marker interfaces;
+> `IDomainEvent : INotification` + `DomainEvent` base + `IHasDomainEvents`
+> aggregate-side collector; cursor-first pagination
+> (`CursorPagination` / `Page<T>` / `PageInfo` matching Standards 04
+> § Pagination). Vogen 7.0.0 wired per ADR-0023 with
+> `LearnStackVogenDefaults.IdMask` carrying the canonical
+> `EfCoreValueConverter | SystemTextJson | TypeConverter` mask;
+> `IAggregateRoot<TId>` / `IHasId<TId>` interfaces require `TId :
+> IStronglyTypedId<Guid>` so future module aggregates inherit the
+> constraint. Unit / architecture / contract suites all green in CI; the
+> `VogenIdEmissionTests` smoke test asserts the emitter pipeline
+> (Vogen `[ValueObject<Guid>]` → `IStronglyTypedId.Value` → JSON
+> round-trip → `TypeConverter` round-trip) end-to-end via a synthetic
+> `TestId` in the test project.
+> Review pass folded in (commit `7c9133a`): `Entity<TId>` equality carries
+> transient + cross-runtime-type guards; `Result.FailFor<TResponse>` returns
+> the concrete `TResponse` via reflection (not `Result<TResponse>`);
+> `Error.Code` is the unprefixed stable identifier projected from
+> `Message.Key`; `Error.Details` flows `LocalizedMessage` lists so the prefix
+> invariant covers field-level errors; `Result<T>.Ok` rejects null;
+> `UserId` is a SharedKernel-level Vogen value object used by
+> `AuditableEntity<TId>` instead of raw `Guid`; `DomainEvent.EventId` /
+> `OccurredAt` are `required init`; `MarkCreated` throws on second call;
+> `SoftDelete` bumps `UpdatedAt` for monotonic last-touched;
+> `CursorPagination` validates `Limit > 0` at the ctor. Standards 01
+> § Dependency Direction grows a "Build-time-only exceptions" sub-section
+> for the EF Core + MediatR references SharedKernel requires. Unit /
+> architecture / contract suites all green in CI.
+>
+> **Packet 3 — Cross-cutting foundation ✅**
+> The [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)
+> surface is wired end to end via the
+> [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)
+> skill. Shipped:
+>
+> - L1 `LearnStackExceptionHandler : IExceptionHandler` registered through
+>   `services.AddExceptionHandler<T>()` + `app.UseExceptionHandler()`;
+>   `ShouldCapture(ex)` switch drives the Sentry-vs-OTel boundary per
+>   Standards 09 (`OperationCanceledException` + client-error
+>   `ProviderException` skip capture).
+> - Eight-step MediatR pipeline in `LearnStack.Application/Pipeline/`:
+>   `Validation` + `Logging` are full implementations; `AuditLog` ships the
+>   try / `ExceptionDispatchInfo` rethrow shell (audit-write lights up in
+>   Packet 9 when `IAuditStore` lands); `TenantContext` shell short-circuits
+>   with `Result.Fail(tenant_mismatch)` until the resolver middleware arrives
+>   in Packet 7; `Authorization` / `Transaction` / `OutboxFlush` pass-through
+>   shells whose registration order is the binding part. Order encoded in
+>   `MediatRPipelineRegistration.CanonicalBehaviorOrder` and asserted by the
+>   `MediatR_Pipeline_Order_Matches_Canonical_Sequence` architecture test.
+> - `Result<T>.ToActionResult()` extension in `LearnStack.Api.Common`
+>   alongside `ProblemDetailsFactory` + `HttpStatusMap`; explicit at every
+>   future controller endpoint per Standards 09.
+> - `LearnStackException` hierarchy in `LearnStack.SharedKernel/Errors/`:
+>   `DomainException`, `InfrastructureException`, `ProviderException` (with
+>   `IsClientError` flag), `TenantContextMissingException`.
+>   `LearnStackException-DomainExceptionThrow` Roslyn analyzer under
+>   `backend/analyzers/LearnStack.Analyzers/` flags `throw new DomainException`
+>   in `Domain` + `Application` (warning class in Phase 02a, escalates to
+>   error after Phase 03 exit per ADR-0032 § Sub-decision 4).
+> - `IProviderResilience<TPort>` socket in
+>   `LearnStack.SharedKernel/Resilience/` + Polly v8
+>   `ResiliencePipeline` builder in
+>   `LearnStack.Infrastructure.Resilience/`. Pipeline = retry (only
+>   `InfrastructureException` + non-client `ProviderException`) → circuit
+>   breaker → timeout → bulkhead. Configuration shape:
+>   `appsettings.Resilience:<portName>:` (sample lit up under
+>   `liveclass`, `payment`, `storage`, `search`). Per-adapter decoration is
+>   the adapter's responsibility — the socket is what adapters consume in
+>   Phase 02b+ via the [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
+>   skill. Hub HTTP clients excluded per Sub-decision 5.
+> - Serilog primary logger wired in `LearnStack.Api/Composition/CrossCuttingFoundationExtensions.cs`
+>   with `WriteTo.Console(RenderedCompactJsonFormatter)` +
+>   `WriteTo.OpenTelemetry(OTLP gRPC)`. The OTel `LoggerProvider` is
+>   intentionally **not** registered alongside per ADR-0032 § Sub-decision 8.
+> - OpenTelemetry SDK with `AspNetCore` + `HttpClient` +
+>   `EntityFrameworkCore` instrumentations + the OTLP exporter, plus the
+>   singleton `TenantContextSpanProcessor` from
+>   `LearnStack.Infrastructure.Observability/` that enriches every span
+>   with `tenant.id` / `organization.id` / `user.id` / `correlation.id` /
+>   `module` from the singleton
+>   `ITenantContextAccessor` (`AsyncLocal<ITenantContext?>`-backed).
+> - `IErrorTrackingProvider` socket in `LearnStack.SharedKernel/Observability/`
+>   with three implementations in `LearnStack.Infrastructure.ErrorTracking/`:
+>   `NoOpErrorTracker` (Development), `SentryErrorTracker` (SaaS / Dedicated /
+>   SelfHostedOnline-with-DSN), `LocalFileErrorTracker`
+>   (SelfHostedAirGapped, writes JSON envelopes to a configured directory).
+>   Composition-root branching by `DeploymentMode` per Standards 20 table.
+>   Sentry SDK is referenced only by the ErrorTracking project — enforced
+>   by the `Modules_Do_Not_Reference_Sentry_SDK_Directly` architecture test.
+> - Architecture tests green (`backend/tests/LearnStack.Tests.Architecture/CrossCuttingFoundationTests.cs`):
+>   `MediatR_Pipeline_Order_Matches_Canonical_Sequence`,
+>   `IExceptionHandler_Registered_AtStartup`,
+>   `OTel_Pipeline_Includes_TenantContextSpanProcessor`,
+>   `Logging_Goes_Through_Microsoft_Extensions_Logging`,
+>   `Modules_Do_Not_Reference_Sentry_SDK_Directly`,
+>   `Adapters_Wrap_Provider_Exceptions`,
+>   `IErrorTrackingProvider_Is_Singleton`. Unit tests green for
+>   `ValidationBehavior` (returns `Result.Fail(validation_failed)`,
+>   never throws `ValidationException`), `AuditLogBehavior` (preserves
+>   stack via `ExceptionDispatchInfo`), `TenantContextBehavior`
+>   (short-circuits unresolved context), `TenantContextSpanProcessor`
+>   (`OnStart` is null-safe and enriches resolved spans),
+>   `ProviderResilience<TPort>` (retries non-client failures, skips
+>   client-error retries), `HttpStatusMap` (mirrors Standards 09 table),
+>   `ResultExtensions.ToActionResult()` (Problem Details shape),
+>   `LocalFileErrorTracker` (writes the JSON envelope).
+> - Initial validation (pre-review): `LearnStack.Tests.Unit` 111/111,
+>   `LearnStack.Tests.Architecture` 25/25, `LearnStack.Tests.Contract` 1/1,
+>   `LearnStack.Tests.Integration` 5/5 green under `CI=true`. Superseded by
+>   the post-review-3/4 counts below.
+>
+> Review fixes (commit `<follow-up>`):
+>
+> - **B1** — Sentry DSN now reads via the new `ISecretProvider` socket
+>   (`LearnStack.SharedKernel/Secrets/`) with `ConfigurationSecretProvider`
+>   as the Phase 02a default; Packet 5 swaps in `DaprSecretProvider` for
+>   Vault. ADR-0032 § Sub-decision 9 contract honoured.
+> - **B2** — Serilog pipeline gains `CorrelationContextEnricher`
+>   (copies tenant / org / user / correlation / module from
+>   `ITenantContextAccessor` onto every log event) +
+>   `RedactSensitiveFieldsEnricher` (scrubs password / token / secret /
+>   DSN / JWT / authorization / SSN / TCKN / card-number tokens before
+>   the formatter touches them). `LocalFileErrorTracker` redacts the
+>   same token set on `CapturedContext.AdditionalTags`.
+> - **M1** — `ProblemDetailsFactory.For(Exception)` routes status through
+>   `HttpStatusMap.For(Exception)` so `ProviderException(IsClientError:true)`
+>   returns 400 instead of falling through to 503 via the carried Error's
+>   default code.
+> - **M2** — L1 handler now skips `Activity.AddException` for
+>   `ProviderException(IsClientError:true)` per Standards 09 § Sentry vs
+>   OpenTelemetry table — `SetStatus(Error)` only, no exception event.
+> - **M3** — All 14 module Domain + Application csproj files now reference
+>   `LearnStack.Analyzers` via `OutputItemType="Analyzer"`. Future
+>   `throw new DomainException(...)` in any module fails the analyzer.
+> - **M4** — Polly `IProviderResilience<TPort>` pipeline now consumes
+>   `BulkheadOptions` via `Polly.RateLimiting`'s
+>   `AddRateLimiter(ConcurrencyLimiterOptions)`; the silent-dead config
+>   gap is closed.
+> - **N1** — `ProblemDetailsFactory` projects nested
+>   FluentValidation property paths (`Address.Street`) and acronyms
+>   (`URLValue`) to the right camelCase shape via
+>   `JsonNamingPolicy.CamelCase`.
+> - **N2** — `ToActionResult()` returns `ProblemDetailsActionResult`
+>   which builds the body inside `ExecuteResultAsync(ActionContext)`, so
+>   the sanctioned `(await Send(...)).ToActionResult()` shape populates
+>   `Instance` + `correlationId` without the caller threading
+>   `HttpContext`.
+> - **N3 / A6** — `LocalFileErrorTracker` file names suffix a Guid for
+>   guaranteed uniqueness in same-millisecond bursts; `stackalloc` is
+>   capped at 128 chars so a multi-KB inbound `traceparent` cannot blow
+>   the stack.
+> - **A5** — `AuditLogBehavior` catch filter excludes
+>   `OperationCanceledException` so client disconnects no longer churn
+>   warning logs / future audit rows.
+> - **A7** — `MediatRPipelineRegistration.CanonicalBehaviorOrder`
+>   documentation explicitly notes "7 behaviors + the handler at the
+>   innermost position = the 8 canonical steps".
+> - **A8** — `ProblemDetailsFactory` strips the `_failed` suffix from
+>   the Problem `type` URL (matches the Standards 09 § API Surface
+>   example: `/validation`, not `/validation_failed`).
+> - **A11** — New HTTP-level integration tests in
+>   `LearnStack.Tests.Integration/CrossCuttingFoundationHttpTests` exercise
+>   the L1 handler + ValidationBehavior end-to-end via
+>   `WebApplicationFactory<Program>` and a synthetic test controller. The
+>   Standards 21 catalogue row for
+>   `ValidationBehavior_DoesNotThrow_ValidationException` is updated to
+>   "unit + integration".
+> - **A12** — `LearnStackExceptionHandler` is `internal sealed` — only
+>   the framework's `AddExceptionHandler<T>()` instantiates it; tests
+>   reach the type via `InternalsVisibleTo`.
+> - **A13** — `TenantContextSpanProcessor` stringifies Guid tags
+>   (`tenant.id` / `organization.id` / `user.id`) so the wire format is
+>   stable across exporters.
+> - **S1** — `MediatR_Pipeline_Order_Matches_Canonical_Sequence` test
+>   asserts a hardcoded behavior-type sequence, not the production
+>   `CanonicalBehaviorOrder` list, so an accidental list reorder cannot
+>   sneak past.
+> - **SU1** — L1 handler skips the body write on
+>   `OperationCanceledException` / cancelled `CancellationToken`; the
+>   client has already disconnected.
+> - **SU4** — `TenantContextBehavior.AllowsUnresolvedContext` predicate
+>   carries a TODO documenting the Packet 7 marker-attribute seam
+>   (`[AllowsUnresolvedTenantContext]`).
+> - New architecture test `Modules_Do_Not_Reference_DeploymentMode` lit
+>   up — catalogue entry existed since ADR-0020 but had no implementation
+>   until now.
+>
+> Review-2 fixes:
+>
+> - **N4** — `CrossCuttingFoundationExtensions.SelectSecretProvider`
+>   becomes the single composition-root site that picks the
+>   `ISecretProvider` implementation per `DeploymentMode`. Both the DI
+>   registration and the local `AddLearnStackErrorTracking` argument
+>   read the same instance. Packet 5's `DaprSecretProvider` swap now
+>   touches one line, not two.
+> - **SU5** — `SensitiveTokenCatalog` in
+>   `LearnStack.SharedKernel/Secrets/` is the single source of truth for
+>   the sensitive-property-name token list. Both
+>   `RedactSensitiveFieldsEnricher` and
+>   `LocalFileErrorTracker.RedactSensitiveTags` consume
+>   `SensitiveTokenCatalog.IsSensitive(...)` so the two redaction
+>   surfaces cannot drift. The catalogue now includes `vkn` (Vergi
+>   Kimlik Numarası — Turkish corporate tax number, common for
+>   instructor-owned sole proprietorships) alongside `tckn`.
+> - **SU6** — `RedactSensitiveFieldsEnricher` remarks carry a dated
+>   TODO naming the Packet 7+ Roslyn analyzer that should extend
+>   `LearnStack.Analyzers` to flag string-interpolated
+>   `throw new ...Exception($"...{token}...")` patterns in `Domain` +
+>   `Application` projects. Runtime redaction covers logs / OTLP / Sentry
+>   tags; the analyzer closes the last gap (secrets in exception
+>   messages) at compile time.
+> - **SU7** — `HttpStatusMap.For(Exception)` carries a rationale comment
+>   for the non-IETF `499` "client closed request" status: matches
+>   Nginx / IIS / Envoy / APISIX behaviour, keeps client disconnects
+>   off the error-budget axis, and points at the L1 handler's skip-body
+>   contract. If a future ADR pins a different code, the one comment
+>   block is the seam to change.
+>
+> Review-3/4 fixes:
+>
+> - **H1 (blocker)** — the `DomainExceptionThrow` analyzer used a hyphenated
+>   Roslyn diagnostic id, which Roslyn rejects (`AD0001` crash at report
+>   time → CI build break under `TreatWarningsAsErrors` the first time a
+>   `DomainException` is thrown). Fixed: diagnostic id is now `LS0001`
+>   (valid identifier); `LearnStackException-DomainExceptionThrow` is
+>   retained as the human-readable rule name. `LS0001` is listed in
+>   `WarningsNotAsErrors` until the Phase 03 escalation so a legitimate
+>   aggregate-invariant throw does not break CI. New
+>   `DomainExceptionThrowAnalyzerTests` (`LearnStack.Tests.Unit`) run the
+>   analyzer over synthetic compilations and assert `LS0001` is emitted
+>   (no `AD0001`). Recorded as [ADR-0032 Amendment 1](../decisions/0032-exception-handling-logging-and-observability.md);
+>   Standards 21 naming convention + analyzer entry updated.
+> - **Provider error body/status consistency** — `HttpStatusMap.For(Exception)`
+>   now derives the HTTP status from the carried `Error.Code` for every
+>   `LearnStackException`, instead of special-casing
+>   `ProviderException.IsClientError → 400`. `IsClientError` is purely an
+>   observability concern (it gates Sentry capture), so a bare provider
+>   failure is `dependency_unavailable` → 503 and an adapter surfacing a
+>   provider 4xx passes an explicit `Error` (e.g. `validation_failed` → 400);
+>   either way body code and status agree. Tests updated to assert both.
+> - **Redaction over-match + nesting** — `SensitiveTokenCatalog.IsSensitive`
+>   now matches on word-segment boundaries (camelCase / `_ . -`) instead of
+>   raw substrings, so `ClassName` / `BusinessName` are no longer redacted
+>   by the `ssn` token while `Password` / `ApiKey` / `SSNToken` still are.
+>   `RedactSensitiveFieldsEnricher` recurses into destructured objects,
+>   dictionaries, and sequences so a sensitive field nested in a
+>   non-sensitive top-level property (`User.Password`) is scrubbed; lazy
+>   reconstruction keeps clean events allocation-free. New
+>   `SensitiveTokenCatalogTests` + `RedactSensitiveFieldsEnricherTests`.
+> - **OTel naming + air-gapped** — the manual `AddSource` / `AddMeter`
+>   filters use the documented lowercase `learnstack.*` convention (matching
+>   the `learnstack.mediatr` ActivitySource without relying on
+>   case-insensitive wildcard matching). `WireSerilog` / `WireOpenTelemetry`
+>   now take `DeploymentMode`; `SelfHostedAirGapped` never wires the network
+>   OTLP exporters (no-egress contract), with a dated TODO for the
+>   `/var/learnstack/otel/` file target deferred to Phase 11 ops.
+> - **M1** — new `Handlers_Return_Result` architecture test asserts every
+>   `IRequestHandler<,TResponse>` has `TResponse : IResultBase`, so a
+>   raw-DTO handler can't silently bypass the pipeline (validation / audit /
+>   tenant-context + RLS). Vacuous today, active when handlers land.
+> - **L4** — the Serilog enrichers are resolved from DI (the singletons
+>   registered in `AddLearnStackObservabilityServices`) instead of being
+>   `new()`'d in the pipeline, so there are no dead registrations.
+> - **Docs** — `Domain_Methods_Do_Not_Throw_For_Expected_Cases` marked
+>   **deferred** in Standards 21 (the `LS0001` analyzer already enforces the
+>   rule at build time; the report-walking architecture test lands with
+>   module domain code in Packet 6+). LoggingBehavior activity-name doc,
+>   `correlationId`-as-full-traceparent in Standards 09/10, and the
+>   `IMeterFactory.Create("learnstack.<module>")` example in architecture 33
+>   reconciled with the code.
+> - **Skipped (with reason)** — the resilience pipeline order
+>   (retry → breaker → timeout → bulkhead) is left as-is: it is faithful to
+>   ADR-0032 § Sub-decision 5's stated order. Whether the concurrency
+>   limiter should sit outermost (to cap total in-flight including retries,
+>   per the `Microsoft.Extensions.Resilience` standard handler) is an
+>   ADR-level question for a future amendment, not a code defect in this
+>   packet.
+>
+> Validation after review-3/4: `dotnet build LearnStack.slnx` (CI=true)
+> clean; `LearnStack.Tests.Unit` 154/154, `LearnStack.Tests.Architecture`
+> 26/26, `LearnStack.Tests.Integration` 5/5, `LearnStack.Tests.Contract`
+> 1/1 green. (CI's `dotnet format --verify-no-changes` step also gates the
+> backend job — run `dotnet format LearnStack.slnx --verify-no-changes`
+> locally before pushing.)
+>
+> **Deferred follow-ups carried out of Packet 3** (each is recorded in its
+> owning packet/phase below so it does not slip; no separate issue tracker
+> needed — the roadmap is the backlog):
+>
+> - **Strongly-typed IDs for `ITenantContext` + `CapturedContext`** →
+>   **Packet 7** (after the `TenantId` / `OrganizationId` Vogen value
+>   objects land in Packet 6). Both contracts use raw `Guid` in Packet 3
+>   because those VOs don't exist yet (only `UserId` does); they convert
+>   together in one pass to avoid a half-typed intermediate.
+> - **`[AllowsUnresolvedTenantContext]` marker attribute** for the
+>   `TenantContextBehavior` opt-out (tenant-provisioning / platform-admin
+>   commands) → **Packet 7**.
+> - **`TransactionBehavior` / `OutboxFlushBehavior` shells light up** →
+>   **Packet 6** (UoW transaction, per-module `DbContext`) and **Phase 02b**
+>   (outbox enrolment) respectively.
+> - **`AuthorizationBehavior` shell lights up** + **`LS0001` analyzer
+>   severity escalates Warning → Error** (and is removed from
+>   `WarningsNotAsErrors`) → **Phase 03 exit**.
+> - **`Domain_Methods_Do_Not_Throw_For_Expected_Cases`** report-walking
+>   architecture test → **Packet 10** (needs module domain code to walk;
+>   until then the `LS0001` analyzer only does partial detection — it
+>   reports every direct `throw new DomainException(...)` in `Domain` /
+>   `Application` as a build-time Warning, non-blocking under
+>   `WarningsNotAsErrors` until the Phase 03 exit escalation above, and does
+>   not replace the broader report-walking test).
+> - **Air-gapped OTLP file target** (`/var/learnstack/otel/`) → **Phase 11**
+>   ops (the no-egress branch already prevents network export in
+>   `SelfHostedAirGapped`; the file sink needs an exporter-package decision,
+>   the operational controls in
+>   [phase-11-production-hardening.md](phase-11-production-hardening.md#observability),
+>   and a test asserting no network telemetry exporter is ever wired under
+>   `SelfHostedAirGapped`).
+> - **"No secrets in exception messages" Roslyn analyzer** (compile-time
+>   complement to the runtime redactor) → **Phase 02b or later** (code TODO
+>   in `RedactSensitiveFieldsEnricher`).
+> - **Resilience pipeline order** (should the concurrency limiter sit
+>   outermost to cap total in-flight incl. retries?) → **future ADR-0032
+>   amendment**; the current order is faithful to ADR-0032 § Sub-decision 5.
+>
+> ---
+>
+> **Restructure (2026-08-08).** Packets 4–10 below were re-scoped after a
+> four-report audit of the corpus. Packets 0–3 are shipped and their records
+> above are unchanged.
+>
+> **Two things in the Packet 2 and Packet 3 records above are now known to be
+> wrong. Do not act on them; Packet 3b corrects both:**
+>
+> - The Packet 3 `TenantContextBehavior` TODO names a `DbConnectionInterceptor`
+>   as the mechanism for setting the Row Level Security session variables. That
+>   is the wrong option. Interceptors fire when the connection opens, not when
+>   the transaction starts, and `set_config(..., true)` is transaction-local —
+>   so the value would be discarded before the query it protects ever runs. The
+>   GUCs are set with `SET LOCAL` **inside the ambient transaction**, per
+>   [Security Standards § Tenant Context](../standards/11-security.md), and
+>   Packet 7 implements it.
+> - The Packet 2 Shared Kernel shipped three defects that get more expensive
+>   with every consumer: `Results.Unit` collides with `MediatR.Unit`,
+>   `Result<T>` carries no `[MemberNotNullWhen]`, and `Entity<TId>` implements
+>   neither `IEquatable<>` nor `operator ==` so every comparison boxes. All
+>   three are repaired in Packet 3b, before the first handler exists.
+>
+> Separately, [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)'s
+> `IProviderResilience<TPort>` registration **example** does not compile, but
+> the code Packet 3 actually shipped is correct — read the code, not the ADR
+> snippet. ADR-0032 Amendment 2 records this.
+>
+> Three things moved:
+>
+> - **Correctness moved earlier.** The Row Level Security template published in
+>   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) Amendment 1 and
+>   copied into three further documents created two *permissive* policies, which
+>   PostgreSQL combines with `OR` — making every tenant-wide row visible across
+>   tenants. [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
+>   corrects it, and Packet 6 is now the packet that must not be written against
+>   the old template. Audit durability moved with it:
+>   [ADR-0033](../decisions/0033-audit-durability-model.md) makes MUST-class
+>   audit a durable intent inside the business transaction, which is also what
+>   stops the corrected RLS policy from silently rejecting every audit insert.
+> - **Additive infrastructure moved later.** Per
+>   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), Packet 5 now
+>   ships the foundation **ports and their default implementations**; the Dapr,
+>   Kafka, APISIX and Vault adapters land in
+>   [Phase 11](phase-11-production-hardening.md) against written trigger
+>   conditions. Packet 8 drops from eight customization aggregates to two, and
+>   Packet 9's `audit_log` partitioning moves to Phase 11.
+> - **Proof moved earlier.** The second tenant — the artefact that tests the
+>   genericity claim — moves from [Phase 10](phase-10-english-learning-mvp.md)
+>   into Packet 7, where two seed tenants already exist for isolation testing.
+>   [Phase 02d](phase-02d-walking-skeleton.md) then renders both of them in a
+>   browser.
+>
