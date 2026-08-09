@@ -22,9 +22,16 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `secret scan (leakwatch)`
   - Deferred checks — flip the `if: false` guards in `ci.yml` AND add the
     job name here when the owning phase lands:
-    - `backend integration (Testcontainers — deferred)` — Phase 02a.
-    - `openapi diff (deferred to Phase 03)` — Phase 03.
-    - `lighthouse budget (deferred to Phase 04)` — Phase 04.
+    - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
+      with the first cross-tenant isolation test.
+    - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
+      `/api/v1/*` read endpoints.
+    - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
+      content-bearing public pages.
+
+    Activating a job **renames** it — the `(deferred …)` suffix goes away — and GitHub
+    matches required checks by name. Rename without updating this list *and* the live
+    branch-protection setting and the check silently stops being required.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).

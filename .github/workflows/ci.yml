@@ -161,21 +161,21 @@ jobs:
       - name: Test (Vitest)
         run: pnpm -r test
 
-  # ─── OpenAPI breaking-change check (deferred — Phase 03) ──────────────
+  # ─── OpenAPI breaking-change check (deferred — Phase 02d) ─────────────
   openapi-diff:
     name: openapi diff (deferred to Phase 02d)
     runs-on: ubuntu-latest
     if: false  # activate when /api/v1/* endpoints replace the `/healthz` placeholder
     steps:
-      - run: echo "Placeholder — Phase 03 wires oasdiff against the prior main spec."
+      - run: echo "Placeholder — Phase 02d wires oasdiff against the prior main spec."
 
-  # ─── Lighthouse budget (deferred — Phase 04) ──────────────────────────
+  # ─── Lighthouse budget (deferred — Phase 02d) ─────────────────────────
   lighthouse-budget:
     name: lighthouse budget (deferred to Phase 02d)
     runs-on: ubuntu-latest
     if: false  # activate when the first content-bearing public page ships
     steps:
-      - run: echo "Placeholder — Phase 04 wires LHCI against the built Next.js app."
+      - run: echo "Placeholder — Phase 02d wires LHCI against the built Next.js app."
 
   # ─── Meta (commit-message format, link audit) ─────────────────────────
   meta:

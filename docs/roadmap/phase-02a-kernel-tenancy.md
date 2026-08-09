@@ -113,11 +113,13 @@ orphan.
   registration is correct (`AddSingleton<IProviderResilience<TPort>>` with an
   injected collaborator); only the ADR text is wrong. Documentation fix, not a
   design change.
-- Eight shipped source comments schedule the Dapr-backed `ISecretProvider` to
-  "Packet 5" — `LearnStack.SharedKernel.csproj`, `ISecretProvider.cs`,
-  `ConfigurationSecretProvider.cs`, `CrossCuttingFoundationExtensions.cs` (five
-  sites including the `TODO(2026-05-21, @platform)`), and
-  `ErrorTrackingRegistration.cs`. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+- **Nine shipped source comments** schedule the Dapr-backed `ISecretProvider` to
+  "Packet 5", across four files: `CrossCuttingFoundationExtensions.cs` (five sites,
+  including the `TODO(2026-05-21, @platform)`), `ErrorTrackingRegistration.cs` (two),
+  `LearnStack.SharedKernel.csproj` (one) and `ISecretProvider.cs` (one).
+  `ConfigurationSecretProvider.cs` carried a tenth and is **already corrected** — the
+  restructure fixed it while sweeping the provider's name, so it is not part of this
+  packet's work. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
   moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
   against a written trigger, so those comments now point at a packet that will
   not ship them. The seam they describe is correct and unchanged — only the
@@ -286,10 +288,16 @@ transaction-pooled connection into the next tenant's request, and per-role setti
 such as `statement_timeout` are applied at login and do not follow a role switch.
 The composition root registers the platform data source as a keyed singleton that
 only `PlatformAdminScope` may resolve
-(`Platform_DataSource_Resolved_Only_By_PlatformAdminScope`). The scope writes its
-own `SecurityEvent` audit row, as `learnstack_platform` and under the sentinel
-platform tenant id, before the operation runs — so an operation that later fails is
-still recorded.
+(`Platform_DataSource_Resolved_Only_By_PlatformAdminScope`).
+
+The scope's **audit obligation is declared here and satisfied in Packet 9**, which is
+where `audit_log` and `IAuditStore` land. Until then `EnterPlatformAdminScope(reason)`
+records the entry through `ILogger` at `Warning` with the `reason`, the caller and the
+sentinel platform tenant id, and Packet 9 replaces that with a `SecurityEvent` audit row
+written as `learnstack_platform` **before** the operation runs — so an operation that
+later fails is still recorded. Packet 7 must not claim a durable audit trail it has no
+table for; a log line that is honestly a log line is better than an audit row that does
+not exist.
 
 `IHostToTenantResolver` sets `SET LOCAL app.resolving_host` inside its own short
 read-only transaction before the lookup, because `SET LOCAL` outside a transaction
@@ -1432,7 +1440,7 @@ Nothing in them was reworded when they moved.
 > Three things moved:
 >
 > - **Correctness moved earlier.** The Row Level Security template published in
->   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) Amendment 1 and
+>   [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) Amendment 1 and
 >   copied into three further documents created two *permissive* policies, which
 >   PostgreSQL combines with `OR` — making every tenant-wide row visible across
 >   tenants. [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)

@@ -206,8 +206,13 @@ The banding is therefore **specific-beats-general, written down**:
 | CORS preflight | 200 | `OPTIONS` on the versioned prefix — must beat the authenticated band so preflight never reaches `openid-connect` |
 | Authenticated catch-all | 100 | Everything else under the versioned prefix |
 
-**A public route always outranks the catch-all.** The invariant is asserted in CI: the
-route-table lint fails when any route omits `priority`, and when any route whose plugin
+**A public route always outranks the catch-all.** The invariant is **not** asserted in CI
+today — there is no route-table lint, and calling a rule enforced when the check does not
+exist is precisely the failure
+[Standards 21](../standards/21-architecture-tests-catalogue.md) is written against. The
+lint ships with APISIX itself in
+[Phase 11](../roadmap/phase-11-production-hardening.md). It will fail when any route omits
+`priority`, and when any route whose plugin
 set lacks `openid-connect` shares a path prefix with a higher-or-equal-priority route
 that has it.
 
