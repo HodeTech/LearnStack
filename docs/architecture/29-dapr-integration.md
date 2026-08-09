@@ -150,7 +150,8 @@ secret/learnstack/seaweedfs               endpoint, access-key, secret-key
 secret/learnstack/meilisearch         master-key, public-key
 secret/learnstack/livekit             api-key, api-secret, ws-url
 secret/learnstack/coturn              shared-secret
-secret/learnstack/hub                 api-key, internal-api-hmac-key, internal-api-mtls-cert
+secret/learnstack/hub                 internal-api-hmac-key, internal-api-mtls-cert,
+                                      internal-api-mtls-key, internal-api-jwt-signing-key
 ```
 
 In `Development` the **primary** `ISecretProvider` implementation is

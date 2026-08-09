@@ -97,7 +97,7 @@ flowchart LR
   lk --> egress
 
   hubapi -- "mTLS + signed JWT + HMAC<br/>POST /api/internal/*" --> api
-  api -- "API key<br/>POST /api/v1/internal/license/verify" --> hubapi
+  api -- "mTLS + JWT + HMAC<br/>POST /api/v1/internal/license/verify" --> hubapi
   hubapi --> kc_hub
   hubapi --> pg
 ```

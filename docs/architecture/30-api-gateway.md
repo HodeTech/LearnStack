@@ -56,7 +56,7 @@ flowchart LR
     APISIX -- "host: app.learnstack.dev OR<br/>{tenant-custom-domain}" --> LSApi
     APISIX -- "host: hub.learnstack.dev" --> HubApi
     HubApi -- "mTLS + signed JWT + HMAC<br/>NEVER via APISIX" --> LSApi
-    LSApi -- "metering / verify (API key)" --> HubInternal
+    LSApi -- "metering / verify (mTLS + JWT + HMAC)" --> HubInternal
     LSApi <-.-> LSDapr
     HubApi <-.-> HubDapr
 ```

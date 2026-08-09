@@ -121,7 +121,7 @@ flowchart TB
   audit -. integration event consumer .-> classroom
 
   hubapi -. "mTLS + signed JWT + HMAC<br/>POST /api/internal/*" .-> tenancy
-  identity -. "API key<br/>POST /api/v1/internal/license/verify" .-> hubapi
+  identity -. "mTLS + JWT + HMAC<br/>POST /api/v1/internal/license/verify" .-> hubapi
 ```
 
 The dashed arrows are **integration events** (via Dapr pub/sub → Kafka, ADR-0014), **read-model projections**, or **Hub HTTPS contracts** — not direct calls or shared tables.

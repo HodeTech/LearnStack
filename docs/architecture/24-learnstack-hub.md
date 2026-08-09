@@ -45,7 +45,7 @@ flowchart TB
     HubApi --> Vault
 
     HubApi -- "mTLS + signed JWT + HMAC<br/>POST /api/internal/*<br/>(tenant lifecycle, entitlement push)" --> LSApi
-    LSApi -- "API key<br/>(license verify, usage report)<br/>POST /api/v1/internal/*" --> HubApi
+    LSApi -- "mTLS + signed JWT + HMAC<br/>(license verify, usage report)<br/>POST /api/v1/internal/*" --> HubApi
 
     LSApi --> LSDb
     LSDb -. "RLS isolated; Hub NEVER queries" .- HubApi
@@ -244,9 +244,13 @@ are the Hub's public API, governed by the Hub repository.
 - Bound to internal listener; **never** proxied through APISIX
 
 **LearnStack → Hub `/api/v1/internal/*` and `/api/v1/usage/*`:**
-- API key per LearnStack instance, stored in Vault (`learnstack/hub/api-key`)
-- Rate limit: 100 req/min per key
-- Scope strictly limited to license verification + usage reporting
+- The same three layers: mTLS client cert, RS256 JWT (`aud=learnstack-internal`,
+  `exp ≤ 5 min`, `jti` replay-protected), HMAC-SHA256 body signature
+- Scope strictly limited to license verification, phone-home refresh, and usage reporting
+- The per-instance API key from [ADR-0019](../decisions/0019-learnstack-hub.md) is
+  superseded by [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); rate
+  limiting for this direction is enforced by the Hub's own gateway, not by the
+  credential
 
 ### 3.3. Hub-internal: Stripe / Iyzico webhooks
 
@@ -394,7 +398,7 @@ sequenceDiagram
     alt Cache fresh (<15m)
         Cache-->>LSApi: Entitlement (gen=42)
     else Cache stale or miss
-        LSApi->>HubAPI: POST /api/v1/internal/license/verify<br/>(API key, tenant_id, feature_key)
+        LSApi->>HubAPI: POST /api/v1/internal/license/verify<br/>(mTLS + JWT + HMAC; tenant_id, feature_key)
         HubAPI-->>LSApi: Entitlement (gen=42)
         LSApi->>Cache: UPSERT
     end

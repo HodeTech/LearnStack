@@ -418,7 +418,7 @@ Hub operator portal exposes:
 | Air-gapped customer over-running expiry | 30-day grace + LearnStack-operator visibility for proactive renewal contact |
 | Customer extending license offline | License is RSA-signed; customer cannot forge a new signature |
 | Customer tampering with cached entitlement | Cache table protected by RLS + DB-level read-only role for non-admin paths |
-| Stolen Hub API key | Per-tenant API key; rotatable; scope limited to license verify + usage report |
+| Stolen phone-home credential | Per-instance client certificate + short-lived RS256 JWT + HMAC body signature; all three rotatable; scope limited to license verify, refresh and usage report ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)) |
 | Revoked license still cached | Revocation invalidates **all four** layers, in the order that closes the window: `platform_entitlement_cache` row first, then L2, then L1 via the invalidation event. Invalidating only the fast layers leaves the durable row to re-serve the revoked entitlement on the next miss. Cache TTL ≤ 15 min and the daily revocation-list pull are the backstops, not the mechanism |
 | Grace window silently collapsing to a cache TTL | `valid_until` / `grace_until` are read from `platform_entitlement_cache`, never from a cache entry. An integration test flushes both cache layers, stops the Hub, and asserts the tenant still resolves through the durable row for the full grace window |
 

@@ -4,10 +4,19 @@
 
 Accepted — **amended by [ADR-0034](0034-hub-contract-surface-invariant.md) (2026-08-08)**
 
-> **What ADR-0034 changed.** The separate-repository decision, the mTLS + RS256 JWT +
-> HMAC auth chain, and the "Hub holds tenant metadata, never tenant content" rule all
-> stand unchanged. What ADR-0034 replaces is the **"closed at four endpoints"** framing
-> that a later amendment to this ADR introduced.
+> **What ADR-0034 changed.** The separate-repository decision, the Hub → LearnStack
+> mTLS + RS256 JWT + HMAC auth chain, and the "Hub holds tenant metadata, never tenant
+> content" rule all stand unchanged. What ADR-0034 replaces is the **"closed at four
+> endpoints"** framing that a later amendment to this ADR introduced, and the
+> **LearnStack → Hub API key** below (§ Inter-system contracts, and the Decision
+> section's `learnstack/hub/api-key` + 100 req/min rows): that direction now carries the
+> same three-layer chain as the other one. See
+> [ADR-0034 § One auth chain, both directions](0034-hub-contract-surface-invariant.md).
+> A bearer key on a path returning a tenant's whole entitlement set has no replay
+> protection and no per-request integrity, and the two directions holding different
+> postures produced a live self-contradiction in
+> [24-learnstack-hub.md](../architecture/24-learnstack-hub.md) — both spellings, twenty
+> lines apart.
 >
 > That framing was never accurate: the Decision section below enumerates **six** paths
 > and does not use the word "four". Protecting the number then damaged the design —

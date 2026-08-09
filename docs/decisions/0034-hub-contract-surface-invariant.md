@@ -5,7 +5,8 @@
 Accepted
 
 **Date:** 2026-08-08
-**Amends:** [ADR-0019](0019-learnstack-hub.md) (the "closed at four endpoints" rule),
+**Amends:** [ADR-0019](0019-learnstack-hub.md) (the "closed at four endpoints" rule and
+the LearnStack → Hub API-key auth),
 [ADR-0022](0022-custom-domain-tls.md) (Amendment 1's entitlement-payload tunnelling)
 
 ## Decision Drivers
@@ -78,7 +79,7 @@ HMAC body signature):
 | `GET` | `/api/internal/tenants/{id}/usage` | Pull aggregated usage |
 | `PUT` | `/api/internal/tenants/{id}/host-mappings` | **New.** Push host → `(tenant_id, organization_id?)` mappings |
 
-**LearnStack → Hub** (same auth chain):
+**LearnStack → Hub** (same auth chain — see § One auth chain, both directions):
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -89,6 +90,29 @@ HMAC body signature):
 The Hub's own tenant-facing and operator-facing APIs (`/api/v1/tenants/*`,
 `/api/v1/subscriptions/*`, `/api/v1/webhooks/*`) are **not** part of this surface. They
 are the Hub's public API, governed by the Hub repository.
+
+### One auth chain, both directions
+
+The full three-layer chain — mTLS with a LearnStack-internal CA-signed client
+certificate, an RS256 JWT with `aud=learnstack-internal` and `exp ≤ 5 min`
+replay-protected on `jti`, and an HMAC-SHA256 body signature in `X-Signature` — applies
+to **every** endpoint in both tables above.
+
+This **extends** the chain to the LearnStack → Hub direction, which
+[ADR-0019](0019-learnstack-hub.md) § Inter-system contracts specified as a per-instance
+API key with a 100 req/min limit. That API key and its rate limit are superseded. A
+bearer key on a path that returns a tenant's whole entitlement set has no replay
+protection and no per-request integrity; and the two directions holding different
+postures is how a reviewer loses track of which one is which — the contradiction this
+subsection exists to close had both spellings twenty lines apart in the same
+architecture document. Rate limiting for the LearnStack → Hub direction is the Hub
+gateway's concern, not a property of the credential.
+
+A `SelfHostedOnline` instance therefore needs a client certificate. It is issued with
+the licence bundle and rotated on the same cadence — see
+[ADR-0020](0020-triple-deployment-hybrid-license.md) and the Hub repository's `P02c-6`.
+`SelfHostedAirGapped` makes no outbound call at all, so the question does not arise
+there.
 
 ### Certificate material leaves the entitlement payload
 
@@ -140,9 +164,9 @@ was the headline rule.
 ### What we explicitly did not change
 
 [ADR-0019](0019-learnstack-hub.md)'s decision to run the Hub as a separate repository
-with an mTLS-guarded internal API stands. The auth chain — mTLS, RS256 JWT with
-`aud=learnstack-internal` and a five-minute expiry, HMAC body signature, replay
-protection on `jti` — stands unchanged and applies to every endpoint listed above.
+with an mTLS-guarded internal API stands. The Hub → LearnStack chain is unchanged; the
+LearnStack → Hub direction is the one this ADR strengthens, in § One auth chain, both
+directions.
 
 ### When this reopens
 

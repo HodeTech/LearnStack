@@ -271,7 +271,8 @@ deployment:
   mode: SaaS
   hub:
     url: https://hub.learnstack.dev
-    apiKeyRef: { name: hub-api-key, key: token }
+    # mTLS client cert + HMAC secret + JWT signing key; no API key (ADR-0034)
+    credentialsRef: { name: hub-internal-api, key: bundle }
   postgres:
     managed: true
     connectionRef: { name: postgres-creds, key: connection-string }
