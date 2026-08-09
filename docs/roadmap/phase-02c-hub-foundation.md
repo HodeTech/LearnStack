@@ -2,7 +2,7 @@
 
 > **Status (2026-05-21).** **P02c-0 — Repository bootstrap ✅**
 > The sibling `learnstack-hub` git repository exists
-> (GitHub: https://github.com/cemililik/LearnStack-Hub). Backend solution
+> (GitHub: https://github.com/HodeTech/LearnStack-Hub). Backend solution
 > (`LearnStack.Hub.slnx`, 7 core projects + 4 test projects) builds green;
 > frontend pnpm monorepo (`apps/operator-portal` + `packages/{config,sdk,ui}`)
 > typechecks, lints and builds; Hub CI (backend + frontend + meta + secret-scan)

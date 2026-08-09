@@ -27,7 +27,7 @@ Self-Hosted — backed by the companion **LearnStack Hub** control plane
 (separate repository, see
 [ADR-0019](docs/decisions/0019-learnstack-hub.md)). On developer
 workstations the Hub repo is the sibling directory `../LearnStack-Hub`;
-GitHub: https://github.com/cemililik/LearnStack-Hub. The Hub repository
+GitHub: https://github.com/HodeTech/LearnStack-Hub. The Hub repository
 **owns its own roadmap** at `../LearnStack-Hub/docs/roadmap/`; this
 repository holds only LearnStack's side of the boundary, in
 [Phase 02c](docs/roadmap/phase-02c-hub-foundation.md).

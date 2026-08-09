@@ -34,7 +34,7 @@ prepared seam means concretely.
 The Hub repo is expected to live at `../LearnStack-Hub` (sibling to this repo on the
 developer's workstation) so the cross-repo doc links resolve. The Hub repository owns
 its own roadmap at `../LearnStack-Hub/docs/roadmap/`. See
-[LearnStack-Hub on GitHub](https://github.com/cemililik/LearnStack-Hub) and
+[LearnStack-Hub on GitHub](https://github.com/HodeTech/LearnStack-Hub) and
 [docs/roadmap/phase-02c-hub-foundation.md](docs/roadmap/phase-02c-hub-foundation.md)
 for LearnStack's side of the boundary.
 
