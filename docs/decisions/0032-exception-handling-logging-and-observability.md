@@ -11,7 +11,7 @@ Accepted
 
 ### Amendment 2 — Three corrections from the 2026-08-08 restructure
 
-Neither changes a sub-decision; both correct text that would mislead an implementer.
+None of the three changes a sub-decision; all three correct text that would mislead an implementer.
 
 1. **The `IProviderResilience<TPort>` registration example does not compile.**
    Sub-decision 5 shows `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;

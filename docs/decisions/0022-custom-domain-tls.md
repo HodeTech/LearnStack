@@ -488,10 +488,8 @@ the path is:
 
 - **`SelfHostedOnline` / `SaaS` / `Dedicated`** (Hub reachable): customer-provided
   cert is uploaded through the Hub operator portal, stored in the **Hub-side
-  Vault**, then replicated to the LearnStack-side secret store by secret-store
-  replication and referenced from the host-mapping payload by path — the same channel
-  as Let's Encrypt-issued certs, per
-  [ADR-0034](0034-hub-contract-surface-invariant.md).
+  Vault**, then replicated to the LearnStack-side Vault via the entitlement-push
+  internal-API path (same channel as Let's Encrypt-issued certs).
 - **`SelfHostedAirGapped`** (no Hub): customer places the cert + key directly in
   their **own Vault** (or the configured `ISecretProvider` backend) at the
   agreed namespace; the LearnStack APISIX pod's Vault Agent sidecar reads from

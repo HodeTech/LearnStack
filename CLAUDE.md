@@ -136,7 +136,7 @@ let the entry point pick it.
 | `docs/architecture/` | Conceptual descriptions of what we are building. Numbered `NN-topic.md` linearly. | Editable as the system evolves. |
 | `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments. |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
-| `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections: Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
+| `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
 | `docs/glossary.md` | Terminology source of truth. | Editable; new term goes here first, then used. |
 
 > `docs/analysis/` exists locally but is **gitignored** — it is a private scratchpad
@@ -247,10 +247,14 @@ rules:
   `learnstack_outbox_admin` passes even when every policy is inert, and
   therefore proves nothing.
 - Write a MUST-class audit row outside the business transaction. MUST-class
-  audit is a **durable intent enrolled in the same `SaveChanges` as the
-  state change it describes** ([ADR-0033](docs/decisions/0033-audit-durability-model.md)),
-  so it commits with that change or not at all — and so it executes while
-  `app.tenant_id` is set and RLS accepts it. A tenant `AuditConfig` may
+  audit is written on the **same transaction** as the state change it describes
+  ([ADR-0033](docs/decisions/0033-audit-durability-model.md)) — `AuditLogBehavior`
+  classifies and parks the intent, `TransactionBehavior` writes it immediately
+  before `COMMIT` — so it commits with that change or not at all, and so it
+  executes while `app.tenant_id` is set and RLS accepts it. "The same
+  `SaveChanges` as the business write" was the earlier formulation and ADR-0033
+  **withdraws** it: the guarantee is the transaction, which is what a reader of
+  `audit_log` observes and which needs no cross-`DbContext` machinery. A tenant `AuditConfig` may
   narrow SHOULD/MAY coverage but never removes baseline MUST coverage. Exactly
   two failures reject the operation: an operation the catalogue does not
   classify at all, and a MUST-class row that cannot be written durably. A

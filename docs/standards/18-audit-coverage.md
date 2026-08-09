@@ -156,7 +156,7 @@ Rules:
 
   A rule that forbade *every* `UPDATE` and `DELETE` would have made both shipped-by-design
   paths unimplementable. See
-  [31-audit-subsystem.md § 7 Append-only enforcement](../architecture/31-audit-subsystem.md)
+  [31-audit-subsystem.md § 7 Data model → Append-only enforcement](../architecture/31-audit-subsystem.md)
   for the trigger and § 10 for the redaction path.
 - Tenant admins query their own tenant's entries through a paginated, indexed view.
   Org admins additionally filter by `organization_id`. Platform admins query across

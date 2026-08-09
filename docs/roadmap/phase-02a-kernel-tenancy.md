@@ -384,9 +384,10 @@ and its Studio screen ownership table is the single ownership record.
 `SaveChanges` interceptor), `IAuditStateCapture` (before / after / changes JSON
 capture), and the Packet 3 `AuditLogBehavior` shell lit up per
 [ADR-0033](../decisions/0033-audit-durability-model.md): **MUST-class audit
-rows are enrolled in the same `SaveChanges` as the business write**, so they
-commit with it or not at all, and so they execute while `app.tenant_id` is set
-and Row Level Security accepts them. SHOULD/MAY-class audit stays best-effort,
+rows are written on the same transaction as the business write** —
+`AuditLogBehavior` classifies and parks the intent, `TransactionBehavior` writes
+it immediately before `COMMIT` — so they commit with it or not at all, and so
+they execute while `app.tenant_id` is set and Row Level Security accepts them. SHOULD/MAY-class audit stays best-effort,
 with its accepted loss written down. `AuditConfig` may narrow SHOULD/MAY
 coverage but never removes baseline MUST coverage. Exactly two failures reject the
 operation — an unclassified operation, and a MUST-class row that cannot be written
@@ -621,8 +622,9 @@ Per [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes AD
 - `LearnStack.Infrastructure.Audit` ships with `AuditChangeTrackerInterceptor` (an EF
   `SaveChanges` interceptor), `IAuditStateCapture` (before / after / changes JSON
   capture), and the Packet 3 `AuditLogBehavior` shell lit up.
-- **MUST-class audit rows are enrolled in the same `SaveChanges` as the business
-  write.** They commit with the state change or not at all, and they execute while the
+- **MUST-class audit rows are written on the same transaction as the business
+  write** — parked by `AuditLogBehavior`, written by `TransactionBehavior` immediately
+  before `COMMIT`. They commit with the state change or not at all, and they execute while the
   transaction-local `app.tenant_id` is set — which is what stops the corrected Row
   Level Security policy from rejecting every audit insert and the documented
   catch-and-log posture from swallowing the rejection.

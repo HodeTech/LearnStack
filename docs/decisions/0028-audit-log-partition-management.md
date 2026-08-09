@@ -32,7 +32,7 @@ Accepted — **amended 2026-08-08** (see [Amendments](#amendments))
 - **A Hangfire job runner already exists.** The audit retention purge is already
   committed to Hangfire ([Standards 18](../standards/18-audit-coverage.md)
   § Retention; [architecture/31-audit-subsystem.md
-  § 8 Retention](../architecture/31-audit-subsystem.md)). Partition
+  § 9 Retention](../architecture/31-audit-subsystem.md)). Partition
   management can ride the same `LearnStackJob`-shaped surface instead of
   introducing a second mechanism.
 - **PostgreSQL 18** ([ADR-0031](0031-postgresql-major-version.md)) ships with
@@ -286,7 +286,7 @@ a primary key twice and is rejected by PostgreSQL.
 - [Standards 18 § Retention](../standards/18-audit-coverage.md) — the per-class
   retention table that scopes the row-level purge job; partition drops use the
   platform max only.
-- [architecture/31 § 8 Retention](../architecture/31-audit-subsystem.md) —
+- [architecture/31 § 9 Retention](../architecture/31-audit-subsystem.md) —
   the canonical job-name catalogue the recurring-job id slots into.
 - [pg_partman](https://github.com/pgpartman/pg_partman) — rejected alternative;
   link kept for future revisit.

@@ -50,7 +50,7 @@ attributes a person owns stay on `User`, and everything a tenant authors moves t
 
 > **Audit ownership.** The `AuditEntry` aggregate lives in the **Audit** module, not in
 > Identity. Identity's commands flow through the shared `AuditLogBehavior`, and
-> MUST-class rows are enrolled in the same `SaveChanges` as the business write per
+> MUST-class rows are written on the same transaction as the business write per
 > [ADR-0033](../decisions/0033-audit-durability-model.md). Cross-process identity
 > signals (Keycloak webhooks) arrive as integration events. There is **no**
 > Identity-owned audit table.

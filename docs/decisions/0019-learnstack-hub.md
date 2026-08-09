@@ -24,6 +24,14 @@ Accepted — **amended by [ADR-0034](0034-hub-contract-surface-invariant.md) (20
 > private keys* through the entitlement-push payload specifically to avoid declaring a
 > fifth endpoint.
 >
+> The Decision section below names the operator portal's app `learnstack-hub-web`. That
+> is the name it had when this ADR was accepted; the app is now `operator-portal`
+> (`frontend/apps/operator-portal`, asserted by the Hub's
+> `Frontend_Has_Only_The_OperatorPortal_App` test). The Decision text is left as written —
+> an Accepted ADR is a record of what was decided, and a rename is not a decision this ADR
+> made. `learnstack-hub-web` survives as the Keycloak OIDC **client id**, which is a
+> different identifier and does not change.
+>
 > ADR-0034 replaces the count with two enforceable invariants: **the Hub stores no
 > tenant content**, and **every LearnStack↔Hub crossing goes through a named adapter**
 > (`IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`). Adding an endpoint
@@ -301,7 +309,7 @@ learnstack-web         → app.learnstack.dev          (tenant SaaS)
                        → {tenant-custom-domain}      (tenant production)
                        (one Next.js app, route groups (public)/(studio)/(portal))
 
-operator-portal        → hub.learnstack.dev          (operator portal)
+learnstack-hub-web     → hub.learnstack.dev          (operator portal)
                        (separate Next.js app, in learnstack-hub repo)
 ```
 
