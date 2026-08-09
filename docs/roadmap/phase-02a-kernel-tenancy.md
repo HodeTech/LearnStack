@@ -949,6 +949,17 @@ reads `platform_host_to_tenant` in order to *determine* the tenant. Three classe
 | Tenant-owned, self-keyed | `tenants` | the corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id |
 | Platform-scoped | `platform_host_to_tenant` | `ENABLE` + `FORCE` with role-qualified per-command policies: reads keyed on the declared `app.resolving_host` (pre-context, single row) or on `app.tenant_id` (a tenant listing its own hosts); writes keyed on `app.tenant_id` only |
 
+Packet 6 also ships `infra/compose/postgres-init/02-create-roles.sql` and splits the
+development connection strings — `learnstack_migration` for `dotnet ef`, `learnstack_app`
+for the API, plus the two bypass roles' own credentials. Until it lands,
+`infra/compose/dev.yml` runs everything as one `POSTGRES_USER` superuser, which owns
+every table and therefore bypasses every policy: the isolation layer is inert in local
+development and every isolation test would pass against it. The script also grants
+`CREATE ON SCHEMA public` to `learnstack_migration` — since PostgreSQL 15 the public
+schema no longer grants it to `PUBLIC`, so without it the first migration fails with
+`permission denied for schema public`, and the tempting fix (make the role a superuser)
+recreates exactly the ownership arrangement `FORCE ROW LEVEL SECURITY` exists to defeat.
+
 `platform_entitlement_cache` is tenant-owned despite its name — every read resolves the
 tenant from `ITenantContext` first and every write arrives on
 `PUT /api/internal/tenants/{id}/entitlements`, so nothing about it is pre-context and
@@ -998,7 +1009,8 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
   throws), `LoggingBehavior` (opens the 8-field `ILogger` scope + manual
   `Activity` + latency histogram), `AuditLogBehavior` (per ADR-0016 — wraps
   inner pipeline with try/catch + audit-fail entry + ExceptionDispatchInfo
-  rethrow), `TenantContextBehavior` (asserts resolved + sets RLS GUCs),
+  rethrow), `TenantContextBehavior` (asserts resolved; does **not** set the RLS
+  GUCs — see [Security Standards § Tenant Context](../standards/11-security.md)),
   `AuthorizationBehavior` (returns `Result.Fail(forbidden)` on deny),
   `TransactionBehavior` (UoW), `OutboxFlushBehavior` (enrols outbox writes
   in current tx).

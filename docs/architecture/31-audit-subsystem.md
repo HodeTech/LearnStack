@@ -618,8 +618,8 @@ CREATE INDEX ix_audit_log_module_operation_timestamp
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log FORCE  ROW LEVEL SECURITY;
 CREATE POLICY audit_log_isolation ON audit_log
-    USING      (tenant_id = current_setting('app.tenant_id', true)::uuid)
-    WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+    USING      (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 -- Cross-tenant reads run as learnstack_platform, entered through the audited
 -- EnterPlatformAdminScope(reason) path.
 ```
@@ -724,8 +724,8 @@ CREATE TABLE audit_config (
 ALTER TABLE audit_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_config FORCE  ROW LEVEL SECURITY;
 CREATE POLICY audit_config_isolation ON audit_config
-    USING      (tenant_id = current_setting('app.tenant_id', true)::uuid)
-    WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+    USING      (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 ```
 
 Defaults declared in each module via `IModule.RegisterAuditDefaults()`; the table holds

@@ -220,7 +220,9 @@ domain the diff doesn't touch.
   plan documented.
 - [ ] PgBouncer transaction-pooling assumption respected (no statement-mode
   patterns).
-- [ ] `correlation_id` columns are `text NULL` (canonical type).
+- [ ] `correlation_id` columns are `text` (holding the full W3C traceparent), never
+  `uuid`. On `outbox_messages` it is **`NOT NULL`**; on `audit_log` it stays nullable
+  ([31-audit-subsystem.md](../../../docs/architecture/31-audit-subsystem.md)).
 
 #### `06-testing.md`
 - [ ] Test pyramid respected (unit > integration > E2E in volume).

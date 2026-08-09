@@ -394,18 +394,38 @@ closed; a fifth role requires an ADR.
 | `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | the worker host that runs `OutboxProcessor` | `OutboxProcessor` and nothing else | `BYPASSRLS` |
 
 ```sql
-CREATE ROLE learnstack_migration    LOGIN NOBYPASSRLS;
-CREATE ROLE learnstack_app          LOGIN NOBYPASSRLS;
-CREATE ROLE learnstack_platform     LOGIN BYPASSRLS;
-CREATE ROLE learnstack_outbox_admin LOGIN BYPASSRLS;
+-- One-time provisioning, run once per database before the first migration. Ships as
+-- infra/compose/postgres-init/02-create-roles.sql in Phase 02a Packet 6.
+CREATE ROLE learnstack_migration    LOGIN PASSWORD :'migration_pw' NOBYPASSRLS;
+CREATE ROLE learnstack_app          LOGIN PASSWORD :'app_pw'       NOBYPASSRLS;
+CREATE ROLE learnstack_platform     LOGIN PASSWORD :'platform_pw'  BYPASSRLS;
+CREATE ROLE learnstack_outbox_admin LOGIN PASSWORD :'outbox_pw'    BYPASSRLS;
 
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA public
+GRANT CONNECT ON DATABASE learnstack
+    TO learnstack_migration, learnstack_app, learnstack_platform, learnstack_outbox_admin;
+
+-- Since PostgreSQL 15 the public schema no longer grants CREATE to PUBLIC, and the
+-- schema is owned by pg_database_owner. Without the CREATE grant below the first
+-- migration fails with "permission denied for schema public" — and the tempting fix
+-- (make the migration role a superuser or the database owner) reinstates exactly the
+-- ownership arrangement FORCE ROW LEVEL SECURITY exists to defeat.
+REVOKE ALL   ON SCHEMA public FROM PUBLIC;
+GRANT USAGE, CREATE ON SCHEMA public TO learnstack_migration;
+GRANT USAGE         ON SCHEMA public
     TO learnstack_app, learnstack_platform, learnstack_outbox_admin;
 
-ALTER TABLE courses OWNER TO learnstack_migration;
+-- Per-table grants are written in the migration that creates the table; see the matrix
+-- below. There is deliberately no ALTER DEFAULT PRIVILEGES.
 GRANT SELECT, INSERT, UPDATE, DELETE ON courses TO learnstack_app;
 ```
+
+Migrations connect **as** `learnstack_migration`, so every table it creates is already
+owned by it — no `ALTER TABLE … OWNER TO` is needed, and seeing one in a migration is a
+sign the migration is running as the wrong role. The connection string `dotnet ef` uses
+and the one the application uses at runtime are **different roles**, and must not be
+unified in any environment, local development included: one shared role makes the runtime
+role the table owner, which is the arrangement `FORCE ROW LEVEL SECURITY` exists to
+defeat, and every isolation test would then pass against inert policies.
 
 `BYPASSRLS` bypasses **policies, not `GRANT`s**: a role holding the attribute with no
 table privilege gets `permission denied for table`. Grant scope is therefore the only
@@ -608,7 +628,7 @@ CREATE TABLE outbox_messages (
     occurred_at     timestamptz NOT NULL DEFAULT now(),
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,             -- null = tenant-wide event; see note below
-    correlation_id  text NULL,             -- opaque correlation id from APISIX request-id
+    correlation_id  text NOT NULL,         -- full W3C traceparent, per ADR-0032 § 12
     causation_id    uuid NULL,
     actor_user_id   uuid NULL,
     type            text NOT NULL,         -- assembly-qualified event type name
@@ -672,10 +692,22 @@ here cannot be restored there. It is deliberately **not** indexed and **not** pa
 table's RLS predicate — `outbox_messages` is a tenant-wide table whose policy carries no
 organization term, and the dispatcher reads the column rather than filtering on it.
 
-`correlation_id` is `text NULL` (not `uuid NOT NULL`): APISIX's `request-id` plugin
-echoes any client-supplied id and falls back to a UUID, so the field is opaque and
-optional. The architecture deep dive lives in
-[15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
+`correlation_id` is `text NOT NULL` (not `uuid`): it stores the **full W3C `traceparent`
+string** — `00-<32-hex trace-id>-<16-hex span-id>-<2-hex flags>` — so a consumer rehydrates
+the trace with `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var ctx)`
+rather than re-deriving it
+([ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md),
+[10-observability.md § Correlation](10-observability.md)). It is `text` rather than `uuid`
+because a traceparent is not a UUID. The request middleware synthesises a root traceparent
+when the inbound request carries none, and Hangfire enqueue rejects payloads without one, so
+no enqueue path can produce a row without a correlation id — which is what lets the
+registered `Outbox_Row_Carries_Correlation_Context` assertion rest on the schema rather than
+on developer discipline. The earlier justification for nullability — that APISIX's
+`request-id` plugin echoes any client-supplied id — did not survive contact with
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md), which demand-gates APISIX to
+[Phase 11](../roadmap/phase-11-production-hardening.md): the column exists from Phase 02a,
+so its contract cannot rest on a component that is not there yet. The architecture deep dive
+lives in [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 
 ## Raw SQL
 
@@ -697,9 +729,19 @@ Forbidden: string interpolation with non-constant values.
   enforces this in the deployment config; deviation requires an ADR.
 - `app.tenant_id` (and `app.organization_id` when relevant) set **within the same
   transaction** as the work (`SET LOCAL ...`).
-- A checkout interceptor verifies both values are set before queries run; a missing
-  `app.tenant_id` throws `TenantContextMissingException` rather than risking an
-  unscoped query.
+- A `DbCommandInterceptor` — **not** a connection-checkout interceptor — guards the
+  context. Checkout happens before `TransactionBehavior` opens the transaction that
+  carries the `SET LOCAL` values, so a checkout hook would read an unset
+  `app.tenant_id` on every request and throw universally; under PgBouncer transaction
+  pooling it would sometimes read a *previous* transaction's leftover value, which is
+  worse than throwing. The command interceptor instead checks the in-process marker
+  `TransactionBehavior` stamps on the ambient transaction once it has issued the
+  `SET LOCAL` pair, and throws `TenantContextMissingException` when a command against a
+  `[TenantOwned]` table runs without it — no extra round trip.
+- The database-side guard is fail-closed independently: with `app.tenant_id` unset or
+  reset the policy predicate is `NULL`, so the query returns zero rows rather than
+  leaking. The interceptor exists to turn that silent empty result into a loud failure,
+  not to be the isolation boundary.
 
 ## Backups
 

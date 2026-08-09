@@ -9,7 +9,7 @@ Accepted
 
 ## Amendments
 
-### Amendment 2 — Two corrections from the 2026-08-08 restructure
+### Amendment 2 — Three corrections from the 2026-08-08 restructure
 
 Neither changes a sub-decision; both correct text that would mislead an implementer.
 
@@ -26,6 +26,17 @@ Neither changes a sub-decision; both correct text that would mislead an implemen
    through a named adapter). The driver's substantive point is unaffected: inbound
    `/api/internal/*` calls carry no tenant JWT, so their correlation comes from
    `traceparent` plus the request envelope rather than from `ITenantContext`.
+3. **Sub-decision 2's diagram puts the Row Level Security session variables one step
+   too early.** The step-4 annotation reads
+   `TenantContextBehavior (assert resolved; set RLS GUC)`. `SET LOCAL` /
+   `set_config(…, true)` is transaction-local, and step 4 runs before
+   `TransactionBehavior` opens the transaction at step 6 — so a value set at step 4 is
+   discarded before the query it protects ever runs. Step 4 asserts the context and
+   carries it forward; step 6 issues the `SET LOCAL` pair as the first statement inside
+   the transaction. The pipeline **order** this ADR fixes is unchanged; only the
+   annotation was wrong.
+   [Security Standards § Tenant Context](../standards/11-security.md) is the single
+   authority for the placement.
 
 Separately, note that the **audit durability contract** referenced throughout this ADR
 now comes from [ADR-0033](0033-audit-durability-model.md), which supersedes ADR-0016.

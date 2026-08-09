@@ -61,8 +61,8 @@ sequenceDiagram
     API->>MW: HTTP pipeline
     MW->>MW: Read tenant_id, organization_id from JWT claims
     MW->>Accessor: SetTenant(tenantId, organizationId, userId)
-    Accessor->>PG: SET LOCAL app.tenant_id = '...'<br/>SET LOCAL app.organization_id = '...'
     MW->>API: continue
+    API->>EF: BeginTransaction, then SET LOCAL app.tenant_id /<br/>app.organization_id as the first statement (TransactionBehavior, step 6)
     API->>EF: Query tenant-owned aggregate
     EF->>EF: Apply global filter (tenant + org)
     EF->>PG: Query with WHERE tenant_id = X AND (organization_id = Y OR IS NULL)
@@ -185,8 +185,8 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 |------|---------|
 | `Every_TenantOwned_Entity_HasTenantId` | Every aggregate marked `[TenantOwned]` (or inheriting `AuditableEntity<>`) has a `TenantId` property and an EF query filter referencing it. |
 | `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every aggregate marked `[OrganizationScoped]` has `OrganizationId` nullable + EF query filter. |
-| `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has at least one RLS policy. |
-| `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: every org-scoped table has the org isolation policy. |
+| `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and **exactly one** permissive policy with an explicit `WITH CHECK`. Two permissive policies fail the test. |
+| `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: the organization term is `AND`-ed inside that single policy — not in a second permissive one — and both `AS RESTRICTIVE` write guards are present. |
 | `IgnoreQueryFilters_OnlyInPlatformAdminScope` | Roslyn source scan: `IgnoreQueryFilters()` appears only in `LearnStack.Modules.Identity.Application.Platform` or behind an `architecture-allow: ignore-query-filters ADR-NNNN` marker. |
 | `Hangfire_JobPayloads_IncludeTenantId` | Reflection: every `LearnStackJob<TParams>` subclass's `TParams` has `TenantId`. |
 | `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; `SetTenant(...)` precedes `ExecuteAsync(...)`. |

@@ -121,8 +121,12 @@ and an unread template store is a schema nobody validates.
   incident.
 - Resolution falls back locale → tenant default locale → built-in platform template, so a
   missing translation degrades to a delivered message rather than a dropped one.
-- The Studio editor for this aggregate ships with the rest of the customization editors
-  in [Phase 06](phase-06-renderer-admin-studio.md).
+- The Studio editor for this aggregate ships **here**, built on the shared customization
+  editor components [Phase 06](phase-06-renderer-admin-studio.md) consolidates. The
+  [Admin Studio screen ownership table](phase-06-renderer-admin-studio.md) is the single
+  ownership record and assigns this screen to this phase — which is also the phase that
+  first creates the aggregate, its migration, its policy and its audit coverage. A
+  Phase 06 editor would target a table with no migration behind it.
 
 ### Notifications
 
@@ -175,6 +179,8 @@ infrastructure.
   result-band → level projection.
 - `TenantTemplateLibrary` aggregate, migration, RLS policy, resolution order, and audit
   coverage.
+- `TenantTemplateLibrary` Studio editor: per-channel, per-locale template authoring, the
+  per-organization override row, and a render preview against a sample dispatch context.
 - Notification engine MVP with the `IEmailProvider` adapter wired and other channels
   behind the port.
 - Integration-event consumers for the notification use cases, idempotent via the inbox
@@ -190,6 +196,8 @@ infrastructure.
   differ in shape, with no branch on tenant identity anywhere in the Assessment module.
 - At least one email flow is driven end to end by a `TenantTemplateLibrary` template,
   including the per-organization override and the locale fallback.
+- A tenant admin creates and edits a notification template in the Admin Studio, including
+  a per-organization override, with no code change.
 - A notification consumer that receives the same integration event twice sends one
   message.
 - Background jobs preserve tenant context; retry and failure behaviour is observable in

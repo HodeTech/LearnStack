@@ -18,6 +18,14 @@ Superseded by [ADR-0033](0033-audit-durability-model.md) (2026-08-08)
 > — once inline on `id` and once as a table constraint on `(id, timestamp)` — and is
 > therefore rejected by PostgreSQL.
 >
+> That DDL's `-- Platform admin role bypasses RLS via SET role audit_admin` comment names
+> a role that no longer exists and a mechanism the corpus now forbids. The model has
+> exactly four roles, none of them an audit admin, and `learnstack_app` is not a member
+> of any bypass role — so the bypass is reached by a separate credentialed connection
+> through `EnterPlatformAdminScope(reason)`, never by `SET ROLE`. See
+> [ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) and
+> [Database Standards § Database roles](../standards/05-database.md).
+>
 > Read this ADR for the subsystem's context and rationale; read ADR-0033 for the
 > binding rules.
 

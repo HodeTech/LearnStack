@@ -88,7 +88,7 @@ Request
                                 }
   ▼
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
-                                set RLS GUCs via DbConnectionInterceptor
+                                carry tenant + organization forward (touches no connection)
   ▼
 [5] AuthorizationBehavior    ←  IAuthorizationService.AuthorizeAsync;
                                 Result.Fail(forbidden) on deny
@@ -118,9 +118,14 @@ Why this order:
   already lives here, and the L1 `IExceptionHandler` is the final catch site.
 - **Tenant context just inside audit.** Audit needs `actor`, `tenant_id`,
   `organization_id` to build a row; those must be resolved before the audit
-  snapshot runs. The behavior validates the context (asserts the middleware
-  populated it) and sets PostgreSQL session variables via the
-  `DbConnectionInterceptor` so RLS policies see the right values.
+  snapshot runs. The behavior *only* validates the context — it asserts the
+  middleware populated it. It does **not** set the PostgreSQL session variables:
+  `SET LOCAL` is transaction-local and step 4 runs before any transaction exists,
+  so the variables are issued by `TransactionBehavior` at step 6 as the first
+  statement inside the transaction. A `DbConnectionInterceptor` cannot do it
+  either — it fires at connection open, not at transaction start. See
+  [Security Standards § Tenant Context](../standards/11-security.md), the single
+  authority for this placement.
 - **Authorization after tenant.** A permission decision usually keys on
   `(tenant_id, user_id, resource)` — those must be ambient first.
 - **Transaction after authorization.** No transaction is opened for a

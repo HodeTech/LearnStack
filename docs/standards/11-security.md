@@ -242,22 +242,30 @@ consequences follow, and both are load-bearing:
   shared across transactions, so the value is either absent or — worse — left over from
   another tenant's transaction.
 
-Because `current_setting` is always called with its missing-OK argument (`true`), an
-unset variable yields `NULL` and the policy predicate filters the row out. The failure
-mode is an empty result set, not a leak — but an empty result set arriving from
-production is an outage, so a checkout interceptor additionally verifies both values are
-present before queries run and throws `TenantContextMissingException` when they are not
-([05-database.md § Connection Management](05-database.md)).
+Because every `current_setting` read is called with its missing-OK argument (`true`)
+**and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
+the policy predicate filters the row out. The failure mode is an empty result set, not a
+leak — but an empty result set arriving from production is an outage, so a
+`DbCommandInterceptor` additionally asserts that `TransactionBehavior` has already issued
+the `SET LOCAL` pair before any command against a `[TenantOwned]` table runs, and throws
+`TenantContextMissingException` when it has not. It cannot be a connection-checkout
+interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
+values: checkout precedes the transaction, so the transaction-local value is not there to
+be observed ([05-database.md § Connection Management](05-database.md)).
 
 ### Corrections this supersedes
 
-Two other documents previously described different placements. Both are corrected; if a
+Six other places previously described different placements. All are corrected; if a
 stale copy surfaces, this section wins:
 
 | Document | Previously said | Now |
 |---|---|---|
 | [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md) | Pipeline step 4 (`TenantContextBehavior`) sets the variables via a `DbConnectionInterceptor` | Step 4 asserts and carries tenant context; step 6 sets the variables inside the transaction, and links here |
 | Phase 02a Packet 3 `TenantContextBehavior` code TODO | Names a `DbConnectionInterceptor` as the mechanism | Corrected in [Phase 02a Packet 3b](../roadmap/phase-02a-kernel-tenancy.md) to point here and at Packet 7, which implements it |
+| [33-cross-cutting-concerns.md § Pipeline](../architecture/33-cross-cutting-concerns.md) | Step 4 sets the RLS GUCs via a `DbConnectionInterceptor` | Step 4 asserts only; step 6 issues `SET LOCAL` inside the transaction |
+| [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md) diagram | `TenantContextBehavior (assert resolved; set RLS GUC)` | Corrected in that ADR's Amendment 2, item 3 |
+| [09-tenant-isolation.md § Isolation flow](../architecture/09-tenant-isolation.md) mermaid | The accessor issues `SET LOCAL` from middleware, before any transaction exists | The transaction issues it at step 6 |
+| [Phase 02a § Cross-cutting Concerns](../roadmap/phase-02a-kernel-tenancy.md) | `TenantContextBehavior` (asserts resolved + sets RLS GUCs) | Asserts only; `TransactionBehavior` sets them |
 
 Neither error was visible in review because the corpus described the *layers* correctly
 while describing the *ordering* wrongly, and no code exercised the ordering yet. The
