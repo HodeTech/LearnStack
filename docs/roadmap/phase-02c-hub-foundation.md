@@ -17,12 +17,17 @@
 > repositories. This document is no longer a status mirror. It carries **only the
 > LearnStack-side work**, which is the half that lands in this repository.
 >
-> **`P02c-1` on the Hub side is frozen by owner decision.** The branch
-> `feat/phase-02c-packet-1-hub-domain-core` exists and is not merged. It unfreezes
-> when this phase's trigger fires — see [Goal](#goal). Freezing rather than
-> merging keeps a large unexercised surface out of `main` while its consumer does
-> not exist; the Hub repository's `p02c-1-hub-domain-core.md` records the same
-> state and the condition that lifts it.
+> **`P02c-1` on the Hub side shipped on 2026-08-09**, after a review against the
+> restructured corpus found that its domain code conflicts with none of
+> ADR-0033/0034/0035 — its entitlement wire shape already carries `grace_until`
+> and `generation`, it hosts no endpoint, and its audit behavior is a shell.
+>
+> **The Hub track is frozen from `P02c-2` onward**, on this phase's trigger — see
+> [Goal](#goal). That is where the contract surface ADR-0034 redrew actually gets
+> built, so it is the packet the freeze protects; holding P02c-1's merged artefact
+> would have bought nothing and cost a SharedKernel reconciliation that grows with
+> every packet on top. The Hub repository's `p02c-1-hub-domain-core.md` records
+> the same state.
 
 ## Goal
 
@@ -326,10 +331,13 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 - **Fail-open by default.** A key whose class was never declared behaves as whatever the
   first implementation happened to do. The registry rejects an undeclared class at compile
   time; reviewers check that paid capacity and compliance keys are on the closed side.
-- **The frozen Hub branch rots.** `feat/phase-02c-packet-1-hub-domain-core` is 221 files
-  against a moving base. Mitigated by treating it as a reference implementation to be
-  re-landed against ADR-0034's contract when the trigger fires, not as a branch to merge
-  unchanged.
+- **~~The frozen Hub branch rots.~~ Discharged 2026-08-09 by merging it.**
+  `feat/phase-02c-packet-1-hub-domain-core` was 221 files against a moving base. The
+  review that preceded the merge found the rot was the only certain cost: the code
+  conflicts with none of ADR-0033/0034/0035, so holding it bought no safety. What it did
+  leave is a SharedKernel reconciliation against
+  [Packet 3b](phase-02a-kernel-tenancy.md), tracked on the Hub side, which does grow with
+  every packet built on top.
 - **mTLS certificate and HMAC secret rotation.** Mitigated by a dual-key window during
   rotation and a documented cadence; both are Phase 11 operational work and are named
   there.
