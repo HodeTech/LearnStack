@@ -86,6 +86,7 @@ HMAC body signature):
 | `POST` | `/api/v1/internal/license/verify` | Verify / pull the entitlement projection |
 | `POST` | `/api/v1/internal/license/refresh` | Scheduled phone-home refresh |
 | `POST` | `/api/v1/usage/report` | Report a usage metric (idempotent) |
+| `POST` | `/api/v1/internal/tenants/{id}/custom-domains` | Submit a custom domain on behalf of a tenant admin. Handled by `IHubTenantSync`; the Admin Studio never calls the Hub directly, because a `learnstack` realm token is rejected there ([ADR-0004](0004-authentication-strategy.md)) |
 
 The Hub's own tenant-facing and operator-facing APIs (`/api/v1/tenants/*`,
 `/api/v1/subscriptions/*`, `/api/v1/webhooks/*`) are **not** part of this surface. They

@@ -86,7 +86,11 @@ lands, the equivalent controls run as ASP.NET middleware in the application itse
 [30-api-gateway.md](../architecture/30-api-gateway.md).
 
 **`SignedLicenseKeyEntitlementProvider` hardening** — *trigger: a Self-Hosted contract is
-signed.* The provider is not the deliverable; its operational surround is:
+signed.* The provider skeleton — `.lic` parsing, `kid` resolution, RS256
+verification, payload-schema validation, and serving lookups from the embedded
+projection — lands with the Hub repository's `P02c-6` as a coordinated pull request.
+The provider is not this phase's deliverable; what follows is what that skeleton is
+missing:
 
 - Signing-key rotation procedure, including how a key issued under the previous
   generation stays verifiable through its remaining validity.

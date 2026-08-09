@@ -145,8 +145,11 @@ here:
   the moment [Phase 06](phase-06-renderer-admin-studio.md) starts running
   browser tests against it.
 - `frontend/apps/web` runs `vitest run --passWithNoTests` against zero test
-  files, so the frontend CI check is green without asserting anything. The job
-  is changed to fail on a zero test count; the first real tests arrive with
+  files, so the frontend CI check is green without asserting anything. The
+  tolerance is removed **together with the first test that satisfies it** — one
+  render test over the existing `(public)/page.tsx` placeholder is enough — so the
+  required `frontend` check never sits red across a packet boundary. The
+  substantive frontend suite still arrives with
   [Phase 02d](phase-02d-walking-skeleton.md).
 - Branch protection requires four checks but zero approvals and does not enforce
   for administrators, which contradicts

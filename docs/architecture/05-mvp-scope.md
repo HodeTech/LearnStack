@@ -204,9 +204,11 @@ contracts and the option to point at a Hub instance are MVP-complete:
 - Separate `learnstack-hub` repository ([ADR-0019](../decisions/0019-learnstack-hub.md)).
 - Separate Keycloak realm (`learnstack-hub`).
 - `Plan` / `HubSubscription` / `Entitlement` aggregates on the Hub side.
-- mTLS + signed JWT + HMAC internal API:
-  `PUT /api/internal/tenants/{id}/entitlements`, `POST /api/internal/tenants`,
-  `POST /api/v1/internal/license/verify`, `POST /api/v1/usage/report`.
+- mTLS + RS256 JWT + HMAC internal API, governed by the two invariants in
+  [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) rather than by an
+  endpoint count: the Hub stores no tenant content, and every crossing goes through
+  `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`. ADR-0034 § The
+  endpoint set enumerates the current paths.
 - Feature-based entitlement projection per
   [ADR-0021](../decisions/0021-feature-based-entitlement.md).
 

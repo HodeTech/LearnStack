@@ -354,7 +354,7 @@ sequenceDiagram
     HubAPI->>HubAPI: Create LearnStackTenant + HubSubscription + Entitlement (gen=1)
     HubAPI->>Keycloak: Provision tenant in `learnstack` realm<br/>(create tenant_admin user, set tenant_id claim)
     HubAPI->>LSApi: POST /api/internal/tenants {tenant_id, slug, default_org}<br/>(mTLS + signed JWT + HMAC)
-    LSApi->>LSDB: INSERT tenants, organizations (default), platform_entitlement_cache
+    LSApi->>LSDB: INSERT tenants, organizations (default),<br/>platform_host_to_tenant ({slug}.learnstack.app), platform_entitlement_cache
     LSApi-->>HubAPI: 201 Created
     HubAPI->>HubAPI: Schedule welcome email
     HubAPI-->>HubUI: Tenant ready, redirect to {slug}.learnstack.app

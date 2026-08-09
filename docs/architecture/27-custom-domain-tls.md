@@ -27,7 +27,7 @@ sequenceDiagram
 
     Tenant->>Studio: Enter domain "anatoliayoga.com"
     Studio->>LSApi: POST /api/v1/tenant/custom-domains (acts as proxy)
-    LSApi->>HubAPI: POST /api/v1/tenants/{id}/custom-domains<br/>(internal API, mTLS)
+    LSApi->>HubAPI: POST /api/v1/internal/tenants/{id}/custom-domains<br/>(via IHubTenantSync; mTLS + JWT + HMAC)
     HubAPI->>HubAPI: Insert CustomDomain row, status=Pending
     HubAPI->>Studio: 201 + verification instructions<br/>(CNAME instructions)
 

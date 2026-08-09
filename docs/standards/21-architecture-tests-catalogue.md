@@ -998,6 +998,50 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
+#### `Integration_Events_Inherit_From_IntegrationEventBase`
+
+- **Asserts:** every type implementing `IIntegrationEvent` extends `IntegrationEventBase`,
+  which carries `EventId`, `OccurredAt` and `TenantId`, and is a JSON-serialisable record.
+- **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
+  [ADR-0006](../decisions/0006-events-and-outbox.md).
+- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02b.
+
+#### `Integration_Event_Declares_PartitionKey`
+
+- **Asserts:** every `IIntegrationEvent` resolves a non-null partition key. `PartitionKey`
+  on `IntegrationEventBase` is threaded through `IEventBus` and honoured by
+  `InProcessEventBus`, which serialises dispatch per key — concurrent across keys,
+  sequential within one.
+- **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
+  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
+- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02b.
+
+#### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
+
+- **Asserts:** one poisoned message does not prevent the rest of its batch from being
+  dispatched.
+- **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
+  Phase 02b deliverable.
+- **Type:** **integration** test (Testcontainers). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 02b.
+
+#### `Outbox_Claim_IsHeld_Until_Dispatch_Completes`
+
+- **Asserts:** two concurrent `OutboxProcessor` instances draining one pending batch
+  dispatch each message **exactly once** — the claim is held for the duration of the
+  dispatch, not released when the row is read. Requires **two** processors: a
+  single-processor test passes against the broken protocol.
+- **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
+  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
+- **Type:** **integration** test (Testcontainers, two processes). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 02b.
+
 ### Demand-gated: lands with its adapter
 
 These rules are agreed but cannot be written until the technology they constrain is

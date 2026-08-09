@@ -287,6 +287,7 @@ the surface is a cross-repository contract and both repositories have to agree o
 | `POST` | `/api/v1/internal/license/verify` | Verify / pull the entitlement projection |
 | `POST` | `/api/v1/internal/license/refresh` | Scheduled phone-home refresh |
 | `POST` | `/api/v1/usage/report` | Report a usage metric (idempotent) |
+| `POST` | `/api/v1/internal/tenants/{id}/custom-domains` | Submit a custom domain on behalf of a tenant admin (proxied; `IHubTenantSync`) |
 
 The Hub's own tenant-facing and operator-facing APIs (`/api/v1/tenants/*`,
 `/api/v1/subscriptions/*`, `/api/v1/webhooks/*`) are **not** part of this surface. They

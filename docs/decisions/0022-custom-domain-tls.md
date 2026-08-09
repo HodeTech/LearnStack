@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted — **Amendment 1's delivery mechanism superseded by
+Accepted — **the certificate-delivery mechanism in Amendment 1 (steps 3 and 4) and in
+the 2026-05-19 Option B amendment is superseded by
 [ADR-0034](0034-hub-contract-surface-invariant.md) (2026-08-08)**
 
 > **What ADR-0034 changed.** The lifecycle decided here is unchanged: Hub owns
@@ -21,6 +22,14 @@ Accepted — **Amendment 1's delivery mechanism superseded by
 > `PUT /api/internal/tenants/{id}/host-mappings` carrying the host → tenant tuple only,
 > and certificate material moves by secret-store replication, referenced from that
 > payload **by path, not by value**.
+>
+> Wherever an amendment below routes certificate material through
+> `PUT /api/internal/tenants/{id}/entitlements`, or asserts that the four-endpoint
+> surface is or remains closed, read it as superseded. That applies to Amendment 1
+> steps 3 and 4 and to the Option B amendment's `SelfHostedOnline` / `SaaS` /
+> `Dedicated` bullet. All three now mean: host mappings over
+> `PUT /api/internal/tenants/{id}/host-mappings`, certificate material by secret-store
+> replication, referenced by path.
 >
 > Separately, [Custom Domain + TLS](../architecture/27-custom-domain-tls.md)'s
 > `CachedHostToTenantResolver` calls `IHubClient.LookupHostAsync` on cache miss, which
@@ -479,8 +488,10 @@ the path is:
 
 - **`SelfHostedOnline` / `SaaS` / `Dedicated`** (Hub reachable): customer-provided
   cert is uploaded through the Hub operator portal, stored in the **Hub-side
-  Vault**, then replicated to the LearnStack-side Vault via the entitlement-push
-  internal-API path (same channel as Let's Encrypt-issued certs).
+  Vault**, then replicated to the LearnStack-side secret store by secret-store
+  replication and referenced from the host-mapping payload by path — the same channel
+  as Let's Encrypt-issued certs, per
+  [ADR-0034](0034-hub-contract-surface-invariant.md).
 - **`SelfHostedAirGapped`** (no Hub): customer places the cert + key directly in
   their **own Vault** (or the configured `ISecretProvider` backend) at the
   agreed namespace; the LearnStack APISIX pod's Vault Agent sidecar reads from

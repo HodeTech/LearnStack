@@ -22,6 +22,15 @@ LearnStack ships in three production deployment modes — SaaS, Dedicated, Self-
 backed by the companion **LearnStack Hub** repository, which provides the SaaS /
 Dedicated control plane, plan editor, custom-domain admin, and license-key issuance.
 
+Today only `Development` and `SaaS` are wired and tested end to end. `Dedicated` and
+the two Self-Hosted `DeploymentMode` values (`SelfHostedOnline`,
+`SelfHostedAirGapped`) are **prepared seams, not supported deployments** — the
+composition root branches on them, but their adapters and integration suites land in
+[Phase 11](docs/roadmap/phase-11-production-hardening.md) per
+[ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md). See
+[25-deployment-models.md](docs/architecture/25-deployment-models.md) for what a
+prepared seam means concretely.
+
 The Hub repo is expected to live at `../LearnStack-Hub` (sibling to this repo on the
 developer's workstation) so the cross-repo doc links resolve. The Hub repository owns
 its own roadmap at `../LearnStack-Hub/docs/roadmap/`. See

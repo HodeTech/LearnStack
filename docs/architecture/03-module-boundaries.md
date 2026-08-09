@@ -237,7 +237,7 @@ Owns external provider credentials, webhooks, API keys, LTI/xAPI readiness, inte
 | Read another module's **public read model** (projection table). | Joining across module-owned tables in SQL. |
 | Use the **shared kernel** (ids, audit fields, errors, pagination, base types, `IEventBus`, `ICacheService`, `ISecretProvider`, `IEntitlementProvider`). | Importing another module's `Domain` namespace. |
 | Provide an **adapter implementation** at the composition root. | Domain-specific names (`CEFR`, `Asana`, `Kyu`, …) anywhere in a core module — those belong to tenant customization data, not code. |
-| Read a **Hub-mirrored projection** (`platform_entitlement_cache`, `platform_host_to_tenant`) for read-only entitlement / host resolution. | Direct HTTPS calls to Hub from anywhere except `IEntitlementProvider` / `IHostToTenantResolver` adapter implementations. |
+| Read a **Hub-mirrored projection** (`platform_entitlement_cache`, `platform_host_to_tenant`) for read-only entitlement / host resolution. | Direct HTTPS calls to Hub from anywhere except the `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync` adapter implementations; resolving a host by calling the Hub at all — `IHostToTenantResolver` reads `platform_host_to_tenant` and nothing else ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). |
 | Reference the `LearnStack.Modules.Audit` module via integration events (Audit subscribes to events from other modules). | Writing to `audit_log` directly from outside the Audit infrastructure pipeline. |
 
 Architecture tests enforce these rules — see [Testing Standards](../standards/06-testing.md).

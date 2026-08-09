@@ -56,13 +56,32 @@ Per category:
 - Payment → retained for legal period; user notified of the exception.
 - Audit → actor field anonymised; action record retained.
 
-Deletion is a workflow, not a single SQL statement:
+Deletion is a workflow, not a single SQL statement — and there are **two** of them,
+separated by authority. Conflating them lets a tenant admin close a person's account
+([Phase 03 § Tenant Data Ownership](../roadmap/phase-03-identity-admin.md)).
 
-1. Tenant admin (or user via self-service post-MVP) initiates the request.
-2. Platform validates eligibility (no active payment dispute, no legal hold).
-3. `UserAnonymisationRequestedV1` event published.
-4. Each module consumes the event and performs its part: anonymise rows, delete storage objects, invalidate Keycloak user.
-5. A final reconciliation job confirms every module reported completion within 30 days. Failures escalate to platform admin.
+**Tenant-scoped erasure.** Initiated by a tenant admin, or by the person acting inside
+that tenant.
+
+1. Eligibility is validated (no active payment dispute, no legal hold).
+2. The `Membership` and its `MembershipProfile` are removed.
+3. That tenant's behaviour rows are anonymised; that tenant's audit entries keep the
+   action record with the actor field anonymised.
+4. The `users` row survives for as long as any membership remains anywhere. Nothing in
+   this flow touches Keycloak.
+
+**Global account closure.** A **platform-scoped** operation. There is no tenant-admin
+endpoint for it.
+
+1. The platform admin enters scope through the audited `EnterPlatformAdminScope(reason)`
+   — the only path that reads across tenants.
+2. Eligibility is validated (no active payment dispute, no legal hold).
+3. `UserAnonymisationRequestedV1` fans out to every tenant the person belongs to.
+4. Each module consumes the event and performs its part: anonymise rows, delete storage
+   objects. **The Keycloak user is invalidated once, at the end, by the platform-scoped
+   step — never by a module reacting to a tenant-scoped request.**
+5. A final reconciliation job confirms every module reported completion within 30 days.
+   Failures escalate to platform admin.
 
 ### Right to Restriction of Processing
 

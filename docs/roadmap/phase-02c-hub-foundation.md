@@ -210,6 +210,15 @@ expiry.
 Host mappings arrive on their own endpoint, `PUT /api/internal/tenants/{id}/host-mappings`,
 and are mirrored into `platform_host_to_tenant`.
 
+One row is **not** pushed: the tenant's own platform subdomain.
+`POST /api/internal/tenants` seeds `{slug}.{platform-domain}` into
+`platform_host_to_tenant` in the same transaction as the tenant row and the default
+organization. It needs no DNS verification and rides the platform wildcard
+certificate, so making it wait on the custom-domain path would leave every
+Hub-provisioned tenant unreachable at the URL the Hub redirects it to — and
+[Standards 20](../standards/20-infrastructure-stack.md) makes an unknown host a 404,
+not a Hub lookup.
+
 Two rules from [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) are
 load-bearing here:
 
@@ -250,7 +259,7 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 | `learnstack-hub` Keycloak realm, operator portal, operator MFA | Hub repository, `P02c-4` |
 | DNS-01 / HTTP-01 challenge runner, ACME provider adapter | Hub repository, `P02c-5` |
 | Licence-key issuance and the `.lic` file format | Hub repository, `P02c-6` |
-| `SignedLicenseKeyEntitlementProvider` (LearnStack side) | [Phase 11](phase-11-production-hardening.md), on a signed Self-Hosted contract ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
+| `SignedLicenseKeyEntitlementProvider` (LearnStack side) | Skeleton: Hub repository `P02c-6`, as a coordinated pull request into this repository. Operational hardening: [Phase 11](phase-11-production-hardening.md), on a signed Self-Hosted contract ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 | APISIX internal route configuration | [Phase 11](phase-11-production-hardening.md) |
 | Dapr / Kafka transport for `learnstack.hub.entitlement` | [Phase 11](phase-11-production-hardening.md) |
 | Custom-domain TLS automation end to end | [Phase 11](phase-11-production-hardening.md) |
@@ -278,7 +287,8 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 ## Completion Criteria
 
 - A tenant created through `POST /api/internal/tenants` exists in LearnStack with its
-  default organization, and its entitlement projection is populated.
+  default organization, resolves at `{slug}.{platform-domain}` through
+  `platform_host_to_tenant`, and its entitlement projection is populated.
 - An entitlement push through `PUT /api/internal/tenants/{id}/entitlements` changes what
   `IFeatureFlags.IsEnabledAsync` returns for that tenant within seconds.
 - With the Hub unreachable and L1 and L2 cold, a feature check resolves from

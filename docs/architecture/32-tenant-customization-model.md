@@ -316,14 +316,19 @@ sets the rule for page blocks; this document extends it to all customization sur
 
 ## 5. Custom fields on built-in entities
 
-A subset of built-in entities (`User`, `Course`, `Enrollment`, `LiveSession`, `Lesson`)
-accept tenant-defined custom fields:
+Tenant-defined custom fields attach to **tenant-owned** entities: `Membership`,
+`Course`, `Enrollment`, `LiveSession`, `Lesson`. `target_entity = "User"` resolves to
+`membership_profiles` — never to `users`, which is global, carries no `tenant_id`, and
+therefore has no query filter and no Row Level Security policy. A tenant-authored
+column on a global table is a cross-tenant read by construction
+([Phase 03 § Tenant Data Ownership](../roadmap/phase-03-identity-admin.md)).
 
 ```sql
 CREATE TABLE tenant_custom_field_defs (
     id              uuid PRIMARY KEY,
     tenant_id       uuid NOT NULL,
-    target_entity   text NOT NULL,    -- "User", "Course", "Enrollment", etc.
+    target_entity   text NOT NULL,    -- "Membership", "Course", "Enrollment", …; never "User"
+    pii_category    text NOT NULL,    -- PII-Identity | PII-Behaviour | PII-Sensitive | None; no default, see Phase 03
     key             text NOT NULL,    -- e.g. "preferred_practice_time"
     display_name    text NOT NULL,
     json_schema     jsonb NOT NULL,   -- field definition
@@ -337,8 +342,11 @@ CREATE TABLE tenant_custom_field_defs (
 Values stored on the entity as a JSONB column:
 
 ```sql
-ALTER TABLE users ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE courses ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '{}';
+-- Values live on the tenant-owned row, never on a global one.
+ALTER TABLE membership_profiles ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE courses             ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '{}';
+-- Every table above is [TenantOwned] and carries the canonical RLS policy from
+-- Database Standards; `users` is not in this list and never will be.
 -- etc.
 ```
 
@@ -662,7 +670,7 @@ reads it.
 |-------|-------------|
 | [02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md) | `LearnStack.Modules.Customization` with **two** aggregates: `TenantContentType` and `TenantLevelTaxonomy`. Scoring and completion rule bodies stored as **opaque `text` with a `dialect` discriminator** — the engine is chosen in ADR-0025 and the three candidates do not share a column type. Primitive renderer set scaffolded; a small built-in seed (`default-card`, a stock `Plain` taxonomy). |
 | [02d](../roadmap/phase-02d-walking-skeleton.md) | Both seed tenants render their own taxonomy and content shape from these two aggregates. First proof that the model works. |
-| [03](../roadmap/phase-03-identity-admin.md) | `TenantCustomFieldDef`. |
+| [03](../roadmap/phase-03-identity-admin.md) | `TenantCustomFieldDef`, with its mandatory `pii_category` and the `Membership` target. `users` gains no column. |
 | [04](../roadmap/phase-04-cms-media-pages.md) | `TenantPageBlock`; CMS / Page Builder; JSON form editor for content types; validating bulk import. |
 | [05](../roadmap/phase-05-education-learning-content.md) | **ADR-0025** picks the rule-evaluation engine; `TenantLessonItemType`; `TenantScoringRule` / `TenantCompletionRule` aggregates + evaluation; the reference-resolution batching and limits in [§ 8](#8-runtime-cost-model) get their integration tests. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio polish: visual schema editor, preview pane. |
