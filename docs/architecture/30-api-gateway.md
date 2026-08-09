@@ -19,11 +19,15 @@ the LearnStack core API and the LearnStack Hub API.
 > **A gap worth naming rather than discovering.** In the shipped
 > `infra/apisix/apisix.yaml`, route 100's `openid-connect` block is **commented out**, so
 > today every `/api/v*` request reaches the backend unauthenticated **at the gateway**.
-> That is a defense-in-depth gap, not an open door: the backend re-validates every token
-> independently ([§ 5](#5-defense-in-depth-jwt-validated-twice)) and rejects
-> unauthenticated requests on its own. But it means the gateway is currently contributing
-> nothing to authentication, and the "validated twice" property in § 5 describes the
-> Phase 11 target, not the running system. The block is uncommented in
+> **Neither layer authenticates today.** The backend does not re-validate, because there
+> is nothing yet to re-validate against: `grep AddAuthentication\|UseAuthentication` over
+> `backend/src` returns no registration, and `AuthorizationBehavior.Handle` is
+> `return next()` with a Phase 03 TODO. Authentication lands in
+> [Phase 02b](../roadmap/phase-02b-events-auth.md) and authorization in
+> [Phase 03](../roadmap/phase-03-identity-admin.md); until then every `/api/v*` route is
+> open, which is survivable only because no tenant-owned table and no protected endpoint
+> exists yet. The "validated twice" property in § 5 describes the Phase 11 target, not
+> the running system — and the first half of it arrives well before the gateway half. The block is uncommented in
 > [Phase 03](../roadmap/phase-03-identity-admin.md), when the Keycloak realm it discovers
 > against exists.
 

@@ -107,50 +107,25 @@ migrationBuilder.Sql("""
     CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
         WHERE organization_id IS NOT NULL;
 
-    -- Enable AND force: without FORCE the table owner bypasses its own policies.
-    ALTER TABLE <name_plural> ENABLE ROW LEVEL SECURITY;
-    ALTER TABLE <name_plural> FORCE  ROW LEVEL SECURITY;
-
-    -- ONE policy, ONE AND-ed predicate. Two policies are both PERMISSIVE and
-    -- PostgreSQL OR-s them, which turns the intended AND into an OR and makes every
-    -- tenant-wide row visible across tenants. A second policy may only be RESTRICTIVE.
-    CREATE POLICY <name_plural>_isolation ON <name_plural>
-        USING (
-            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-            AND (
-                organization_id IS NULL                                                   -- omit these three
-                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid   -- lines if the table
-                OR current_setting('app.scope', true) = 'tenant'                          -- is not org-scoped
-            )
-        )
-        WITH CHECK (
-            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-            AND (
-                organization_id IS NULL
-                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-            )
-        );
-
-    -- ORG-SCOPED TABLES ONLY. The app.scope='tenant' hatch above widens READS
-    -- across organizations. It must not widen writes — but USING also selects
-    -- which rows an UPDATE may target, and for DELETE it is the ONLY gate
-    -- (PostgreSQL has no WITH CHECK for DELETE). Without these two RESTRICTIVE
-    -- policies a tenant-scope session could delete another organization's rows
-    -- or reassign them to itself. RESTRICTIVE policies AND together, so they
-    -- can only narrow.
-    CREATE POLICY <name_plural>_org_write_guard ON <name_plural>
-        AS RESTRICTIVE FOR UPDATE
-        USING (
-            organization_id IS NULL
-            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-        );
-
-    CREATE POLICY <name_plural>_org_delete_guard ON <name_plural>
-        AS RESTRICTIVE FOR DELETE
-        USING (
-            organization_id IS NULL
-            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-        );
+    -- ─────────────────────────────────────────────────────────────────────────
+    -- RLS: DO NOT WRITE THE POLICY FROM MEMORY, AND DO NOT COPY IT HERE.
+    --
+    -- Open docs/standards/05-database.md § Tenant-Owned and Organization-Scoped
+    -- Tables and copy the canonical block into this migration now, substituting
+    -- <name_plural>. That file is the only place the template exists.
+    --
+    -- The pre-2026-08-08 template lived in four documents and was wrong in all
+    -- four — two PERMISSIVE policies, which PostgreSQL combines with OR, so every
+    -- tenant-wide row was visible across tenants (ADR-0003 Amendment 3). It was
+    -- corrected once, in one file. A second copy is how that recurs.
+    --
+    -- Checklist for what you paste:
+    --   * ENABLE *and* FORCE ROW LEVEL SECURITY
+    --   * exactly ONE permissive policy, tenant AND organization in one predicate
+    --   * explicit WITH CHECK, without the app.scope='tenant' read hatch
+    --   * two AS RESTRICTIVE guards (FOR UPDATE, FOR DELETE) when org-scoped
+    --   * NULLIF(current_setting(...), '') on every GUC read
+    -- ─────────────────────────────────────────────────────────────────────────
     """);
 ```
 

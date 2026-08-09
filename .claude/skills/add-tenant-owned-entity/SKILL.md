@@ -138,12 +138,13 @@ dotnet ef migrations add Add_<Name> \
 Edit the generated migration to add the table and **one** RLS policy.
 
 > **The canonical template lives in
-> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md).**
-> The block below mirrors it so this skill is executable without a second file open.
-> If the two ever disagree, the standard wins and this skill is the bug — a template
-> copied into several places is exactly how the pre-2026-08-08 version drifted into
-> four divergent copies, one of which leaked every tenant-wide row across tenants
-> ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)).
+> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md),
+> and this skill does not mirror it.** Open that file and copy the block from there.
+> Mirroring it here would be the same mistake that produced four divergent copies before
+> 2026-08-08, one of which leaked every tenant-wide row across tenants
+> ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)) —
+> and a disclaimer saying "the standard wins if they disagree" does not stop the drift,
+> it only predicts it.
 
 ```csharp
 migrationBuilder.Sql("""
@@ -181,56 +182,32 @@ migrationBuilder.Sql("""
     CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
         WHERE organization_id IS NOT NULL;   -- omit if not org-scoped
 
-    -- Enable AND force: without FORCE, the table owner bypasses its own policies,
-    -- and the default EF Core arrangement makes the application that owner.
-    ALTER TABLE <name_plural> ENABLE ROW LEVEL SECURITY;
-    ALTER TABLE <name_plural> FORCE  ROW LEVEL SECURITY;
-
-    -- ONE policy, ONE AND-ed predicate. Two policies would both be PERMISSIVE and
-    -- PostgreSQL OR-s them together — under which a tenant-wide row
-    -- (organization_id IS NULL) satisfies the organization half on its own and
-    -- becomes visible to every tenant. A second policy may only ever be RESTRICTIVE.
-    CREATE POLICY <name_plural>_isolation ON <name_plural>
-        USING (
-            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-            AND (
-                organization_id IS NULL                                                   -- drop these three
-                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid   -- lines entirely if
-                OR current_setting('app.scope', true) = 'tenant'                          -- not org-scoped
-            )
-        )
-        WITH CHECK (
-            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-            AND (
-                organization_id IS NULL
-                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-            )
-        );
-
-    -- ORG-SCOPED TABLES ONLY. The app.scope='tenant' hatch above widens READS
-    -- across organizations. It must not widen writes — but USING also selects
-    -- which rows an UPDATE may target, and for DELETE it is the ONLY gate
-    -- (PostgreSQL has no WITH CHECK for DELETE). Without these two RESTRICTIVE
-    -- policies a tenant-scope session could delete another organization's rows
-    -- or reassign them to itself. RESTRICTIVE policies AND together, so they
-    -- can only narrow.
-    CREATE POLICY <name_plural>_org_write_guard ON <name_plural>
-        AS RESTRICTIVE FOR UPDATE
-        USING (
-            organization_id IS NULL
-            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-        );
-
-    CREATE POLICY <name_plural>_org_delete_guard ON <name_plural>
-        AS RESTRICTIVE FOR DELETE
-        USING (
-            organization_id IS NULL
-            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-        );
+    -- ─────────────────────────────────────────────────────────────────────────
+    -- RLS: DO NOT WRITE THE POLICY FROM MEMORY, AND DO NOT COPY IT HERE.
+    --
+    -- Open docs/standards/05-database.md § Tenant-Owned and Organization-Scoped
+    -- Tables and copy the canonical block into this migration NOW, substituting
+    -- <name_plural>. That file is the only place the template exists; this skill
+    -- deliberately does not carry a second instance of it.
+    --
+    -- The template that preceded 2026-08-08 lived in four documents and was wrong
+    -- in all four — two PERMISSIVE policies, which PostgreSQL combines with OR, so
+    -- every tenant-wide row was visible across tenants. It was corrected once, in
+    -- one file. A copy here is how that recurs (ADR-0003 Amendment 3).
+    --
+    -- What you are copying, so you can tell if you got it wrong:
+    --   * ENABLE *and* FORCE ROW LEVEL SECURITY  (without FORCE the owner bypasses)
+    --   * exactly ONE permissive policy, tenant AND organization in one predicate
+    --   * an explicit WITH CHECK, without the app.scope='tenant' read hatch
+    --   * two AS RESTRICTIVE guards, FOR UPDATE and FOR DELETE, when org-scoped
+    --   * NULLIF(current_setting(...), '') on every GUC read
+    -- Drop the organization terms entirely if the table is not org-scoped.
+    -- ─────────────────────────────────────────────────────────────────────────
     """);
 ```
 
-Four things in that block are load-bearing and must not be "simplified":
+Five properties of the block you just copied are load-bearing. Check each one against
+what you pasted — a reviewer will:
 
 - **`FORCE ROW LEVEL SECURITY`** — without it the owner bypasses the policy and the
   whole layer is inert while every structural test stays green.

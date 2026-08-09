@@ -223,6 +223,7 @@ actually needed the count to stand for.
 | `POST` | `/api/v1/internal/license/verify` | Verify / pull the entitlement projection |
 | `POST` | `/api/v1/internal/license/refresh` | Scheduled phone-home refresh |
 | `POST` | `/api/v1/usage/report` | Report a usage metric (idempotent) |
+| `POST` | `/api/v1/internal/tenants/{id}/custom-domains` | Submit a custom domain on behalf of a tenant admin (proxied through `IHubTenantSync`; the Admin Studio never calls the Hub directly, because a `learnstack` realm token is rejected there) |
 
 Every one of these carries the same auth chain: mTLS with LearnStack-internal CA-signed
 client certificates, an RS256 JWT with `aud=learnstack-internal` and `exp ≤ 5min`

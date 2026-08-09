@@ -265,42 +265,14 @@ CREATE TABLE tenant_template_library (
         UNIQUE NULLS NOT DISTINCT (tenant_id, organization_id, key, channel, locale)
 );
 
-ALTER TABLE tenant_template_library ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant_template_library FORCE  ROW LEVEL SECURITY;
 
-CREATE POLICY tenant_template_library_isolation ON tenant_template_library
-    USING (
-        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-        AND (
-            organization_id IS NULL
-            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-            OR current_setting('app.scope', true) = 'tenant'
-        )
-    )
-    WITH CHECK (
-        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-        AND (
-            organization_id IS NULL
-            OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-        )
-    );
-
--- The app.scope='tenant' hatch widens reads across organizations; these two
--- RESTRICTIVE policies stop it widening writes. USING also selects which rows an
--- UPDATE may target, and for DELETE it is the only gate.
-CREATE POLICY tenant_template_library_org_write_guard ON tenant_template_library
-    AS RESTRICTIVE FOR UPDATE
-    USING (
-        organization_id IS NULL
-        OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-    );
-
-CREATE POLICY tenant_template_library_org_delete_guard ON tenant_template_library
-    AS RESTRICTIVE FOR DELETE
-    USING (
-        organization_id IS NULL
-        OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-    );
+-- Row Level Security: apply the canonical template from
+-- docs/standards/05-database.md § Tenant-Owned and Organization-Scoped Tables
+-- to this table verbatim, substituting tenant_template_library. It is org-scoped,
+-- so it takes the full set: ENABLE + FORCE, one permissive policy with the
+-- organization term AND-ed in, and both AS RESTRICTIVE write guards. The SQL is
+-- deliberately not repeated here — it lives in exactly one file, because the
+-- version that lived in four was wrong in all four (ADR-0003 Amendment 3).
 ```
 
 This table is org-scoped (`organization_id` is nullable and participates in the
