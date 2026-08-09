@@ -192,6 +192,7 @@ At the end of this roadmap, LearnStack can:
 - Run with `NullEntitlementProvider` (no Hub), `HubEntitlementProvider` (SaaS /
   Dedicated), or `SignedLicenseKeyEntitlementProvider` (Self-Hosted, air-gappable)
   without code changes — only `DeploymentMode` configuration. `Development` and `SaaS`
-  are supported end to end from Phase 02c; the remaining modes are prepared seams until
-  Phase 11 builds their integration suites
-  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+  are wired end to end **today**; `Dedicated`, `SelfHostedOnline` and
+  `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until
+  [Phase 11](phase-11-production-hardening.md) builds their adapters and integration
+  suites ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).

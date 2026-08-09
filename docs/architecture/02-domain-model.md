@@ -406,12 +406,14 @@ examples live in [32-tenant-customization-model.md](32-tenant-customization-mode
 
 ## Audit
 
-Per [ADR-0016](../decisions/0016-audit-log-subsystem.md), the Audit module owns the
-append-only platform-level audit trail.
+Per [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes
+[ADR-0016](../decisions/0016-audit-log-subsystem.md), the Audit module owns the
+append-only platform-level audit trail and MUST-class rows commit with the state change
+they describe.
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per command/sensitive query/security event. Fields: `tenant_id`, `organization_id?`, `actor_user_id?`, `module`, `operation`, `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `is_success`, `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `timestamp`, `metadata?`. Stored in `audit_log` table partitioned by month. |
+| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per command/sensitive query/security event. Fields: `tenant_id`, `organization_id?`, `actor_user_id?`, `module`, `operation`, `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
 | `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement. Tenant-overridable within MUST/SHOULD/MAY classification. |
 
 Capture pipeline (`AuditChangeTrackerInterceptor` → `IAuditStateCapture` →

@@ -327,7 +327,7 @@ cross-phase screen ownership table lives in **one** place —
 - ADR-0025 is Accepted, and a `TenantCompletionRule` expression that attempts file,
   network or reflection access is **rejected at evaluation time** by an integration
   test — the sandbox invariant in
-  [32-tenant-customization-model.md § 10](../architecture/32-tenant-customization-model.md).
+  [32-tenant-customization-model.md § 11](../architecture/32-tenant-customization-model.md).
 - A rule that exceeds its evaluation budget fails closed: the lesson is not marked
   complete, no scoring band is assigned, and the failure is audited.
 - An admin creates a course, adds modules and lessons, edits it as a draft, and

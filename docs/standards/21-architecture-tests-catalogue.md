@@ -150,6 +150,22 @@ policy.
 | `Every_OrgScoped_Table_HasOrganizationRlsPolicy` | [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) |
 | `Every_OrgScoped_Table_HasOrgRlsPolicy` | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
 
+### Domain genericity
+
+**Canonical: `Core_Modules_HaveNo_DomainSpecific_Names`** for the name rule, and
+**`No_Source_Folder_Named_Verticals`** for the folder rule. They are two rules, not one:
+the folder check has been green since Phase 01 and is the weaker of the pair — renaming a
+folder was never the failure mode anyone worried about, `CefrLevel` on an Education
+aggregate is.
+
+| Superseded spelling | Where it appeared | Canonical name |
+|---|---|---|
+| `No_DomainSpecific_Names_In_Modules` | [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md), [Extension Model](../architecture/06-extension-model.md) | `Core_Modules_HaveNo_DomainSpecific_Names` |
+| `No_Per_Vertical_Folders` | [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md) | `No_Source_Folder_Named_Verticals` |
+
+ADR-0018 is Accepted and is not rewritten; the mapping lives here for the same reason
+ADR-0017's spellings do. Every mutable carrier is corrected in place.
+
 The reconciliation is a [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md)
 deliverable: the canonical names go green in CI and the superseded spellings disappear
 from the corpus in the same pass.
@@ -440,6 +456,31 @@ otherwise).
 - **Status:** **Implemented** — `RepositoryLayoutTests.cs`.
 - **Phase:** 01.
 
+#### `Generic_Primitives_Only_In_Renderer`
+
+- **Asserts:** the frontend `PRIMITIVE_RENDERERS` map contains only the documented closed
+  set of generic primitives. A new primitive is a LearnStack release guarded by
+  CODEOWNERS, not a tenant action — tenant-specific blocks are `TenantPageBlock` rows
+  pointing at a composite renderer key.
+- **Source:** [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md);
+  [32-tenant-customization-model.md § 2](../architecture/32-tenant-customization-model.md).
+  Named in shipped code at `frontend/apps/web/src/lib/customization/primitives.ts`.
+- **Type:** frontend test over the renderer map. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 10).
+
+#### `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml`
+
+- **Asserts:** the sanitised-HTML primitive is the only component in `apps/web` that
+  calls `dangerouslySetInnerHTML`, and it does so exclusively on the sanitiser's output.
+  This is the rule that stops the `embed-html` sanitisation contract being bypassed by a
+  convenient one-off.
+- **Source:** [32-tenant-customization-model.md § 8.5](../architecture/32-tenant-customization-model.md)
+  and its § 11 hard invariants.
+- **Type:** ESLint rule in `frontend/`. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 10).
+
 #### `ModuleDomain_DoesNotDependOn_OtherModuleDomain`
 
 - **Asserts:** per module, `LearnStack.Modules.<X>.Domain` has no type reference into
@@ -594,6 +635,42 @@ in [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md).
 - **Status:** **Registered** — needs a non-development deployment configuration to
   inspect.
 - **Phase:** 11.
+
+#### `User_Aggregate_Has_No_TenantScoped_Columns`
+
+- **Asserts:** the `users` EF configuration declares only global attributes. Anything
+  whose value depends on which tenant is asking lives on the membership or as a
+  `TenantCustomFieldDef`, never as a column on the global aggregate. The reviewer's
+  version of the same question is "which tenant authored this value?".
+- **Source:** [Phase 03 § Attribute ownership](../roadmap/phase-03-identity-admin.md);
+  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md).
+- **Type:** xUnit + EF model inspection. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 03.
+
+#### `Every_TenantCustomFieldDef_Declares_PiiCategory`
+
+- **Asserts:** every `TenantCustomFieldDef` carries a PII category — enforced on the
+  aggregate's invariants and by a migration scan for a `NOT NULL` `pii_category` column.
+  A custom field without a category cannot be routed by the GDPR erasure and export
+  paths.
+- **Source:** [Phase 03 § Tenant Custom Fields](../roadmap/phase-03-identity-admin.md);
+  [ADR-0018](../decisions/0018-tenant-driven-customization-model.md).
+- **Type:** xUnit + reflection, plus a migration scan. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 03.
+
+#### `Tenant_Scoped_Export_Contains_No_Foreign_Tenant_Rows`
+
+- **Asserts:** a data export run for a person holding memberships in **both** seed
+  tenants, executed as `learnstack_app`, produces a single-tenant bundle. Requires two
+  memberships: a single-tenant fixture passes against a broken export.
+- **Runs as `learnstack_app`.**
+- **Source:** [Phase 03 § Attribute ownership](../roadmap/phase-03-identity-admin.md);
+  ADR-0003 Amendment 3 § Test requirement.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 03.
 
 ### Audit
 
@@ -824,6 +901,53 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
 - **Status:** **Registered.**
 - **Phase:** 11 — the signed-licence adapter is demand-gated on a signed Self-Hosted
   contract ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+
+#### `Hub_Modules_DoNotReference_LearnStack_Internals`
+
+- **Asserts:** Hub module assemblies reference LearnStack `Application.Contracts` DTOs
+  only — never a LearnStack `Domain` or `Infrastructure` type. The mirror image of
+  `LearnStack_Modules_DoNotReference_Hub`; without both, the contract is one-directional.
+- **Source:** [24-learnstack-hub.md § 10](../architecture/24-learnstack-hub.md);
+  ADR-0019; ADR-0034 invariant 2.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered** — owned and run by the `learnstack-hub` repository; listed
+  here because the invariant is shared.
+- **Phase:** 02c (Hub-side).
+
+#### `Stripe_SDK_Types_NotImportedOutsideInfrastructure`
+
+- **Asserts:** `Stripe.*` types appear only inside
+  `LearnStack.Hub.Modules.Subscriptions.Infrastructure.Stripe`.
+- **Source:** [24-learnstack-hub.md § 10](../architecture/24-learnstack-hub.md);
+  ADR-0019 § provider adapters.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered** — owned and run by the `learnstack-hub` repository.
+- **Phase:** 09b (Hub-side).
+
+#### `Iyzico_SDK_Types_NotImportedOutsideInfrastructure`
+
+- **Asserts:** `Iyzipay.*` types appear only inside the Subscriptions module's Iyzico
+  infrastructure namespace.
+- **Source:** [24-learnstack-hub.md § 10](../architecture/24-learnstack-hub.md);
+  ADR-0019 § provider adapters.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered** — owned and run by the `learnstack-hub` repository.
+- **Phase:** 09b (Hub-side).
+
+#### `Hub_Operator_JWT_NeverAccepted_On_LearnStack_Routes`
+
+- **Asserts:** a `learnstack-hub` realm JWT is rejected by every LearnStack
+  tenant-facing endpoint, and a `learnstack` realm token is rejected on
+  `/api/internal/*`. The two-realm boundary from [ADR-0004](../decisions/0004-authentication-strategy.md)
+  is the reason the Admin Studio proxies custom-domain submission instead of calling the
+  Hub directly.
+- **Source:** [24-learnstack-hub.md § 10](../architecture/24-learnstack-hub.md);
+  ADR-0004; ADR-0019.
+- **Type:** **integration** test, run from the Hub side against a LearnStack instance.
+  **Kind:** runtime.
+- **Status:** **Registered** — owned and run by the `learnstack-hub` repository; listed
+  here because the boundary it defends is LearnStack's.
+- **Phase:** 02c (Hub-side).
 
 ### Events, jobs, and correlation
 

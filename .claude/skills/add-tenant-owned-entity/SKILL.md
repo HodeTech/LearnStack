@@ -156,8 +156,26 @@ migrationBuilder.Sql("""
         created_by       uuid NOT NULL,
         updated_at       timestamptz NOT NULL DEFAULT now(),
         updated_by       uuid NOT NULL,
-        row_version      bigint NOT NULL DEFAULT 0
+        row_version      bigint NOT NULL DEFAULT 0,
+        -- Exists solely so child tables can carry a composite FK into this one.
+        -- Looks redundant next to the primary key; it is not. See the note below.
+        CONSTRAINT ux_<name_plural>_tenant_id_id UNIQUE (tenant_id, id)
     );
+
+    -- Every foreign key from this table to another tenant-owned table is
+    -- COMPOSITE on tenant_id:
+    --
+    --     CONSTRAINT fk_<name_plural>_<parent>
+    --         FOREIGN KEY (tenant_id, <parent>_id)
+    --         REFERENCES <parents> (tenant_id, id)
+    --
+    -- PostgreSQL evaluates referential integrity as a security-restricted
+    -- operation on behalf of the table owner, and RI checks are NOT subject to
+    -- Row Level Security. A single-column FK therefore lets a row in tenant A
+    -- reference a row in tenant B: the child's WITH CHECK passes because its
+    -- tenant_id is A's, and the FK check passes because it can see B's row. The
+    -- result is a permanent cross-tenant reference that no policy ever sees,
+    -- because no policy ran.
 
     CREATE INDEX ix_<name_plural>_tenant_id ON <name_plural> (tenant_id);
     CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
@@ -212,7 +230,7 @@ migrationBuilder.Sql("""
     """);
 ```
 
-Three things in that block are load-bearing and must not be "simplified":
+Four things in that block are load-bearing and must not be "simplified":
 
 - **`FORCE ROW LEVEL SECURITY`** — without it the owner bypasses the policy and the
   whole layer is inert while every structural test stays green.
@@ -221,7 +239,15 @@ Three things in that block are load-bearing and must not be "simplified":
 - **`WITH CHECK`** — `USING` governs reads; without `WITH CHECK` a write can place a
   row in another tenant. Note the `app.scope = 'tenant'` term is deliberately absent
   from `WITH CHECK`: tenant-scope reporting may *read* across organizations, but
-  nothing may *write* outside its own.
+  nothing may *write* outside its own. `WITH CHECK` is not sufficient on its own for
+  that guarantee — PostgreSQL has no `WITH CHECK` for `DELETE`, and `USING` is also
+  what selects the rows an `UPDATE` may target — which is why the two `AS RESTRICTIVE`
+  guards above are part of the template and not an optional extra.
+- **The composite `UNIQUE (tenant_id, id)` and the composite foreign keys** — referential
+  integrity is checked on behalf of the table owner and bypasses RLS entirely, so a
+  single-column FK is a cross-tenant reference waiting to happen, invisible to every
+  policy. See
+  [05-database.md § Foreign keys between tenant-owned tables](../../../docs/standards/05-database.md).
 
 Always call `current_setting` with the second argument `true`. Without it an unset
 context raises inside a pooled connection instead of simply filtering the row out.

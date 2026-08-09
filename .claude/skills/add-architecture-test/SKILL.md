@@ -154,7 +154,15 @@ public void Every_TenantOwned_Table_HasRls_With_AppTenantId()
         if (content.Contains("CREATE TABLE") && content.Contains("tenant_id"))
         {
             Assert.Contains("ENABLE ROW LEVEL SECURITY", content);
-            Assert.Contains("current_setting('app.tenant_id')", content);
+            // FORCE is the half that matters: without it the table owner bypasses
+            // its own policy and the whole layer is inert while ENABLE stays green.
+            // Matched as a regex because the canonical template writes two spaces.
+            Assert.Matches(@"FORCE\s+ROW LEVEL SECURITY", content);
+            // Must match the canonical template's exact shape. A bare
+            // current_setting('app.tenant_id') assertion FAILS against every
+            // correct migration and PASSES against the superseded one-argument
+            // form — see ADR-0003 Amendment 3 and 05-database.md.
+            Assert.Contains("NULLIF(current_setting('app.tenant_id', true), '')", content);
         }
     }
 }

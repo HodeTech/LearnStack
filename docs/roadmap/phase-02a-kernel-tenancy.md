@@ -453,6 +453,15 @@
 >   registration is correct (`AddSingleton<IProviderResilience<TPort>>` with an
 >   injected collaborator); only the ADR text is wrong. Documentation fix, not a
 >   design change.
+> - Eight shipped source comments schedule the Dapr-backed `ISecretProvider` to
+>   "Packet 5" — `LearnStack.SharedKernel.csproj`, `ISecretProvider.cs`,
+>   `ConfigurationSecretProvider.cs`, `CrossCuttingFoundationExtensions.cs` (five
+>   sites including the `TODO(2026-05-21, @platform)`), and
+>   `ErrorTrackingRegistration.cs`. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+>   moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
+>   against a written trigger, so those comments now point at a packet that will
+>   not ship them. The seam they describe is correct and unchanged — only the
+>   phase pointer is stale. Comment-only edit; no behaviour change.
 > - The Packet 3 `TenantContextBehavior` TODO names a `DbConnectionInterceptor`
 >   as the mechanism for setting the Row Level Security session variables.
 >   Interceptors fire when the connection opens, not when the transaction starts,
@@ -1321,11 +1330,13 @@ land in Phase 02b.
 
 ## Phase Exit Decision
 
-[Phase 02d](phase-02d-walking-skeleton.md) can begin when tenant + organization
-resolution, the isolation suite running as `learnstack_app`, the durable audit
-pipeline, the customization runtime read paths, API conventions, and the architecture
-test gate are stable and green in CI — and when two seed tenants in unrelated domains
-exist with two organizations each.
+[Phase 02d](phase-02d-walking-skeleton.md) can begin when a reviewer, on a clean
+checkout, can run `make test` and see: the architecture-test assembly green with zero
+skips; the Packet 7 isolation suite green **connected as `learnstack_app`**, including a
+case that reads with `app.tenant_id` reset rather than merely unset; a MUST-class command
+whose audit store is unavailable rejected rather than committed; and two seed tenants in
+unrelated domains, two organizations each, resolvable by host and returning
+tenant-specific customization data through the runtime read paths.
 
 [Phase 02c](phase-02c-hub-foundation.md) is not gated on this phase's exit in the
 ordinary sense: it hangs off the spine and starts when its trigger fires (a tenant must

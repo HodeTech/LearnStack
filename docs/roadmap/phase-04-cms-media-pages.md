@@ -87,7 +87,7 @@ Also in scope:
 [ADR-0013](../decisions/0013-page-block-schema-versioning.md) requires immutable
 versioned schemas: a breaking change ships as a new `schemaVersion` and the previous
 version stays supported while any instance references it.
-[Tenant Customization Model § 10](../architecture/32-tenant-customization-model.md)
+[Tenant Customization Model § 11](../architecture/32-tenant-customization-model.md)
 requires `UNIQUE (tenant_id, key)` on every customization table. The two cannot both
 hold — the same document's own § 4 example shows `vocabulary-card` at
 `schema_version = 1` and `schema_version = 2` in `tenant_content_types`, and the unique

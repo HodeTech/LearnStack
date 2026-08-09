@@ -87,8 +87,21 @@ migrationBuilder.Sql("""
         created_by       uuid NOT NULL,
         updated_at       timestamptz NOT NULL DEFAULT now(),
         updated_by       uuid NOT NULL,
-        row_version      bigint NOT NULL DEFAULT 0
+        row_version      bigint NOT NULL DEFAULT 0,
+        -- Exists solely so child tables can carry a composite FK into this one.
+        CONSTRAINT ux_<name_plural>_tenant_id_id UNIQUE (tenant_id, id)
     );
+
+    -- Every foreign key from this table to another tenant-owned table is
+    -- COMPOSITE on tenant_id:
+    --
+    --     CONSTRAINT fk_<name_plural>_<parent>
+    --         FOREIGN KEY (tenant_id, <parent>_id)
+    --         REFERENCES <parents> (tenant_id, id)
+    --
+    -- Referential-integrity checks run on behalf of the table owner and are NOT
+    -- subject to Row Level Security, so a single-column FK lets one tenant
+    -- reference another tenant's rows and no policy ever observes it.
 
     CREATE INDEX ix_<name_plural>_tenant_id ON <name_plural> (tenant_id);
     CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
@@ -228,8 +241,30 @@ before mutating data:
 ```csharp
 foreach (var tenantId in tenantIds)
 {
-    await connection.ExecuteAsync($"SET LOCAL app.tenant_id = '{tenantId}'");
-    await connection.ExecuteAsync("UPDATE ... WHERE tenant_id = current_setting('app.tenant_id')::uuid");
+    await using var tx = await connection.BeginTransactionAsync(ct);
+
+    // set_config(key, value, is_local: true) is the parameterised equivalent of
+    // SET LOCAL, and it MUST run inside an explicit transaction: PostgreSQL
+    // discards a SET LOCAL issued outside one (with a warning), so the UPDATE
+    // below would otherwise run with no tenant context at all — which, under a
+    // NULLIF-wrapped policy, means it silently updates zero rows.
+    //
+    // Parameterised, not interpolated. String-interpolated SQL is banned by
+    // 05-database.md § Forbidden.
+    await connection.ExecuteAsync(
+        "SELECT set_config('app.tenant_id', @tenantId, true)",
+        new { tenantId = tenantId.ToString() },
+        transaction: tx);
+
+    // No `WHERE tenant_id = current_setting(...)` clause. The connection runs as
+    // learnstack_app (NOBYPASSRLS), so RLS already scopes the statement to this
+    // tenant; restating the predicate in application SQL is a second copy of the
+    // policy that can drift from the first.
+    await connection.ExecuteAsync(
+        "UPDATE enrollments SET source = 'legacy' WHERE source IS NULL",
+        transaction: tx);
+
+    await tx.CommitAsync(ct);
 }
 ```
 

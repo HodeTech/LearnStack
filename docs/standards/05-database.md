@@ -181,6 +181,11 @@ Rules:
   visible; `WITH CHECK` governs which rows may be written. The `app.scope = 'tenant'`
   escape hatch is deliberately **absent** from `WITH CHECK`: a tenant-scope reporting
   query may read across organizations, but nothing may write outside its organization.
+  `WITH CHECK` does not deliver that property on its own. PostgreSQL has no `WITH CHECK`
+  for `DELETE`, and `USING` is also what selects the rows an `UPDATE` may target — so
+  the two `AS RESTRICTIVE` `FOR UPDATE` / `FOR DELETE` guards in the template above are
+  what actually close the `USING`-only write paths. They are part of the template for
+  every organization-scoped table, not an optional hardening step.
 - The session variable names `app.tenant_id`, `app.organization_id`, `app.scope` and
   `app.resolving_host` are canonical and the set is closed; do not invent alternatives
   (`app.current_tenant_id`, `learnstack.tenant_id`, …). The first three are set by
@@ -602,6 +607,7 @@ CREATE TABLE outbox_messages (
     id              uuid PRIMARY KEY,
     occurred_at     timestamptz NOT NULL DEFAULT now(),
     tenant_id       uuid NOT NULL,
+    organization_id uuid NULL,             -- null = tenant-wide event; see note below
     correlation_id  text NULL,             -- opaque correlation id from APISIX request-id
     causation_id    uuid NULL,
     actor_user_id   uuid NULL,
@@ -654,6 +660,17 @@ GRANT UPDATE (processed_at, attempts, last_error, available_after)
 -- without extending it fails at runtime with `permission denied for table`.
 -- See ADR-0006 Amendment 1 and 15-event-and-outbox.md.
 ```
+
+`organization_id` is `uuid NULL` and mirrors the organization context of the transaction
+that enqueued the row —
+[ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)
+makes it contractual. It is nullable because a tenant-wide event has no organization, not
+because it is optional on an org-scoped one. The outbox row is the **only** carrier of
+organization context across a transport boundary: the consumer runs in a fresh scope and
+restores `ITenantContext` from the envelope, so an organization that was never persisted
+here cannot be restored there. It is deliberately **not** indexed and **not** part of the
+table's RLS predicate — `outbox_messages` is a tenant-wide table whose policy carries no
+organization term, and the dispatcher reads the column rather than filtering on it.
 
 `correlation_id` is `text NULL` (not `uuid NOT NULL`): APISIX's `request-id` plugin
 echoes any client-supplied id and falls back to a UUID, so the field is opaque and

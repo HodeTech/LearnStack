@@ -26,7 +26,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **User** | A person known to LearnStack at the global level. Identified by a stable user id. |
 | **Membership** | The relationship between a user, a tenant, and (optionally) an organization. Triple-keyed `(user_id, tenant_id, organization_id)` per [ADR-0017](decisions/0017-tenant-organization-hierarchy.md). A user can have memberships in multiple tenants and multiple organizations within one tenant. |
 | **Role** | A named bundle of permissions. Scope: `Platform` / `Tenant` / `Organization`. Examples: `tenant-admin`, `editor`, `instructor`, `learner`, `org-admin`. |
-| **Permission** | A fine-grained capability `{module}.{resource}.{action}` with a scope (Platform / Tenant / Organization). Action set is closed: `read | write | delete | admin`. |
+| **Permission** | A fine-grained capability `{module}.{resource}.{action}` with a scope (Platform / Tenant / Organization). Action set is closed: `read \| write \| delete \| admin`. |
 | **Invitation** | A pending offer for a user to accept a membership in a tenant + organization. |
 
 ## Content & Pages
@@ -143,7 +143,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Course Access** | *Not* an entitlement — a learner's right to open a course. See *Enrollment & Access*. |
 | **Feature Key / Limit Key** | A typed value object (`FeatureKey`, `LimitKey`) from the `FeatureKeys` / `LimitKeys` static catalogs. Free-form strings are forbidden. Canonical spelling is `{area}.{name}` with no `.enabled` suffix on features and no `limits.` prefix on limits — `classroom.recording`, `tenancy.max_learners`. See [26-hybrid-license-model.md § 0](architecture/26-hybrid-license-model.md). |
 | **Killswitch** | A `KillswitchKeys.*` flag whose default is "enabled" and gates an expensive or risky code path. Flipped off during an incident to disable the path platform-wide. Overlay wins over both plan projection and tenant flag. |
-| **Soft vs Hard Limit** | A `LimitKey` declares `LimitEnforcement = Soft | Hard`. Hard refuses the operation with `403 ProblemDetails`; Soft surfaces a banner and emits a Hub-side soft-limit alert. |
+| **Soft vs Hard Limit** | A `LimitKey` declares `LimitEnforcement = Soft \| Hard`. Hard refuses the operation with `403 ProblemDetails`; Soft surfaces a banner and emits a Hub-side soft-limit alert. |
 
 ## Search
 

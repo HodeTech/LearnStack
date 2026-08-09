@@ -198,8 +198,19 @@ domain the diff doesn't touch.
 - [ ] Every `[OrganizationScoped]` table additionally has nullable
   `organization_id` + index, and its organization term is **inside** that same policy —
   not in a second one.
-- [ ] `current_setting` is always called with the missing-OK second argument
-  (`current_setting('app.tenant_id', true)`).
+- [ ] `current_setting` is always called with the missing-OK second argument **and**
+  wrapped in `NULLIF(…, '')` — `NULLIF(current_setting('app.tenant_id', true), '')`.
+  The two cover different failure paths and both are required: missing-OK handles a
+  variable never set in this session, `NULLIF` handles one that *was* set and has since
+  reset. A customized (dotted) GUC's reset value is the empty string, and `''::uuid`
+  raises `22P02` instead of filtering. Text comparisons such as
+  `current_setting('app.scope', true) = 'tenant'` are the exception — `'' = 'tenant'`
+  is already false, which is the correct fail-closed result.
+- [ ] Org-scoped tables carry both `AS RESTRICTIVE` write guards, `FOR UPDATE` and
+  `FOR DELETE`. The `app.scope = 'tenant'` hatch is read-only, and `USING` is the only
+  gate a `DELETE` has.
+- [ ] Every foreign key between two tenant-owned tables is composite on `tenant_id`,
+  and the parent carries `UNIQUE (tenant_id, id)`. RI checks bypass RLS.
 - [ ] Isolation tests for the table connect as **`learnstack_app`**, not as the owner
   or a `BYPASSRLS` role. A test that connects as the owner passes against an inert
   policy and proves nothing.

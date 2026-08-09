@@ -149,9 +149,14 @@ together with that reason rather than piecemeal.
 ### Corrected `audit_log` DDL
 
 ADR-0016's example DDL declares a primary key twice — once inline on `id` and once as a
-table constraint on `(id, timestamp)`. PostgreSQL rejects that table. A partitioned
-table must include every partition key column in its primary key, so the composite is
-the correct one and the inline declaration is the error:
+table constraint on `(id, timestamp)`. PostgreSQL rejects that table. The composite is
+the one to keep and the inline declaration is the error.
+
+The table below is what Phase 02a Packet 9 ships: a **plain, unpartitioned** table. The
+composite key is still the right key for it, for a forward-looking reason rather than a
+present one — a partitioned table must include every partition-key column in its primary
+key, so declaring `(id, timestamp)` now is what lets the Phase 11 conversion happen
+without a key migration, which is the expensive half of that operation.
 
 ```sql
 CREATE TABLE audit_log (
@@ -161,7 +166,12 @@ CREATE TABLE audit_log (
     -- ... remaining columns unchanged from ADR-0016 ...
     timestamp       timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT audit_log_pkey PRIMARY KEY (id, timestamp)
-) PARTITION BY RANGE (timestamp);
+);
+-- No PARTITION BY clause in Phase 02a. PostgreSQL has no in-place conversion —
+-- there is no ALTER TABLE ... PARTITION BY — so Phase 11 creates a partitioned
+-- parent, attaches this table to it, and recreates the indexes and the RLS policy
+-- on the parent, under a lock. The composite key above is what keeps that a data
+-- operation rather than a key migration.
 ```
 
 Partitioning itself is **not** a Phase 02a concern. Phase 02a Packet 9 ships
