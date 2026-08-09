@@ -213,11 +213,15 @@ for the full strategy. Standards-side:
 **This section is the single authority for RLS session-variable placement.** Every other
 document links here rather than restating the mechanism.
 
-Row Level Security predicates read three PostgreSQL session variables — `app.tenant_id`,
-`app.organization_id`, and `app.scope` — whose canonical spellings and canonical policy
-template live in
-[05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md). This
-section fixes **where** those values are set.
+Row Level Security predicates read four PostgreSQL session variables — `app.tenant_id`,
+`app.organization_id`, `app.scope`, and `app.resolving_host` — whose canonical spellings
+and canonical policy templates live in
+[05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md) and
+[05-database.md § Table classes](05-database.md). This section fixes **where** the first
+three are set. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
+own short read-only transaction before the host lookup, because the row that determines
+the tenant must be readable before any tenant context exists; it is read by exactly one
+policy, on `platform_host_to_tenant`.
 
 ### The rule
 

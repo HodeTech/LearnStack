@@ -15,8 +15,14 @@ two scopes (tenant + organization):
 - `tenant_id` on every tenant-owned table (mandatory).
 - `organization_id` on every org-scoped tenant-owned table (nullable; null = tenant-wide).
 - EF Core global query filters for both `tenant_id` and `organization_id`.
-- PostgreSQL Row Level Security policies on every tenant-owned table; org-scoped tables
-  carry an additional policy.
+- PostgreSQL Row Level Security on every tenant-owned table: **one** permissive policy
+  whose predicate `AND`s the tenant term with the organization term, plus the two
+  `AS RESTRICTIVE` write guards when the table is org-scoped. Never a second permissive
+  policy — PostgreSQL combines those with `OR`, which is the defect
+  [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
+  corrects. Platform-scoped tables — the ones read *before* the tenant is known — follow
+  a different rule; see
+  [Database Standards § Table classes](../standards/05-database.md).
 - Architecture tests that detect unprotected tenant-owned / org-scoped entities.
 - Explicit platform-admin paths for cross-tenant operations (Hub-driven, audited).
 - Tenant- and org-aware storage, cache, search, analytics, audit, and logs.
@@ -27,7 +33,7 @@ two scopes (tenant + organization):
 |-------|------------------|------------------------|
 | Application context | `ITenantContextAccessor.Current.TenantId` (AsyncLocal) | `ITenantContextAccessor.Current.OrganizationId` (AsyncLocal; nullable) |
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
-| PostgreSQL | RLS policy `tenant_id = current_setting('app.tenant_id', true)::uuid` | RLS policy `organization_id IS NULL OR organization_id = current_setting('app.organization_id', true)::uuid` |
+| PostgreSQL | The tenant term of the single policy: `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid` | The organization term `AND`-ed into that **same** policy, plus the restrictive `UPDATE` / `DELETE` write guards. Canonical SQL in [Database Standards](../standards/05-database.md) |
 | Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
 | Cache | Cache key auto-prefixed `{tenant_id}:{key}` | `{tenant_id}:{org_id}:{key}` when org context set |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
@@ -111,9 +117,14 @@ Platform admin (LearnStack operator) access must be explicit:
   not `learnstack` realm.
 - Cross-tenant queries from Hub go through `/api/internal/*` endpoints with mTLS + signed
   JWT + HMAC; never proxied via APISIX (ADR-0019).
-- LearnStack-side endpoint receives request with no tenant context; sets a special
-  `learnstack_audit_admin` Postgres role for the query, which **bypasses RLS** (and
-  emits a `read-sensitive` audit row for every cross-tenant access).
+- The LearnStack-side endpoint receives a request with no tenant context and runs the
+  query through `EnterPlatformAdminScope(reason)`, which opens a **second connection**
+  authenticated as `learnstack_platform` — the `BYPASSRLS` role of the four-role model.
+  There is no `learnstack_audit_admin` role, and `learnstack_app` is not a member of
+  `learnstack_platform`, so the application role cannot reach the bypass by `SET ROLE`.
+  Every cross-tenant access emits a `read-sensitive` audit row, written inside the scope
+  under the sentinel platform tenant id. See
+  [Database Standards § Database roles](../standards/05-database.md).
 - No hidden arbitrary `IgnoreQueryFilters()` usage; architecture test
   `IgnoreQueryFilters_OnlyInPlatformAdminScope` forbids it outside the
   `LearnStack.Modules.Identity.Application.Platform` namespace.

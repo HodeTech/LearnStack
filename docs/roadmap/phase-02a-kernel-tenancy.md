@@ -561,6 +561,17 @@
 > canonical SQL lives in exactly one place:
 > [Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
 >
+> The migration also declares each table's **class** — tenant-owned, tenant-owned
+> self-keyed (`tenants`), or platform-scoped (`platform_host_to_tenant`) — because
+> two of the nine cannot take the template verbatim: `tenants` has no `tenant_id`
+> column, and `platform_host_to_tenant` is read in order to determine the tenant, so
+> a tenant-keyed predicate would make host resolution return zero rows forever. See
+> [Database Standards § Table classes](../standards/05-database.md). Every table's
+> `GRANT`s are written in this migration too; there are no `ALTER DEFAULT PRIVILEGES`
+> grants, so a table nobody granted fails loudly rather than inheriting DML — and can
+> never silently widen a `BYPASSRLS` role. Row security is enabled and forced on all
+> nine, so the structural scan needs no exception list.
+>
 > Introduces the `TenantId` / `OrganizationId` Vogen value objects in
 > `LearnStack.SharedKernel` alongside the schema — the kernel-level identifiers
 > Packet 7 threads through `ITenantContext` and `CapturedContext`. The Packet 3
@@ -593,7 +604,24 @@
 > which names the connection-interceptor option — is corrected here.
 >
 > Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the narrow
-> cross-tenant access path.
+> cross-tenant access path. It reaches `learnstack_platform` through a **second,
+> separately-credentialed connection** (`ConnectionStrings:PlatformAdmin`), never
+> through `SET ROLE`: `learnstack_app` is not a member of `learnstack_platform`,
+> because membership would make `BYPASSRLS` a standing capability of the application
+> role, a plain `SET ROLE` survives `COMMIT` and would persist on a PgBouncer
+> transaction-pooled connection into the next tenant's request, and per-role settings
+> such as `statement_timeout` are applied at login and do not follow a role switch.
+> The composition root registers the platform data source as a keyed singleton that
+> only `PlatformAdminScope` may resolve
+> (`Platform_DataSource_Resolved_Only_By_PlatformAdminScope`). The scope writes its
+> own `SecurityEvent` audit row, as `learnstack_platform` and under the sentinel
+> platform tenant id, before the operation runs — so an operation that later fails is
+> still recorded.
+>
+> `IHostToTenantResolver` sets `SET LOCAL app.resolving_host` inside its own short
+> read-only transaction before the lookup, because `SET LOCAL` outside a transaction
+> block has no effect and a session-level setting would leak across a pooled
+> connection. `app.resolving_host` is the fourth and last canonical session variable.
 >
 > **Two seed tenants in unrelated domains**, each with two organizations: an
 > English school and a **yoga studio**. This is the artefact that tests the
@@ -871,8 +899,13 @@ have to retrofit:
 - `organizations` — sub-unit within a tenant per
   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). Every tenant has at
   least one default organization seeded at creation.
-- `tenant_domains` — host → tenant mapping (lifecycle/verification UI lands in
-  Phase 04 / Phase 06; the **Hub-owned** custom-domain admin lands in 02c).
+- `tenant_domains` — the tenant's **own** domain lifecycle and verification state
+  (requested / verifying / verified / failed), read and written under tenant context
+  (lifecycle + verification UI lands in Phase 04 / Phase 06; the **Hub-owned**
+  custom-domain admin lands in 02c). It is **not** the resolution index — that is
+  `platform_host_to_tenant` below, which is read before any tenant context exists. The
+  two differ in *when* they are read, which is exactly why they cannot share one Row
+  Level Security rule.
 - `tenant_locales` — default + enabled locales (see
   [ADR-0008](../decisions/0008-localization-schema.md)). Required before any
   tenant-owned content table ships.
@@ -893,12 +926,28 @@ have to retrofit:
   transport swappable later
   ([ADR-0006](../decisions/0006-events-and-outbox.md)).
 
-Every one of these tables is created with the corrected Row Level Security template
-from [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md):
-one policy with an `AND`-ed predicate, `ENABLE` **and** `FORCE ROW LEVEL SECURITY`, an
-explicit `WITH CHECK`, and the four-role model. The canonical SQL lives in exactly one
-place — [Database Standards](../standards/05-database.md) — because the template that
-preceded it was copied into four documents and drifted in all of them.
+All nine tables ship with `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and an explicit
+`WITH CHECK`. They do **not** all take the same policy, and saying they do produces a
+migration that cannot run: the corrected template's predicate names a `tenant_id`
+column, which `tenants` does not have, and it would deadlock host resolution, which
+reads `platform_host_to_tenant` in order to *determine* the tenant. Three classes, per
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) and
+[Database Standards § Table classes](../standards/05-database.md):
+
+| Class | Tables | Policy |
+|---|---|---|
+| Tenant-owned | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings` (the one org-scoped table — it also takes the two `AS RESTRICTIVE` write guards), `tenant_feature_flags`, `platform_entitlement_cache`, `outbox_messages` | the corrected template verbatim |
+| Tenant-owned, self-keyed | `tenants` | the corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id |
+| Platform-scoped | `platform_host_to_tenant` | `ENABLE` + `FORCE` with role-qualified per-command policies: reads keyed on the declared `app.resolving_host` (pre-context, single row) or on `app.tenant_id` (a tenant listing its own hosts); writes keyed on `app.tenant_id` only |
+
+`platform_entitlement_cache` is tenant-owned despite its name — every read resolves the
+tenant from `ITenantContext` first and every write arrives on
+`PUT /api/internal/tenants/{id}/entitlements`, so nothing about it is pre-context and
+the application role never gets a table-wide read of every tenant's plan. Row security
+is never *disabled* on any of the nine; the grant matrix that goes with the policies is
+in [Database Standards § Database roles](../standards/05-database.md). The canonical SQL
+lives in exactly one place because the template that preceded it was copied into four
+documents and drifted in all of them.
 
 ### Audit Infrastructure
 
@@ -1223,7 +1272,19 @@ land in Phase 02b.
   default of "all enabled". Swapping the registered `IEntitlementProvider`
   implementation changes the answer without touching module code.
 - `IHostToTenantResolver` resolves a seed custom-domain row from
-  `platform_host_to_tenant`, with no network call.
+  `platform_host_to_tenant`, with no network call, **as `learnstack_app` with
+  `app.tenant_id` unset** — the row that determines the tenant is readable before any
+  tenant context exists, and only that row is
+  (`Host_Resolves_With_No_Tenant_Context_Under_Rls`).
+- The same connection with neither `app.resolving_host` nor `app.tenant_id` set reads
+  **zero** rows from `platform_host_to_tenant` and **zero** rows from `tenants`: the
+  application role can neither enumerate the host map nor enumerate the customer list
+  (`App_Role_Cannot_Enumerate_Host_Map`, `App_Role_Cannot_Enumerate_Tenants`).
+- Tenant A cannot repoint tenant B's host even though the resolver policy can see it —
+  the `UPDATE` affects zero rows and an `INSERT` naming tenant B is rejected by
+  `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
+- All nine tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
+  `pg_class`, with no exception list.
 - `make dev`, `make seed` and `make test` succeed on a clean checkout — `make seed`
   currently exits non-zero on every run, and that is a completion blocker, not a
   nuisance.

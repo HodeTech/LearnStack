@@ -126,13 +126,25 @@ BackgroundService instance; setting `app.tenant_id` per row would defeat the
 `FOR UPDATE SKIP LOCKED` batching pattern. The role bypasses RLS by design, and
 the bypass is bounded by:
 
-- **Scope by grant**. The role has `SELECT`, `UPDATE` only on `outbox_messages`
-  (status column transitions: `processed_at`, `attempts`, `last_error`,
-  `available_after`, `locked_by`, `locked_until`). It has **no** access to any
-  other tenant-owned table; the bypass cannot be used as a generic backdoor.
-- **No connection sharing**. The role is used only by the `OutboxProcessor`
-  BackgroundService DI scope; no MediatR handler or API endpoint ever runs
-  under this role (architecture test
+- **Scope by grant, and grant is the only bound.** `BYPASSRLS` bypasses *policies*, not
+  `GRANT`s: a role holding the attribute with no privilege on a table gets
+  `permission denied for table`. The role holds `SELECT` on `outbox_messages` plus a
+  **column-level** `UPDATE (processed_at, attempts, last_error, available_after)` — and
+  nothing anywhere else. It has no `DELETE` (purging processed rows is a
+  `learnstack_platform` operation) and cannot touch `payload`, `tenant_id`, `topic` or
+  `type`. `SELECT … FOR UPDATE SKIP LOCKED` works with a column-level `UPDATE` grant, so
+  the claim protocol needs no table-wide `UPDATE`. When `locked_by` and `locked_until`
+  land in [Phase 02b](../roadmap/phase-02b-events-auth.md), that migration extends the
+  column list; a column added without extending it fails at runtime with
+  `permission denied for table`, which is the intended loud failure. Because grant scope
+  is the *only* thing bounding the bypass, no privilege is ever granted to `PUBLIC` and
+  no `ALTER DEFAULT PRIVILEGES` grant exists — either would silently un-bound this role
+  the next time a table is created.
+- **No connection sharing.** The role has its own login credential and its own
+  connection string (`ConnectionStrings:OutboxDispatcher`), present only in the worker
+  host that runs `OutboxProcessor`. It is not reached by `SET ROLE` from
+  `learnstack_app`, which is not a member of it. No MediatR handler or API endpoint ever
+  runs under this role (architecture test
   `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` enforces this).
 - **Audited on use**. Every dispatch attempt produces a structured log entry
   with `event_id`, `tenant_id`, `event_type`, and outcome. Bypass-as-such is

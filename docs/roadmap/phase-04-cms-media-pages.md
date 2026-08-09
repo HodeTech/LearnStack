@@ -135,36 +135,40 @@ version and the corpus does not currently say which edits those are:
 
 ### Localization and Slug Uniqueness
 
-The published translation-table pattern enforces nothing. In
-[Localization](../architecture/12-localization.md), `course_translations` declares
-`PRIMARY KEY (course_id, locale)` and then a unique index on
-`(course_id, locale, slug)`. The index columns are a superset of the primary key, so the
-primary key already guarantees it: the index cannot reject any row the table would
-otherwise accept. The consequence is that **two different courses in one tenant can hold
-the same `/en/courses/beginner` slug**, and whichever the renderer's query returns first
-wins. [Localization Standards](../standards/08-localization.md) repeats the same shape as
-`UNIQUE (entity_id, locale, slug)`; the prose two sections later in the architecture doc
-already states the correct rule (`(tenant_id, locale, slug)`) and the DDL contradicts it.
+[Phase 02d](phase-02d-walking-skeleton.md) already ships the side-table pattern for
+`Course` and `Lesson`, with the constraint below, and
+[Localization Standards § Pattern A](../standards/08-localization.md) already publishes it
+as the rule every translation table follows. This phase applies that rule to every routable
+entity it introduces — `Page`, `ContentEntry`, `Redirect`, navigation items — and adds the
+one thing a per-table constraint cannot do.
 
-The constraint that actually prevents the collision:
-
-- Every `<entity>_translations` table carries `tenant_id` as a real column. It needs one
-  anyway — Row Level Security is per table and cannot be inherited through a parent
-  check constraint — and the slug constraint needs it too.
-- Tenant-wide routable entities: `UNIQUE (tenant_id, locale, slug)`.
-- Organization-scoped routable entities: `UNIQUE (tenant_id, organization_id, locale,
-  slug)`, matching the entity's own `[OrganizationScoped]` marker, because a host
-  resolves to `(tenant_id, organization_id?)` and that pair is the namespace a URL is
-  resolved in.
-- The per-locale primary key `(<entity>_id, locale)` stays. It expresses "one
-  translation row per entity per locale" and is not the slug constraint.
+- Every `<entity>_translations` table carries `tenant_id` as a real column and declares its
+  own Row Level Security policy. Row Level Security is per table; it is not inherited
+  through a parent check constraint, and a translation table without a policy is
+  unprotected while holding the title and the slug.
+- Slug uniqueness is `UNIQUE (tenant_id, locale, slug)` — **flat across organizations**.
+  `organization_id` is not in the key. Two reasons, and the second survives fixing the
+  first: a nullable column in a standard `UNIQUE` constraint does not constrain the rows
+  where it is null, because PostgreSQL treats nulls as distinct — so
+  `UNIQUE (tenant_id, organization_id, locale, slug)` constrains no tenant-wide row at all;
+  and even repaired with `NULLS NOT DISTINCT`, an organization-scoped row and a tenant-wide
+  row could still claim one slug, while a host resolving to `(tenant_id, organization_id)`
+  serves **both** tiers and would have to pick a winner at render time. Preferring the more
+  specific row is an unauthored slug change at a stable URL with no redirect — the failure
+  [Localization § Risks](../architecture/12-localization.md) already calls breaking.
+- The per-locale primary key `(<entity>_id, locale)` stays. It expresses "one translation
+  row per entity per locale" and is not the slug constraint.
 - Entity types that share one URL segment namespace — `Page` and `Redirect` both live at
-  the tenant root — resolve through a single `tenant_route_slugs` registry keyed on
-  `(tenant_id, organization_id, locale, path)`. Per-table uniqueness cannot see across
-  tables, and a page silently shadowing a redirect is the same class of defect.
+  the tenant root — resolve through a single `tenant_route_slugs` registry keyed
+  `UNIQUE (tenant_id, locale, path)`, on the same flat namespace and for the same reason.
+  Per-table uniqueness cannot see across tables, and a page silently shadowing a redirect
+  is the same class of defect as an organization row shadowing a tenant-wide one.
 - A slug collision returns `Result.Fail(business_rule_violation, …)` from the publish
-  command with the conflicting entity named, so the author can fix it. It is never
-  resolved by picking a winner at render time.
+  command. It names the conflicting entity when the caller may read it — tenant-wide rows
+  and the caller's own organization's rows both qualify under the canonical policy — and
+  otherwise names only the slug and the locale, because naming a row in another
+  organization would leak across the boundary Row Level Security exists to hold. It is
+  never resolved by picking a winner at render time.
 
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
 and per-locale publish readiness. The frontend i18n library is chosen in ADR-0027 (see
@@ -302,10 +306,11 @@ describes.
   active-revision index — applied to every versioned customization aggregate, with the
   additive-vs-breaking diff enforced at save time.
 - Page, page version, per-locale slug, SEO metadata, redirect and preview model.
-- Translation tables carrying `tenant_id`, with slug uniqueness on
-  `(tenant_id, locale, slug)` (or with `organization_id` where the entity is
-  organization-scoped) and a `tenant_route_slugs` registry for the shared root
-  namespace.
+- Translation tables for every routable entity this phase introduces, each carrying
+  `tenant_id` and its own Row Level Security policy, with slug uniqueness on
+  `UNIQUE (tenant_id, locale, slug)` and `organization_id` absent from that key, plus a
+  `tenant_route_slugs` registry keyed `UNIQUE (tenant_id, locale, path)` for the shared
+  root namespace.
 - Navigation model and editor.
 - Media library on SeaweedFS with `IImageProcessor` and `IVideoTranscoder`, the
   ffmpeg-backed default worker, and a per-tenant concurrent-transcode limit expressed as
@@ -330,7 +335,12 @@ describes.
   an integration test that attempts to activate a second.
 - Two different courses in one tenant cannot both publish `/en/courses/beginner`; the
   second publish returns a business-rule failure naming the first. The same holds for a
-  page and a redirect competing for one root path.
+  page and a redirect competing for one root path, and for an organization-scoped entity
+  competing with a tenant-wide one. An integration test attempts all three and the
+  database rejects each, connected as `learnstack_app`.
+- When the conflicting row belongs to another organization, the failure names the slug and
+  the locale but not the row — asserted by a test, because the constraint is enforced with
+  Row Level Security bypassed and the handler has to make that choice deliberately.
 - A page and a course in **different** tenants may hold the same slug, and each host
   serves its own.
 - A page can contain multiple renderable blocks across both registry tiers, and a block
@@ -368,11 +378,14 @@ describes.
   because reading Customization through an application contract is slightly more work
   than a navigation property. A cross-module EF navigation is forbidden by ADR-0010 and
   is what a reviewer should look for first in this phase's diffs.
-- **Slug uniqueness fixed for pages but not for the next routable entity.** Courses,
-  lessons, categories and campaign pages all acquire slugs across
-  [Phase 05](phase-05-education-learning-content.md) and beyond. The rule belongs in
-  [Localization Standards](../standards/08-localization.md) as the pattern every
-  translation table follows, not as a constraint remembered per table.
+- **Slug uniqueness drifting back into per-table folklore.** The rule lives in
+  [Localization Standards § Pattern A](../standards/08-localization.md) as the pattern every
+  translation table follows, and [Phase 02d](phase-02d-walking-skeleton.md) already applies
+  it to `Course` and `Lesson`. The recurring temptation is to add `organization_id` to the
+  key when an entity is `[OrganizationScoped]` — it reads as the careful thing to do, and it
+  is the defect: it stops constraining tenant-wide rows entirely, and it re-opens the
+  cross-tier collision. A migration review that sees `organization_id` inside a slug unique
+  key should stop there.
 - **The transcoding pipeline becoming an operational surprise.** ffmpeg workers are
   CPU-heavy and easy to under-provision. The per-tenant concurrency bound and the
   queue's own metrics ship with the worker, not after the first backlog.
@@ -397,10 +410,10 @@ hold:
   diff rejects a mis-declared edit.
 - `ContentType` no longer exists anywhere in the corpus or the codebase; every content
   shape resolves through `TenantContentType`.
-- Slug uniqueness is enforced by a constraint that can actually reject a row, proven by
-  an integration test that attempts the collision, and the rule is written into
-  [Localization Standards](../standards/08-localization.md) as the pattern for every
-  translation table.
+- Slug uniqueness is enforced by a constraint that can actually reject a row — proven by
+  integration tests for the same-tier, cross-tier and cross-table cases — and
+  `tenant_route_slugs` covers the shared root namespace that no per-table constraint can
+  see.
 - Image and video assets are processed end to end by the in-house pipeline, and
   `IVideoTranscoder` has exactly one registered implementation with the managed
   alternative recorded against [Phase 11](phase-11-production-hardening.md) and its

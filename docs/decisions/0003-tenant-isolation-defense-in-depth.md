@@ -163,16 +163,65 @@ Its binding properties:
    escape hatch applies to reads only — a tenant-scope reporting query may read across
    organizations, but no query may write outside its organization.
 
+### Which tables the template applies to
+
+The corrected template governs **tenant-owned** tables. Two classes sit outside it, and
+both are enumerated rather than left to judgement:
+
+| Class | Rule | Tables |
+|---|---|---|
+| Tenant-owned | The corrected template | every domain table; of the Phase 02a tenancy set: `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings`, `tenant_feature_flags`, `platform_entitlement_cache`, `outbox_messages` |
+| Tenant-owned, self-keyed | The corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id | `tenants` |
+| Platform-scoped | `ENABLE` + `FORCE`, role-qualified per-command policies; the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
+
+**A table is platform-scoped only when it is read before the tenant is known.** Exactly
+one table meets that test: `IHostToTenantResolver` reads `platform_host_to_tenant` in
+order to *determine* the tenant, so under a tenant-keyed predicate it would return zero
+rows and no tenant could ever resolve. Its read policy is keyed on a GUC the resolver
+declares (`app.resolving_host`) or on `app.tenant_id` for a tenant listing its own hosts;
+its writes stay tenant-keyed, because every writer knows its tenant. Row security is
+never *disabled* on any of these tables — a table without `ENABLE ROW LEVEL SECURITY` is
+indistinguishable from one nobody thought about.
+
+`platform_entitlement_cache` is **not** platform-scoped despite its name. Every read
+goes through `IFeatureFlags`, which resolves the tenant from `ITenantContext` and throws
+when there is none; every write goes through `IEntitlementProvider.RefreshAsync`, driven
+by `PUT /api/internal/tenants/{id}/entitlements`, which carries the tenant id in its
+path. It keeps the tenant-owned template.
+
+No statement of the form "writes are reserved to the migration and provisioning path" is
+an implementable control: PostgreSQL grants privileges to **roles**, and every handler in
+the API process runs as the same role. Grants are stated as a role × table × privilege
+matrix; code-path confinement is a separate layer carried by architecture tests. The
+matrix and the tests both live in
+[Database Standards § Database roles](../standards/05-database.md).
+
 ### Database role model
 
-Four roles, distinct responsibilities:
+Four roles, four **separate login credentials**, four connection strings. The model is
+closed; a fifth role requires a new ADR.
 
-| Role | Used by | RLS posture |
-|-------|---------|-------------|
-| `learnstack_migration` | EF Core migrations. **Owns** every tenant-owned table. | `NOBYPASSRLS`; `FORCE ROW LEVEL SECURITY` means ownership grants no bypass |
-| `learnstack_app` | The application's runtime connection. Not an owner. | `NOBYPASSRLS`; holds only `SELECT, INSERT, UPDATE, DELETE` |
-| `learnstack_platform` | Cross-tenant platform-admin operations, entered only through the audited `EnterPlatformAdminScope(reason)` path | `BYPASSRLS` |
-| `learnstack_outbox_admin` | The outbox dispatcher, per [Events and Outbox](../architecture/15-event-and-outbox.md) | `BYPASSRLS` |
+| Role | Connection string | Used by | RLS posture |
+|-------|---|---------|-------------|
+| `learnstack_migration` | `ConnectionStrings:Migration`, present only in the deploy job | EF Core migrations. **Owns** every table. | `NOBYPASSRLS`; `FORCE ROW LEVEL SECURITY` means ownership grants no bypass |
+| `learnstack_app` | `ConnectionStrings:Default` | The application's runtime connection. Not an owner. | `NOBYPASSRLS` |
+| `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | Cross-tenant platform-admin operations, entered only through the audited `EnterPlatformAdminScope(reason)` path | `BYPASSRLS` |
+| `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | The outbox dispatcher, per [Events and Outbox](../architecture/15-event-and-outbox.md) | `BYPASSRLS` |
+
+`BYPASSRLS` bypasses **policies, not `GRANT`s**. Grant scope is therefore the only thing
+bounding the two bypass roles, which is why no privilege is granted to `PUBLIC` and no
+`ALTER DEFAULT PRIVILEGES` grant exists.
+
+**`EnterPlatformAdminScope(reason)` reaches `learnstack_platform` by a second connection,
+not by `SET ROLE`.** `learnstack_app` is not a member of `learnstack_platform`. A
+membership grant would make the bypass a standing capability of the application role,
+reachable from any code path that emits raw SQL; a plain `SET ROLE` survives `COMMIT` and
+would persist on a PgBouncer transaction-pooled server connection into the next tenant's
+request; and per-role settings such as `statement_timeout` are applied at login and do
+not follow a `SET ROLE`, which would defeat the per-role timeout split
+[Phase 11](../roadmap/phase-11-production-hardening.md) builds. The composition root owns
+a second, separately-credentialed data source that only
+`LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope` may resolve.
 
 ### Session-variable placement
 
