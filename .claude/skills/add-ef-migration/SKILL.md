@@ -143,9 +143,14 @@ out instead of raising on a pooled connection.
 the application connects as `learnstack_app` (`NOBYPASSRLS`, not the owner). Grant the
 new table to `learnstack_app` in the same migration, or the application cannot read it.
 
-### Step 4: Append-only / partitioned table
+### Step 4: Append-only table
 
-If the table is append-only at scale (audit, large event log):
+An append-only table ships **unpartitioned**, with a composite primary key that a
+future partition conversion can reuse. Do **not** write `PARTITION BY` in the first
+migration: partitioning is demand-gated to
+[Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) on measured growth
+([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)), and shipping
+it early buys partition maintenance before there is anything to maintain.
 
 ```csharp
 migrationBuilder.Sql("""
@@ -154,14 +159,18 @@ migrationBuilder.Sql("""
         occurred_at   timestamptz NOT NULL,
         tenant_id     uuid NOT NULL,
         -- ... rest ...
-        PRIMARY KEY (id, occurred_at)
-    ) PARTITION BY RANGE (occurred_at);
-
-    -- First partition (others created by retention job per ADR-0028 reservation)
-    CREATE TABLE audit_log_2026_06 PARTITION OF audit_log
-        FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+        -- The partition key must be IN the primary key for the Phase 11 conversion,
+        -- so declare the composite now even though nothing is partitioned yet.
+        CONSTRAINT audit_log_pkey PRIMARY KEY (id, occurred_at)
+    );
     """);
 ```
+
+PostgreSQL has no `ALTER TABLE … PARTITION BY`, so Phase 11 does not convert this table
+in place: it creates a partitioned parent, attaches this table to it, and recreates the
+indexes and the policy on the parent. The composite key above is what keeps that a data
+operation rather than a key migration
+([ADR-0033 § Corrected `audit_log` DDL](../../../docs/decisions/0033-audit-durability-model.md)).
 
 The Postgres trigger that rejects `UPDATE` / `DELETE` on `audit_log` lives in the
 audit module's setup migration; reproduce it for any new append-only table.

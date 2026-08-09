@@ -178,9 +178,13 @@ migrationBuilder.Sql("""
     -- result is a permanent cross-tenant reference that no policy ever sees,
     -- because no policy ran.
 
-    CREATE INDEX ix_<name_plural>_tenant_id ON <name_plural> (tenant_id);
-    CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
-        WHERE organization_id IS NOT NULL;   -- omit if not org-scoped
+    -- One composite index, deliberately NOT partial: the policy's
+    -- `organization_id IS NULL` branch matches every tenant-wide row and a b-tree
+    -- indexes NULLs, so the non-partial form serves both branches. No standalone
+    -- index on tenant_id — the UNIQUE constraints above already lead with it.
+    -- Drop organization_id from the index if the table is not org-scoped.
+    CREATE INDEX ix_<name_plural>_tenant_id_organization_id
+        ON <name_plural> (tenant_id, organization_id);
 
     -- ─────────────────────────────────────────────────────────────────────────
     -- RLS: DO NOT WRITE THE POLICY FROM MEMORY, AND DO NOT COPY IT HERE.

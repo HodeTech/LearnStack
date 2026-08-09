@@ -281,7 +281,8 @@ public sealed class OutboxProcessor : BackgroundService
     {
         var db = services.GetRequiredService<OutboxDbContext>();
         var eventBus = services.GetRequiredService<IEventBus>();
-        // Connection runs as learnstack_outbox_admin; RLS bypassed by grant.
+        // Connection runs as learnstack_outbox_admin: BYPASSRLS skips the policy,
+        // and the GRANT is what bounds what it can reach (see § the bypass bounds).
 
         // 1. CLAIM. One statement, its own short transaction. The lease is written to the
         //    row, so it outlives the commit that releases the physical locks.

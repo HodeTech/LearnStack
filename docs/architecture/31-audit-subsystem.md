@@ -585,8 +585,9 @@ CREATE TABLE audit_log (
     operation_class  text NOT NULL,
     entity_type      text NULL,
     entity_id        text NULL,
-    is_success       boolean NOT NULL,
+    outcome          text NOT NULL,     -- 'success' | 'denied' | 'failed'
     error_key        text NULL,
+    reason           text NULL,          -- EnterPlatformAdminScope(reason), denial cause
     before_state     jsonb NULL,
     after_state      jsonb NULL,
     changes          jsonb NULL,
@@ -597,7 +598,11 @@ CREATE TABLE audit_log (
     metadata         jsonb NULL,
     CONSTRAINT audit_log_pkey PRIMARY KEY (id, timestamp)
 );
--- Phase 11 adds PARTITION BY RANGE (timestamp) and the monthly partitions.
+-- Phase 11 does NOT alter this table in place: PostgreSQL has no
+-- ALTER TABLE ... PARTITION BY. It creates a partitioned parent, attaches this
+-- table to it, and recreates the indexes and the policy on the parent, under a
+-- lock. The composite key above is what keeps that a data operation rather than
+-- a key migration (ADR-0033 § Corrected audit_log DDL).
 -- The composite key above is already partition-compatible, so that change is
 -- additive rather than a key migration.
 

@@ -125,8 +125,10 @@ services that agree on a payload only in prose disagree on it within one release
 schema is the artefact that makes a breaking change fail a build instead of a production
 tenant.
 
-- The schema covers the feature set, the limit set, the compliance caps, `valid_until`
-  and `grace_until`.
+- The schema covers the feature set, the limit set, the compliance caps, `expires_at`,
+  `grace_until` and the monotonic `generation`. On the wire the fields are `tier` and
+  `expires_at`; they persist to the `plan_code` and `valid_until` columns of
+  `platform_entitlement_cache` ([21-feature-flags.md](../architecture/21-feature-flags.md)).
 - The LearnStack-side snapshot test asserts that the serialized shape the handler accepts
   still matches the schema, and that every declared feature key resolves to a registered
   `FeatureKey` / `LimitKey`.
