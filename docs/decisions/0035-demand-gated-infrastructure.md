@@ -13,16 +13,24 @@ Accepted
   correctly insist that irreversible decisions be taken early. That instinct swept
   additive, port-isolated technology choices into the same bucket as genuinely
   irreversible schema and isolation decisions.
-- **The dev stack runs services the backend cannot call.** `Directory.Packages.props`
-  declares no client library for Dapr, Kafka, Vault, Valkey, Meilisearch, LiveKit,
-  Hangfire, Serilog, Polly or Sentry at the point this ADR was written. The local
-  compose stack runs fourteen services; the backend can talk to one of them.
-  Infrastructure that cannot be invoked is not a foundation — it is carrying cost.
-- **The ports already exist and already isolate the choice.** `IEventBus`,
-  `ICacheService`, `ISecretProvider`, `IEntitlementProvider`, `IHostToTenantResolver`
-  and `IProviderResilience<TPort>` live in `LearnStack.SharedKernel`, and no module
-  imports a vendor SDK. [ADR-0014 § 9](0014-adopt-dapr.md) describes reversing the Dapr
-  choice as "a three-class swap in one release".
+- **The dev stack runs services the backend cannot call.**
+  `backend/Directory.Packages.props` declares no client library for Dapr, Kafka, Vault,
+  Valkey, Meilisearch, LiveKit or Hangfire. The local compose stack runs fourteen
+  services; the backend has a client for one of them. Infrastructure that cannot be
+  invoked is not a foundation — it is carrying cost. (The Phase 02a Packet 3
+  cross-cutting set — Serilog, OpenTelemetry, Polly and Sentry — *is* declared and wired,
+  and is not part of this ADR's gated set.)
+- **The ports are the cheap half, and they land before their first caller.**
+  `ISecretProvider` and `IProviderResilience<TPort>` already live in
+  `LearnStack.SharedKernel`; `IEventBus`, `ICacheService`, `IEntitlementProvider` and
+  `IHostToTenantResolver` land in
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md), ahead of any consumer. A
+  port is three files and a registration. That asymmetry — a cheap, early interface
+  against an expensive, deferrable adapter — is what makes the deferral reversible:
+  swapping an implementation is a composition-root edit, while retrofitting an
+  abstraction is a refactor across every call site. The three concrete Dapr adapters live
+  in `LearnStack.Infrastructure.{Messaging,Caching,Secrets}`; see
+  [29-dapr-integration.md § 4](../architecture/29-dapr-integration.md).
 - **A hypothetical deployment mode has been steering unrelated decisions.**
   `SelfHostedAirGapped` — which ships no earlier than
   [Phase 11](../roadmap/phase-11-production-hardening.md) and has no contracted
@@ -76,7 +84,7 @@ otherwise equal. This rule is added to
 | Dapr pub/sub | `IEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A second process needs to consume an integration event |
 | Kafka | (behind `IEventBus`) | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Event volume, replay, or ordering across processes is required |
 | Dapr state / Valkey | `ICacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
-| Vault | `ISecretProvider` | `EnvironmentSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Secrets must rotate without a redeploy, or a non-dev deployment exists |
+| Vault | `ISecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Secrets must rotate without a redeploy, or a non-dev deployment exists |
 | APISIX | (composition root) | ASP.NET middleware | [Phase 11](../roadmap/phase-11-production-hardening.md) | A non-dev deployment needs edge rate limiting, host routing, or JWT pre-validation |
 | Hub entitlement | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) | A tenant must be billed or plan-gated |
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
@@ -84,6 +92,7 @@ otherwise equal. This rule is added to
 | `audit_log` partitioning + retention job | — (schema-internal) | Single correct table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
 | Meilisearch | `ITenantSearch` | PostgreSQL full-text search | [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | Search quality or scale exceeds PostgreSQL FTS |
 | LiveKit | `ILiveClassProvider` | — (no default; the phase that needs it brings it) | [Phase 08c](../roadmap/phase-08c-classroom.md) | The classroom phase begins |
+| Managed video transcoding | `IVideoTranscoder` | ffmpeg-backed worker ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) | [Phase 11](../roadmap/phase-11-production-hardening.md) | In-house transcode backlog or per-minute cost exceeds the managed alternative |
 
 `DeploymentMode` keeps all five of its values and the composition root keeps branching
 on it. What changes is the **support claim**: only `Development` and `SaaS` are wired
@@ -150,10 +159,11 @@ not **whether**.
 
 ## Implementation Notes
 
-- The default implementations (`InProcessEventBus`, `InMemoryCacheService`,
-  `EnvironmentSecretProvider`, `NullEntitlementProvider`) ship in
-  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) as the **only**
-  registered implementations outside `Development`-plus-`SaaS`.
+- `ISecretProvider` and its default `ConfigurationSecretProvider` already shipped in
+  [Phase 02a Packet 3](../roadmap/phase-02a-kernel-tenancy.md). The remaining defaults
+  (`InProcessEventBus`, `InMemoryCacheService`, `NullEntitlementProvider`) ship in
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md). Together they are the
+  **only** registered implementations in every deployment mode until Phase 11.
 - `InProcessEventBus` is a first-class transport, not a stub: it uses the same
   `IIntegrationEventHandler<T>` interface, the same `IInboxGuard`, and the same
   tenant-context restoration as the durable path. A dev path that skips those is a dev

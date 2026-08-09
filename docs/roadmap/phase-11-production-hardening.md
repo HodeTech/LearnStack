@@ -35,12 +35,15 @@ Two consequences follow, and both are stated plainly rather than implied:
 
 ### Demand-gated building blocks
 
-Each item below has a port already in `LearnStack.SharedKernel`, a working default
-implementation shipped in [Phase 02a Packet 5](phase-02a-kernel-tenancy.md), and a
-trigger condition recorded in
-[ADR-0035 § The gated set](../decisions/0035-demand-gated-infrastructure.md), which is
-the authority for the trigger table. What follows is the work each one turns into once
-its trigger fires.
+Most items below have a port in `LearnStack.SharedKernel` and a default implementation
+from [Phase 02a Packet 5](phase-02a-kernel-tenancy.md), with a trigger condition recorded
+in [ADR-0035 § The gated set](../decisions/0035-demand-gated-infrastructure.md), which is
+the authority for those rows. Three items are gated work with no port and no row there —
+the `audit_log` partition conversion (a migration, not a swap), the air-gapped OTLP file
+target, and the deployment-mode integration suites — and their triggers are stated inline
+below. `IVideoTranscoder`'s default ships in [Phase 04](phase-04-cms-media-pages.md)
+rather than Packet 5. What follows is the work each one turns into once its trigger
+fires.
 
 **Dapr sidecar, pub/sub, state and secret components** — *trigger: a second process must
 consume an integration event.* `DaprEventBus` behind `IEventBus`, the component YAML per
@@ -70,7 +73,7 @@ Packet 5 was chosen over removal — the generation counters that replace
 **Vault behind `ISecretProvider`** — *trigger: secrets must rotate without a redeploy, or
 a non-dev deployment exists.* KV mount layout, per-environment policies, the application
 role and its lease renewal, and the rotation cadence below under **Security**.
-`EnvironmentSecretProvider` remains the `Development` implementation. No module imports a
+`ConfigurationSecretProvider` remains the `Development` implementation. No module imports a
 Vault client; the swap happens once at the composition root.
 
 **APISIX edge gateway** — *trigger: a non-dev deployment needs edge rate limiting, host
@@ -98,12 +101,15 @@ signed.* The provider is not the deliverable; its operational surround is:
 
 See [26-hybrid-license-model.md](../architecture/26-hybrid-license-model.md).
 
-**Custom-domain TLS automation and the host-mappings endpoint** — *trigger: a tenant
-needs its own domain in production.* Certificate issuance, renewal and revocation, the
-gateway-side certificate installation path, and
-`PUT /api/internal/tenants/{id}/host-mappings` — the endpoint
-[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) adds so that host →
-tenant mappings stop travelling inside the entitlement payload. Certificate material
+**Custom-domain TLS automation** — *trigger: a tenant needs its own domain in
+production.* Certificate issuance, renewal and revocation, the ACME client and DNS
+provider adapters, the gateway-side certificate installation path, and the renewal job at
+scale. The `PUT /api/internal/tenants/{id}/host-mappings` endpoint and its LearnStack-side
+handler are **not** in this phase — they ship in
+[Phase 02c](phase-02c-hub-foundation.md), because host resolution is a one-way door while
+the automation that populates the mapping is additive
+([27-custom-domain-tls.md § 11](../architecture/27-custom-domain-tls.md)). Certificate
+material
 moves between the Hub-owned and LearnStack-owned secret stores by secret-store
 replication and is referenced from the host-mapping payload by path, never by value. Host
 resolution itself never calls the Hub in any deployment mode: `IHostToTenantResolver`
@@ -147,16 +153,24 @@ entitlement rather than Hub entitlement for both Self-Hosted variants. The compo
 root keeps branching once on `DeploymentMode`; modules never read it, and
 `Modules_Do_Not_Reference_DeploymentMode` keeps holding.
 
+**Managed video transcoding behind `IVideoTranscoder`** — *trigger: in-house transcode
+backlog or per-minute cost exceeds the managed alternative.*
+[Phase 04](phase-04-cms-media-pages.md) ships an ffmpeg-backed worker as the single
+registered implementation of `IVideoTranscoder`. Mux, AWS MediaConvert and Cloudflare
+Stream sit behind the same port; adopting one is a composition-root change plus the
+provider's credential wiring, its webhook receiver for completion callbacks, and a
+cost-comparison record against the in-house baseline. See
+[16-media-pipeline.md](../architecture/16-media-pipeline.md).
+
 ### Resource fairness
 
-No earlier phase owns this, and the gap has been papered over by a claim that is not
-true: [25-deployment-models.md](../architecture/25-deployment-models.md) presents Row
-Level Security as failure isolation, as though it stopped one tenant's burst from
-starving another. It does not. **RLS is a correctness mechanism.** It decides which rows
-a query is allowed to see. It has nothing to say about how much CPU, memory, disk I/O,
-connection capacity or worker time a query consumes on its way to seeing them. A single
-tenant running a pathological query degrades every other tenant on the instance while all
-four isolation layers stay green.
+No earlier phase owns resource fairness.
+[25-deployment-models.md § 2](../architecture/25-deployment-models.md#2-saas-mode) draws
+the correctness / contention split and states why Row Level Security cannot close the
+second half: RLS is a visibility predicate, and a filtered query consumes exactly as much
+of the database as an unfiltered one. A single tenant running a pathological query
+degrades every other tenant on the instance while all four isolation layers stay green.
+That document names the gap; this phase closes it.
 
 Resource fairness is a separate mechanism and this phase builds it.
 
@@ -408,8 +422,12 @@ same `ILiveClassProvider`.
   retention-purge jobs registered and monitored.
 - Licence-key operational surround: rotation procedure, revocation-list distribution,
   hot-reload runbook, grace-period load-test results.
-- Custom-domain TLS automation and the `host-mappings` endpoint, with certificate
-  material travelling by secret-store replication rather than by payload.
+- Custom-domain TLS automation — ACME client, DNS provider adapters, renewal job, and
+  the edge certificate installation path — with certificate material travelling by
+  secret-store replication rather than by payload. The `host-mappings` endpoint itself
+  shipped in [Phase 02c](phase-02c-hub-foundation.md).
+- Managed-transcoder adapter behind `IVideoTranscoder`, or a recorded decision that its
+  trigger has not fired.
 - Air-gapped telemetry file target with its operational controls and its no-egress test.
 - Resource-fairness controls: role-scoped `statement_timeout`, per-tenant pool
   partitioning, query cost ceiling, Hangfire fair-share dispatch with per-tenant

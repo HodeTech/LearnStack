@@ -4,6 +4,16 @@
 [ADR-0006](../decisions/0006-events-and-outbox.md),
 [ADR-0010](../decisions/0010-cross-module-communication.md).
 
+> **Read this first.** This document describes Dapr in the present tense as the **target
+> design**. Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) no Dapr
+> component is wired today: `InProcessEventBus`, `InMemoryCacheService` and
+> `ConfigurationSecretProvider` are the registered implementations in every deployment
+> mode, and the three Dapr adapters land in
+> [Phase 11](../roadmap/phase-11-production-hardening.md) against written triggers — a
+> second process consuming an integration event, a second application instance, and
+> secrets needing rotation without a redeploy. Nothing below is wrong; none of it is
+> running.
+
 LearnStack uses **Dapr** (Distributed Application Runtime) for three building blocks:
 **pub/sub** (Kafka), **state store** (Valkey), **secret store** (Vault). Application code
 interacts with Dapr only through SharedKernel abstractions (`IEventBus`, `ICacheService`,
@@ -155,8 +165,8 @@ secret/learnstack/hub                 internal-api-hmac-key, internal-api-mtls-c
 ```
 
 In `Development` the **primary** `ISecretProvider` implementation is
-`EnvironmentSecretProvider` (reads from process env vars; configured via
-`.env`; matches the composition-root table in
+`ConfigurationSecretProvider` (reads `IConfiguration`, which already merges environment
+variables, user secrets and `appsettings.{env}.json`; matches the composition-root table in
 [20-infrastructure-stack.md § Composition Root and Deployment Mode](../standards/20-infrastructure-stack.md)).
 For dev workflows that prefer Dapr-shaped secrets (e.g. exercising the
 `DaprSecretProvider` code path locally), an optional
@@ -208,6 +218,8 @@ public interface ICacheService
         CacheOptions? options = null, CancellationToken ct = default);
     Task SetAsync<T>(string key, T value, CacheOptions? options = null, CancellationToken ct = default);
     Task RemoveAsync(string key, CancellationToken ct = default);
+    // Removed, or redesigned to a generation-key pattern, before Phase 02a Packet 5
+    // ships (ADR-0035). See the note under the reference implementation below.
     Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default);
 }
 
@@ -292,6 +304,11 @@ internal sealed class DaprCacheService : ICacheService
         return _dapr.SaveStateAsync(StateStoreName, prefixed, value, metadata: metadata, cancellationToken: ct);
     }
 
+    // NOTE: superseded. `_trackedKeys` is instance-local, so keys written by another
+    // pod are never evicted and this method silently under-invalidates the moment a
+    // second instance runs. Per ADR-0035 it is removed from `ICacheService` or
+    // redesigned to a generation-key pattern before Phase 02a Packet 5 ships; see
+    // 32-tenant-customization-model.md § 8.2 for the generation-counter shape.
     public async Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
     {
         var prefixed = PrefixKey(prefix);
@@ -313,10 +330,14 @@ internal sealed class DaprCacheService : ICacheService
 }
 ```
 
-Cross-instance L1 invalidation: when one pod calls `RemoveByPrefixAsync`, it publishes a
-`learnstack.cache.invalidation` event. A `CacheInvalidationSubscriber` (background
-service) on every pod consumes the event and clears matching L1 entries — except those
-published by its own instance (`InstanceId` skip-self).
+Cross-instance L1 invalidation was originally specified against `RemoveByPrefixAsync`:
+one pod publishes a `learnstack.cache.invalidation` event, and a
+`CacheInvalidationSubscriber` on every pod clears matching L1 entries except those it
+published itself. That contract is superseded. A tenant-scoped **generation counter**
+embedded in the cache key makes every stale key unreachable at once without enumerating
+keys, and needs no invalidation topic on the write path. See
+[32-tenant-customization-model.md § 8.2](32-tenant-customization-model.md) and
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
 
 ## 5. Sidecar deployment
 

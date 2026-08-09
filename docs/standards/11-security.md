@@ -289,7 +289,7 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 ## Secrets and Configuration
 
 - Every secret read goes through **`ISecretProvider`**. The registered implementation is
-  `EnvironmentSecretProvider` until Vault's trigger fires — secrets must rotate without
+  `ConfigurationSecretProvider` until Vault's trigger fires — secrets must rotate without
   a redeploy, or a non-development deployment exists — at which point
   `DaprSecretProvider` → Vault takes over per
   [ADR-0014](../decisions/0014-adopt-dapr.md) and

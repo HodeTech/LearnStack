@@ -177,7 +177,8 @@ here:
 | Course versioning, programs, lesson items, completion rules | [Phase 05](phase-05-education-learning-content.md) |
 | Admin Studio, navigation, SEO, full block registry | [Phase 06](phase-06-renderer-admin-studio.md) |
 | Enrollment, learner portal, progress tracking | [Phase 07](phase-07-enrollment-learner-portal.md) |
-| Search | [Phase 09](phase-09-billing-integrations-analytics.md) |
+| Search — the `ITenantSearch` port and its PostgreSQL default | [Phase 04](phase-04-cms-media-pages.md) |
+| Search — the Meilisearch adapter behind that port | [Phase 09](phase-09-billing-integrations-analytics.md) |
 | Live classroom | [Phase 08c](phase-08c-classroom.md) |
 | Billing | [Phase 09](phase-09-billing-integrations-analytics.md) |
 | Hub, entitlement gating | [Phase 02c](phase-02c-hub-foundation.md) |

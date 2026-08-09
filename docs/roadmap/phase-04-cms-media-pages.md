@@ -261,6 +261,24 @@ roadmap never names a phase that builds any of it — while
   bounded, and the bound is a `LimitKey` so it becomes plan-gated the moment
   [Phase 02c](phase-02c-hub-foundation.md) supplies a real entitlement projection.
 
+### Search — the port and its PostgreSQL default
+
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) demand-gates Meilisearch
+behind `ITenantSearch`, with a PostgreSQL full-text default shipping now. This is the
+first phase with content to index, so the port and its default land here.
+
+- `ITenantSearch` and `IPlatformSearch` in `LearnStack.SharedKernel`, with the signatures
+  [ADR-0012](../decisions/0012-search-strategy.md) specifies.
+- A PostgreSQL `tsvector` implementation over `content_entries` and the page model, with
+  a per-locale generated `tsvector` column and a GIN index per locale.
+- The mandatory `tenant_id` predicate is composed **inside** the implementation, not by
+  callers, along with the organization term where the entity is organization-scoped.
+  Direct SQL search from a handler is forbidden.
+- Cross-tenant search isolation is asserted by integration test from this phase, not from
+  [Phase 09](phase-09-billing-integrations-analytics.md).
+- Meilisearch is **not** built here. Its trigger — search quality or scale exceeds
+  PostgreSQL full-text — is expected to fire in Phase 09.
+
 ### Hosts and Canonical URLs
 
 Page SEO metadata, canonical URLs and redirect targets need to know which hosts serve a
@@ -315,6 +333,8 @@ describes.
 - Media library on SeaweedFS with `IImageProcessor` and `IVideoTranscoder`, the
   ffmpeg-backed default worker, and a per-tenant concurrent-transcode limit expressed as
   a `LimitKey`.
+- `ITenantSearch` / `IPlatformSearch` with a PostgreSQL full-text implementation over
+  content entries and pages, tenant-filtered inside the port.
 - Admin Studio CMS screens per the list above.
 - Public read APIs for the renderer, versioned per
   [ADR-0024](../decisions/0024-api-versioning-policy.md).
@@ -322,6 +342,8 @@ describes.
 
 ## Completion Criteria
 
+- A tenant-scoped search returns that tenant's content entries and zero rows belonging to
+  the other seed tenant, proven by integration test.
 - A tenant admin creates a new `TenantContentType` from Studio with a JSON Schema,
   creates entries against it, and references those entries from a page — **without any
   LearnStack code change**.

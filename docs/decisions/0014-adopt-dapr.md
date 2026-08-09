@@ -243,6 +243,35 @@ Three architecture tests enforce the abstraction boundary (added in Phase 02):
 The full deployment topology, component examples, and operational runbook live in
 [29-dapr-integration.md](../architecture/29-dapr-integration.md).
 
+## Amendments
+
+### 2026-08-08 — Schedule moved to Phase 11; the Decision is unchanged
+
+The Decision stands: when LearnStack needs a cross-process event bus, a distributed cache
+or a secret store, it uses Dapr for all three, and application code reaches them only
+through `IEventBus` / `ICacheService` / `ISecretProvider`. This amendment does not
+withdraw that choice.
+
+What moved is **when**. Per [ADR-0035](0035-demand-gated-infrastructure.md) Dapr is
+additive under the one-way-door test, so the three adapters are demand-gated:
+
+| Adapter | Registered until then | Lands in | Trigger |
+|---|---|---|---|
+| `DaprEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A second process must consume an integration event |
+| `DaprCacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
+| `DaprSecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Secrets must rotate without a redeploy, or a non-dev deployment exists |
+
+The Implementation-notes bullet reading "Phase 02 — Platform kernel" and the
+Architecture-tests preamble reading "added in Phase 02" both mean Phase 11 under
+ADR-0035. The three architecture tests are already scheduled to Phase 11 in
+[21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md);
+they cannot run before the SDK is referenced.
+
+The default secret provider that shipped in Phase 02a Packet 3 is named
+`ConfigurationSecretProvider`, not `EnvironmentSecretProvider`, and reads
+`IConfiguration` — which already merges environment variables, user secrets and
+`appsettings.{env}.json` — rather than process environment variables alone.
+
 ## References
 
 - ADR-0006 — Events and Outbox (status: Accepted after this ADR; previously Proposed).

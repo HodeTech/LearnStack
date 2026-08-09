@@ -250,7 +250,7 @@ an abstraction.
 
 - **Hub URL** — pointed at LearnStack-hosted (SaaS / Dedicated / SelfHostedOnline) OR
   customer-hosted (rare) OR not set (SelfHostedAirGapped).
-- **Secret store** — `EnvironmentSecretProvider` today in every mode; the Vault-backed
+- **Secret store** — `ConfigurationSecretProvider` today in every mode; the Vault-backed
   provider is demand-gated to Phase 11 behind `ISecretProvider`, triggered by secrets
   needing rotation without a redeploy or by a non-development deployment existing.
 - **Telemetry sink** — LearnStack OTel collector (SaaS / Dedicated) OR customer OTel
@@ -323,7 +323,7 @@ supported modes reach it today and the three seams reach it in Phase 11.
 |-----------|------|-----------|--------------------|------------------------|
 | `IEntitlementProvider` | Hub | Hub | Hub | SignedLicenseKey |
 | `ISecretProvider` (target) | Vault | Vault | Vault | Vault OR file |
-| `ISecretProvider` (today) | `EnvironmentSecretProvider` in every mode — the Vault adapter is demand-gated to Phase 11 | ← | ← | ← |
+| `ISecretProvider` (today) | `ConfigurationSecretProvider` in every mode — the Vault adapter is demand-gated to Phase 11 | ← | ← | ← |
 | Phone-home enabled | Yes | Yes | Yes | No |
 | Outbound HTTP to Hub | Yes | Yes | Yes | No |
 | OTel collector endpoint | LearnStack-hosted | LearnStack-hosted | Customer-hosted | Customer-hosted |

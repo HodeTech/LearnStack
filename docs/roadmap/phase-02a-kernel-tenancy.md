@@ -518,8 +518,9 @@
 >
 > **Packet 5 — Foundation ports and default implementations ⏳**
 > `IEventBus` / `ICacheService` / `ISecretProvider` in
-> `LearnStack.SharedKernel`, with `InProcessEventBus` / `InMemoryCacheService` /
-> `EnvironmentSecretProvider` in `LearnStack.Infrastructure` as the **only
+> `LearnStack.SharedKernel`, with `InProcessEventBus` / `InMemoryCacheService` in
+> `LearnStack.Infrastructure` — `ISecretProvider` and `ConfigurationSecretProvider`
+> already shipped in Packet 3 — as the **only
 > registered implementations**. Composition-root branching on `DeploymentMode`
 > is present and exercised, with `Development` and `SaaS` wired; the remaining
 > three values resolve to the same defaults until
@@ -876,7 +877,7 @@ here with **working default implementations**; the vendor adapters ship on a tri
   the interface or redesigned to a generation-key pattern before this phase exits — the
   published contract iterates an instance-local key set and cannot be honoured across
   instances by any candidate backend.
-- `ISecretProvider` with `EnvironmentSecretProvider`.
+- `ISecretProvider` with `ConfigurationSecretProvider`.
 - `IEntitlementProvider` with `NullEntitlementProvider` (all features enabled, no
   limits).
 - `IHostToTenantResolver` with a PostgreSQL-backed implementation reading
@@ -1238,7 +1239,7 @@ land in Phase 02b.
 - Shared kernel package with `IEventBus` / `ICacheService` / `ISecretProvider` /
   `IEntitlementProvider` / `IHostToTenantResolver` interfaces and their default
   implementations — `InProcessEventBus`, `InMemoryCacheService`,
-  `EnvironmentSecretProvider`, `NullEntitlementProvider`, and a PostgreSQL-backed host
+  `ConfigurationSecretProvider`, `NullEntitlementProvider`, and a PostgreSQL-backed host
   resolver — registered as the only implementations.
 - Tenant-aware + organization-aware API foundation with EF filters, the corrected
   PostgreSQL Row Level Security template, and the four-role database model active for
