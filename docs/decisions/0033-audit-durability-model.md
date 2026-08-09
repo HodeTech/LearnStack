@@ -57,29 +57,68 @@ Accepted
 
 ## Decision
 
-LearnStack splits audit writes into two durability classes.
+LearnStack splits audit writes into two durability classes and fixes **one component per
+step**, so no moment in the lifecycle is unowned. The shape is called
+**decide → write → reconcile**.
 
-**MUST-class audit** — security, compliance, and privileged-access events, as
-classified in [Audit Coverage Standards](../standards/18-audit-coverage.md) — is
-written as a **durable intent** inside the business transaction. The audit row is
-enrolled in the same `DbContext.SaveChanges` as the state change, so it commits with it
-or not at all, and so it executes while the transaction-local `app.tenant_id` is set
-and Row Level Security accepts it. If the audit row cannot be written, the business
-transaction **fails closed**.
+| Step | Owner | Position | What it does |
+|---|---|---|---|
+| **Decide** | `AuditLogBehavior` | step 3 | Classifies `(module, operation)`, mints the `AuditEntryId`, parks a **pending intent** in the scoped `IAuditStateCapture`. Opens no transaction, touches no `DbContext`. |
+| **Write** | `TransactionBehavior` | step 6, immediately before `COMMIT` | Calls `IAuditStore.WritePendingAsync`, which issues one parameterised `INSERT INTO audit_log` on the **ambient transaction**, with `SET LOCAL app.tenant_id` already in force. A failure here rolls the business transaction back. |
+| **Reconcile** | `AuditLogBehavior` | step 3, on the way out | Reads the intent's final state. If it is anything other than `Committed`, writes the row **standalone**, in its own short transaction, carrying the real outcome. |
 
-**SHOULD/MAY-class audit** — operational and diagnostic events — remains best-effort
-and may be written outside the transaction. Its accepted loss is written down rather
-than assumed.
+**MUST-class audit** — security, compliance, and privileged-access events, as classified
+in [Audit Coverage Standards](../standards/18-audit-coverage.md) — commits **in the same
+transaction** as the state change it records, or it is written standalone with a
+non-success outcome. There is no third possibility and no window in which a committed
+state change has no audit row.
 
-Enrichment, redaction, projection and external fan-out happen **after** the commit,
-reading the durable intent. `AuditLogBehavior` keeps its shipped position in the
-pipeline and its shipped responsibility — catching handler exceptions, recording the
-outcome, and rethrowing via `ExceptionDispatchInfo`. What changes is that the MUST-class
-row it records is *already durable* by the time it runs.
+**Durability is a property of the commit, not of the enrolment.** The write step marks
+the intent `WrittenInTransaction`, which is *not* durable — the transaction has not
+committed. `TransactionBehavior` therefore reports the commit boundary explicitly:
+`Committed` once `CommitAsync` returns, `RolledBack` after a rollback, and
+`Indeterminate` when `CommitAsync` throws in a way that leaves the server-side outcome
+unknown. The reconcile step keys off that signal and off nothing else. A row that was
+inserted and then rolled back is **not** consumed; it is re-written standalone with
+outcome `failed`. The common case this protects is not exotic: a handler that calls
+`SaveChanges` and then returns `Result.Fail(...)` rolls the audit row back on every
+business-rule rejection.
 
-A tenant `AuditConfig` override may narrow SHOULD/MAY coverage. It may **not** remove
-baseline MUST coverage, and a failure to read the audit configuration **fails closed**
-— the operation is rejected rather than proceeding unaudited.
+**MUST-class audit with no business transaction** — a `denied` authorisation outcome at
+step 5, a read-sensitive query, a non-mutating security event — never reaches step 6. Its
+row is written by the reconcile step through `IAuditStore.WriteStandaloneAsync`, which
+opens its own short transaction and issues `SET LOCAL app.tenant_id` as its first
+statement so the `audit_log` `WITH CHECK` predicate is satisfied on its own terms. It
+runs on a connection that is not inside the business transaction, so a rollback there
+cannot take it.
+
+**SHOULD/MAY-class audit** — operational and diagnostic events — remains best-effort,
+written by the reconcile step outside any business transaction. Its accepted loss is
+written down in the module's coverage matrix rather than assumed.
+
+**The row is written once and never updated.** By the time `TransactionBehavior` is about
+to commit, every field is known — actor, correlation, before/after snapshots, outcome —
+so the write step composes the complete row. There is no second phase, no enrichment
+`UPDATE`, and `IAuditStore` has no update method.
+
+**Classification never reads the database on the request path.** The catalogue is
+in-process, registered at startup by `IModule.RegisterAuditDefaults()`. The tenant's
+`audit_config` overrides are read through `ICacheService`; on a miss the loader opens
+**its own** short transaction and sets `app.tenant_id` itself. This is not a
+refinement — at step 3 no transaction exists, `app.tenant_id` is unset, and `audit_config`
+is RLS-protected, so a lookup there returns **zero rows silently**, which reads exactly
+like "this tenant has no overrides" and never trips a fail-closed `catch`.
+
+**Fail-closed, stated precisely.** Two failures reject the operation: an operation the
+catalogue does not classify at all (`audit_unclassified_operation`), and a MUST-class row
+that cannot be written durably (`audit_unavailable`, HTTP 503). A failure to read a
+*tenant override* does **not**: the in-process catalogue still supplies the MUST floor, so
+the operation never proceeds unaudited — which is the property ADR-0016's
+`catch → continue` path lost — and rejecting every request platform-wide because a cache
+is unavailable is a worse compliance outcome than losing one tenant's voluntary
+SHOULD→MUST elevation. The failure is logged at `Error` and surfaced on the audit health
+check. A tenant `AuditConfig` override may narrow SHOULD/MAY coverage; it may never remove
+baseline MUST coverage.
 
 ## Context
 
@@ -171,21 +210,62 @@ the architecture document is the outlier and is corrected.
 
 ## Implementation Notes
 
-- MUST-class audit rows are enrolled through `IAuditStore` in the same
-  `DbContext.SaveChanges` as the business write. Modules never write `audit_log`
-  directly — unchanged from ADR-0016.
-- `AuditConfig` lookups fail closed. A configuration read failure rejects the operation
-  rather than skipping the audit.
+- **`IAuditStore`** — port in `LearnStack.SharedKernel.Abstractions.Audit`,
+  implementation `PostgresAuditStore` in `LearnStack.Infrastructure.Audit`. Exactly three
+  write methods and **no update method**:
+  - `WritePendingAsync(IUnitOfWork uow, CancellationToken ct)` — the in-transaction write;
+    a no-op when no MUST-class intent is pending; **throws** on failure so the caller
+    rolls back.
+  - `WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken ct)` — its own short
+    transaction: `BEGIN; SET LOCAL app.tenant_id; INSERT; COMMIT`, on a connection that is
+    not inside the business transaction.
+  - `WriteBestEffortAsync(AuditEntryDraft entry, CancellationToken ct)` — same shape,
+    SHOULD/MAY only; the caller logs and drops failures.
+- **The row is written as parameterised SQL, not through an EF entity.** `AuditEntry`
+  stays the Audit module's aggregate and is the **read** model for the audit admin API.
+  The write path carries `AuditEntryDraft`, a `SharedKernel` record, and
+  `PostgresAuditStore` turns it into one `INSERT`. This is deliberate. Mapping
+  `AuditEntry` into every module's `DbContext` through a shared configuration in
+  `LearnStack.SharedKernel` would require SharedKernel to reference
+  `LearnStack.Modules.Audit.Domain` — a **circular project reference**, since that Domain
+  project already references SharedKernel — and would put hand-written EF Core mapping
+  code in SharedKernel, which
+  [Architecture Standards § Build-time-only exceptions](../standards/01-architecture-standards.md)
+  restricts to generated or marker shapes and gates behind an ADR. It would also make
+  every module's Infrastructure assembly reference `AuditEntry`, which is exactly what
+  [`Modules_Do_Not_Write_AuditLog_Directly`](../standards/21-architecture-tests-catalogue.md)
+  exists to prevent.
+- **Atomicity comes from the transaction, not from `SaveChanges`.** "The same
+  `DbContext.SaveChanges` as the business write" was the wrong formulation and is
+  withdrawn. The guarantee is "the same transaction", which is what a reader of
+  `audit_log` actually observes and which needs no cross-context machinery.
+- **`IUnitOfWork`** — the seam `TransactionBehavior` uses to open, commit and roll back
+  the ambient transaction without naming a module's `DbContext`, and through which
+  `IAuditStore` reaches the ambient connection. A
+  [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) deliverable that
+  `TransactionBehavior`'s shipped shell already presumes; named here because the durable
+  audit write depends on it.
+- **`AuditConfig` overrides are a cached projection**, refreshed out of band and
+  invalidated by the tenant-configuration integration event — never a request-path query.
+  The loader sets its own `app.tenant_id`.
+- Modules never write `audit_log` directly — unchanged from ADR-0016.
 - Lands in [Phase 02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md), together with
-  the `AuditChangeTrackerInterceptor` and `IAuditStateCapture`.
-- Architecture tests: `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
-  `Every_TenantOwned_Command_HasAuditCoverage`,
-  `MustClass_Audit_Writes_Share_The_Business_Transaction` (new — registered in
+  the `AuditChangeTrackerInterceptor` (snapshot capture only — it never constructs or
+  inserts an audit row), `IAuditStateCapture`, and the `audit_log_append_only_guard`
+  trigger.
+- Architecture tests, all registered in
   [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md) by
-  Packet 9).
-- The integration test that proves it: one command produces exactly one `audit_log`
-  row, and a command whose audit write is forced to fail produces **zero** business
-  rows.
+  Packet 9: `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
+  `Every_TenantOwned_Command_HasAuditCoverage`,
+  `MustClass_Audit_Writes_Share_The_Business_Transaction`,
+  `Audit_Survives_Transaction_Rollback`,
+  `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`,
+  `AuditLog_Update_Is_Column_Restricted`.
+- The binding integration tests, all run as `learnstack_app` (`NOBYPASSRLS`): one
+  MUST-class command produces exactly one `audit_log` row; a command whose transaction is
+  forced to roll back at `COMMIT` produces **zero** business rows and **exactly one**
+  `audit_log` row with outcome `failed`; a command whose durable audit write is forced to
+  fail produces zero business rows and returns `503 audit_unavailable`.
 
 ## References
 

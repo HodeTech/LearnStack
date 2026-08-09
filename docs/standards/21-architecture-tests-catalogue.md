@@ -613,16 +613,74 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
 
 #### `MustClass_Audit_Writes_Share_The_Business_Transaction`
 
-- **Asserts:** a MUST-class audit row is enrolled in the **same**
-  `DbContext.SaveChanges` as the business write it records. The proof is behavioural: one
-  command produces exactly one `audit_log` row, and a command whose audit write is forced
-  to fail produces **zero** business rows.
+- **Asserts:** a MUST-class audit row is inserted on the **same transaction** as the
+  business write it records. The proof is behavioural: one command produces exactly one
+  `audit_log` row; a command whose durable audit write is forced to fail produces **zero**
+  business rows and returns `503 audit_unavailable`; a denied MUST-class command produces
+  exactly one row carrying the `denied` outcome and zero business rows.
 - **Why it matters:** ADR-0016's "audit never blocks business logic" applied uniformly,
   which meant a privileged operation could commit while its audit row was lost. It also
   meant the audit insert could run outside the transaction that sets `app.tenant_id` —
-  where Row Level Security rejects it. ADR-0033 makes MUST-class audit a durable intent
-  inside the transaction, and this test is what holds the line.
+  where Row Level Security rejects it. ADR-0033 puts the write inside the transaction, at
+  the commit boundary, and this test is what holds the line.
+- **Runs as `learnstack_app`.** A non-owning, `NOBYPASSRLS` role; connecting as the owner
+  would pass against inert policies and prove nothing about the RLS half of the claim.
 - **Source:** ADR-0033 § Decision + Implementation Notes.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 9).
+
+#### `Audit_Survives_Transaction_Rollback`
+
+- **Asserts:** a MUST-class command whose transaction rolls back produces **zero**
+  business rows and **exactly one** `audit_log` row, with outcome `failed`. Two cases: a
+  forced fault at `COMMIT`, and the ordinary path where the handler calls `SaveChanges`
+  and then returns `Result.Fail(...)`.
+- **Why it matters:** the durable write happens before `COMMIT`, so a row that has been
+  inserted is not yet durable. A design that marks the intent "consumed" at insert time
+  and skips the standalone write on the way out loses the audit **and** the business
+  change on every rolled-back MUST-class operation — and a per-request DI-scoped flag
+  cannot observe a database rollback. This test is the only thing that distinguishes a
+  correct implementation from that one.
+- **Runs as `learnstack_app`.**
+- **Source:** ADR-0033 § Decision.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 9).
+
+#### `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`
+
+- **Asserts:** with the `audit_config` table made unreadable, a MUST-class command still
+  completes and still writes its `audit_log` row at the in-process catalogue
+  classification; and an operation absent from the catalogue is rejected with
+  `audit_unclassified_operation`.
+- **Why it matters:** `AuditLogBehavior` runs at pipeline step 3, `SET LOCAL
+  app.tenant_id` is issued at step 6, and `audit_config` carries ENABLE + FORCE row level
+  security. A classification query at step 3 therefore returns **zero rows silently** —
+  not an exception — so a fail-closed `catch` around it can never fire and "RLS filtered
+  everything" is indistinguishable from "this tenant has no overrides". Moving the
+  classification off the request path is the fix; this test is what stops it drifting
+  back.
+- **Source:** ADR-0033 § Decision;
+  [31-audit-subsystem.md § 5](../architecture/31-audit-subsystem.md).
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 9).
+
+#### `AuditLog_Update_Is_Column_Restricted`
+
+- **Asserts:** as `learnstack_app`, any `UPDATE` or `DELETE` on `audit_log` raises
+  `42501` (the role holds neither privilege). As `learnstack_platform`, an `UPDATE`
+  touching only `actor_email`, `ip_address`, `user_agent`, `before_state`, `after_state`
+  and `changes` succeeds; an `UPDATE` touching any other column — `actor_user_id`,
+  `operation`, `outcome`, `timestamp` — is rejected by `audit_log_append_only_guard`; and
+  a `DELETE` succeeds, because the retention purge needs it.
+- **Why it matters:** "append-only" stated as "no `UPDATE` or `DELETE` anywhere" is
+  unimplementable — the corpus itself ships two mutating paths (GDPR redaction, retention
+  purge). This test pins what is actually allowed so the rule is enforceable rather than
+  aspirational.
+- **Source:** ADR-0033; [18-audit-coverage.md § Storage](18-audit-coverage.md);
+  [31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
@@ -660,7 +718,17 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
 #### `AuditEntry_Is_AppendOnly`
 
 - **Asserts:** no `UPDATE` or `DELETE` statement targets `audit_log` anywhere in the
-  codebase or in any migration.
+  codebase or in any migration **except** inside
+  `LearnStack.Modules.Audit.Infrastructure` — the GDPR redaction handler, the per-module
+  `IUserReferenceLocator` implementations, and the retention purge job. Every such site
+  must be inside an `IPlatformAdminScope` block. `IAuditStore` is asserted to expose no
+  update method at all.
+- **Why the exception list is closed and named:** the earlier phrasing ("anywhere in the
+  codebase") contradicted two paths the corpus ships by design and would have failed on
+  its first green run. Naming the two sites keeps the rule enforceable; widening the list
+  requires an ADR. The database-level guard is
+  [`AuditLog_Update_Is_Column_Restricted`](#auditlog_update_is_column_restricted), which
+  is what actually constrains *which columns* may change.
 - **Source:** ADR-0033 (carried from ADR-0016).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
 - **Status:** **Registered.**

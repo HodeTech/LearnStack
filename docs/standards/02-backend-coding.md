@@ -200,21 +200,26 @@ this order and changes only the durability contract of what step 3 records
    starts the manual `<module>.<operation>` `Activity`, and measures handler
    latency for the histogram metric.
 3. **`AuditLogBehavior`** — Wraps the inner pipeline with `try / catch`. On
-   exception, records a failure-class audit entry and rethrows via
-   `ExceptionDispatchInfo` to preserve the original stack. On success, reads
-   `IAuditStateCapture` and records the success entry.
+   exception it records the failure outcome and rethrows via
+   `ExceptionDispatchInfo` to preserve the original stack.
 
    Per [ADR-0033](../decisions/0033-audit-durability-model.md) this behavior
-   keeps its position and its responsibility; what changed is **where
-   durability comes from**. A **MUST-class** row is enrolled by `IAuditStore`
-   in the same `DbContext.SaveChanges` as the business write, deeper in the
-   pipeline — so it commits with the write or not at all, it executes while
-   `app.tenant_id` is set and Row Level Security accepts it, and it is
-   *already durable* by the time step 3's success path runs. A MUST-class
-   audit failure therefore **fails closed**: the operation is rejected rather
-   than committing unaudited. **SHOULD/MAY-class** entries stay best-effort —
-   enriched and dispatched after commit, logged on failure, never blocking the
-   business operation.
+   keeps its position and **decides**; it does not own the durable write. On
+   the way in it classifies `(module, operation)` from the in-process audit
+   catalogue plus the tenant's cached `audit_config` overrides — it issues no
+   query, because at step 3 no transaction is open, `app.tenant_id` is unset,
+   and `audit_config` is RLS-protected, so a read there would return zero rows
+   silently. For MUST it mints the audit id and parks a pending intent in the
+   scoped `IAuditStateCapture`, touching no `DbContext`.
+
+   On the way out it **reconciles**: if the intent's state is anything other
+   than `Committed` — never written, rolled back, or a commit whose outcome is
+   unknown — it writes the row standalone with the real outcome, in its own
+   short transaction. "Written" is not "committed", and a per-request flag
+   cannot observe a rollback. A MUST-class audit that cannot be written at all
+   **fails closed**: the caller receives `503 audit_unavailable`.
+   **SHOULD/MAY-class** entries stay best-effort — written on the same outbound
+   pass, logged on failure, never blocking the business operation.
 4. **`TenantContextBehavior`** — Asserts `ITenantContext.IsResolved` (the
    `TenantResolverMiddleware` populated it from the inbound HTTP request,
    the Hangfire `JobActivator` populated it from the job payload, or the
@@ -238,15 +243,29 @@ this order and changes only the durability contract of what step 3 records
 5. **`AuthorizationBehavior`** — `IAuthorizationService.AuthorizeAsync`
    against the command's resource. Denial returns
    `Result.Fail(forbidden)`; no exception.
-6. **`TransactionBehavior`** — Opens a `DbContext.Database` transaction (UoW)
-   and, as its **first statement inside that transaction**, issues
-   `SET LOCAL app.tenant_id` / `app.organization_id` from the
+6. **`TransactionBehavior`** — Opens the ambient transaction through
+   `IUnitOfWork` and, as its **first statement inside that transaction**,
+   issues `SET LOCAL app.tenant_id` / `app.organization_id` from the
    `ITenantContext` step 4 asserted, so Row Level Security evaluates every
    subsequent statement — including the MUST-class audit insert — against
    the right values. Commits on a success-`Result`; rolls back on a
    fail-`Result` or any exception that bubbles through. No transaction for
    forbidden or validation-failed requests because those short-circuit
    upstream.
+
+   This behavior owns the **commit boundary**, and therefore owns two further
+   responsibilities per
+   [ADR-0033](../decisions/0033-audit-durability-model.md). First, immediately
+   before `COMMIT` it calls `IAuditStore.WritePendingAsync`, which inserts the
+   complete MUST-class audit row on this transaction — a no-op when no intent
+   is pending, and a rollback plus `audit_unavailable` when it fails. Placing
+   the write here rather than in the EF interceptor is deliberate: at
+   pre-commit every flush has happened, so the row's snapshots are complete
+   however many times the handler saved. Second, it records the outcome on
+   `IAuditStateCapture` — `Committed` once `CommitAsync` returns, `RolledBack`
+   after a rollback, `Indeterminate` when `CommitAsync` faults and the
+   server-side result is genuinely unknown. That signal is the only thing step
+   3's reconcile pass trusts.
 7. **`OutboxFlushBehavior`** — Per
    [15-event-and-outbox.md](../architecture/15-event-and-outbox.md), enrols
    `IOutbox` messages in the current transaction; the dispatcher ships them

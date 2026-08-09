@@ -29,9 +29,14 @@ Neither changes a sub-decision; both correct text that would mislead an implemen
 
 Separately, note that the **audit durability contract** referenced throughout this ADR
 now comes from [ADR-0033](0033-audit-durability-model.md), which supersedes ADR-0016.
-The pipeline order fixed by this ADR is unchanged; what changed is that `AuditLogBehavior`
-records outcomes while MUST-class audit rows are written as a durable intent inside the
-business transaction by the EF interceptor.
+The pipeline order fixed by this ADR is unchanged. What changed is where durability comes
+from: `AuditLogBehavior` (step 3) classifies and declares a MUST-class intent on the way
+in; `TransactionBehavior` (step 6) writes the complete row on the ambient transaction
+immediately before `COMMIT` and then reports whether the commit succeeded; and
+`AuditLogBehavior` re-writes the row standalone on the way out whenever the transaction
+did not commit. The `AuditChangeTrackerInterceptor` captures ChangeTracker snapshots and
+writes nothing — an earlier draft of this amendment named it as the writer, which was
+never true of the component as specified.
 
 ### Amendment 1 — Roslyn diagnostic id + CI severity (2026-05-22)
 

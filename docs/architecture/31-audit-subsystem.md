@@ -33,47 +33,76 @@ classes rather than reordering the pipeline:
 
 | Class | Where the row is written | On failure | Rationale |
 |---|---|---|---|
-| **MUST** — security, compliance, privileged access | **Inside the business transaction**, enrolled in the same `DbContext.SaveChanges` as the state change | **Fail closed** — the business operation is rejected | For these events the audit row *is* part of the operation's contract. "Platform admin read tenant B's learner records" with no audit row is an audit finding |
-| **SHOULD / MAY** — operational, diagnostic | Outside the transaction, best-effort | Logged and dropped; the accepted loss is written down, not assumed | Losing "course renamed" costs a support conversation |
+| **MUST**, with a business transaction — security, compliance, privileged access | **Inside the business transaction**, as one parameterised `INSERT` issued by `IAuditStore.WritePendingAsync` immediately before `COMMIT` | **Fail closed** — the transaction rolls back and the caller receives `503 audit_unavailable` | For these events the audit row *is* part of the operation's contract. "Platform admin read tenant B's learner records" with no audit row is an audit finding |
+| **MUST**, with no committed business transaction — `denied` outcomes, read-sensitive queries, non-mutating security events, **and any request whose transaction rolled back or whose commit outcome is unknown** | **Standalone**, through `IAuditStore.WriteStandaloneAsync`, on a connection outside the business transaction: `BEGIN; SET LOCAL app.tenant_id; INSERT; COMMIT` | **Fail closed** — the caller receives `503 audit_unavailable` instead of the original result, never a propagated exception | There is no business transaction to ride, or the one that existed is gone. The row must still satisfy `audit_log`'s `WITH CHECK`, so it sets the GUC on its own terms. Reusing the *business* connection here would be a defect: a row written inside a transaction that is about to roll back rolls back with it |
+| **SHOULD / MAY** — operational, diagnostic | Outside any business transaction, best-effort, same standalone shape | Logged and dropped; the accepted loss is written down in the module's matrix, not assumed | Losing "course renamed" costs a support conversation |
 
-Enrichment, redaction, projection and external fan-out always happen **after** the
-commit, reading the durable row. ADR-0016's "audit never blocks business logic" is
-preserved for that second stage and withdrawn for the first.
+The single most important consequence: **"written" is not "committed".** The
+in-transaction `INSERT` at step 6 becomes durable only when `COMMIT` returns. Between the
+two, a constraint violation, a lost connection, or — far more commonly — a handler that
+calls `SaveChanges` and then returns `Result.Fail(...)` takes the audit row away with the
+business row. A per-request "consumed" flag cannot observe that: the flag lives in a DI
+scope and a database rollback does not touch it. `TransactionBehavior` therefore reports
+the commit boundary explicitly — `Committed`, `RolledBack` or `Indeterminate` — and
+`AuditLogBehavior` re-writes the row standalone for anything that is not `Committed`.
+
+Redaction, projection and external fan-out happen after the commit, reading the committed
+row; none of them updates it. ADR-0016's "audit never blocks business logic" is preserved
+for that second stage and withdrawn for the first.
 
 ## 2. Pipeline overview
 
 ```mermaid
 flowchart TB
-    Cmd["Command / Query / Action"] --> Behavior["AuditLogBehavior<br/>(MediatR pipeline)"]
-    Behavior --> Config["IAuditConfigService<br/>classify MUST / SHOULD / MAY"]
-    Config -->|"lookup fails"| Closed["FAIL CLOSED<br/>reject the operation"]
-    Config --> Handler["Module handler<br/>(business logic)"]
-    Handler --> Enroll["MUST-class: IAuditStore enrols the row<br/>in the SAME DbContext"]
-    Enroll --> SaveChanges["DbContext.SaveChangesAsync"]
-    SaveChanges --> Interceptor["AuditChangeTrackerInterceptor<br/>(EF SaveChangesInterceptor)"]
-    Interceptor --> Buffer["IAuditStateCapture<br/>(scoped buffer)"]
-    SaveChanges --> Commit[("COMMIT — business rows + MUST audit row,<br/>atomically, with app.tenant_id set")]
-    Commit --> Behavior
-    Behavior --> Post["After commit: enrich, redact, project,<br/>fan out via outbox; SHOULD/MAY written here"]
+    Cmd["Command / Query / Action"] --> Behavior["AuditLogBehavior (step 3)<br/>DECIDE"]
+    Behavior --> Config["IAuditConfigService.ClassifyAsync<br/>in-process catalogue + cached audit_config<br/>(no request-path DB read)"]
+    Config -->|"not in the catalogue"| Closed["REJECT<br/>audit_unclassified_operation"]
+    Config --> Intent["MUST-class: park a pending intent<br/>in IAuditStateCapture (no DbContext)"]
+    Intent --> Tx["TransactionBehavior (step 6)<br/>BEGIN; SET LOCAL app.tenant_id"]
+    Tx --> Handler["Handler + OutboxFlush<br/>DbContext.SaveChangesAsync (1..n)"]
+    Handler --> Capture["AuditChangeTrackerInterceptor<br/>snapshots the ChangeTracker into<br/>IAuditStateCapture (writes nothing)"]
+    Capture --> Write["WRITE — IAuditStore.WritePendingAsync<br/>one INSERT on the ambient transaction"]
+    Write --> Commit[("COMMIT — business rows + MUST audit row,<br/>atomically, with app.tenant_id set")]
+    Commit -->|"CommitAsync returned"| Ok["state := Committed"]
+    Commit -->|"rolled back / commit faulted"| NotOk["state := RolledBack | Indeterminate"]
+    Ok --> Recon["RECONCILE — AuditLogBehavior, on the way out"]
+    NotOk --> Recon
+    Recon -->|"state = Committed"| Done["nothing to do — the row is durable"]
+    Recon -->|"anything else, MUST"| Standalone["IAuditStore.WriteStandaloneAsync<br/>own transaction, real outcome"]
+    Recon -->|"SHOULD / MAY"| Best["IAuditStore.WriteBestEffortAsync"]
 ```
 
-Read as text: the behavior classifies the operation; a configuration-read failure rejects
-the operation rather than proceeding unaudited. The handler runs, and for a MUST-class
-operation the audit row is enrolled in the same `SaveChanges` as the business write — so
-it commits with it or not at all, and so it executes while `app.tenant_id` is set and Row
-Level Security accepts it. Everything after the commit — enrichment, redaction, external
-fan-out, and SHOULD/MAY rows — is best-effort and never blocks.
+Read as text — **decide → write → reconcile**. At step 3 the behavior classifies the
+operation from in-process state and, for MUST, parks a pending intent in the scoped
+`IAuditStateCapture`; it opens no transaction and touches no `DbContext`. The handler
+runs inside the transaction `TransactionBehavior` opened, which issued
+`SET LOCAL app.tenant_id` as its first statement; the interceptor snapshots each flush's
+ChangeTracker into the same buffer and writes nothing. Immediately before `COMMIT`,
+`TransactionBehavior` calls `IAuditStore.WritePendingAsync`, which composes the complete
+row and inserts it on that transaction — so it commits with the business write or not at
+all, and Row Level Security accepts it. `TransactionBehavior` then records the commit
+boundary. On the way out, the behavior reconciles: `Committed` means there is nothing to
+do, and anything else means the row is re-written standalone with the real outcome.
+SHOULD/MAY rows and all fan-out are written on that same outbound pass, best-effort.
 
-Three components, separated concerns:
+Four components, separated concerns:
 
 1. **`AuditChangeTrackerInterceptor`** — runs inside `DbContext.SaveChangesAsync`, walks
-   the ChangeTracker, snapshots state for every entity inheriting `AuditableEntity<T>`.
-2. **`IAuditStateCapture`** — a scoped (per-request) buffer holding entity snapshots
-   until the MediatR behavior reads them.
-3. **`AuditLogBehavior<TRequest, TResponse>`** — keeps its shipped position and its
-   shipped responsibility: catch handler exceptions, record the outcome, rethrow via
-   `ExceptionDispatchInfo`. What changed is that the MUST-class row it records is
-   **already durable** by the time it runs.
+   the ChangeTracker, snapshots state for every entity inheriting `AuditableEntity<T>`
+   into `IAuditStateCapture`. It **never** constructs an `AuditEntry` and never inserts
+   one. Making it the writer would work in EF Core terms but would leave two questions
+   unanswerable: which of several flushes in one transaction owns the row, and how the
+   audit type gets mapped into every module's `DbContext` without inverting the
+   dependency direction (see § 7 and [ADR-0033 § Implementation Notes](../decisions/0033-audit-durability-model.md)).
+2. **`IAuditStateCapture`** — the scoped (per-request) audit state: the entity snapshots,
+   the pending MUST-class intent, and the intent's lifecycle state.
+3. **`TransactionBehavior`** — owns the commit boundary, and therefore owns both the
+   durable audit write (immediately before `COMMIT`) and the `Committed` / `RolledBack` /
+   `Indeterminate` signal the reconcile step reads.
+4. **`AuditLogBehavior<TRequest, TResponse>`** — keeps its shipped position and its
+   shipped exception responsibility: catch handler exceptions, record the outcome,
+   rethrow via `ExceptionDispatchInfo`. It decides on the way in and reconciles on the
+   way out; it no longer writes the MUST-class row itself except in the standalone case.
 
 ## 3. The interceptor
 
@@ -125,6 +154,13 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
 }
 ```
 
+The interceptor's job is **capture only**. It returns the unmodified
+`InterceptionResult`, adds nothing to the context, and issues no SQL. It runs once per
+flush, and a MUST-class command may flush more than once inside one transaction — which
+is precisely why the audit row is not built here. `TransactionBehavior` composes it once,
+after the last flush and before `COMMIT`, so the snapshots are complete regardless of how
+many times the handler saved.
+
 Pattern explicitly mirrors Nexora's `AuditChangeTrackerInterceptor` (see
 `Nexora/docs/modules/tier-1-core/audit/SPEC.md` and
 `Nexora/docs/decisions/0009-audit-repository-pattern.md`) — verbatim port to
@@ -135,13 +171,38 @@ LearnStack naming.
 ```csharp
 namespace LearnStack.SharedKernel.Abstractions.Audit;
 
+public enum AuditIntentState
+{
+    None,                  // no MUST-class intent for this request
+    Pending,               // declared at step 3; nothing written yet
+    WrittenInTransaction,  // INSERTed on the ambient transaction — NOT yet durable
+    Committed,             // the ambient transaction committed; the row is durable
+    RolledBack,            // the ambient transaction rolled back; the row is gone
+    Indeterminate,         // COMMIT faulted; the server-side outcome is unknown
+}
+
 public interface IAuditStateCapture
 {
     IReadOnlyList<CapturedEntityChange> Changes { get; }
     void Add(CapturedEntityChange change);
+
+    // The MUST-class intent and its lifecycle. Exactly one intent per request.
+    AuditIntent? Intent { get; }
+    AuditIntentState State { get; }
+
+    void Declare(AuditIntent intent);       // AuditLogBehavior, step 3
+    void MarkWrittenInTransaction();        // IAuditStore.WritePendingAsync
+    void MarkCommitted();                   // TransactionBehavior, after CommitAsync
+    void MarkRolledBack();                  // TransactionBehavior, after RollbackAsync
+    void MarkIndeterminate(Exception cause);// TransactionBehavior, CommitAsync faulted
+
     void Clear();
 }
 ```
+
+`State` is the only durability signal in the system, and it is deliberately **not**
+a "consumed" flag. `WrittenInTransaction` is not durable; only `Committed` is. This
+interface is a `SharedKernel` abstraction and names no EF Core type.
 
 ```csharp
 namespace LearnStack.Infrastructure.Audit;
@@ -156,7 +217,11 @@ public sealed class AuditStateCapture : IAuditStateCapture
 ```
 
 Registered as **scoped** in DI (per-request lifetime). Cleared at the end of every
-request to prevent cross-request bleed (architecture test enforces this).
+request to prevent cross-request bleed
+([`AuditStateCapture_ClearedPerRequest`](../standards/21-architecture-tests-catalogue.md)
+enforces this). Because the lifetime is the DI scope and not the database transaction, a
+rollback leaves every field of this object intact — which is exactly why `State` must be
+set by the component that owns the commit, and never inferred.
 
 ## 5. The MediatR behavior
 
@@ -169,9 +234,11 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     IAuditStore auditStore,
     IAuditStateCapture stateCapture,
     ITenantContextAccessor tenantAccessor,
+    IClock clock,
     ILogger<AuditLogBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>
+    where TRequest : notnull
+    where TResponse : IResultBase
 {
     public async Task<TResponse> Handle(TRequest request,
         RequestHandlerDelegate<TResponse> next, CancellationToken ct)
@@ -181,82 +248,66 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
 
         var (module, operation) = ExtractModuleAndOperation(request, requestKind);
 
-        // Classification is a decision, not a toggle: it returns Must | Should | May | Off.
-        // A tenant AuditConfig override may narrow Should/May. It can never remove
-        // baseline Must coverage — the catalogue's Must floor is applied after the
-        // override, not before it.
-        AuditClassification classification;
-        try
-        {
-            classification = await configService.ClassifyAsync(module, operation, ct);
-        }
-        catch (Exception ex)
-        {
-            // FAIL CLOSED. A single unreadable config row, or a config-store outage,
-            // must not silently switch off mandatory security auditing. Rejecting the
-            // operation is loud, recoverable, and visible; proceeding unaudited is none
-            // of those. Per ADR-0033.
-            logger.LogError(ex, "Audit classification unavailable for {Module}.{Operation}; rejecting",
-                module, operation);
-            return Result.FailFor<TResponse>(AuditErrors.ConfigurationUnavailable);
-        }
+        // DECIDE. ClassifyAsync reads the in-process catalogue plus the tenant's cached
+        // audit_config overrides. It issues NO query on the request path, and that is a
+        // correctness requirement, not an optimisation: at step 3 no transaction is open,
+        // app.tenant_id is unset, and audit_config carries ENABLE + FORCE row level
+        // security (§ 7). A read here would return ZERO ROWS SILENTLY — indistinguishable
+        // from "this tenant has no overrides" — so no catch could ever fire. On a cache
+        // miss the loader opens its OWN short transaction and sets app.tenant_id itself.
+        var classification = await configService.ClassifyAsync(module, operation, ct);
+
+        // The catalogue is in-process and cannot be unavailable, so "proceeding
+        // unaudited" is impossible by construction. What can happen is an operation
+        // nobody classified — that is rejected, loudly.
+        if (classification == AuditClassification.Unclassified)
+            return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
 
         if (classification == AuditClassification.Off) return await next();
 
-        // MUST-class: the audit row is enrolled by IAuditStore into the SAME DbContext
-        // the handler writes through, so it commits with the business write or not at
-        // all — and so it executes with app.tenant_id set. If the enrolment or the
-        // commit fails, the whole operation fails; that is the point.
+        // MUST-class: declare the intent. The id is minted here so the in-transaction row
+        // and any standalone replacement carry the same identity. Nothing is written yet
+        // and no DbContext is touched.
         if (classification == AuditClassification.Must)
-            auditStore.EnrolDurableIntent(BuildIntent(module, operation, request));
+            stateCapture.Declare(new AuditIntent(
+                AuditEntryId:   AuditEntryId.New(),
+                Module:         module,
+                Operation:      operation,
+                OperationType:  DeriveOperationType(operation),
+                OperationClass: OperationClass.Must,
+                DeclaredAt:     clock.UtcNow));
 
         TResponse response;
-        bool handlerFailed = false;
         Exception? handlerException = null;
 
         try
         {
             response = await next();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            handlerFailed = true;
             handlerException = ex;
             response = default!;
         }
 
+        // RECONCILE. TransactionBehavior already wrote the MUST-class row on the ambient
+        // transaction and already reported the commit boundary. The only question left is
+        // whether that transaction COMMITTED — "written" is not "committed", and a
+        // per-request flag cannot observe a rollback.
         try
         {
-            var (isSuccess, errorKey) = handlerFailed
-                ? (false, (string?)"audit.handler_exception")
-                : DetermineOutcome(response);
-
-            var entry = new AuditEntry(
-                Id: AuditEntryId.New(),
-                TenantId: tenantAccessor.Current?.TenantId ?? Guid.Empty,
-                OrganizationId: tenantAccessor.Current?.OrganizationId,
-                Module: module,
-                Operation: operation,
-                OperationType: DeriveOperationType(operation),
-                OperationClass: DeriveOperationClass(module, operation),
-                ActorUserId: auditContext.UserId,
-                ActorEmail: auditContext.UserEmail,
-                CorrelationId: auditContext.CorrelationId,
-                IpAddress: auditContext.IpAddress,
-                UserAgent: auditContext.UserAgent,
-                IsSuccess: isSuccess,
-                ErrorKey: errorKey,
-                EntityType: stateCapture.Changes.Count == 1 ? stateCapture.Changes[0].EntityType : null,
-                EntityId:   stateCapture.Changes.Count == 1 ? stateCapture.Changes[0].EntityId : null,
-                BeforeState: SerializeBefore(stateCapture.Changes),
-                AfterState:  SerializeAfter(stateCapture.Changes),
-                Changes:     SerializeChanges(stateCapture.Changes),
-                Timestamp:   DateTimeOffset.UtcNow);
-
-            // MUST-class: completes the already-durable row (enrichment only — the row's
-            // existence is not in question here). SHOULD/MAY-class: writes it now,
-            // outside the transaction, best-effort.
-            await auditStore.CompleteOrSaveAsync(entry, classification, ct);
+            if (stateCapture.Intent is { } intent)
+            {
+                if (stateCapture.State != AuditIntentState.Committed)
+                    await auditStore.WriteStandaloneAsync(
+                        BuildDraft(intent, response, handlerException, stateCapture), ct);
+            }
+            else
+            {
+                await auditStore.WriteBestEffortAsync(
+                    BuildDraft(module, operation, classification, response,
+                               handlerException, stateCapture), ct);
+            }
         }
         catch (Exception ex) when (classification != AuditClassification.Must)
         {
@@ -265,39 +316,72 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             logger.LogError(ex, "Best-effort audit save failed for {Module}.{Operation}",
                 module, operation);
         }
+        catch (Exception ex)
+        {
+            // MUST-class, and even the standalone write failed. End of the line: the
+            // platform cannot reach PostgreSQL at all. Report loudly and return
+            // audit_unavailable — never a silent success.
+            logger.LogCritical(ex,
+                "MUST-class audit could not be written for {Module}.{Operation}; rejecting",
+                module, operation);
+            return Result.FailFor<TResponse>(AuditErrors.Unavailable);
+        }
         finally
         {
             stateCapture.Clear();
         }
 
-        if (handlerFailed)
-            ExceptionDispatchInfo.Capture(handlerException!).Throw();
+        if (handlerException is not null)
+            ExceptionDispatchInfo.Capture(handlerException).Throw();
 
         return response;
     }
 
-    // ClassifyRequest, ExtractModuleAndOperation, DetermineOutcome, DeriveOperationType,
-    // BuildIntent, SerializeBefore/After/Changes are private helpers.
+    // ClassifyRequest, ExtractModuleAndOperation, DeriveOperationType and the two
+    // BuildDraft overloads are private helpers. BuildDraft resolves the outcome:
+    //   Denied        — the Result carries `forbidden`
+    //   Failed        — any other failure Result, or a handler exception, or
+    //                   stateCapture.State == RolledBack
+    //   Indeterminate — stateCapture.State == Indeterminate
+    //   Success       — otherwise
+    // and fills tenant / organization from ITenantContextAccessor, actor + correlation
+    // from IAuditContext, and the snapshots from stateCapture.Changes.
 }
 ```
 
 Key invariants enforced by this behavior:
 
-- **Audit configuration failure fails closed.** A configuration-store outage, or a single
-  unreadable `audit_config` row, rejects the operation. It does not switch off mandatory
-  security auditing — which is exactly what the previous `catch → return await next()`
-  did, and what made a config-store incident indistinguishable from a period of clean
-  behaviour in the log.
-- **MUST-class audit failure fails the operation.** The exception filter above
-  deliberately excludes `Must`, so a MUST-class audit problem propagates. This is a real
-  availability trade-off, stated in
-  [ADR-0033 § Consequences](../decisions/0033-audit-durability-model.md) and required to
-  be visible in the operational runbooks.
+- **Only `Committed` counts.** The reconcile step branches on
+  `IAuditStateCapture.State`, never on a "consumed" flag. `WrittenInTransaction`,
+  `RolledBack` and `Indeterminate` all produce a standalone row. A MUST-class row that
+  was inserted and then rolled back is re-written with outcome `failed`, so a rolled-back
+  privileged operation is still on the record.
+- **An unclassified operation is rejected.** The in-process catalogue cannot be
+  unavailable, so "proceeding unaudited" is not a reachable state; what is reachable is an
+  operation nobody classified, and that fails with `audit_unclassified_operation`.
+- **A tenant-override read failure does not reject.** Classification falls back to the
+  in-process catalogue, which carries the MUST floor, and the failure is logged at `Error`
+  and surfaced on the audit health check. Rejecting every request platform-wide because a
+  cache is unavailable is a worse compliance outcome than losing one tenant's voluntary
+  SHOULD→MUST elevation; the property ADR-0016 lost — silently switching auditing *off* —
+  is impossible here either way.
+- **MUST-class audit failure fails the operation.** The durable write throws and
+  `TransactionBehavior` rolls back; if even the standalone write fails, the unfiltered
+  `catch` returns `audit_unavailable` (HTTP 503). This is a real availability trade-off,
+  stated in [ADR-0033 § Consequences](../decisions/0033-audit-durability-model.md) and
+  required to be visible in the operational runbooks.
 - **SHOULD/MAY audit failure never blocks the business write.** The cheap path stays
   cheap; the platform does not pay compliance-grade cost for "a course was renamed".
 - **Failed handlers still get audited.** The behavior catches the handler exception,
-  records `IsSuccess=false`, then rethrows via `ExceptionDispatchInfo` so the original
-  stack trace survives.
+  writes the `failed` outcome through the standalone path — the business transaction has
+  rolled back, so there is no transaction left to ride — then rethrows via
+  `ExceptionDispatchInfo` so the original stack trace survives.
+- **`Indeterminate` prefers a duplicate to a loss.** When `CommitAsync` faults, the row's
+  fate is genuinely unknown, so the standalone row is written anyway, carrying the same
+  `AuditEntryId` as the in-transaction attempt and outcome `indeterminate`. Two rows with
+  one id is the recorded signature of a commit-in-doubt event; the audit read model groups
+  by id and flags it. Losing the audit for a possibly-committed privileged operation is
+  the failure this whole ADR exists to prevent.
 - **A tenant override cannot remove MUST coverage.** `IAuditConfigService.ClassifyAsync`
   applies the per-tenant `audit_config` override and then re-applies the catalogue's MUST
   floor. A tenant may audit *more* than the baseline, never less.
@@ -332,11 +416,69 @@ Request
 ```
 
 **The order did not change, and does not need to.** `AuditLogBehavior` still sits outside
-`TransactionBehavior`, which is exactly why its *own* write cannot be the durable one.
-The durable MUST-class row is enrolled through `IAuditStore` into the `DbContext` that
-`TransactionBehavior` owns, so it is flushed and committed by that inner behavior — the
-row travels inward through the pipeline even though the behavior that decided on it sits
-outward. `AuditLogBehavior` then completes the row's enrichment on the way back out.
+`TransactionBehavior`, which is exactly why its *own* write cannot be the durable one. The
+durable MUST-class row is written by `TransactionBehavior` — the behavior that owns the
+commit boundary — from the intent the outer behavior declared. The decision travels inward
+through the pipeline; the commit outcome travels back out.
+
+```csharp
+// LearnStack.Application.Pipeline.TransactionBehavior — step 6. The commit boundary owns
+// the durable audit write AND the durability signal, because they are the same fact.
+public async Task<TResponse> Handle(TRequest request,
+    RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+{
+    if (!RequiresTransaction(request)) return await next();
+
+    await unitOfWork.BeginTransactionAsync(ct);
+    // First statement inside the transaction, per ADR-0003 Amendment 3.
+    await unitOfWork.SetTenantContextAsync(tenantContext, ct);
+
+    try
+    {
+        var response = await next();
+
+        if (!response.IsSuccess)
+        {
+            await unitOfWork.RollbackAsync(CancellationToken.None);
+            stateCapture.MarkRolledBack();
+            return response;                       // audited standalone, outcome = failed
+        }
+
+        // WRITE. No-op unless a MUST-class intent is pending. Throws on failure, which
+        // reaches the catch below and rolls the business write back — fail closed.
+        await auditStore.WritePendingAsync(unitOfWork, ct);
+
+        try
+        {
+            await unitOfWork.CommitAsync(ct);
+            stateCapture.MarkCommitted();          // the ONLY place durability is claimed
+        }
+        catch (Exception ex)
+        {
+            // A faulted COMMIT leaves the server-side outcome genuinely unknown.
+            stateCapture.MarkIndeterminate(ex);
+            throw;
+        }
+
+        return response;
+    }
+    catch (Exception ex) when (stateCapture.State != AuditIntentState.Indeterminate)
+    {
+        await unitOfWork.RollbackAsync(CancellationToken.None);
+        stateCapture.MarkRolledBack();
+
+        if (ex is AuditWriteFailedException)
+            return Result.FailFor<TResponse>(AuditErrors.Unavailable);
+
+        throw;
+    }
+}
+```
+
+`IUnitOfWork` is the seam that lets this generic behavior open and commit a transaction
+without naming any module's `DbContext`, and through which `IAuditStore` reaches the
+ambient connection. It is a [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)
+deliverable that the shipped `TransactionBehavior` shell already presumes.
 
 The alternative — moving `TransactionBehavior` outward so it wraps `AuditLogBehavior` —
 was considered and rejected in
@@ -482,12 +624,89 @@ CREATE POLICY audit_log_isolation ON audit_log
 -- EnterPlatformAdminScope(reason) path.
 ```
 
-The `WITH CHECK` clause is the reason MUST-class audit **has** to be written inside the
-business transaction. Outside it, `app.tenant_id` is unset, `current_setting` returns
-null, the predicate fails, and the insert is rejected — which the old catch-and-log
-posture would have swallowed. See
-[Database Standards](../standards/05-database.md) for the template and
-[ADR-0033](../decisions/0033-audit-durability-model.md) for the durability rule.
+The `WITH CHECK` clause is the reason a MUST-class audit row must be written either inside
+the business transaction or inside a short transaction that sets the GUC itself. With
+neither, `app.tenant_id` is unset or reset to `''`, `NULLIF(current_setting(…), '')`
+yields `NULL`, the predicate is false, and the insert is rejected — which the old
+catch-and-log posture would have swallowed. Note honestly what this clause does and does
+not buy: because the standalone writer derives both the GUC and the row's `tenant_id` from
+the same `ITenantContext`, `WITH CHECK` is vacuous for that write. The guard that matters
+is that `tenant_id` on an audit row comes from `ITenantContext` and **never** from the
+request payload. See [Database Standards](../standards/05-database.md) for the template
+and [ADR-0033](../decisions/0033-audit-durability-model.md) for the durability rule.
+
+Platform-scope events with no resolved tenant (provisioning, Hub-operator actions) are
+written with the reserved nil UUID `00000000-0000-0000-0000-000000000000` as `tenant_id`,
+and the standalone writer sets `app.tenant_id` to the same value. No tenant may ever be
+provisioned with the nil UUID, so those rows are invisible to every tenant policy and
+readable only through `learnstack_platform`.
+
+### Append-only enforcement
+
+Append-only is enforced by **privilege first, trigger second** — not by convention and
+not by an architecture test alone.
+
+```sql
+-- The runtime role may only add rows and read them back.
+REVOKE UPDATE, DELETE ON audit_log FROM learnstack_app;
+
+-- Exactly two mutating paths exist. Both are owned by the Audit module and both run as
+-- learnstack_platform through the audited EnterPlatformAdminScope(reason) path:
+--   1. GDPR redaction  — UPDATE, restricted to the redactable columns (§ 10).
+--   2. Retention purge — DELETE of rows past retention (§ 9). After Phase 11
+--      partitioning this becomes DETACH + DROP PARTITION and issues no DELETE at all.
+CREATE OR REPLACE FUNCTION audit_log_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF current_user <> 'learnstack_platform' THEN
+        RAISE EXCEPTION 'audit_log is append-only (attempted % as %)', TG_OP, current_user
+            USING ERRCODE = 'insufficient_privilege';
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;   -- allow the purge; returning NULL here would cancel it
+    END IF;
+
+    -- UPDATE: every column except the six redactable ones must be unchanged. Expressed
+    -- as a jsonb difference rather than a column list so the guard survives every future
+    -- column addition — including is_success -> outcome — without an edit here.
+    IF (to_jsonb(NEW) - 'actor_email' - 'ip_address' - 'user_agent'
+                      - 'before_state' - 'after_state' - 'changes')
+       IS DISTINCT FROM
+       (to_jsonb(OLD) - 'actor_email' - 'ip_address' - 'user_agent'
+                      - 'before_state' - 'after_state' - 'changes')
+    THEN
+        RAISE EXCEPTION 'audit_log UPDATE may only redact actor_email, ip_address, user_agent, before_state, after_state, changes'
+            USING ERRCODE = 'insufficient_privilege';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER audit_log_append_only_guard
+    BEFORE UPDATE OR DELETE ON audit_log
+    FOR EACH ROW EXECUTE FUNCTION audit_log_append_only();
+```
+
+Three properties worth stating, because a careless copy loses each of them:
+
+- **`actor_user_id` is deliberately immutable.** Once the `users` row is erased it is an
+  orphan surrogate key with no path back to a natural person, which is what keeps the
+  audit row's existence auditable after erasure. Redacting it would collapse every erased
+  user's history into one indistinguishable bucket and make the probe-detection queries
+  [Audit Coverage Standards](../standards/18-audit-coverage.md) justifies the whole
+  `denied` class with unanswerable.
+- **`BEFORE` row triggers on partitioned tables are supported from PostgreSQL 13**, and
+  LearnStack runs 18+ ([ADR-0031](../decisions/0031-postgresql-major-version.md)). The
+  trigger is inherited by partitions created later, so Phase 11 partitioning remains
+  additive — no re-creation, no gap.
+- **The trigger is the second layer, not the first.** `learnstack_app` holds no `UPDATE`
+  or `DELETE` privilege at all, so the ordinary path fails with `42501` before the trigger
+  is reached. The trigger's job is to constrain `learnstack_platform`, the one role that
+  can mutate.
 
 ### `audit_config` table
 
@@ -572,43 +791,75 @@ When a user is GDPR-erased (`UserGdprDeletedIntegrationEvent` published), audit 
 containing that user's PII are **redacted in place** (not deleted — the audit row's
 existence must remain auditable):
 
+Redaction is one of exactly **two** sanctioned mutations of `audit_log` (the other is the
+retention purge, § 9). It is not an exception carved out of the append-only rule by
+convention — it is the shape the `audit_log_append_only_guard` trigger in § 7 was written
+to permit, and nothing else.
+
 ```csharp
 // LearnStack.Modules.Audit.Infrastructure.IntegrationEvents
 public sealed class UserGdprDeletedIntegrationEventHandler(
-    AuditDbContext db, ILogger<UserGdprDeletedIntegrationEventHandler> logger)
+    AuditDbContext db,
+    IPlatformAdminScope platformScope,
+    IAuditStore auditStore,
+    IInboxGuard inboxGuard,
+    IEnumerable<IUserReferenceLocator> userReferenceLocators)
     : IIntegrationEventHandler<UserGdprDeletedIntegrationEvent>
 {
     public async Task HandleAsync(UserGdprDeletedIntegrationEvent @event, CancellationToken ct)
     {
-        // 1. Idempotent: inbox guard
-        if (await _inboxGuard.IsAlreadyProcessedAsync(@event.EventId, ct)) return;
+        // 1. Idempotent: inbox guard.
+        if (await inboxGuard.IsAlreadyProcessedAsync(@event.EventId, ct)) return;
 
-        // 2. Redact rows where actor_user_id == @event.UserId
-        await db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE audit_log
-            SET actor_email = '[REDACTED]',
-                ip_address = NULL,
-                user_agent = '[REDACTED]',
-                before_state = jsonb_set(before_state, '{{redacted}}', 'true'),
-                after_state  = jsonb_set(after_state,  '{{redacted}}', 'true'),
-                changes      = jsonb_set(changes,      '{{redacted}}', 'true')
-            WHERE actor_user_id = {@event.UserId}
-              AND tenant_id = {@event.TenantId}", ct);
+        // 2. learnstack_app holds no UPDATE privilege on audit_log, so the redaction runs
+        //    as learnstack_platform. Entering the scope is itself a MUST-class audit event.
+        await using (await platformScope.EnterAsync(
+            reason: $"gdpr-redaction:{@event.UserId}", ct))
+        {
+            // 3. Actor PII only. The payload columns are NOT touched here. A blanket
+            //    jsonb_set('{redacted}', 'true') would (a) not redact anything — it adds a
+            //    flag and leaves the PII in place — and (b) raise
+            //    'cannot set path in scalar' on any snapshot that is a JSON scalar or
+            //    array. Payload redaction belongs to the per-module locator below, which
+            //    knows which JSON paths in its own snapshots reference a user.
+            await db.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE audit_log
+                SET actor_email = '[REDACTED]',
+                    ip_address  = NULL,
+                    user_agent  = '[REDACTED]'
+                WHERE actor_user_id = {@event.UserId}
+                  AND tenant_id     = {@event.TenantId}", ct);
 
-        // 3. Redact rows where entity references this user (via per-module IUserReferenceLocator)
-        foreach (var locator in _userReferenceLocators)
-            await locator.RedactReferencesAsync(@event.UserId, ct);
+            // 4. Payload references, per module. Each locator issues column-restricted
+            //    UPDATEs against before_state / after_state / changes only.
+            foreach (var locator in userReferenceLocators)
+                await locator.RedactReferencesAsync(@event.UserId, @event.TenantId, ct);
 
-        // 4. Inbox: mark processed; SaveChanges
-        _inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-        await db.SaveChangesAsync(ct);
+            // 5. Inbox: mark processed; SaveChanges.
+            inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
+            await db.SaveChangesAsync(ct);
+        }
 
-        // 5. Audit the redaction itself as a SecurityEvent (meta-audit)
-        logger.LogInformation("GDPR redaction applied for User {UserId} in Tenant {TenantId}",
-            @event.UserId, @event.TenantId);
+        // 6. Meta-audit. The redaction is itself a MUST-class security event, and a log
+        //    line is not an audit row — the previous version of this handler logged and
+        //    called it audited.
+        await auditStore.WriteStandaloneAsync(
+            AuditEntryDraft.SecurityEvent(
+                tenantId:  @event.TenantId,
+                module:    "audit",
+                operation: "audit.redaction.apply",
+                outcome:   AuditOutcome.Success,
+                metadata:  new { subjectUserId = @event.UserId }),
+            ct);
     }
 }
 ```
+
+`actor_user_id`, `module`, `operation`, `operation_type`, `operation_class`, `outcome`,
+`correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
+that changes any of them. What survives erasure is a pseudonymous record that a regulator
+can still reconstruct "who did what, when, with what outcome" from — which is the point of
+redacting in place rather than deleting.
 
 Every module that stores user references in audit payloads must register an
 `IUserReferenceLocator` implementation (architecture test enforces this — same shape as
@@ -661,19 +912,37 @@ Blocker-level tests, registered in
 2. `AuditEntry_Inherits_Entity_Not_AuditableEntity` — append-only by construction: an
    audit row that carries `UpdatedAt` / `DeletedAt` is a contradiction.
 3. `MustClass_Audit_Writes_Share_The_Business_Transaction` — the binding test for
-   [ADR-0033](../decisions/0033-audit-durability-model.md). One command produces exactly
-   one `audit_log` row; a command whose audit write is forced to fail produces **zero**
-   business rows.
-4. `Audit_Config_Failure_Rejects_Operation` — with `IAuditConfigService` throwing, a
-   MUST-class command returns a failure `Result` and writes nothing. This is the
-   fail-closed guarantee; without it, a config-store outage is indistinguishable from a
-   quiet day.
-5. `AuditStateCapture_ClearedPerRequest` — after a request completes, success or failure,
-   the scoped `IAuditStateCapture.Changes` collection is empty for the next request.
-6. `Every_Module_Has_An_AuditCoverage_Matrix` — a module without a matrix cannot classify
+   [ADR-0033](../decisions/0033-audit-durability-model.md). One MUST-class command
+   produces exactly one `audit_log` row, inserted on the same transaction as the business
+   write; a command whose durable audit write is forced to fail produces **zero** business
+   rows and returns `503 audit_unavailable`. Runs as `learnstack_app` (`NOBYPASSRLS`).
+4. `Audit_Survives_Transaction_Rollback` — the test that closes the gap a "consumed" flag
+   would have left open. A MUST-class command whose transaction is forced to roll back at
+   `COMMIT` produces zero business rows and **exactly one** `audit_log` row with outcome
+   `failed`. A companion case covers the ordinary path: a handler that calls `SaveChanges`
+   and then returns `Result.Fail(...)` produces the same pair.
+5. `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` — with the
+   `audit_config` table made unreadable, a MUST-class command still completes and still
+   writes its row at the catalogue classification; an operation absent from the catalogue
+   is rejected with `audit_unclassified_operation`. Without this, a silent RLS-filtered
+   empty read is indistinguishable from "this tenant has no overrides".
+6. `AuditLog_Update_Is_Column_Restricted` — as `learnstack_app`, any `UPDATE` or `DELETE`
+   on `audit_log` raises `42501`. As `learnstack_platform`, an `UPDATE` touching only the
+   six redactable columns succeeds, an `UPDATE` touching any other column raises, and a
+   `DELETE` succeeds (the retention purge).
+7. `AuditStateCapture_ClearedPerRequest` — after a request completes, success or failure,
+   the scoped `IAuditStateCapture` holds no changes, no intent, and `State == None` for
+   the next request.
+8. `Every_Module_Has_An_AuditCoverage_Matrix` — a module without a matrix cannot classify
    its operations, and under ADR-0033 classification is functional, not documentary.
-7. `Every_PII_Module_RegistersUserReferenceLocator` — modules storing user references in
+9. `Every_PII_Module_RegistersUserReferenceLocator` — modules storing user references in
    audit payloads must register an `IUserReferenceLocator`.
+
+`Audit_Config_Failure_Rejects_Operation` from the earlier draft is **withdrawn**, not
+renamed: under ADR-0033 as settled, a tenant-override read failure falls back to the
+in-process catalogue rather than rejecting, so the assertion would have locked in a
+platform-wide denial of service triggered by a cache outage. Entry 5 above asserts the
+property that actually matters.
 
 `AuditLogBehavior_NeverBlocks_BusinessWrites` from the ADR-0016 era is **replaced**: the
 property it asserted is now true only for SHOULD/MAY-class operations, and asserting it

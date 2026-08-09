@@ -16,11 +16,19 @@ description: >
 ## Purpose
 
 Wire a new operation into LearnStack's central audit pipeline
-([ADR-0016](../../../docs/decisions/0016-audit-log-subsystem.md),
+([ADR-0033](../../../docs/decisions/0033-audit-durability-model.md) — the binding
+durability contract; [ADR-0016](../../../docs/decisions/0016-audit-log-subsystem.md) —
+superseded, read only for subsystem context;
 [31-audit-subsystem.md](../../../docs/architecture/31-audit-subsystem.md),
-[18-audit-coverage.md](../../../docs/standards/18-audit-coverage.md)) by extending
-the module's matrix and the audit catalogue. Modules never write `audit_log`
-directly; the catalogue + the `AuditLogBehavior` MediatR behaviour do.
+[18-audit-coverage.md](../../../docs/standards/18-audit-coverage.md)) by extending the
+module's matrix and the audit catalogue. Modules never write `audit_log` directly; the
+catalogue plus the pipeline do.
+
+The pipeline is **decide → write → reconcile**: `AuditLogBehavior` classifies at step 3
+and parks an intent, `TransactionBehavior` writes the row on the business transaction
+immediately before `COMMIT`, and `AuditLogBehavior` re-writes it standalone on the way out
+if that transaction did not commit. You do not touch any of it — but the classification
+you pick decides which of those paths a given operation takes.
 
 ## When to use
 
@@ -90,6 +98,30 @@ Use the rules from
 
 If your operation falls outside this list, it probably belongs as a sub-resource
 (see [add-permission § Closed Action Set](../add-permission/SKILL.md)).
+
+### Step 2b: What a MUST classification now costs
+
+Under [ADR-0033](../../../docs/decisions/0033-audit-durability-model.md) the class is
+**load-bearing, not documentary**. Before you write MUST, know what you are buying:
+
+- The row is inserted on the **same transaction** as the business write, immediately
+  before `COMMIT`, while `app.tenant_id` is set — so it commits with the state change or
+  not at all, and Row Level Security accepts it.
+- If the transaction rolls back, the row is **re-written standalone** with outcome
+  `failed`. A MUST-class operation is never left with no row, including on the ordinary
+  path where a handler saves and then returns `Result.Fail(...)`.
+- The operation **fails closed**. If the audit row cannot be written at all, the command
+  is rejected — the caller gets `503 audit_unavailable`, never a partial success.
+- MUST-class events with no business transaction — `denied` outcomes, read-sensitive
+  queries, non-mutating security events — get a standalone row in a short transaction
+  that sets its own tenant GUC. Classifying a *query* MUST is legitimate and costs a
+  synchronous write before the result is returned.
+- A tenant `AuditConfig` override can narrow SHOULD/MAY. It can never remove baseline
+  MUST coverage; the catalogue re-applies the MUST floor after the override.
+- SHOULD/MAY stays best-effort. Choosing it is choosing a **documented accepted loss** —
+  write that loss into the module's matrix rather than leaving it implied.
+
+So MUST is an availability trade as well as a compliance one. Classify deliberately.
 
 ### Step 3: Register in the catalogue
 
@@ -216,8 +248,17 @@ public async Task User_NationalId_isRedacted_In_AuditSnapshot()
 
 ## Common pitfalls
 
-- **Calling `IAuditStore` directly from the handler.** Forbidden. The
-  `AuditLogBehavior` does this once; a second write produces a duplicate row.
+- **Calling `IAuditStore` directly from the handler.** Forbidden. The pipeline does this
+  once per operation; a second write produces a duplicate row. `IAuditStore` is
+  infrastructure, not a handler collaborator —
+  `Modules_Do_Not_Write_AuditLog_Directly` enforces it.
+- **Adding `AuditEntry` to a module's `DbContext`** so a handler can "enrol the row in
+  its own `SaveChanges`". Forbidden and unnecessary: atomicity comes from the
+  transaction, not from sharing a `SaveChanges` call, and mapping the Audit module's
+  aggregate into another module's context inverts the dependency direction.
+- **`UPDATE`ing an audit row to add detail after the fact.** There is no second phase.
+  The row is composed complete at the commit boundary, `IAuditStore` has no update
+  method, and `learnstack_app` holds no `UPDATE` privilege on `audit_log`.
 - **Truncating snapshots silently.** If a `before/after` JSON is too large, store
   an external pointer (`audit_blob_id`); never an empty object.
 - **Skipping the matrix update.** `Module_<Name>_HasAuditMatrix` will fail; CI
