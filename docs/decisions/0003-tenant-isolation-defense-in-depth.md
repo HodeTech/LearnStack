@@ -251,10 +251,12 @@ nothing. The suite must include, at minimum:
 
 The corrected template **and the four-role model** are applied by the **first
 migration**, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md). They are
-one deliverable, not two: `ALTER TABLE … OWNER TO learnstack_migration` and the
-runtime grants to `learnstack_app` are DDL in the same migration as the policies, and
-`FORCE ROW LEVEL SECURITY` has no effect worth having while the connecting role is
-still the owner.
+one deliverable, not two: the runtime grants to `learnstack_app` are DDL in the same
+migration as the policies, and `FORCE ROW LEVEL SECURITY` has no effect worth having
+while the connecting role is still the owner. No `ALTER TABLE … OWNER TO` appears in a
+migration — migrations connect **as** `learnstack_migration`, so every table they create
+is already owned by it, and an explicit `OWNER TO` is a sign the migration is running as
+the wrong role ([Database Standards § Database roles](../standards/05-database.md)).
 
 The transaction-local session variables (`SET LOCAL` inside the ambient transaction)
 and the isolation suite land in **Packet 7**, with `TenantResolverMiddleware`. Between

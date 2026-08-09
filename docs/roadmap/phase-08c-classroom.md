@@ -12,11 +12,13 @@ out from the original combined "08B: Scheduling and In-App Classroom" so that
 scheduling failures and classroom failures do not blend into a single risk surface.
 
 This phase is also where LiveKit actually arrives.
-[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) demand-gates it: unlike
-the other gated building blocks, `ILiveClassProvider` ships with **no default
-implementation**, because a null classroom is not a degraded classroom — it is no
-product. The trigger condition ADR-0035 records for LiveKit is literally "the classroom
-phase begins", which is this phase.
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) lists it, but names it a
+**deliberate exception** to demand-gating rather than an instance of it:
+`ILiveClassProvider` ships with **no default implementation**, because a null classroom
+is not a degraded classroom — it is no product. There is nothing to default to before the
+feature exists, so the block is *scheduled* rather than gated, and its trigger is stated
+as the product fact — live classes become a requirement — rather than the circular "the
+classroom phase begins". This is that phase.
 
 Decisions consumed here:
 

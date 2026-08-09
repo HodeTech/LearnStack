@@ -247,7 +247,9 @@ are the Hub's public API, governed by the Hub repository.
 **LearnStack → Hub `/api/v1/internal/*` and `/api/v1/usage/*`:**
 - The same three layers: mTLS client cert, RS256 JWT (`aud=learnstack-internal`,
   `exp ≤ 5 min`, `jti` replay-protected), HMAC-SHA256 body signature
-- Scope strictly limited to license verification, phone-home refresh, and usage reporting
+- Scope strictly limited to licence verification, phone-home refresh, usage reporting, and
+  proxied custom-domain submission — the set enumerated in
+  [ADR-0034 § The endpoint set](../decisions/0034-hub-contract-surface-invariant.md)
 - The per-instance API key from [ADR-0019](../decisions/0019-learnstack-hub.md) is
   superseded by [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); rate
   limiting for this direction is enforced by the Hub's own gateway, not by the

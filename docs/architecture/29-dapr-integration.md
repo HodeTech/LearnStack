@@ -6,9 +6,12 @@
 
 > **Read this first.** This document describes Dapr in the present tense as the **target
 > design**. Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) no Dapr
-> component is wired today: `InProcessEventBus`, `InMemoryCacheService` and
-> `ConfigurationSecretProvider` are the registered implementations in every deployment
-> mode, and the three Dapr adapters land in
+> component is wired today. Of the three ports, only `ISecretProvider` has shipped —
+> `ConfigurationSecretProvider`, in Packet 3. `IEventBus` and `ICacheService` land with
+> their in-process defaults (`InProcessEventBus`, `InMemoryCacheService`) in
+> [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md); from then on those
+> defaults are the only registrations in every deployment mode. The three Dapr adapters
+> land in
 > [Phase 11](../roadmap/phase-11-production-hardening.md) against written triggers — a
 > second process consuming an integration event, a second application instance, and
 > secrets needing rotation without a redeploy. Nothing below is wrong; none of it is

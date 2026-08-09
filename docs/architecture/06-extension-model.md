@@ -153,16 +153,18 @@ implementations:
 | `ISmsProvider` | `TwilioSmsProvider`, `NetGsmSmsProvider` |
 | `ILiveClassProvider` | `LiveKitSelfHostedProvider`, `LiveKitCloudProvider` |
 | `IFileStorageService` | `MinioFileStorageService`, `S3FileStorageService` |
-| `IEventBus` | `InProcessEventBus` (registered today), `DaprEventBus` (demand-gated to Phase 11) |
-| `ICacheService` | `InMemoryCacheService` (registered today), `DaprCacheService` (demand-gated to Phase 11) |
-| `ISecretProvider` | `ConfigurationSecretProvider` (registered today), `DaprSecretProvider` (demand-gated to Phase 11) |
-| `IEntitlementProvider` | `NullEntitlementProvider` (dev), `HubEntitlementProvider` (online), `SignedLicenseKeyEntitlementProvider` (air-gapped) |
+| `IEventBus` | `InProcessEventBus` (lands with the port in Packet 5), `DaprEventBus` (demand-gated to Phase 11) |
+| `ICacheService` | `InMemoryCacheService` (lands with the port in Packet 5), `DaprCacheService` (demand-gated to Phase 11) |
+| `ISecretProvider` | `ConfigurationSecretProvider` (**registered today**, shipped in Packet 3), `DaprSecretProvider` (demand-gated to Phase 11) |
+| `IEntitlementProvider` | `NullEntitlementProvider` (Packet 9), `HubEntitlementProvider` (Phase 02c), `SignedLicenseKeyEntitlementProvider` (skeleton from Hub `P02c-6`, hardened in Phase 11) |
 
 The last three rows are the demand-gated set from
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md): the port and its default
-ship now, the vendor adapter ships in the phase named against its written trigger. The
-in-process implementations are not a development convenience — they are the only
-implementations registered in **every** deployment mode until Phase 11.
+ship together, and the vendor adapter ships in the phase named against its written
+trigger. Only `ISecretProvider` has shipped so far — the other two ports and their
+defaults land in [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md). The
+in-process implementations are not a development convenience: once registered they are
+the only implementations in **every** deployment mode until Phase 11.
 
 Adding a new provider is a code change in core (new adapter implementation in
 `LearnStack.Infrastructure`) — not a tenant action.

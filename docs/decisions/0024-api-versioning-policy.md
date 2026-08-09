@@ -26,7 +26,8 @@ Accepted
   exact header set, OpenAPI marking, SDK-generation implications, the
   breaking/non-breaking rule.
 - **Tenant-facing SDK consumers are the constraint.** The Hub HTTPS contract
-  ([ADR-0019](0019-learnstack-hub.md)) is internal mTLS at four endpoints — its
+  ([ADR-0019](0019-learnstack-hub.md)) is the internal mTLS surface enumerated in
+  [ADR-0034 § The endpoint set](0034-hub-contract-surface-invariant.md) — its
   versioning is governed by the Hub repo's own ADR set, not this one. The
   externally-exposed contract is the *tenant-facing* `/api/v1/*` surface, hit by
   the typed SDK generated from OpenAPI, by tenant-side integrations, by webhook

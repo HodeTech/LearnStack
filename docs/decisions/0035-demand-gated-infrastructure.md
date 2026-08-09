@@ -94,6 +94,17 @@ otherwise equal. This rule is added to
 | LiveKit | `ILiveClassProvider` | — (scheduled, not gated — see the exception below) | [Phase 08c](../roadmap/phase-08c-classroom.md) | Live classes become a product requirement |
 | Managed video transcoding | `IVideoTranscoder` | ffmpeg-backed worker ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) | [Phase 11](../roadmap/phase-11-production-hardening.md) | In-house transcode backlog or per-minute cost exceeds the managed alternative |
 
+**Two rows carry a deliberate exception to the four-element rule, named here so they read
+as decided rather than overlooked.** A **schema-internal** block — `audit_log`
+partitioning — has no port because there is no consumer to isolate: the correct
+un-partitioned table plays the default implementation's role, and the conversion is a
+migration, not a swap. A block whose absence is a **missing product feature rather than a
+missing implementation** — LiveKit — has no default, because there is nothing to default
+to before the feature exists; its trigger is the phase that introduces live classes, and
+that is the honest statement of it. It is listed here for completeness of the
+infrastructure picture, not because it is gated in the same sense as the rest. No third
+exception is added without amending this ADR.
+
 `DeploymentMode` keeps all five of its values and the composition root keeps branching
 on it. What changes is the **support claim**: only `Development` and `SaaS` are wired
 end to end before Phase 11. `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped`
@@ -163,7 +174,11 @@ not **whether**.
   [Phase 02a Packet 3](../roadmap/phase-02a-kernel-tenancy.md). The remaining defaults
   (`InProcessEventBus`, `InMemoryCacheService`, `NullEntitlementProvider`) ship in
   [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md). Together they are the
-  **only** registered implementations in every deployment mode until Phase 11.
+  only registered implementations in every deployment mode until their own triggers
+  fire — which is Phase 11 for the event bus, the cache and secrets, but
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md) for `IEntitlementProvider`, whose
+  `NullEntitlementProvider` must not be registered outside `Development` once the
+  Hub-backed implementation exists.
 - `InProcessEventBus` is a first-class transport, not a stub: it uses the same
   `IIntegrationEventHandler<T>` interface, the same `IInboxGuard`, the same
   tenant-context restoration, and the same per-partition-key ordering (concurrent
