@@ -380,8 +380,10 @@ rows are enrolled in the same `SaveChanges` as the business write**, so they
 commit with it or not at all, and so they execute while `app.tenant_id` is set
 and Row Level Security accepts them. SHOULD/MAY-class audit stays best-effort,
 with its accepted loss written down. `AuditConfig` may narrow SHOULD/MAY
-coverage but never removes baseline MUST coverage, and a configuration-read
-failure **fails closed**.
+coverage but never removes baseline MUST coverage. Exactly two failures reject the
+operation — an unclassified operation, and a MUST-class row that cannot be written
+durably; a tenant-override read failure falls back to the in-process catalogue instead
+([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md)).
 
 `LearnStack.Modules.Audit` with the `AuditEntry` aggregate — inheriting
 `Entity<TId>`, **not** `AuditableEntity<T>`, guarded by
@@ -619,7 +621,9 @@ Per [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes AD
 - SHOULD/MAY-class audit stays best-effort, with its accepted loss written down rather
   than assumed.
 - `AuditConfig` may narrow SHOULD/MAY coverage but never removes baseline MUST
-  coverage; a configuration-read failure **fails closed**.
+  coverage. Exactly two failures reject the operation — an unclassified operation and a
+  MUST-class row that cannot be written durably; a tenant-override read failure falls
+  back to the in-process catalogue, which carries the same MUST floor.
 - `LearnStack.Modules.Audit` ships with the `AuditEntry` aggregate (inheriting
   `Entity<TId>`, **not** `AuditableEntity<T>`) and `AuditConfig`.
 - `audit_log` ships as a **single correct table** with the composite primary key

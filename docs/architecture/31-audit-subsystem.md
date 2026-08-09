@@ -407,7 +407,7 @@ Effective execution order (outer → inner):
 Request
   → Validation        (reject before any work; FluentValidation)
   → Logging           (request scope; correlation id)
-  → AuditLog          (classifies; fails closed on config failure)
+  → AuditLog          (classifies; rejects an unclassified operation)
   → TenantContext     (assert tenant_id resolved)
   → Authorization     (resource-scoped checks beyond endpoint-level [Authorize])
   → Transaction       (begin transaction; SET LOCAL app.tenant_id; commit/rollback)
@@ -734,8 +734,10 @@ per-tenant overrides only.
 `is_enabled` is deliberately **not** the whole story. A row here can narrow SHOULD/MAY
 coverage; it cannot switch off an operation the catalogue classifies MUST.
 `ClassifyAsync` applies the override and then re-applies the MUST floor, and a read
-failure against this table rejects the operation rather than defaulting it — see
-[§ 5](#5-the-mediatr-behavior).
+failure against this table falls back to the in-process catalogue — which carries that
+same MUST floor — logged at `Error` and surfaced on the audit health check, rather than
+rejecting the operation. Rejecting would turn a cache outage into a platform-wide denial
+of service; see [§ 5](#5-the-mediatr-behavior), which is the authority.
 
 ## 8. Per-module coverage matrix (baseline)
 

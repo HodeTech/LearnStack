@@ -251,8 +251,12 @@ rules:
   state change it describes** ([ADR-0033](docs/decisions/0033-audit-durability-model.md)),
   so it commits with that change or not at all — and so it executes while
   `app.tenant_id` is set and RLS accepts it. A tenant `AuditConfig` may
-  narrow SHOULD/MAY coverage but never removes baseline MUST coverage, and
-  a config-store read failure **fails closed**.
+  narrow SHOULD/MAY coverage but never removes baseline MUST coverage. Exactly
+  two failures reject the operation: an operation the catalogue does not
+  classify at all, and a MUST-class row that cannot be written durably. A
+  tenant-override **read** failure does not — it falls back to the in-process
+  catalogue, which carries the same MUST floor, so nothing proceeds unaudited
+  and a cache outage does not deny every request platform-wide.
 - Inject `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` directly — use `IEventBus` / `ICacheService` /
   `ISecretProvider`.
