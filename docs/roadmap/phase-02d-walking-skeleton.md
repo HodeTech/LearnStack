@@ -215,8 +215,10 @@ here:
   authenticated route to test against yet; that split arrives with
   [Phase 02b](phase-02b-events-auth.md)'s session.
 - **Two CI jobs activate here.** [Phase 01](phase-01-repository-tooling.md) scaffolded
-  three `if: false` placeholders against the phase each expected to unblock it; two of
-  them unblock now, earlier than that phase predicted:
+  three deferred jobs against the phase each expected to unblock it; two of them
+  unblock now, earlier than that phase predicted. (Phase 01 gated them with
+  `if: false`; they are now gated on unset `vars.ENABLE_*` repository variables,
+  because actionlint rejects a constant condition.)
   - **OpenAPI breaking-change check** — Phase 01 expected Phase 03, because that was
     where the first real `/api/v1/*` endpoint was going to replace `/healthz`. The two
     read endpoints above are that first endpoint.

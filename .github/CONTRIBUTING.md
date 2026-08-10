@@ -20,11 +20,14 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `frontend (typecheck + lint + build + test)`
     - `meta (commit hygiene + link audit)`
     - `secret scan (leakwatch)`
-  - Deferred checks. Activating one is **three edits in the same pull request**,
-    not one: flip its `if:` guard in `ci.yml`, **rename the job** to drop the
-    `(deferred …)` suffix, and update both this list and the live
-    branch-protection setting to the new name. Flipping the guard alone leaves a
-    job that runs but gates nothing.
+  - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
+    unset by default — a constant `if: false` is rejected by actionlint).
+    Activating one is **four edits, in the same pull request wherever possible**:
+    set the variable in **Settings → Secrets and variables → Actions → Variables**,
+    replace the placeholder step with the real one, **rename the job** to drop the
+    `(deferred …)` suffix, and add the new name both to this list and to the live
+    branch-protection setting. Setting the variable alone leaves a job that runs
+    but gates nothing.
     - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
       with the first cross-tenant isolation test.
     - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real

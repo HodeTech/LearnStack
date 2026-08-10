@@ -10,8 +10,11 @@
 #   - frontend : pnpm install + typecheck + lint + build + Vitest
 #   - meta     : `make lint`-style format verification
 #
-# Deferred to later phases (jobs are scaffolded as `if: false` placeholders
-# so the activation is a one-line flip):
+# Deferred to later phases. Each is scaffolded behind a repository variable
+# (`vars.ENABLE_*`), unset by default, so activation is one variable plus the
+# real steps. A constant `if: false` would be simpler but actionlint rejects it
+# ([if-cond] constant expression). Activation is never *only* the variable —
+# see .github/CONTRIBUTING.md § Branch protection for the three edits:
 #   - backend-integration : Testcontainers needs a real Docker socket inside
 #     the runner — works on `ubuntu-latest` natively. Activates when the
 #     first integration test lands (Phase 02a) so we have something to run.
@@ -109,7 +112,10 @@ jobs:
   backend-integration:
     name: backend integration (Testcontainers — deferred)
     runs-on: ubuntu-latest
-    if: false  # activate when LearnStack.Tests.Integration has its first test
+    # Disabled by default: unset vars are the empty string, so this is false until
+    # the repository variable is set to 'true'. Not `if: false` — actionlint rejects
+    # a constant condition ([if-cond]).
+    if: vars.ENABLE_BACKEND_INTEGRATION == 'true'
     steps:
       - run: echo "Placeholder — Phase 02a wires the first Testcontainers integration test."
 
@@ -165,7 +171,7 @@ jobs:
   openapi-diff:
     name: openapi diff (deferred to Phase 02d)
     runs-on: ubuntu-latest
-    if: false  # activate when /api/v1/* endpoints replace the `/healthz` placeholder
+    if: vars.ENABLE_OPENAPI_DIFF == 'true'
     steps:
       - run: echo "Placeholder — Phase 02d wires oasdiff against the prior main spec."
 
@@ -173,7 +179,7 @@ jobs:
   lighthouse-budget:
     name: lighthouse budget (deferred to Phase 02d)
     runs-on: ubuntu-latest
-    if: false  # activate when the first content-bearing public page ships
+    if: vars.ENABLE_LIGHTHOUSE_BUDGET == 'true'
     steps:
       - run: echo "Placeholder — Phase 02d wires LHCI against the built Next.js app."
 

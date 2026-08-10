@@ -479,9 +479,11 @@ re-stated against reality: a standard with no implementing code moves from
 `Active` to `Adopted`. All twenty-two currently claim `Active`, which makes the
 three-state model decorative.
 
-The `if: false` CI placeholder for integration tests
-([Phase 01 Packet 8](phase-01-repository-tooling.md)) is removed once Packet
-7's first isolation test is green. Closes the architecture-test arm of the
+The deferred `backend-integration` CI job
+([Phase 01 Packet 8](phase-01-repository-tooling.md)) activates once Packet 7's first
+isolation test is green — `vars.ENABLE_BACKEND_INTEGRATION` set, the placeholder step
+replaced, and the job renamed and re-required per
+[`.github/CONTRIBUTING.md`](../../.github/CONTRIBUTING.md). Closes the architecture-test arm of the
 [Phase Exit Decision](#phase-exit-decision); the remaining gates close as their
 owning packets ship.
 
