@@ -59,7 +59,7 @@ the canonical wiring per
   building blocks, handled by
   [wire-cross-cutting-foundation](../wire-cross-cutting-foundation/SKILL.md).
   Dapr's runtime provides retry + DLQ + circuit-breaker semantics already.
-- The four Hub HTTPS endpoints (`IEntitlementProvider`, `IUsageReporter`,
+- The Hub HTTPS contract surface (`IEntitlementProvider`, `IUsageReporter`,
   `IHubTenantSync`) — those use the dedicated mTLS + signed JWT + HMAC
   wrapper per [ADR-0019](../../../docs/decisions/0019-learnstack-hub.md).
 - Pure in-process integrations (a JSON converter, a hash function) — no
@@ -313,7 +313,7 @@ In `docs/modules/<module>/providers.md`, add the adapter:
 - Adapter: `LearnStack.Infrastructure.LiveClassroom.LiveKit.LiveKitClient`
 - Resilience section: `Resilience:liveclass:`
 - Exception subclass: `LiveClassProviderException`
-- ADR: [ADR-0005](../../decisions/0005-live-classroom-media-stack.md)
+- ADR: [ADR-0005](../../../docs/decisions/0005-live-classroom-media-stack.md)
 ```
 
 ## Validation

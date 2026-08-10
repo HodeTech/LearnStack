@@ -87,48 +87,105 @@ migrationBuilder.Sql("""
         created_by       uuid NOT NULL,
         updated_at       timestamptz NOT NULL DEFAULT now(),
         updated_by       uuid NOT NULL,
-        row_version      bigint NOT NULL DEFAULT 0
+        row_version      bigint NOT NULL DEFAULT 0,
+        -- Exists solely so child tables can carry a composite FK into this one.
+        CONSTRAINT ux_<name_plural>_tenant_id_id UNIQUE (tenant_id, id)
     );
 
-    CREATE INDEX ix_<name_plural>_tenant_id ON <name_plural> (tenant_id);
-    CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
-        WHERE organization_id IS NOT NULL;
+    -- Every foreign key from this table to another tenant-owned table is
+    -- COMPOSITE on tenant_id:
+    --
+    --     CONSTRAINT fk_<name_plural>_<parent>
+    --         FOREIGN KEY (tenant_id, <parent>_id)
+    --         REFERENCES <parents> (tenant_id, id)
+    --
+    -- Referential-integrity checks run on behalf of the table owner and are NOT
+    -- subject to Row Level Security, so a single-column FK lets one tenant
+    -- reference another tenant's rows and no policy ever observes it.
 
-    ALTER TABLE <name_plural> ENABLE ROW LEVEL SECURITY;
+    -- One composite index, deliberately NOT partial: the policy's
+    -- `organization_id IS NULL` branch matches every tenant-wide row and a b-tree
+    -- indexes NULLs, so the non-partial form serves both branches. No standalone
+    -- index on tenant_id — the UNIQUE constraints above already lead with it.
+    -- Drop organization_id from the index when the table is not org-scoped.
+    CREATE INDEX ix_<name_plural>_tenant_id_organization_id
+        ON <name_plural> (tenant_id, organization_id);
 
-    CREATE POLICY <name_plural>_tenant_isolation ON <name_plural>
-        USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
-    CREATE POLICY <name_plural>_organization_isolation ON <name_plural>
-        USING (
-            organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
-        );
+    -- ─────────────────────────────────────────────────────────────────────────
+    -- RLS: DO NOT WRITE THE POLICY FROM MEMORY, AND DO NOT COPY IT HERE.
+    --
+    -- Open docs/standards/05-database.md § Tenant-Owned and Organization-Scoped
+    -- Tables and copy the canonical block into this migration now, substituting
+    -- <name_plural>. That file is the only place the template exists.
+    --
+    -- The pre-2026-08-08 template lived in four documents and was wrong in all
+    -- four — two PERMISSIVE policies, which PostgreSQL combines with OR, so every
+    -- tenant-wide row was visible across tenants (ADR-0003 Amendment 3). It was
+    -- corrected once, in one file. A second copy is how that recurs.
+    --
+    -- Checklist for what you paste:
+    --   * ENABLE *and* FORCE ROW LEVEL SECURITY            (both table kinds)
+    --   * explicit WITH CHECK                               (both table kinds)
+    --   * NULLIF(current_setting(...), '') on every GUC read (both table kinds)
+    --
+    --   TENANT-ONLY table: exactly ONE permissive policy carrying the tenant
+    --   predicate alone. No organization term, no restrictive guards — there is
+    --   no second scope to widen or narrow.
+    --
+    --   [OrganizationScoped] table: still exactly ONE permissive policy, but its
+    --   predicate ANDs the tenant term with the organization term; PLUS the two
+    --   AS RESTRICTIVE guards (FOR UPDATE, FOR DELETE), because the
+    --   app.scope='tenant' read hatch must not widen writes and DELETE has no
+    --   WITH CHECK.
+    -- ─────────────────────────────────────────────────────────────────────────
     """);
 ```
 
-**Session variable names** are canonical: `app.tenant_id` / `app.organization_id`.
-Architecture test `Every_TenantOwned_Table_HasRls_With_AppTenantId` enforces.
+> The canonical template is
+> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md),
+> and this skill deliberately does **not** mirror it — the block above tells you to open
+> that file and copy from it. See
+> [ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)
+> for why the two-policy shape was withdrawn.
 
-### Step 4: Append-only / partitioned table
+**Session variable names** are canonical: `app.tenant_id` / `app.organization_id` /
+`app.scope`. Always pass the second `true` argument so an unset context filters the row
+out instead of raising on a pooled connection.
 
-If the table is append-only at scale (audit, large event log):
+**Roles.** Migrations run as `learnstack_migration` (the table owner);
+the application connects as `learnstack_app` (`NOBYPASSRLS`, not the owner). Grant the
+new table to `learnstack_app` in the same migration, or the application cannot read it.
+
+### Step 4: Append-only table
+
+An append-only table ships **unpartitioned**, with a composite primary key that a
+future partition conversion can reuse. Do **not** write `PARTITION BY` in the first
+migration: partitioning is demand-gated to
+[Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) on measured growth
+([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)), and shipping
+it early buys partition maintenance before there is anything to maintain.
 
 ```csharp
 migrationBuilder.Sql("""
     CREATE TABLE audit_log (
         id            uuid NOT NULL,
-        occurred_at   timestamptz NOT NULL,
+        timestamp     timestamptz NOT NULL DEFAULT now(),
         tenant_id     uuid NOT NULL,
         -- ... rest ...
-        PRIMARY KEY (id, occurred_at)
-    ) PARTITION BY RANGE (occurred_at);
-
-    -- First partition (others created by retention job per ADR-0028 reservation)
-    CREATE TABLE audit_log_2026_06 PARTITION OF audit_log
-        FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+        -- The partition key must be IN the primary key for the Phase 11 conversion,
+        -- so declare the composite now even though nothing is partitioned yet.
+        -- Column name is `timestamp`, matching the canonical DDL in ADR-0033 and
+        -- 31-audit-subsystem — not `occurred_at`, which is outbox_messages' column.
+        CONSTRAINT audit_log_pkey PRIMARY KEY (id, timestamp)
+    );
     """);
 ```
+
+PostgreSQL has no `ALTER TABLE … PARTITION BY`, so Phase 11 does not convert this table
+in place: it creates a partitioned parent, attaches this table to it, and recreates the
+indexes and the policy on the parent. The composite key above is what keeps that a data
+operation rather than a key migration
+([ADR-0033 § Corrected `audit_log` DDL](../../../docs/decisions/0033-audit-durability-model.md)).
 
 The Postgres trigger that rejects `UPDATE` / `DELETE` on `audit_log` lives in the
 audit module's setup migration; reproduce it for any new append-only table.
@@ -183,8 +240,32 @@ before mutating data:
 ```csharp
 foreach (var tenantId in tenantIds)
 {
-    await connection.ExecuteAsync($"SET LOCAL app.tenant_id = '{tenantId}'");
-    await connection.ExecuteAsync("UPDATE ... WHERE tenant_id = current_setting('app.tenant_id')::uuid");
+    await using var tx = await connection.BeginTransactionAsync(ct);
+
+    // set_config(key, value, is_local: true) is the parameterised equivalent of
+    // SET LOCAL, and it MUST run inside an explicit transaction: PostgreSQL
+    // discards a SET LOCAL issued outside one (with a warning), so the UPDATE
+    // below would otherwise run with no tenant context at all — which, under a
+    // NULLIF-wrapped policy, means it silently updates zero rows.
+    //
+    // Parameterised, not interpolated. String-interpolated SQL is banned by
+    // 05-database.md § Forbidden.
+    await connection.ExecuteAsync(
+        "SELECT set_config('app.tenant_id', @tenantId, true)",
+        new { tenantId = tenantId.ToString() },
+        transaction: tx);
+
+    // No `WHERE tenant_id = current_setting(...)` clause. The connection runs as
+    // learnstack_migration, which is NOBYPASSRLS against a table that is FORCE ROW
+    // LEVEL SECURITY, so the policy scopes the statement to this tenant on its own;
+    // restating the predicate in application SQL is a second copy of the policy that
+    // can drift from the first. Note the consequence: skip the set_config above and
+    // the UPDATE matches ZERO rows and still reports success.
+    await connection.ExecuteAsync(
+        "UPDATE enrollments SET source = 'legacy' WHERE source IS NULL",
+        transaction: tx);
+
+    await tx.CommitAsync(ct);
 }
 ```
 

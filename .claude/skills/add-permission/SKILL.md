@@ -58,7 +58,7 @@ education.course.write
 education.course.delete
 education.course_publication.write     ← "publish a course"
 enrollment.enrollment.write
-enrollment.entitlement.read
+enrollment.course_access.read
 tenancy.organization.admin
 identity.impersonation.write
 audit.export.read
@@ -83,12 +83,12 @@ In `<Module>.Application/<Module>Module.cs`:
 public void RegisterPermissions(IPermissionRegistry registry)
 {
     registry.Tenant(
-        key: "enrollment.entitlement.read",
+        key: "enrollment.course_access.read",
         description: "View entitlements",
         defaultGrants: [Roles.TenantAdmin, Roles.OrgAdmin, Roles.Instructor]);
 
     registry.Tenant(
-        key: "enrollment.entitlement.write",
+        key: "enrollment.course_access.write",
         description: "Grant or revoke entitlements",
         defaultGrants: [Roles.TenantAdmin]);
 

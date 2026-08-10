@@ -2,13 +2,17 @@
 
 **Status:** Active
 **Derives from:** [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md)
-(Amendment 1: Organization Scope),
+(Amendment 1: Organization Scope; **Amendment 3: corrected RLS template, database role
+model, and session-variable placement**),
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
-[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md).
+[ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
+[ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md),
+[ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md),
+[ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -122,6 +126,15 @@ All tenant-facing traffic enters through **APISIX** in standalone mode per
 [ADR-0015](../decisions/0015-api-gateway-apisix.md). The gateway is a defense-in-depth
 layer, not the sole control — the API re-verifies everything.
 
+> **When this becomes live.** APISIX is demand-gated per
+> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md): its trigger is the first
+> non-development deployment that needs edge rate limiting, host routing, or JWT
+> pre-validation, and it lands in
+> [Phase 11](../roadmap/phase-11-production-hardening.md). Until then ASP.NET middleware
+> carries the same responsibilities in-process. Nothing in this section is optional once
+> the gateway is in front of production traffic; none of it is a reason to weaken the
+> in-process control, because the API re-verifies either way.
+
 - `jwt-auth` plugin verifies the access token against the `learnstack` realm's public
   key set; the API also verifies. Both must pass.
 - `cors` plugin handles preflight; authenticated cross-origin traffic is allow-listed
@@ -141,19 +154,35 @@ level.
 ## Hub Contract Surface
 
 The LearnStack ↔ Hub API is a **separate, narrow** surface with stronger controls than
-tenant-facing endpoints. Per
-[ADR-0019](../decisions/0019-learnstack-hub.md):
+tenant-facing endpoints. Per [ADR-0019](../decisions/0019-learnstack-hub.md) and
+[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md):
 
 - **mTLS** with LearnStack-internal CA-signed client certs. Certs are rotated yearly.
 - **Signed JWT (RS256)** carrying `iss`, `aud=learnstack-internal`, `exp ≤ 5 min`,
   `jti` (replay-protected via short-TTL inbox).
 - **HMAC body signature** in the `X-Signature` header (HMAC-SHA256 of the raw body
   with a per-deployment shared secret).
-- All three layers must validate. Failure of any returns `401` with no detail leak.
-- The endpoint set is closed at four:
-  `POST /api/v1/internal/license/verify`, `POST /api/v1/usage/report`,
-  `PUT /api/internal/tenants/{id}/entitlements`, `POST /api/internal/tenants`. Adding
-  a fifth requires an ADR.
+- All three layers must validate on **every** endpoint in the surface, but they fail at
+  two different layers. `/api/internal/*` is bound to its own mTLS listener and is never
+  proxied by APISIX, so a missing, expired or untrusted client certificate is rejected
+  **during the TLS handshake** — no HTTP request reaches the application, so there is no
+  status code and no body to leak. Only the JWT and HMAC checks return `401`, with no
+  detail. Do not write a handler that returns `401` for a certificate failure; it would
+  never be reached, and its existence implies a listener that terminates TLS without
+  requiring the client certificate.
+- The surface is governed by two invariants, not by an endpoint count: the Hub stores no
+  tenant content, and every crossing goes through `IEntitlementProvider`,
+  `IUsageReporter`, or `IHubTenantSync`. The enumerated endpoint set lives in
+  [20-infrastructure-stack.md § Hub HTTPS Contract Surface](20-infrastructure-stack.md);
+  adding an endpoint still requires an ADR, because the surface is a cross-repository
+  contract.
+- **TLS certificates and private keys never travel in the entitlement payload.** That
+  payload is cached, logged, audited and mirrored. Cert material moves by secret-store
+  replication and is referenced from `PUT /api/internal/tenants/{id}/host-mappings` by
+  path, never by value ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)).
+- **Host resolution never calls the Hub.** `IHostToTenantResolver` reads
+  `platform_host_to_tenant` and nothing else, so a Hub outage cannot take anonymous
+  public pages down.
 
 ## Authorization
 
@@ -181,16 +210,97 @@ for the full strategy. Standards-side:
   Roslyn-allowlist attribute and an audit-log call.
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
   payload; jobs without it fail at registration.
-- Connection pool checkout sets both `app.tenant_id` and `app.organization_id`
-  before any work runs (`SET LOCAL` inside the ambient transaction; see
-  [05-database.md § Connection Management](05-database.md)).
+- The `app.tenant_id` and `app.organization_id` session variables are set with
+  `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
+  which is the single authority for that placement.
+
+## Tenant Context
+
+**This section is the single authority for RLS session-variable placement.** Every other
+document links here rather than restating the mechanism.
+
+Row Level Security predicates read four PostgreSQL session variables — `app.tenant_id`,
+`app.organization_id`, `app.scope`, and `app.resolving_host` — whose canonical spellings
+and canonical policy templates live in
+[05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md) and
+[05-database.md § Table classes](05-database.md). This section fixes **where** the first
+three are set. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
+own short read-only transaction before the host lookup, because the row that determines
+the tenant must be readable before any tenant context exists; it is read by exactly one
+policy, on `platform_host_to_tenant`.
+
+### The rule
+
+`app.tenant_id`, `app.organization_id` **and `app.scope`** are set with **`SET LOCAL`,
+inside the ambient transaction, as the first statement after it opens** — in practice by
+`TransactionBehavior` (step 6 of the MediatR pipeline), from the `ITenantContext` that
+`TenantContextBehavior` asserted at step 4.
+
+`SET LOCAL` and `set_config(name, value, true)` are **transaction-local**. PostgreSQL
+discards them when the transaction ends, and they have no effect at all outside one. Two
+consequences follow, and both are load-bearing:
+
+- **Not from a MediatR behavior that runs before `TransactionBehavior`.** A value set at
+  step 4 is gone before the step-6 transaction opens, so every subsequent query runs with
+  an unset `app.tenant_id`.
+- **Not from a `DbConnectionInterceptor`.** Interceptors fire when the connection opens,
+  not when a transaction starts. Under PgBouncer transaction pooling the connection is
+  shared across transactions, so the value is either absent or — worse — left over from
+  another tenant's transaction.
+
+Because every `current_setting` read is called with its missing-OK argument (`true`)
+**and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
+the policy predicate filters the row out. The failure mode is an empty result set, not a
+leak — but an empty result set arriving from production is an outage, so a
+`DbCommandInterceptor` additionally asserts that `TransactionBehavior` has already issued
+the `SET LOCAL` pair before any command against a `[TenantOwned]` table runs, and throws
+`TenantContextMissingException` when it has not. It cannot be a connection-checkout
+interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
+values: checkout precedes the transaction, so the transaction-local value is not there to
+be observed ([05-database.md § Connection Management](05-database.md)).
+
+### Corrections this supersedes
+
+Six other places previously described different placements. All are corrected; if a
+stale copy surfaces, this section wins:
+
+| Document | Previously said | Now |
+|---|---|---|
+| [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md) | Pipeline step 4 (`TenantContextBehavior`) sets the variables via a `DbConnectionInterceptor` | Step 4 asserts and carries tenant context; step 6 sets the variables inside the transaction, and links here |
+| Phase 02a Packet 3 `TenantContextBehavior` code TODO | Names a `DbConnectionInterceptor` as the mechanism | Corrected in [Phase 02a Packet 3b](../roadmap/phase-02a-kernel-tenancy.md) to point here and at Packet 7, which implements it |
+| [33-cross-cutting-concerns.md § Pipeline](../architecture/33-cross-cutting-concerns.md) | Step 4 sets the RLS GUCs via a `DbConnectionInterceptor` | Step 4 asserts only; step 6 issues `SET LOCAL` inside the transaction |
+| [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md) diagram | `TenantContextBehavior (assert resolved; set RLS GUC)` | Corrected in that ADR's Amendment 2, item 3 |
+| [09-tenant-isolation.md § Isolation flow](../architecture/09-tenant-isolation.md) mermaid | The accessor issues `SET LOCAL` from middleware, before any transaction exists | The transaction issues it at step 6 |
+| [Phase 02a § Cross-cutting Concerns](../roadmap/phase-02a-kernel-tenancy.md) | `TenantContextBehavior` (asserts resolved + sets RLS GUCs) | Asserts only; `TransactionBehavior` sets them |
+
+Neither error was visible in review because the corpus described the *layers* correctly
+while describing the *ordering* wrongly, and no code exercised the ordering yet. The
+implementation lands in
+[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md).
+
+### Related authorities
+
+- [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) — the
+  corrected RLS policy template, the four-role database model, and the rule that
+  isolation tests connect as `learnstack_app`.
+- [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md) — the
+  single canonical SQL template. It is not repeated here, or anywhere else.
+- [05-database.md § Connection Management](05-database.md) — PgBouncer transaction-mode
+  pooling, which this rule depends on.
+
+A test that connects as the table owner or as a `BYPASSRLS` role passes even when every
+policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
+[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) deliverable.
 
 ## Secrets and Configuration
 
-- Secrets live in **Vault** (production / staging / dev) accessed via `ISecretProvider`
-  (Dapr secret store) per
-  [ADR-0014](../decisions/0014-adopt-dapr.md). Local development can fall back to
-  `EnvironmentSecretProvider`; `.env.example` is checked in, `.env` is gitignored.
+- Every secret read goes through **`ISecretProvider`**. The registered implementation is
+  `ConfigurationSecretProvider` until Vault's trigger fires — secrets must rotate without
+  a redeploy, or a non-development deployment exists — at which point
+  `DaprSecretProvider` → Vault takes over per
+  [ADR-0014](../decisions/0014-adopt-dapr.md) and
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). Call sites are identical
+  either way. `.env.example` is checked in; `.env` is gitignored.
 - Secret namespace: `learnstack/{deployment}/{module}/{key}`. The deployment segment is
   `development | saas | dedicated | selfhosted`.
 - Production secrets rotated at least every 90 days where rotation is feasible (DB
@@ -242,7 +352,7 @@ for the full strategy. Standards-side:
 
 | Surface | Limit |
 |---------|-------|
-| `/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
+| `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
 | Anonymous API | 60 req/min per IP |
 | Authenticated API | 600 req/min per token |
 | Write endpoints | 60 req/min per token |
@@ -301,11 +411,27 @@ where plan-level `LimitKeys.MaxApiRequestsPerHour` differs per tenant.
 ## Audit Log
 
 Every privileged operation writes an audit log entry per
-[ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md) and the
-[18 Audit Coverage Standard](18-audit-coverage.md). Coverage is **MUST / SHOULD / MAY**
-per module-operation; the MediatR `AuditLogBehavior` writes through `IAuditStore` —
-modules never write `audit_log` directly. Entries are append-only, partitioned by
-month, and queryable by tenant admins for their own tenant (org-admins for their org).
+[ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+(supersedes ADR-0016) and the [18 Audit Coverage Standard](18-audit-coverage.md).
+Coverage is **MUST / SHOULD / MAY** per module-operation; the MediatR
+`AuditLogBehavior` writes through `IAuditStore` — modules never write `audit_log`
+directly. Entries are append-only and queryable by tenant admins for their own tenant
+(org-admins for their org).
+
+Security-relevant durability rules:
+
+- **MUST-class audit fails closed.** The row is enrolled in the same
+  `DbContext.SaveChanges` as the business write, so a privileged operation cannot commit
+  unaudited. It also means the insert runs while `app.tenant_id` is set, which is what
+  lets Row Level Security accept it.
+- **A failure to read `AuditConfig` fails closed too.** A tenant override may narrow
+  SHOULD/MAY coverage; it may never remove baseline MUST coverage.
+- SHOULD/MAY-class audit stays best-effort, and its accepted loss is written down rather
+  than assumed.
+- Monthly partitioning and the retention job land in
+  [Phase 11](../roadmap/phase-11-production-hardening.md) per
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — audit correctness
+  cannot be retrofitted, audit scale can.
 
 ## Incident Response
 

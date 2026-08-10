@@ -51,7 +51,7 @@ Rules:
   that materially contributed. The canonical form is the agent's product name +
   underlying model + context length, with `<noreply@anthropic.com>` as the email
   unless the agent vendor specifies otherwise. Examples:
-  - `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+  - `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
     (default for Claude Code sessions in this repo).
   - `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>` (when the
     assistant is OpenAI Codex / a Codex-derived agent acting on `AGENTS.md`).
@@ -78,7 +78,7 @@ backed by ILiveClassProvider.CreateJoinTokenAsync.
 
 ADR: 0005
 Module: Classroom, Identity
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ```
 
 ## Pull Requests

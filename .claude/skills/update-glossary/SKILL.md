@@ -99,7 +99,7 @@ Rules:
   doc, not a long glossary entry.
 - Lead with what it **is**, not what it's *for*.
 - Cite the authoritative source inline (e.g.
-  "[ADR-0017](decisions/0017-tenant-organization-hierarchy.md)").
+  "[ADR-0017](../../../docs/decisions/0017-tenant-organization-hierarchy.md)").
 - Avoid restating things the canonical doc already says — link.
 
 ### Step 4: Update downstream references

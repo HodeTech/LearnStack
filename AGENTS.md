@@ -16,7 +16,7 @@ There are no rule differences. The only thing that varies between agent runtimes
 the **`Co-Authored-By` commit trailer**, which names the assistant that contributed:
 
 - Claude Code sessions:
-  `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 - OpenAI Codex sessions:
   `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>`
 

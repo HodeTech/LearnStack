@@ -27,7 +27,7 @@ flowchart TB
     subgraph Hub["learnstack-hub (separate repo)"]
         HubApi["LearnStack.Hub.Api"]
         HubDb[("Hub Postgres<br/>(tenant metadata only,<br/>no tenant content)")]
-        HubWeb["learnstack-hub-web<br/>(operator portal Next.js)"]
+        HubWeb["operator-portal<br/>(operator portal Next.js)"]
     end
 
     subgraph External
@@ -45,7 +45,7 @@ flowchart TB
     HubApi --> Vault
 
     HubApi -- "mTLS + signed JWT + HMAC<br/>POST /api/internal/*<br/>(tenant lifecycle, entitlement push)" --> LSApi
-    LSApi -- "API key<br/>(license verify, usage report)<br/>POST /api/v1/internal/*" --> HubApi
+    LSApi -- "mTLS + signed JWT + HMAC<br/>(license verify, usage report)<br/>POST /api/v1/internal/*" --> HubApi
 
     LSApi --> LSDb
     LSDb -. "RLS isolated; Hub NEVER queries" .- HubApi
@@ -182,43 +182,59 @@ erDiagram
 
 ## 3. Communication contracts
 
-### Contract surface — "closed at four"
+### Contract surface — two invariants, not a count
 
-The **closed Hub HTTPS contract surface** is the set of endpoints that the
-`LearnStack_Modules_DoNotReference_Hub` architecture test and the "no fifth without
-ADR" rule (per [ADR-0019](../decisions/0019-learnstack-hub.md) and
-[20-infrastructure-stack.md § Hub HTTPS Contract Surface](../standards/20-infrastructure-stack.md))
-guard. Those four endpoints are the **load-bearing entitlement + lifecycle + telemetry
-contract**:
+Per [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md), the Hub contract
+surface is governed by two properties rather than by an endpoint count:
 
-| # | Direction | Method | Path | Purpose |
-|---|-----------|--------|------|---------|
-| 1 | Hub → LS | POST | `/api/internal/tenants` | Create tenant + default organization |
-| 2 | Hub → LS | PUT | `/api/internal/tenants/{id}/entitlements` | Push updated entitlement projection (status, features, limits, compliance.caps) |
-| 3 | LS → Hub | POST | `/api/v1/internal/license/verify` | Pull / verify entitlement (called by `HubEntitlementProvider`) |
-| 4 | LS → Hub | POST | `/api/v1/usage/report` | Report usage metric (idempotent; Hub aggregates per period) |
+1. **The Hub stores no tenant content.** Courses, lessons, learners, enrollments,
+   classroom sessions, media and content entries live exclusively in LearnStack. The
+   Hub holds tenant *metadata*: plan, subscription, licence, custom domain, compliance
+   caps, aggregated usage. Enforced by `Hub_NeverStores_TenantData`.
+2. **Every crossing goes through a named adapter** — `IEntitlementProvider`,
+   `IUsageReporter`, `IHubTenantSync`. No other type holds a Hub client, and nothing
+   resolves a host by calling the Hub. Enforced by
+   `LearnStack_Modules_DoNotReference_Hub` and
+   `Hub_Client_Referenced_Only_By_Named_Adapters`.
 
-Adding a fifth endpoint to this closed set requires a new ADR.
+This section previously declared the surface "closed at four" and then listed four
+further endpoints as "specializations" that did not count. An HTTP endpoint is a path
+plus a method; `DELETE /api/internal/tenants/{id}` is not `POST /api/internal/tenants`
+because one is the inverse of the other. Worse, the pressure to keep the count at four
+is what drove [ADR-0022](../decisions/0022-custom-domain-tls.md) Amendment 1 to tunnel
+TLS private keys through the entitlement payload. The invariants above are what anyone
+actually needed the count to stand for.
 
-### Auxiliary lifecycle endpoints (within the closed surface)
+**Hub → LearnStack** (`/api/internal/*`, internal listener only):
 
-The operational endpoints below are **specializations of endpoint #2** in the closed
-set — they share the same `/api/internal/tenants/{id}` resource, the same
-mTLS + signed JWT + HMAC chain, the same `Hub → LearnStack` direction, and the same
-authorization scope. They are listed separately for clarity but do not count as new
-contract entries:
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/internal/tenants` | Create tenant + default organization |
+| `PUT` | `/api/internal/tenants/{id}/entitlements` | Push the entitlement projection |
+| `PUT` | `/api/internal/tenants/{id}/status` | Suspend / activate / archive |
+| `DELETE` | `/api/internal/tenants/{id}` | Terminate |
+| `GET` | `/api/internal/tenants/{id}/usage` | Pull aggregated usage |
+| `PUT` | `/api/internal/tenants/{id}/host-mappings` | Push host → `(tenant_id, organization_id?)` mappings. Carries the tuple only — certificate material moves by secret-store replication and is referenced by path |
 
-| Method | Path | Purpose | Belongs to closed-set # |
-|--------|------|---------|--------------------------|
-| PUT | `/api/internal/tenants/{id}/status` | Suspend / activate / archive (status field of entitlement projection) | #2 |
-| GET | `/api/internal/tenants/{id}/usage` | Pull aggregated usage metrics (Hub-side mirror of #4 reports) | #4 |
-| DELETE | `/api/internal/tenants/{id}` | Terminate (hard delete with confirmation) | #1 (inverse) |
-| POST | `/api/v1/internal/license/refresh` | Phone-home refresh used by `SelfHostedOnline` mode — a scheduled call shape of #3 | #3 |
+**LearnStack → Hub:**
 
-If any of these auxiliary endpoints needs a contract or auth model that **differs**
-from its parent (different role, different rate limit, different payload shape that
-isn't a subset of the parent), it must be promoted to a new ADR-registered closed-set
-entry.
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/v1/internal/license/verify` | Verify / pull the entitlement projection |
+| `POST` | `/api/v1/internal/license/refresh` | Scheduled phone-home refresh |
+| `POST` | `/api/v1/usage/report` | Report a usage metric (idempotent) |
+| `POST` | `/api/v1/internal/tenants/{id}/custom-domains` | Submit a custom domain on behalf of a tenant admin (proxied through `IHubTenantSync`; the Admin Studio never calls the Hub directly, because a `learnstack` realm token is rejected there) |
+
+Every one of these carries the same auth chain: mTLS with LearnStack-internal CA-signed
+client certificates, an RS256 JWT with `aud=learnstack-internal` and `exp ≤ 5min`
+replay-protected on `jti`, and an HMAC-SHA256 body signature in `X-Signature`.
+
+Adding an endpoint still requires an ADR — not because the count is sacred, but because
+the surface is a cross-repository contract and both repositories have to agree.
+
+The Hub's own tenant-facing and operator-facing APIs (`/api/v1/tenants/*`,
+`/api/v1/subscriptions/*`, `/api/v1/webhooks/*`) are **not** part of this surface; they
+are the Hub's public API, governed by the Hub repository.
 
 ### Authentication chain (applies to every endpoint above)
 
@@ -229,9 +245,15 @@ entry.
 - Bound to internal listener; **never** proxied through APISIX
 
 **LearnStack → Hub `/api/v1/internal/*` and `/api/v1/usage/*`:**
-- API key per LearnStack instance, stored in Vault (`learnstack/hub/api-key`)
-- Rate limit: 100 req/min per key
-- Scope strictly limited to license verification + usage reporting
+- The same three layers: mTLS client cert, RS256 JWT (`aud=learnstack-internal`,
+  `exp ≤ 5 min`, `jti` replay-protected), HMAC-SHA256 body signature
+- Scope strictly limited to licence verification, phone-home refresh, usage reporting, and
+  proxied custom-domain submission — the set enumerated in
+  [ADR-0034 § The endpoint set](../decisions/0034-hub-contract-surface-invariant.md)
+- The per-instance API key from [ADR-0019](../decisions/0019-learnstack-hub.md) is
+  superseded by [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); rate
+  limiting for this direction is enforced by the Hub's own gateway, not by the
+  credential
 
 ### 3.3. Hub-internal: Stripe / Iyzico webhooks
 
@@ -335,7 +357,7 @@ sequenceDiagram
     HubAPI->>HubAPI: Create LearnStackTenant + HubSubscription + Entitlement (gen=1)
     HubAPI->>Keycloak: Provision tenant in `learnstack` realm<br/>(create tenant_admin user, set tenant_id claim)
     HubAPI->>LSApi: POST /api/internal/tenants {tenant_id, slug, default_org}<br/>(mTLS + signed JWT + HMAC)
-    LSApi->>LSDB: INSERT tenants, organizations (default), platform_entitlement_cache
+    LSApi->>LSDB: INSERT tenants, organizations (default),<br/>platform_host_to_tenant ({slug}.learnstack.app), platform_entitlement_cache
     LSApi-->>HubAPI: 201 Created
     HubAPI->>HubAPI: Schedule welcome email
     HubAPI-->>HubUI: Tenant ready, redirect to {slug}.learnstack.app
@@ -379,7 +401,7 @@ sequenceDiagram
     alt Cache fresh (<15m)
         Cache-->>LSApi: Entitlement (gen=42)
     else Cache stale or miss
-        LSApi->>HubAPI: POST /api/v1/internal/license/verify<br/>(API key, tenant_id, feature_key)
+        LSApi->>HubAPI: POST /api/v1/internal/license/verify<br/>(mTLS + JWT + HMAC; tenant_id, feature_key)
         HubAPI-->>LSApi: Entitlement (gen=42)
         LSApi->>Cache: UPSERT
     end
@@ -433,7 +455,7 @@ sequenceDiagram
 
 ## 6. Operator portal (frontend)
 
-`learnstack-hub-web` is a separate Next.js 16 app deployed at `hub.learnstack.dev`.
+`operator-portal` is a separate Next.js 16 app deployed at `hub.learnstack.dev`.
 Authenticates against `learnstack-hub` Keycloak realm. Operators see:
 
 ```
@@ -544,7 +566,7 @@ In Self-Hosted (especially air-gapped) deployments, Hub may not exist at all; th
 
 Hub's `LearnStack.Hub.Architecture.Tests` runs:
 
-1. `Hub_NeverStores_TenantContent` — Hub DbContext does not contain `Course`, `Lesson`,
+1. `Hub_NeverStores_TenantData` — Hub DbContext does not contain `Course`, `Lesson`,
    `User`, `Enrollment`, `LiveSession`, `LessonItem` entities (or any LearnStack core
    aggregate). Migration scan asserts the absence.
 2. `Hub_Modules_DoNotReference_LearnStack_Internals` — Hub modules reference only
@@ -556,7 +578,15 @@ Hub's `LearnStack.Hub.Architecture.Tests` runs:
    `LearnStack.Hub.Modules.Subscriptions.Infrastructure.Stripe`.
 5. `Iyzico_SDK_Types_NotImportedOutsideInfrastructure` — same for `Iyzipay.*`.
 6. `Hub_Operator_JWT_NeverAccepted_On_LearnStack_Routes` — integration test asserts a
-   `learnstack-hub` realm JWT is rejected by any LearnStack tenant-facing endpoint.
+   `learnstack-hub` realm JWT is rejected by any LearnStack tenant-facing endpoint, and a
+   `learnstack` realm token by `/api/internal/*`.
+7. `Hub_Client_Referenced_Only_By_Named_Adapters` — the second invariant of
+   [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md): a Hub client type is
+   referenced only from `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`
+   implementations, never from a module assembly.
+
+`LearnStack_Modules_DoNotReference_Hub` is the mirror of test 2 and is owned and run by
+the **LearnStack** repository, which is why it does not appear in this list.
 
 ## 11. Phasing
 

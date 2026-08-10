@@ -20,11 +20,24 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `frontend (typecheck + lint + build + test)`
     - `meta (commit hygiene + link audit)`
     - `secret scan (leakwatch)`
-  - Deferred checks — flip the `if: false` guards in `ci.yml` AND add the
-    job name here when the owning phase lands:
-    - `backend integration (Testcontainers — deferred)` — Phase 02a.
-    - `openapi diff (deferred to Phase 03)` — Phase 03.
-    - `lighthouse budget (deferred to Phase 04)` — Phase 04.
+  - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
+    unset by default — a constant `if: false` is rejected by actionlint).
+    Activating one is **four edits, in the same pull request wherever possible**:
+    set the variable in **Settings → Secrets and variables → Actions → Variables**,
+    replace the placeholder step with the real one, **rename the job** to drop the
+    `(deferred …)` suffix, and add the new name both to this list and to the live
+    branch-protection setting. Setting the variable alone leaves a job that runs
+    but gates nothing.
+    - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
+      with the first cross-tenant isolation test.
+    - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
+      `/api/v1/*` read endpoints.
+    - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
+      content-bearing public pages.
+
+    GitHub matches required checks **by name**, so the rename is the dangerous
+    half: a renamed check that nobody re-required is a check that no longer blocks
+    anything, and the PR still shows green.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).
@@ -44,7 +57,7 @@ Per CLAUDE.md § Commit conventions:
 - **Conventional Commits**: `type(scope): subject` with subject in
   imperative mood, ≤ 72 chars.
 - AI-assisted commits carry the trailer
-  `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
   (replace the model name when authoring with a different assistant).
 - `docs(scope)` for doc-only commits; scope ∈ `architecture | decisions |
   standards | roadmap` or omitted for cross-cutting changes.

@@ -51,35 +51,70 @@ For entities like `Course`, `Lesson`, `Page`, `ContentEntry`:
 
 ```sql
 CREATE TABLE courses (
-    id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    slug_key TEXT NOT NULL,        -- locale-independent stable identifier
-    visibility TEXT NOT NULL,
-    -- non-translatable fields only
-    created_at TIMESTAMPTZ NOT NULL,
+    id              uuid PRIMARY KEY,
+    tenant_id       uuid NOT NULL,
+    organization_id uuid NULL,          -- null = tenant-wide, per ADR-0017
+    slug_key        text NOT NULL,      -- stable authoring handle; NOT routable
+    visibility      text NOT NULL,
+    -- non-translatable columns only: no title, no description, no slug
+    created_at      timestamptz NOT NULL,
     -- ...
-    UNIQUE (tenant_id, slug_key)
+    CONSTRAINT ux_courses_tenant_id_slug_key UNIQUE (tenant_id, slug_key),
+    CONSTRAINT ux_courses_tenant_id_id       UNIQUE (tenant_id, id)
 );
 
 CREATE TABLE course_translations (
-    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    locale TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    slug TEXT NOT NULL,            -- locale-specific URL slug
-    seo_title TEXT,
-    seo_description TEXT,
-    PRIMARY KEY (course_id, locale)
+    course_id       uuid NOT NULL,
+    tenant_id       uuid NOT NULL,      -- a real column: RLS is per table, never inherited
+    organization_id uuid NULL,          -- mirrors the parent; for RLS, never for uniqueness
+    locale          text NOT NULL,
+    title           text NOT NULL,
+    description     text NULL,
+    slug            text NOT NULL,      -- locale-specific URL slug
+    seo_title       text NULL,
+    seo_description text NULL,
+    PRIMARY KEY (course_id, locale),
+    -- The routing constraint. Every column in it is NOT NULL, so PostgreSQL's
+    -- nulls-are-distinct rule cannot apply and it rejects every duplicate.
+    CONSTRAINT ux_course_translations_tenant_id_locale_slug
+        UNIQUE (tenant_id, locale, slug),
+    CONSTRAINT fk_course_translations_course
+        FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)
+        ON DELETE CASCADE
 );
-
-CREATE UNIQUE INDEX course_translations_slug_unique
-    ON course_translations (course_id, locale, slug);
 ```
 
-- A row in the parent table represents the entity.
-- A row in the translation table represents the entity *in a specific locale*.
-- Slug is per-locale; the same course has `/tr/kurslar/baslangic-ingilizce` and `/en/courses/beginner-english`.
-- Both tables include or join via `tenant_id` for RLS purposes (translation tables inherit tenant ownership through the parent via a check constraint).
+> **Corrected 2026-08-09.** The block above previously declared
+> `CREATE UNIQUE INDEX course_translations_slug_unique ON
+> course_translations (course_id, locale, slug)`. Those index columns are a proper
+> superset of the primary key `(course_id, locale)`, so the primary key already
+> guaranteed it and the index could reject no row the table would otherwise accept — two
+> different courses in one tenant could both hold `/en/courses/beginner`. The block also
+> claimed translation tables inherit tenant ownership through a parent check constraint,
+> which PostgreSQL does not do. Both are fixed here; the rule is published in
+> [Localization Standards § Pattern A](../standards/08-localization.md).
+
+- A row in the parent table represents the entity. A row in the translation table
+  represents the entity *in a specific locale*.
+- Slug is per-locale; the same course has `/tr/kurslar/baslangic-ingilizce` and
+  `/en/courses/beginner-english`.
+- `slug_key` is an authoring convenience — a stable handle for translators and for
+  import / export. **Nothing routes on it.** The routable identifier is
+  `course_translations.slug`.
+- Translation tables carry `tenant_id` as a real column and declare their own
+  `ENABLE` + `FORCE ROW LEVEL SECURITY` and the full policy set from the canonical
+  template in [Database Standards](../standards/05-database.md). Row Level Security is
+  per table; it is not inherited from a parent through a check constraint, and a
+  satellite carrying `title` and `slug` carries the content.
+- `organization_id` mirrors the parent and exists **only** so the satellite can carry the
+  same isolation predicate. It is deliberately absent from the slug constraint — see
+  [§ Slugs and URLs](#slugs-and-urls). Denormalizing it is safe because
+  `organization_id` on a tenant-owned row is immutable after insert; see
+  [Database Standards § Translation satellite tables](../standards/05-database.md).
+- The foreign key is composite on `tenant_id` for the reason in
+  [Database Standards § Foreign keys between tenant-owned tables](../standards/05-database.md):
+  referential-integrity checks run with Row Level Security bypassed, so a single-column
+  key would let one tenant's translation row reference another tenant's course.
 
 ### Pattern B: JSONB Field (for compact, optional translations)
 
@@ -143,7 +178,35 @@ Slugs are **per locale**. Two patterns:
 
 The Next.js renderer reads tenant locale config at the edge and produces locale-aware routes.
 
-Slug uniqueness is `(tenant_id, locale, slug)`. The same entity can have completely different slugs per locale.
+Slug uniqueness is `UNIQUE (tenant_id, locale, slug)`, declared on the translation table,
+and **flat across organizations**. The same entity can have completely different slugs
+per locale; two different entities in one tenant cannot share one slug in one locale.
+
+`organization_id` is deliberately not part of that key. A host resolves to
+`(tenant_id, organization_id?)`, and the canonical isolation policy admits
+`organization_id IS NULL OR organization_id = <caller's org>` — so an organization's host
+serves tenant-wide rows *and* its own, both tiers compete for one URL, and a key that
+partitioned them would force the renderer to pick a winner. Preferring the
+organization-scoped row means publishing a branch course silently changes what an
+already-published tenant URL serves, with no redirect and no signal to the author who
+owns the tenant-wide row — the "URL changes are breaking" risk below, arrived at without
+anyone editing a slug. Preferring the tenant-wide row is worse: it lets an organization
+author create a row no URL can reach. One flat namespace per `(tenant_id, locale)`
+removes the question. An organization that wants its own variant of a shared course gives
+it its own slug, and the publish command rejects the collision with a business-rule
+failure rather than resolving it at render time.
+
+The routing consequences follow directly, and are behaviour rather than defects:
+
+- A host resolving to `(tenant_id, NULL)` serves tenant-wide rows only. Organization-scoped
+  rows are filtered out by the isolation policy, so their slugs 404 there even though the
+  slug is reserved tenant-wide.
+- A host resolving to `(tenant_id, organization_id)` serves both tiers, and the flat key
+  guarantees at most one match.
+- Slug lookup is **exact**. The fallback chain below resolves display fields after the
+  entity is found; it never resolves a slug. An entity with no translation in the
+  requested locale has no URL in that locale, and a link to it is omitted rather than
+  rendered dead.
 
 ## UI String Catalogue
 
@@ -189,14 +252,36 @@ CREATE TABLE tenant_template_library (
     created_by      uuid NOT NULL,
     updated_at      timestamptz NOT NULL DEFAULT now(),
     updated_by      uuid NOT NULL,
+    -- NULLS NOT DISTINCT (PostgreSQL 15+; LearnStack pins 18 per ADR-0031) is
+    -- load-bearing here. organization_id is null on every tenant-wide template, and a
+    -- standard UNIQUE treats nulls as distinct, so without it a tenant could hold
+    -- unlimited duplicate tenant-wide rows for one (key, channel, locale) and dispatch
+    -- would pick one arbitrarily. organization_id genuinely belongs in this key: an org
+    -- override is a distinct row that dispatch resolves through the org -> tenant
+    -- fallback chain described below. Contrast a routable slug, where the two tiers
+    -- compete for one URL and the column is dropped from the key instead -- see
+    -- Database Standards section Constraints.
     CONSTRAINT ux_tenant_template_library
-        UNIQUE (tenant_id, organization_id, key, channel, locale)
+        UNIQUE NULLS NOT DISTINCT (tenant_id, organization_id, key, channel, locale)
 );
 
-ALTER TABLE tenant_template_library ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_template_library_tenant_isolation ON tenant_template_library
-    USING (tenant_id = current_setting('app.tenant_id')::uuid);
+
+-- Row Level Security: apply the canonical template from
+-- docs/standards/05-database.md § Tenant-Owned and Organization-Scoped Tables
+-- to this table verbatim, substituting tenant_template_library. It is org-scoped,
+-- so it takes the full set: ENABLE + FORCE, one permissive policy with the
+-- organization term AND-ed in, and both AS RESTRICTIVE write guards. The SQL is
+-- deliberately not repeated here — it lives in exactly one file, because the
+-- version that lived in four was wrong in all four (ADR-0003 Amendment 3).
 ```
+
+This table is org-scoped (`organization_id` is nullable and participates in the
+uniqueness constraint), so its organization term lives **inside** the single policy —
+per the canonical template in
+[Database Standards](../standards/05-database.md) and
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md). A
+separate organization policy would be `PERMISSIVE` and `OR`-ed with this one, which
+would expose every tenant-wide template to every tenant.
 
 Dispatch (in the Notifications module) resolves the recipient's preferred locale,
 applies the organization → tenant → tenant-default fallback chain, then renders the

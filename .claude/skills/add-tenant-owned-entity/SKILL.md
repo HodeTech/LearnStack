@@ -135,7 +135,16 @@ dotnet ef migrations add Add_<Name> \
   --startup-project backend/src/LearnStack.Api
 ```
 
-Edit the generated migration to add **both** RLS policies:
+Edit the generated migration to add the table and **one** RLS policy.
+
+> **The canonical template lives in
+> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md),
+> and this skill does not mirror it.** Open that file and copy the block from there.
+> Mirroring it here would be the same mistake that produced four divergent copies before
+> 2026-08-08, one of which leaked every tenant-wide row across tenants
+> ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)) —
+> and a disclaimer saying "the standard wins if they disagree" does not stop the drift,
+> it only predicts it.
 
 ```csharp
 migrationBuilder.Sql("""
@@ -148,29 +157,90 @@ migrationBuilder.Sql("""
         created_by       uuid NOT NULL,
         updated_at       timestamptz NOT NULL DEFAULT now(),
         updated_by       uuid NOT NULL,
-        row_version      bigint NOT NULL DEFAULT 0
+        row_version      bigint NOT NULL DEFAULT 0,
+        -- Exists solely so child tables can carry a composite FK into this one.
+        -- Looks redundant next to the primary key; it is not. See the note below.
+        CONSTRAINT ux_<name_plural>_tenant_id_id UNIQUE (tenant_id, id)
     );
 
-    CREATE INDEX ix_<name_plural>_tenant_id ON <name_plural> (tenant_id);
-    CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
-        WHERE organization_id IS NOT NULL;   -- omit if not org-scoped
+    -- Every foreign key from this table to another tenant-owned table is
+    -- COMPOSITE on tenant_id:
+    --
+    --     CONSTRAINT fk_<name_plural>_<parent>
+    --         FOREIGN KEY (tenant_id, <parent>_id)
+    --         REFERENCES <parents> (tenant_id, id)
+    --
+    -- PostgreSQL evaluates referential integrity as a security-restricted
+    -- operation on behalf of the table owner, and RI checks are NOT subject to
+    -- Row Level Security. A single-column FK therefore lets a row in tenant A
+    -- reference a row in tenant B: the child's WITH CHECK passes because its
+    -- tenant_id is A's, and the FK check passes because it can see B's row. The
+    -- result is a permanent cross-tenant reference that no policy ever sees,
+    -- because no policy ran.
 
-    ALTER TABLE <name_plural> ENABLE ROW LEVEL SECURITY;
+    -- One composite index, deliberately NOT partial: the policy's
+    -- `organization_id IS NULL` branch matches every tenant-wide row and a b-tree
+    -- indexes NULLs, so the non-partial form serves both branches. No standalone
+    -- index on tenant_id — the UNIQUE constraints above already lead with it.
+    -- Drop organization_id from the index if the table is not org-scoped.
+    CREATE INDEX ix_<name_plural>_tenant_id_organization_id
+        ON <name_plural> (tenant_id, organization_id);
 
-    CREATE POLICY <name_plural>_tenant_isolation ON <name_plural>
-        USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
-    -- org policy: omit if not org-scoped
-    CREATE POLICY <name_plural>_organization_isolation ON <name_plural>
-        USING (
-            organization_id IS NULL
-            OR organization_id = current_setting('app.organization_id', true)::uuid
-        );
+    -- ─────────────────────────────────────────────────────────────────────────
+    -- RLS: DO NOT WRITE THE POLICY FROM MEMORY, AND DO NOT COPY IT HERE.
+    --
+    -- Open docs/standards/05-database.md § Tenant-Owned and Organization-Scoped
+    -- Tables and copy the canonical block into this migration NOW, substituting
+    -- <name_plural>. That file is the only place the template exists; this skill
+    -- deliberately does not carry a second instance of it.
+    --
+    -- The template that preceded 2026-08-08 lived in four documents and was wrong
+    -- in all four — two PERMISSIVE policies, which PostgreSQL combines with OR, so
+    -- every tenant-wide row was visible across tenants. It was corrected once, in
+    -- one file. A copy here is how that recurs (ADR-0003 Amendment 3).
+    --
+    -- What you are copying, so you can tell if you got it wrong:
+    --   * ENABLE *and* FORCE ROW LEVEL SECURITY  (without FORCE the owner bypasses)
+    --   * exactly ONE permissive policy, tenant AND organization in one predicate
+    --   * an explicit WITH CHECK, without the app.scope='tenant' read hatch
+    --   * two AS RESTRICTIVE guards, FOR UPDATE and FOR DELETE, when org-scoped
+    --   * NULLIF(current_setting(...), '') on every GUC read
+    -- Drop the organization terms entirely if the table is not org-scoped.
+    -- ─────────────────────────────────────────────────────────────────────────
     """);
 ```
 
-The session-variable names are **canonical**: `app.tenant_id`, `app.organization_id`
-([05-database.md](../../../docs/standards/05-database.md)). Other names break RLS.
+Five properties of the block you just copied are load-bearing. Check each one against
+what you pasted — a reviewer will:
+
+- **`FORCE ROW LEVEL SECURITY`** — without it the owner bypasses the policy and the
+  whole layer is inert while every structural test stays green.
+- **One policy with an `AND`-ed predicate** — splitting the tenant and organization
+  terms into two policies inverts the meaning from AND to OR.
+- **`WITH CHECK`** — `USING` governs reads; without `WITH CHECK` a write can place a
+  row in another tenant. Note the `app.scope = 'tenant'` term is deliberately absent
+  from `WITH CHECK`: tenant-scope reporting may *read* across organizations, but
+  nothing may *write* outside its own. `WITH CHECK` is not sufficient on its own for
+  that guarantee — PostgreSQL has no `WITH CHECK` for `DELETE`, and `USING` is also
+  what selects the rows an `UPDATE` may target — which is why the two `AS RESTRICTIVE`
+  guards above are part of the template and not an optional extra.
+- **The composite `UNIQUE (tenant_id, id)` and the composite foreign keys** — referential
+  integrity is checked on behalf of the table owner and bypasses RLS entirely, so a
+  single-column FK is a cross-tenant reference waiting to happen, invisible to every
+  policy. See
+  [05-database.md § Foreign keys between tenant-owned tables](../../../docs/standards/05-database.md).
+
+Always call `current_setting` with the second argument `true`. Without it an unset
+context raises inside a pooled connection instead of simply filtering the row out.
+
+The session-variable names are **canonical**: `app.tenant_id`, `app.organization_id`,
+`app.scope` ([05-database.md](../../../docs/standards/05-database.md)). Other names
+break RLS silently.
+
+The runtime connects as **`learnstack_app`** (`NOBYPASSRLS`, not the table owner);
+migrations run as `learnstack_migration`, which owns the table. Integration tests for
+this entity must connect as `learnstack_app` — a test that connects as the owner passes
+against an inert policy and proves nothing.
 
 ### Step 4: Architecture test (already covered by convention)
 

@@ -117,26 +117,47 @@ CREATE TABLE tenant_feature_flags (
 );
 
 -- Hub-projected entitlement cache (plan-level features + limits + compliance caps).
--- One row per tenant; replaced on `learnstack.hub.entitlement` Dapr pub/sub event.
+-- One row per tenant. Despite the name this is a DURABLE projection store, not a
+-- cache: it is the layer that makes the grace window real. Written only by
+-- `IEntitlementProvider.RefreshAsync`, from PUT /api/internal/tenants/{id}/entitlements
+-- or from a signed licence key. The `learnstack.hub.entitlement` event is the eager
+-- INVALIDATION signal for the L1/L2 caches in front of it, not the write path.
 CREATE TABLE platform_entitlement_cache (
     tenant_id        uuid PRIMARY KEY,
-    plan_code        text NOT NULL,
-    features         jsonb NOT NULL,    -- Dictionary<string, bool>
-    limits           jsonb NOT NULL,    -- Dictionary<string, long>
-    compliance       jsonb NOT NULL,    -- caps, regions, retention overrides
-    valid_until      timestamptz NOT NULL,
+    plan_code        text NOT NULL,         -- wire field `tier`
+    features         jsonb NOT NULL,        -- Dictionary<string, bool>
+    limits           jsonb NOT NULL,        -- Dictionary<string, long>
+    compliance       jsonb NOT NULL,        -- caps, regions, retention overrides
+    valid_until      timestamptz NOT NULL,  -- wire field `expires_at`
+    grace_until      timestamptz NULL,      -- null unless in grace; bounds the window
+    generation       bigint NOT NULL DEFAULT 1,  -- monotonic; a push is accepted only
+                                            -- when received.generation >= stored
     refreshed_at     timestamptz NOT NULL DEFAULT now(),
-    source           text NOT NULL      -- 'hub' | 'signed-license-key' | 'null-provider'
+    source           text NOT NULL          -- 'hub' | 'signed-license-key' | 'null-provider'
 );
 ```
+
+The wire shape and the column names differ in two places, and the mapping is normative:
+the projection field `tier` persists to `plan_code`, and `expires_at` persists to
+`valid_until`. `grace_until` and `generation` keep their wire names. `grace_until` is
+nullable — a tenant not in grace has none, and the Hub sends null. `generation` defaults
+to 1 so the tenant-provisioning insert at `POST /api/internal/tenants` needs no special
+case; every later push must carry a value greater than or equal to the stored one, which
+is what makes an out-of-order or replayed push a no-op rather than a downgrade. The wire
+shape is pinned by `entitlement-v1.schema.json` in both repositories; the Hub-side
+rendering is in the `learnstack-hub` repository's
+`docs/architecture/entitlement-projection.md`.
 
 Rules:
 
 - `tenant_id = NULL` is **not** allowed. Platform-wide flags use a sentinel "platform"
   tenant id, never `NULL`.
 - The Hub is the **owner** of `platform_entitlement_cache`; the LearnStack core only
-  reads + invalidates. Writes happen through `IEntitlementProvider.RefreshAsync` on
-  the inbound Dapr event from Hub. See
+  reads + invalidates. Writes happen through `IEntitlementProvider.RefreshAsync`
+  only, driven by the HTTP push (`PUT /api/internal/tenants/{id}/entitlements`) or by a
+  signed licence key. The inbound `learnstack.hub.entitlement` event invalidates the
+  L1 / L2 layers; it is not the write path
+  ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). See
   [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
   [29-dapr-integration.md](29-dapr-integration.md).
 - A short-TTL Valkey cache (60 s) fronts both tables for hot-path reads. Eager
@@ -278,7 +299,7 @@ Both surfaces are MUST-audit security-events (see
 - **Phase 06** — Admin Studio surface for editing per-tenant flag overrides and
   viewing the entitlement projection. The Studio screen for `platform_entitlement_cache`
   is **read-only** — actual plan edits happen in the operator portal
-  (`learnstack-hub-web`).
+  (`operator-portal`).
 - **Phase 09** — Audit + observability hooks for both flag writes and entitlement
   refreshes plug into the audit + analytics pipeline.
 - **Phase 11** — Quarterly hygiene review and CI surfacing of stale flags become

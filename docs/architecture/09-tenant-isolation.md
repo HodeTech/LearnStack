@@ -15,8 +15,14 @@ two scopes (tenant + organization):
 - `tenant_id` on every tenant-owned table (mandatory).
 - `organization_id` on every org-scoped tenant-owned table (nullable; null = tenant-wide).
 - EF Core global query filters for both `tenant_id` and `organization_id`.
-- PostgreSQL Row Level Security policies on every tenant-owned table; org-scoped tables
-  carry an additional policy.
+- PostgreSQL Row Level Security on every tenant-owned table: **one** permissive policy
+  whose predicate `AND`s the tenant term with the organization term, plus the two
+  `AS RESTRICTIVE` write guards when the table is org-scoped. Never a second permissive
+  policy — PostgreSQL combines those with `OR`, which is the defect
+  [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
+  corrects. Platform-scoped tables — the ones read *before* the tenant is known — follow
+  a different rule; see
+  [Database Standards § Table classes](../standards/05-database.md).
 - Architecture tests that detect unprotected tenant-owned / org-scoped entities.
 - Explicit platform-admin paths for cross-tenant operations (Hub-driven, audited).
 - Tenant- and org-aware storage, cache, search, analytics, audit, and logs.
@@ -27,11 +33,11 @@ two scopes (tenant + organization):
 |-------|------------------|------------------------|
 | Application context | `ITenantContextAccessor.Current.TenantId` (AsyncLocal) | `ITenantContextAccessor.Current.OrganizationId` (AsyncLocal; nullable) |
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
-| PostgreSQL | RLS policy `tenant_id = current_setting('app.tenant_id', true)::uuid` | RLS policy `organization_id IS NULL OR organization_id = current_setting('app.organization_id', true)::uuid` |
+| PostgreSQL | The tenant term of the single policy: `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid` | The organization term `AND`-ed into that **same** policy, plus the restrictive `UPDATE` / `DELETE` write guards. Canonical SQL in [Database Standards](../standards/05-database.md) |
 | Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
 | Cache | Cache key auto-prefixed `{tenant_id}:{key}` | `{tenant_id}:{org_id}:{key}` when org context set |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
-| Search (Meilisearch) | `tenant_id` as mandatory filter | `organization_id = X OR organization_id IS NULL` clause when org context |
+| Search | `tenant_id` as a mandatory filter composed **inside** `ITenantSearch` — callers pass criteria, never filter strings. Until Meilisearch's demand gate fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), search runs on PostgreSQL full-text over tenant-owned tables and inherits Row Level Security; the engine-enforced per-request tenant token arrives with the Meilisearch adapter in [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | `organization_id = X OR organization_id IS NULL` clause when org context |
 | Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
 | Audit (ADR-0016) | `audit_log.tenant_id` mandatory | `audit_log.organization_id` nullable |
 | Logs (Serilog) | Every log scope carries `TenantId` | `OrganizationId` when context set |
@@ -55,8 +61,8 @@ sequenceDiagram
     API->>MW: HTTP pipeline
     MW->>MW: Read tenant_id, organization_id from JWT claims
     MW->>Accessor: SetTenant(tenantId, organizationId, userId)
-    Accessor->>PG: SET LOCAL app.tenant_id = '...'<br/>SET LOCAL app.organization_id = '...'
     MW->>API: continue
+    API->>EF: BeginTransaction, then SET LOCAL app.tenant_id /<br/>app.organization_id as the first statement (TransactionBehavior, step 6)
     API->>EF: Query tenant-owned aggregate
     EF->>EF: Apply global filter (tenant + org)
     EF->>PG: Query with WHERE tenant_id = X AND (organization_id = Y OR IS NULL)
@@ -66,38 +72,31 @@ sequenceDiagram
 
 ## RLS policy templates
 
-### Tenant-only entity
+The **canonical SQL template** — for both the tenant-only and the tenant + organization
+shape — lives in exactly one place:
+[Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
+It is not repeated here. Copying it into a second document is how the four divergent
+copies that preceded [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)
+came about.
 
-```sql
-ALTER TABLE <table> ADD COLUMN tenant_id uuid NOT NULL;
-CREATE INDEX ix_<table>_tenant_id ON <table> (tenant_id);
+Three properties of that template matter to the isolation model described on this page:
 
-ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY <table>_tenant_isolation ON <table>
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-```
-
-### Tenant + Organization entity
-
-```sql
-ALTER TABLE <table> ADD COLUMN tenant_id uuid NOT NULL;
-ALTER TABLE <table> ADD COLUMN organization_id uuid NULL;
-CREATE INDEX ix_<table>_tenant_org ON <table> (tenant_id, organization_id);
-
-ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY <table>_tenant_isolation ON <table>
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-CREATE POLICY <table>_organization_isolation ON <table>
-    USING (
-        organization_id IS NULL                                                  -- tenant-wide row, visible to all orgs in tenant
-        OR organization_id = current_setting('app.organization_id', true)::uuid  -- org-scoped row, only matching org
-        OR current_setting('app.scope', true) = 'tenant'                         -- tenant-scope operation (admin / reporting) sees all orgs
-    );
-```
+- **One policy, one `AND`-ed predicate.** Tenant and organization scope are evaluated
+  together. Two separate policies would both be *permissive*, and PostgreSQL combines
+  permissive policies with `OR` — under which a tenant-wide row (`organization_id IS
+  NULL`) satisfies the organization half on its own and becomes visible to every
+  tenant. A second policy may only ever be added `AS RESTRICTIVE`.
+- **`ENABLE` and `FORCE ROW LEVEL SECURITY`.** Without `FORCE`, the table owner
+  bypasses its own policies — and the default Entity Framework Core arrangement makes
+  the application that owner.
+- **An explicit `WITH CHECK`.** `USING` decides what is readable; `WITH CHECK` decides
+  what is writable.
 
 The `app.scope = 'tenant'` setting is set by middleware when the request comes from a
-tenant-admin role with a tenant-wide operation flag (e.g. cross-org reporting). The
-default scope (`null` or `'organization'`) honours both filters strictly.
+tenant-admin role with a tenant-wide operation flag (e.g. cross-org reporting). It
+widens **reads** across organizations within the caller's tenant; it never widens
+writes, and it never crosses a tenant boundary. The default scope (`null` or
+`'organization'`) restricts reads to the caller's organization plus tenant-wide rows.
 
 ## Default org semantics
 
@@ -118,9 +117,14 @@ Platform admin (LearnStack operator) access must be explicit:
   not `learnstack` realm.
 - Cross-tenant queries from Hub go through `/api/internal/*` endpoints with mTLS + signed
   JWT + HMAC; never proxied via APISIX (ADR-0019).
-- LearnStack-side endpoint receives request with no tenant context; sets a special
-  `learnstack_audit_admin` Postgres role for the query, which **bypasses RLS** (and
-  emits a `read-sensitive` audit row for every cross-tenant access).
+- The LearnStack-side endpoint receives a request with no tenant context and runs the
+  query through `EnterPlatformAdminScope(reason)`, which opens a **second connection**
+  authenticated as `learnstack_platform` — the `BYPASSRLS` role of the four-role model.
+  There is no `learnstack_audit_admin` role, and `learnstack_app` is not a member of
+  `learnstack_platform`, so the application role cannot reach the bypass by `SET ROLE`.
+  Every cross-tenant access emits a `read-sensitive` audit row, written inside the scope
+  under the sentinel platform tenant id. See
+  [Database Standards § Database roles](../standards/05-database.md).
 - No hidden arbitrary `IgnoreQueryFilters()` usage; architecture test
   `IgnoreQueryFilters_OnlyInPlatformAdminScope` forbids it outside the
   `LearnStack.Modules.Identity.Application.Platform` namespace.
@@ -181,8 +185,8 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 |------|---------|
 | `Every_TenantOwned_Entity_HasTenantId` | Every aggregate marked `[TenantOwned]` (or inheriting `AuditableEntity<>`) has a `TenantId` property and an EF query filter referencing it. |
 | `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every aggregate marked `[OrganizationScoped]` has `OrganizationId` nullable + EF query filter. |
-| `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has at least one RLS policy. |
-| `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: every org-scoped table has the org isolation policy. |
+| `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and **exactly one** permissive policy with an explicit `WITH CHECK`. Two permissive policies fail the test. |
+| `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: the organization term is `AND`-ed inside that single policy — not in a second permissive one — and both `AS RESTRICTIVE` write guards are present. |
 | `IgnoreQueryFilters_OnlyInPlatformAdminScope` | Roslyn source scan: `IgnoreQueryFilters()` appears only in `LearnStack.Modules.Identity.Application.Platform` or behind an `architecture-allow: ignore-query-filters ADR-NNNN` marker. |
 | `Hangfire_JobPayloads_IncludeTenantId` | Reflection: every `LearnStackJob<TParams>` subclass's `TParams` has `TenantId`. |
 | `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; `SetTenant(...)` precedes `ExecuteAsync(...)`. |

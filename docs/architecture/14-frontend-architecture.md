@@ -7,7 +7,7 @@ LearnStack ships **two independent Next.js applications**:
   marketing/CMS rendering, admin Studio, and learner/instructor portals. The multi-app
   split is deferred until concrete need
   ([ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md)).
-- **`learnstack-hub-web`** in the **separate `learnstack-hub` repository** — the
+- **`operator-portal`** in the **separate `learnstack-hub` repository** — the
   **operator portal** at `hub.learnstack.dev`. Operators authenticate against the
   `learnstack-hub` Keycloak realm (ADR-0004 Amendment 1); different realm, different
   user pool, different domain. The two apps **do not share code at runtime**. If a
@@ -61,7 +61,7 @@ frontend/
     config/                               # eslint, tsconfig, tailwind shared bits
 ```
 
-The operator portal (`learnstack-hub-web`) is a **separate Next.js application in the
+The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
 tree.
 
@@ -264,7 +264,7 @@ actions**. The tenant-facing surface in `apps/web` is read-only:
 - Studio renders a banner with the DNS records the tenant must add and a "Recheck now"
   button that **proxies to a Hub admin endpoint** through the internal API.
 - Registering a *new* custom domain happens in the **operator portal**
-  (`learnstack-hub-web`), not in `apps/web`. Tenant admins request a domain via a form
+  (`operator-portal`), not in `apps/web`. Tenant admins request a domain via a form
   in Studio that creates a support ticket / Hub-side request — the actual create is an
   operator action.
 
@@ -304,14 +304,14 @@ CI runs Lighthouse on representative public pages on every PR; budgets failing t
 
 ## Splitting into Multiple Apps Later
 
-The operator portal split has already happened: `learnstack-hub-web` is a *separate
+The operator portal split has already happened: `operator-portal` is a *separate
 repository*, not a separate app within this repo. Within `apps/web`, if and when the
 single-app model breaks down (rebuild times, deploy cadence conflicts, separate teams
 owning different surfaces), the split path is:
 
 1. Extract `packages/ui` first — duplicated primitives become a shared package. (This
    is the same `packages/ui` candidate that, post-extraction, could be a build-time
-   dependency for `learnstack-hub-web` as well.)
+   dependency for `operator-portal` as well.)
 2. Extract `packages/sdk` — already generated, easy lift.
 3. Move `(studio)` into `apps/studio`. Keep `(public)` and `(portal)` together
    initially.

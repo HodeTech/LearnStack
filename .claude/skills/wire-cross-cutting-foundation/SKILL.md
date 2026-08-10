@@ -70,7 +70,7 @@ and
 You should be able to recite, before you write a line of code:
 
 - The eight pipeline behaviors and their order
-  (`Validation → Logging → Audit → TenantContext → Authorization → Transaction → OutboxFlush → Handler`).
+  (`Validation → Logging → AuditLog → TenantContext → Authorization → Transaction → OutboxFlush → Handler`).
 - The Sentry-vs-OTel boundary (`ShouldCapture(ex)` table).
 - The Serilog + OTLP wiring rule (no `AddOpenTelemetry().WithLogging()` alongside).
 - The composition-root branching for `IErrorTrackingProvider`.

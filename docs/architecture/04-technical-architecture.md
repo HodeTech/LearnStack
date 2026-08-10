@@ -17,7 +17,7 @@
 | Search | Meilisearch (initial), OpenSearch (later, if needed). See [ADR 0012](../decisions/0012-search-strategy.md) |
 | Auth | Keycloak (self-hosted OIDC) — two realms: `learnstack` (tenant users) + `learnstack-hub` (operators); ADR-0004 Amendment 1 |
 | Live classroom | LiveKit OSS (self-hosted) + coturn — see [07-in-app-live-classroom.md](07-in-app-live-classroom.md) |
-| Frontend | Next.js (App Router), React, TypeScript — one app for tenant users (`apps/web`); separate Next.js app for Hub operators (`learnstack-hub-web`, in `learnstack-hub` repo) |
+| Frontend | Next.js (App Router), React, TypeScript — one app for tenant users (`apps/web`); separate Next.js app for Hub operators (`operator-portal`, in `learnstack-hub` repo) |
 | API gateway | **Apache APISIX** (standalone mode) — JWT validation, rate limit, CORS, correlation ID; [30-api-gateway.md](30-api-gateway.md), [ADR-0015](../decisions/0015-api-gateway-apisix.md) |
 | API contract | REST + OpenAPI + RFC 7807 Problem Details; GraphQL only if a clear frontend requirement appears |
 | Observability | OpenTelemetry (traces + metrics + logs), Sentry, Grafana + Tempo + Loki + Prometheus |
@@ -31,7 +31,7 @@
 flowchart LR
   subgraph clients["Clients"]
     web[Public Site / Studio / Portal<br/>Next.js apps/web]
-    hubweb[Hub Operator Portal<br/>Next.js learnstack-hub-web]
+    hubweb[Hub Operator Portal<br/>Next.js operator-portal]
   end
 
   subgraph edge["Edge"]
@@ -97,7 +97,7 @@ flowchart LR
   lk --> egress
 
   hubapi -- "mTLS + signed JWT + HMAC<br/>POST /api/internal/*" --> api
-  api -- "API key<br/>POST /api/v1/internal/license/verify" --> hubapi
+  api -- "mTLS + JWT + HMAC<br/>POST /api/v1/internal/license/verify" --> hubapi
   hubapi --> kc_hub
   hubapi --> pg
 ```
@@ -147,7 +147,7 @@ Future options (deferred): schema-per-tenant for enterprise tenants, read replic
 - **Cursor pagination** for list endpoints. Offset pagination is allowed only for admin-bounded lists.
 - **Idempotency keys** for `POST` operations that have external side effects (payments, webhooks, send-notification).
 - **Optimistic concurrency** for any mutable entity using `xmin` or `row_version` column.
-- **API versioning** via URL prefix: `/v1/...`. Breaking changes bump to `/v2/...`; non-breaking additions stay on the existing version. ADR-pending.
+- **API versioning** via URL prefix: `/api/v1/...`. Breaking changes bump to `/api/v2/...`; non-breaking additions stay on the existing version. See [ADR-0024](../decisions/0024-api-versioning-policy.md), which fixed exactly this `/v1/` vs `/api/v1/` inconsistency.
 - **Authentication** via OIDC bearer tokens issued by Keycloak. Frontends use Auth.js to bridge.
 - **Authorization** layered: tenant scope → role/permission → resource ownership where applicable.
 

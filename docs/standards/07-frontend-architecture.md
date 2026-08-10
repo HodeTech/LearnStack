@@ -5,12 +5,12 @@
 [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
 (Amendment 1: `learnstack-hub` realm for the separate operator portal),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
-`learnstack-hub-web` lives in the separate `learnstack-hub` repository).
+`operator-portal` lives in the separate `learnstack-hub` repository).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
 [03-frontend-coding.md](03-frontend-coding.md) for code-level style. The operator
-portal (`learnstack-hub-web`) lives in the separate `learnstack-hub` repo and follows
+portal (`operator-portal`) lives in the separate `learnstack-hub` repo and follows
 its own standards.
 
 ## Apps and Packages
@@ -46,7 +46,7 @@ frontend/
     auth/                      # OIDC client config + BFF helpers
 ```
 
-The operator portal `learnstack-hub-web` is a **separate Next.js application in the
+The operator portal `operator-portal` is a **separate Next.js application in the
 separate `learnstack-hub` repository** — not under this `frontend/` directory. The two
 apps do not share runtime code; if `packages/ui` is later extracted as a build-time
 dependency, it can be referenced by both repos. See

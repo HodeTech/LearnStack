@@ -2,7 +2,39 @@
 
 ## Status
 
-Accepted
+Accepted — **the certificate-delivery mechanism in Amendment 1 (steps 3 and 4) and in
+the 2026-05-19 Option B amendment is superseded by
+[ADR-0034](0034-hub-contract-surface-invariant.md) (2026-08-08)**
+
+> **What ADR-0034 changed.** The lifecycle decided here is unchanged: Hub owns
+> custom-domain administration, DNS-01 and HTTP-01 challenges, Let's Encrypt issuance
+> behind `ITlsCertificateProvider`, and Hub never holds Kubernetes credentials on the
+> LearnStack cluster.
+>
+> What changed is **how the result reaches LearnStack**. Amendment 1 routes the
+> host → tenant mapping *and replicates the certificate, including its private key*
+> through `PUT /api/internal/tenants/{id}/entitlements`, explicitly "to keep the
+> four-endpoint surface closed". That payload is cached in
+> `platform_entitlement_cache`, logged, audited and mirrored — tunnelling a private key
+> through it is strictly worse than declaring another endpoint.
+>
+> Under ADR-0034: host mappings travel over a dedicated
+> `PUT /api/internal/tenants/{id}/host-mappings` carrying the host → tenant tuple only,
+> and certificate material moves by secret-store replication, referenced from that
+> payload **by path, not by value**.
+>
+> Wherever an amendment below routes certificate material through
+> `PUT /api/internal/tenants/{id}/entitlements`, or asserts that the four-endpoint
+> surface is or remains closed, read it as superseded. That applies to Amendment 1
+> steps 3 and 4 and to the Option B amendment's `SelfHostedOnline` / `SaaS` /
+> `Dedicated` bullet. All three now mean: host mappings over
+> `PUT /api/internal/tenants/{id}/host-mappings`, certificate material by secret-store
+> replication, referenced by path.
+>
+> Separately, [Custom Domain + TLS](../architecture/27-custom-domain-tls.md)'s
+> `CachedHostToTenantResolver` calls `IHubClient.LookupHostAsync` on cache miss, which
+> puts the Hub on the hot path of anonymous public page loads. That call is deleted;
+> `platform_host_to_tenant` is the sole authority for host resolution.
 
 ## Date
 

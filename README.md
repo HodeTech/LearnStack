@@ -1,46 +1,70 @@
 # LearnStack
 
-LearnStack is a **multi-tenant core platform for building education products** — not a
-single LMS. It is an education-aware CMS and platform engine that powers different
-learning brands, landing pages, catalogs, portals, and **domain-agnostic** education
-products. The same code paths serve an online English-learning brand, a yoga studio,
-a coding bootcamp, a music school, or a driving school — the difference between them
-is **tenant customization data** loaded at provisioning, not compiled code.
+LearnStack is a **white-label platform for multi-branch education businesses that teach
+live** — not a single LMS, and not an education product of its own. It is an
+education-aware CMS, learning engine, and platform foundation that powers different
+brands, landing pages, catalogs, and learner portals. The same code paths serve a
+language school, a yoga studio, a music school, or a coding bootcamp — the difference
+between them is **tenant customization data** loaded at provisioning, not compiled code
+([ADR-0018](docs/decisions/0018-tenant-driven-customization-model.md)).
 
-The first showcase tenant happens to be an online English-learning platform (Phase 10);
-the substrate-genericity proof is a second, non-English tenant running the same code
-paths against its own customization data.
+That claim has a stated edge: content shape, presentation and pure rule evaluation are
+tenant data; stateful entitlement and external capability invocation are platform
+features gated by plan. See
+[Platform Vision § Genericity boundary](docs/architecture/01-platform-vision.md).
+
+Two tenants in unrelated domains exist from
+[Phase 02a Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md) onward and are both
+rendered in a browser in [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), so
+genericity is tested continuously rather than asserted and checked once at the end.
 
 LearnStack ships in three production deployment modes — SaaS, Dedicated, Self-Hosted —
-backed by the companion **`learnstack-hub`** repository which provides the SaaS /
+backed by the companion **LearnStack Hub** repository, which provides the SaaS /
 Dedicated control plane, plan editor, custom-domain admin, and license-key issuance.
 
-The Hub repo is expected to live at `../learnstack-hub` (sibling to this repo on the
-developer's workstation) so the cross-repo doc cross-links resolve. See
-[learnstack-hub on GitHub](https://github.com/cemililik/LearnStack-Hub) and
-[docs/roadmap/phase-02c-hub-foundation.md](docs/roadmap/phase-02c-hub-foundation.md).
+Today only `Development` and `SaaS` are wired and tested end to end. `Dedicated` and
+the two Self-Hosted `DeploymentMode` values (`SelfHostedOnline`,
+`SelfHostedAirGapped`) are **prepared seams, not supported deployments** — the
+composition root branches on them, but their adapters and integration suites land in
+[Phase 11](docs/roadmap/phase-11-production-hardening.md) per
+[ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md). See
+[25-deployment-models.md](docs/architecture/25-deployment-models.md) for what a
+prepared seam means concretely.
+
+The Hub repo is expected to live at `../LearnStack-Hub` (sibling to this repo on the
+developer's workstation) so the cross-repo doc links resolve. The Hub repository owns
+its own roadmap at `../LearnStack-Hub/docs/roadmap/`. See
+[LearnStack-Hub on GitHub](https://github.com/HodeTech/LearnStack-Hub) and
+[docs/roadmap/phase-02c-hub-foundation.md](docs/roadmap/phase-02c-hub-foundation.md)
+for LearnStack's side of the boundary.
 
 ## Status
 
-Phase 01 complete. The repository now holds the .NET 10 solution scaffold (7
-modules × 4 projects + 4 test projects with `No_Source_Folder_Named_Verticals`
-architecture test), the `pnpm` frontend monorepo (`apps/web` +
-`packages/{config,ui,sdk}`), the full local-dev `docker-compose` stack —
-PostgreSQL 18, Valkey, SeaweedFS, Mailpit, Meilisearch, Keycloak (two realms),
-LiveKit OSS + Coturn, Kafka + kafka-ui, Vault, Dapr sidecar + placement, APISIX
-(file-driven standalone) — and the DX + CI surround: repo-root `Makefile`,
-`.env.example` single source of truth, `.githooks/pre-commit` formatter,
-`infra/compose/e2e.yml` ephemeral overlay, `.github/workflows/ci.yml`, and
-`scripts/seed.sh`. See [docs/roadmap/phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md)
-for the per-packet history. Phase 02a (Platform Kernel + Multi-Tenancy) is
-underway; see [Phase 02a Status & Packets](docs/roadmap/phase-02a-kernel-tenancy.md)
-for the 11-packet breakdown. Packets 0 (Kickoff) and 1 (Foundation decisions
-— [ADR-0023](docs/decisions/0023-strongly-typed-id-source-generator.md) Vogen,
+**Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
+packets 0–3 shipped; packets 3b–10 re-scoped on 2026-08-08.**
+
+Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
+(`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the
+DX + CI surround. See
+[phase-01-repository-tooling.md](docs/roadmap/phase-01-repository-tooling.md) for the
+per-packet history.
+
+Phase 02a packets 0–3 shipped the foundation decisions
+([ADR-0023](docs/decisions/0023-strongly-typed-id-source-generator.md) Vogen,
 [ADR-0024](docs/decisions/0024-api-versioning-policy.md) API versioning,
-[ADR-0028](docs/decisions/0028-audit-log-partition-management.md) audit
-partition mgmt) have shipped; Packet 2 — Shared Kernel core is next.
-Phase 02c (Hub Foundation, parallel, separate repo) starts once the 02a
-sockets it depends on are in place.
+[ADR-0028](docs/decisions/0028-audit-log-partition-management.md) audit partition
+management — whose *timing* later moved to Phase 11), the shared kernel core, and the
+[ADR-0032](docs/decisions/0032-exception-handling-logging-and-observability.md)
+cross-cutting foundation.
+
+The 2026-08-08 restructure moved correctness earlier (the corrected RLS template in
+[ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md), durable
+MUST-class audit in [ADR-0033](docs/decisions/0033-audit-durability-model.md)), moved
+additive infrastructure later behind its ports
+([ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)), and moved the
+genericity proof earlier — two seed tenants in Packet 7, rendered in a browser in
+[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), the next user-visible
+milestone. Module assemblies hold no domain code yet.
 
 ```bash
 make install   # one-time: deps + git hooks
@@ -48,38 +72,56 @@ make dev       # bring local stack up
 make seed      # verify health + print demo credentials
 ```
 
+> `make seed`'s health gate currently times out, because three compose services declare
+> no healthcheck. [Phase 02a Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md) fixes
+> it along with the rest of the Phase 01 development-loop debt.
+
 ## Direction At A Glance
 
 - **Backend:** .NET 10, ASP.NET Core, Entity Framework Core, MediatR.
-- **Database:** PostgreSQL 18, with Row-Level Security from day one. Tenant + **Organization**
-  defense in depth ([ADR-0003 Amendment 1](docs/decisions/0003-tenant-isolation-defense-in-depth.md),
-  [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)).
-- **Cache / Pub-Sub / Secrets:** Valkey 8 (RESP-protocol Linux-Foundation BSD fork
-  per [ADR-0030](docs/decisions/0030-redis-compatible-store-valkey.md)), Kafka,
-  HashiCorp Vault — all accessed via **Dapr** building blocks (`IEventBus`,
-  `ICacheService`, `ISecretProvider`) per
-  [ADR-0014](docs/decisions/0014-adopt-dapr.md).
-- **API Gateway:** **APISIX** in file-driven standalone (`data_plane`) mode per
-  [ADR-0015](docs/decisions/0015-api-gateway-apisix.md).
+- **Database:** PostgreSQL 18, with Row-Level Security from day one. Tenant +
+  **Organization** defense in depth
+  ([ADR-0003](docs/decisions/0003-tenant-isolation-defense-in-depth.md) Amendment 1 for
+  organization scope, **Amendment 3** for the corrected policy template and the
+  four-role database model,
+  [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)). The canonical SQL
+  lives in exactly one file:
+  [Database Standards](docs/standards/05-database.md).
+- **Foundation ports:** `IEventBus`, `ICacheService`, `ISecretProvider`,
+  `IEntitlementProvider`, `IHostToTenantResolver` in `LearnStack.SharedKernel`, each
+  with a working default implementation. Vendor adapters — Dapr
+  ([ADR-0014](docs/decisions/0014-adopt-dapr.md)), Kafka, Valkey
+  ([ADR-0030](docs/decisions/0030-redis-compatible-store-valkey.md)), Vault, APISIX
+  ([ADR-0015](docs/decisions/0015-api-gateway-apisix.md)) — are **demand-gated**: each
+  has an owning phase and a written trigger condition in
+  [ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md).
 - **Object storage:** SeaweedFS locally, S3-compatible storage in production.
-- **Search:** Meilisearch initially.
+- **Search:** PostgreSQL full-text search first; Meilisearch behind `ITenantSearch` when
+  quality or scale requires it.
 - **Frontend:** Next.js 15 (App Router), TypeScript, React. **One** application
-  (`apps/web`) with route segments for public, studio, and portal — multi-app split
-  inside this repo deferred. The operator portal (`learnstack-hub-web`) lives in the
-  separate `learnstack-hub` repository.
+  (`apps/web`) with route segments for public, studio, and portal; a multi-app split
+  inside this repo is not planned before
+  [Phase 11](docs/roadmap/phase-11-production-hardening.md). The operator portal
+  (`frontend/apps/operator-portal`) lives in the separate `LearnStack-Hub` repository.
 - **Identity:** Self-hosted Keycloak with **two realms** — `learnstack` for tenant
   users, `learnstack-hub` for operators.
 - **Architecture:** Modular monolith with explicit module contracts.
 - **Tenant customization:** Per [ADR-0018](docs/decisions/0018-tenant-driven-customization-model.md),
   content types, page blocks, lesson item types, level taxonomies, scoring rules,
   completion rules, custom fields, and notification templates are **data** authored
-  by tenants, not code. The core stays generic.
+  by tenants, not code. The core stays generic, within the boundary the ADR's 2026-08-08
+  amendment draws.
 - **Audit:** Append-only `LearnStack.Modules.Audit` with EF interceptor + MediatR
-  behavior + partitioned `audit_log` table per
-  [ADR-0016](docs/decisions/0016-audit-log-subsystem.md).
+  behavior. MUST-class audit is a durable intent written inside the business
+  transaction per [ADR-0033](docs/decisions/0033-audit-durability-model.md), which
+  supersedes ADR-0016; `audit_log` partitioning and retention land in
+  [Phase 11](docs/roadmap/phase-11-production-hardening.md).
 - **Entitlements:** Feature-based projection mirrored from the Hub per
   [ADR-0021](docs/decisions/0021-feature-based-entitlement.md); typed
-  `FeatureKeys` / `LimitKeys` registries.
+  `FeatureKeys` / `LimitKeys` registries. The Hub contract is governed by two
+  invariants — the Hub stores no tenant content, and every crossing goes through a
+  named adapter — per
+  [ADR-0034](docs/decisions/0034-hub-contract-surface-invariant.md).
 - **Live classroom:** In-app WebRTC; **self-hosted LiveKit OSS** is the default;
   LiveKit Cloud available behind the same `ILiveClassProvider` interface. A custom
   WebRTC SFU is explicitly out of scope.
@@ -131,6 +173,7 @@ Platform substrate deep dives:
 - [30 — API Gateway (APISIX)](docs/architecture/30-api-gateway.md)
 - [31 — Audit Subsystem](docs/architecture/31-audit-subsystem.md)
 - [32 — Tenant Customization Model](docs/architecture/32-tenant-customization-model.md)
+- [33 — Cross-Cutting Concerns](docs/architecture/33-cross-cutting-concerns.md)
 
 Decision context:
 - [18 — WebRTC Build vs Adopt](docs/architecture/18-webrtc-build-vs-adopt.md)
@@ -138,16 +181,25 @@ Decision context:
 
 ### Decisions (`docs/decisions/`)
 - [ADR index](docs/decisions/README.md) — accepted decisions with their reasoning and
-  consequences. The 2026-05-18 redesign added ADRs 0014–0022.
+  consequences. The 2026-05-18 redesign added ADRs 0014–0022; the 2026-08-08
+  restructure added [ADR-0033](docs/decisions/0033-audit-durability-model.md) (audit
+  durability, supersedes ADR-0016),
+  [ADR-0034](docs/decisions/0034-hub-contract-surface-invariant.md) (Hub contract
+  invariants) and
+  [ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md) (demand-gated
+  infrastructure).
 
 ### Engineering Standards (`docs/standards/`)
 - [Standards index](docs/standards/README.md) — rules that apply to every PR: coding,
   testing, security, observability, accessibility, performance,
-  [infrastructure-stack rules](docs/standards/20-infrastructure-stack.md), and more.
+  [infrastructure-stack rules](docs/standards/20-infrastructure-stack.md), and the
+  [architecture-test catalogue](docs/standards/21-architecture-tests-catalogue.md).
 
 ### Roadmap (`docs/roadmap/`)
-- [Phased roadmap](docs/roadmap/README.md) — phases 00 through 12, including the
-  Phase 02c (Hub Foundation) and Phase 09b (Hub Billing) parallel tracks.
+- [Phased roadmap](docs/roadmap/README.md) — phases 00 through 12, including
+  [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) (Two-Tenant Walking Skeleton)
+  and the Phase 02c (Hub Integration) and Phase 09b (Hub Billing) parallel tracks. The
+  dependency map there is authoritative for order; filename order is not.
 
 ### Reference
 - [Glossary](docs/glossary.md) — canonical definitions.
@@ -168,7 +220,11 @@ For the strategy and the headline decisions:
 1. [Platform Vision](docs/architecture/01-platform-vision.md)
 2. [MVP Scope](docs/architecture/05-mvp-scope.md)
 3. [Roadmap overview](docs/roadmap/README.md)
-4. [ADR index](docs/decisions/README.md)
+4. [Phase 02a: Kernel + Tenancy](docs/roadmap/phase-02a-kernel-tenancy.md) — where the
+   work is now
+5. [Phase 02d: Two-Tenant Walking Skeleton](docs/roadmap/phase-02d-walking-skeleton.md)
+   — where it is going next
+6. [ADR index](docs/decisions/README.md)
 
 For the technical foundations:
 1. [Technical Architecture](docs/architecture/04-technical-architecture.md)

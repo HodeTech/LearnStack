@@ -184,7 +184,7 @@ make restart-api
 |---------|-----|
 | `Bind for 0.0.0.0:5432 failed: port is already allocated` | Stop your local Postgres (or change `POSTGRES_PORT` in `.env`). |
 | `relation "tenants" does not exist` | Migrations didn't run; `make migrate`. |
-| `unable to read app.tenant_id` | Connection pool checkout interceptor not wired; check `DeploymentMode`. |
+| `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | First-run seed failed; `make seed-reset` rebuilds. |
 | Web app shows raw i18n keys | i18n bundle build skipped; `pnpm build:i18n`. |
 | Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |

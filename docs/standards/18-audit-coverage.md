@@ -1,7 +1,9 @@
 # 18 — Audit Coverage Standards
 
 **Status:** Active
-**Derives from:** [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md),
+**Derives from:** [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+(supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md), which remains the
+subsystem's context),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [11-security.md](11-security.md) § Audit Log,
 [01-architecture-standards.md](01-architecture-standards.md).
@@ -138,21 +140,39 @@ Rules:
 - One global `audit_log` table partitioned by `occurred_at` **monthly from day one**
   ([ADR-0016](../decisions/0016-audit-log-subsystem.md)). RLS isolates rows by
   `tenant_id`; the partition strategy serves retention pruning.
-- Append-only; the `AuditEntry` aggregate inherits `Entity<TId>` **not**
-  `AuditableEntity<T>`. No `UPDATE` or `DELETE` in application code; CI rejects
-  `UpdateAsync` / `DeleteAsync` calls against `AuditEntry` and a Postgres trigger
-  rejects them at the database layer too.
+- Append-only. The `AuditEntry` aggregate inherits `Entity<TId>` **not**
+  `AuditableEntity<T>` and exposes no mutators; `IAuditStore` has no update method; and
+  the runtime database role `learnstack_app` holds no `UPDATE` or `DELETE` privilege on
+  `audit_log` at all. Exactly **two** mutating paths exist, both owned by the Audit
+  module, both running as `learnstack_platform` through the audited
+  `EnterPlatformAdminScope(reason)` path, and both constrained by the
+  `audit_log_append_only_guard` trigger rather than by convention:
+  - **GDPR redaction** — an `UPDATE` that may change only `actor_email`, `ip_address`,
+    `user_agent`, `before_state`, `after_state` and `changes`. The trigger rejects an
+    `UPDATE` altering any other column, including `actor_user_id`, `operation`, `outcome`
+    and `timestamp`.
+  - **Retention purge** — a `DELETE` of rows past their retention. After Phase 11
+    partitioning this becomes `DETACH` + `DROP PARTITION` and issues no `DELETE` at all.
+
+  A rule that forbade *every* `UPDATE` and `DELETE` would have made both shipped-by-design
+  paths unimplementable. See
+  [31-audit-subsystem.md § 7 Data model → Append-only enforcement](../architecture/31-audit-subsystem.md)
+  for the trigger and § 10 for the redaction path.
 - Tenant admins query their own tenant's entries through a paginated, indexed view.
   Org admins additionally filter by `organization_id`. Platform admins query across
   tenants through a separate read role. Hub operators are platform admins from this
   surface's perspective and their reads are themselves audited.
 - The audit log is **never** the source of truth for application state; downstream
   consumers project from integration events, not from audit entries.
-- Capture pipeline: `AuditChangeTrackerInterceptor` (EF Core SaveChanges interceptor)
-  → `IAuditStateCapture` (before/after/changes JSON capture) →
-  `AuditLogBehavior` (MediatR pipeline behavior that enriches with actor + correlation
-  + operation metadata and writes through `IAuditStore`). Modules see none of this
-  plumbing.
+- Capture pipeline — **decide → write → reconcile**
+  ([ADR-0033](../decisions/0033-audit-durability-model.md)): `AuditLogBehavior` (step 3)
+  classifies and declares a MUST-class intent in `IAuditStateCapture`;
+  `AuditChangeTrackerInterceptor` snapshots each `SaveChanges` into the same buffer and
+  writes nothing; `TransactionBehavior` (step 6) calls `IAuditStore.WritePendingAsync`
+  immediately before `COMMIT`, inserting the complete row on the ambient transaction, and
+  then records whether the commit succeeded; `AuditLogBehavior` reconciles on the way out,
+  re-writing the row standalone whenever the transaction did not commit. Modules see none
+  of this plumbing.
 
 ## Retention
 
@@ -169,7 +189,31 @@ A tenant cannot reduce retention below the platform-defined floor for `security-
 
 ## Required Behaviours
 
-- Every command handler that mutates a MUST-audit resource writes the audit entry in the **same transaction** as the state change (via the outbox if dispatching to consumers, but the audit row itself is local).
+- Every command that mutates a MUST-audit resource has its audit row written in the
+  **same transaction** as the state change, per
+  [ADR-0033](../decisions/0033-audit-durability-model.md). Atomicity comes from the
+  transaction, not from sharing a `SaveChanges` call. If the row cannot be written, the
+  business transaction **fails closed**: it rolls back and the caller receives
+  `503 audit_unavailable` rather than committing unaudited. ADR-0016's "audit never blocks
+  business logic" now applies to SHOULD/MAY-class entries only.
+- **A committed audit row and a committed business row are the same event.** "Inserted"
+  is not "committed": if the transaction rolls back — including on the ordinary path where
+  a handler saves and then returns a failure `Result` — the audit row goes with it and is
+  re-written standalone with outcome `failed`. A MUST-class operation is never left with
+  no row.
+- MUST-class events with **no** business transaction — `denied` outcomes, read-sensitive
+  queries, non-mutating security events — are written standalone, in a short transaction
+  that issues `SET LOCAL app.tenant_id` as its first statement, on a connection outside
+  any business transaction.
+- Classification does not read the database on the request path. The MUST/SHOULD/MAY
+  catalogue is in-process; per-tenant `audit_config` overrides are a cached projection
+  whose loader sets its own tenant GUC. A failure to read a tenant override falls back to
+  the catalogue — which carries the MUST floor, so nothing proceeds unaudited — and is
+  logged and surfaced on the audit health check. An operation the catalogue does not
+  classify at all is **rejected**. A tenant override may narrow SHOULD/MAY coverage and
+  may never remove baseline MUST coverage.
+- Fan-out to external sinks rides the outbox and is best-effort; the **local audit row**
+  is not.
 - Failed `denied` outcomes are audited even though no state changed.
 - Background jobs that mutate MUST-audit resources receive the `actor` via job payload (operator id, or the seed of a system actor with a stable id) and write the entry under that identity.
 - Integration event handlers that mutate state are treated as actors of type `system` and audited accordingly.
@@ -179,10 +223,14 @@ A tenant cannot reduce retention below the platform-defined floor for `security-
 
 The following tests live in `LearnStack.Tests.Architecture` and run on every PR:
 
-- Every handler that calls `SaveChanges` against a MUST-audit aggregate **also** writes
-  an audit row in the same transaction (instrumented via the EF interceptor).
-- The `AuditEntry` aggregate is never updated or deleted by application code (Roslyn
-  analyzer + Postgres trigger).
+- A MUST-class command writes exactly one `audit_log` row, on the same transaction as the
+  business write
+  ([`MustClass_Audit_Writes_Share_The_Business_Transaction`](21-architecture-tests-catalogue.md)).
+- A MUST-class command whose transaction rolls back still produces exactly one row, with
+  outcome `failed` ([`Audit_Survives_Transaction_Rollback`](21-architecture-tests-catalogue.md)).
+- `audit_log` accepts no `UPDATE` or `DELETE` from `learnstack_app`, and accepts from
+  `learnstack_platform` only a column-restricted redaction `UPDATE` and a purge `DELETE`
+  ([`AuditLog_Update_Is_Column_Restricted`](21-architecture-tests-catalogue.md)).
 - `IAuditStore` is the only sanctioned write path: `Modules_Do_Not_Write_AuditLog_Directly`.
 - Every module ships an `audit.md` matrix at the path expected by the doc-coverage
   check.
@@ -203,9 +251,9 @@ Platform admins additionally see cross-tenant entries through a separate route g
 
 ## Forbidden
 
-- Writing an audit entry **after** the controlling transaction commits (the entry can be lost on failure).
+- Writing a MUST-class audit entry **after** the controlling transaction commits, so that a commit failure can lose it. The standalone path is not this: it exists precisely for the cases where no business transaction committed, and it opens its own.
 - Truncating `before`/`after` snapshots silently — if the diff is too large, store an external pointer (`audit_blob_id`) but never an empty object.
-- Mutating an audit row in place.
+- Mutating an audit row in place from anywhere other than the two sanctioned paths (GDPR redaction, retention purge), or widening the trigger's redactable column set without an ADR. Granting `learnstack_app` `UPDATE` or `DELETE` on `audit_log`.
 - Storing audit entries in the same module's read schema (the audit aggregate is global / cross-module).
 - Reducing retention without an ADR.
 - Skipping the matrix in a module spec.

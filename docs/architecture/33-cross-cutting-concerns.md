@@ -88,7 +88,7 @@ Request
                                 }
   ▼
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
-                                set RLS GUCs via DbConnectionInterceptor
+                                carry tenant + organization forward (touches no connection)
   ▼
 [5] AuthorizationBehavior    ←  IAuthorizationService.AuthorizeAsync;
                                 Result.Fail(forbidden) on deny
@@ -118,9 +118,14 @@ Why this order:
   already lives here, and the L1 `IExceptionHandler` is the final catch site.
 - **Tenant context just inside audit.** Audit needs `actor`, `tenant_id`,
   `organization_id` to build a row; those must be resolved before the audit
-  snapshot runs. The behavior validates the context (asserts the middleware
-  populated it) and sets PostgreSQL session variables via the
-  `DbConnectionInterceptor` so RLS policies see the right values.
+  snapshot runs. The behavior *only* validates the context — it asserts the
+  middleware populated it. It does **not** set the PostgreSQL session variables:
+  `SET LOCAL` is transaction-local and step 4 runs before any transaction exists,
+  so the variables are issued by `TransactionBehavior` at step 6 as the first
+  statement inside the transaction. A `DbConnectionInterceptor` cannot do it
+  either — it fires at connection open, not at transaction start. See
+  [Security Standards § Tenant Context](../standards/11-security.md), the single
+  authority for this placement.
 - **Authorization after tenant.** A permission decision usually keys on
   `(tenant_id, user_id, resource)` — those must be ambient first.
 - **Transaction after authorization.** No transaction is opened for a
@@ -323,13 +328,26 @@ table extends with two new rows from this architecture:
 | Error tracking | `NoOpErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` (optional) | `LocalFileErrorTracker` |
 | OTLP exporter target | local OTel Collector (dev compose) | central Collector | central Collector | customer-managed Collector | local file `/var/learnstack/otel/` |
 
-Air-gapped Self-Hosted is the load-bearing case here: every backend (Sentry,
-the central Collector, possibly even DNS) is unreachable. The
-`LocalFileErrorTracker` writes structured-JSON error records to a configured
-directory; an operator's runbook explains how to ship those off-network later
-if the customer ever wants them. The OTLP exporter can be configured to
-write to a file sink instead of a network endpoint via the standard OTel
-file-exporter.
+The `IErrorTrackingProvider` abstraction earns its place on the ordinary grounds: it
+keeps a vendor SDK out of every module assembly, which is the same reason every other
+provider sits behind a port.
+
+Air-gapped Self-Hosted is the *most demanding* configuration of that abstraction —
+every backend (Sentry, the central Collector, possibly even DNS) is unreachable — but
+it is deliberately **not** the justification for it. Per
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) and
+[Engineering Principles](../standards/00-principles.md), a deployment mode without a
+signed contract cannot be the deciding factor in a technical choice; it may only break
+a tie between otherwise-equal alternatives. `SelfHostedAirGapped` ships no earlier than
+[Phase 11](../roadmap/phase-11-production-hardening.md), and the same abstraction is
+justified without it.
+
+`LocalFileErrorTracker` writes structured-JSON error records to a configured directory;
+an operator's runbook explains how to ship those off-network later if the customer ever
+wants them. The OTLP exporter can be configured to write to a file sink instead of a
+network endpoint via the standard OTel file exporter; that file target itself lands in
+[Phase 11](../roadmap/phase-11-production-hardening.md), alongside a test asserting no
+network telemetry exporter is ever wired under `SelfHostedAirGapped`.
 
 Modules **never** branch on `DeploymentMode`. The composition root selects
 the adapter at startup; the architecture test

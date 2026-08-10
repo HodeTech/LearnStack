@@ -1,264 +1,378 @@
-# Phase 02c: LearnStack Hub Foundation (parallel track)
+# Phase 02c: Hub Integration — LearnStack side
 
-> **Status (2026-05-21).** Phase 02c in progress.
+> **Status (2026-05-21).** **P02c-0 — Repository bootstrap ✅**
+> The sibling `learnstack-hub` git repository exists
+> (GitHub: https://github.com/HodeTech/LearnStack-Hub). Backend solution
+> (`LearnStack.Hub.slnx`, 7 core projects + 4 test projects) builds green;
+> frontend pnpm monorepo (`apps/operator-portal` + `packages/{config,sdk,ui}`)
+> typechecks, lints and builds; Hub CI (backend + frontend + meta + secret-scan)
+> mirrors LearnStack's shape; documentation skeleton in place, including the
+> `HUB-NNNN` Hub-internal ADR series. No Hub domain code.
 >
-> **P02c-0 — Repository bootstrap ✅**
-> Sibling `learnstack-hub` git repository created (GitHub:
-> https://github.com/cemililik/LearnStack-Hub). Backend solution
-> (`LearnStack.Hub.slnx`) with 7 core projects + 4 test projects builds
-> green (0 warnings, 0 errors); 4 architecture tests + 1 smoke test pass.
-> Frontend pnpm monorepo (`apps/operator-portal` + `packages/{config,sdk,ui}`)
-> typechecks, lints, and builds. Hub-side compose stack
-> (Dapr placement + sidecar on 50006 / 3501 / 50002, APISIX on 9180,
-> Postgres init for the `learnstack_hub` database) declared; shares
-> LearnStack core's Postgres / Valkey / Vault / Kafka / Keycloak / Mailpit
-> via `host.docker.internal`. Hub CI workflow (backend + frontend + meta
-> + secret-scan) mirrors LearnStack core's shape. Documentation skeleton
-> in place: `docs/architecture/contract-with-learnstack.md` points to
-> LearnStack-side authority for the four-endpoint contract surface;
-> `docs/decisions/` reserves the `HUB-NNNN` Hub-internal ADR series;
-> `docs/glossary.md` covers Hub-specific terms. No Hub domain code yet —
-> that lands in P02c-1.
+> **Status (2026-08-08).** The Hub plan moved to the Hub repository. `P02c-1`
+> through `P02c-7` — Hub domain core, Hub-side internal API, operator portal,
+> custom-domain lifecycle, licence keys and the Hub exit gate — are now planned,
+> tracked and shipped in `../LearnStack-Hub/docs/roadmap/`, one document per packet.
+> The `P02c-N` identifiers are unchanged; they are load-bearing across both
+> repositories. This document is no longer a status mirror. It carries **only the
+> LearnStack-side work**, which is the half that lands in this repository.
 >
-> **P02c-1 — Hub Domain Core ⏳ Next**
-> `LearnStackTenant` (mirror), `Plan`, `HubSubscription`, `Entitlement`
-> aggregates + per-module DbContexts + initial EF migrations; Hub-side
-> equivalent of LearnStack core P02a-2 (SharedKernel: `Result<T>`,
-> `Entity<TId>`, `IClock`, Vogen) + P02a-3 (cross-cutting foundation).
-> `Hub_NeverStores_TenantData` and
-> `Hub_Modules_DoNotReference_LearnStack_Internals` architecture tests
-> become real once modules land.
+> **`P02c-1` on the Hub side shipped on 2026-08-09**, after a review against the
+> restructured corpus found that its domain code conflicts with none of
+> ADR-0033/0034/0035 — its entitlement wire shape already carries `grace_until`
+> and `generation`, it hosts no endpoint, and its audit behavior is a shell.
 >
-> **P02c-2 — Hub-side Internal API + Outbound `LearnStackApiClient` ⏳**
-> `POST /api/v1/internal/license/verify` + `POST /api/v1/usage/report`
-> handlers, mTLS + signed JWT + HMAC body-signature chain, Hub OpenAPI
-> spec generation + frontend SDK generation.
->
-> **P02c-3 — LearnStack core PR ⏳ blocked on LearnStack P02a-5/6/7/9**
-> `HubEntitlementProvider` (production-complete) + `IUsageReporter`
-> adapter on the LearnStack side; APISIX `/api/internal/*` stub activation;
-> `POST /api/internal/tenants` + `PUT /api/internal/tenants/{id}/entitlements`
-> handlers; Dapr `learnstack.hub.entitlement` consumer; architecture test
-> catalogue migration of `LearnStack_Modules_DoNotReference_Hub` +
-> `IEntitlementProvider_Implementations_Are_Three` +
-> `NullEntitlementProvider_NotRegistered_OutsideDevelopment`.
->
-> **P02c-4 — Operator Portal MVP ⏳**
-> Keycloak `learnstack-hub` realm OIDC + PKCE BFF login, tenant list
-> (filterable), tenant detail (entitlement read-only viewer), plan list
-> (read-only), dashboard stub. MFA enforced.
->
-> **P02c-5 — Custom Domain Lifecycle ⏳**
-> `CustomDomain` aggregate + state machine, DNS-01 / HTTP-01 challenge
-> runner, Let's Encrypt provider adapter,
-> `learnstack.hub.custom-domain.activated/.deactivated/.renewed` event
-> publish; LearnStack-side `platform_host_to_tenant` mirror handler per
-> ADR-0022 Amendment 1 (Hub never writes LearnStack K8s state).
->
-> **P02c-6 — License Key (functional skeleton) ⏳**
-> `LicenseKey` aggregate + RSA-2048 keypair + `.lic` file format
-> (JWT-style claims); LearnStack-side `SignedLicenseKeyEntitlementProvider`
-> skeleton.
->
-> **P02c-7 — End-to-End Exit Gate ⏳**
-> Full SaaS scenario + Self-Hosted bootstrap rehearsal; Hub + LearnStack
-> architecture suites green.
+> **The Hub track is frozen from `P02c-2` onward**, on this phase's trigger — see
+> [Goal](#goal). That is where the contract surface ADR-0034 redrew actually gets
+> built, so it is the packet the freeze protects; holding P02c-1's merged artefact
+> would have bought nothing and cost a SharedKernel reconciliation that grows with
+> every packet on top. The Hub repository's `p02c-1-hub-domain-core.md` records
+> the same state.
 
 ## Goal
 
-Bootstrap the **separate `learnstack-hub` repository** and stand up the foundation
-surface that gates SaaS / Dedicated deployments and feeds the entitlement projection
-in LearnStack core. This phase runs **in parallel with Phase 02b**: both depend only
-on the 02a sockets (`IEntitlementProvider`, `IHostToTenantResolver`,
-`platform_entitlement_cache`, `platform_host_to_tenant`) and do not block each other.
+Build LearnStack's side of the LearnStack ↔ Hub boundary: the adapters that read
+entitlement from a control plane, the internal-API handlers that a control plane calls,
+and the projection tables both write into.
 
-Phase 02c does **not** complete the Hub. Billing, invoicing, marketplace, and richer
-operator UI ship in Phase 09b (Hub Billing) and the optional Phase 12 (Hub
-Marketplace). Phase 02c delivers the **minimum viable Hub** — enough to provision a
-tenant, push an entitlement projection, register a custom domain, and verify a
-license — so that the SaaS deployment mode is exercisable end-to-end before MVP exit.
+**This phase hangs off the spine; it never sits in it.** LearnStack runs on
+`NullEntitlementProvider` — every feature enabled, no limits — from
+[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) onward, and every phase from
+[Phase 02d](phase-02d-walking-skeleton.md) through [Phase 11](phase-11-production-hardening.md)
+works without a Hub. Nothing in the product spine waits on this document.
 
-Decisions made / referenced in this phase:
+**The trigger is written down.**
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates the Hub-backed
+`IEntitlementProvider` on a single observable condition:
 
-- [ADR-0004 Authentication Strategy](../decisions/0004-authentication-strategy.md)
-  Amendment 1 — `learnstack-hub` Keycloak realm.
-- [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) — separate
-  repository, mTLS internal API, operator portal.
+> **A tenant must be billed or plan-gated.**
+
+Until that is true, a control plane adds a second repository, a second deployment, an
+mTLS certificate chain, and a network dependency in front of a feature-flag read — in
+exchange for gating features that nobody is paying differently for. When it becomes true,
+this phase starts, and the frozen Hub track resumes at `P02c-2`.
+
+Everything Hub-side — `Plan`, `HubSubscription`, `Entitlement`, `LicenseKey`,
+`CustomDomain`, `CompliancePolicy`, the `learnstack-hub` Keycloak realm, the operator
+portal, the DNS/ACME challenge runner, and Hub's own observability — is planned and built
+in the Hub repository under `../LearnStack-Hub/docs/roadmap/`. Do not restate it here; a
+second copy of a plan is a plan that will be wrong.
+
+Decisions this phase implements:
+
+- [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
+  — the two invariants, the real endpoint set, the normative entitlement read path, and
+  the rule that host resolution never calls the Hub. **This ADR carries the endpoint
+  table; it is not repeated below.**
+- [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
+  — the trigger above, and the reason APISIX and Dapr are not prerequisites for it.
+- [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) — separate repository,
+  mTLS-guarded internal API. Its "closed at four endpoints" rule is replaced by ADR-0034.
+- [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md) —
+  the projection contract and the grace window.
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
-  — `Plan`, `HubSubscription`, license-key issuance.
-- [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md)
-  — entitlement projection contract.
-- [ADR-0022 Custom Domain + TLS](../decisions/0022-custom-domain-tls.md) — DNS-01 /
-  HTTP-01 issuance, APISIX hot-reload contract.
+  — the three `IEntitlementProvider` implementations.
+- [ADR-0022 Custom Domain + TLS](../decisions/0022-custom-domain-tls.md), as amended by
+  ADR-0034: certificate material leaves the entitlement payload.
 
 ## Scope
 
-### Repository Bootstrap (`learnstack-hub`)
+Everything below lands in **this** repository. Each item has a Hub-side counterpart
+tracked in `../LearnStack-Hub/docs/roadmap/`.
 
-- New repo, modular monolith layout mirroring LearnStack core:
-  `backend/`, `frontend/`, `docs/`, `infra/`.
-- .NET 10 + ASP.NET Core API + EF Core + PostgreSQL + Hangfire stack.
-- Next.js 16 App Router for the operator portal (`learnstack-hub-web`).
-- Independent CI/CD pipeline; independent versioning. Build-time-only dependency on a
-  later-extracted `packages/ui` design system (not required Day 1 — duplicate
-  primitives if needed).
+### `HubEntitlementProvider`
 
-### Hub-Side Aggregates
+The Hub-backed implementation of `IEntitlementProvider`, in
+`LearnStack.Infrastructure.Hub`. Its read path is **normative** and fixed by
+[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md):
 
-Per [ADR-0019](../decisions/0019-learnstack-hub.md) and
-[24-learnstack-hub.md](../architecture/24-learnstack-hub.md):
+```text
+L1 in-process cache
+  → L2 distributed cache (ICacheService)
+    → platform_entitlement_cache   (durable; carries valid_until and grace_until)
+      → Hub  (POST /api/v1/internal/license/verify)
+```
 
-- `Plan` (catalog of plans + their feature / limit / compliance defaults).
-- `HubSubscription` (per-tenant plan binding + lifecycle state).
-- `Entitlement` (snapshot of the tenant's effective feature + limit + compliance set;
-  the source of truth for the projection LearnStack core mirrors into
-  `platform_entitlement_cache`).
-- `LicenseKey` (RSA-2048 signed `.lic` file metadata for Self-Hosted).
-- `CustomDomain` (per-tenant host + DNS / TLS validation state).
-- `CompliancePolicy` (per-plan cap set: regions, retention, audit retention floor).
-- `Tenant` mirror (a thin Hub-side view of the LearnStack-side `Tenant` aggregate;
-  Hub is the authoritative source for *plan-related* fields, LearnStack is the
-  authoritative source for *operational* fields).
+The ordering is the design, not an optimisation:
 
-### Internal API Surface (mTLS + signed JWT + HMAC)
+- **`platform_entitlement_cache` sits between the caches and the network.** It is durable
+  and it carries `grace_until`, so a Hub outage on a cold cache degrades to the last known
+  projection within its grace window instead of reaching the network on every feature
+  check. Collapsing the grace window into a cache TTL — which is what the corpus described
+  before ADR-0034 — means a process restart during a Hub outage loses the grace period
+  entirely.
+- **Cold start has a defined answer.** A brand-new instance with empty L1 and L2 and no
+  cached row for the tenant does not throw out of a feature-flag check and does not block
+  the request. It resolves against the per-key-class policy below and records the
+  degradation.
+- **Each feature-key class declares fail-open or fail-closed explicitly**, in the key
+  registry, not at the call site. Presentation and convenience keys fail open — a
+  temporarily visible tab is cheaper than a broken page. Keys that gate paid capacity,
+  data retention, or compliance behaviour fail closed. A key with no declared class does
+  not compile.
+- **Writes go through `IEntitlementProvider.RefreshAsync` only.** No module reads or
+  writes `platform_entitlement_cache` directly
+  (`Modules_Do_Not_Read_Entitlement_Cache_Directly`).
 
-The four-endpoint surface per
-[ADR-0019](../decisions/0019-learnstack-hub.md) and
-[20-infrastructure-stack.md § Hub HTTPS Contract Surface](../standards/20-infrastructure-stack.md):
+`NullEntitlementProvider` stops being registrable outside `Development` once this phase
+lands (`NullEntitlementProvider_NotRegistered_OutsideDevelopment`).
 
-- `POST /api/internal/tenants` — Hub → LearnStack: create tenant + default organization.
-- `PUT /api/internal/tenants/{id}/entitlements` — Hub → LearnStack: push entitlement
-  projection (replaces `platform_entitlement_cache` row + invalidates cache via
-  `learnstack.hub.entitlement` Dapr event).
-- `POST /api/v1/internal/license/verify` — LearnStack → Hub: phone-home verification
-  for SaaS / Dedicated.
-- `POST /api/v1/usage/report` — LearnStack → Hub: usage telemetry (concurrent
-  classroom sessions, monthly minutes, storage GB, etc.).
+### `entitlement-v1.schema.json`
 
-The endpoint set is **closed at four**; adding a fifth requires a new ADR.
+The projection's wire shape is pinned by a **checked-in JSON Schema** in this repository,
+with an identical copy in the Hub repository, and a **snapshot test in each**. Two
+services that agree on a payload only in prose disagree on it within one release; the
+schema is the artefact that makes a breaking change fail a build instead of a production
+tenant.
 
-All four:
-- mTLS with LearnStack-internal CA-signed client certs.
-- Signed JWT (RS256), `aud=learnstack-internal`, `exp ≤ 5min`, replay-protected via
-  short-TTL inbox on `jti`.
-- HMAC-SHA256 body signature in `X-Signature` with per-deployment shared secret.
+- The schema covers the feature set, the limit set, the compliance caps, `expires_at`,
+  `grace_until` and the monotonic `generation`. On the wire the fields are `tier` and
+  `expires_at`; they persist to the `plan_code` and `valid_until` columns of
+  `platform_entitlement_cache` ([21-feature-flags.md](../architecture/21-feature-flags.md)).
+- The LearnStack-side snapshot test asserts that the serialized shape the handler accepts
+  still matches the schema, and that every declared feature key resolves to a registered
+  `FeatureKey` / `LimitKey`.
+- Versioning is in the filename. `entitlement-v2.schema.json` is a new file and a new
+  ADR-gated contract change, not an edit.
 
-### Keycloak Realm: `learnstack-hub`
+### `IUsageReporter`
 
-- Separate realm from `learnstack` (different user pool, different domain).
-- Operator role hierarchy (`hub-platform-admin`, `hub-operator`, `hub-billing-viewer`).
-- MFA required for every operator account.
-- The realm is **never** trusted by the LearnStack tenant-facing API; the tenant-facing
-  gateway rejects `learnstack-hub` realm tokens.
+The outbound adapter for `POST /api/v1/usage/report`. Usage reporting is idempotent and
+best-effort: a dropped usage report is a billing-accuracy problem the Hub reconciles,
+never a reason to fail a tenant's request.
 
-### Operator Portal (`learnstack-hub-web`)
+- Reports are enqueued through the outbox path built in
+  [Phase 02b](phase-02b-events-auth.md) rather than sent inline, so a Hub outage produces
+  a dispatch backlog instead of latency on the operation being metered.
+- The adapter is the **only** type holding a usage-reporting Hub client
+  (`Hub_Client_Referenced_Only_By_Named_Adapters`).
 
-- Tenant list with filters (plan, status, region).
-- Tenant detail: plan, entitlement projection, custom-domain status, license-key
-  state, usage chart.
-- Plan editor (CRUD on `Plan` and its feature / limit / compliance defaults).
-- Per-tenant entitlement override editor (operators can grant a feature outside the
-  plan default for support cases; every override is audited).
-- Custom-domain admin (register, trigger DNS / HTTP-01 challenge, view validation
-  state).
-- License-key issuance for Self-Hosted tenants (signed `.lic` file download).
-- Operator audit log (every operator action against a tenant resource is audited
-  with `actor.hubOperator = true`).
+### Internal-API handlers LearnStack hosts
 
-### Custom-Domain Lifecycle
+LearnStack implements the **Hub → LearnStack** half of the endpoint set enumerated in
+[ADR-0034 § The endpoint set](../decisions/0034-hub-contract-surface-invariant.md) —
+tenant create, entitlement push, status change, termination, usage pull, and host-mapping
+push. The table lives in the ADR and is not duplicated here; both repositories read the
+same list.
 
-Per [ADR-0022](../decisions/0022-custom-domain-tls.md):
+Each handler:
 
-- DNS-01 challenge for wildcard subdomain certs; HTTP-01 for single-host customs.
-- Let's Encrypt provider adapter (`ITlsCertificateProvider`); pluggable to ZeroSSL /
-  enterprise CA.
-- Successful issuance pushes the host → `(tenant_id, organization_id?)` row to
-  LearnStack core via the internal API, which mirrors into `platform_host_to_tenant`
-  and hot-reloads APISIX's route table.
+- Runs on the **internal listener only** and is unreachable from the public surface
+  (`Internal_API_Endpoints_AreNot_Public`).
+- Enforces the full auth chain unchanged from
+  [ADR-0019](../decisions/0019-learnstack-hub.md): mTLS with a LearnStack-internal CA,
+  an RS256 JWT with `aud=learnstack-internal` and a five-minute expiry, an HMAC-SHA256
+  body signature, and replay protection on `jti`. Failing any one layer is a rejection.
+- Rejects `learnstack` realm tokens outright. The tenant-facing surface likewise rejects
+  `learnstack-hub` realm tokens. The two realms never cross.
+- Runs under `HubCorrelationMiddleware`, which populates `ITenantContextAccessor` for the
+  request so that audit, tracing and Row Level Security behave exactly as they do on the
+  tenant-facing path.
+- Writes a MUST-class audit entry through
+  [ADR-0033](../decisions/0033-audit-durability-model.md)'s durable path. An operator
+  action against a tenant is precisely the class of event that must not be lost.
 
-### License-Key Issuance (Self-Hosted)
+### The internal route, and why APISIX is not a prerequisite
 
-Per [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md):
+[ADR-0015](../decisions/0015-api-gateway-apisix.md) stands: when LearnStack needs an edge
+gateway it uses APISIX. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates
+the adapter on a non-development deployment needing edge rate limiting, host routing, or
+JWT pre-validation — and lands it in [Phase 11](phase-11-production-hardening.md).
 
-- RSA-2048 key pair (Hub holds the private key; Self-Hosted instances ship with the
-  public key).
-- Operator issues a `.lic` file with claims: `tenant_id`, `plan_code`, `features`,
-  `limits`, `compliance`, `valid_from`, `valid_until`, `issued_at`, `signature`.
-- Phone-home contract: Self-Hosted instance attempts a verify call every 24h;
-  cached projection survives **30 days** of failed verifications before refusing
-  to operate (the "grace period").
-- Fully air-gapped operation supported: an instance configured with
-  `phone_home_enabled = false` runs purely on the `.lic` file; the operator manually
-  re-issues yearly.
+Until then the internal API is exposed as a **separate ASP.NET Core listener binding** —
+its own port, its own certificate requirement, its own endpoint filter — rather than an
+APISIX route. The security properties are the same and they are enforced in code, which
+is where `Internal_API_Endpoints_AreNot_Public` can see them. When APISIX arrives, the
+route configuration is added in front of a listener that already refuses anything the
+route would have refused.
 
-### Hub-Side Observability
+Two corrections land with the route configuration when it is written, both recorded in
+[API Gateway](../architecture/30-api-gateway.md): the internal route carries no
+`client_secret_ref`, and the route-priority ordering must not let a public route fall
+through to the authenticated catch-all.
 
-- OpenTelemetry stack mirrored from LearnStack core (Tempo / Prometheus / Loki /
-  Grafana).
-- A grafana dashboard for operator portal: tenant count by plan, custom-domain
-  pipeline state, license-verify success rate, entitlement projection push lag.
+### Entitlement invalidation
+
+The Hub publishes `learnstack.hub.entitlement` when a tenant's projection changes, so a
+plan flip reaches `IFeatureFlags.IsEnabledAsync` in seconds rather than at the next TTL
+expiry.
+
+- The **consumer** ships here, as an `IIntegrationEventHandler<T>` using the same inbox
+  guard and tenant-context restoration as every other consumer
+  ([Phase 02b](phase-02b-events-auth.md)).
+- The **transport** is in-process until [Phase 11](phase-11-production-hardening.md), per
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). Cross-process delivery
+  through Dapr and Kafka arrives with the same trigger as everything else on that path —
+  a second process needing to consume an integration event, which a Hub in a separate
+  deployment is.
+- Until the cross-process transport exists, an entitlement push arrives through the HTTP
+  handler (`PUT /api/internal/tenants/{id}/entitlements`), which calls `RefreshAsync`
+  directly. The eager-invalidation event is the optimisation; the HTTP push is the
+  contract.
+- The TTLs are the safety net, not the refresh mechanism: L1 60s, L2 15 minutes as an
+  upper bound.
+
+### `platform_host_to_tenant` mirroring
+
+Host mappings arrive on their own endpoint, `PUT /api/internal/tenants/{id}/host-mappings`,
+and are mirrored into `platform_host_to_tenant`.
+
+One row is **not** pushed: the tenant's own platform subdomain.
+`POST /api/internal/tenants` seeds `{slug}.{platform-domain}` into
+`platform_host_to_tenant` in the same transaction as the tenant row and the default
+organization. It needs no DNS verification and rides the platform wildcard
+certificate, so making it wait on the custom-domain path would leave every
+Hub-provisioned tenant unreachable at the URL the Hub redirects it to — and
+[Standards 20](../standards/20-infrastructure-stack.md) makes an unknown host a 404,
+not a Hub lookup.
+
+Two rules from [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) are
+load-bearing here:
+
+- **TLS certificate material never travels in this payload, or in the entitlement
+  payload.** The entitlement projection is cached, logged, audited and mirrored; a private
+  key in it is a private key in all four. Certificates move between the Hub-owned and
+  LearnStack-owned secret stores by secret-store replication, and the host-mapping payload
+  references them **by path, not by value**.
+- **Host resolution never calls the Hub.** `IHostToTenantResolver` reads
+  `platform_host_to_tenant` and nothing else; `IHubClient.LookupHostAsync` does not exist.
+  An anonymous page load on a tenant's marketing site must not depend on a control plane
+  being reachable, and the resolver shipped in
+  [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) is already written this way.
+
+### Architecture tests
+
+- `LearnStack_Modules_DoNotReference_Hub` — no module assembly holds a Hub client or URL.
+- `Hub_Client_Referenced_Only_By_Named_Adapters` — only `IEntitlementProvider`,
+  `IUsageReporter` and `IHubTenantSync` implementations may.
+- `Internal_API_Endpoints_AreNot_Public` — `/api/internal/*` is not reachable from the
+  tenant-facing surface.
+- `IEntitlementProvider_Implementations_Are_Three` — Null, Hub-backed, signed licence key;
+  no fourth appears without an ADR.
+- `NullEntitlementProvider_NotRegistered_OutsideDevelopment` — becomes enforceable the
+  moment the Hub-backed implementation exists.
+- `Modules_Do_Not_Read_Entitlement_Cache_Directly` — `platform_entitlement_cache` is
+  read-only to modules, through `IFeatureFlags`.
+
+`Hub_NeverStores_TenantData` is the Hub-side invariant and is asserted in the Hub
+repository, against the Hub schema. Its LearnStack-side counterpart is this list.
+
+### Explicitly not in this phase
+
+| Capability | Owner |
+|---|---|
+| `Plan`, `HubSubscription`, `Entitlement`, `LicenseKey`, `CustomDomain`, `CompliancePolicy` aggregates | Hub repository, `P02c-1` |
+| Hub-side internal API and outbound `LearnStackApiClient` | Hub repository, `P02c-2` |
+| `learnstack-hub` Keycloak realm, operator portal, operator MFA | Hub repository, `P02c-4` |
+| DNS-01 / HTTP-01 challenge runner, ACME provider adapter | Hub repository, `P02c-5` |
+| Licence-key issuance and the `.lic` file format | Hub repository, `P02c-6` |
+| `SignedLicenseKeyEntitlementProvider` (LearnStack side) | Skeleton: Hub repository `P02c-6`, as a coordinated pull request into this repository. Operational hardening: [Phase 11](phase-11-production-hardening.md), on a signed Self-Hosted contract ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
+| APISIX internal route configuration | [Phase 11](phase-11-production-hardening.md) |
+| Dapr / Kafka transport for `learnstack.hub.entitlement` | [Phase 11](phase-11-production-hardening.md) |
+| Custom-domain TLS automation end to end | [Phase 11](phase-11-production-hardening.md) |
+| Hub billing, invoicing, dunning | [Phase 09b](phase-09b-hub-billing.md) → Hub repository |
+| Hub marketplace | [Phase 12](phase-12-hub-marketplace.md) → Hub repository |
 
 ## Deliverables
 
-- Independent `learnstack-hub` repo with CI / CD pipeline.
-- Hub-side aggregates + EF + Postgres schema + Hangfire jobs (DNS validation, license
-  verify, periodic re-push).
-- `learnstack-hub` Keycloak realm with operator role hierarchy.
-- Operator portal (Next.js) deployed at `hub.learnstack.dev` (or equivalent).
-- Internal API on a dedicated APISIX route guarded by mTLS + signed JWT + HMAC.
-- Custom-domain lifecycle: DNS / HTTP-01 challenge runner, Let's Encrypt adapter,
-  push to LearnStack core.
-- License-key issuance UI + signed `.lic` download.
-- LearnStack core's `HubEntitlementProvider` is **production-complete** here
-  (in the LearnStack repo, not the Hub repo — Phase 02c PRs into the LearnStack
-  core).
-- LearnStack core's `SignedLicenseKeyEntitlementProvider` lands here as a
-  **functional skeleton** — RSA signature verification, payload parsing, file-watch
-  reload. The production-hardening pieces (key rotation procedure, signed
-  revocation list distribution, SIGHUP hot-reload runbook, multi-day grace-period
-  load testing) ship in **Phase 11**, per
-  [ADR-0020 Phase 11](../decisions/0020-triple-deployment-hybrid-license.md) and
-  [26-hybrid-license-model.md § 11](../architecture/26-hybrid-license-model.md).
-- End-to-end SaaS scenario rehearsable: operator creates a tenant in Hub → tenant
-  appears in LearnStack core with default organization + projection mirrored → tenant
-  admin can log in and see their plan's feature set in Studio.
+- `HubEntitlementProvider` implementing the ADR-0034 read path, with cold-start fallback
+  and per-key-class fail-open / fail-closed policy resolved from the key registry.
+- `IUsageReporter` adapter dispatching through the outbox.
+- The Hub → LearnStack internal-API handlers, on an internal-only listener, behind the
+  full mTLS + RS256 JWT + HMAC + replay-protection chain.
+- `entitlement-v1.schema.json` checked in, with a snapshot test asserting the accepted
+  payload shape and that every key resolves in the registry.
+- An `IIntegrationEventHandler<T>` for `learnstack.hub.entitlement`, in-process until
+  Phase 11.
+- `IHubTenantSync` — the `PUT /api/internal/tenants/{id}/host-mappings` handler and its
+  `platform_host_to_tenant` mirroring, with certificate material referenced by
+  secret-store path rather than carried by value.
+- Audit coverage for every internal-API handler, MUST-class and durable.
+- The six architecture tests above, green in CI.
+- A `Development`-mode integration suite that runs the whole path against a Hub test
+  double, so the LearnStack side is testable without a Hub deployment.
 
 ## Completion Criteria
 
-- An operator can create a tenant on Hub; within seconds, the tenant exists in
-  LearnStack core with its default organization and the entitlement projection
-  populated.
-- Flipping a feature on the tenant's plan on Hub propagates to the tenant's
-  `IFeatureFlags.IsEnabledAsync` reads within seconds (eager invalidation via Dapr
-  pub/sub).
-- A Self-Hosted instance bootstrapped with a signed `.lic` file runs without phone
-  home; flipping `phone_home_enabled = true` produces successful verify calls.
-- A custom-domain registration on Hub completes the DNS challenge, issues the cert,
-  and the host resolves to the right tenant on LearnStack core through APISIX —
-  end-to-end.
-- The internal API rejects requests missing any of the three security layers
-  (mTLS / JWT / HMAC).
-- The operator portal is unreachable via the `learnstack` realm token; the tenant
-  surface is unreachable via the `learnstack-hub` realm token.
-- The Hub-side architecture test suite is green; the LearnStack-side architecture
-  test `LearnStack_Modules_DoNotReference_Hub` continues to hold.
+- A tenant created through `POST /api/internal/tenants` exists in LearnStack with its
+  default organization, resolves at `{slug}.{platform-domain}` through
+  `platform_host_to_tenant`, and its entitlement projection is populated.
+- An entitlement push through `PUT /api/internal/tenants/{id}/entitlements` changes what
+  `IFeatureFlags.IsEnabledAsync` returns for that tenant within seconds.
+- With the Hub unreachable and L1 and L2 cold, a feature check resolves from
+  `platform_entitlement_cache` inside its `grace_until` window, returns a value, and does
+  not throw.
+- Past `grace_until` with the Hub still unreachable, fail-open keys stay enabled and
+  fail-closed keys are refused — each according to its declared class, and each recorded.
+- A request missing any one of mTLS, the signed JWT, or the HMAC body signature is
+  rejected, and a replayed `jti` is rejected.
+- An `/api/internal/*` request bearing a `learnstack` realm token is rejected; a
+  tenant-facing request bearing a `learnstack-hub` realm token is rejected.
+- A host-mapping push resolves the new host to the right tenant through
+  `platform_host_to_tenant`, with the Hub then taken offline — host resolution is
+  unaffected.
+- No TLS private key appears in `platform_entitlement_cache`, in any log line, or in any
+  audit row. The schema makes this checkable rather than a matter of trust.
+- The `entitlement-v1.schema.json` snapshot tests are green in **both** repositories at
+  the same commit pair.
+- Every architecture test listed above is green.
 
 ## Risks
 
-- **Two-repo coordination drift.** Mitigated by the closed four-endpoint contract;
-  changes to the contract are ADR-gated.
-- **Hub becomes a single point of failure for SaaS tenants.** Mitigated by the
-  15-minute TTL cache on `platform_entitlement_cache` + the cached-projection grace
-  period that lets LearnStack core continue operating during a Hub outage.
-- **mTLS cert / HMAC secret rotation outages.** Mitigated by yearly rotation cadence
-  + dual-key support window during rotation.
-- **Operator portal abuse.** Mitigated by mandatory MFA + every action audited with
-  `actor.hubOperator = true` + rate limit on the internal API.
+- **Two-repository contract drift.** Two teams, two release cadences, one payload.
+  Mitigated by the checked-in schema and the paired snapshot tests, by ADR-0034 as the
+  single endpoint authority for both repositories, and by the coordination protocol below.
+- **The Hub creeps onto the hot path.** The failure this phase most needs to prevent is a
+  Hub outage taking anonymous tenant pages down. Mitigated structurally: host resolution
+  never calls the Hub, and the entitlement read path reaches the network only after a
+  durable local row has been consulted.
+- **Grace collapses into a TTL.** A cache TTL and a grace window look interchangeable
+  until a process restarts during an outage. `platform_entitlement_cache` is durable and
+  carries `grace_until` for exactly that case; a review that lets grace live only in L2 has
+  reintroduced the defect ADR-0034 removed.
+- **Fail-open by default.** A key whose class was never declared behaves as whatever the
+  first implementation happened to do. The registry rejects an undeclared class at compile
+  time; reviewers check that paid capacity and compliance keys are on the closed side.
+- **~~The frozen Hub branch rots.~~ Discharged 2026-08-09 by merging it.**
+  `feat/phase-02c-packet-1-hub-domain-core` was 221 files against a moving base. The
+  review that preceded the merge found the rot was the only certain cost: the code
+  conflicts with none of ADR-0033/0034/0035, so holding it bought no safety. What it did
+  leave is a SharedKernel reconciliation against
+  [Packet 3b](phase-02a-kernel-tenancy.md), tracked on the Hub side, which does grow with
+  every packet built on top.
+- **mTLS certificate and HMAC secret rotation.** Mitigated by a dual-key window during
+  rotation and a documented cadence; both are Phase 11 operational work and are named
+  there.
+- **Operator abuse.** Mitigated on the Hub side by mandatory MFA, and on this side by
+  auditing every internal-API mutation with the operator as actor.
+
+### Cross-repository PR coordination
+
+A contract change is two pull requests in two repositories, and the order is not
+negotiable:
+
+1. **The Hub PR merges first**, carrying the Hub-side handler or client and the updated
+   `entitlement-v1.schema.json`.
+2. **The LearnStack PR references that Hub commit SHA** in its description, carries the
+   identical schema file, and merges after it.
+3. **Both snapshot tests are green at the resulting commit pair** before either side is
+   deployed. A red snapshot on either side blocks the deployment of both.
+
+A contract change that reaches only one repository is an outage waiting for the next
+deploy. The Hub repository's `p02c-3-learnstack-integration.md` states the same protocol
+from the other side; the two documents are deliberately symmetric.
 
 ## Phase Exit Decision
 
-Phase 02c is complete when SaaS deployment mode is exercisable end-to-end (operator
-creates tenant → LearnStack core picks up the projection → tenant admin logs in)
-and Self-Hosted deployment mode is exercisable end-to-end (signed `.lic` issued →
-Self-Hosted instance boots with the projection). The completion does not block
-Phase 03 (Identity domain in LearnStack core) — they can finish in either order.
+Phase 02c is complete when the SaaS deployment mode is exercisable end to end — an
+operator creates a tenant on the Hub, the tenant appears in LearnStack with its default
+organization and entitlement projection, a plan change reaches the tenant's feature flags,
+a host mapping resolves, and a Hub outage degrades billing and provisioning without
+touching public pages.
+
+This phase gates nothing else. [Phase 03](phase-03-identity-admin.md) and everything after
+it proceed on `NullEntitlementProvider` regardless of when Phase 02c starts or finishes.
+The Self-Hosted mode's exit — signed `.lic` issuance and
+`SignedLicenseKeyEntitlementProvider` — belongs to
+[Phase 11](phase-11-production-hardening.md) and its own trigger, a signed Self-Hosted
+contract.

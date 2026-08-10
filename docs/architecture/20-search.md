@@ -1,5 +1,16 @@
 # Search
 
+> **Read this first.** Meilisearch is **demand-gated**
+> ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). The `ITenantSearch`
+> port and a **PostgreSQL full-text** implementation ship in
+> [Phase 04](../roadmap/phase-04-cms-media-pages.md), which is the first phase with
+> content to index; the Meilisearch adapter lands in
+> [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) when its trigger
+> fires — search quality or scale exceeds PostgreSQL full-text. Everything below
+> describes the Meilisearch target, not the running system. The tenant-filter rule is
+> the part that applies to **both** implementations: the predicate is composed inside
+> the port, never by a caller.
+
 LearnStack uses **Meilisearch** for tenant-scoped full-text search across courses, content entries, media metadata, and lesson item titles. This document defines index layout, tenant + locale isolation, indexing pipeline, query path, and operational rules.
 
 The strategic decision lives in [ADR 0012: Search Strategy](../decisions/0012-search-strategy.md). This document is the implementation reference.

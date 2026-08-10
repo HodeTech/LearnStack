@@ -184,19 +184,18 @@ public OrganizationId? OrganizationId { get; private set; }   // null = tenant-w
 
 ### RLS policy template
 
-```sql
-ALTER TABLE <tenant_owned_table> ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY <table>_tenant_isolation ON <table>
-    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-
-CREATE POLICY <table>_organization_isolation ON <table>
-    USING (
-        organization_id IS NULL                                                   -- tenant-wide row, visible to all orgs in tenant
-        OR organization_id = current_setting('app.organization_id', true)::uuid   -- org-scoped row, only matching org
-        OR current_setting('app.scope', true) = 'tenant'                          -- tenant-scope operation (admin, reporting) sees all orgs
-    );
-```
+> **Corrected 2026-08-08.** The template originally published in this section created
+> two *permissive* policies, which PostgreSQL combines with `OR` — leaking every
+> tenant-wide row across tenants. See
+> [ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) for the analysis.
+> The canonical template now lives in exactly one place:
+> [Database Standards § Tenant-Owned and Organization-Scoped Tables](../standards/05-database.md).
+> It is one policy with an `AND`-ed predicate, plus `FORCE ROW LEVEL SECURITY`, plus an
+> explicit `WITH CHECK`, plus the four-role model.
+>
+> This correction changes the SQL that implements the decision below; the decision
+> itself — a two-level Tenant + Organization hierarchy enforced at the database layer —
+> is unchanged.
 
 ### Permission scope extension
 

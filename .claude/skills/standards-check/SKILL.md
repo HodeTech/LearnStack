@@ -95,12 +95,20 @@ Walk every item in [CLAUDE.md § Hard rules](../../../CLAUDE.md) and
   LiveKit OSS, SeaweedFS, Meilisearch, Kafka, Vault).
 - [ ] **No domain-specific code in any module.** Domain shape = tenant data
   per ADR-0018.
-- [ ] **Foundation building blocks are Day-1.** Dapr / APISIX / audit
-  infrastructure / org scope / entitlement projection / host resolver / arch
-  tests all in Phase 02a, not later.
+- [ ] **Irreversible now, additive on demand — the one-way-door test**
+  (ADR-0035). Tenant + org isolation, the outbox table, typed IDs, the
+  localization schema, audit *correctness*, and the foundation **ports** are
+  Phase 02a. The Dapr / Kafka / APISIX / Vault **adapters**, the Hub
+  integration, signed licence keys, custom-domain TLS automation and
+  `audit_log` partitioning are demand-gated to their owning phase against a
+  written trigger — shipping them early is a finding, not a bonus.
 - [ ] **Provider adapters everywhere.** No SaaS lock-in in Domain /
   Application.
-- [ ] **Hub HTTPS surface closed at 4 endpoints.** Adding a 5th = new ADR.
+- [ ] **Hub contract surface honours its two invariants** (ADR-0034): the Hub
+  stores no tenant content, and every crossing goes through
+  `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync`. Nothing else
+  holds a Hub client; nothing resolves a host by calling the Hub. Adding an
+  endpoint still needs an ADR — it is a cross-repository contract.
 - [ ] **Three deployment modes, one binary.** Module code never branches on
   `DeploymentMode`.
 
@@ -180,17 +188,41 @@ domain the diff doesn't touch.
 #### `05-database.md`
 - [ ] Naming conventions (snake_case, plural tables, `ix_` / `ux_` / `ck_` /
   `tg_` / `fn_` prefixes).
-- [ ] Every `[TenantOwned]` table has `tenant_id` + index, RLS enabled,
-  policy keyed on `current_setting('app.tenant_id')`.
+- [ ] Every `[TenantOwned]` table has `tenant_id` + index, `ENABLE` **and**
+  `FORCE ROW LEVEL SECURITY`, and **exactly one** policy whose `USING` predicate
+  `AND`-s the tenant term with the organization term, plus an explicit `WITH CHECK`.
+  **Two policies is a defect, not a style choice** — both are `PERMISSIVE`, PostgreSQL
+  `OR`-s them, and the intended `AND` becomes an `OR` that exposes every tenant-wide
+  row across tenants
+  ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)).
 - [ ] Every `[OrganizationScoped]` table additionally has nullable
-  `organization_id` + index + RLS policy on `app.organization_id`.
+  `organization_id` + index, and its organization term is **inside** that same policy —
+  not in a second one.
+- [ ] `current_setting` is always called with the missing-OK second argument **and**
+  wrapped in `NULLIF(…, '')` — `NULLIF(current_setting('app.tenant_id', true), '')`.
+  The two cover different failure paths and both are required: missing-OK handles a
+  variable never set in this session, `NULLIF` handles one that *was* set and has since
+  reset. A customized (dotted) GUC's reset value is the empty string, and `''::uuid`
+  raises `22P02` instead of filtering. Text comparisons such as
+  `current_setting('app.scope', true) = 'tenant'` are the exception — `'' = 'tenant'`
+  is already false, which is the correct fail-closed result.
+- [ ] Org-scoped tables carry both `AS RESTRICTIVE` write guards, `FOR UPDATE` and
+  `FOR DELETE`. The `app.scope = 'tenant'` hatch is read-only, and `USING` is the only
+  gate a `DELETE` has.
+- [ ] Every foreign key between two tenant-owned tables is composite on `tenant_id`,
+  and the parent carries `UNIQUE (tenant_id, id)`. RI checks bypass RLS.
+- [ ] Isolation tests for the table connect as **`learnstack_app`**, not as the owner
+  or a `BYPASSRLS` role. A test that connects as the owner passes against an inert
+  policy and proves nothing.
 - [ ] Mutable aggregates carry the audit columns (`created_at` /
   `created_by` / `updated_at` / `updated_by` / `row_version`).
 - [ ] Migrations forward-only by default; destructive change has a two-step
   plan documented.
 - [ ] PgBouncer transaction-pooling assumption respected (no statement-mode
   patterns).
-- [ ] `correlation_id` columns are `text NULL` (canonical type).
+- [ ] `correlation_id` columns are `text` (holding the full W3C traceparent), never
+  `uuid`. On `outbox_messages` it is **`NOT NULL`**; on `audit_log` it stays nullable
+  ([31-audit-subsystem.md](../../../docs/architecture/31-audit-subsystem.md)).
 
 #### `06-testing.md`
 - [ ] Test pyramid respected (unit > integration > E2E in volume).
@@ -300,7 +332,8 @@ domain the diff doesn't touch.
 - [ ] Topic naming `learnstack.{module}.{aggregate}`.
 - [ ] APISIX in standalone YAML-reload mode; routes under `infra/apisix/` per
   [30-api-gateway.md § 2](../../../docs/architecture/30-api-gateway.md).
-- [ ] Hub HTTPS contract surface untouched (still 4 endpoints).
+- [ ] Hub contract surface still satisfies ADR-0034's two invariants; any new
+  endpoint carries its ADR and lands in both repositories.
 - [ ] Outbox + inbox usage correct (atomic with aggregate write; inbox guard
   in every consumer).
 
@@ -332,7 +365,7 @@ checklist:
   `docs/modules/<m>/permissions.md` updated.
 - [ ] Frontend i18n key changed → `I18n:` commit trailer present.
 - [ ] Hub-side change in this repo → flagged for coordination with
-  `learnstack-hub` repo (the four-endpoint contract is shared).
+  `learnstack-hub` repo (the contract surface is shared; see ADR-0034).
 
 ### Step 6 — Output
 

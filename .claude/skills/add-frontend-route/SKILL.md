@@ -7,7 +7,7 @@ description: >
   portal), and SDK-based data fetching. USE FOR: a new public page, Studio screen,
   or learner / instructor portal screen. DO NOT USE FOR: thin BFF proxy endpoints
   (those live in `app/api/`), routes for the operator portal (that's the separate
-  `learnstack-hub-web` app), or hand-rolled `fetch` to the backend (use the typed
+  `operator-portal` app), or hand-rolled `fetch` to the backend (use the typed
   SDK).
 ---
 
@@ -30,7 +30,7 @@ contract per
 
 ## When not to use
 
-- Operator portal pages — they live in `learnstack-hub-web`, a separate repo.
+- Operator portal pages — they live in `operator-portal`, a separate repo.
 - Calling the API directly from a Client Component without the SDK — forbidden by
   ESLint (`no-restricted-imports`).
 - Routes that bypass tenant resolution — every authenticated route requires a

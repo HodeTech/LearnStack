@@ -16,11 +16,19 @@ Phase ownership (per [phase-02a](../../docs/roadmap/phase-02a-kernel-tenancy.md)
 [phase-02b](../../docs/roadmap/phase-02b-events-auth.md)):
 
 - **Phase 02a** declares all three interfaces in `LearnStack.SharedKernel`
-  with default in-process implementations (`InProcessEventBus`,
-  `InMemoryCacheService`, `EnvironmentSecretProvider`) **and** ships the
-  Dapr-backed implementations (`DaprEventBus`, `DaprCacheService`,
-  `DaprSecretProvider`) in `LearnStack.Infrastructure`. The composition
-  root picks between in-process and Dapr-backed per `DeploymentMode`.
+  with default in-process implementations — `InProcessEventBus`,
+  `InMemoryCacheService`, and `ConfigurationSecretProvider`. Only the third
+  exists today (`SharedKernel/Secrets/ConfigurationSecretProvider.cs`, Packet 3);
+  the other two land with their interfaces in Packet 5. Those defaults are the
+  **only** implementations registered, in every `DeploymentMode`.
+- **Phase 11** ships the Dapr-backed implementations (`DaprEventBus`,
+  `DaprCacheService`, `DaprSecretProvider`) in `LearnStack.Infrastructure`, on
+  the triggers written in
+  [ADR-0035](../../docs/decisions/0035-demand-gated-infrastructure.md). Until
+  then this compose stack runs Dapr, Kafka, Valkey and Vault for local
+  familiarity only — no backend code path reaches them, and
+  `backend/Directory.Packages.props` declares no client library for any of the
+  four.
 - **Phase 02b** wires the `OutboxProcessor`, which is the only sanctioned
   caller of `IEventBus.PublishAsync` per ADR-0010 Amendment 1. Modules
   therefore *consume* `ICacheService` and `ISecretProvider` from 02a but

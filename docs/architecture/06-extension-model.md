@@ -74,7 +74,9 @@ The original Extension Model document's invariants are preserved by ADR-0018:
 
 - **Core stays generic.** No `Cefr`, `Asana`, `CodeChallenge`, `EnglishPlacement`,
   `YogaSequence` etc. in any LearnStack module. Architecture test
-  `No_DomainSpecific_Names_In_Modules` enforces this.
+  `Core_Modules_HaveNo_DomainSpecific_Names` enforces this
+  ([canonical spelling](../standards/21-architecture-tests-catalogue.md)); the folder
+  rule is the separate `No_Source_Folder_Named_Verticals`.
 - **Anti-patterns to reject** (still apply):
   - Adding domain-specific columns to core entities.
   - Importing live-classroom SDK types in Domain or Application.
@@ -151,10 +153,18 @@ implementations:
 | `ISmsProvider` | `TwilioSmsProvider`, `NetGsmSmsProvider` |
 | `ILiveClassProvider` | `LiveKitSelfHostedProvider`, `LiveKitCloudProvider` |
 | `IFileStorageService` | `MinioFileStorageService`, `S3FileStorageService` |
-| `IEventBus` | `DaprEventBus` (default), `InProcessEventBus` (dev fallback) |
-| `ICacheService` | `DaprCacheService` (default), `InMemoryCacheService` (dev fallback) |
-| `ISecretProvider` | `DaprSecretProvider` (default), `EnvironmentSecretProvider` (dev fallback) |
-| `IEntitlementProvider` | `NullEntitlementProvider` (dev), `HubEntitlementProvider` (online), `SignedLicenseKeyEntitlementProvider` (air-gapped) |
+| `IEventBus` | `InProcessEventBus` (lands with the port in Packet 5), `DaprEventBus` (demand-gated to Phase 11) |
+| `ICacheService` | `InMemoryCacheService` (lands with the port in Packet 5), `DaprCacheService` (demand-gated to Phase 11) |
+| `ISecretProvider` | `ConfigurationSecretProvider` (**registered today**, shipped in Packet 3), `DaprSecretProvider` (demand-gated to Phase 11) |
+| `IEntitlementProvider` | `NullEntitlementProvider` (Packet 9), `HubEntitlementProvider` (Phase 02c), `SignedLicenseKeyEntitlementProvider` (skeleton from Hub `P02c-6`, hardened in Phase 11) |
+
+The last three rows are the demand-gated set from
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md): the port and its default
+ship together, and the vendor adapter ships in the phase named against its written
+trigger. Only `ISecretProvider` has shipped so far — the other two ports and their
+defaults land in [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md). The
+in-process implementations are not a development convenience: once registered they are
+the only implementations in **every** deployment mode until Phase 11.
 
 Adding a new provider is a code change in core (new adapter implementation in
 `LearnStack.Infrastructure`) — not a tenant action.

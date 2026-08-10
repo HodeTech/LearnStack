@@ -130,7 +130,7 @@ flowchart LR
 
   subgraph enrollment["Enrollment"]
     Enrollment
-    Entitlement
+    CourseAccess
     Cohort
     Progress
   end
@@ -298,7 +298,7 @@ per ADR-0018, not on `Membership` extension tables.
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
 | `Enrollment` | Yes | Grant of access to a `CourseVersion` (optionally bound to a `Cohort`). Has status (active, suspended, completed, cancelled) and source (manual, billing, invitation, integration). |
-| `Entitlement` | Yes | Right to access a paid or assigned capability. Enrollment is one source. |
+| `CourseAccess` | Yes | A learner's right to open a specific course. Sources: manual grant, invitation, cohort membership, billing. Not an `Entitlement` — that term is reserved for the Hub-owned, tenant-subject projection (see [glossary](../glossary.md)). |
 | `Cohort` | Yes | Group of learners progressing on a shared timeline through a `CourseVersion`. Has its own lifecycle (open → in-progress → completed → archived). |
 | `Progress` | Inside Enrollment | Learner advancement record. |
 
@@ -365,7 +365,7 @@ See [In-App Live Classroom](07-in-app-live-classroom.md) for the provider abstra
 | `InvoiceReference` | Inside Order | Pointer to external invoice/payment record. |
 | `PaymentProviderAccount` | Yes | Per-tenant provider configuration. |
 
-Billing produces `Entitlement`s; the Enrollment module consumes them through an integration event.
+Billing produces `CourseAccess` grants; the Enrollment module creates them on consuming `OrderPaidV1`.
 
 ## Analytics
 
@@ -406,12 +406,14 @@ examples live in [32-tenant-customization-model.md](32-tenant-customization-mode
 
 ## Audit
 
-Per [ADR-0016](../decisions/0016-audit-log-subsystem.md), the Audit module owns the
-append-only platform-level audit trail.
+Per [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes
+[ADR-0016](../decisions/0016-audit-log-subsystem.md), the Audit module owns the
+append-only platform-level audit trail and MUST-class rows commit with the state change
+they describe.
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per command/sensitive query/security event. Fields: `tenant_id`, `organization_id?`, `actor_user_id?`, `module`, `operation`, `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `is_success`, `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `timestamp`, `metadata?`. Stored in `audit_log` table partitioned by month. |
+| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per command/sensitive query/security event. Fields: `tenant_id`, `organization_id?`, `actor_user_id?`, `module`, `operation`, `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
 | `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement. Tenant-overridable within MUST/SHOULD/MAY classification. |
 
 Capture pipeline (`AuditChangeTrackerInterceptor` → `IAuditStateCapture` →

@@ -9,6 +9,46 @@ Accepted
 
 ## Amendments
 
+### Amendment 2 — Three corrections from the 2026-08-08 restructure
+
+None of the three changes a sub-decision; all three correct text that would mislead an implementer.
+
+1. **The `IProviderResilience<TPort>` registration example does not compile.**
+   Sub-decision 5 shows `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;
+   C# forbids using a type parameter as a base type, so `ResilientProviderAdapter<TPort>`
+   cannot satisfy `: TPort`. The **shipped** registration in
+   `LearnStack.Infrastructure.Resilience` is correct — it registers
+   `IProviderResilience<TPort>` as a singleton that adapters take as a collaborator
+   rather than decorating the port itself. Read the code, not the example.
+2. **The "Hub HTTPS contract is closed at four endpoints" decision driver is
+   superseded** by [ADR-0034](0034-hub-contract-surface-invariant.md), which replaces
+   the count with two invariants (the Hub stores no tenant content; every crossing goes
+   through a named adapter). The driver's substantive point is unaffected: inbound
+   `/api/internal/*` calls carry no tenant JWT, so their correlation comes from
+   `traceparent` plus the request envelope rather than from `ITenantContext`.
+3. **Sub-decision 2's diagram puts the Row Level Security session variables one step
+   too early.** The step-4 annotation reads
+   `TenantContextBehavior (assert resolved; set RLS GUC)`. `SET LOCAL` /
+   `set_config(…, true)` is transaction-local, and step 4 runs before
+   `TransactionBehavior` opens the transaction at step 6 — so a value set at step 4 is
+   discarded before the query it protects ever runs. Step 4 asserts the context and
+   carries it forward; step 6 issues the `SET LOCAL` pair as the first statement inside
+   the transaction. The pipeline **order** this ADR fixes is unchanged; only the
+   annotation was wrong.
+   [Security Standards § Tenant Context](../standards/11-security.md) is the single
+   authority for the placement.
+
+Separately, note that the **audit durability contract** referenced throughout this ADR
+now comes from [ADR-0033](0033-audit-durability-model.md), which supersedes ADR-0016.
+The pipeline order fixed by this ADR is unchanged. What changed is where durability comes
+from: `AuditLogBehavior` (step 3) classifies and declares a MUST-class intent on the way
+in; `TransactionBehavior` (step 6) writes the complete row on the ambient transaction
+immediately before `COMMIT` and then reports whether the commit succeeded; and
+`AuditLogBehavior` re-writes the row standalone on the way out whenever the transaction
+did not commit. The `AuditChangeTrackerInterceptor` captures ChangeTracker snapshots and
+writes nothing — an earlier draft of this amendment named it as the writer, which was
+never true of the component as specified.
+
 ### Amendment 1 — Roslyn diagnostic id + CI severity (2026-05-22)
 
 Sub-decision 4 and the Standards 21 naming convention referred to the

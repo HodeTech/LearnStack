@@ -23,7 +23,8 @@ Localization covers:
 - A tenant has a **default locale**.
 - A tenant has a set of **enabled locales**.
 - Translatable fields are explicitly marked at the schema level (`isLocalized: true`).
-- Slug is unique per `(tenant_id, locale)`.
+- Slug is unique per `(tenant_id, locale)`, enforced on the translation table and flat
+  across organizations — see [§ Pattern A](#pattern-a--side-translation-table-default-for-content-shaped-entities).
 - Fallback chain: requested → tenant default → field-level fallback (if allowed) → render-safe missing-content state.
 
 ## URL Strategy
@@ -51,8 +52,65 @@ application contract — consumers see resolved values, not the on-disk shape.
 Used for `Course`, `Lesson`, `Page`, `ContentEntry`, and anything with multiple
 translatable fields, per-locale slugs, or SEO metadata. The parent table holds
 non-translatable columns; a `<entity>_translations` table holds translatable fields
-keyed by `(<entity>_id, locale)`. The slug is **always per-locale** in this pattern
-(`UNIQUE (entity_id, locale, slug)`).
+keyed by `PRIMARY KEY (<entity>_id, locale)`.
+
+Four rules. A migration reviewer checks all four.
+
+1. **The parent holds no translatable column.** No `title`, no `description`, no `slug`.
+   A parent may hold a `slug_key` — a stable, locale-independent authoring handle — but
+   nothing routes on it.
+2. **The translation table carries `tenant_id` as a real column** and declares its own
+   `ENABLE` + `FORCE ROW LEVEL SECURITY` and full policy set from the canonical template
+   in [Database Standards](05-database.md). Row Level Security is per table; it is not
+   inherited from a parent through a check constraint, and a satellite carrying `title`
+   and `slug` carries the content. It also carries a mirrored `organization_id` when the
+   parent is `[OrganizationScoped]`, for the isolation predicate only, and its foreign
+   key to the parent is composite on `tenant_id`.
+3. **Slug uniqueness is `UNIQUE (tenant_id, locale, slug)`** on the translation table.
+   `UNIQUE (<entity>_id, locale, slug)` is **forbidden**: its columns are a proper
+   superset of the primary key, so it can reject no row the table would otherwise
+   accept, and two courses in one tenant end up sharing `/en/courses/beginner`.
+4. **`organization_id` does not belong in a slug unique key**, even when the entity is
+   organization-scoped. Two reasons, and the second survives fixing the first. In a
+   standard `UNIQUE` constraint PostgreSQL treats nulls as distinct, so
+   `UNIQUE (tenant_id, organization_id, locale, slug)` places no constraint at all on
+   tenant-wide rows — the rows a tenant authors first. And repairing that with
+   `NULLS NOT DISTINCT` still leaves an organization-scoped row and a tenant-wide row
+   free to claim one slug, while a host resolving to `(tenant_id, organization_id)`
+   serves both tiers and would have to pick a winner at render time. One flat namespace
+   per `(tenant_id, locale)` is the rule; an organization that wants its own variant of a
+   shared course gives it its own slug.
+
+```sql
+CREATE TABLE course_translations (
+    course_id       uuid NOT NULL,
+    tenant_id       uuid NOT NULL,
+    organization_id uuid NULL,        -- mirrors the parent; for RLS, never for uniqueness
+    locale          text NOT NULL,
+    title           text NOT NULL,
+    description     text NULL,
+    slug            text NOT NULL,
+    seo_title       text NULL,
+    seo_description text NULL,
+    PRIMARY KEY (course_id, locale),
+    CONSTRAINT ux_course_translations_tenant_id_locale_slug
+        UNIQUE (tenant_id, locale, slug),
+    CONSTRAINT fk_course_translations_course
+        FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)
+        ON DELETE CASCADE
+);
+```
+
+Slug lookup is **exact** on `(tenant_id, locale, slug)`. The fallback chain resolves
+display fields after the entity is found; it never resolves a slug. An entity with no
+translation in the requested locale has no URL in that locale, and a link to it is
+omitted rather than rendered dead.
+
+A slug collision returns `Result.Fail(business_rule_violation, …)` from the publish
+command. It names the conflicting entity when the caller may read it — tenant-wide rows
+and the caller's own organization's rows both qualify under the canonical policy — and
+otherwise names only the slug and the locale, because naming a row in another
+organization would leak across the boundary Row Level Security exists to hold.
 
 ### Pattern B — JSONB localized field (for compact taxonomy-style fields)
 
@@ -146,7 +204,8 @@ Localized content requires tests for:
 - Requested locale render.
 - Fallback locale render.
 - Missing-translation render.
-- Locale-specific slug uniqueness.
+- Locale-specific slug uniqueness, including the tenant-wide-versus-organization-scoped
+  collision and the same-slug-different-locale case.
 - Notification template selection per recipient locale.
 
 ## Forbidden
@@ -156,3 +215,9 @@ Localized content requires tests for:
 - Storing localized text in a non-localized field then "interpreting" it.
 - Using locale-derived `if`s (`if (locale === "tr")`); branch on capabilities, not on locale identity.
 - Truncating BCP 47 codes (`en-GB` ≠ `en`).
+- Putting a translatable field — `title`, `description`, `slug` — on the parent table
+  when the entity uses Pattern A.
+- Putting `organization_id` inside a slug unique key (§ Pattern A rule 4), or declaring a
+  slug constraint whose columns are a superset of the translation table's primary key.
+- Falling back to another locale to resolve a **slug**. Fallback applies to display
+  fields after the entity is found, never to the lookup.

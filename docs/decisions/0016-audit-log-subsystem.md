@@ -2,7 +2,32 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0033](0033-audit-durability-model.md) (2026-08-08)
+
+> **What changed.** ADR-0033 keeps this ADR's subsystem design — a central Audit module
+> owning `AuditEntry`, capture through the MediatR pipeline, modules never touching
+> `audit_log` directly — and replaces its **durability contract**. This ADR's "audit
+> never blocks business logic" applied uniformly; under ADR-0033 it applies to
+> SHOULD/MAY-class audit only. MUST-class audit is written as a durable intent inside
+> the business transaction and **fails closed**, which is what
+> [Audit Coverage Standards](../standards/18-audit-coverage.md) always required and
+> what PostgreSQL Row Level Security requires once
+> [ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) lands.
+>
+> ADR-0033 also corrects the `audit_log` DDL below, which declares a primary key twice
+> — once inline on `id` and once as a table constraint on `(id, timestamp)` — and is
+> therefore rejected by PostgreSQL.
+>
+> That DDL's `-- Platform admin role bypasses RLS via SET role audit_admin` comment names
+> a role that no longer exists and a mechanism the corpus now forbids. The model has
+> exactly four roles, none of them an audit admin, and `learnstack_app` is not a member
+> of any bypass role — so the bypass is reached by a separate credentialed connection
+> through `EnterPlatformAdminScope(reason)`, never by `SET ROLE`. See
+> [ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) and
+> [Database Standards § Database roles](../standards/05-database.md).
+>
+> Read this ADR for the subsystem's context and rationale; read ADR-0033 for the
+> binding rules.
 
 ## Date
 
@@ -224,7 +249,11 @@ CREATE INDEX ix_audit_log_actor_timestamp
 CREATE INDEX ix_audit_log_correlation
     ON audit_log (correlation_id) WHERE correlation_id IS NOT NULL;
 
--- RLS
+-- RLS  ⚠ superseded shape — see the banner at the top of this ADR.
+-- The binding template is Standards 05 (one AND-ed policy, FORCE ROW LEVEL
+-- SECURITY, explicit WITH CHECK); the DDL above additionally declares a
+-- primary key twice, which PostgreSQL rejects. ADR-0033 carries the corrected
+-- table definition.
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY audit_log_tenant_isolation ON audit_log
     USING (tenant_id = current_setting('app.tenant_id', true)::uuid);

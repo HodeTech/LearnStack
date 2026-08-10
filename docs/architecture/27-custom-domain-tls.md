@@ -27,7 +27,7 @@ sequenceDiagram
 
     Tenant->>Studio: Enter domain "anatoliayoga.com"
     Studio->>LSApi: POST /api/v1/tenant/custom-domains (acts as proxy)
-    LSApi->>HubAPI: POST /api/v1/tenants/{id}/custom-domains<br/>(internal API, mTLS)
+    LSApi->>HubAPI: POST /api/v1/internal/tenants/{id}/custom-domains<br/>(via IHubTenantSync; mTLS + JWT + HMAC)
     HubAPI->>HubAPI: Insert CustomDomain row, status=Pending
     HubAPI->>Studio: 201 + verification instructions<br/>(CNAME instructions)
 
@@ -40,10 +40,11 @@ sequenceDiagram
             HubJob->>HubJob: Status=Verifying
             HubJob->>LE: ACME order via DNS-01 (or HTTP-01 fallback)
             LE-->>HubJob: Cert issued
-            HubJob->>HubAPI: Store cert in Vault; update CustomDomain<br/>Status=Active, cert_expires_at=2026-08-16
-            HubAPI->>HubAPI: Publish learnstack.hub.custom-domain.activated event<br/>via Dapr pub/sub
-            HubAPI->>APISIX: Hot-reload route table partial<br/>(add SNI cert + route entry)
-            HubAPI->>LSApi: Cache invalidation for host→tenant lookup
+            HubJob->>HubAPI: Store cert + key in the Hub secret store;<br/>update CustomDomain Status=Active, cert_expires_at
+            HubAPI->>HubAPI: Replicate cert + key to the LearnStack-side secret store<br/>(secret-store replication — never over HTTP payload)
+            HubAPI->>HubAPI: Publish learnstack.hub.custom-domain.activated event
+            HubAPI->>APISIX: Hot-reload route table partial<br/>(SNI entry referencing the secret BY PATH)
+            HubAPI->>LSApi: PUT /api/internal/tenants/{id}/host-mappings<br/>(host to tenant/org mapping only — no key material)
         else CNAME mismatch
             HubJob->>HubJob: Increment attempt; retry in 60s
         end
@@ -165,10 +166,20 @@ routes:
 ssl:
   - id: ssl-anatoliayoga
     sni: anatoliayoga.com
-    # cert/key materialized via Vault Agent sidecar in production
-    cert_ref: vault://learnstack-hub/certs/anatoliayoga.com/cert
-    key_ref:  vault://learnstack-hub/certs/anatoliayoga.com/key
+    # Materialised from the LEARNSTACK-side secret store by the secret-agent sidecar.
+    # The path is the replication target of the Hub-side secret; the value never
+    # travels in an HTTP payload. See § 6.
+    cert_ref: secret://learnstack/certs/anatoliayoga.com/cert
+    key_ref:  secret://learnstack/certs/anatoliayoga.com/key
 ```
+
+> **Phasing note.** APISIX itself is demand-gated to
+> [Phase 11](../roadmap/phase-11-production-hardening.md) per
+> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md); until it arrives, host
+> routing and TLS termination are the deployment's ingress concern and
+> `platform_host_to_tenant` remains the sole authority for host → tenant resolution
+> inside the application. The route-partial mechanism described here is the target
+> design, not a running system.
 
 APISIX watches the file (standalone mode); changes are picked up within seconds.
 
@@ -179,35 +190,112 @@ Etcd-backed APISIX (Phase 11+) replaces file-write with direct Admin API call.
 
 ## 6. Tenant resolver mapping
 
-LearnStack runtime needs to map `Host: anatoliayoga.com` → `tenant_id`. Implementation:
+LearnStack runtime needs to map `Host: anatoliayoga.com` → `(tenant_id,
+organization_id?)`.
+
+### Host resolution never calls the Hub
+
+An earlier version of this document showed `CachedHostToTenantResolver` taking an
+`IHubClient` and calling `LookupHostAsync` on every cache miss. That broke three rules at
+once, and the third is the one that matters operationally:
+
+1. It was an **unrecorded endpoint** — no ADR, no entry in the contract surface, and no
+   counterpart in the Hub's own API documentation.
+2. It was a **Hub call from outside the sanctioned adapters**. Only
+   `IEntitlementProvider`, `IUsageReporter` and `IHubTenantSync` may hold a Hub client
+   ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)).
+3. It put the **Hub on the hot path of anonymous public page loads**. Every cache miss on
+   every marketing page of every tenant became a synchronous dependency on the control
+   plane. A Hub outage — or a cold cache after a deploy during one — would have taken
+   every tenant's public site down, for a lookup whose answer LearnStack already stores.
+
+**`IHubClient.LookupHostAsync` is deleted.** `IHostToTenantResolver` reads
+`platform_host_to_tenant` and nothing else:
 
 ```csharp
 namespace LearnStack.Infrastructure.MultiTenancy;
 
 public interface IHostToTenantResolver
 {
-    Task<Guid?> ResolveAsync(string host, CancellationToken ct = default);
+    Task<HostResolution?> ResolveAsync(string host, CancellationToken ct = default);
 }
+
+public sealed record HostResolution(TenantId TenantId, OrganizationId? OrganizationId);
 
 public sealed class CachedHostToTenantResolver(
     ICacheService cache,
-    IHubClient hubClient) : IHostToTenantResolver
+    TenancyDbContext db) : IHostToTenantResolver
 {
-    public async Task<Guid?> ResolveAsync(string host, CancellationToken ct = default)
-    {
-        return await cache.GetOrSetAsync(
-            $"hub:host:{host}",
-            async _ => await hubClient.LookupHostAsync(host, _),
+    public Task<HostResolution?> ResolveAsync(string host, CancellationToken ct = default)
+        => cache.GetOrSetAsync(
+            $"host:{host}",
+            async token => await db.HostMappings
+                .AsNoTracking()
+                .Where(m => m.Host == host && m.IsActive)
+                .Select(m => new HostResolution(m.TenantId, m.OrganizationId))
+                .SingleOrDefaultAsync(token),
             new CacheOptions(L1Ttl: TimeSpan.FromMinutes(2), L2Ttl: TimeSpan.FromMinutes(15)),
             ct);
-    }
 }
 ```
 
-Cache invalidated on `learnstack.hub.custom-domain.activated` and
-`learnstack.hub.custom-domain.revoked` Dapr pub/sub events. `TenantMiddleware` calls this
-resolver first (before JWT validation, since the tenant context is needed for some
-public anonymous routes too).
+`platform_host_to_tenant` is a **platform-level table**, not tenant-owned — the row is
+what *determines* the tenant, so it cannot be filtered by a tenant context that does not
+exist yet. It is read before `ITenantContext` is populated, and the read is the only
+database access in the request that legitimately runs unscoped.
+
+Consequences of the change:
+
+- A Hub outage degrades **billing and provisioning**. It does not touch page loads.
+- The cache in front of the table is a latency optimisation, not an availability
+  mechanism. Even a total cache failure leaves a single indexed primary-key lookup.
+- `TenantResolverMiddleware` calls this resolver first, before JWT validation, because
+  anonymous public routes need a tenant context too.
+
+### How mappings arrive
+
+Hub pushes host mappings over a dedicated endpoint, **not** through the entitlement
+payload:
+
+```text
+PUT /api/internal/tenants/{id}/host-mappings
+```
+
+The endpoint is part of the enumerated Hub → LearnStack surface in
+[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md), carries the same auth
+chain as every other internal call (mTLS + RS256 JWT with `aud=learnstack-internal` +
+HMAC body signature + `jti` replay protection), and is handled by `IHubTenantSync`. The
+handler upserts `platform_host_to_tenant` and invalidates the resolver cache for the
+affected hosts on `learnstack.hub.custom-domain.activated` /
+`.revoked`.
+
+### Certificate material never rides the mapping payload
+
+The host-mapping payload carries **hosts and identifiers only**. TLS certificates and
+private keys are never carried in an HTTP payload that LearnStack caches, logs, audits or
+mirrors — which is precisely what the superseded design did when it tunnelled cert
+material through `PUT /api/internal/tenants/{id}/entitlements`, a payload that lands in
+`platform_entitlement_cache`.
+
+Key material moves by **secret-store replication** between the Hub-owned and
+LearnStack-owned secret stores, and the mapping payload references it **by path**:
+
+```json
+{
+  "host": "anatoliayoga.com",
+  "tenant_id": "…",
+  "organization_id": null,
+  "certificate_ref": "learnstack/certs/anatoliayoga.com",
+  "is_active": true
+}
+```
+
+`certificate_ref` is a path, resolvable only by a principal that already holds read
+access to that secret store. Possession of the payload — in a log line, an audit row, a
+cache entry, or a support ticket screenshot — grants nothing.
+[ADR-0022 Amendment 1](../decisions/0022-custom-domain-tls.md)'s step 3 is superseded
+accordingly; its central guarantee, that the Hub never holds Kubernetes credentials on
+the LearnStack cluster, is unchanged.
 
 ## 7. Cert renewal
 
@@ -301,16 +389,29 @@ instead of just `tenant_id`.
   always derived from authenticated session, never from request body / query.
 - `CustomDomain_Revocation_RemovesTenantResolverMapping` — integration test ends with the
   resolver returning null for the revoked host.
+- `Hub_Client_Referenced_Only_By_Named_Adapters` — from
+  [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); a resolver, a
+  middleware or a controller holding an `IHubClient` fails the build. This is the
+  mechanical guard against the deleted `LookupHostAsync` pattern reappearing.
+- `Host_Resolution_Makes_No_Outbound_Calls` — integration test resolves a host with the
+  Hub client registered as a throwing stub and asserts the resolution still succeeds.
 
 ## 11. Phasing
 
-| Phase | Deliverable |
-|-------|-------------|
-| 02a | `IHostToTenantResolver` interface + `CachedHostToTenantResolver` implementation in LearnStack. |
-| 02c | `CustomDomain` aggregate in Hub. Submission endpoint scaffolded; verification logic stubbed (always returns success in dev). |
-| 04 | Admin Studio custom-domain settings page: submission UI, DNS instructions, real-time status. |
-| 09b | Hub operator portal: Pending Queue, Active List, Renewal Watch dashboards. Compliance caps editor includes domain-gating policy. |
-| 11 | Production hardening: cert-manager + Let's Encrypt automation finalised; DNS provider API integrations (Cloudflare, Route 53, GCP DNS, Azure DNS); HTTP-01 fallback; renewal job tested at scale; APISIX hot-reload validated. |
+| Phase | Deliverable | Trigger |
+|-------|-------------|---------|
+| [02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | `platform_host_to_tenant` table | One-way door — the table that determines the tenant |
+| [02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) | `IHostToTenantResolver` + `CachedHostToTenantResolver` reading `platform_host_to_tenant` and nothing else; two hosts wired to two seed tenants | — |
+| [02d](../roadmap/phase-02d-walking-skeleton.md) | Host-based resolution exercised end to end: two hosts, two tenants, one binary | — |
+| [02c](../roadmap/phase-02c-hub-foundation.md) | LearnStack-side `PUT /api/internal/tenants/{id}/host-mappings` handler behind `IHubTenantSync`; Hub-side `CustomDomain` aggregate and submission endpoint live in the Hub repository | A tenant is provisioned through the Hub |
+| [04](../roadmap/phase-04-cms-media-pages.md) | Admin Studio custom-domain settings page: submission UI, DNS instructions, real-time status | — |
+| [09b](../roadmap/phase-09b-hub-billing.md) | Hub operator portal: Pending Queue, Active List, Renewal Watch dashboards; compliance-caps editor includes domain gating | Commercial billing needed |
+| [11](../roadmap/phase-11-production-hardening.md) | **The TLS automation itself**: ACME client, Let's Encrypt integration, DNS provider APIs (Cloudflare, Route 53, GCP DNS, Azure DNS), HTTP-01 fallback, renewal job at scale, secret-store replication, APISIX hot-reload validation | A tenant needs its own domain in production ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
+
+The split is deliberate: **the mapping is a one-way door and ships early; the automation
+that populates it is additive and ships on demand.** A tenant can run on a custom domain
+before Phase 11 by having an operator insert the mapping row and place the certificate in
+the secret store by hand. What Phase 11 removes is the operator, not the capability.
 
 ## 12. Operational runbook (Phase 11)
 
@@ -333,7 +434,13 @@ instead of just `tenant_id`.
 
 ## References
 
-- ADR-0022 — Custom Domain & TLS.
+- ADR-0022 — Custom Domain & TLS. Amendment 1's step 3 (certificate material inside the
+  entitlement payload) is superseded by ADR-0034.
+- [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) — Hub contract surface
+  invariant: the `host-mappings` endpoint, key material leaving the entitlement payload,
+  and the rule that host resolution never calls the Hub.
+- [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — when the TLS automation
+  ships.
 - ADR-0019 — LearnStack Hub.
 - ADR-0021 — Feature-Based Entitlement (gate).
 - ADR-0015 — APISIX Gateway (hot-reload of route table + SSL config).
