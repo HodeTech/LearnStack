@@ -50,7 +50,7 @@ works without a Hub. Nothing in the product spine waits on this document.
 Until that is true, a control plane adds a second repository, a second deployment, an
 mTLS certificate chain, and a network dependency in front of a feature-flag read — in
 exchange for gating features that nobody is paying differently for. When it becomes true,
-this phase starts, and the Hub-side `P02c-1` branch unfreezes with it.
+this phase starts, and the frozen Hub track resumes at `P02c-2`.
 
 Everything Hub-side — `Plan`, `HubSubscription`, `Entitlement`, `LicenseKey`,
 `CustomDomain`, `CompliancePolicy`, the `learnstack-hub` Keycloak realm, the operator
