@@ -1059,9 +1059,27 @@ different name.
 
 `Dapr_PubSub_TopicNames_FollowConvention` was previously listed as a Phase 02a
 deliverable. Phase 02a ships `InProcessEventBus` and no Dapr components, so there is
-nothing for the test to scan; the naming convention itself still applies from Phase 02b
-and is reviewer-enforced until the adapter lands
-([20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md)).
+nothing for that test to scan — it inspects the Dapr component bindings.
+
+Deferring it left the convention unasserted against the transport that is actually
+registered, which is the shape of gap this catalogue exists to close. It is therefore
+**split in two**, and the transport-independent half is not deferred:
+
+#### `Integration_Event_TopicNames_FollowConvention`
+
+- **Asserts:** every declared integration-event type resolves a topic matching
+  `learnstack.{module}.{aggregate}` (and `learnstack.hub.*` for Hub-side topics). Reads
+  the event declarations, not a broker, so it holds for whichever `IEventBus`
+  implementation is registered.
+- **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
+  [ADR-0006](../decisions/0006-events-and-outbox.md).
+- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 5) — lands with `InProcessEventBus`, the first transport.
+
+`Dapr_PubSub_TopicNames_FollowConvention` keeps its Phase 11 slot and narrows to what
+only it can check: that the Dapr component bindings agree with the topics the events
+declare.
 
 `Modules_Do_Not_Inject_Valkey_Directly` is **not** in this table. It constrains module
 code rather than adapter code, holds regardless of which cache implementation is

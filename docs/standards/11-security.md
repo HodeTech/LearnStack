@@ -162,8 +162,14 @@ tenant-facing endpoints. Per [ADR-0019](../decisions/0019-learnstack-hub.md) and
   `jti` (replay-protected via short-TTL inbox).
 - **HMAC body signature** in the `X-Signature` header (HMAC-SHA256 of the raw body
   with a per-deployment shared secret).
-- All three layers must validate on **every** endpoint in the surface. Failure of any
-  returns `401` with no detail leak.
+- All three layers must validate on **every** endpoint in the surface, but they fail at
+  two different layers. `/api/internal/*` is bound to its own mTLS listener and is never
+  proxied by APISIX, so a missing, expired or untrusted client certificate is rejected
+  **during the TLS handshake** — no HTTP request reaches the application, so there is no
+  status code and no body to leak. Only the JWT and HMAC checks return `401`, with no
+  detail. Do not write a handler that returns `401` for a certificate failure; it would
+  never be reached, and its existence implies a listener that terminates TLS without
+  requiring the client certificate.
 - The surface is governed by two invariants, not by an endpoint count: the Hub stores no
   tenant content, and every crossing goes through `IEntitlementProvider`,
   `IUsageReporter`, or `IHubTenantSync`. The enumerated endpoint set lives in

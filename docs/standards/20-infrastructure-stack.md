@@ -12,6 +12,14 @@
 [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md),
 [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md).
 
+Two audit decisions are referenced here but **not owned** here, and the split matters
+because the two are easy to conflate:
+[ADR-0033](../decisions/0033-audit-durability-model.md) owns the audit **durability
+contract** — what must commit with what — and
+[ADR-0028](../decisions/0028-audit-log-partition-management.md) owns the `audit_log`
+**partition lifecycle**. This standard only records that partitioning is demand-gated
+and that modules never write `audit_log` directly.
+
 This standard defines how application code uses the foundation infrastructure introduced
 in the 2026-05-18 redesign: Dapr building blocks, the APISIX gateway, the Hub HTTPS
 contract surface, the entitlement projection, and the deployment-mode-aware composition
@@ -42,7 +50,7 @@ named phase when a written trigger fires.
 | Dapr pub/sub | `IEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A second process must consume an integration event |
 | Kafka | behind `IEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Cross-process volume, replay, or ordering is required |
 | Dapr state / Valkey | `ICacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
-| Vault | `ISecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A production secret must rotate without a redeploy, **or** more than one operator needs access to production secrets |
+| Vault | `ISecretProvider` | `ConfigurationSecretProvider` (**startup-only**, see below) | [Phase 11](../roadmap/phase-11-production-hardening.md) | A production secret must rotate without a redeploy, **or** more than one operator needs access to production secrets |
 | APISIX | composition root | ASP.NET middleware | [Phase 11](../roadmap/phase-11-production-hardening.md) | A non-dev deployment needs edge rate limiting, host routing, or JWT pre-validation |
 | Hub entitlement | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) | A tenant must be billed or plan-gated |
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
@@ -135,10 +143,15 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
 - Topic names follow `learnstack.{module}.{aggregate}` (`learnstack.identity.user`,
   `learnstack.enrollment.enrollment`, `learnstack.classroom.session`). The convention
   applies to `InProcessEventBus` too — it is how handlers are addressed, not a Dapr
-  detail. The architecture test `Dapr_PubSub_TopicNames_FollowConvention` lands with the
-  Dapr adapter in [Phase 11](../roadmap/phase-11-production-hardening.md); until then the
-  convention is reviewer-enforced
-  ([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
+  detail — which is why leaving it unasserted against the transport that is actually
+  registered would be the wrong trade. Two tests, not one:
+  `Integration_Event_TopicNames_FollowConvention` is transport-independent, asserts the
+  convention over the declared event types, and lands with `InProcessEventBus` in
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md);
+  `Dapr_PubSub_TopicNames_FollowConvention` additionally checks the Dapr component
+  bindings and lands with that adapter in
+  [Phase 11](../roadmap/phase-11-production-hardening.md). Both are registered in
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md).
 - Hub-side topics use the same `learnstack.hub.*` prefix
   (`learnstack.hub.entitlement`, `learnstack.hub.custom-domain.activated`).
 - Consumers implement `IIntegrationEventHandler<TEvent>` and **must** invoke
@@ -192,6 +205,16 @@ Rules:
   `IOptions<T>`. Runtime re-fetches happen via `IOptionsMonitor<T>` with a
   Vault-driven refresh — never an ad-hoc `ISecretProvider.GetAsync` call inside a hot
   path.
+- **Until the Vault adapter lands, that refresh path does not exist.** `Development` and
+  `SaaS` both run on `ConfigurationSecretProvider`, which resolves through
+  `IConfiguration` at composition time — including the Sentry DSN, which
+  `ErrorTrackingRegistration` reads once during registration. There is no configuration
+  reload and no options rebinding behind it, so **every secret is fixed for the lifetime
+  of the process and changing one is a redeploy**. That is not an oversight; it is
+  precisely what makes the Vault trigger above legible — "a production secret must rotate
+  without a redeploy" is a condition this arrangement cannot satisfy by construction, so
+  the day it is required is the day the adapter is required. Do not describe
+  `IOptionsMonitor<T>` refresh as available before then.
 - The secret namespace is `learnstack/{deployment}/{module}/{key}` (e.g.
   `learnstack/saas/notifications/email-provider-api-key`). The deployment segment
   matches `DeploymentMode` (lower-case).
@@ -297,7 +320,14 @@ are the Hub's public API, governed by the Hub repository.
 
 - **Every** endpoint above carries the full auth chain: **mTLS** + **signed JWT (RS256,
   `aud=learnstack-internal`, `exp ≤ 5 min`, replay-protected `jti`)** + **HMAC body
-  signature**. All three must validate; failure of any returns `401` with no detail leak.
+  signature**. All three must validate — but they fail at **two different layers**, and
+  the distinction is not cosmetic. `/api/internal/*` is bound to its own mTLS listener
+  and is **never proxied by APISIX**
+  ([30-api-gateway.md § Topology](../architecture/30-api-gateway.md)), so a missing,
+  expired or untrusted client certificate is rejected **during the TLS handshake**:
+  there is no HTTP request, therefore no status code and no response body. Only the JWT
+  and HMAC checks can return `401`, and they do so with no detail leak. A document
+  promising `401` for an mTLS failure is describing a listener that does not exist.
   See [11-security.md § Hub Contract Surface](11-security.md).
 - **TLS certificates and private keys never travel in the entitlement payload.** That
   payload is cached in `platform_entitlement_cache`, logged, audited and mirrored — every
