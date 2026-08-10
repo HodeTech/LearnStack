@@ -259,7 +259,7 @@ additive under the one-way-door test, so the three adapters are demand-gated:
 |---|---|---|---|
 | `DaprEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A second process must consume an integration event |
 | `DaprCacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
-| `DaprSecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Secrets must rotate without a redeploy, or a non-dev deployment exists |
+| `DaprSecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A production secret must rotate without a redeploy, or more than one operator needs access to production secrets |
 
 The Implementation-notes bullet reading "Phase 02 — Platform kernel" and the
 Architecture-tests preamble reading "added in Phase 02" both mean Phase 11 under

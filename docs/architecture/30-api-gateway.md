@@ -27,9 +27,12 @@ the LearnStack core API and the LearnStack Hub API.
 > [Phase 03](../roadmap/phase-03-identity-admin.md); until then every `/api/v*` route is
 > open, which is survivable only because no tenant-owned table and no protected endpoint
 > exists yet. The "validated twice" property in § 5 describes the Phase 11 target, not
-> the running system — and the first half of it arrives well before the gateway half. The block is uncommented in
-> [Phase 03](../roadmap/phase-03-identity-admin.md), when the Keycloak realm it discovers
-> against exists.
+> the running system — and the first half of it arrives well before the gateway half.
+> The block is uncommented in
+> [Phase 11](../roadmap/phase-11-production-hardening.md), with the rest of APISIX:
+> [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) demand-gates the gateway,
+> so [Phase 03](../roadmap/phase-03-identity-admin.md) delivers authorization in ASP.NET
+> middleware and corrects this route table, but does not stand APISIX up in front of it.
 
 ## 1. Topology
 
@@ -120,6 +123,10 @@ Client request
 6. limit-count      ─── per-window count limit for write endpoints (60/min/token)
   │
   ▼
+6b. basic-auth      ─── consumer credentials from the secret store; used only by the
+  │                       `/admin/hangfire*` infrastructure route, never on `/api/v*`
+  │
+  ▼
 7. proxy-rewrite    ─── header normalisation; strip Authorization-Internal if leaked
   │
   ▼
@@ -153,6 +160,7 @@ plugins:
   - openid-connect
   - limit-req
   - limit-count
+  - basic-auth        # /admin/hangfire* only; a route may not use an undeclared plugin
   - proxy-rewrite
   - response-rewrite
   - prometheus
@@ -271,7 +279,12 @@ routes:
     methods: [POST]
     priority: 300
     plugins:
-      cors: { allow_origins: "https://app.learnstack.dev,*.learnstack.app" }
+      # allow_origins takes EXACT origins or `**`. It has no `*.domain` wildcard —
+      # `*.learnstack.app` matches nothing and silently blocks every tenant origin.
+      # Subdomain patterns go through allow_origins_by_regex, anchored at both ends.
+      cors:
+        allow_origins: "https://app.learnstack.dev"
+        allow_origins_by_regex: ["^https://[a-z0-9-]+\\.learnstack\\.app$"]
       limit-count: { count: 5, time_window: 60, key: remote_addr, rejected_code: 429 }
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
 
@@ -283,7 +296,8 @@ routes:
     priority: 200
     plugins:
       cors:
-        allow_origins: "https://app.learnstack.dev,*.learnstack.app"
+        allow_origins: "https://app.learnstack.dev"
+        allow_origins_by_regex: ["^https://[a-z0-9-]+\\.learnstack\\.app$"]
         allow_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
         allow_headers: "Authorization,Content-Type,X-Tenant-Id,X-Organization-Id,X-Correlation-Id"
         max_age: 3600
@@ -302,7 +316,9 @@ routes:
         scope: openid
         set_access_token_header: true
         access_token_in_authorization_header: true
-      cors: { allow_origins: "https://app.learnstack.dev,*.learnstack.app" }
+      cors:
+        allow_origins: "https://app.learnstack.dev"
+        allow_origins_by_regex: ["^https://[a-z0-9-]+\\.learnstack\\.app$"]
       limit-req: { rate: 100, burst: 50, key: remote_addr, rejected_code: 429 }
       request-id: { include_in_response: true }
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }

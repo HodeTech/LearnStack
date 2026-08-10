@@ -103,9 +103,13 @@ migrationBuilder.Sql("""
     -- subject to Row Level Security, so a single-column FK lets one tenant
     -- reference another tenant's rows and no policy ever observes it.
 
-    CREATE INDEX ix_<name_plural>_tenant_id ON <name_plural> (tenant_id);
-    CREATE INDEX ix_<name_plural>_organization_id ON <name_plural> (organization_id)
-        WHERE organization_id IS NOT NULL;
+    -- One composite index, deliberately NOT partial: the policy's
+    -- `organization_id IS NULL` branch matches every tenant-wide row and a b-tree
+    -- indexes NULLs, so the non-partial form serves both branches. No standalone
+    -- index on tenant_id — the UNIQUE constraints above already lead with it.
+    -- Drop organization_id from the index when the table is not org-scoped.
+    CREATE INDEX ix_<name_plural>_tenant_id_organization_id
+        ON <name_plural> (tenant_id, organization_id);
 
     -- ─────────────────────────────────────────────────────────────────────────
     -- RLS: DO NOT WRITE THE POLICY FROM MEMORY, AND DO NOT COPY IT HERE.
@@ -120,18 +124,27 @@ migrationBuilder.Sql("""
     -- corrected once, in one file. A second copy is how that recurs.
     --
     -- Checklist for what you paste:
-    --   * ENABLE *and* FORCE ROW LEVEL SECURITY
-    --   * exactly ONE permissive policy, tenant AND organization in one predicate
-    --   * explicit WITH CHECK, without the app.scope='tenant' read hatch
-    --   * two AS RESTRICTIVE guards (FOR UPDATE, FOR DELETE) when org-scoped
-    --   * NULLIF(current_setting(...), '') on every GUC read
+    --   * ENABLE *and* FORCE ROW LEVEL SECURITY            (both table kinds)
+    --   * explicit WITH CHECK                               (both table kinds)
+    --   * NULLIF(current_setting(...), '') on every GUC read (both table kinds)
+    --
+    --   TENANT-ONLY table: exactly ONE permissive policy carrying the tenant
+    --   predicate alone. No organization term, no restrictive guards — there is
+    --   no second scope to widen or narrow.
+    --
+    --   [OrganizationScoped] table: still exactly ONE permissive policy, but its
+    --   predicate ANDs the tenant term with the organization term; PLUS the two
+    --   AS RESTRICTIVE guards (FOR UPDATE, FOR DELETE), because the
+    --   app.scope='tenant' read hatch must not widen writes and DELETE has no
+    --   WITH CHECK.
     -- ─────────────────────────────────────────────────────────────────────────
     """);
 ```
 
 > The canonical template is
-> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md);
-> this is a mirror. If they disagree, the standard wins. See
+> [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md),
+> and this skill deliberately does **not** mirror it — the block above tells you to open
+> that file and copy from it. See
 > [ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)
 > for why the two-policy shape was withdrawn.
 
@@ -156,12 +169,14 @@ it early buys partition maintenance before there is anything to maintain.
 migrationBuilder.Sql("""
     CREATE TABLE audit_log (
         id            uuid NOT NULL,
-        occurred_at   timestamptz NOT NULL,
+        timestamp     timestamptz NOT NULL DEFAULT now(),
         tenant_id     uuid NOT NULL,
         -- ... rest ...
         -- The partition key must be IN the primary key for the Phase 11 conversion,
         -- so declare the composite now even though nothing is partitioned yet.
-        CONSTRAINT audit_log_pkey PRIMARY KEY (id, occurred_at)
+        -- Column name is `timestamp`, matching the canonical DDL in ADR-0033 and
+        -- 31-audit-subsystem — not `occurred_at`, which is outbox_messages' column.
+        CONSTRAINT audit_log_pkey PRIMARY KEY (id, timestamp)
     );
     """);
 ```
@@ -241,9 +256,11 @@ foreach (var tenantId in tenantIds)
         transaction: tx);
 
     // No `WHERE tenant_id = current_setting(...)` clause. The connection runs as
-    // learnstack_app (NOBYPASSRLS), so RLS already scopes the statement to this
-    // tenant; restating the predicate in application SQL is a second copy of the
-    // policy that can drift from the first.
+    // learnstack_migration, which is NOBYPASSRLS against a table that is FORCE ROW
+    // LEVEL SECURITY, so the policy scopes the statement to this tenant on its own;
+    // restating the predicate in application SQL is a second copy of the policy that
+    // can drift from the first. Note the consequence: skip the set_config above and
+    // the UPDATE matches ZERO rows and still reports success.
     await connection.ExecuteAsync(
         "UPDATE enrollments SET source = 'legacy' WHERE source IS NULL",
         transaction: tx);

@@ -42,7 +42,7 @@ named phase when a written trigger fires.
 | Dapr pub/sub | `IEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A second process must consume an integration event |
 | Kafka | behind `IEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Cross-process volume, replay, or ordering is required |
 | Dapr state / Valkey | `ICacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
-| Vault | `ISecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Secrets must rotate without a redeploy, or a non-dev deployment exists |
+| Vault | `ISecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A production secret must rotate without a redeploy, **or** more than one operator needs access to production secrets |
 | APISIX | composition root | ASP.NET middleware | [Phase 11](../roadmap/phase-11-production-hardening.md) | A non-dev deployment needs edge rate limiting, host routing, or JWT pre-validation |
 | Hub entitlement | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) | A tenant must be billed or plan-gated |
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |

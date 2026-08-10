@@ -20,8 +20,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `frontend (typecheck + lint + build + test)`
     - `meta (commit hygiene + link audit)`
     - `secret scan (leakwatch)`
-  - Deferred checks — flip the `if: false` guards in `ci.yml` AND add the
-    job name here when the owning phase lands:
+  - Deferred checks. Activating one is **three edits in the same pull request**,
+    not one: flip its `if:` guard in `ci.yml`, **rename the job** to drop the
+    `(deferred …)` suffix, and update both this list and the live
+    branch-protection setting to the new name. Flipping the guard alone leaves a
+    job that runs but gates nothing.
     - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
       with the first cross-tenant isolation test.
     - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
@@ -29,9 +32,9 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
       content-bearing public pages.
 
-    Activating a job **renames** it — the `(deferred …)` suffix goes away — and GitHub
-    matches required checks by name. Rename without updating this list *and* the live
-    branch-protection setting and the check silently stops being required.
+    GitHub matches required checks **by name**, so the rename is the dangerous
+    half: a renamed check that nobody re-required is a check that no longer blocks
+    anything, and the PR still shows green.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).

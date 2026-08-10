@@ -84,7 +84,7 @@ otherwise equal. This rule is added to
 | Dapr pub/sub | `IEventBus` | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A second process needs to consume an integration event |
 | Kafka | (behind `IEventBus`) | `InProcessEventBus` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Event volume, replay, or ordering across processes is required |
 | Dapr state / Valkey | `ICacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
-| Vault | `ISecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | Secrets must rotate without a redeploy, or a non-dev deployment exists |
+| Vault | `ISecretProvider` | `ConfigurationSecretProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A production secret must rotate without a redeploy, **or** more than one operator needs access to production secrets |
 | APISIX | (composition root) | ASP.NET middleware | [Phase 11](../roadmap/phase-11-production-hardening.md) | A non-dev deployment needs edge rate limiting, host routing, or JWT pre-validation |
 | Hub entitlement | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) | A tenant must be billed or plan-gated |
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
@@ -109,6 +109,16 @@ exception is added without amending this ADR.
 on it. What changes is the **support claim**: only `Development` and `SaaS` are wired
 end to end before Phase 11. `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped`
 are prepared seams, not supported deployments, until their integration suites exist.
+
+That makes `SaaS` a **non-development deployment running on
+`ConfigurationSecretProvider`**, which is why the Vault trigger above is written as a
+rotation and access condition rather than "a non-dev deployment exists" — the latter
+would be satisfied the moment SaaS ships, which is not what the row means. Reading
+secrets from `IConfiguration` is a bounded position, not a permanent one: it is
+defensible while one operator holds the deployment's secrets and a redeploy is an
+acceptable way to change them. The first production secret that must rotate without a
+redeploy, or the second operator needing access, fires the trigger — and that may well
+be before Phase 11's other work.
 
 ## Context
 
