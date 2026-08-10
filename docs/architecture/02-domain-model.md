@@ -7,7 +7,7 @@ This document describes the first domain shape. It is intentionally conceptual a
 > adds:
 >
 > 1. **`Organization` aggregate** in the **Tenancy** module
->    ([ADR-0017 Amendment 2](../decisions/0017-tenant-organization-hierarchy.md)) —
+>    ([ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md)) —
 >    sub-unit within a
 >    tenant; carries optional `CustomSubdomain`, `BrandingOverride`, `Status`. See
 >    [28-platform-tenant-organization.md](28-platform-tenant-organization.md) for the full

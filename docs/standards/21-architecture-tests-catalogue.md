@@ -532,11 +532,17 @@ otherwise).
 
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
 
-- **Asserts:** exactly one type named `Organization` exists across all
-  `LearnStack.Modules.*.Domain` assemblies, and it is declared in
-  `LearnStack.Modules.Tenancy.Domain`. No other module's `Domain` declares an
-  `Organization` or `OrganizationBranding` type.
-- **Source:** [ADR-0017 Amendment 2](../decisions/0017-tenant-organization-hierarchy.md);
+- **Asserts:** exactly one type named `Organization` exists across the **enumerated** set
+  of `LearnStack.Modules.*.Domain` assemblies, and it is declared in
+  `LearnStack.Modules.Tenancy.Domain`. Same for the `OrganizationBranding` value object.
+  The assembly set is enumerated from the module list, not discovered by scanning loaded
+  assemblies — a discovery-based set that silently misses a module makes this rule
+  vacuously green, which is the failure `Meta_NetArchTest_DetectsAPlantedViolation`
+  guards against generally. The rule constrains module `Domain` assemblies only:
+  `OrganizationId` lives in `LearnStack.SharedKernel` per
+  [ADR-0023 Amendment 2](../decisions/0023-strongly-typed-id-source-generator.md) and is
+  out of scope here.
+- **Source:** [ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md);
   [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md).
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
 - **Status:** **Registered.**

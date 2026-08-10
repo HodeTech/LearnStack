@@ -143,7 +143,7 @@ Adopt **Option B**: Tenant + Organization, two levels strict.
 > chose a module — it reads "the Identity / Tenancy module" — and the rest of the corpus
 > resolved that ambiguity toward Tenancy. The aggregate is declared in
 > **`LearnStack.Modules.Tenancy.Domain`**; see
-> [Amendment 2](#amendment-2--module-ownership-of-the-organization-aggregate-2026-08-10)
+> [Amendment 2](#2026-08-10--module-ownership-of-the-organization-aggregate)
 > for the reasoning and for how Identity's remaining responsibilities read.
 >
 > This correction changes the namespace that implements the decision below; the decision
@@ -304,6 +304,16 @@ Five blocker-level architecture tests added in Phase 02:
 
 ## Implementation notes
 
+> **Corrected 2026-08-10.** The Phase 03 bullet below assigns `Organization` CRUD
+> endpoints to the Identity module. The aggregate is declared in
+> **`LearnStack.Modules.Tenancy.Domain`**, and a module cannot write another module's
+> aggregate, so those endpoints are **Tenancy's** — still delivered in Phase 03, where
+> tenant-admin surfaces land. Identity keeps the rest of that bullet: Keycloak
+> `organization_id` attribute mapping, the `Membership` extension, and JWT claim emission.
+> See
+> [Amendment 2](#2026-08-10--module-ownership-of-the-organization-aggregate).
+> The Phase 02 and Phase 06 bullets are unchanged.
+
 - Phase 02 — Platform kernel: `Organization` aggregate, `OrganizationId` strongly-typed ID,
   EF entity config, RLS policy template, `[OrganizationScoped]` attribute, architecture tests.
 - Phase 03 — Identity module: `Organization` CRUD endpoints (tenant-admin scope), Keycloak
@@ -331,7 +341,7 @@ The conceptual model, ER diagram, RLS policy worked example, and onboarding flow
 
 ## Amendments
 
-### Amendment 1 — Identity row terminology (2026-05-19)
+### 2026-05-19 — Identity row terminology
 
 The "Identity" row in the defense-in-depth table reads "Keycloak realm-per-tenant".
 Read this as a reference to the **realm-per-tenant opt-in** described in
@@ -343,7 +353,7 @@ satisfy the defense-in-depth requirement of this ADR; the live architecture guid
 [09-tenant-isolation.md](../architecture/09-tenant-isolation.md) reflects the
 corrected wording. This is a clarification; the Decision is unchanged.
 
-### Amendment 2 — Module ownership of the `Organization` aggregate (2026-08-10)
+### 2026-08-10 — Module ownership of the `Organization` aggregate
 
 The Decision above reads "the domain model adds an `Organization` aggregate in the
 **Identity / Tenancy** module". That slash was never resolved, and the corpus grew both
@@ -384,11 +394,30 @@ extension for org-scoped role assignments, and JWT claim emission; it reads orga
 data across the boundary through an application contract
 ([ADR-0010](0010-cross-module-communication.md) mechanism 1), never a navigation property
 or a join. `Membership` continues to hold `OrganizationId` by value from
-`LearnStack.SharedKernel`.
+`LearnStack.SharedKernel`, which
+[ADR-0023 Amendment 2](0023-strongly-typed-id-source-generator.md) licenses for exactly
+three cross-cutting identifiers.
 
-`Organization_Aggregate_Declared_In_Tenancy_Domain` in the
-[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md) enforces
-this from Packet 6. Nothing enforced it before, which is how both readings survived side
-by side for three months.
+**The endpoints keep their phase.** Moving them between modules does not move them between
+phases: `Organization` CRUD lands in
+[Phase 03](../roadmap/phase-03-identity-admin.md), where every other tenant-admin surface
+lands, and the Phase 06 org switcher and org list / detail / create UI are unchanged. Only
+the owning module changed. Naming the phase here is the point — a capability reassigned
+without one is a capability nobody schedules.
+
+**Two enumerations elsewhere read `Organization` as a peer module** —
+[ADR-0021 § Decision](0021-feature-based-entitlement.md) and the module diagram in
+[ADR-0018 § Decision outcome](0018-tenant-driven-customization-model.md). Both are
+capability-area lists, not assembly manifests; neither survives contact with
+`backend/src/Modules/`, which has never held an `Organization` project. There is no
+`LearnStack.Modules.Organization`, and
+[`Organization_Aggregate_Declared_In_Tenancy_Domain`](../standards/21-architecture-tests-catalogue.md#organization_aggregate_declared_in_tenancy_domain)
+now rejects one.
+
+**§ Architecture tests' count of five reads as six**, the sixth being that rule.
+
+[`Organization_Aggregate_Declared_In_Tenancy_Domain`](../standards/21-architecture-tests-catalogue.md#organization_aggregate_declared_in_tenancy_domain)
+enforces this from Packet 6. Nothing enforced it before, which is how both readings
+survived side by side for three months.
 
 This is a clarification; the Decision is unchanged.
