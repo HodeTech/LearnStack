@@ -138,6 +138,18 @@ Adopt **Option B**: Tenant + Organization, two levels strict.
 
 ### Domain model addition
 
+> **Corrected 2026-08-10.** The namespace below reads
+> `LearnStack.Modules.Identity.Domain.Entities`. The Decision section of this ADR never
+> chose a module — it reads "the Identity / Tenancy module" — and the rest of the corpus
+> resolved that ambiguity toward Tenancy. The aggregate is declared in
+> **`LearnStack.Modules.Tenancy.Domain`**; see
+> [Amendment 2](#amendment-2--module-ownership-of-the-organization-aggregate-2026-08-10)
+> for the reasoning and for how Identity's remaining responsibilities read.
+>
+> This correction changes the namespace that implements the decision below; the decision
+> itself — a two-level Tenant + Organization hierarchy — is unchanged. The field list is
+> correct as written.
+
 ```csharp
 namespace LearnStack.Modules.Identity.Domain.Entities;
 
@@ -319,7 +331,7 @@ The conceptual model, ER diagram, RLS policy worked example, and onboarding flow
 
 ## Amendments
 
-### 2026-05-19 — Identity row terminology
+### Amendment 1 — Identity row terminology (2026-05-19)
 
 The "Identity" row in the defense-in-depth table reads "Keycloak realm-per-tenant".
 Read this as a reference to the **realm-per-tenant opt-in** described in
@@ -330,3 +342,53 @@ tenant is an enterprise opt-in for compliance-driven isolation. Both strategies
 satisfy the defense-in-depth requirement of this ADR; the live architecture guide
 [09-tenant-isolation.md](../architecture/09-tenant-isolation.md) reflects the
 corrected wording. This is a clarification; the Decision is unchanged.
+
+### Amendment 2 — Module ownership of the `Organization` aggregate (2026-08-10)
+
+The Decision above reads "the domain model adds an `Organization` aggregate in the
+**Identity / Tenancy** module". That slash was never resolved, and the corpus grew both
+readings: one document placed the aggregate in Identity, roughly fifteen placed it in
+Tenancy. This amendment resolves it now, before
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) writes the first migration
+and the choice stops being free.
+
+**The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`,** with
+its EF configuration and its migration on `TenancyDbContext`. Three things decide it:
+
+- The aggregate's own field list in § Decision outcome — `Slug`, `CustomSubdomain`,
+  `OrganizationStatus`, `BrandingOverride`, `ReportingParentId` — carries no identity
+  field, and matches the Tenancy module's charter in
+  [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md) exactly. No
+  authorization decision reads a field on it: the organization term in the RLS policy
+  compares `current_setting('app.organization_id')` and joins nothing.
+- Packet 6 creates `organizations` in the same migration as `tenants`, and
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md) writes the platform-subdomain row
+  "in the same transaction as the tenant row and the default organization". An
+  Identity-owned `organizations` would need two `DbContext` instances inside one
+  transaction, which [Database Standards § Forbidden](../standards/05-database.md)
+  rejects — and none of [ADR-0010](0010-cross-module-communication.md)'s four mechanisms
+  offers an atomic substitute.
+- The module dependency graph runs one way. `identity --> tenancy` is declared in
+  [03-module-boundaries.md](../architecture/03-module-boundaries.md); no reverse edge
+  exists.
+
+**The namespace in the § Decision outcome code block** —
+`LearnStack.Modules.Identity.Domain.Entities` — **is superseded as illustrative.** This is
+the same instrument as the dated `### RLS policy template` correction in that section: a
+sub-block of § Decision outcome corrected in place, leaving the Decision untouched.
+
+**§ Implementation notes now reads:** Tenancy owns the `Organization` aggregate **and its
+CRUD endpoints** — a module cannot write another module's aggregate, so the endpoints
+follow it. Identity retains Keycloak `organization_id` attribute mapping, the `Membership`
+extension for org-scoped role assignments, and JWT claim emission; it reads organization
+data across the boundary through an application contract
+([ADR-0010](0010-cross-module-communication.md) mechanism 1), never a navigation property
+or a join. `Membership` continues to hold `OrganizationId` by value from
+`LearnStack.SharedKernel`.
+
+`Organization_Aggregate_Declared_In_Tenancy_Domain` in the
+[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md) enforces
+this from Packet 6. Nothing enforced it before, which is how both readings survived side
+by side for three months.
+
+This is a clarification; the Decision is unchanged.

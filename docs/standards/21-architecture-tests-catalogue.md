@@ -530,6 +530,18 @@ otherwise).
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 10).
 
+#### `Organization_Aggregate_Declared_In_Tenancy_Domain`
+
+- **Asserts:** exactly one type named `Organization` exists across all
+  `LearnStack.Modules.*.Domain` assemblies, and it is declared in
+  `LearnStack.Modules.Tenancy.Domain`. No other module's `Domain` declares an
+  `Organization` or `OrganizationBranding` type.
+- **Source:** [ADR-0017 Amendment 2](../decisions/0017-tenant-organization-hierarchy.md);
+  [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md).
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
+
 ### Tenancy and isolation
 
 Source: [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendments

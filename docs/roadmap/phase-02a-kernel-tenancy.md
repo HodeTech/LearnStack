@@ -221,6 +221,12 @@ nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
 projection), `platform_entitlement_cache`, `platform_host_to_tenant`, and
 `outbox_messages`. Default-organization seeding at tenant creation.
 
+The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, with its
+EF configuration and its migration on `TenancyDbContext`, per
+[ADR-0017 Amendment 2](../decisions/0017-tenant-organization-hierarchy.md). Identity holds
+`OrganizationId` by value from `LearnStack.SharedKernel` and reads organization data
+through an application contract; it declares no `Organization` type of its own.
+
 The `outbox_messages` table ships here even though nothing dispatches from it
 until [Phase 02b](phase-02b-events-auth.md): the table's schema and its
 ownership by LearnStack are a one-way door, and that ownership is precisely
