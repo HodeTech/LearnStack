@@ -189,7 +189,8 @@ Rules:
   bypassed: an entity whose `Id` is uninitialized is equal only to itself by
   reference, two entities of different runtime types are never equal even when their
   `Id` matches, and `GetHashCode` partitions uninitialized instances apart.
-- **Ask `IStronglyTypedId.IsInitialized()`, never `id.Equals(default(TId))`.** A
+- **Ask `IStronglyTypedId.IsInitialized()`, never `id.Equals(default(TId))`**
+  ([ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md))**.** A
   Vogen `[ValueObject]` returns `false` from `Equals` when either side is
   uninitialized, so the `default` comparison answers `false` for exactly the case it
   is meant to catch, and the guard behind it silently never runs.
@@ -201,7 +202,10 @@ Rules:
 - **`Equals(object?)` and `GetHashCode()` on `Entity<TId>` are `sealed override`.**
   A derived aggregate that overrode them could also declare its own `operator ==`;
   sealed, it cannot silence CS0660 / CS0661 and the build fails instead. Aggregates
-  never redefine equality.
+  never redefine equality — enforced from Packet 10 by
+  [`Aggregates_Do_Not_Redeclare_Entity_Equality`](21-architecture-tests-catalogue.md#aggregates_do_not_redeclare_entity_equality),
+  which catches the one case the compiler cannot: a derived `Equals(TSelf?)`
+  **overload**, which is a new method rather than an override.
 - **Do not enable EF Core lazy-loading proxies.** The cross-type guard compares
   `GetType()`, and a proxy's runtime type is `Castle.Proxies.<Name>Proxy`, so a
   proxied instance would never equal the entity it proxies. Lazy loading is already

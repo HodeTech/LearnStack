@@ -302,6 +302,41 @@ An ID in SharedKernel is a shared vocabulary, not a claim on the aggregate.
 
 This is a clarification; the Decision is unchanged.
 
+### Amendment 3 — `IStronglyTypedId<TKey>` is no longer a pure marker (2026-08-10)
+
+The Decision calls `IStronglyTypedId<TKey>` a **marker** interface and closes with
+"the interface stays; Vogen is just the body". Both readings need narrowing after
+[Phase 02a Packet 3b](../roadmap/phase-02a-kernel-tenancy.md).
+
+**The interface carries one behavioural member: `bool IsInitialized()`.** It is no
+longer a pure marker. The member exists because the obvious spelling of "is this id
+unset?" — `id.Equals(default(TId))` — silently answers `false` for an unset id: a
+Vogen `[ValueObject]` returns `false` from `Equals` whenever either side is
+uninitialized. A guard written that way never runs, which is what shipped in Packet 2
+and what Packet 3b found by measuring: `Entity<TId>.GetHashCode()` threw
+`ValueObjectValidationException` for any aggregate that had not been given an id, so
+a `HashSet` of two new aggregates was an exception rather than a set.
+
+**"Vogen is just the body" now has a direction.** Vogen emits `IsInitialized()`, so
+every existing id satisfies the member without a line of code — but the dependency
+runs the other way too: the interface now requires something only Vogen happens to
+generate. A hand-written id must implement it explicitly, and replacing Vogen means
+replacing that member as well. That is a real narrowing of the Decision's "the
+interface stays" independence, and it is recorded here rather than discovered later.
+
+**Aggregate id type parameters also constrain to `IEquatable<TId>`.** Without it
+`id.Equals(other.Id)` binds to `ValueType.Equals(object)` and boxes. Measured per
+call on the shipped kernel: 40 bytes for that single call, and 0 with the constraint.
+Every Vogen `record struct` already implements `IEquatable<TSelf>`, so this is a
+constraint on the *use* of ids, not a new requirement on ids themselves. It is stated
+here because it is a consequence of choosing a struct-based id generator, which is
+this ADR's decision.
+
+Both rules are written in
+[Standards 02 § Domain Modeling](../standards/02-backend-coding.md).
+
+This is a clarification; the Decision is unchanged.
+
 ## References
 
 - [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)

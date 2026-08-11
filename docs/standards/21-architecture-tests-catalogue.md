@@ -530,6 +530,23 @@ otherwise).
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 10).
 
+#### `Aggregates_Do_Not_Redeclare_Entity_Equality`
+
+- **Asserts:** no type deriving from `Entity<>` declares a method named `Equals`, a
+  method named `GetHashCode`, or an `op_Equality` / `op_Inequality` operator.
+  Overriding is already impossible — `Entity<TId>` seals `Equals(object?)` and
+  `GetHashCode()`, and with both sealed a derived operator cannot silence
+  CS0660 / CS0661 — but a derived **overload** such as `bool Equals(Course? other)`
+  is a new method, so there is nothing to seal and the compiler is silent. Measured:
+  with such an overload, `a.Equals(b)` returns `true` while `a == b` and
+  `((Entity<CourseId>)a).Equals(b)` return `false` for the same pair. Three answers
+  for one question, decided by static type.
+- **Source:** [02-backend-coding.md § Domain Modeling](02-backend-coding.md);
+  [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 3b registers, Packet 10 implements).
+
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
 
 - **Asserts:** exactly one type named `Organization` exists across the **enumerated** set
