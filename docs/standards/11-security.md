@@ -295,7 +295,9 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 ## Secrets and Configuration
 
 - Every secret read goes through **`ISecretProvider`**. The registered implementation is
-  `ConfigurationSecretProvider` until Vault's trigger fires — a production secret must rotate without a redeploy, or more than one operator needs access to production secrets — at which point
+  `ConfigurationSecretProvider` until Vault's trigger fires — a production secret must
+  rotate without a redeploy, or more than one operator needs access to production
+  secrets — at which point
   `DaprSecretProvider` → Vault takes over per
   [ADR-0014](../decisions/0014-adopt-dapr.md) and
   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). Call sites are identical

@@ -70,7 +70,9 @@ path, the cross-instance invalidation topic, and — if the generation-key redes
 Packet 5 was chosen over removal — the generation counters that replace
 `RemoveByPrefixAsync`. See [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md).
 
-**Vault behind `ISecretProvider`** — *trigger: a production secret must rotate without a redeploy, or more than one operator needs access to production secrets.* KV mount layout, per-environment policies, the application
+**Vault behind `ISecretProvider`** — *trigger: a production secret must rotate without
+a redeploy, or more than one operator needs access to production secrets.* KV mount
+layout, per-environment policies, the application
 role and its lease renewal, and the rotation cadence below under **Security**.
 `ConfigurationSecretProvider` remains the `Development` implementation. No module imports a
 Vault client; the swap happens once at the composition root.

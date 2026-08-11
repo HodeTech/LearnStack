@@ -91,12 +91,16 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 - **A service in the default compose profile declares a `healthcheck` when one can be
   written.** `make seed` waits on the default-profile set and treats a service that is
   running but not `healthy` as not ready.
-- **A service with no healthcheck is skipped by the gate, not failed by it.** Some images
-  genuinely cannot carry one: `daprio/placement` and `daprio/daprd` are single-binary
-  images on an empty base — `docker run --entrypoint sh` fails with
-  `exec: "sh": executable file not found in $PATH`, and they ship no `wget`, `curl` or
-  `nc`. A gate that fails on a missing healthcheck fails on every run, which is a gate
-  nobody can act on.
+- **`daprio/placement` and `daprio/daprd` are the only exempt images.** Both are
+  single-binary images on an empty base — `docker run --entrypoint sh` fails with
+  `exec: "sh": executable file not found in $PATH`, and neither ships `wget`, `curl` or
+  `nc`. Every other image in the stack can carry a probe, `coturn/coturn` included
+  (`turnutils_stunclient`), so "no healthcheck" is a gap to close rather than a state to
+  tolerate.
+- **The gate skips a service that declares no healthcheck; it does not fail on one.**
+  A gate that fails on a missing healthcheck fails on every run, which is a gate nobody
+  can act on. The exemption is marked in `dev.yml` at the service, so the skip is
+  readable where it applies and the service list is not duplicated into `scripts/`.
 - **A service outside the default profile is not waited on at all.** Opt-in profiles are
   started deliberately; the daily loop must not block on them.
 
@@ -107,9 +111,16 @@ otel-collector          # Phase 11 (Production hardening — observability stack
   publishes its development database, and `dev.yml` ships committed development
   credentials. There is no exemption: LiveKit is already pinned to a single machine by
   `--node-ip 127.0.0.1`, so binding its media range wider buys nothing.
-- **A port nothing can reach is removed, not rebound.** Kafka advertises only
-  `PLAINTEXT://kafka:9092`, which no host process can resolve, so publishing 9092 to the
-  host is decoration that reads as a reachable broker.
+- **A published port with no supported host-side workflow is removed, not rebound.**
+  Reachability is not the test — a port can be reachable and still have no sanctioned
+  use. Kafka's 9092 resolves only if the developer adds `127.0.0.1 kafka` to
+  `/etc/hosts`, and Phase 01 made `kafka-ui` (`localhost:8081`) the canonical
+  workstation path, with an EXTERNAL listener deferred to
+  [Phase 11](../roadmap/phase-11-production-hardening.md); `dapr-placement`'s 50005 is
+  spoken only by sidecars. Both mappings go. When one does, the listener note in
+  `dev.yml` and `infra/compose/README.md` § Eventing are corrected in the same
+  commit — a removed mapping whose comment three lines above still tells developers to
+  use it is worse than leaving it.
 
 ### Development credentials
 
