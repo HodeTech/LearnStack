@@ -9,9 +9,9 @@ namespace LearnStack.SharedKernel.Results;
 /// <remarks>
 /// Named <c>None</c> rather than <c>Unit</c> because every MediatR handler file
 /// imports both <c>MediatR</c> and this namespace, and <c>MediatR.Unit</c> would
-/// make the reference ambiguous in each one. The rename landed in
-/// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Phase 02a
-/// Packet 3b</see>, before the first handler existed.
+/// make the reference ambiguous in each one. Renamed while the kernel still had
+/// one call site, before any module handler existed. Standards 09 § Error Model
+/// publishes the shape.
 /// </remarks>
 public readonly record struct None
 {

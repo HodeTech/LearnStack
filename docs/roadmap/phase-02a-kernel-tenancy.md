@@ -94,7 +94,7 @@ orphan.
 
 - `Results.Unit` collides with `MediatR.Unit`. Any handler file that imports
   both namespaces gets an ambiguous reference, and every handler file will
-  import both. Renamed to **`None`** before the first handler exists —
+  import both. Renamed to **`None`** before the first module handler exists —
   [Phase 02d](phase-02d-walking-skeleton.md) writes it. `None` was chosen
   because it collides with nothing in the BCL, MediatR, EF Core, Vogen,
   FluentValidation or Polly, and needs no keyword suppression. The rename
@@ -103,20 +103,11 @@ orphan.
   [Standards 02](../standards/02-backend-coding.md) and the
   [glossary](../glossary.md) — the type file alone is not "done".
 
-  This is recorded for the Hub's own agents rather than acted on: `LearnStack-Hub`
-  mirrors this kernel and holds **73** `Result<Unit>` / `Unit.Value` sites across
-  11 files, against 1 here. It is **not** carrying an unaddressed defect — it hit
-  the same collision and mitigated it centrally, with a global
-  `<Using Include="…Results.Unit" Alias="Unit" />` in
-  `backend/src/Modules/Directory.Build.props` covering all 23 module projects. That
-  works, and at 23 projects it is one line rather than one per handler.
-
-  So the divergence is a genuine choice, not an oversight, and it is the Hub's to
-  make: rename to `None` and drop the alias, or keep `Unit` behind the alias and
-  accept that the two kernels no longer share a type name. The reconciliation is
-  already booked in that repository at `p02c-1-hub-domain-core.md`; this note exists
-  so whoever picks it up knows which name LearnStack chose and why, instead of
-  discovering the split from a merge conflict.
+  `LearnStack-Hub` mirrors this kernel and hit the same collision, which it
+  mitigated differently rather than missing. Its current state and its
+  reconciliation are tracked in that repository, not restated here — a second copy
+  of a plan is a plan that will be wrong ([Phase 02c](phase-02c-hub-foundation.md)).
+  LearnStack's side of the boundary is the name: **`None`**.
 - `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
   cannot prove `Value` is non-null after an `IsSuccess` check. Without them
   every consumer writes `!` or a justification comment, in every module, for
