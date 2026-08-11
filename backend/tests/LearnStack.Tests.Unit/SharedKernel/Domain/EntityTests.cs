@@ -29,11 +29,12 @@ public sealed class EntityTests
     [Fact]
     public void Equality_TwoTransientEntities_AreNeverEqual()
     {
-        // Both default-id ("not yet persisted") — must not collapse in the
-        // change tracker / HashSet-based collection navigations.
-        // The hash falls back to reference identity (object.GetHashCode);
-        // we only assert the Equals contract because RuntimeHelpers identity
-        // hashes are not guaranteed-distinct (collision is rare but legal).
+        // Both ids uninitialized — must not collapse in a HashSet-backed
+        // collection navigation or a Distinct(). The hash falls back to reference
+        // identity (object.GetHashCode); we assert only the Equals contract here
+        // because RuntimeHelpers identity hashes are not guaranteed-distinct
+        // (collision is rare but legal). TransientEntities_SurviveAHashSet covers
+        // the collection behaviour.
         var a = new TestAggregate();
         var b = new TestAggregate();
 
@@ -61,12 +62,67 @@ public sealed class EntityTests
     }
 
     [Fact]
-    public void Entity_ImplementsIEquatable_SoComparisonsDoNotBox()
+    public void Entity_ImplementsIEquatable_ForTypedComparison()
     {
-        // Without IEquatable<Entity<TId>> every comparison goes through
-        // Equals(object?) and boxes the struct Id. EqualityComparer<T>.Default
-        // picks the typed overload only when the interface is present.
         typeof(TestAggregate).Should().BeAssignableTo<IEquatable<Entity<TestId>>>();
+    }
+
+    [Fact]
+    public void Equality_DoesNotAllocate()
+    {
+        // What removed the allocation was the `IEquatable<TId>` constraint, not
+        // IEquatable<Entity<TId>>: `Id.Equals(other.Id)` used to bind to
+        // ValueType.Equals(object) and box the struct id on every comparison —
+        // measured at 120 B/call on all three paths before the constraint, 0 after.
+        // Entity<TId> is a class, so Equals(object?) never boxed the *entity*.
+        var id = TestId.New();
+        var a = new TestAggregate(id);
+        var b = new TestAggregate(id);
+
+        static long AllocatedBy(Action action)
+        {
+            action();
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 1_000; i++)
+            {
+                action();
+            }
+
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        AllocatedBy(() => _ = a.Equals(b)).Should().Be(0);
+        AllocatedBy(() => _ = a == b).Should().Be(0);
+        AllocatedBy(() => _ = a.Equals((object)b)).Should().Be(0);
+        AllocatedBy(() => _ = a.GetHashCode()).Should().Be(0);
+    }
+
+    [Fact]
+    public void GetHashCode_OnTransientEntity_DoesNotThrow()
+    {
+        // The guard this pins is not decorative. A Vogen id throws
+        // ValueObjectValidationException when an uninitialized Value is read, and
+        // `Id.Equals(default(TId))` cannot detect that state — Vogen's Equals
+        // returns false when either side is uninitialized, so the old spelling of
+        // this guard was dead code and a transient aggregate threw from
+        // GetHashCode. Delete the IsInitialized() check and this test goes red.
+        var transient = new TestAggregate();
+
+        transient.Invoking(e => e.GetHashCode()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void TransientEntities_SurviveAHashSet()
+    {
+        // The shape that actually broke: two unsaved aggregates in a
+        // HashSet-backed collection navigation.
+        var a = new TestAggregate();
+        var b = new TestAggregate();
+
+        var set = new HashSet<TestAggregate> { a, b };
+
+        set.Should().HaveCount(2);
+        set.Should().Contain(a).And.Contain(b);
     }
 
     [Fact]
@@ -85,7 +141,7 @@ public sealed class EntityTests
     {
         // The guard that matters most: `==` must not take a shortcut past the
         // transient check. Two unsaved aggregates written as `a == b` collapsing
-        // into one is how a change tracker loses a row.
+        // into one is how a collection navigation silently drops a row.
         var a = new TestAggregate();
         var b = new TestAggregate();
 

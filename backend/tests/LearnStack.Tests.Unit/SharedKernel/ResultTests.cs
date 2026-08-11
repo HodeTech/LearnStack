@@ -54,10 +54,20 @@ public sealed class ResultTests
         {
             result.Value.Length.Should().Be(7);
         }
+        else
+        {
+            // pins MemberNotNullWhen(false, nameof(Error)) on IsSuccess
+            result.Error.Message.Key.Should().NotBeNull();
+        }
 
         if (result.IsFailure)
         {
             result.Error.Message.Key.Should().NotBeNull();
+        }
+        else
+        {
+            // pins MemberNotNullWhen(false, nameof(Value)) on IsFailure
+            result.Value.Length.Should().Be(7);
         }
     }
 
@@ -76,6 +86,12 @@ public sealed class ResultTests
 
         if (result.IsFailure)
         {
+            result.Error.Message.Key.Should().Be("lockey_not_found");
+        }
+
+        if (!result.IsSuccess)
+        {
+            // pins MemberNotNullWhen(false, nameof(Error)) on IResultBase.IsSuccess
             result.Error.Message.Key.Should().Be("lockey_not_found");
         }
 

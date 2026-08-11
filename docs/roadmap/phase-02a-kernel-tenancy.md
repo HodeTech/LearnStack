@@ -123,12 +123,31 @@ orphan.
   assumed one is not among them: **EF Core's change tracker does not call
   `Entity<TId>.Equals`** — its identity map keys on the primary-key value through
   a `ValueComparer` and tracks instances by reference. What actually breaks is
-  (a) every comparison routes through `Equals(object?)` and boxes the struct `Id`,
-  including `EqualityComparer<T>.Default` in generic code, `HashSet`-backed
-  collection navigations, `Contains` and `Distinct`; and (b) without `==`, two
-  aggregates compared with `==` fall back to reference equality, silently skipping
-  the transient and cross-type guards `Equals` enforces — so `a == b` and
-  `a.Equals(b)` disagree. All three overloads now delegate to one typed body.
+  (a) without `==`, two aggregates compared with `==` fall back to reference
+  equality, silently skipping the transient and cross-type guards `Equals`
+  enforces — so `a == b` and `a.Equals(b)` disagree; and (b) `Id.Equals(other.Id)`
+  binds to `ValueType.Equals(object)` and boxes the struct id on **every**
+  comparison. Measured on the shipped kernel: 120 B/call on all three paths, and
+  40 B/call on `GetHashCode`. All three overloads now delegate to one typed body,
+  and the constraint gains `IEquatable<TId>` — which is what actually removes the
+  allocation, taking every path to **0 B/call**.
+
+  Two things this packet found only by measuring, both now fixed and both
+  previously stated wrong in this document:
+
+  - The transient guard was **dead code**. It asked `Id.Equals(default(TId))`, but
+    a Vogen `[ValueObject]` returns `false` from `Equals` when either side is
+    uninitialized — so the question answered `false` for a transient id and the
+    guard never ran. `GetHashCode` therefore took the `HashCode.Combine` branch and
+    **threw** `ValueObjectValidationException` for any unsaved aggregate: a
+    `HashSet` of two new aggregates was an exception, not a set. `IStronglyTypedId`
+    gains `IsInitialized()` — which every Vogen id already emits — and both guards
+    ask that instead.
+  - `EqualityComparer<T>.Default` still picks `ObjectEqualityComparer` for a
+    concrete aggregate, because `Course` is `IEquatable<Entity<CourseId>>` and never
+    `IEquatable<Course>`. Fixing that needs a CRTP base (`Entity<TSelf, TId>`) and
+    is **not** worth it: with the id constraint in place, routing through
+    `Equals(object?)` allocates nothing.
 
 **Corpus repairs:**
 

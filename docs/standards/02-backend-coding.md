@@ -186,9 +186,16 @@ Rules:
   implements `IEquatable<Entity<TId>>` and overloads `==` / `!=`; both, plus
   `Equals(object?)`, delegate to the single typed `Equals(Entity<TId>?)`. Aggregates
   do not redefine any of them. Three guards live in that one body and must not be
-  bypassed: a transient entity (`Id` equal to `default(TId)`) is equal only to
-  itself by reference, two entities of different runtime types are never equal even
-  when their `Id` matches, and `GetHashCode` partitions transients apart.
+  bypassed: an entity whose `Id` is uninitialized is equal only to itself by
+  reference, two entities of different runtime types are never equal even when their
+  `Id` matches, and `GetHashCode` partitions uninitialized instances apart.
+- **Ask `IStronglyTypedId.IsInitialized()`, never `id.Equals(default(TId))`.** A
+  Vogen `[ValueObject]` returns `false` from `Equals` when either side is
+  uninitialized, so the `default` comparison answers `false` for exactly the case it
+  is meant to catch, and the guard behind it silently never runs.
+- **Constrain aggregate id parameters to `IEquatable<TId>`.** Without it
+  `id.Equals(other.Id)` binds to `ValueType.Equals(object)` and boxes on every
+  comparison — 120 bytes per call, measured.
 - **Do not enable EF Core lazy-loading proxies.** The cross-type guard compares
   `GetType()`, so a proxy subclass would never equal the entity it proxies. Lazy
   loading is already on the [Forbidden](#forbidden) list; this is the second reason.

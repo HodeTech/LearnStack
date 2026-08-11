@@ -16,7 +16,7 @@ namespace LearnStack.SharedKernel.Domain;
 /// </summary>
 public abstract class AuditableEntity<TId>
     : Entity<TId>, ISoftDelete, IOptimisticConcurrency
-    where TId : struct, IStronglyTypedId<Guid>
+    where TId : struct, IStronglyTypedId<Guid>, IEquatable<TId>
 {
     protected AuditableEntity(TId id)
         : base(id)
