@@ -61,6 +61,80 @@ public sealed class EntityTests
     }
 
     [Fact]
+    public void Entity_ImplementsIEquatable_SoComparisonsDoNotBox()
+    {
+        // Without IEquatable<Entity<TId>> every comparison goes through
+        // Equals(object?) and boxes the struct Id. EqualityComparer<T>.Default
+        // picks the typed overload only when the interface is present.
+        typeof(TestAggregate).Should().BeAssignableTo<IEquatable<Entity<TestId>>>();
+    }
+
+    [Fact]
+    public void OperatorEquals_ForPersistedIds_MatchesEquals()
+    {
+        var id = TestId.New();
+        var a = new TestAggregate(id);
+        var b = new TestAggregate(id);
+
+        (a == b).Should().BeTrue();
+        (a != b).Should().BeFalse();
+    }
+
+    [Fact]
+    public void OperatorEquals_TwoTransientEntities_AreNeverEqual()
+    {
+        // The guard that matters most: `==` must not take a shortcut past the
+        // transient check. Two unsaved aggregates written as `a == b` collapsing
+        // into one is how a change tracker loses a row.
+        var a = new TestAggregate();
+        var b = new TestAggregate();
+
+        (a == b).Should().BeFalse();
+        (a != b).Should().BeTrue();
+    }
+
+    [Fact]
+    public void OperatorEquals_DifferentRuntimeType_SameId_IsFalse()
+    {
+        var id = TestId.New();
+        Entity<TestId> a = new TestAggregate(id);
+        Entity<TestId> b = new TestAggregateSibling(id);
+
+        (a == b).Should().BeFalse();
+    }
+
+    [Fact]
+    public void OperatorEquals_HandlesNullOnEitherSide()
+    {
+        var a = new TestAggregate(TestId.New());
+        TestAggregate? nothing = null;
+
+        (nothing == null).Should().BeTrue();
+        (a == null).Should().BeFalse();
+        (null == a).Should().BeFalse();
+        (a != null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TypedEquals_WithNull_IsFalse()
+    {
+        var a = new TestAggregate(TestId.New());
+        Entity<TestId>? typedNull = null;
+        object? untypedNull = null;
+
+        a.Equals(typedNull).Should().BeFalse();
+        a.Equals(untypedNull).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ObjectEquals_WithUnrelatedType_IsFalse()
+    {
+        var a = new TestAggregate(TestId.New());
+
+        a.Equals("not an entity").Should().BeFalse();
+    }
+
+    [Fact]
     public void RaiseDomainEvent_AppendsToCollection()
     {
         var aggregate = new TestAggregate(TestId.New());

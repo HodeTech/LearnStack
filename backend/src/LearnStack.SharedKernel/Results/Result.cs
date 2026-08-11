@@ -34,8 +34,22 @@ public sealed record Result<T> : IResultBase
         SuccessMessage = successMessage;
     }
 
+    /// <summary>
+    /// True when the operation succeeded. The <see cref="MemberNotNullWhenAttribute"/>
+    /// pairs teach flow analysis that a successful result carries a
+    /// <see cref="Value"/> and no <see cref="Error"/>, so consumers can dereference
+    /// either one after a single check without <c>!</c> and without a justification
+    /// comment. Both this type and <see cref="IResultBase"/> carry the annotations:
+    /// they do not flow from an interface to its implementation, so a caller typed
+    /// to <c>Result&lt;T&gt;</c> would get nothing from the interface's copy alone.
+    /// </summary>
+    [MemberNotNullWhen(true, nameof(Value))]
+    [MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess { get; }
 
+    /// <inheritdoc cref="IResultBase.IsFailure" />
+    [MemberNotNullWhen(false, nameof(Value))]
+    [MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => !IsSuccess;
 
     public T? Value { get; }

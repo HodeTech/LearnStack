@@ -40,6 +40,49 @@ public sealed class ResultTests
     }
 
     [Fact]
+    public void IsSuccess_ProvesValueNonNull_ToFlowAnalysis()
+    {
+        // The assertion is that this method COMPILES. Every dereference below is
+        // written without `!` and without a #pragma; under <Nullable>enable</Nullable>
+        // each one is a CS8602 unless [MemberNotNullWhen] is present, and CI builds
+        // with TreatWarningsAsErrors. Delete the annotations on Result<T> and this
+        // test stops building — which is the only way to test a compile-time
+        // contract from inside the test suite.
+        var result = Result<string>.Ok("payload");
+
+        if (result.IsSuccess)
+        {
+            result.Value.Length.Should().Be(7);
+        }
+
+        if (result.IsFailure)
+        {
+            result.Error.Message.Key.Should().NotBeNull();
+        }
+    }
+
+    [Fact]
+    public void IsFailure_ProvesErrorNonNull_ThroughTheInterface()
+    {
+        // Same contract, reached through IResultBase. The annotations do not flow
+        // from an interface to its implementations, so both carry their own copy;
+        // this exercises the interface's.
+        // CA1859 prefers the concrete type; the interface IS the contract under
+        // test here, same as IResultBase_IsImplementedByResult below.
+#pragma warning disable CA1859
+        IResultBase result = Result<string>.Fail(
+            new Error(LocalizedMessage.Of("lockey_not_found")));
+#pragma warning restore CA1859
+
+        if (result.IsFailure)
+        {
+            result.Error.Message.Key.Should().Be("lockey_not_found");
+        }
+
+        result.IsSuccess.Should().BeFalse();
+    }
+
+    [Fact]
     public void Ok_WithSuccessMessage_RetainsIt()
     {
         var message = LocalizedMessage.Of("lockey_course_published");

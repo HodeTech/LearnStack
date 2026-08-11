@@ -33,8 +33,15 @@ Both end in **RFC 7807 Problem Details** at the API boundary.
 public sealed record Result<T> : IResultBase
 {
     internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null) { ... }
+    // The annotations are the contract, not decoration: they let a consumer
+    // dereference Value or Error after one check without `!`. They do NOT flow
+    // from IResultBase to its implementations, so both carry their own copy.
+    [MemberNotNullWhen(true, nameof(Value)), MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess { get; }
+
+    [MemberNotNullWhen(false, nameof(Value)), MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => !IsSuccess;
+
     public T? Value { get; }
     public Error? Error { get; }
     public LocalizedMessage? SuccessMessage { get; }

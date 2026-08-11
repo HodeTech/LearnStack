@@ -182,6 +182,16 @@ Rules:
 - Domain events raised from aggregate methods; collected by the unit-of-work and dispatched on commit.
 - Avoid anemic models (data + getters/setters with logic outside).
 - Avoid primitive obsession; use value objects.
+- **Entity equality is identity equality, and it is defined once.** `Entity<TId>`
+  implements `IEquatable<Entity<TId>>` and overloads `==` / `!=`; both, plus
+  `Equals(object?)`, delegate to the single typed `Equals(Entity<TId>?)`. Aggregates
+  do not redefine any of them. Three guards live in that one body and must not be
+  bypassed: a transient entity (`Id` equal to `default(TId)`) is equal only to
+  itself by reference, two entities of different runtime types are never equal even
+  when their `Id` matches, and `GetHashCode` partitions transients apart.
+- **Do not enable EF Core lazy-loading proxies.** The cross-type guard compares
+  `GetType()`, so a proxy subclass would never equal the entity it proxies. Lazy
+  loading is already on the [Forbidden](#forbidden) list; this is the second reason.
 
 ## Pipeline Behaviors
 

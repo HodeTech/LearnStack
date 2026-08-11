@@ -20,8 +20,20 @@ namespace LearnStack.SharedKernel.Results;
     Justification = "Result+Error pattern — C#-only codebase per ADR-0032; no VB consumer affected.")]
 public interface IResultBase
 {
+    /// <summary>
+    /// True when the operation succeeded. Carries the <see cref="Error"/> half of
+    /// the flow-analysis contract; the <c>Value</c> half lives on
+    /// <see cref="Result{T}"/>, which this interface cannot see. Implementations
+    /// repeat these annotations — they do not flow from interface to implementation.
+    /// </summary>
+    [MemberNotNullWhen(false, nameof(Error))]
     bool IsSuccess { get; }
 
+    /// <summary>
+    /// True when the operation failed, in which case <see cref="Error"/> is
+    /// non-null. Exactly the negation of <see cref="IsSuccess"/>.
+    /// </summary>
+    [MemberNotNullWhen(true, nameof(Error))]
     bool IsFailure { get; }
 
     LocalizedMessage? SuccessMessage { get; }

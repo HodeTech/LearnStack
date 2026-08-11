@@ -35,7 +35,7 @@ namespace LearnStack.SharedKernel.Domain;
 /// when an aggregate actually raises events (command paths).
 /// </para>
 /// </remarks>
-public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
+public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents, IEquatable<Entity<TId>>
     where TId : struct, IStronglyTypedId<Guid>
 {
     private List<IDomainEvent>? _domainEvents;
@@ -72,9 +72,14 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
 
     public void ClearDomainEvents() => _domainEvents?.Clear();
 
-    public override bool Equals(object? obj)
+    /// <summary>
+    /// Identity equality, typed. This is the single implementation;
+    /// <see cref="Equals(object?)"/> and <c>operator ==</c> both delegate here so
+    /// the three guards below cannot be bypassed by picking a different overload.
+    /// </summary>
+    public bool Equals(Entity<TId>? other)
     {
-        if (obj is not Entity<TId> other)
+        if (other is null)
         {
             return false;
         }
@@ -102,6 +107,19 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
 
         return Id.Equals(other.Id);
     }
+
+    public override bool Equals(object? obj) => Equals(obj as Entity<TId>);
+
+    /// <summary>
+    /// Identity equality. Delegates to <see cref="Equals(Entity{TId}?)"/>, so a
+    /// transient aggregate is not equal to another transient aggregate even when
+    /// both sides are written as <c>==</c>.
+    /// </summary>
+    public static bool operator ==(Entity<TId>? left, Entity<TId>? right) =>
+        left is null ? right is null : left.Equals(right);
+
+    /// <summary>The negation of <see cref="op_Equality"/>.</summary>
+    public static bool operator !=(Entity<TId>? left, Entity<TId>? right) => !(left == right);
 
     public override int GetHashCode() =>
         Id.Equals(default(TId))

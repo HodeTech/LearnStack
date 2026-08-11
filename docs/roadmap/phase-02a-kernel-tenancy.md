@@ -111,10 +111,24 @@ orphan.
 - `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
   cannot prove `Value` is non-null after an `IsSuccess` check. Without them
   every consumer writes `!` or a justification comment, in every module, for
-  the lifetime of the codebase.
+  the lifetime of the codebase. Annotated on **both** `Result<T>` and
+  `IResultBase` — the attributes do not flow from an interface to its
+  implementations, so a caller typed to `Result<T>` gains nothing from the
+  interface's copy alone. Proved by a test that dereferences `Value` after an
+  `IsSuccess` check with no `!` and no `#pragma`: remove the annotations and the
+  test stops compiling, which is the only way to assert a compile-time contract
+  from inside a test suite.
 - `Entity<TId>` overrides `Equals(object?)` but implements neither
-  `IEquatable<Entity<TId>>` nor `operator ==`. Every equality comparison boxes,
-  and the EF change tracker compares constantly.
+  `IEquatable<Entity<TId>>` nor `operator ==`. Two consequences, and the widely
+  assumed one is not among them: **EF Core's change tracker does not call
+  `Entity<TId>.Equals`** — its identity map keys on the primary-key value through
+  a `ValueComparer` and tracks instances by reference. What actually breaks is
+  (a) every comparison routes through `Equals(object?)` and boxes the struct `Id`,
+  including `EqualityComparer<T>.Default` in generic code, `HashSet`-backed
+  collection navigations, `Contains` and `Distinct`; and (b) without `==`, two
+  aggregates compared with `==` fall back to reference equality, silently skipping
+  the transient and cross-type guards `Equals` enforces — so `a == b` and
+  `a.Equals(b)` disagree. All three overloads now delegate to one typed body.
 
 **Corpus repairs:**
 
