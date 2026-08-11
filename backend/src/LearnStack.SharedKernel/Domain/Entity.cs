@@ -114,7 +114,14 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents, IEquatable<En
         return Id.Equals(other.Id);
     }
 
-    public override bool Equals(object? obj) => Equals(obj as Entity<TId>);
+    /// <summary>
+    /// Sealed on purpose. A derived aggregate that overrode this — or
+    /// <see cref="GetHashCode"/> — could redefine <c>operator ==</c> too and
+    /// reintroduce the <c>a == b</c> / <c>a.Equals(b)</c> split this type exists to
+    /// prevent. With both sealed, a derived <c>operator ==</c> can no longer silence
+    /// CS0660 / CS0661, so it fails the build instead.
+    /// </summary>
+    public sealed override bool Equals(object? obj) => Equals(obj as Entity<TId>);
 
     /// <summary>
     /// Identity equality. Delegates to <see cref="Equals(Entity{TId}?)"/>, so a
@@ -127,7 +134,7 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents, IEquatable<En
     /// <summary>The negation of <see cref="op_Equality"/>.</summary>
     public static bool operator !=(Entity<TId>? left, Entity<TId>? right) => !(left == right);
 
-    public override int GetHashCode() =>
+    public sealed override int GetHashCode() =>
         Id.IsInitialized()
             ? HashCode.Combine(GetType(), Id)
             : base.GetHashCode();

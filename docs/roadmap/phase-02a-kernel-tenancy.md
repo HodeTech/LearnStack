@@ -127,10 +127,20 @@ orphan.
   equality, silently skipping the transient and cross-type guards `Equals`
   enforces — so `a == b` and `a.Equals(b)` disagree; and (b) `Id.Equals(other.Id)`
   binds to `ValueType.Equals(object)` and boxes the struct id on **every**
-  comparison. Measured on the shipped kernel: 120 B/call on all three paths, and
-  40 B/call on `GetHashCode`. All three overloads now delegate to one typed body,
-  and the constraint gains `IEquatable<TId>` — which is what actually removes the
-  allocation, taking every path to **0 B/call**.
+  comparison. Measured per call on the shipped kernel, Release:
+
+  | | `Equals` / `==` / `Equals(object)` | `GetHashCode` |
+  |---|---|---|
+  | As Packet 3 shipped it | 120 B | 40 B |
+  | Dead `default(TId)` guard removed | 40 B | 0 B |
+  | `IEquatable<TId>` added to the constraint | **0 B** | **0 B** |
+
+  Two causes, not one, and it is worth keeping them apart: the constraint accounts
+  for a single boxed call, while the guard that turned out to be dead accounted for
+  two more. All three equality entry points now delegate to one typed body, and
+  `Equals(object?)` / `GetHashCode()` are `sealed override` so no aggregate can
+  redefine them — with both sealed, a derived `operator ==` can no longer silence
+  CS0660 / CS0661 and fails the build.
 
   Two things this packet found only by measuring, both now fixed and both
   previously stated wrong in this document:

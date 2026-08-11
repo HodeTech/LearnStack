@@ -194,11 +194,18 @@ Rules:
   uninitialized, so the `default` comparison answers `false` for exactly the case it
   is meant to catch, and the guard behind it silently never runs.
 - **Constrain aggregate id parameters to `IEquatable<TId>`.** Without it
-  `id.Equals(other.Id)` binds to `ValueType.Equals(object)` and boxes on every
-  comparison — 120 bytes per call, measured.
+  `id.Equals(other.Id)` binds to `ValueType.Equals(object)` and boxes — 40 bytes per
+  boxed call, measured. `Entity<TId>` used to box three times per comparison (120 B)
+  because the dead `default(TId)` guard above added two more; the constraint removes
+  the remaining one, taking every equality path and `GetHashCode` to 0 B.
+- **`Equals(object?)` and `GetHashCode()` on `Entity<TId>` are `sealed override`.**
+  A derived aggregate that overrode them could also declare its own `operator ==`;
+  sealed, it cannot silence CS0660 / CS0661 and the build fails instead. Aggregates
+  never redefine equality.
 - **Do not enable EF Core lazy-loading proxies.** The cross-type guard compares
-  `GetType()`, so a proxy subclass would never equal the entity it proxies. Lazy
-  loading is already on the [Forbidden](#forbidden) list; this is the second reason.
+  `GetType()`, and a proxy's runtime type is `Castle.Proxies.<Name>Proxy`, so a
+  proxied instance would never equal the entity it proxies. Lazy loading is already
+  barred under [EF Core](#ef-core); this is the second reason.
 
 ## Pipeline Behaviors
 

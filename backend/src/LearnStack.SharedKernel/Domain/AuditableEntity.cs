@@ -117,7 +117,10 @@ public abstract class AuditableEntity<TId>
                 nameof(at));
         }
 
-        if (by.Value == Guid.Empty)
+        // IsInitialized() first: reading Value on an unset Vogen id throws
+        // ValueObjectValidationException from inside the id type, which is neither
+        // this guard's contract nor a message a caller can act on.
+        if (!by.IsInitialized() || by.Value == Guid.Empty)
         {
             throw new ArgumentException(
                 "Audit actor must be a real UserId, not default(UserId). Pass the resolved ITenantContext.UserId.",

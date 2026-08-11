@@ -36,6 +36,10 @@ public sealed record Result<T> : IResultBase
     // The annotations are the contract, not decoration: they let a consumer
     // dereference Value or Error after one check without `!`. They do NOT flow
     // from IResultBase to its implementations, so both carry their own copy.
+    // They are load-bearing only where T is a reference type: for a non-nullable
+    // struct T — Result<None>, Result<CourseId> — `T?` is already non-nullable, so
+    // flow analysis never had a warning to suppress. Nothing is lost; the
+    // annotation is simply inert there.
     [MemberNotNullWhen(true, nameof(Value)), MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess { get; }
 
