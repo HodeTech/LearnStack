@@ -103,11 +103,20 @@ orphan.
   [Standards 02](../standards/02-backend-coding.md) and the
   [glossary](../glossary.md) — the type file alone is not "done".
 
-  This also fires the Hub-side reconciliation already booked in
-  `p02c-1-hub-domain-core.md`: `LearnStack-Hub` mirrors this kernel and holds
-  **73** `Result<Unit>` / `Unit.Value` sites across 11 files, against 1 here.
-  The Hub repository is developed by its own agents; the name is recorded here
-  so both repositories converge on it rather than diverging.
+  This is recorded for the Hub's own agents rather than acted on: `LearnStack-Hub`
+  mirrors this kernel and holds **73** `Result<Unit>` / `Unit.Value` sites across
+  11 files, against 1 here. It is **not** carrying an unaddressed defect — it hit
+  the same collision and mitigated it centrally, with a global
+  `<Using Include="…Results.Unit" Alias="Unit" />` in
+  `backend/src/Modules/Directory.Build.props` covering all 23 module projects. That
+  works, and at 23 projects it is one line rather than one per handler.
+
+  So the divergence is a genuine choice, not an oversight, and it is the Hub's to
+  make: rename to `None` and drop the alias, or keep `Unit` behind the alias and
+  accept that the two kernels no longer share a type name. The reconciliation is
+  already booked in that repository at `p02c-1-hub-domain-core.md`; this note exists
+  so whoever picks it up knows which name LearnStack chose and why, instead of
+  discovering the split from a merge conflict.
 - `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
   cannot prove `Value` is non-null after an `IsSuccess` check. Without them
   every consumer writes `!` or a justification comment, in every module, for
