@@ -56,7 +56,7 @@ public sealed record LocalizedMessage(string Key, IReadOnlyDictionary<string, st
     // ctor enforces Key.StartsWith(RequiredPrefix); see Phase 02a Packet 2.
 }
 
-public readonly record struct Unit { public static Unit Value { get; } }
+public readonly record struct None { public static None Value { get; } }
 ```
 
 The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
@@ -73,7 +73,7 @@ sync by construction. Per
 `Result<T>`'s primary constructor is `internal`; callers go through
 `Ok` / `Fail` so the success-must-carry-value rule
 (see § Forbidden) cannot be bypassed via positional record syntax.
-`Result<Unit>` is the canonical payload-less success shape.
+`Result<None>` is the canonical payload-less success shape.
 
 Field-level errors in `Error.Details` flow as `LocalizedMessage` lists
 per key, so the `lockey_` invariant covers every user-facing string the

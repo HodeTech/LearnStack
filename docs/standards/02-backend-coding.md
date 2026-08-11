@@ -108,7 +108,7 @@ public sealed record Result<T> : IResultBase
 
     // Throws when value is null — Standards 09 § Forbidden bans
     // IsSuccess = true with Value = null. For payload-less success use
-    // Result<Unit>.
+    // Result<None>.
     public static Result<T> Ok(T value, LocalizedMessage? message = null);
     public static Result<T> Fail(Error error);
 }

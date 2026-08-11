@@ -94,8 +94,20 @@ orphan.
 
 - `Results.Unit` collides with `MediatR.Unit`. Any handler file that imports
   both namespaces gets an ambiguous reference, and every handler file will
-  import both. Rename before the first handler exists —
-  [Phase 02d](phase-02d-walking-skeleton.md) writes it.
+  import both. Renamed to **`None`** before the first handler exists —
+  [Phase 02d](phase-02d-walking-skeleton.md) writes it. `None` was chosen
+  because it collides with nothing in the BCL, MediatR, EF Core, Vogen,
+  FluentValidation or Polly, and needs no keyword suppression. The rename
+  sweeps `Result.cs`'s XML doc and its `ArgumentNullException` message,
+  `ResultTests`, [Standards 09](../standards/09-error-handling.md),
+  [Standards 02](../standards/02-backend-coding.md) and the
+  [glossary](../glossary.md) — the type file alone is not "done".
+
+  This also fires the Hub-side reconciliation already booked in
+  `p02c-1-hub-domain-core.md`: `LearnStack-Hub` mirrors this kernel and holds
+  **73** `Result<Unit>` / `Unit.Value` sites across 11 files, against 1 here.
+  The Hub repository is developed by its own agents; the name is recorded here
+  so both repositories converge on it rather than diverging.
 - `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
   cannot prove `Value` is non-null after an `IsSuccess` check. Without them
   every consumer writes `!` or a justification comment, in every module, for

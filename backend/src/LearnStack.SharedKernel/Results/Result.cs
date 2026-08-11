@@ -48,7 +48,7 @@ public sealed record Result<T> : IResultBase
     /// Constructs a success result. Throws when <paramref name="value"/> is
     /// <c>null</c>: Standards 09 § Forbidden bans <c>IsSuccess = true</c>
     /// with <c>Value = null</c> — if a payload-less success shape is needed,
-    /// model it as <c>Result&lt;Unit&gt;</c>.
+    /// model it as <c>Result&lt;None&gt;</c>.
     /// </summary>
     public static Result<T> Ok(T value, LocalizedMessage? message = null)
     {
@@ -56,7 +56,7 @@ public sealed record Result<T> : IResultBase
         {
             throw new ArgumentNullException(
                 nameof(value),
-                "Result<T>.Ok cannot wrap a null value. Use Result<Unit> for payload-less success per Standards 09 § Forbidden.");
+                "Result<T>.Ok cannot wrap a null value. Use Result<None> for payload-less success per Standards 09 § Forbidden.");
         }
 
         return new Result<T>(isSuccess: true, value: value, error: null, successMessage: message);

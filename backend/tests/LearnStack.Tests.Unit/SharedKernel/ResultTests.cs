@@ -2,7 +2,6 @@ using FluentAssertions;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using Xunit;
-using ResultUnit = LearnStack.SharedKernel.Results.Unit;
 
 namespace LearnStack.Tests.Unit.SharedKernel;
 
@@ -28,16 +27,16 @@ public sealed class ResultTests
         var act = () => Result<string>.Ok(null!);
 
         act.Should().Throw<ArgumentNullException>()
-            .WithMessage("*Result<Unit>*");
+            .WithMessage("*Result<None>*");
     }
 
     [Fact]
-    public void Ok_WithUnit_IsTheCanonicalPayloadlessSuccess()
+    public void Ok_WithNone_IsTheCanonicalPayloadlessSuccess()
     {
-        var result = Result<ResultUnit>.Ok(ResultUnit.Value);
+        var result = Result<None>.Ok(None.Value);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be(ResultUnit.Value);
+        result.Value.Should().Be(None.Value);
     }
 
     [Fact]
