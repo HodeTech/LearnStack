@@ -79,9 +79,9 @@ value-object's invariant captured in a `Validate` static method.
 - Never use `!` (null-forgiving operator) without a comment explaining why.
 - Prefer `ArgumentNullException.ThrowIfNull(param)` at public boundaries.
 - Return `Result<T>` for expected absences — `Result.Fail` with a `not_found` code, per
-  [Standards 09](09-error-handling.md). There is no `Maybe<T>` / `Option<T>` in the kernel
-  and none is planned; a second absence type would compete with `Result<T>` for the same job.
-  Reserve null for true uninitialized state.
+  [Standards 09](09-error-handling.md). There is no `Maybe<T>` / `Option<T>` in the
+  kernel and none is planned; a second absence type would compete with `Result<T>` for
+  the same job. Reserve null for true uninitialized state.
 
 ## Async
 

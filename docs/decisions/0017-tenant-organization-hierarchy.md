@@ -309,10 +309,10 @@ Five blocker-level architecture tests added in Phase 02:
 > **`LearnStack.Modules.Tenancy.Domain`**, and a module cannot write another module's
 > aggregate, so those endpoints are **Tenancy's** — still delivered in Phase 03, where
 > tenant-admin surfaces land. Identity keeps the rest of that bullet: Keycloak
-> `organization_id` attribute mapping, the `Membership` extension, and JWT claim emission.
-> See
-> [Amendment 2](#2026-08-10--module-ownership-of-the-organization-aggregate).
-> The Phase 02 and Phase 06 bullets are unchanged.
+> `organization_id` attribute mapping, the `Membership` extension, and JWT claim
+> emission. See [Amendment
+> 2](#2026-08-10--module-ownership-of-the-organization-aggregate). The Phase 02 and
+> Phase 06 bullets are unchanged.
 
 - Phase 02 — Platform kernel: `Organization` aggregate, `OrganizationId` strongly-typed ID,
   EF entity config, RLS policy template, `[OrganizationScoped]` attribute, architecture tests.
@@ -362,15 +362,16 @@ Tenancy. This amendment resolves it now, before
 [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) writes the first migration
 and the choice stops being free.
 
-**The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`,** with
-its EF configuration and its migration on `TenancyDbContext`. Three things decide it:
+**The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`,**
+with its EF configuration and its migration on `TenancyDbContext`. Three things decide
+it:
 
 - The aggregate's own field list in § Decision outcome — `Slug`, `CustomSubdomain`,
   `OrganizationStatus`, `BrandingOverride`, `ReportingParentId` — carries no identity
-  field, and matches the Tenancy module's charter in
-  [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md) exactly. No
-  authorization decision reads a field on it: the organization term in the RLS policy
-  compares `current_setting('app.organization_id')` and joins nothing.
+  field, and matches the Tenancy module's charter in [03-module-boundaries.md §
+  Tenancy](../architecture/03-module-boundaries.md) exactly. No authorization decision
+  reads a field on it: the organization term in the RLS policy compares
+  `current_setting('app.organization_id')` and joins nothing.
 - Packet 6 creates `organizations` in the same migration as `tenants`, and
   [Phase 02c](../roadmap/phase-02c-hub-foundation.md) writes the platform-subdomain row
   "in the same transaction as the tenant row and the default organization". An
@@ -383,27 +384,28 @@ its EF configuration and its migration on `TenancyDbContext`. Three things decid
   exists.
 
 **The namespace in the § Decision outcome code block** —
-`LearnStack.Modules.Identity.Domain.Entities` — **is superseded as illustrative.** This is
-the same instrument as the dated `### RLS policy template` correction in that section: a
-sub-block of § Decision outcome corrected in place, leaving the Decision untouched.
+`LearnStack.Modules.Identity.Domain.Entities` — **is superseded as illustrative.** This
+is the same instrument as the dated `### RLS policy template` correction in that
+section: a sub-block of § Decision outcome corrected in place, leaving the Decision
+untouched.
 
-**§ Implementation notes now reads:** Tenancy owns the `Organization` aggregate **and its
-CRUD endpoints** — a module cannot write another module's aggregate, so the endpoints
-follow it. Identity retains Keycloak `organization_id` attribute mapping, the `Membership`
-extension for org-scoped role assignments, and JWT claim emission; it reads organization
-data across the boundary through an application contract
-([ADR-0010](0010-cross-module-communication.md) mechanism 1), never a navigation property
-or a join. `Membership` continues to hold `OrganizationId` by value from
-`LearnStack.SharedKernel`, which
-[ADR-0023 Amendment 2](0023-strongly-typed-id-source-generator.md) licenses for exactly
-three cross-cutting identifiers.
+**§ Implementation notes now reads:** Tenancy owns the `Organization` aggregate **and
+its CRUD endpoints** — a module cannot write another module's aggregate, so the
+endpoints follow it. Identity retains Keycloak `organization_id` attribute mapping, the
+`Membership` extension for org-scoped role assignments, and JWT claim emission; it reads
+organization data across the boundary through an application contract
+([ADR-0010](0010-cross-module-communication.md) mechanism 1), never a navigation
+property or a join. `Membership` continues to hold `OrganizationId` by value from
+`LearnStack.SharedKernel`, which [ADR-0023 Amendment
+2](0023-strongly-typed-id-source-generator.md) licenses for exactly three cross-cutting
+identifiers.
 
-**The endpoints keep their phase.** Moving them between modules does not move them between
-phases: `Organization` CRUD lands in
-[Phase 03](../roadmap/phase-03-identity-admin.md), where every other tenant-admin surface
-lands, and the Phase 06 org switcher and org list / detail / create UI are unchanged. Only
-the owning module changed. Naming the phase here is the point — a capability reassigned
-without one is a capability nobody schedules.
+**The endpoints keep their phase.** Moving them between modules does not move them
+between phases: `Organization` CRUD lands in [Phase
+03](../roadmap/phase-03-identity-admin.md), where every other tenant-admin surface
+lands, and the Phase 06 org switcher and org list / detail / create UI are unchanged.
+Only the owning module changed. Naming the phase here is the point — a capability
+reassigned without one is a capability nobody schedules.
 
 **Two enumerations elsewhere read `Organization` as a peer module** —
 [ADR-0021 § Decision](0021-feature-based-entitlement.md) and the module diagram in

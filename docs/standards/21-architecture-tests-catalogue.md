@@ -533,7 +533,13 @@ otherwise).
 #### `Aggregates_Do_Not_Redeclare_Entity_Equality`
 
 - **Asserts:** no type deriving from `Entity<>` declares a method named `Equals`, a
-  method named `GetHashCode`, or an `op_Equality` / `op_Inequality` operator.
+  method named `GetHashCode`, or an `op_Equality` / `op_Inequality` operator,
+  **and** no such type declares `IEquatable<TSelf>` on itself. The last clause is
+  not redundant: an explicitly-implemented `bool IEquatable<Course>.Equals(Course?)`
+  is named `System.IEquatable<Course>.Equals` in metadata, so a name check alone
+  misses it, and `List<Course>.Contains` then answers differently from `==`. Scope
+  the check to interfaces declared on the type — the inherited
+  `IEquatable<Entity<TId>>` must not trip it.
   Overriding is already impossible — `Entity<TId>` seals `Equals(object?)` and
   `GetHashCode()`, and with both sealed a derived operator cannot silence
   CS0660 / CS0661 — but a derived **overload** such as `bool Equals(Course? other)`
@@ -545,11 +551,12 @@ otherwise).
   [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
 - **Status:** **Registered.**
-- **Phase:** 02a (Packet 3b registers, Packet 10 implements).
+- **Phase:** 02a (Packet 3b introduces, Packet 10 closes).
 
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
 
-- **Asserts:** exactly one type named `Organization` exists across the **enumerated** set
+- **Asserts:** exactly one type named `Organization` exists across the **enumerated**
+  set
   of `LearnStack.Modules.*.Domain` assemblies, and it is declared in
   `LearnStack.Modules.Tenancy.Domain`. Same for the `OrganizationBranding` value object.
   The assembly set is enumerated from the module list, not discovered by scanning loaded

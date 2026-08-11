@@ -61,7 +61,7 @@ recording / consent / cost-tracking story.
 | Kafka (KRaft) | `confluentinc/cp-kafka:8.2.1` | `localhost:9092` (in-cluster only — see note below) | none (`PLAINTEXT`, `authType: none`) |
 | kafka-ui | `ghcr.io/kafbat/kafka-ui:v1.5.0` | `localhost:8081` | open UI (dev only) |
 | Vault | `hashicorp/vault:1.21.4` | `localhost:8200` | root token `learnstack-dev-root-token` |
-| Dapr placement | `daprio/placement:1.17.7` | `localhost:50005` | — |
+| Dapr placement | `daprio/placement:1.17.7` | in-cluster only (sidecars reach it over the compose network) | — |
 | Dapr sidecar (api) | `daprio/daprd:1.17.7` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |
 | APISIX | `apache/apisix:3.16.0-debian` | `localhost:9080` (HTTP), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | none (file-driven standalone — no Admin API) |
 
@@ -72,9 +72,9 @@ Configs:
   `PLAINTEXT://kafka:9092` listener is advertised; host-side tools (kcat,
   kafka-topics from the workstation) will resolve the bootstrap address as
   `kafka:9092` and fail unless `127.0.0.1 kafka` is added to `/etc/hosts`.
-  Use `kafka-ui` (`localhost:8081`) for workstation-side browsing; the
-  Phase 07 DX packet ships either an EXTERNAL listener or documents the
-  `kafka-ui`-only workflow as canonical.
+  Use `kafka-ui` (`localhost:8081`) for workstation-side browsing — Phase 01
+  packet 7 shipped that as the canonical workstation path. An EXTERNAL listener
+  for host-side `kcat` / `kafka-topics` is a Phase 11 production-hardening item.
 - **Vault** runs in `-dev` mode with the root token baked in — production
   runs HA + auto-unseal + AppRole.
 - **Dapr** components live under `infra/dapr/components/`

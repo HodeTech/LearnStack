@@ -55,20 +55,20 @@ attributes a person owns stay on `User`, and everything a tenant authors moves t
 > signals (Keycloak webhooks) arrive as integration events. There is **no**
 > Identity-owned audit table.
 
-> **Organization ownership.** The `Organization` aggregate and its CRUD endpoints live in
-> the **Tenancy** module, not in Identity, per
-> [ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md) — which
-> resolves the "Identity / Tenancy" wording ADR-0017 shipped with. Identity owns Keycloak
+> **Organization ownership.** The `Organization` aggregate and its CRUD endpoints live
+> in the **Tenancy** module, not in Identity, per [ADR-0017 Amendment 2
+> (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md) — which resolves the
+> "Identity / Tenancy" wording ADR-0017 shipped with. Identity owns Keycloak
 > `organization_id` attribute mapping, the `Membership` extension for org-scoped role
 > assignments, and JWT claim emission. `Membership` holds `OrganizationId` by value from
 > `LearnStack.SharedKernel`: no navigation property, no join, no foreign key.
 >
-> **This phase still delivers those endpoints** — `Organization` create / read / update /
-> archive at tenant-admin scope, under `tenancy.organization.*`
-> ([Permission Standards](../standards/19-permissions.md)) — authored in
-> `LearnStack.Modules.Tenancy.Application` against the Packet 6 aggregate. Only the owning
-> module moved; the phase did not. Phase 06 builds the org switcher and the
-> list / detail / create UI on top of them.
+> **This phase still delivers those endpoints** — `Organization` create / read / update
+> / archive at tenant-admin scope, under `tenancy.organization.*` ([Permission
+> Standards](../standards/19-permissions.md)) — authored in
+> `LearnStack.Modules.Tenancy.Application` against the Packet 6 aggregate. Only the
+> owning module moved; the phase did not. Phase 06 builds the org switcher and the list
+> / detail / create UI on top of them.
 
 ### Tenant Data Ownership, DSAR Boundary, and PII Classification
 

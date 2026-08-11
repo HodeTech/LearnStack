@@ -107,8 +107,8 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 ### Published ports
 
 - **Every published port binds `127.0.0.1`** — `"127.0.0.1:5432:5432"`, never
-  `"5432:5432"`. A bare mapping listens on every interface, so a laptop on a café network
-  publishes its development database, and `dev.yml` ships committed development
+  `"5432:5432"`. A bare mapping listens on every interface, so a laptop on a café
+  network publishes its development database, and `dev.yml` ships committed development
   credentials. There is no exemption: LiveKit is already pinned to a single machine by
   `--node-ip 127.0.0.1`, so binding its media range wider buys nothing.
 - **A published port with no supported host-side workflow is removed, not rebound.**
@@ -227,8 +227,8 @@ See [10-observability.md](10-observability.md).
 - **Development-only defaults in `infra/compose/*.yml` are not committed secrets.** A
   `${VAR:-literal}` fallback that only ever reaches a container in `Development` mode is
   exempt from [Standards 17 § Blockers](17-code-review.md)'s committed-secret rule, and
-  `.leakwatchignore` records the exemption. The exemption is narrow: it does not extend to
-  a bare literal with no `${VAR:-…}` indirection, to any value reachable from a
+  `.leakwatchignore` records the exemption. The exemption is narrow: it does not extend
+  to a bare literal with no `${VAR:-…}` indirection, to any value reachable from a
   non-`Development` deployment, or to anything outside `infra/compose/`.
 - CI: GitHub Actions secrets feed a short-lived Vault token for integration tests.
 - Rotation: documented per provider; quarterly minimum for keys we control. Hub

@@ -268,32 +268,33 @@ Two clarifications surfaced when the ADR met implementation in
   [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
   at that point.
 
-### Amendment 2 — `UserId`, `TenantId` and `OrganizationId` are cross-cutting (2026-08-10)
+### Amendment 2 — `UserId`, `TenantId` and `OrganizationId` are cross-cutting
+(2026-08-10)
 
-The Decision splits `[ValueObject<>]` declarations two ways: `LearnStack.SharedKernel` for
-cross-cutting value objects, and each `LearnStack.Modules.<X>.Domain` for **that module's
-aggregate-root IDs**. Three identifiers satisfy both arms, and the Decision's illustrative
-list — `Email`, `Slug`, `LocaleCode`, `Money` — contains no identifier, so it settles
-nothing for them.
+The Decision splits `[ValueObject<>]` declarations two ways: `LearnStack.SharedKernel`
+for cross-cutting value objects, and each `LearnStack.Modules.<X>.Domain` for **that
+module's aggregate-root IDs**. Three identifiers satisfy both arms, and the Decision's
+illustrative list — `Email`, `Slug`, `LocaleCode`, `Money` — contains no identifier, so
+it settles nothing for them.
 
 **`UserId`, `TenantId` and `OrganizationId` are cross-cutting value objects and live in
-`LearnStack.SharedKernel`.** They are the only three; every other aggregate-root ID follows
-the Decision's second arm unchanged.
+`LearnStack.SharedKernel`.** They are the only three; every other aggregate-root ID
+follows the Decision's second arm unchanged.
 
-The reason is structural, not stylistic. `AuditableEntity<TId>` is a **SharedKernel** type
-and carries `CreatedBy` / `UpdatedBy` / `DeletedBy` as `UserId`, so `UserId` cannot live in
-`LearnStack.Modules.Identity.Domain` — SharedKernel may not reference a module. `TenantId`
-appears on every tenant-owned entity in every module and `OrganizationId` on every
-org-scoped one, so placing either in its owning module's `Domain` would make every other
-module's `Domain` reference `Tenancy.Domain`, which
+The reason is structural, not stylistic. `AuditableEntity<TId>` is a **SharedKernel**
+type and carries `CreatedBy` / `UpdatedBy` / `DeletedBy` as `UserId`, so `UserId` cannot
+live in `LearnStack.Modules.Identity.Domain` — SharedKernel may not reference a module.
+`TenantId` appears on every tenant-owned entity in every module and `OrganizationId` on
+every org-scoped one, so placing either in its owning module's `Domain` would make every
+other module's `Domain` reference `Tenancy.Domain`, which
 `ModuleDomain_DoesNotDependOn_OtherModuleDomain` rejects.
 
 This records what shipped and what the corpus already assumed: `UserId` is listed under
 SharedKernel in § Implementation Notes and exists at
-`backend/src/LearnStack.SharedKernel/Identifiers/UserId.cs`, and
-[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) introduces `TenantId` /
-`OrganizationId` in the same assembly. What was missing was the rule that licenses it, so
-each of the three read as an unexplained exception.
+`backend/src/LearnStack.SharedKernel/Identifiers/UserId.cs`, and [Phase 02a Packet
+6](../roadmap/phase-02a-kernel-tenancy.md) introduces `TenantId` / `OrganizationId` in
+the same assembly. What was missing was the rule that licenses it, so each of the three
+read as an unexplained exception.
 
 Aggregate-root **ownership** is unaffected: the `Organization` aggregate is declared in
 `LearnStack.Modules.Tenancy.Domain` per
