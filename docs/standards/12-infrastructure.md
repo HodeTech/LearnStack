@@ -86,6 +86,38 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 - `infra/apisix/config.yaml` is the canonical APISIX standalone config; routes / plugins
   hot-reload on file change.
 
+### Healthchecks and the readiness gate
+
+- **A service in the default compose profile declares a `healthcheck` when one can be
+  written.** `make seed` waits on the default-profile set and treats a service that is
+  running but not `healthy` as not ready.
+- **A service with no healthcheck is skipped by the gate, not failed by it.** Some images
+  genuinely cannot carry one: `daprio/placement` and `daprio/daprd` are single-binary
+  images on an empty base — `docker run --entrypoint sh` fails with
+  `exec: "sh": executable file not found in $PATH`, and they ship no `wget`, `curl` or
+  `nc`. A gate that fails on a missing healthcheck fails on every run, which is a gate
+  nobody can act on.
+- **A service outside the default profile is not waited on at all.** Opt-in profiles are
+  started deliberately; the daily loop must not block on them.
+
+### Published ports
+
+- **Every published port binds `127.0.0.1`** — `"127.0.0.1:5432:5432"`, never
+  `"5432:5432"`. A bare mapping listens on every interface, so a laptop on a café network
+  publishes its development database, and `dev.yml` ships committed development
+  credentials. There is no exemption: LiveKit is already pinned to a single machine by
+  `--node-ip 127.0.0.1`, so binding its media range wider buys nothing.
+- **A port nothing can reach is removed, not rebound.** Kafka advertises only
+  `PLAINTEXT://kafka:9092`, which no host process can resolve, so publishing 9092 to the
+  host is decoration that reads as a reachable broker.
+
+### Development credentials
+
+- **Compose files carry no bare credential literals.** Every credential is
+  `${VAR:-fallback}` so `.env` can override it and the fallback is visibly a default.
+  `.env.example` lists every such variable — it is the source of truth for what a
+  developer must set.
+
 ## Image Conventions
 
 - **Production images pinned by digest** (`image: registry/foo@sha256:…`)
@@ -181,6 +213,12 @@ See [10-observability.md](10-observability.md).
   building block ([ADR-0014](../decisions/0014-adopt-dapr.md)). Application code uses
   `ISecretProvider`; direct `VaultClient` usage is forbidden.
 - Local: `.env` (not committed) — sufficient for `Development` mode.
+- **Development-only defaults in `infra/compose/*.yml` are not committed secrets.** A
+  `${VAR:-literal}` fallback that only ever reaches a container in `Development` mode is
+  exempt from [Standards 17 § Blockers](17-code-review.md)'s committed-secret rule, and
+  `.leakwatchignore` records the exemption. The exemption is narrow: it does not extend to
+  a bare literal with no `${VAR:-…}` indirection, to any value reachable from a
+  non-`Development` deployment, or to anything outside `infra/compose/`.
 - CI: GitHub Actions secrets feed a short-lived Vault token for integration tests.
 - Rotation: documented per provider; quarterly minimum for keys we control. Hub
   HMAC shared secret and mTLS client certificates are rotated yearly.

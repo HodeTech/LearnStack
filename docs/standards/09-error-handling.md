@@ -428,7 +428,8 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 - Throwing `Exception` directly.
 - Throwing inside catch blocks without preserving the inner exception.
 - Including stack traces or query text in Problem Details.
-- `Result<T>` with `IsSuccess = true` but `Value = null` (use a Maybe / Option or throw at boundary).
+- `Result<T>` with `IsSuccess = true` but `Value = null` — model expected absence as
+  `Result.Fail` with a `not_found` code, and payload-less success as `Result<None>`.
 - Localizing error codes (codes are stable English identifiers; only `title` and `detail` are localized).
 - Throwing `DomainException` for expected business-rule violations — use
   `Result.Fail(business_rule_violation, ...)` instead. The Roslyn analyzer
