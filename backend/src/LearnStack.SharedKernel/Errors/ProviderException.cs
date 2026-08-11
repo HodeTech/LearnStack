@@ -5,7 +5,7 @@ namespace LearnStack.SharedKernel.Errors;
 
 /// <summary>
 /// Wraps an upstream provider failure surfaced at the adapter boundary.
-/// Per <see href="../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
+/// Per <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
 /// § Sub-decision 5</see> every adapter under
 /// <c>LearnStack.Infrastructure.&lt;Adapter&gt;</c> translates SDK exception
 /// types into the appropriate <see cref="ProviderException"/> subclass; the

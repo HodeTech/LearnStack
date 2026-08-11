@@ -19,9 +19,9 @@ namespace LearnStack.Tests.Architecture;
 
 /// <summary>
 /// Cross-cutting architecture rules per
-/// <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032</see>
+/// <see href="../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032</see>
 /// and
-/// <see href="../../../../docs/standards/21-architecture-tests-catalogue.md">Standards 21 § Cross-cutting</see>.
+/// <see href="../../../docs/standards/21-architecture-tests-catalogue.md">Standards 21 § Cross-cutting</see>.
 /// The catalogue is the canonical reference for every identifier below.
 /// </summary>
 public sealed class CrossCuttingFoundationTests

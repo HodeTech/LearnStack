@@ -6,7 +6,7 @@ namespace LearnStack.SharedKernel.Resilience;
 /// Carrier for the Polly v8 <see cref="ResiliencePipeline"/> that wraps a
 /// provider adapter (<c>ILiveClassProvider</c>, <c>IPaymentProvider</c>,
 /// <c>IStorageProvider</c>, <c>ISearchProvider</c>, …). Per
-/// <see href="../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
+/// <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
 /// § Sub-decision 5</see> every adapter receives one of these in its
 /// constructor and routes outbound calls through <see cref="Pipeline"/>.
 /// </summary>
@@ -24,7 +24,7 @@ namespace LearnStack.SharedKernel.Resilience;
 /// Hub HTTP clients (<c>IEntitlementProvider</c>, <c>IUsageReporter</c>,
 /// <c>IHubTenantSync</c>) are <strong>excluded</strong> from this pattern —
 /// their resilience lives inside the mTLS + signed-JWT + HMAC wrapper per
-/// <see href="../../../docs/decisions/0019-learnstack-hub.md">ADR-0019</see>.
+/// <see href="../../../../docs/decisions/0019-learnstack-hub.md">ADR-0019</see>.
 /// </para>
 /// </remarks>
 #pragma warning disable CA1040 // Avoid empty interfaces — the generic type parameter is the DI discriminator.

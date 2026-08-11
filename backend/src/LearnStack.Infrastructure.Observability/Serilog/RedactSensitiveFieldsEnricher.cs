@@ -37,10 +37,12 @@ namespace LearnStack.Infrastructure.Observability.Serilog;
 /// exception messages) so the boundary stays honest.
 /// </para>
 /// <para>
-/// TODO(2026-05-21, @platform): augment the Serilog pipeline with a Roslyn
-/// analyzer (extending <c>LearnStack.Analyzers</c>) in Phase 02b or later
-/// that flags string-interpolated <c>throw new ...Exception($"...{token}...")</c>
-/// patterns in <c>Domain</c> + <c>Application</c> projects. Today the
+/// The compile-time half of this rule is <c>LS0002</c> in
+/// <c>LearnStack.Analyzers</c>, which flags string-interpolated or concatenated
+/// <c>throw new ...Exception($"...{token}...")</c> patterns in <c>Domain</c> +
+/// <c>Application</c>. It ships as a Warning in
+/// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>
+/// and escalates to Error at Phase 03 exit. Today the
 /// "no secrets in exception messages" rule rests on Standards 11 review
 /// discipline; promoting it to a compile-time check closes the last
 /// gap the runtime redactor cannot.

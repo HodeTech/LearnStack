@@ -6,8 +6,11 @@ namespace LearnStack.SharedKernel.Secrets;
 /// Default <see cref="ISecretProvider"/> that delegates to
 /// <see cref="IConfiguration"/>. Phase 02a Packet 3 ships this as the
 /// composition-root default for every <c>DeploymentMode</c>. Per ADR-0035 the
-/// Dapr/Vault-backed implementation is demand-gated to Phase 11, triggered by
-/// secrets needing rotation without a redeploy or a non-development deployment.
+/// Dapr/Vault-backed implementation is demand-gated to Phase 11 — trigger: a
+/// production secret must rotate without a redeploy, or more than one operator
+/// needs access to production secrets. Not "a non-development deployment
+/// exists": SaaS satisfies that on day one, which ADR-0035 § Vault rejects
+/// explicitly.
 /// </summary>
 /// <remarks>
 /// The configuration layer already merges environment variables, user

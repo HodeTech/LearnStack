@@ -172,9 +172,17 @@ orphan.
   "Packet 5", across four files: `CrossCuttingFoundationExtensions.cs` (five sites,
   including the `TODO(2026-05-21, @platform)`), `ErrorTrackingRegistration.cs` (two),
   `LearnStack.SharedKernel.csproj` (one) and `ISecretProvider.cs` (one).
-  `ConfigurationSecretProvider.cs` carried a tenth and is **already corrected** — the
-  restructure fixed it while sweeping the provider's name, so it is not part of this
-  packet's work. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+  `ConfigurationSecretProvider.cs` carries a tenth. The restructure fixed its
+  *packet pointer* but left ADR-0035's explicitly rejected trigger clause — "or a
+  non-development deployment" — in place, so it is **ten** sites, not nine. Two carry
+  a second error beyond the phase: `ISecretProvider.cs` says Packet 5 adds the
+  `DeploymentMode` branching, when Packet 3 shipped the single selection site and only
+  the branch is deferred; and the `SelectSecretProvider` TODO invents a
+  `FileSecretProvider` that appears in no document and contradicts
+  [Standards 20](../standards/20-infrastructure-stack.md)'s deployment matrix, which
+  gives air-gapped the same Vault-backed provider. Each site gets the four-element
+  deferral form CLAUDE.md requires — port, default, owning phase, trigger — so a
+  one-word phase swap would not have finished the job. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
   moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
   against a written trigger, so those comments now point at a packet that will
   not ship them. The seam they describe is correct and unchanged — only the
@@ -183,9 +191,11 @@ orphan.
   as the mechanism for setting the Row Level Security session variables.
   Interceptors fire when the connection opens, not when the transaction starts,
   and `set_config(..., true)` is transaction-local — so the value would be gone
-  before the query it protects. The TODO is corrected to point at
-  [Security Standards § Tenant Context](../standards/11-security.md) and at
-  Packet 7, which implements it.
+  before the query it protects. **Two** sites carry the wrong mechanism, not one.
+  Both are corrected to name `TransactionBehavior`'s `SET LOCAL` at step 6, per
+  [Security Standards § Tenant Context](../standards/11-security.md) — the single
+  authority for the placement. `TransactionBehavior` lights up in **Packet 6**; the
+  values it writes become real in Packet 7, when the resolver populates the context.
 
 **Development-loop and CI repairs.** [Phase 01](phase-01-repository-tooling.md)
 is complete and its record stands; the gaps it shipped with are remediated

@@ -17,9 +17,11 @@ namespace LearnStack.Infrastructure.ErrorTracking;
 /// <remarks>
 /// Sentry DSN reads through <see cref="ISecretProvider"/> per ADR-0032
 /// § Sub-decision 9. Phase 02a Packet 3 ships the
-/// <c>ConfigurationSecretProvider</c> default — Vault-equipped deployments
-/// pick up the Dapr-backed implementation in Packet 5 without changing
-/// this code path.
+/// <c>ConfigurationSecretProvider</c> default; the Vault-backed
+/// <c>DaprSecretProvider</c> is demand-gated to Phase 11 per ADR-0035 —
+/// trigger: a production secret must rotate without a redeploy, or more than
+/// one operator needs access to production secrets. Either way this code path
+/// does not change.
 /// </remarks>
 public static class ErrorTrackingRegistration
 {
@@ -41,8 +43,10 @@ public static class ErrorTrackingRegistration
 
         // ADR-0032 § Sub-decision 9 binds DSN lookup to the secret provider.
         // ConfigurationSecretProvider falls through to IConfiguration so
-        // dev / CI keep working with appsettings or env vars; Packet 5's
-        // DaprSecretProvider reads from Vault in production.
+        // dev / CI keep working with appsettings or env vars. The Vault-backed
+        // DaprSecretProvider is demand-gated to Phase 11 per ADR-0035 (trigger:
+        // a secret must rotate without a redeploy, or a second operator needs
+        // access), and reads the same key through the same seam.
         var resolvedDsn = secretProvider.GetSecret("ErrorTracking:Sentry:Dsn");
 
         switch (deploymentMode)

@@ -37,7 +37,9 @@
          ConfigurationSecretProvider default delegates to IConfiguration so
          every secret-bearing value (Sentry DSN, signed-license key paths,
          provider credentials) reads through one seam. The Vault-backed
-         DaprSecretProvider lands in Packet 5. -->
+         DaprSecretProvider is demand-gated to Phase 11 per ADR-0035; trigger:
+         a production secret must rotate without a redeploy, or more than one
+         operator needs access to production secrets. -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
   </ItemGroup>
 

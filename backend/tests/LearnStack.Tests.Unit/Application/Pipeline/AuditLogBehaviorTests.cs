@@ -9,7 +9,7 @@ namespace LearnStack.Tests.Unit.Application.Pipeline;
 
 /// <summary>
 /// AuditLogBehavior shell contract per ADR-0032 § Sub-decision 2 +
-/// ADR-0016 § Pipeline behavior order. The shell catches handler
+/// ADR-0032 § Sub-decision 2 pipeline behavior order. The shell catches handler
 /// exceptions and rethrows via ExceptionDispatchInfo (preserving the
 /// original stack); the audit-write itself is deferred to Packet 9 when
 /// IAuditStore lights up.
