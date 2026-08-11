@@ -246,8 +246,8 @@ public sealed class CrossCuttingFoundationTests
         // open-generic behavior for requests whose response satisfies the
         // constraint. A handler declared IRequestHandler<TReq, RawDto>
         // would therefore run with NO behaviors — no validation, no audit,
-        // and (once Packet 7 lands) no TenantContextBehavior (where RLS GUCs
-        // get set). This test locks the "handlers return Result<T>" invariant
+        // and no TransactionBehavior, which issues the RLS session variables
+        // inside the transaction. This test locks the "handlers return Result<T>" invariant
         // now, while the pipeline contract is fresh. Vacuous today (no
         // handlers yet); active the moment they land. Standards 02 § MediatR
         // Use Cases (review-4 M1).

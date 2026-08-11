@@ -22,8 +22,9 @@ namespace LearnStack.Application.Pipeline;
 /// Packet 7 lands the resolver middleware every request runs against
 /// <see cref="UnresolvedTenantContext"/>; this behavior surfaces the fact
 /// loudly so no handler reads an unresolved context by accident. Packet 7
-/// flips the default registration to the real resolver and adds the RLS
-/// interceptor line below the assertion.
+/// flips the default registration to the real resolver. It adds nothing here:
+/// the RLS session variables are issued by <c>TransactionBehavior</c> inside
+/// the transaction at step 6, never from this behavior.
 /// </remarks>
 public sealed class TenantContextBehavior<TRequest, TResponse>(
     ITenantContext tenantContext)

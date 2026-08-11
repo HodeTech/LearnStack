@@ -191,8 +191,10 @@ orphan.
   as the mechanism for setting the Row Level Security session variables.
   Interceptors fire when the connection opens, not when the transaction starts,
   and `set_config(..., true)` is transaction-local — so the value would be gone
-  before the query it protects. **Two** sites carry the wrong mechanism, not one.
-  Both are corrected to name `TransactionBehavior`'s `SET LOCAL` at step 6, per
+  before the query it protects. **Three** sites carry the wrong mechanism, not one —
+  and the third says "RLS interceptor" rather than the type name, so a sweep that
+  greps the type finds two and reports itself finished. All three are corrected to
+  name `TransactionBehavior`'s `SET LOCAL` at step 6, per
   [Security Standards § Tenant Context](../standards/11-security.md) — the single
   authority for the placement. `TransactionBehavior` lights up in **Packet 6**; the
   values it writes become real in Packet 7, when the resolver populates the context.
