@@ -353,19 +353,24 @@ The SDK maps Problem Details payloads to `AppError`; UI code switches on `code`.
 
 Per
 [ADR-0032 § Sub-decision 5](../decisions/0032-exception-handling-logging-and-observability.md),
-every provider adapter is wrapped with a Polly v8 `ResiliencePipeline` via
-the `IProviderResilience<TPort>` decorator pattern. The composition root
-wires every adapter:
+every provider adapter routes its outbound calls through a Polly v8
+`ResiliencePipeline` carried by `IProviderResilience<TPort>`. The port is **not**
+decorated — C# forbids a type parameter as a base type, so no
+`ResilientProviderAdapter<TPort>` can satisfy `: TPort`. The composition root
+registers the adapter and its pipeline separately:
 
 ```csharp
-services.AddProviderResilience<ILiveClassProvider, LiveKitClient>("liveclass");
-services.AddProviderResilience<IPaymentProvider, StripePaymentClient>("payment");
-services.AddProviderResilience<IStorageProvider, SeaweedFSStorageClient>("storage");
+services.AddSingleton<ILiveClassProvider, LiveKitClient>();
+services.AddProviderResilience<ILiveClassProvider>(configuration, "liveclass");
+
+services.AddSingleton<IPaymentProvider, StripePaymentClient>();
+services.AddProviderResilience<IPaymentProvider>(configuration, "payment");
 // ...
 ```
 
-The decorator reads `Resilience:<portName>:` from `appsettings.{env}.json`
-and builds a pipeline with:
+The adapter takes `IProviderResilience<TPort>` as a constructor collaborator and
+wraps each SDK call in `Pipeline.ExecuteAsync`. `ProviderResilience<TPort>` reads
+`Resilience:<portName>:` from `appsettings.{env}.json` and builds a pipeline with:
 
 - **Retry** — exponential backoff with jitter; only retries
   `ProviderException` with `IsClientError == false` and `InfrastructureException`
@@ -376,8 +381,9 @@ and builds a pipeline with:
 - **Bulkhead** — caps concurrent in-flight calls per upstream.
 
 The adapter's only exception-related job is **SDK → ProviderException
-translation**. The decorator is the only place retry / circuit breaker /
-timeout live. The
+translation**. The retry / circuit-breaker / timeout policy lives in configuration
+and is carried by `IProviderResilience<TPort>`; the adapter invokes it and never
+authors one. The
 [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
 skill walks the canonical shape for every new adapter.
 

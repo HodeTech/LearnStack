@@ -556,24 +556,27 @@ public interface IProviderResilience<TPort> where TPort : class
 }
 
 // Composition-root extension (lives in LearnStack.Infrastructure.Resilience)
-public static IServiceCollection AddProviderResilience<TPort>(
-    this IServiceCollection services,
-    IConfiguration configuration,
-    string portName)
-    where TPort : class
+public static class ProviderResilienceRegistration
 {
-    // The port is NOT decorated: C# forbids a type parameter as a base type, so
-    // no ResilientProviderAdapter<TPort> can satisfy `: TPort`. Adapters take
-    // IProviderResilience<TPort> as a collaborator and route outbound calls
-    // through Pipeline.ExecuteAsync themselves.
-    var options = configuration
-        .GetSection($"Resilience:{portName}")
-        .Get<ResilienceOptions>() ?? new ResilienceOptions();
+    public static IServiceCollection AddProviderResilience<TPort>(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string portName)
+        where TPort : class
+    {
+        // The port is NOT decorated: C# forbids a type parameter as a base type, so
+        // no ResilientProviderAdapter<TPort> can satisfy `: TPort`. Adapters take
+        // IProviderResilience<TPort> as a collaborator and route outbound calls
+        // through Pipeline.ExecuteAsync themselves.
+        var options = configuration
+            .GetSection($"Resilience:{portName}")
+            .Get<ResilienceOptions>() ?? new ResilienceOptions();
 
-    services.AddSingleton<IProviderResilience<TPort>>(
-        _ => new ProviderResilience<TPort>(portName, options));
+        services.AddSingleton<IProviderResilience<TPort>>(
+            _ => new ProviderResilience<TPort>(portName, options));
 
-    return services;
+        return services;
+    }
 }
 ```
 

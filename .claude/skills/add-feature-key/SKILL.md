@@ -174,7 +174,7 @@ if (!await featureFlags.IsEnabledAsync(FeatureKeys.ClassroomRecording, ct))
 ```csharp
 var limit = await featureFlags.GetLimitAsync(LimitKeys.MaxConcurrentLiveSessions, ct);
 if (currentConcurrent >= limit)
-    return Result.Fail<...>(
+    return Result.Fail<LiveSessionDto>(
         new Error(LocalizedMessage.Of("lockey_limit_exceeded_classroom_concurrent")));
 ```
 

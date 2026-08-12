@@ -39,8 +39,9 @@ LiveKit .NET SDK
 upstream
 ```
 
-The point: the application sees one port; resilience is centralised in the
-decorator; exception translation is the adapter's only job. This skill walks
+The point: the application sees one port; the resilience policy is centralised in
+configuration and carried by `IProviderResilience<TPort>`; exception translation is
+the adapter's only job. This skill walks
 the canonical wiring per
 [ADR-0032 § Sub-decision 5](../../../docs/decisions/0032-exception-handling-logging-and-observability.md).
 
@@ -157,7 +158,9 @@ internal sealed class LiveKitClient(
     IProviderResilience<ILiveClassProvider> resilience,
     ILogger<LiveKitClient> logger) : ILiveClassProvider
 {
-    private readonly LiveKit.RoomServiceClient _sdk = new(
+    // global:: is required — this namespace ends in `.LiveKit`, so an unqualified
+    // `LiveKit.X` binds to the enclosing segment, not the SDK (CS0234).
+    private readonly global::LiveKit.RoomServiceClient _sdk = new(
         options.WsUrl, options.ApiKey, options.ApiSecret);
 
     public async Task<LiveRoom> CreateRoomAsync(
@@ -168,15 +171,15 @@ internal sealed class LiveKitClient(
             // Every outbound call goes through the pipeline. There is no
             // decorator doing this for you — see Step 4.
             var room = await resilience.Pipeline.ExecuteAsync(
-                async token => await _sdk.CreateRoom(/* SDK call */, token), ct);
+                async token => await _sdk.CreateRoom(sdkRequest, token), ct);
             return MapToDomain(room);
         }
-        catch (LiveKit.RoomAlreadyExistsException ex)
+        catch (global::LiveKit.RoomAlreadyExistsException ex)
         {
             throw new LiveClassProviderException(
                 ex.Message, isClientError: true, innerException: ex);
         }
-        catch (LiveKit.QuotaExceededException ex)
+        catch (global::LiveKit.QuotaExceededException ex)
         {
             throw new LiveClassProviderException(
                 ex.Message, isClientError: true, innerException: ex);
@@ -190,14 +193,14 @@ internal sealed class LiveKitClient(
             when (ex.StatusCode is null || (int)ex.StatusCode >= 500)
         {
             throw new LiveClassProviderException(
-                "provider.unavailable", "Live-class provider unavailable.",
-                ex, isClientError: false);
+                "Live-class provider unavailable.",
+                isClientError: false, innerException: ex);
         }
         catch (Exception ex)
         {
             throw new LiveClassProviderException(
-                "provider.unknown", "Unexpected live-class provider failure.",
-                ex, isClientError: false);
+                "Unexpected live-class provider failure.",
+                isClientError: false, innerException: ex);
         }
     }
 
@@ -283,7 +286,7 @@ chosen values in the adapter's README (under
 
 ### Step 6: Map provider 4xx vs 5xx correctly
 
-The decorator only retries on `IsClientError == false` provider exceptions
+The pipeline only retries on `IsClientError == false` provider exceptions
 and on `InfrastructureException`. A `LiveClassProviderException` with
 `isClientError: true` skips retry — retrying "room already exists" is wrong.
 Verify the mapping table for every translated SDK exception:
@@ -352,9 +355,10 @@ In `docs/modules/<module>/providers.md`, add the adapter:
 
 ## Common pitfalls
 
-- **Adding retry / timeout in the adapter.** The decorator handles those.
-  Adapter-level retry double-counts attempts and breaks the circuit-breaker
-  accounting.
+- **Authoring a retry / timeout policy in the adapter.** The policy comes from
+  configuration through `IProviderResilience<TPort>.Pipeline`; the adapter only
+  invokes it. A second policy in adapter code double-counts attempts and breaks the
+  circuit-breaker accounting.
 - **Letting the SDK exception escape.** A `LiveKit.LiveKitException`
   reaching the application layer means the architecture test fires and the
   rest of the system can't decide whether to Sentry-capture (no
@@ -362,15 +366,15 @@ In `docs/modules/<module>/providers.md`, add the adapter:
 - **Setting `isClientError: false` on 4xx.** Forces a retry on
   invalid-input failures (the upstream will reject again and again until
   the circuit opens) and floods Sentry with "client mistake" events.
-- **Forgetting the `Resilience:<portName>:` configuration block.** The
-  decorator falls back to no-policy mode and silently masks failures during
-  development — they only surface under load.
+- **Forgetting the `Resilience:<portName>:` configuration block.**
+  `ProviderResilience<TPort>` falls back to `new ResilienceOptions()` and silently
+  masks failures during development — they only surface under load.
 - **Reusing a single adapter for two ports with different resilience
-  needs.** Split them. Each port has its own decorator instance and its
-  own configuration section.
-- **Calling the adapter directly from a module** (bypassing the port
-  interface). The decorator is registered on the port; calling the
-  concrete adapter skips resilience entirely.
+  needs.** Split them. Each port has its own `IProviderResilience<TPort>` instance
+  and its own configuration section.
+- **Calling the adapter directly from a module** (bypassing the port interface).
+  The module must depend on the port; the concrete adapter is `internal` precisely so
+  it cannot.
 
 ## References
 

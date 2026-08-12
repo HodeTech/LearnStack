@@ -113,17 +113,19 @@ In `<Module>.Application/<Aggregate>/<Verb><Aggregate>CommandHandler.cs`:
 public sealed class CreateEnrollmentCommandHandler(
     EnrollmentDbContext db,
     ITenantContext tenantContext,
-    IOutbox outbox,
-    ILogger<CreateEnrollmentCommandHandler> logger)
+    IOutbox outbox)
     : IRequestHandler<CreateEnrollmentCommand, Result<EnrollmentDto>>
 {
+    // Parameter names match IRequestHandler<,>.Handle exactly. CA1725 is an error
+    // under this repo's CI settings, so `cmd` / `ct` would fail the build. Logging
+    // lives in LoggingBehavior, so a handler takes no ILogger unless it logs.
     public async Task<Result<EnrollmentDto>> Handle(
-        CreateEnrollmentCommand cmd, CancellationToken ct)
+        CreateEnrollmentCommand request, CancellationToken cancellationToken)
     {
         // Domain check
         var existing = await db.Enrollments.AnyAsync(
-            x => x.LearnerId == cmd.LearnerId && x.CourseVersionId == cmd.CourseVersionId,
-            ct);
+            x => x.LearnerId == request.LearnerId && x.CourseVersionId == request.CourseVersionId,
+            cancellationToken);
 
         if (existing)
             return Result.Fail<EnrollmentDto>(
@@ -132,10 +134,10 @@ public sealed class CreateEnrollmentCommandHandler(
         var enrollment = Enrollment.Create(
             tenantContext.TenantId,
             tenantContext.OrganizationId,
-            cmd.LearnerId,
-            cmd.CourseVersionId,
-            cmd.CohortId,
-            cmd.Source);
+            request.LearnerId,
+            request.CourseVersionId,
+            request.CohortId,
+            request.Source);
 
         db.Enrollments.Add(enrollment);
 
@@ -144,14 +146,14 @@ public sealed class CreateEnrollmentCommandHandler(
             TenantId = tenantContext.TenantId,
             OrganizationId = tenantContext.OrganizationId,
             EnrollmentId = enrollment.Id.Value,
-            LearnerId = cmd.LearnerId.Value,
-            CourseVersionId = cmd.CourseVersionId.Value,
+            LearnerId = request.LearnerId.Value,
+            CourseVersionId = request.CourseVersionId.Value,
             // OccurredAt is auto-populated by IntegrationEventBase — do not set
             // it manually. If you need it explicitly, inject IClock and use
             // clock.UtcNow per 02-backend-coding.md § Time.
-        }, ct);
+        }, cancellationToken);
 
-        await db.SaveChangesAsync(ct);   // atomic: aggregate + outbox row
+        await db.SaveChangesAsync(cancellationToken);   // atomic: aggregate + outbox row
 
         return Result.Ok(
             MapToDto(enrollment),
