@@ -555,12 +555,12 @@ public interface IProviderResilience<TPort> where TPort : class
     string PortName { get; }                            // "liveclass", "payment", "storage", ...
 }
 
-// Composition-root extension (lives in LearnStack.Infrastructure)
-public static IServiceCollection AddProviderResilience<TPort, TImpl>(
+// Composition-root extension (lives in LearnStack.Infrastructure.Resilience)
+public static IServiceCollection AddProviderResilience<TPort>(
     this IServiceCollection services,
+    IConfiguration configuration,
     string portName)
     where TPort : class
-    where TImpl : class, TPort
 {
     // The port is NOT decorated: C# forbids a type parameter as a base type, so
     // no ResilientProviderAdapter<TPort> can satisfy `: TPort`. Adapters take
@@ -577,9 +577,12 @@ public static IServiceCollection AddProviderResilience<TPort, TImpl>(
 }
 ```
 
-The decorator reads `Resilience:<portName>:` from configuration and builds a
-`ResiliencePipeline` with retry + circuit breaker + timeout + bulkhead. The
-configuration shape is fixed in [Standards 09 § Provider Failures](../standards/09-error-handling.md).
+`ProviderResilience<TPort>` reads `Resilience:<portName>:` from configuration and
+builds a `ResiliencePipeline` with retry + circuit breaker + timeout + bulkhead. The
+adapter takes it as a constructor collaborator and wraps its own outbound calls in
+`Pipeline.ExecuteAsync` — there is no decorator. Registering the base adapter
+(`AddSingleton<TPort, TImpl>()`) is the caller's job. The configuration shape is fixed
+in [Standards 09 § Provider Failures](../standards/09-error-handling.md).
 
 ### `LearnStackExceptionHandler` shape
 

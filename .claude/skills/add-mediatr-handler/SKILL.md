@@ -130,8 +130,8 @@ public sealed class CreateEnrollmentCommandHandler(
                 new Error(LocalizedMessage.Of("lockey_enrollment_already_exists")));
 
         var enrollment = Enrollment.Create(
-            tenantContext.Current.TenantId,
-            tenantContext.Current.OrganizationId,
+            tenantContext.TenantId,
+            tenantContext.OrganizationId,
             cmd.LearnerId,
             cmd.CourseVersionId,
             cmd.CohortId,
@@ -141,8 +141,8 @@ public sealed class CreateEnrollmentCommandHandler(
 
         await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
         {
-            TenantId = tenantContext.Current.TenantId.Value,
-            OrganizationId = tenantContext.Current.OrganizationId?.Value,
+            TenantId = tenantContext.TenantId,
+            OrganizationId = tenantContext.OrganizationId,
             EnrollmentId = enrollment.Id.Value,
             LearnerId = cmd.LearnerId.Value,
             CourseVersionId = cmd.CourseVersionId.Value,
@@ -168,8 +168,10 @@ Rules:
   written, which is the point.
 - Outbox row written **inside** the same `DbContext` transaction. Never open a
   second transaction for the event publish.
-- Read `TenantContext.Current` for tenant + org; don't accept them from the command
-  body.
+- Read `ITenantContext.TenantId` / `.OrganizationId` for tenant + org; don't accept them
+  from the command body. There is no `.Current` on `ITenantContext` — `Current` belongs to
+  `ITenantContextAccessor`, which is cross-cutting infrastructure and is not injected into
+  handlers ([ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)).
 
 ### Step 4: Audit catalogue entry
 

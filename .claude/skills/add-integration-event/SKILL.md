@@ -82,8 +82,8 @@ In the producer's command handler (see
 ```csharp
 await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
 {
-    TenantId = tenantContext.Current.TenantId.Value,
-    OrganizationId = tenantContext.Current.OrganizationId?.Value,
+    TenantId = tenantContext.TenantId,
+    OrganizationId = tenantContext.OrganizationId,
     EnrollmentId = enrollment.Id.Value,
     LearnerId = cmd.LearnerId.Value,
     CourseVersionId = cmd.CourseVersionId.Value,
