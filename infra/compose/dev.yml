@@ -300,14 +300,10 @@ services:
   # Module code never imports `Confluent.Kafka` — only `IEventBus` via Dapr.
   #
   # Listener note: only the in-cluster PLAINTEXT://kafka:9092 listener is
-  # advertised. Host-side CLI tools (kcat, kafka-topics from the workstation)
-  # connect through the port mapping below but will receive `kafka:9092` as
-  # the bootstrap address and fail to resolve it unless the developer adds
-  # `127.0.0.1 kafka` to /etc/hosts (or routes them through the kafka-ui).
-  # Phase 01 packet 7 (DX) shipped the kafka-ui-only workflow as canonical
-  # (see infra/compose/README.md § Eventing); an EXTERNAL listener for
-  # workstation-side kcat / kafka-topics access is a Phase 11 production-
-  # hardening item, not in scope here.
+  # advertised, and NO host port is published — see the note at the service.
+  # The workstation path is kafka-ui (127.0.0.1:8081), which Phase 01 packet 7
+  # shipped as canonical (see infra/compose/README.md § Eventing). An EXTERNAL
+  # listener for host-side kcat / kafka-topics is a Phase 11 item.
   kafka:
     image: confluentinc/cp-kafka:8.2.1
     container_name: learnstack-kafka
@@ -332,10 +328,9 @@ services:
       # without padding) — the format `kafka-storage.sh random-uuid` emits.
       # This value is checked in deliberately for dev reproducibility.
       CLUSTER_ID: ofPH0p5rSlK52BxOX3qLPQ
-    # No published port: only PLAINTEXT://kafka:9092 is advertised, so a host
-    # process needs `127.0.0.1 kafka` in /etc/hosts to use it. Phase 01 made
-    # kafka-ui (127.0.0.1:8081) the canonical workstation path; an EXTERNAL
-    # listener is a Phase 11 item. Standards 12 § Published ports.
+    # No published port. Only PLAINTEXT://kafka:9092 is advertised, which no
+    # host process can use, and kafka-ui (127.0.0.1:8081) is the supported
+    # workstation path. Standards 12 § Published ports.
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:

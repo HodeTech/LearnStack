@@ -82,5 +82,10 @@ services:
   # regeneration script.
   kafka:
     tmpfs:
-      - /var/lib/kafka/data
+      # uid/gid are required here and nowhere else in this file: cp-kafka is the
+      # only image in the stack with a non-root USER (appuser, 1000), and Docker
+      # copies a tmpfs target's mode but not its ownership — the mount lands
+      # root:root and the broker dies with "permission denied" on
+      # /var/lib/kafka/data. The overlay never booted before this.
+      - /var/lib/kafka/data:uid=1000,gid=1000
     volumes: !reset []

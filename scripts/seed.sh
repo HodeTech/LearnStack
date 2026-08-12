@@ -21,6 +21,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 COMPOSE_FILE="infra/compose/dev.yml"
+
+# Compose resolves its default env file from the PROJECT directory — the
+# directory of the first `-f` file, i.e. `infra/compose/` — not from the cwd.
+# Without this the repo-root `.env` that `.env.example` documents is silently
+# ignored and every `${VAR:-default}` falls back. `--env-file` on a missing
+# path is a hard error, so the flag is conditional.
+ENV_FILE_ARGS=()
+[[ -f .env ]] && ENV_FILE_ARGS=(--env-file .env)
 KEYCLOAK_REALM_TENANT="learnstack"
 KEYCLOAK_REALM_HUB="learnstack-hub"
 KEYCLOAK_URL="http://localhost:8080"
@@ -39,7 +47,7 @@ red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
 cyan "▶ Step 1/3: wait for compose services to be healthy"
 
 # Distinguish "nothing running at all" from "still starting".
-running=$(docker compose -f "$COMPOSE_FILE" ps --status running --quiet 2>/dev/null | wc -l | tr -d ' ')
+running=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" ps --status running --quiet 2>/dev/null | wc -l | tr -d ' ')
 if [[ "$running" == "0" ]]; then
     red "No compose services running. Run \`make dev\` first."
     exit 1
@@ -62,14 +70,29 @@ while true; do
     # two as the only exempt images and requires the exemption to be marked at
     # the service in dev.yml, so the reason is readable where it applies rather
     # than duplicated into a service list here.
-    not_healthy=$(docker compose -f "$COMPOSE_FILE" \
-                  ps --format '{{.Name}}\t{{.State}}\t{{.Health}}' \
+    #
+    # `ps -a`, not `ps`: without it Compose omits `exited` and `created` rows
+    # entirely, so the not-running branch below is unreachable for exactly the
+    # states it exists to catch. Stopping two services and re-running printed
+    # "All compose services running" and exited 0.
+    not_healthy=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" \
+                  ps -a --format '{{.Name}}\t{{.State}}\t{{.Health}}' \
                   | awk -F'\t' '
                       $2 != "running"            { print $1 " (state=" $2 ")"; next }
                       $3 == ""                   { next }
                       $3 != "healthy"            { print $1 " (health=" $3 ")"; next }
                     ')
-    [[ -z "$not_healthy" ]] && break
+    # A row that is absent is not a row that is healthy: compare the count we
+    # actually saw against what the compose file declares, so a service that
+    # never got created fails the gate instead of passing by omission.
+    declared=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" config --services | wc -l | tr -d ' ')
+    observed=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" ps -a --format '{{.Name}}' | wc -l | tr -d ' ')
+    if [[ -z "$not_healthy" && "$observed" -eq "$declared" ]]; then
+        break
+    fi
+    if [[ "$observed" -ne "$declared" ]]; then
+        not_healthy="${not_healthy}"$'\n'"  (saw $observed of $declared declared services)"
+    fi
     if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
         red "Services still not healthy after ${HEALTH_TIMEOUT_SECONDS}s — inspect with:"
         red "  docker compose -f $COMPOSE_FILE ps"

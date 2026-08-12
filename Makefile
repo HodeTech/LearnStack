@@ -11,8 +11,14 @@ SHELL := /usr/bin/env bash
 
 # Compose layering — dev.yml is always the base; e2e.yml overlays for the
 # end-to-end test suite (Playwright + Testcontainers harness).
-COMPOSE_DEV  := docker compose -f infra/compose/dev.yml
-COMPOSE_E2E  := docker compose -f infra/compose/dev.yml -f infra/compose/e2e.yml
+# Compose resolves its default env file from the PROJECT directory — the
+# directory of the first `-f` file, i.e. `infra/compose/` — not from the cwd.
+# Without `--env-file` the repo-root `.env` that `.env.example` documents is
+# silently ignored and every `${VAR:-default}` falls back. `--env-file` on a
+# missing path is a hard error, so the flag is conditional.
+ENV_FILE     := $(if $(wildcard .env),--env-file .env,)
+COMPOSE_DEV  := docker compose $(ENV_FILE) -f infra/compose/dev.yml
+COMPOSE_E2E  := docker compose $(ENV_FILE) -f infra/compose/dev.yml -f infra/compose/e2e.yml
 
 # Colour helpers (no-op when stdout is not a TTY).
 ifeq ($(shell test -t 1 && echo 1),1)
