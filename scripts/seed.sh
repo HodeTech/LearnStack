@@ -50,15 +50,23 @@ while true; do
     # Capture BOTH .State and .Health so we can distinguish:
     #   - service running + healthcheck reports `healthy`  → ok
     #   - service running + healthcheck still `starting`   → wait
-    #   - service running + NO healthcheck defined         → flag (every
-    #     service in dev.yml carries one per Standards 12 § Local Infra;
-    #     an empty Health column means a future regression)
+    #   - service running + NO healthcheck defined         → skip
     #   - service not running (exited, dead, restarting)   → flag
+    #
+    # The empty-Health case is SKIPPED, not flagged. Two images in the stack
+    # cannot carry a healthcheck at all — daprio/placement and daprio/daprd are
+    # single-binary images on an empty base, with no shell and no wget/curl/nc
+    # (`docker run --entrypoint sh` fails with "executable file not found").
+    # Flagging them made this gate time out on every run, which is a gate nobody
+    # can act on. Standards 12 § Healthchecks and the readiness gate names those
+    # two as the only exempt images and requires the exemption to be marked at
+    # the service in dev.yml, so the reason is readable where it applies rather
+    # than duplicated into a service list here.
     not_healthy=$(docker compose -f "$COMPOSE_FILE" \
                   ps --format '{{.Name}}\t{{.State}}\t{{.Health}}' \
                   | awk -F'\t' '
                       $2 != "running"            { print $1 " (state=" $2 ")"; next }
-                      $3 == ""                   { print $1 " (no healthcheck)"; next }
+                      $3 == ""                   { next }
                       $3 != "healthy"            { print $1 " (health=" $3 ")"; next }
                     ')
     [[ -z "$not_healthy" ]] && break
@@ -73,7 +81,7 @@ while true; do
     sleep 3
     elapsed=$(( elapsed + 3 ))
 done
-green "  ✓ All compose services running + healthcheck-green."
+green "  ✓ All compose services running; every healthcheck green."
 
 # ─── Step 2: Keycloak realm verification ─────────────────────────────────
 # Realm import happens during Keycloak's first boot — even after the

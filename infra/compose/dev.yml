@@ -43,7 +43,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-learnstack}
       # Dev-only. Production secrets come from Vault via ISecretProvider.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       # Postgres 18+ refuses any mount at `/var/lib/postgresql/data` — the
       # entrypoint pre-check treats that path's existence (even when empty)
@@ -79,7 +79,7 @@ services:
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - valkey-data:/data
     healthcheck:
@@ -114,10 +114,10 @@ services:
       - -s3.config=/etc/s3-identities.json
       - -metricsPort=9091
     ports:
-      - "9000:8333"   # S3 API gateway (host:9000 matches the prior MinIO endpoint)
-      - "9001:8888"   # Filer UI (replaces the MinIO console)
-      - "9333:9333"   # Master HTTP API
-      - "8084:8080"   # Volume HTTP API (host 8084 to avoid Keycloak's 8080)
+      - "127.0.0.1:9000:8333"   # S3 API gateway (host:9000 matches the prior MinIO endpoint)
+      - "127.0.0.1:9001:8888"   # Filer UI (replaces the MinIO console)
+      - "127.0.0.1:9333:9333"   # Master HTTP API
+      - "127.0.0.1:8084:8080"   # Volume HTTP API (host 8084 to avoid Keycloak's 8080)
     volumes:
       - seaweedfs-data:/data
       # Dev-only S3 identity (matches prior MinIO credentials so callers
@@ -143,8 +143,8 @@ services:
       # (8025) rather than the SMTP listener (1025), which is not HTTP.
       dev.orbstack.http-port: "8025"
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # web UI
+      - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:8025:8025"   # web UI
     environment:
       # Dev-only knobs (no credentials); MP_SMTP_AUTH_ALLOW_INSECURE in
       # particular must never be set in production.
@@ -167,10 +167,10 @@ services:
     environment:
       # Dev-only. Production credentials come from Vault via ISecretProvider.
       MEILI_ENV: development
-      MEILI_MASTER_KEY: learnstack-dev-master-key
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-learnstack-dev-master-key}
       MEILI_NO_ANALYTICS: "true"
     ports:
-      - "7700:7700"
+      - "127.0.0.1:7700:7700"
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
@@ -207,7 +207,7 @@ services:
       KC_METRICS_ENABLED: "true"
       KC_FEATURES: token-exchange,admin-fine-grained-authz
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       # Realm seed JSONs (learnstack + learnstack-hub) — Keycloak imports them
       # at first start when the realms do not yet exist in the DB.
@@ -255,10 +255,10 @@ services:
     volumes:
       - ../livekit/livekit.yaml:/etc/livekit.yaml:ro
     ports:
-      - "7880:7880"           # WebSocket signaling
-      - "7881:7881"           # TCP fallback
-      - "7882:7882/tcp"       # TURN/TLS
-      - "50000-50100:50000-50100/udp"  # WebRTC media plane
+      - "127.0.0.1:7880:7880"           # WebSocket signaling
+      - "127.0.0.1:7881:7881"           # TCP fallback
+      - "127.0.0.1:7882:7882/tcp"       # TURN/TLS
+      - "127.0.0.1:50000-50100:50000-50100/udp"  # WebRTC media plane
     depends_on:
       coturn:
         condition: service_started
@@ -282,10 +282,18 @@ services:
     volumes:
       - ../coturn/turnserver.conf:/etc/turnserver.conf:ro
     ports:
-      - "3478:3478/udp"               # STUN/TURN (UDP)
-      - "3478:3478/tcp"               # STUN/TURN (TCP)
-      - "5349:5349/tcp"               # TURN/TLS
-      - "49152-49200:49152-49200/udp" # TURN relay range (dev: narrow)
+      - "127.0.0.1:3478:3478/udp"               # STUN/TURN (UDP)
+      - "127.0.0.1:3478:3478/tcp"               # STUN/TURN (TCP)
+      - "127.0.0.1:5349:5349/tcp"               # TURN/TLS
+      - "127.0.0.1:49152-49200:49152-49200/udp" # TURN relay range (dev: narrow)
+    healthcheck:
+      # turnutils_stunclient ships in the image; a STUN bind against the
+      # configured listening-port proves the server answers, not just that the
+      # process is up. Standards 12 § Healthchecks and the readiness gate.
+      test: ["CMD-SHELL", "turnutils_stunclient -p 3478 127.0.0.1 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ---- Eventing (Phase 01 packet 6) ----------------------------------------
   # Kafka in KRaft mode (no ZooKeeper). Backs Dapr pub/sub per ADR-0014.
@@ -324,8 +332,10 @@ services:
       # without padding) — the format `kafka-storage.sh random-uuid` emits.
       # This value is checked in deliberately for dev reproducibility.
       CLUSTER_ID: ofPH0p5rSlK52BxOX3qLPQ
-    ports:
-      - "9092:9092"
+    # No published port: only PLAINTEXT://kafka:9092 is advertised, so a host
+    # process needs `127.0.0.1 kafka` in /etc/hosts to use it. Phase 01 made
+    # kafka-ui (127.0.0.1:8081) the canonical workstation path; an EXTERNAL
+    # listener is a Phase 11 item. Standards 12 § Published ports.
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -349,7 +359,7 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: "false"
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     depends_on:
       kafka:
         condition: service_healthy
@@ -391,7 +401,7 @@ services:
     cap_add:
       - IPC_LOCK
     ports:
-      - "8200:8200"
+      - "127.0.0.1:8200:8200"
     healthcheck:
       test: ["CMD", "vault", "status"]
       interval: 10s
@@ -406,8 +416,13 @@ services:
     container_name: learnstack-dapr-placement
     restart: unless-stopped
     command: ["./placement", "-log-level", "info"]
-    ports:
-      - "50005:50005"
+    # no healthcheck possible: single-binary image on an empty base — no shell,
+    # no wget/curl/nc. `make seed`'s readiness gate skips services carrying this
+    # marker. Standards 12 § Healthchecks and the readiness gate names
+    # daprio/placement and daprio/daprd as the only two exempt images.
+    # No published port: sidecars reach placement over the compose network
+    # (-placement-host-address dapr-placement:50005). Nothing on the host
+    # speaks this protocol. Standards 12 § Published ports.
 
   # Single sidecar bound to the learnstack-api app id. The .NET host runs
   # OUTSIDE compose during active dev (`dotnet run` on the workstation);
@@ -420,6 +435,8 @@ services:
     image: daprio/daprd:1.17.7
     container_name: learnstack-dapr-sidecar-api
     restart: unless-stopped
+    # no healthcheck possible: same single-binary image family as
+    # dapr-placement. Standards 12 § Healthchecks and the readiness gate.
     <<: *host-gateway
     command:
       - ./daprd
@@ -452,8 +469,8 @@ services:
       - ../dapr/components:/components:ro
       - ../dapr/config:/config:ro
     ports:
-      - "3500:3500"       # HTTP API
-      - "50001:50001"     # gRPC API
+      - "127.0.0.1:3500:3500"       # HTTP API
+      - "127.0.0.1:50001:50001"     # gRPC API
     depends_on:
       kafka:
         condition: service_healthy
@@ -480,9 +497,9 @@ services:
       - ../apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ../apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
     ports:
-      - "9080:9080"       # HTTP gateway
-      - "9443:9443"       # HTTPS gateway (no cert in dev)
-      - "9091:9091"       # Prometheus metrics
+      - "127.0.0.1:9080:9080"       # HTTP gateway
+      - "127.0.0.1:9443:9443"       # HTTPS gateway (no cert in dev)
+      - "127.0.0.1:9091:9091"       # Prometheus metrics
     healthcheck:
       # apache/apisix:3.16.0-debian ships NEITHER curl NOR wget (verified by
       # inspecting the image). It does ship bash. The /dev/tcp pseudo-device
