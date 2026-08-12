@@ -196,8 +196,10 @@ orphan.
   greps the type finds two and reports itself finished. All three are corrected to
   name `TransactionBehavior`'s `SET LOCAL` at step 6, per
   [Security Standards § Tenant Context](../standards/11-security.md) — the single
-  authority for the placement. `TransactionBehavior` lights up in **Packet 6**; the
-  values it writes become real in Packet 7, when the resolver populates the context.
+  authority for the placement, which assigns the implementation to **Packet 7**.
+  Packet 6 opens the transaction; Packet 7 issues the `SET LOCAL` inside it, together
+  with the resolver that gives it a tenant to write. Correcting the TODO is 3b's;
+  implementing the mechanism is Packet 7's.
 
 **Development-loop and CI repairs.** [Phase 01](phase-01-repository-tooling.md)
 is complete and its record stands; the gaps it shipped with are remediated
@@ -348,8 +350,9 @@ from a MediatR behavior that runs before `TransactionBehavior`, or from a
 connection interceptor that fires at connection open, it is discarded before the
 query it is meant to protect ever runs. The corpus previously described all
 three placements; [Security Standards § Tenant Context](../standards/11-security.md)
-is now the single authority, and the Packet 3 `TenantContextBehavior` TODO —
-which names the connection-interceptor option — is corrected here.
+is now the single authority. The Packet 3 `TenantContextBehavior` TODO — which
+named the connection-interceptor option — was corrected in Packet 3b; this packet
+implements the mechanism it now points at.
 
 Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the narrow
 cross-tenant access path. It reaches `learnstack_platform` through a **second,

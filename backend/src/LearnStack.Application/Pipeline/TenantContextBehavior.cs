@@ -14,8 +14,10 @@ namespace LearnStack.Application.Pipeline;
 /// this behavior runs at step 4, before any transaction exists. They are issued by
 /// <c>TransactionBehavior</c> as the first statement inside the transaction at step 6
 /// — see Security Standards § Tenant Context, the single authority for this
-/// placement. <c>TransactionBehavior</c> lights up in Packet 6; the values it writes
-/// become real in Packet 7, when the resolver middleware populates the context.
+/// placement. Two packets, two things: Packet 6 opens the transaction
+/// (<c>TransactionBehavior</c>'s unit-of-work shell), and Packet 7 issues the
+/// <c>SET LOCAL</c> inside it, together with the resolver middleware that gives it
+/// a tenant to write.
 /// </summary>
 /// <remarks>
 /// Phase 02a Packet 3 ships the <strong>assertion shell</strong>. Until
