@@ -13,13 +13,19 @@ Accepted
 
 None of the three changes a sub-decision; all three correct text that would mislead an implementer.
 
-1. **The `IProviderResilience<TPort>` registration example does not compile.**
-   Sub-decision 5 shows `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;
+1. **The `IProviderResilience<TPort>` registration example did not compile.**
+   § Implementation Notes → `IProviderResilience<TPort>` shape showed
+   `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;
    C# forbids using a type parameter as a base type, so `ResilientProviderAdapter<TPort>`
    cannot satisfy `: TPort`. The **shipped** registration in
    `LearnStack.Infrastructure.Resilience` is correct — it registers
    `IProviderResilience<TPort>` as a singleton that adapters take as a collaborator
-   rather than decorating the port itself. Read the code, not the example.
+   rather than decorating the port itself. The example is corrected in place to the
+   shipped shape (Implementation Notes is not the Decision section, so
+   [Documentation Standards](../standards/13-documentation.md) permits it), and its
+   copy in `.claude/skills/wire-cross-cutting-foundation/SKILL.md` is corrected with
+   it — that copy is an executable instruction, so it was the one that would have
+   produced non-compiling code.
 2. **The "Hub HTTPS contract is closed at four endpoints" decision driver is
    superseded** by [ADR-0034](0034-hub-contract-surface-invariant.md), which replaces
    the count with two invariants (the Hub stores no tenant content; every crossing goes
@@ -556,12 +562,17 @@ public static IServiceCollection AddProviderResilience<TPort, TImpl>(
     where TPort : class
     where TImpl : class, TPort
 {
-    services.AddSingleton<TPort, TImpl>();              // base adapter
-    services.AddSingleton<IProviderResilience<TPort>>(sp =>
-        new ProviderResilience<TPort>(
-            portName,
-            sp.GetRequiredService<IConfiguration>().GetSection($"Resilience:{portName}")));
-    services.Decorate<TPort, ResilientProviderAdapter<TPort>>();
+    // The port is NOT decorated: C# forbids a type parameter as a base type, so
+    // no ResilientProviderAdapter<TPort> can satisfy `: TPort`. Adapters take
+    // IProviderResilience<TPort> as a collaborator and route outbound calls
+    // through Pipeline.ExecuteAsync themselves.
+    var options = configuration
+        .GetSection($"Resilience:{portName}")
+        .Get<ResilienceOptions>() ?? new ResilienceOptions();
+
+    services.AddSingleton<IProviderResilience<TPort>>(
+        _ => new ProviderResilience<TPort>(portName, options));
+
     return services;
 }
 ```

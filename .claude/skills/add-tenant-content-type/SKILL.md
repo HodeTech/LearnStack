@@ -151,7 +151,7 @@ var validator = JsonSchema.FromText(contentType.SchemaJson);
 var validation = validator.Evaluate(entryPayload);
 if (!validation.IsValid)
     return Result.Fail<ContentEntryDto>(
-        LocalizedMessage.Of("content_type.payload_invalid"));
+        new Error(LocalizedMessage.Of("lockey_content_type_payload_invalid")));
 ```
 
 The reader is per-tenant; the schema is **never** loaded from a global registry.

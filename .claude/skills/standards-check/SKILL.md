@@ -248,8 +248,10 @@ domain the diff doesn't touch.
 - [ ] `I18n:` trailer present if user-facing keys added / renamed / removed.
 
 #### `09-error-handling.md`
-- [ ] Expected outcomes use `Result.Fail(LocalizedMessage.Of(...))`.
-- [ ] `LocalizedMessage` keys carry the `lockey_*` prefix on the wire.
+- [ ] Expected outcomes use `Result.Fail<T>(new Error(LocalizedMessage.Of("lockey_…")))`
+  — `Fail` takes an `Error`, not a `LocalizedMessage`.
+- [ ] `LocalizedMessage` keys carry the `lockey_` prefix. Enforced by the constructor,
+  which throws — not by serialization — so a mis-prefixed key fails where it is written.
 - [ ] Exceptions for unexpected only; mapped to Problem Details by the
   pipeline.
 - [ ] Frontend error boundaries (`error.tsx`) per route group.
@@ -292,12 +294,15 @@ domain the diff doesn't touch.
 
 #### `15-performance.md`
 - [ ] Public-route Lighthouse budgets respected (LCP < 2.5s, INP < 200ms,
-  CLS < 0.05).
+  CLS < 0.05). **Not mechanically checkable yet** — `ci.yml`'s
+  `lighthouse-budget` job is a placeholder deferred to Phase 02d. Judge by
+  reading; do not report a pass or a failure as measured.
 - [ ] Backend latency budget per module respected.
 
 #### `16-accessibility.md`
 - [ ] WCAG 2.2 AA target.
-- [ ] `axe-core` clean on changed components.
+- [ ] `axe-core` clean on changed components. **Not mechanically checkable yet** —
+  no `axe` dependency exists in `frontend/`; Phase 02d wires it. Judge by reading.
 - [ ] Keyboard navigation + focus order reviewed.
 - [ ] Color contrast verified per brand token.
 

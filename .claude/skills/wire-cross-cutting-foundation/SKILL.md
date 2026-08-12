@@ -233,21 +233,29 @@ handler exceptions, writes the failure audit, and rethrows via
 In `LearnStack.Infrastructure.Resilience`:
 
 ```csharp
-public static IServiceCollection AddProviderResilience<TPort, TImpl>(
-    this IServiceCollection services, string portName)
+public static IServiceCollection AddProviderResilience<TPort>(
+    this IServiceCollection services,
+    IConfiguration configuration,
+    string portName)
     where TPort : class
-    where TImpl : class, TPort
 {
-    services.AddSingleton<TPort, TImpl>();
-    services.AddSingleton<IProviderResilience<TPort>>(sp =>
-        new ProviderResilience<TPort>(
-            portName,
-            sp.GetRequiredService<IConfiguration>()
-              .GetSection($"Resilience:{portName}")));
-    services.Decorate<TPort, ResilientProviderAdapter<TPort>>();
+    var options = configuration
+        .GetSection($"Resilience:{portName}")
+        .Get<ResilienceOptions>() ?? new ResilienceOptions();
+
+    services.AddSingleton<IProviderResilience<TPort>>(
+        _ => new ProviderResilience<TPort>(portName, options));
+
     return services;
 }
 ```
+
+This is the shipped shape, verbatim from
+`ProviderResilienceRegistration.cs`. It does **not** decorate the port: C# forbids a
+type parameter as a base type, so no `ResilientProviderAdapter<TPort>` can satisfy
+`: TPort`. Adapters take `IProviderResilience<TPort>` as a constructor collaborator
+and route outbound calls through `Pipeline.ExecuteAsync` themselves. Registering the
+base adapter (`AddSingleton<TPort, TImpl>()`) is the caller's job, not this helper's.
 
 The composition root calls this extension once per provider port (see
 [add-provider-adapter](../add-provider-adapter/SKILL.md) for the per-adapter
