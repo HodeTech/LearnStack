@@ -106,10 +106,10 @@ make down                                           # stop, keep volumes
 make clean                                          # stop, wipe local data
 
 # Raw compose (equivalent — useful when `make` is unavailable):
-docker compose -f infra/compose/dev.yml up -d
-docker compose -f infra/compose/dev.yml ps
-docker compose -f infra/compose/dev.yml down
-docker compose -f infra/compose/dev.yml down -v
+docker compose --env-file .env -f infra/compose/dev.yml up -d
+docker compose --env-file .env -f infra/compose/dev.yml ps
+docker compose --env-file .env -f infra/compose/dev.yml down
+docker compose --env-file .env -f infra/compose/dev.yml down -v
 ```
 
 ## `e2e.yml` — end-to-end overlay
@@ -124,7 +124,7 @@ make e2e-up                                         # tmpfs-backed stack up
 make e2e-down                                       # stop; tmpfs evaporates
 
 # Raw equivalent:
-docker compose -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
+docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
 ```
 
 Phase 06 Playwright + Phase 07 SDK contract tests run against this overlay

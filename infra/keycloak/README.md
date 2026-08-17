@@ -98,8 +98,8 @@ Keycloak boots with `start-dev --import-realm`. The JSON files under
 at first start. To re-seed:
 
 ```bash
-docker compose -f infra/compose/dev.yml down keycloak
-docker compose -f infra/compose/dev.yml up -d keycloak
+docker compose --env-file .env -f infra/compose/dev.yml down keycloak
+docker compose --env-file .env -f infra/compose/dev.yml up -d keycloak
 ```
 
 Re-import overwrites the realm only if the realm did NOT already exist (Keycloak
@@ -107,11 +107,11 @@ default behaviour). To force a clean re-seed of the realm itself, wipe the
 Keycloak database first:
 
 ```bash
-docker compose -f infra/compose/dev.yml exec postgres \
+docker compose --env-file .env -f infra/compose/dev.yml exec postgres \
   psql -U learnstack -d learnstack -c "DROP DATABASE keycloak;"
-docker compose -f infra/compose/dev.yml exec postgres \
+docker compose --env-file .env -f infra/compose/dev.yml exec postgres \
   psql -U learnstack -d learnstack -c "CREATE DATABASE keycloak OWNER learnstack;"
-docker compose -f infra/compose/dev.yml restart keycloak
+docker compose --env-file .env -f infra/compose/dev.yml restart keycloak
 ```
 
 ## What does NOT live here

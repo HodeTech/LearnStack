@@ -72,9 +72,10 @@ make dev       # bring local stack up
 make seed      # verify health + print demo credentials
 ```
 
-> `make seed`'s health gate currently times out, because three compose services declare
-> no healthcheck. [Phase 02a Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md) fixes
-> it along with the rest of the Phase 01 development-loop debt.
+> `make seed` exits 0 on a clean stack. The health gate used to time out on every run —
+> it flagged any service with no healthcheck, and two images cannot carry one.
+> [Phase 02a Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md) repaired that along
+> with the rest of the Phase 01 development-loop debt.
 
 ## Direction At A Glance
 

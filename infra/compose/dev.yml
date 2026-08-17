@@ -9,10 +9,15 @@
 # orchestrator (`make` targets) and CI workflow arrive in Phase-01 packets 7-8.
 #
 # Env vars (POSTGRES_*, KEYCLOAK_*, VAULT_ROOT_TOKEN, …) come from the repo-
-# root `.env` file (template: `.env.example`). Compose auto-loads it because
-# the `make dev` target runs from the repo root; every `${VAR:-default}`
-# reference below falls back to a dev-safe literal when `.env` is missing,
-# so `docker compose -f infra/compose/dev.yml up` works even without `make`.
+# root `.env` file (template: `.env.example`), and Compose does NOT auto-load
+# it: the default env file is resolved from the PROJECT directory — the
+# directory of the first `-f` file, i.e. `infra/compose/` — not from the cwd,
+# so running `make` from the repo root changes nothing. Every invocation has to
+# pass `--env-file .env` explicitly; `Makefile` and `scripts/seed.sh` do, and
+# the documented commands in `infra/*/README.md` do. Every `${VAR:-default}`
+# below falls back to a dev-safe literal, so a raw
+# `docker compose -f infra/compose/dev.yml up` still boots — it just silently
+# ignores `.env`, which is the trap this note exists to name.
 #
 # Operational rules: Standards 12 § Local Infrastructure + Standards 20.
 # Tenant isolation in SeaweedFS S3 is enforced by key prefix

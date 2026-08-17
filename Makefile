@@ -146,6 +146,9 @@ hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).
 # `touch .env` afterward keeps the timestamp ahead of `.env.example` so the
 # rule does not re-fire on every invocation after a rebase shifts mtimes.
 .env: .env.example
-	@cp -n .env.example .env
+	@# `cp -n` returns NON-ZERO on BSD/macOS when the target exists, so a bare
+	@# `cp -n` aborts this rule for every developer whose `.env` predates the
+	@# last `.env.example` edit — i.e. everyone, the first time they pull one.
+	@[ -f .env ] || cp .env.example .env
 	@touch .env
 	@printf "$(CYAN).env ready (copied from .env.example if missing).$(RESET)\n"

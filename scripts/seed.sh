@@ -27,6 +27,10 @@ COMPOSE_FILE="infra/compose/dev.yml"
 # Without this the repo-root `.env` that `.env.example` documents is silently
 # ignored and every `${VAR:-default}` falls back. `--env-file` on a missing
 # path is a hard error, so the flag is conditional.
+# The `[@]+` guard is not decoration: macOS ships bash 3.2, where `set -u`
+# treats an EMPTY array's `"${a[@]}"` as an unbound variable and aborts. Without
+# it this script dies at its first docker call whenever `.env` is absent —
+# before printing the "run make dev first" message written for exactly that case.
 ENV_FILE_ARGS=()
 [[ -f .env ]] && ENV_FILE_ARGS=(--env-file .env)
 KEYCLOAK_REALM_TENANT="learnstack"
@@ -47,7 +51,7 @@ red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
 cyan "▶ Step 1/3: wait for compose services to be healthy"
 
 # Distinguish "nothing running at all" from "still starting".
-running=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" ps --status running --quiet 2>/dev/null | wc -l | tr -d ' ')
+running=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps --status running --quiet 2>/dev/null | wc -l | tr -d ' ')
 if [[ "$running" == "0" ]]; then
     red "No compose services running. Run \`make dev\` first."
     exit 1
@@ -75,23 +79,38 @@ while true; do
     # entirely, so the not-running branch below is unreachable for exactly the
     # states it exists to catch. Stopping two services and re-running printed
     # "All compose services running" and exited 0.
-    not_healthy=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" \
-                  ps -a --format '{{.Name}}\t{{.State}}\t{{.Health}}' \
-                  | awk -F'\t' '
-                      $2 != "running"            { print $1 " (state=" $2 ")"; next }
-                      $3 == ""                   { next }
-                      $3 != "healthy"            { print $1 " (health=" $3 ")"; next }
+    #
+    # The exemption is PER SERVICE, derived from the compose file — not "any row
+    # whose Health is empty". A crash-looping service reports
+    # `State=running, Health=""` for the instant after each restart attempt,
+    # before Docker's health subsystem writes `starting`; a value-based skip
+    # passes it. Forced with `chmod 000` on valkey's data dir, that read green on
+    # two of three runs while `docker inspect` showed `restarting` with a
+    # climbing RestartCount.
+    exempt=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" \
+             config --format json \
+             | python3 -c 'import json,sys; print(" ".join(n for n,s in json.load(sys.stdin)["services"].items() if "healthcheck" not in s))')
+
+    not_healthy=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" \
+                  ps -a --format '{{.Service}}\t{{.State}}\t{{.Health}}' \
+                  | awk -F'\t' -v exempt=" $exempt " '
+                      $2 != "running"                          { print $1 " (state=" $2 ")"; next }
+                      index(exempt, " " $1 " ") > 0            { next }
+                      $3 != "healthy"                          { print $1 " (health=" ($3 == "" ? "none reported" : $3) ")"; next }
                     ')
     # A row that is absent is not a row that is healthy: compare the count we
     # actually saw against what the compose file declares, so a service that
     # never got created fails the gate instead of passing by omission.
-    declared=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" config --services | wc -l | tr -d ' ')
-    observed=$(docker compose "${ENV_FILE_ARGS[@]}" -f "$COMPOSE_FILE" ps -a --format '{{.Name}}' | wc -l | tr -d ' ')
+    declared=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | wc -l | tr -d ' ')
+    observed=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | wc -l | tr -d ' ')
     if [[ -z "$not_healthy" && "$observed" -eq "$declared" ]]; then
         break
     fi
     if [[ "$observed" -ne "$declared" ]]; then
-        not_healthy="${not_healthy}"$'\n'"  (saw $observed of $declared declared services)"
+        if [[ -n "$not_healthy" ]]; then
+            not_healthy="${not_healthy}"$'\n'
+        fi
+        not_healthy="${not_healthy}(saw $observed of $declared declared services)"
     fi
     if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
         red "Services still not healthy after ${HEALTH_TIMEOUT_SECONDS}s — inspect with:"

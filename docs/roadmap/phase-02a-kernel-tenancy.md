@@ -205,10 +205,15 @@ orphan.
 is complete and its record stands; the gaps it shipped with are remediated
 here:
 
-- `make seed`'s health gate requires every compose service to report healthy,
-  but `coturn`, `dapr-placement` and `dapr-sidecar-api` declare no healthcheck —
-  so the gate times out and the script exits non-zero on **every** run. This is
-  step three of the quickstart.
+- `make seed`'s health gate requires every compose service to report healthy, but
+  three declare no healthcheck — so the gate times out and the script exits non-zero
+  on **every** run. This is step three of the quickstart. Only two of the three are
+  genuinely exempt: `daprio/placement` and `daprio/daprd` are single-binary images
+  with no shell and no probe tool. `coturn` is not — it ships
+  `turnutils_stunclient` and gains a real STUN probe. The gate skips the exempt set,
+  derived per service from the compose file rather than from an empty Health value,
+  because a crash-looping service reports an empty Health for the instant after each
+  restart attempt and a value-based skip passes it.
 - `infra/compose/e2e.yml` resets PostgreSQL, SeaweedFS, Meilisearch and Kafka to
   `tmpfs` but leaves Valkey on its named volume, so cache and rate-limit state
   leaks between end-to-end runs. Its `volumes: !reset []` additionally discards
