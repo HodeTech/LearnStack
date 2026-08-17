@@ -31,9 +31,17 @@ x-host-gateway: &host-gateway
     - "host.docker.internal:host-gateway"
 
 services:
+  # No service declares `container_name:`. A literal name overrides the
+  # project-derived one, so `learnstack-dev` and `learnstack-e2e` would fight
+  # over the same 14 names and neither `make dev` + `make e2e-up` together nor
+  # two concurrent runs of either could start:
+  #   Conflict. The container name "/learnstack-postgres" is already in use
+  # Compose names containers `<project>-<service>-<n>` instead, which is what
+  # makes `-p` mean anything. Address a container by service name
+  # (`docker compose -f infra/compose/dev.yml logs postgres`) rather than by a
+  # fixed container name.
   postgres:
     image: postgres:18.4-alpine
-    container_name: learnstack-postgres
     restart: unless-stopped
     environment:
       # Defaults match `.env.example`. Compose's `${VAR:-default}` form keeps
@@ -75,7 +83,6 @@ services:
   # `redis-cli` continues to ship inside the Valkey image as a symlink.
   valkey:
     image: valkey/valkey:8.1-alpine
-    container_name: learnstack-valkey
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
     ports:
@@ -95,7 +102,6 @@ services:
   # fixture that hard-coded the S3 endpoint keeps working.
   seaweedfs:
     image: chrislusf/seaweedfs:3.94
-    container_name: learnstack-seaweedfs
     restart: unless-stopped
     labels:
       # OrbStack hint: route `seaweedfs.learnstack-dev.orb.local` to the Filer
@@ -136,7 +142,6 @@ services:
 
   mailpit:
     image: axllent/mailpit:v1.29.7
-    container_name: learnstack-mailpit
     restart: unless-stopped
     labels:
       # OrbStack hint: route `mailpit.learnstack-dev.orb.local` to the Web UI
@@ -162,7 +167,6 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.44.0
-    container_name: learnstack-meilisearch
     restart: unless-stopped
     environment:
       # Dev-only. Production credentials come from Vault via ISecretProvider.
@@ -189,7 +193,6 @@ services:
   # ../keycloak/README.md.
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.2
-    container_name: learnstack-keycloak
     restart: unless-stopped
     command: ["start-dev", "--import-realm"]
     environment:
@@ -245,7 +248,6 @@ services:
   # `LearnStack.Infrastructure.LiveClassroom.LiveKit`.
   livekit:
     image: livekit/livekit-server:v1.12.0
-    container_name: learnstack-livekit
     restart: unless-stopped
     # `--node-ip 127.0.0.1` and `rtc.use_external_ip: false` in
     # livekit.yaml are two ways of telling LiveKit not to auto-discover the
@@ -276,7 +278,6 @@ services:
 
   coturn:
     image: coturn/coturn:4.11.0
-    container_name: learnstack-coturn
     restart: unless-stopped
     command: ["-c", "/etc/turnserver.conf"]
     volumes:
@@ -306,7 +307,6 @@ services:
   # listener for host-side kcat / kafka-topics is a Phase 11 item.
   kafka:
     image: confluentinc/cp-kafka:8.2.1
-    container_name: learnstack-kafka
     restart: unless-stopped
     environment:
       # KRaft mode — single-node broker + controller. Production uses an
@@ -347,7 +347,6 @@ services:
   # tag; bump deliberately, never let `:latest` drift).
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:v1.5.0
-    container_name: learnstack-kafka-ui
     restart: unless-stopped
     environment:
       KAFKA_CLUSTERS_0_NAME: learnstack-dev
@@ -385,7 +384,6 @@ services:
   # § Vault token for the full chain (Phase 01 packet 7 DX commitment).
   vault:
     image: hashicorp/vault:1.21.4
-    container_name: learnstack-vault
     restart: unless-stopped
     command: ["server", "-dev", "-dev-root-token-id=${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}", "-dev-listen-address=0.0.0.0:8200"]
     environment:
@@ -408,7 +406,6 @@ services:
   # per ADR-0014 non-goals (daprd will not boot without it).
   dapr-placement:
     image: daprio/placement:1.17.7
-    container_name: learnstack-dapr-placement
     restart: unless-stopped
     command: ["./placement", "-log-level", "info"]
     # no healthcheck possible: single-binary image on an empty base — no shell,
@@ -428,7 +425,6 @@ services:
   # See ../dapr/README.md.
   dapr-sidecar-api:
     image: daprio/daprd:1.17.7
-    container_name: learnstack-dapr-sidecar-api
     restart: unless-stopped
     # no healthcheck possible: same single-binary image family as
     # dapr-placement. Standards 12 § Healthchecks and the readiness gate.
@@ -485,7 +481,6 @@ services:
   # `apisix.yaml` replaces the dashboard for the dev workflow.
   apisix:
     image: apache/apisix:3.16.0-debian
-    container_name: learnstack-apisix
     restart: unless-stopped
     <<: *host-gateway
     volumes:
