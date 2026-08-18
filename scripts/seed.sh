@@ -116,21 +116,27 @@ while true; do
     # never got created fails the gate instead of passing by omission.
     declared=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | wc -l | tr -d ' ')
     observed=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | wc -l | tr -d ' ')
-    if [[ -z "$not_healthy" && "$observed" -eq "$declared" ]]; then
+    # Compare the SETS, not just the counts. One service missing plus one
+    # orphan present gives observed == declared, and a count-only test would
+    # break out of the loop reporting success on a stack that is missing a
+    # declared service.
+    missing=$(comm -13 \
+        <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | sort -u) \
+        <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | sort -u) \
+        | xargs)
+    extra=$(comm -23 \
+        <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | sort -u) \
+        <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | sort -u) \
+        | xargs)
+
+    if [[ -z "$not_healthy" && -z "$missing" && -z "$extra" ]]; then
         break
     fi
-    if [[ "$observed" -ne "$declared" ]]; then
+
+    if [[ -n "$missing" || -n "$extra" ]]; then
         if [[ -n "$not_healthy" ]]; then
             not_healthy="${not_healthy}"$'\n'
         fi
-            missing=$(comm -13 \
-            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | sort -u) \
-            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | sort -u) \
-            | xargs)
-        extra=$(comm -23 \
-            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | sort -u) \
-            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | sort -u) \
-            | xargs)
         detail="saw $observed of $declared declared services"
         if [[ -n "$missing" ]]; then
             detail="$detail; never created: $missing"

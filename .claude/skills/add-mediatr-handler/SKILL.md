@@ -150,6 +150,7 @@ public sealed class CreateEnrollmentCommandHandler(
             EnrollmentId = enrollment.Id.Value,
             LearnerId = request.LearnerId.Value,
             CourseVersionId = request.CourseVersionId.Value,
+            CohortId = request.CohortId?.Value,
             // OccurredAt is auto-populated by IntegrationEventBase — do not set
             // it manually. If you need it explicitly, inject IClock and use
             // clock.UtcNow per 02-backend-coding.md § Time.

@@ -88,6 +88,10 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 
 ### Healthchecks and the readiness gate
 
+**Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md)
+— these tighten how the local development stack that ADR describes is operated;
+they introduce no new architectural decision.
+
 - **A service in the default compose profile declares a `healthcheck` when one can be
   written.** `make seed` waits on the default-profile set and treats a service that is
   running but not `healthy` as not ready.
@@ -106,6 +110,9 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 
 ### Published ports
 
+**Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md)
+and [Security Standards § Transport](11-security.md#transport).
+
 - **Every published port binds `127.0.0.1`** — `"127.0.0.1:5432:5432"`, never
   `"5432:5432"`. A bare mapping listens on every interface, so a laptop on a café
   network publishes its development database, and `dev.yml` ships committed development
@@ -123,6 +130,10 @@ otel-collector          # Phase 11 (Production hardening — observability stack
   use it is worse than leaving it.
 
 ### Development credentials
+
+**Derives from:** [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
+— `ConfigurationSecretProvider` is the shipped default, so `.env` is the local
+expression of the secret port rather than a parallel mechanism.
 
 - **Compose files carry no bare credential literals.** Every credential is
   `${VAR:-fallback}` so `.env` can override it and the fallback is visibly a default.

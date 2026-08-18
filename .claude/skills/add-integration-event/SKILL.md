@@ -87,6 +87,7 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
     CourseVersionId = request.CourseVersionId.Value,
+    CohortId = request.CohortId?.Value,
     Source = request.Source.ToString().ToLowerInvariant(),
 }, cancellationToken);
 

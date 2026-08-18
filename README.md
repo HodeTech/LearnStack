@@ -73,8 +73,11 @@ make dev       # bring local stack up
 make seed      # verify health + print demo credentials
 ```
 
-> `make seed` exits 0 on a clean stack. The health gate used to time out on every run —
-> it flagged any service with no healthcheck, and two images cannot carry one.
+> `make seed` exits 0 on a clean stack. The health gate used to time out on every run:
+> it read every service's `healthcheck:` block in the Compose file and flagged any
+> service that declared none, but `dapr-placement` and `dapr-sidecar-api` cannot
+> declare one — their images ship a single binary on an empty base, with no shell
+> and no `wget`/`curl`/`nc` to probe with.
 > [Phase 02a Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md) repaired that along
 > with the rest of the Phase 01 development-loop debt.
 

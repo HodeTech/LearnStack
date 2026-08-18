@@ -107,11 +107,14 @@ default behaviour). To force a clean re-seed of the realm itself, wipe the
 Keycloak database first:
 
 ```bash
+# Stop Keycloak first: PostgreSQL refuses to drop a database that still has a
+# connected client, and Keycloak holds a pool open for its whole lifetime.
+docker compose --env-file .env -f infra/compose/dev.yml stop keycloak
 docker compose --env-file .env -f infra/compose/dev.yml exec postgres \
   psql -U learnstack -d learnstack -c "DROP DATABASE keycloak;"
 docker compose --env-file .env -f infra/compose/dev.yml exec postgres \
   psql -U learnstack -d learnstack -c "CREATE DATABASE keycloak OWNER learnstack;"
-docker compose --env-file .env -f infra/compose/dev.yml restart keycloak
+docker compose --env-file .env -f infra/compose/dev.yml up -d keycloak
 ```
 
 ## What does NOT live here

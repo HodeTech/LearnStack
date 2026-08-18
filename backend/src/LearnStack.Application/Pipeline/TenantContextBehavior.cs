@@ -49,14 +49,17 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
             return Task.FromResult(Result.FailFor<TResponse>(TenantMismatchError));
         }
 
-        // Nothing to do here for RLS. The GUCs are transaction-local
-        // (set_config('app.tenant_id', ..., true)), and this behavior runs at
-        // step 4 with no transaction open, so they are issued by
-        // TransactionBehavior at step 6 as the first statement inside the
-        // transaction — Security Standards § Tenant Context. A
-        // DbConnectionInterceptor cannot do it either: it fires at connection
-        // open, not at transaction start, so the value would be discarded
-        // before the query it protects ever runs.
+        // Nothing to do here for RLS, and nothing anywhere else yet: no code
+        // in this repository issues set_config today. Packet 7 adds it to
+        // TransactionBehavior, and until then RLS is not enforced at runtime.
+        //
+        // Why it belongs there and not here: the GUCs are transaction-local
+        // (set_config('app.tenant_id', ..., true)) and this behavior runs at
+        // step 4 with no transaction open, so the value would be discarded
+        // before the query it protects ever runs. TransactionBehavior at step 6
+        // issues them as the first statement inside the transaction — Security
+        // Standards § Tenant Context. A DbConnectionInterceptor cannot do it
+        // either: it fires at connection open, which precedes BEGIN.
 
         return next();
     }

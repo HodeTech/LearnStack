@@ -105,34 +105,28 @@ What `make dev` expands to:
 docker compose --env-file .env -f infra/compose/dev.yml up -d
 ```
 
-The components and their default ports:
+The canonical service inventory — image, local endpoint and default credentials
+for every service in the stack — lives in
+[`infra/compose/README.md`](../../../infra/compose/README.md), grouped by the
+Phase 01 packet that introduced each one. It is not repeated here; a second copy
+is a second thing to keep true, and this file has no way to notice when
+`dev.yml` changes.
 
-| Component | Published port(s) | Purpose |
-|-----------|-------------------|---------|
-| Postgres | 5432 | Main DB. |
-| Valkey | 6379 | Cache + Dapr state. |
-| Kafka | *(none)* | Dapr pub/sub backend. Reached over the compose network only — nothing on the host speaks to it directly. |
-| Kafka UI | 8081 | Optional UI for topics. |
-| Vault (dev mode) | 8200 | Secrets backend; dev root token, **not** for production. |
-| Keycloak | 8080 | Two realms: `learnstack` (tenants) + `learnstack-hub` (operators). |
-| SeaweedFS | 9000 (S3 API) / 9001 (filer UI) / 9333 (master) / 8084 | Object storage (single dev binary: master + volume + filer + S3 gateway). |
-| Meilisearch | 7700 | Search. |
-| LiveKit | 7880 (API) / 7881 (TLS) / 7882 (RTC) / 50000-50100 (UDP media) | Live classroom. |
-| coturn | 3478 (UDP+TCP) / 5349 / 49152-49200 (UDP relay) | TURN for LiveKit. |
-| Mailpit | 8025 (UI) / 1025 (SMTP) | Captures outbound email in dev. |
-| Dapr sidecar (api) | 3500 (HTTP) / 50001 (gRPC) | Building-block runtime. |
-| Dapr placement | *(none)* | Actor placement; compose network only. |
-| APISIX | 9080 (HTTP gateway) / 9443 (HTTPS) / 9091 (Prometheus metrics) | File-driven standalone (`data_plane`) per ADR-0015 — no Admin API, no dashboard companion. `apisix.yaml` is the only source of truth. |
+Three properties of that inventory matter while you are setting up:
 
-Every one of these binds to `127.0.0.1`, never `0.0.0.0` — see
-[Infrastructure Standards § Published ports](../../../docs/standards/12-infrastructure.md).
-Regenerate the table from the stack itself rather than by hand —
-`docker compose --env-file .env -f infra/compose/dev.yml config --format json`
-is the source of truth.
+- **Every published port binds `127.0.0.1`, never `0.0.0.0`** — see
+  [Infrastructure Standards § Published ports](../../../docs/standards/12-infrastructure.md).
+- **Kafka and the Dapr placement service publish nothing.** They are reached
+  over the compose network only; nothing on the host speaks to them directly.
+- **Neither application host is a compose service.** `LearnStack.Api` runs on
+  the workstation via `dotnet run` on the `ASPNETCORE_URLS` port in
+  `.env.example` (5080), and `apps/web` runs via `pnpm dev` on 3000.
 
-Neither application host is a compose service. `LearnStack.Api` runs on the
-workstation via `dotnet run` on the `ASPNETCORE_URLS` port in `.env.example`
-(5080), and `apps/web` runs via `pnpm dev` on 3000.
+To read the resolved truth rather than any document, ask the stack:
+
+```bash
+docker compose --env-file .env -f infra/compose/dev.yml config --format json
+```
 
 ### Step 4: First-run bootstrap
 

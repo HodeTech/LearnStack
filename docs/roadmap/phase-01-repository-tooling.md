@@ -111,8 +111,12 @@
 >
 > ### Known defects this phase shipped with, and where they are fixed
 >
-> All of these were remediated in **[Phase 02a Packet 3b](phase-02a-kernel-tenancy.md)**
-> — see its [delivery record](phase-02a-kernel-tenancy.md#delivery-record-packet-3b) —
+> All but one were remediated in **[Phase 02a Packet 3b](phase-02a-kernel-tenancy.md)**
+> — see its [delivery record](phase-02a-kernel-tenancy.md#delivery-record-packet-3b).
+> The exception is **branch protection**: the missing approval and
+> bypass settings are *deferred by maintainer decision*, not fixed, and stay
+> that way until a second contributor gains write access — see
+> [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md). Packet 3b
 > which exists precisely so that Phase 01's record does not have to be rewritten. The
 > list below is kept as written, because what a phase shipped with is part of its
 > record:

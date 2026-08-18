@@ -575,6 +575,10 @@ public static class ProviderResilienceRegistration
         // no ResilientProviderAdapter<TPort> can satisfy `: TPort`. Adapters take
         // IProviderResilience<TPort> as a collaborator and route outbound calls
         // through Pipeline.ExecuteAsync themselves.
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(portName);
+
         var options = configuration
             .GetSection($"Resilience:{portName}")
             .Get<ResilienceOptions>() ?? new ResilienceOptions();
