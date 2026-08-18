@@ -84,8 +84,14 @@ flowchart TD
 ```
 
 Rules:
-- Edge middleware is the **only** place that resolves a tenant from a host.
-- Resolved tenant attached as `X-Tenant-Id` header and a server-readable cookie.
+- Edge middleware is the only place **in the frontend** that resolves a tenant from a
+  host. The API resolves the host independently and authoritatively; the edge's answer
+  is a render-time convenience, not the security boundary
+  ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
+- The server-side SDK states the **visitor's host** to the API over the trusted hop
+  (`X-LearnStack-Host` + `X-LearnStack-Hop-Secret`). It may also attach `X-Tenant-Id`,
+  but only as an assertion the API compares against its own resolution — a mismatch is
+  a 404, and the header never selects the tenant.
 - SDK reads tenant from request headers (server) or request-scoped context (client). Client never invents the tenant.
 - Studio and Portal users pick a tenant via a switcher; choice persisted in JWT claim and validated cookie.
 - Public-site URLs do **not** carry the tenant in the path; locale yes, tenant no.

@@ -227,7 +227,12 @@ and canonical policy templates live in
 three are set. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
 own short read-only transaction before the host lookup, because the row that determines
 the tenant must be readable before any tenant context exists; it is read by exactly one
-policy, on `platform_host_to_tenant`.
+policy, on `platform_host_to_tenant`. Its value is the **normalized effective host** as
+`EffectiveHost.Normalize` produces it — the single producer of both this variable and
+the lookup key, per
+[ADR-0036 § Effective host and the trusted hop](../decisions/0036-tenant-resolution-trusted-inputs.md).
+That ADR, not this section, is the authority for *which* request input the host comes
+from; this section remains the authority for session-variable **placement** only.
 
 ### The rule
 

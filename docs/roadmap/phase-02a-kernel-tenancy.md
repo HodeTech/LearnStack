@@ -68,6 +68,7 @@ They are codified in:
 - [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
   (supersedes ADR-0016)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
+- [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
 
 [ADR-0014 (Dapr)](../decisions/0014-adopt-dapr.md) and
 [ADR-0015 (APISIX)](../decisions/0015-api-gateway-apisix.md) remain accepted decisions
@@ -282,6 +283,16 @@ Carries one correctness fix: `CursorPagination`'s constructor validation
 currently surfaces as an unhandled `ArgumentOutOfRangeException` during model
 binding, producing a 500 where a malformed cursor is a client error. Binding
 failures return **400** with Problem Details.
+
+Also lands the Packet 4 half of
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md): the in-process rate
+limiter [architecture/30](../architecture/30-api-gateway.md) has promised since Phase 01,
+`EffectiveHostAccessor` and the total host normalizer, the trusted-hop predicate, the
+`X-Tenant-Id` / `X-Organization-Id` assertion comparison behind `ITenantAssertionRecorder`
+(logging implementation only — Packet 9 swaps in the auditing one), and the
+`Deployment:Mode` fail-fast that corrects the key shipping as `Development` in the
+`appsettings.json` that goes to every environment. Packet 4 resolves no tenant and claims
+no audit trail; the ADR's staging table says what each packet owes.
 
 SDK generation ships as a wired-but-empty scaffold — there are no endpoints to
 generate from until [Phase 02d](phase-02d-walking-skeleton.md).
@@ -872,8 +883,8 @@ Context is resolvable from:
 - Custom domain (via `platform_host_to_tenant`).
 - Subdomain on the platform domain (still via `platform_host_to_tenant`).
 - Org-scoped subdomain (`branch-istanbul.example.edu` → tenant + organization).
-- Explicit tenant + organization selector headers for admin/studio usage.
-- API request headers (`X-Tenant-Id`, `X-Organization-Id`).
+- Studio / Portal tenant selection, which travels as a **re-issued JWT claim**, never as
+  a selector header ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
 - Background job parameter.
 - Integration event envelope (envelope contract defined in Phase 02b; the resolver
   respects it from the start).
@@ -941,8 +952,11 @@ Per [API Standards](../standards/04-api-design.md):
 - Optimistic concurrency via ETag / `version`.
 - Correlation IDs in headers and logs.
 - OpenAPI generated from code; SDK generated from spec.
-- Tenant + organization headers (`X-Tenant-Id`, `X-Organization-Id`) bound on every
-  request.
+- Tenant + organization headers (`X-Tenant-Id`, `X-Organization-Id`) bound and compared
+  on every request — **assertions, never a resolution source**. The trusted-hop
+  `X-LearnStack-Host` names a host and LearnStack still resolves it itself. Full model,
+  reconciliation matrix and packet staging in
+  [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md).
 
 ### Configuration
 

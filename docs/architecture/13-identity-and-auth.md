@@ -93,7 +93,7 @@ When a user logs in, they may have multiple memberships. The active tenant is de
 2. An explicit tenant selector for Studio (for cross-tenant operators).
 3. The user's last active tenant (cookie hint).
 
-The JWT carries a `tenant_id` claim for the active session; LearnStack rejects requests where the host-derived tenant disagrees with the claim. See [Tenant Isolation](09-tenant-isolation.md).
+The JWT carries a `tenant_id` claim for the active session; LearnStack rejects requests where the host-derived tenant disagrees with the claim. That rejection is not a fallback rule but the general shape of resolution — every authoritative signal is resolved independently and the request proceeds only on their intersection. The full matrix, including the organization dimension and the platform-host case, is [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md). See also [Tenant Isolation](09-tenant-isolation.md).
 
 ## Roles and Permissions
 
