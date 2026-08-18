@@ -38,7 +38,7 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
     [Fact]
     public async Task L1_Handler_Returns_ProblemDetails_For_Server_Side_ProviderException()
     {
-        var response = await _client.GetAsync(new Uri("/test/throw-provider-5xx", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/api/v1/test/throw-provider-5xx", UriKind.Relative));
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         response.Content.Headers.ContentType?.MediaType
@@ -47,14 +47,14 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("code").GetString().Should().Be("dependency_unavailable");
         problem.GetProperty("messageKey").GetString().Should().Be("lockey_dependency_unavailable");
-        problem.GetProperty("instance").GetString().Should().Be("/test/throw-provider-5xx");
+        problem.GetProperty("instance").GetString().Should().Be("/api/v1/test/throw-provider-5xx");
         problem.TryGetProperty("correlationId", out _).Should().BeTrue();
     }
 
     [Fact]
     public async Task L1_Handler_Returns_Consistent_Body_And_Status_For_Client_Side_ProviderException()
     {
-        var response = await _client.GetAsync(new Uri("/test/throw-provider-4xx", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/api/v1/test/throw-provider-4xx", UriKind.Relative));
 
         // An adapter surfacing a provider 4xx as client-actionable passes an
         // explicit Error (here validation_failed). HTTP status is derived
@@ -75,7 +75,7 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
         // and the controller's ToActionResult() projects to a 400
         // Problem Details body.
         var response = await _client.PostAsJsonAsync(
-            new Uri("/test/validate", UriKind.Relative),
+            new Uri("/api/v1/test/validate", UriKind.Relative),
             new { Name = string.Empty });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -85,7 +85,7 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("code").GetString().Should().Be("validation_failed");
         problem.GetProperty("messageKey").GetString().Should().Be("lockey_validation_failed");
-        problem.GetProperty("instance").GetString().Should().Be("/test/validate");
+        problem.GetProperty("instance").GetString().Should().Be("/api/v1/test/validate");
         problem.GetProperty("errors").GetProperty("name")[0]
             .GetProperty("key").GetString().Should().Be("lockey_name_required");
     }
@@ -94,7 +94,7 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
     public async Task ValidationBehavior_Passes_Through_When_Command_Is_Valid()
     {
         var response = await _client.PostAsJsonAsync(
-            new Uri("/test/validate", UriKind.Relative),
+            new Uri("/api/v1/test/validate", UriKind.Relative),
             new { Name = "alice" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);

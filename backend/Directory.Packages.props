@@ -102,6 +102,17 @@
   <!--
     Reserved for later Phase 02a packets (EF migrations + design-time).
   -->
+  <!--
+    Phase 02a Packet 4 — API conventions (ADR-0024, ADR-0036).
+    Scalar renders the OpenAPI document Microsoft.AspNetCore.OpenApi emits.
+    Swashbuckle is NOT used: it does not ship a .NET 10 document generator,
+    and ADR-0024 § Implementation Notes fixes Microsoft.AspNetCore.OpenApi as
+    the generator. Standards 04 § OpenAPI was corrected to match.
+  -->
+  <ItemGroup Label="Phase 02a Packet 4 (in use)">
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.20" />
+  </ItemGroup>
+
   <ItemGroup Label="Reserved for later Phase 02a packets">
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />

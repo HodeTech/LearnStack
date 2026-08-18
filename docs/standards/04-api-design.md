@@ -187,8 +187,25 @@ Version mismatch returns **409** with `concurrency_conflict`.
 
 ## OpenAPI
 
-- Generated from code (Swashbuckle), not handwritten.
-- Available at `/openapi/v1.json`; Swagger UI at `/openapi/v1/`.
+- Generated from code by **`Microsoft.AspNetCore.OpenApi`**, not handwritten.
+  Swashbuckle is not used: it ships no document generator for .NET 10, and
+  [ADR-0024 § Implementation Notes](../decisions/0024-api-versioning-policy.md)
+  fixes the built-in generator.
+- **One document per live major**, at `/openapi/v{N}.json` — so
+  `/openapi/v1.json` today. Each document holds only its own major's paths;
+  without that filter an added `/api/v2` operation reads as a breaking change
+  to `v1` under `oasdiff`.
+- **Reference UI at `/openapi`** (redirects to `/openapi/`), rendered by
+  **Scalar**. `Microsoft.AspNetCore.OpenApi` ships no UI of its own.
+- The document is served in **every** environment, not only Development: it is
+  the contract the SDK generates from and CI diffs, so an artefact no deployed
+  instance serves is not the contract. Restricting who may reach it is an edge
+  concern (APISIX), not an application one.
+- Every operation carries `x-version-introduced`;
+  [ADR-0024 § OpenAPI marking](../decisions/0024-api-versioning-policy.md) owns
+  the full extension set. `deprecated` is derived from `[Obsolete]` and is
+  absent when false — OpenAPI defines an absent `deprecated` as `false`, and
+  the serializer omits defaults.
 - TypeScript SDK `@learnstack/sdk` is generated from this spec in CI.
 - Breaking OpenAPI changes fail CI unless the version bumps.
 

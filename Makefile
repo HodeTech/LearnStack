@@ -100,10 +100,8 @@ build-frontend: ## `pnpm -r build` the frontend monorepo.
 test: test-backend test-frontend ## Run all test suites (backend + frontend).
 
 .PHONY: test-backend
-test-backend: ## `dotnet test` (unit + architecture + contract; integration skipped — see test-integration).
-	(cd backend && dotnet test LearnStack.slnx \
-	  --filter "FullyQualifiedName!~LearnStack.Tests.Integration" \
-	  --nologo)
+test-backend: ## `dotnet test` (unit + architecture + contract + HTTP integration — same set as CI).
+	(cd backend && dotnet test LearnStack.slnx --nologo)
 
 .PHONY: test-integration
 test-integration: ## Testcontainers-backed integration tests (requires Docker).
