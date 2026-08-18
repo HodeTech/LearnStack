@@ -103,9 +103,10 @@ The pre-commit hook (activated by `make install`) runs, on staged files only:
 `frontend/`**; `next lint --fix` on JS / TS under `frontend/apps/web` — the one
 workspace with a `lint` script, so this is exactly what `pnpm -r lint` covers in
 CI; and, when the binary is on PATH, `leakwatch scan fs <staged-file>`. So the
-lint / typecheck / test / secret-scan pass above is mostly a sanity check. CI
-re-runs every check as a hard gate, so a bypassed local commit will fail the PR
-build.
+three commands above are mostly a sanity check. There is deliberately no
+`make secret-scan` to pair with them — the hook and CI are the scanner's only
+runners, and CI re-runs every check as a hard gate, so a bypassed local commit
+will fail the PR build.
 
 Prettier stops at the `frontend/` boundary, and the root `.prettierignore`
 is what enforces it in your editor — `.vscode/settings.json` maps `[markdown]`
