@@ -18,7 +18,14 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    globals: true,
+    // Off, and the suite depends on it being off. Both test files import
+    // describe/it/expect/afterEach from 'vitest' explicitly, so the
+    // injected form is a knob nothing uses. It is also load-bearing in
+    // reverse: with globals on, @testing-library/react detects a global
+    // `afterEach` and registers its own cleanup, which silently makes
+    // setup.ts's explicit afterEach(cleanup) redundant. Turning this back
+    // on means adding "types": ["vitest/globals"] to tsconfig.json.
+    globals: false,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     restoreMocks: true,
