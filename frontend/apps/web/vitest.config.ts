@@ -1,22 +1,26 @@
-import { fileURLToPath } from "node:url";
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { fileURLToPath } from 'node:url';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vitest/config';
 
 /**
  * Per-app, not an export from `@learnstack/config`.
  *
- * `packages/config` declares no `scripts` block at all, so a shared vitest
- * export would be validated by nothing until a second consumer exists. Phase
- * 02d brings the operator-facing surfaces that would be that consumer; hoisting
- * it before then means maintaining a shared config no test run ever loads.
+ * Not because a shared export could not work — `packages/config` already
+ * exports `./eslint`, `./tsconfig/*` and `./tailwind`, and `apps/web` consuming
+ * them is what validates those. The reason is that there is no second consumer
+ * by design: ADR-0009 keeps one Next.js app in this repository, the operator
+ * portal lives in `LearnStack-Hub`, and the architecture test
+ * `Frontend_Has_Only_The_Web_App` (Implemented) fails the build if a second app
+ * appears here. A shared config with exactly one consumer is indirection with
+ * no payer.
  */
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: "jsdom",
+    environment: 'jsdom',
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
     restoreMocks: true,
   },
   resolve: {
@@ -24,7 +28,7 @@ export default defineConfig({
       // Mirrors tsconfig.json's `"@/*": ["./src/*"]`. Vitest does not read
       // tsconfig paths on its own, so an import that typechecks would fail to
       // resolve at test time without this.
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 });

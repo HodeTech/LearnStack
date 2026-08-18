@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-import PublicHomePage from "./page";
+import PublicHomePage from './page';
 
 /**
  * The point of this file is that it exists. `apps/web`'s `test` script carried
@@ -13,20 +13,16 @@ import PublicHomePage from "./page";
  * The substantive frontend suite arrives with Phase 02d. This asserts only what
  * the placeholder page actually promises today.
  */
-describe("PublicHomePage", () => {
-  it("renders the platform name as the page heading", () => {
+describe('PublicHomePage', () => {
+  it('renders the platform name as the page heading', () => {
     render(<PublicHomePage />);
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "LearnStack" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'LearnStack' })).toBeInTheDocument();
   });
 
-  it("renders the positioning line", () => {
+  it('renders the positioning line', () => {
     render(<PublicHomePage />);
 
-    expect(
-      screen.getByText(/multi-tenant core platform/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/multi-tenant core platform/i)).toBeInTheDocument();
   });
 });
