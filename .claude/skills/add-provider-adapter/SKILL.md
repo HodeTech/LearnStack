@@ -30,7 +30,8 @@ through the same shape:
 ```text
 Application code
   ↓ (port interface in SharedKernel)
-ResilientProviderAdapter<TPort>           ← Polly v8 ResiliencePipeline
+IProviderResilience<TPort>                ← Polly v8 ResiliencePipeline,
+                                            injected into the adapter
   ↓
 LiveKitClient (adapter in Infrastructure) ← SDK exception → ProviderException
   ↓
@@ -170,6 +171,9 @@ internal sealed class LiveKitClient(
         {
             // Every outbound call goes through the pipeline. There is no
             // decorator doing this for you — see Step 4.
+            // MapToSdkRequest / MapToDomain are this adapter's own private
+            // helpers — translation is the adapter's whole job.
+            var sdkRequest = MapToSdkRequest(cmd);
             var room = await resilience.Pipeline.ExecuteAsync(
                 async token => await _sdk.CreateRoom(sdkRequest, token), ct);
             return MapToDomain(room);
@@ -291,7 +295,7 @@ and on `InfrastructureException`. A `LiveClassProviderException` with
 `isClientError: true` skips retry — retrying "room already exists" is wrong.
 Verify the mapping table for every translated SDK exception:
 
-| Upstream signal | `ProviderException.IsClientError` | Sentry capture | Decorator retries |
+| Upstream signal | `ProviderException.IsClientError` | Sentry capture | Pipeline retries |
 |---|---|---|---|
 | 4xx response | `true` | No | No |
 | 5xx response | `false` | Yes | Yes |
@@ -318,7 +322,7 @@ public async Task CreateRoomAsync_translates_RoomAlreadyExists_to_4xx_provider_e
 }
 
 [Fact]
-public async Task ResilientProviderAdapter_retries_on_5xx_until_circuit_opens()
+public async Task ProviderPipeline_retries_on_5xx_until_circuit_opens()
 {
     // Arrange — wrap a flaky in-memory adapter
     // Act — fire enough requests to open the breaker

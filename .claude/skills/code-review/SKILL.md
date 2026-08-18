@@ -176,7 +176,7 @@ change.
 | Outbox round-trip test for new integration event | Always |
 | Permission denied test for every new permission key | Always |
 | Boundary tests for every DSL band threshold | Scoring / completion rules |
-| Lighthouse / axe-core for public-route changes | Frontend — **from Phase 02d**; neither is wired today, so do not raise a Blocker for a missing run |
+| Lighthouse / axe-core for public-route changes | Frontend — Lighthouse **from Phase 02d**, axe-core **from Phase 06**; neither is wired today, so do not raise a Blocker for a missing run |
 
 A change without tests is incomplete; flag as Blocker unless the user
 explicitly deferred the test.

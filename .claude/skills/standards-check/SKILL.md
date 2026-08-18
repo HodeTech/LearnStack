@@ -302,7 +302,9 @@ domain the diff doesn't touch.
 #### `16-accessibility.md`
 - [ ] WCAG 2.2 AA target.
 - [ ] `axe-core` clean on changed components. **Not mechanically checkable yet** —
-  no `axe` dependency exists in `frontend/`; Phase 02d wires it. Judge by reading.
+  no `axe` dependency exists in `frontend/`; [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md)
+  wires the automated checks, per
+  [Standards index row 16](../../../docs/standards/README.md). Judge by reading.
 - [ ] Keyboard navigation + focus order reviewed.
 - [ ] Color contrast verified per brand token.
 

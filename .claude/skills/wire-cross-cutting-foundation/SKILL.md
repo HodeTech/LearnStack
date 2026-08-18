@@ -100,7 +100,7 @@ the `Sentry.AspNetCore` reference being restricted to
 ```csharp
 builder.Host.UseSerilog((ctx, services, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
-    .Enrich.With(services.GetRequiredService<CorrelationContextEnricher>())_id
+    .Enrich.With(services.GetRequiredService<CorrelationContextEnricher>())
     .Enrich.With<RedactSensitiveFieldsEnricher>()       // strips tokens, passwords, PII
     .WriteTo.Console(new RenderedCompactJsonFormatter())
     .WriteTo.OpenTelemetry(o =>

@@ -92,7 +92,8 @@ public sealed class CreateEnrollmentCommandValidator : AbstractValidator<CreateE
 ```
 
 The `ValidationBehavior` in the pipeline runs the validator before the handler. A
-validation failure returns `Result.Fail<T>(new Error(LocalizedMessage.Of("lockey_validation_failed", …)))`
+validation failure returns
+`Result.Fail<T>(new Error(LocalizedMessage.Of("lockey_validation_failed", …)))`
 automatically — it never throws `ValidationException`.
 
 Two shapes to get right, because both fail at runtime rather than at review:
@@ -101,7 +102,8 @@ Two shapes to get right, because both fail at runtime rather than at review:
   `Result.Fail<T>(Error error)` / `Result<T>.Fail(Error error)`; wrap the message:
   `new Error(LocalizedMessage.Of("lockey_…"))`.
 - **Every localization key starts with `lockey_`.** `LocalizedMessage`'s constructor
-  throws `ArgumentException` otherwise, so `LocalizedMessage.Of("enrollment.already_exists")`
+  throws `ArgumentException` otherwise, so
+  `LocalizedMessage.Of("enrollment.already_exists")`
   compiles and then throws on first use. `Error.Code` is this key with the prefix
   stripped, which is why the prefix is an invariant rather than a convention.
 
@@ -171,8 +173,9 @@ Rules:
 - Outbox row written **inside** the same `DbContext` transaction. Never open a
   second transaction for the event publish.
 - Read `ITenantContext.TenantId` / `.OrganizationId` for tenant + org; don't accept them
-  from the command body. There is no `.Current` on `ITenantContext` — `Current` belongs to
-  `ITenantContextAccessor`, which is cross-cutting infrastructure and is not injected into
+  from the command body. There is no `.Current` on `ITenantContext` —
+  `Current` belongs to `ITenantContextAccessor`, which is cross-cutting
+  infrastructure and is not injected into
   handlers ([ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)).
 
 ### Step 4: Audit catalogue entry

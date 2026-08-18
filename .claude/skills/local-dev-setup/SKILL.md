@@ -88,31 +88,39 @@ make dev      # the canonical orchestrator; wraps docker-compose + dotnet + pnpm
 Equivalent without the make wrapper:
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up -d
-docker compose -f infra/compose/dapr.yml up -d
-docker compose -f infra/compose/apisix.yml up -d
+# One file holds the whole stack. --env-file is not optional: Compose resolves
+# its default env file from the project directory (infra/compose/), not the cwd,
+# so without the flag the repo-root .env is ignored and every ${VAR:-default}
+# silently falls back.
+docker compose --env-file .env -f infra/compose/dev.yml up -d
 ```
 
 The components and their default ports:
 
-| Component | Port | Purpose |
-|-----------|------|---------|
+| Component | Published port(s) | Purpose |
+|-----------|-------------------|---------|
 | Postgres | 5432 | Main DB. |
 | Valkey | 6379 | Cache + Dapr state. |
-| Kafka | 9092 | Dapr pub/sub backend. |
-| Kafka UI | 9094 | Optional UI for topics. |
-| Vault (dev mode) | 8200 | Secrets backend; `root` token, **not** for production. |
+| Kafka | *(none)* | Dapr pub/sub backend. Reached over the compose network only — nothing on the host speaks to it directly. |
+| Kafka UI | 8081 | Optional UI for topics. |
+| Vault (dev mode) | 8200 | Secrets backend; dev root token, **not** for production. |
 | Keycloak | 8080 | Two realms: `learnstack` (tenants) + `learnstack-hub` (operators). |
-| SeaweedFS | 9000 (S3 API) / 9001 (filer UI) / 9333 (master) | Object storage (single dev binary: master + volume + filer + S3 gateway). |
+| SeaweedFS | 9000 (S3 API) / 9001 (filer UI) / 9333 (master) / 8084 | Object storage (single dev binary: master + volume + filer + S3 gateway). |
 | Meilisearch | 7700 | Search. |
-| LiveKit | 7880 (API) / 7881 (TLS) / 7882 (RTC) | Live classroom. |
-| coturn | 3478 / 5349 | TURN for LiveKit. |
-| LiveKit Egress | — | Recording worker. |
-| Mailhog | 8025 | Captures outbound email in dev. |
-| OTel Collector | 4317 (gRPC) | Local observability. |
-| Dapr sidecar (per service) | 3500 (HTTP) / 50001 (gRPC) | Building-block runtime. |
+| LiveKit | 7880 (API) / 7881 (TLS) / 7882 (RTC) / 50000-50100 (UDP media) | Live classroom. |
+| coturn | 3478 (UDP+TCP) / 5349 / 49152-49200 (UDP relay) | TURN for LiveKit. |
+| Mailpit | 8025 (UI) / 1025 (SMTP) | Captures outbound email in dev. |
+| Dapr sidecar (api) | 3500 (HTTP) / 50001 (gRPC) | Building-block runtime. |
+| Dapr placement | *(none)* | Actor placement; compose network only. |
 | APISIX | 9080 (HTTP gateway) / 9443 (HTTPS) / 9091 (Prometheus metrics) | File-driven standalone (`data_plane`) per ADR-0015 — no Admin API, no dashboard companion. `apisix.yaml` is the only source of truth. |
-| LearnStack API | 5100 | Backend host. |
+
+Every one of these binds to `127.0.0.1`, never `0.0.0.0` — see
+[Infrastructure Standards § Published ports](../../../docs/standards/12-infrastructure.md).
+The backend host is **not** a compose service: `LearnStack.Api` runs on the
+workstation via `dotnet run`, on the `ASPNETCORE_URLS` port in `.env.example`.
+Regenerate this table from the stack itself rather than by hand —
+`docker compose --env-file .env -f infra/compose/dev.yml config --format json`
+is the source of truth.
 | LearnStack Web (`apps/web`) | 3000 | Frontend dev server. |
 
 ### Step 4: First-run bootstrap
@@ -140,7 +148,8 @@ make seed-reset
 
 ```bash
 # API health
-curl -fsS http://localhost:5100/healthz | jq
+# 5080 is ASPNETCORE_URLS in .env.example - the single source of truth for it.
+curl -fsS http://localhost:5080/healthz | jq
 
 # APISIX (gateway pass-through)
 curl -fsS http://localhost:9080/healthz | jq
@@ -182,7 +191,7 @@ make restart-api
 
 | Symptom | Fix |
 |---------|-----|
-| `Bind for 127.0.0.1:5432 failed: port is already allocated` | Stop your local Postgres (or change `POSTGRES_PORT` in `.env`). |
+| `Bind for 127.0.0.1:5432 failed: port is already allocated` | Stop your local Postgres, or stop the other compose project holding the port — host ports are fixed in `dev.yml`, so two projects cannot both bind them. |
 | `relation "tenants" does not exist` | Migrations didn't run; `make migrate`. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | First-run seed failed; `make seed-reset` rebuilds. |
