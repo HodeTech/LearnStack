@@ -10,7 +10,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 
 > **Two settings are deferred — maintainer decision, 2026-08-10.** While
 > LearnStack has one active contributor, the live `main` rule sets
-> **Require approvals: 0** and leaves **Do not allow bypassing** *off*. A second
+> **Require approvals: 0** and leaves **Do not allow bypassing** _off_. A second
 > approver on a single-contributor repository blocks every merge, and admin
 > enforcement with no second admin blocks the only person who could unblock it.
 > The settings below are the **target state**, not the current one.
@@ -31,6 +31,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
   - Dismiss stale approvals when new commits are pushed: **on**.
   - Require review from CODEOWNERS: **off** (no CODEOWNERS file yet).
 - **Require status checks to pass before merging**
+
   - Require branches to be up to date before merging: **on**.
   - Required status checks (the job names from `.github/workflows/ci.yml`):
     - `backend (build + unit + arch + contract)`
@@ -45,6 +46,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     `(deferred …)` suffix, and add the new name both to this list and to the live
     branch-protection setting. Setting the variable alone leaves a job that runs
     but gates nothing.
+
     - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
       with the first cross-tenant isolation test.
     - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
@@ -55,6 +57,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     GitHub matches required checks **by name**, so the rename is the dangerous
     half: a renamed check that nobody re-required is a check that no longer blocks
     anything, and the PR still shows green.
+
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).
@@ -77,7 +80,7 @@ Per CLAUDE.md § Commit conventions:
   `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
   (replace the model name when authoring with a different assistant).
 - `docs(scope)` for doc-only commits; scope ∈ `architecture | decisions |
-  standards | roadmap` or omitted for cross-cutting changes.
+standards | roadmap` or omitted for cross-cutting changes.
 
 ## Pull requests
 
@@ -98,11 +101,18 @@ make typecheck      # tsc --noEmit
 make test           # unit + arch + contract + vitest
 ```
 
-The pre-commit hook (activated by `make install`) runs `dotnet format` +
-prettier + ESLint + (if installed) `leakwatch scan fs <staged-file>` on
-staged files — so the lint / typecheck / test / secret-scan pass above is
-mostly a sanity check. CI re-runs every check as a hard gate, so a
-bypassed local commit will fail the PR build.
+The pre-commit hook (activated by `make install`) runs, on staged files only:
+`dotnet format` on `*.cs`; prettier on JS/TS/JSON/MD; `next lint --fix` on
+JS/TS under `frontend/apps/web` — the one workspace with a `lint` script, so
+this is exactly what `pnpm -r lint` covers in CI; and, when the binary is on
+PATH, `leakwatch scan fs <staged-file>`. So the lint / typecheck / test /
+secret-scan pass above is mostly a sanity check. CI re-runs every check as a
+hard gate, so a bypassed local commit will fail the PR build.
+
+Older Leakwatch builds — including the `v1.5.0` CI pins — only accept a
+directory target. The hook detects that and skips the local scan with an
+upgrade hint rather than failing your commit; CI scans the whole tree either
+way.
 
 The secret scanner is [Leakwatch](https://github.com/cemililik/Leakwatch)
 — MIT licensed, verifier-equipped, hybrid Aho-Corasick + regex + entropy
