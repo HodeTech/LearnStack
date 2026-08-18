@@ -392,9 +392,10 @@ trace continues in the other direction.
 ```mermaid
 flowchart LR
   app[Application code] --> port["ILiveClassProvider (port)"]
-  port --> decorator["ResilientProviderAdapter&lt;ILiveClassProvider&gt;<br/>(Polly v8 ResiliencePipeline:<br/>retry, circuit breaker, timeout, bulkhead)"]
-  decorator --> adapter["LiveKitClient (adapter)<br/>SDK exception → ProviderException"]
-  adapter --> sdk[LiveKit .NET SDK]
+  port --> adapter["LiveKitClient (adapter)<br/>SDK exception → ProviderException"]
+  adapter --> resilience["IProviderResilience&lt;ILiveClassProvider&gt;<br/>(Polly v8 ResiliencePipeline:<br/>retry, circuit breaker, timeout, bulkhead)"]
+  resilience --> sdkcall{{"every outbound call<br/>via Pipeline.ExecuteAsync"}}
+  sdkcall --> sdk[LiveKit .NET SDK]
   sdk --> upstream[LiveKit server]
 ```
 
@@ -402,8 +403,12 @@ Per [ADR-0032 § Sub-decision 5](../decisions/0032-exception-handling-logging-an
 
 - The application sees only the port interface (`ILiveClassProvider`,
   `IPaymentProvider`, `IStorageProvider`, `ISearchProvider`, etc.).
-- A decorator wraps the adapter with a Polly v8 `ResiliencePipeline` built
-  from `appsettings.Resilience:<portName>:` configuration.
+- The adapter takes `IProviderResilience<TPort>` as a **collaborator** and
+  routes every outbound call through `Pipeline.ExecuteAsync`. It is not a
+  decorator: C# forbids a type parameter as a base type, so no
+  `ResilientProviderAdapter<TPort> : TPort` can exist — see
+  [ADR-0032 Amendment 2](../decisions/0032-exception-handling-logging-and-observability.md).
+  The pipeline is built from `appsettings.Resilience:<portName>:`.
 - The adapter is the only place that imports the provider SDK. Its job is
   exception translation — every SDK exception is mapped to the appropriate
   `ProviderException` subclass with the `IsClientError` flag set
@@ -442,7 +447,7 @@ Two integration points
 | Serilog + OTel SDK wiring | Phase 02a | Hosts wire it once |
 | `TenantContextSpanProcessor` | Phase 02a | OTel span enrichment |
 | `IErrorTrackingProvider` socket | Phase 02a | Three implementations registered per `DeploymentMode` |
-| `IProviderResilience<TPort>` + decorator | Phase 02a | Foundation for every adapter |
+| `IProviderResilience<TPort>` collaborator | Phase 02a | Foundation for every adapter |
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
 | Outbox / Hangfire correlation propagation | Phase 02b | Row schema + activator |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |

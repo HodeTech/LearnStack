@@ -783,12 +783,14 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
   `backend/analyzers/` flags every `throw new DomainException(...)` outside
   aggregate invariant guards. Warning in Phase 02a, escalates to Error after
   Phase 03 exit.
-- **`IProviderResilience<TPort>` decorator** with Polly v8
+- **`IProviderResilience<TPort>` collaborator** with Polly v8
   `ResiliencePipeline` (retry + circuit breaker + timeout + bulkhead) lives
   in `LearnStack.Infrastructure.Resilience`. Configuration shape:
   `appsettings.Resilience:<port-name>:`. Every adapter is wired through the
-  `AddProviderResilience<TPort, TImpl>(string portName)` composition-root
-  extension. The
+  `AddProviderResilience<TPort>(IConfiguration, string portName)`
+  composition-root extension and takes the pipeline as a constructor
+  collaborator — there is no decorator, because C# forbids a type parameter
+  as a base type ([ADR-0032 Amendment 2](../decisions/0032-exception-handling-logging-and-observability.md)). The
   [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
   skill walks the canonical wiring.
 - **Serilog primary logger + OTLP sink.** Hosts wire
@@ -1029,7 +1031,7 @@ land in Phase 02b.
 - Cross-cutting foundation (per
   [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)):
   `LearnStackExceptionHandler`, 8-step MediatR pipeline, `Result.ToActionResult`
-  extension, `IProviderResilience<TPort>` decorator, Serilog + OTLP sink,
+  extension, `IProviderResilience<TPort>` collaborator, Serilog + OTLP sink,
   `TenantContextSpanProcessor`, `IErrorTrackingProvider` with three
   implementations, Roslyn analyzer for `DomainException`. The
   [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)

@@ -33,7 +33,7 @@ public sealed class ProviderResilienceTests
     {
         var options = new ResilienceOptions
         {
-            Retry = new RetryOptions { MaxAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
+            Retry = new RetryOptions { MaxRetryAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
             CircuitBreaker = new CircuitBreakerOptions { Enabled = false },
             Timeout = new TimeoutOptions { Enabled = false },
         };
@@ -51,7 +51,7 @@ public sealed class ProviderResilienceTests
         });
 
         await act.Should().ThrowAsync<ProviderException>();
-        attempts.Should().Be(3, "MaxAttempts = 2 retries means 1 initial + 2 retries = 3 invocations");
+        attempts.Should().Be(3, "MaxRetryAttempts = 2 retries means 1 initial + 2 retries = 3 invocations");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class ProviderResilienceTests
     {
         var options = new ResilienceOptions
         {
-            Retry = new RetryOptions { MaxAttempts = 5, DelaySeconds = 0, UseJitter = false, Enabled = true },
+            Retry = new RetryOptions { MaxRetryAttempts = 5, DelaySeconds = 0, UseJitter = false, Enabled = true },
             CircuitBreaker = new CircuitBreakerOptions { Enabled = false },
             Timeout = new TimeoutOptions { Enabled = false },
         };
@@ -85,7 +85,7 @@ public sealed class ProviderResilienceTests
     {
         var options = new ResilienceOptions
         {
-            Retry = new RetryOptions { MaxAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
+            Retry = new RetryOptions { MaxRetryAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
             CircuitBreaker = new CircuitBreakerOptions { Enabled = false },
             Timeout = new TimeoutOptions { Enabled = true, TotalSeconds = 0.05 },
         };
@@ -103,7 +103,7 @@ public sealed class ProviderResilienceTests
         });
 
         await act.Should().ThrowAsync<TimeoutRejectedException>();
-        attempts.Should().Be(3, "MaxAttempts = 2 retries means 1 initial + 2 retries = 3 invocations, each timing out");
+        attempts.Should().Be(3, "MaxRetryAttempts = 2 retries means 1 initial + 2 retries = 3 invocations, each timing out");
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class ProviderResilienceTests
         // must tell the two apart and let real cancellation through.
         var options = new ResilienceOptions
         {
-            Retry = new RetryOptions { MaxAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
+            Retry = new RetryOptions { MaxRetryAttempts = 2, DelaySeconds = 0, UseJitter = false, Enabled = true },
             CircuitBreaker = new CircuitBreakerOptions { Enabled = false },
             Timeout = new TimeoutOptions { Enabled = false },
         };
