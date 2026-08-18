@@ -96,7 +96,39 @@ restage() { git add -- "$@"; }
 # Iterating costs one CLI invocation per file but each one is fast
 # (Aho-Corasick pre-filter); for small commits this is sub-second.
 
-if command -v leakwatch >/dev/null 2>&1; then
+# Older builds only accept a DIRECTORY target. CI pins v1.5.0, which rejects a
+# file with "source validation failed: source is not a directory" — so a
+# developer who mirrors the CI pin gets a hook that aborts every commit. Probe
+# once and degrade to a message rather than blocking; CI is the real gate.
+leakwatch_takes_files() {
+    local probe
+    for probe in "${all_staged[@]}"; do
+        [[ -f "$probe" ]] || continue
+        if leakwatch scan fs "$probe" --config .leakwatch.yaml \
+               --min-severity medium --no-verify >/dev/null 2>&1; then
+            return 0
+        fi
+        # A finding also exits non-zero; only the validation error means the
+        # binary cannot take a file at all. Capture and match on the string
+        # rather than piping into grep: this script runs under `pipefail`, so
+        # a pipeline carries leakwatch's exit code even when grep matches, and
+        # `… | grep -q … && return 1` would never fire.
+        local out
+        out=$(leakwatch scan fs "$probe" --config .leakwatch.yaml \
+                  --min-severity medium --no-verify 2>&1) || true
+        case "$out" in
+            *"is not a directory"*) return 1 ;;
+        esac
+        return 0
+    done
+    return 0
+}
+
+if command -v leakwatch >/dev/null 2>&1 && ! leakwatch_takes_files; then
+    printf "pre-commit: this leakwatch build only scans directories — skipping the\n" >&2
+    printf "  local secret scan (CI re-runs it on the whole tree).\n" >&2
+    printf "  upgrade: brew upgrade leakwatch  |  go install github.com/cemililik/leakwatch@latest\n" >&2
+elif command -v leakwatch >/dev/null 2>&1; then
     if [[ ${#all_staged[@]} -gt 0 ]]; then
         printf "pre-commit: leakwatch scan (%d file(s)) …\n" "${#all_staged[@]}"
         for f in "${all_staged[@]}"; do
@@ -158,11 +190,32 @@ if [[ ${#real_prettier_batch[@]} -gt 0 || ${#js_like_files[@]} -gt 0 ]]; then
         restage "${real_prettier_batch[@]}"
     fi
 
-    if [[ ${#js_like_files[@]} -gt 0 ]]; then
-        # ESLint runs only on JS-like files (not on JSON/MD).
+    # ESLint is wired in exactly one workspace: `@learnstack/web` is the only
+    # package with a `lint` script, so `pnpm -r lint` in CI covers
+    # `frontend/apps/web` and nothing else. Two reasons the previous
+    # invocation could never work: `eslint` is a devDependency of that package
+    # only, so `pnpm exec eslint` from `frontend/` fails with
+    # ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL; and ESLint 9 does not read the
+    # `.eslintrc.cjs` this app still uses, so the bare binary bails with
+    # "couldn't find an eslint.config.js" even where it does resolve.
+    # `next lint` is what the package's own script runs and what CI therefore
+    # runs, and it understands the eslintrc format.
+    # `next lint` takes one `--file` FLAG per path, so the array is built as
+    # alternating flag/value pairs — a `${a[@]/#/--file }` rewrite would make
+    # each element a single argument containing a space and never split.
+    web_lint_args=()
+    web_count=0
+    for f in "${js_like_files[@]:-}"; do
+        if [[ -n "$f" && "$f" == frontend/apps/web/* ]]; then
+            web_lint_args+=(--file "${f#frontend/apps/web/}")
+            web_count=$(( web_count + 1 ))
+        fi
+    done
+
+    if [[ $web_count -gt 0 ]]; then
         # `--max-warnings 0` turns ANY warning into a hook failure.
-        printf "pre-commit: eslint --fix (%d file(s)) …\n" "${#js_like_files[@]}"
-        (cd frontend && pnpm exec eslint --fix --max-warnings 0 "${js_like_files[@]/#/../}")
+        printf "pre-commit: next lint --fix (%d file(s)) …\n" "$web_count"
+        (cd frontend/apps/web && pnpm exec next lint --fix --max-warnings 0 "${web_lint_args[@]}")
         restage "${js_like_files[@]}"
     fi
 fi
