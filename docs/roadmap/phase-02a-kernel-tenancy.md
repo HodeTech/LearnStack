@@ -227,6 +227,19 @@ here:
   required `frontend` check never sits red across a packet boundary. The
   substantive frontend suite still arrives with
   [Phase 02d](phase-02d-walking-skeleton.md).
+
+  Standing the harness up is more than deleting a flag: it needs
+  `vitest.config.ts`, a jsdom environment, `@vitejs/plugin-react` (pinned to
+  `^4` — `@vitejs/plugin-react@6` requires Vite 8 while vitest 2.1.x resolves
+  Vite 5), `@testing-library/react` + `jest-dom`, and a setup file. The config
+  lives in `apps/web`, not in `@learnstack/config`: that package declares no
+  `scripts` block, so a shared export would be validated by nothing until
+  Phase 02d brings a second consumer.
+
+  One limit worth stating rather than discovering later: `pnpm -r test` covers
+  `apps/web` alone. `packages/config`, `packages/sdk` and `packages/ui` declare
+  no `test` script, so they stay silently green — the required `frontend` check
+  proves something about the app and nothing about the packages.
 - Branch protection requires four checks but zero approvals and does not enforce
   for administrators, which contradicts
   [Git Workflow Standards](../standards/14-git-workflow.md). Either the setting
