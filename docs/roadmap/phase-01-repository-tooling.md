@@ -21,7 +21,8 @@
 > ADR-0018 primitive + composite sets, `packages/{config,ui,sdk}`.
 > `pnpm-lock.yaml` committed; `postinstall` hook stubs `.next/types/routes.d.ts`.
 >
-> **Packet 3 — Core dev compose ✅** > `infra/compose/dev.yml` with PostgreSQL 18, Valkey 7, SeaweedFS + console, Mailpit
+> **Packet 3 — Core dev compose ✅**
+> `infra/compose/dev.yml` with PostgreSQL 18, Valkey 7, SeaweedFS + console, Mailpit
 > (binary `readyz` healthcheck), Meilisearch — pinned tags, healthchecks,
 > named volumes, dev-only credential banners.
 >
@@ -40,11 +41,11 @@
 > **Packet 6 — Eventing + secrets + gateway ✅**
 > Kafka 7.8 in KRaft mode (no ZooKeeper) + kafka-ui, Vault 1.18 in `-dev` mode,
 > Dapr 1.14.4 sidecar (`learnstack-api` app id, `-app-channel-address
-host.docker.internal` so subscriptions reach the workstation) + placement
+> host.docker.internal` so subscriptions reach the workstation) + placement
 > with three components — `pubsub-kafka.yaml`, `statestore-redis.yaml`
 > (`actorStateStore: false` per ADR-0014 non-goals), `secretstore-vault.yaml`
 > — and APISIX 3.10 in file-driven standalone mode (`deployment.role:
-data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
+> data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
 > `/api/internal/*` Phase-02c surface is documented as an SSL-object +
 > ip-restriction stub (mTLS in APISIX is not a route-level plugin).
 >
@@ -67,23 +68,23 @@ data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
 > `learnstack-hub` repo's Phase 02c** per
 > [ADR-0019](../decisions/0019-learnstack-hub.md); it never lives here.
 >
-> **Packet 8 — CI baseline + seed ✅** > `.github/workflows/ci.yml` with four required jobs — backend (build +
+> **Packet 8 — CI baseline + seed ✅**
+> `.github/workflows/ci.yml` with four required jobs — backend (build +
 > dotnet format verify + unit + architecture + contract), frontend
 > (typecheck + lint + build + Vitest), meta (broken-link sweep over
 > changed Markdown + `docs/analysis/` residual scan), and secret-scan
 > ([Leakwatch](https://github.com/cemililik/Leakwatch) v1.5.0 per
 > Standards 12 § Secrets Management — MIT, verifier-equipped, hybrid Aho-Corasick
->
-> - regex + entropy; configured via `.leakwatch.yaml` + `.leakwatchignore`). Three
->   scaffolded-but-deferred jobs (`if: false`) wait for their owning phase:
->   integration tests (02a), OpenAPI diff (03), Lighthouse budget (04).
->   `scripts/seed.sh` verifies compose health + Keycloak realm readiness
->   and prints the demo credentials; the application-level tenant seeding
->   (two demo tenants + platform admin) is documented as a one-edit
->   drop-in for Phase 02a when
->   the Tenancy module's DbContext lands. Branch-protection rules
->   (required-check names, approval count, signed-commits posture) live in
->   `.github/CONTRIBUTING.md` so GitHub Settings matches the corpus.
+> + regex + entropy; configured via `.leakwatch.yaml` + `.leakwatchignore`). Three
+> scaffolded-but-deferred jobs (`if: false`) wait for their owning phase:
+> integration tests (02a), OpenAPI diff (03), Lighthouse budget (04).
+> `scripts/seed.sh` verifies compose health + Keycloak realm readiness
+> and prints the demo credentials; the application-level tenant seeding
+> (two demo tenants + platform admin) is documented as a one-edit
+> drop-in for Phase 02a when
+> the Tenancy module's DbContext lands. Branch-protection rules
+> (required-check names, approval count, signed-commits posture) live in
+> `.github/CONTRIBUTING.md` so GitHub Settings matches the corpus.
 
 > ---
 >
@@ -99,14 +100,14 @@ data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
 >
 > ### Claims in this document that are no longer accurate
 >
-> | Where                  | What it says                                                        | What is true now                                                                                                                                                                                                                                                                                                                                                            |
-> | ---------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | § Frontend Scaffold    | The operator portal is `learnstack-hub-web`                         | The app is **`operator-portal`** (`frontend/apps/operator-portal` in the Hub repository, asserted by its `Frontend_Has_Only_The_OperatorPortal_App` test). The name was renamed corpus-wide; this line is left as the historical record                                                                                                                                     |
-> | § Deliverables         | "`make seed` populating two demo tenants + one platform admin user" | `scripts/seed.sh` seeds **Keycloak identity only**. Application-level tenant seeding was always a documented drop-in for Phase 02a, and now lands in [Packet 7](phase-02a-kernel-tenancy.md) with two tenants — an English school and a **yoga studio**                                                                                                                     |
-> | § Completion Criteria  | "CI passes on `main`"                                               | True, but the frontend job passes with **zero tests** (`vitest run --passWithNoTests` against no test files). [Packet 3b](phase-02a-kernel-tenancy.md) makes a zero test count a failure; the first real tests arrive with [Phase 02d](phase-02d-walking-skeleton.md)                                                                                                       |
-> | § Local Infrastructure | The 14-service compose stack is the development environment         | Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), **Dapr, Kafka, APISIX and Vault move behind a non-default compose profile** in [Packet 5](phase-02a-kernel-tenancy.md). Their ports ship with in-process defaults; the adapters land in [Phase 11](phase-11-production-hardening.md) against written triggers. The daily loop runs roughly seven services |
-> | § CI Baseline          | OpenAPI diff activates in Phase 03; Lighthouse in Phase 04          | Both move earlier: [Phase 02d](phase-02d-walking-skeleton.md) ships the first real `/api/v1/*` endpoints **and** the first content-bearing public pages                                                                                                                                                                                                                     |
-> | § CI Baseline          | Integration tests activate "in Phase 02a"                           | More precisely: [Packet 7](phase-02a-kernel-tenancy.md), when the first cross-tenant isolation test lands. The `if: false` placeholder is removed there                                                                                                                                                                                                                     |
+> | Where | What it says | What is true now |
+> |---|---|---|
+> | § Frontend Scaffold | The operator portal is `learnstack-hub-web` | The app is **`operator-portal`** (`frontend/apps/operator-portal` in the Hub repository, asserted by its `Frontend_Has_Only_The_OperatorPortal_App` test). The name was renamed corpus-wide; this line is left as the historical record |
+> | § Deliverables | "`make seed` populating two demo tenants + one platform admin user" | `scripts/seed.sh` seeds **Keycloak identity only**. Application-level tenant seeding was always a documented drop-in for Phase 02a, and now lands in [Packet 7](phase-02a-kernel-tenancy.md) with two tenants — an English school and a **yoga studio** |
+> | § Completion Criteria | "CI passes on `main`" | True, but the frontend job passes with **zero tests** (`vitest run --passWithNoTests` against no test files). [Packet 3b](phase-02a-kernel-tenancy.md) makes a zero test count a failure; the first real tests arrive with [Phase 02d](phase-02d-walking-skeleton.md) |
+> | § Local Infrastructure | The 14-service compose stack is the development environment | Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), **Dapr, Kafka, APISIX and Vault move behind a non-default compose profile** in [Packet 5](phase-02a-kernel-tenancy.md). Their ports ship with in-process defaults; the adapters land in [Phase 11](phase-11-production-hardening.md) against written triggers. The daily loop runs roughly seven services |
+> | § CI Baseline | OpenAPI diff activates in Phase 03; Lighthouse in Phase 04 | Both move earlier: [Phase 02d](phase-02d-walking-skeleton.md) ships the first real `/api/v1/*` endpoints **and** the first content-bearing public pages |
+> | § CI Baseline | Integration tests activate "in Phase 02a" | More precisely: [Packet 7](phase-02a-kernel-tenancy.md), when the first cross-tenant isolation test lands. The `if: false` placeholder is removed there |
 >
 > ### Known defects this phase shipped with, and where they are fixed
 >
@@ -114,11 +115,10 @@ data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
 > — see its [delivery record](phase-02a-kernel-tenancy.md#delivery-record-packet-3b) —
 > which exists precisely so that Phase 01's record does not have to be rewritten. The
 > exception is **branch protection**: the missing approval and bypass settings are
-> _deferred by maintainer decision_, not fixed, and stay that way until a second
+> *deferred by maintainer decision*, not fixed, and stay that way until a second
 > contributor gains write access — see
-> [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md). The
-> list below is kept as written, because what a phase shipped with is part of its
-> record:
+> [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md). The list below is
+> kept as written, because what a phase shipped with is part of its record:
 >
 > - `make seed`'s health gate requires every compose service to report healthy, but
 >   `coturn`, `dapr-placement` and `dapr-sidecar-api` declare no healthcheck — so the
@@ -139,10 +139,10 @@ data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
 >   standard must agree; a security rule that differs from the live platform setting
 >   makes a green build look stronger than it is.
 >
-> Two more were found on **2026-08-18**, after Packet 3b shipped, and fixed the same
-> day. Both are recorded here rather than in Packet 3b's list because Phase 01 is what
-> shipped them, and both survived because each is invisible on the machine that wrote
-> it:
+> Three more were found on **2026-08-18**, after Packet 3b shipped, and fixed the same
+> day. They are recorded here rather than in Packet 3b's list because Phase 01 is what
+> shipped them, and all three survived because each is invisible on the machine that
+> wrote it:
 >
 > - `.githooks/pre-commit` calls `leakwatch scan fs <staged-file>` per file. The
 >   Homebrew build accepts a file; the `v1.5.0` that CI pins rejects it with
@@ -153,6 +153,17 @@ data_plane`, no Admin API, no companion dashboard) per ADR-0015. The
 >   the call could not have worked even where the binary resolved. The hook now runs
 >   `next lint`, which is what `pnpm -r lint` runs in CI, scoped to `frontend/apps/web`,
 >   the only workspace with a `lint` script.
+> - Prettier formatted Markdown outside `frontend/`, and that is not a formatting
+>   no-op. Its Markdown printer joins blockquote lines onto the preceding one, drops
+>   the `>` from continuation lines, and reads the `*` inside a code span as an
+>   emphasis marker — it rewrote this file's own `/api/v1/*` into `/api/v1/_` and
+>   demoted a sentence clause to a list item. Two callers could reach the corpus:
+>   `.vscode/settings.json` maps `[markdown]` to the Prettier extension repository-wide
+>   — that is the one that fired — and `.githooks/pre-commit` fed prettier every staged
+>   `*.md`, which would have done the same for anyone who ran `make hooks`. Nothing
+>   checked the result: no CI job runs prettier, and `make format` scopes it to
+>   `frontend/`. A root `.prettierignore` now stops the editor, and the hook carries
+>   the same boundary as a path filter.
 >
 > ### Conventions introduced after this phase
 >
@@ -258,8 +269,8 @@ Shared packages (extracted only when duplication is real):
 
 Multi-app split inside this repo is deferred; see
 [ADR-0009](../decisions/0009-frontend-single-app-first.md) for the extraction
-triggers. The **operator portal** (`learnstack-hub-web`) is a _separate Next.js app
-in the `learnstack-hub` repository_ per
+triggers. The **operator portal** (`learnstack-hub-web`) is a *separate Next.js app
+in the `learnstack-hub` repository* per
 [ADR-0019](../decisions/0019-learnstack-hub.md) — not in this scaffold.
 
 ### Local Infrastructure
@@ -304,16 +315,16 @@ Two compose files:
 
 - GitHub Actions workflow.
 - Backend build and unit + architecture + contract tests.
-- Integration tests with Testcontainers PostgreSQL — _scaffolded as
+- Integration tests with Testcontainers PostgreSQL — *scaffolded as
   `if: false` placeholder; activates in Phase 02a when the first
-  integration test lands (see Status note above)._
+  integration test lands (see Status note above).*
 - Frontend install, typecheck, build, lint, component tests.
-- OpenAPI breaking-change check — _scaffolded as `if: false` placeholder;
-  activates in Phase 03 when the first real `/api/v1/_`endpoint replaces
-the`/healthz` placeholder.\*
-- Lighthouse budget check on representative public pages — _scaffolded as
+- OpenAPI breaking-change check — *scaffolded as `if: false` placeholder;
+  activates in Phase 03 when the first real `/api/v1/*` endpoint replaces
+  the `/healthz` placeholder.*
+- Lighthouse budget check on representative public pages — *scaffolded as
   `if: false` placeholder; activates in Phase 04 when the first content-
-  bearing public page ships._
+  bearing public page ships.*
 - Required status checks on `main`.
 
 ## Deliverables

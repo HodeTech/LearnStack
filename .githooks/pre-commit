@@ -7,8 +7,8 @@
 #
 # Languages handled:
 #   *.cs                              → dotnet format (whitespace + style)
-#   *.{ts,tsx,js,jsx,mjs,cjs}         → prettier --write + ESLint via pnpm
-#   *.{json,md}                       → prettier --write
+#   frontend/**.{ts,tsx,js,jsx,mjs,cjs} → prettier --write + ESLint via pnpm
+#   frontend/**.{json,md}               → prettier --write
 #
 # Intentionally NOT handled: *.yml / *.yaml. Compose / Dapr / APISIX YAMLs
 # are comment-heavy and prettier reflows them in a way that hurts review
@@ -80,10 +80,24 @@ all_staged=()
 # diff --cached` invocation on every commit).
 while IFS= read -r -d '' f; do
     all_staged+=("$f")
+    #
+    # Prettier is scoped to `frontend/` on purpose. It is a frontend tool here:
+    # `make format` runs it from that directory, and no CI job verifies its
+    # output anywhere. Pointed at the documentation corpus it is not a no-op —
+    # its Markdown printer joins blockquote lines, drops the `>` from
+    # continuations, and reads the `*` inside a code span as an emphasis
+    # marker — which silently rewrote `/api/v1/*` to `/api/v1/_` in a roadmap
+    # record. The root `.prettierignore` draws the same boundary for the
+    # editor; this filter draws it here, because prettier runs from
+    # `frontend/` where that file does not apply.
     case "$f" in
-        *.cs)                                         cs_files+=("$f") ;;
-        *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)           js_like_files+=("$f") ;;
-        *.json|*.md)                                  prettier_only_files+=("$f") ;;
+        *.cs) cs_files+=("$f") ;;
+        frontend/*)
+            case "$f" in
+                *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)   js_like_files+=("$f") ;;
+                *.json|*.md)                          prettier_only_files+=("$f") ;;
+            esac
+            ;;
     esac
 done < <(staged_files)
 
