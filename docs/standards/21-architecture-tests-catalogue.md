@@ -73,6 +73,12 @@ Every row below carries a status:
 | **Registered** | The name is reserved and the assertion is agreed; no code yet. The row names the owning phase or packet. A registered test is a commitment, not a claim. |
 | **Retired** | Moved to § Retired with the reason and the replacement. |
 
+Each row also carries a **Kind**: **structural** (asserts a shape — types,
+references, attributes, configuration) or **behavioural** (starts or exercises
+the real thing and asserts what it does). A structural assertion that a rule
+*exists* is not a proof that it *holds*; see § What a structural test proves —
+and what it does not.
+
 Claiming a rule is "enforced by an architecture test" when the test is registered but
 not implemented is the failure mode this column exists to prevent.
 
@@ -1185,8 +1191,14 @@ started.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`, in
   `LearnStack.Tests.Integration`).
 - **Phase:** 02a Packet 4.
-- **Note:** it was **first written as a reflection scan and was wrong twice
-  over**, which is worth recording because both mistakes look like working
+- **Note:** with no production controller yet, this assertion runs over the
+  host's infrastructure routes only — mutating `VersionedRouteConvention` or
+  removing `app.MapControllers()` leaves it green, which was measured. What
+  carries the rule today is the four startup guards below, each of which fails
+  a real host. This entry becomes load-bearing the moment the first controller
+  ships, which is why it is written against the endpoint set rather than
+  against a controller list. It was also **first written as a reflection scan
+  and was wrong twice over**, which is worth recording because both mistakes look like working
   tests. It scanned `Assembly.GetReferencedAssemblies()` — the emitted
   AssemblyRef table, not the project's references, and the compiler elides a
   reference whose types the IL never touches — so it reached four assemblies
@@ -1198,7 +1210,7 @@ started.
   `FullyQualifiedName!~LearnStack.Tests.Integration` filter from the `backend`
   CI job.
 
-#### `An_Absolute_Route_Fails_At_Startup`
+#### `An_Absolute_Controller_Route_Fails_At_Startup` / `An_Absolute_Action_Route_Fails_At_Startup`
 
 - **Asserts:** a controller or action declaring an absolute route template
   (`/x` or `~/x`) aborts host startup. MVC leaves an absolute template outside
@@ -1217,6 +1229,35 @@ started.
   never be served under a major no OpenAPI document publishes and no generated
   SDK can call.
 - **Source:** ADR-0024 § The version axis.
+- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Bare_ControllerBase_Fails_At_Startup`
+
+- **Asserts:** a controller without `[ApiController]` aborts host startup. Two
+  defects travel together on that shape. It has no controller-level route
+  template, so the convention has nothing to prefix and MVC routes every action
+  at the bare `api/v{N}` with the resource segment dropped — two such
+  controllers then collide as a 500 `AmbiguousMatchException` at request time,
+  the one escape in this set that failed at *request* time rather than startup.
+  And without `[ApiController]` the automatic 400 never runs, so a malformed
+  body reaches the handler and surfaces as a 500 `internal_error` instead of the
+  400 `validation_failed` Problem Details Standards 09 § API Surface fixes as
+  the single error shape.
+- **Source:** ADR-0024 § Implementation Notes; Standards 09 § API Surface.
+- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
+- **Phase:** 02a Packet 4.
+
+#### `An_Absolute_Internal_Route_Is_Exempt_At_Both_Levels`
+
+- **Asserts:** `/api/internal/*` stays exempt whether its template is written
+  relative or absolute, at the controller level and at the action level. The
+  action-level guard normalised the template before testing the exemption and
+  the controller-level one did not, so an absolute Hub route was refused at
+  startup — on a surface ADR-0024 does not govern at all.
+- **Source:** ADR-0019; ADR-0024 § The version axis.
 - **Type:** xUnit + host startup. **Kind:** behavioural.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
 - **Phase:** 02a Packet 4.

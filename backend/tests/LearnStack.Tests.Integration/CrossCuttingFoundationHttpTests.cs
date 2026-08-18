@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
@@ -101,6 +102,35 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("alice");
     }
+
+    [Fact]
+    public async Task Malformed_Body_Returns_LearnStacks_ProblemDetails_Not_AspNets()
+    {
+        // [ApiController]'s automatic 400 runs before MediatR, so this never
+        // reaches ValidationBehavior. Left at its default it would emit
+        // ASP.NET's own Problem Details — English framework text plus the
+        // binder's parameter names — a second error shape Standards 09
+        // § API Surface does not admit.
+        var response = await _client.PostAsync(
+            new Uri("/api/v1/test/validate", UriKind.Relative),
+            new StringContent("{\"name\": 123}", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType
+            .Should().Be("application/problem+json");
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("validation_failed");
+        problem.GetProperty("messageKey").GetString().Should().Be("lockey_validation_failed");
+
+        // The binder's own message names an internal type ("could not be
+        // converted to System.String"), so it is dropped. What survives is the
+        // field path the client needs, in the same errors map
+        // ValidationBehavior produces.
+        problem.GetProperty("errors").EnumerateObject().Should().NotBeEmpty();
+        (await response.Content.ReadAsStringAsync())
+            .Should().NotContain("System.", "the binder's type names must not reach a client");
+    }
 }
 
 /// <summary>
@@ -160,7 +190,7 @@ internal sealed class TestResolvedTenantContext : ITenantContext
 }
 
 [Route("test")]
-public sealed class CrossCuttingTestController(IMediator mediator) : ControllerBase, ITestOnlyController
+public sealed class CrossCuttingTestController(IMediator mediator) : ApiControllerBase, ITestOnlyController
 {
     [HttpGet("throw-provider-5xx")]
     [SuppressMessage("Performance", "CA1822:Mark members as static",
