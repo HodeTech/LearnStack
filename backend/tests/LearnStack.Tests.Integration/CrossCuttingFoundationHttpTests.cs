@@ -118,8 +118,12 @@ public sealed class CrossCuttingHttpFixture : WebApplicationFactory<Program>
         builder.UseEnvironment(Environments.Development);
         builder.ConfigureTestServices(services =>
         {
-            services
-                .AddControllers()
+            // The enforcement probes in VersionedRouteEnforcementTests are
+            // deliberately broken; without this filter each one aborts this
+            // host at startup. Index 0 so it runs before VersionedRouteConvention.
+            services.AddControllers(options =>
+                    options.Conventions.Insert(0, new TestControllerFilter(
+                        typeof(CrossCuttingTestController))))
                 .AddApplicationPart(typeof(CrossCuttingTestController).Assembly);
 
             // ValidationBehavior resolves IValidator<TRequest> from DI. We
@@ -156,7 +160,7 @@ internal sealed class TestResolvedTenantContext : ITenantContext
 }
 
 [Route("test")]
-public sealed class CrossCuttingTestController(IMediator mediator) : ControllerBase
+public sealed class CrossCuttingTestController(IMediator mediator) : ControllerBase, ITestOnlyController
 {
     [HttpGet("throw-provider-5xx")]
     [SuppressMessage("Performance", "CA1822:Mark members as static",

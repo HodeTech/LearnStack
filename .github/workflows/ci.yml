@@ -6,7 +6,9 @@
 # the GitHub Settings → Branches page matches the corpus.
 #
 # What lights up in Phase 01:
-#   - backend  : `dotnet build` + unit + architecture + contract tests
+#   - backend  : `dotnet build` + unit + architecture + contract tests, and
+#                from Phase 02a Packet 4 the WebApplicationFactory HTTP tests
+#                in LearnStack.Tests.Integration, which need no Docker
 #   - frontend : pnpm install + typecheck + lint + build + Vitest
 #   - meta     : `make lint`-style format verification
 #
@@ -16,8 +18,11 @@
 # ([if-cond] constant expression). Activation is never *only* the variable —
 # see .github/CONTRIBUTING.md § Branch protection for the three edits:
 #   - backend-integration : Testcontainers needs a real Docker socket inside
-#     the runner — works on `ubuntu-latest` natively. Activates when the
-#     first integration test lands (Phase 02a) so we have something to run.
+#     the runner — works on `ubuntu-latest` natively. Activates in Phase 02a
+#     Packet 7, with the first cross-tenant isolation test. The HTTP tests
+#     already in LearnStack.Tests.Integration do NOT wait for it: they use
+#     WebApplicationFactory, need no Docker, and run in the `backend` job
+#     today. Packet 7 splits the Docker-bound tests out into this job.
 #   - openapi-diff        : oasdiff against the prior `main` spec. Activates
 #     in Phase 02d, which ships the first real `/api/v1/*` read endpoints and
 #     retires `/healthz` as the only documented surface.
