@@ -1,7 +1,7 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-09).** Phase 02a in progress. Packets 0–3 shipped; the 2026-08-08
-> restructure re-scoped packets 4–10 and added packet 3b. Each packet is independently
+> **Status (2026-08-17).** Phase 02a in progress. Packets 0–3 and 3b shipped; the
+> 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet is independently
 > reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
 > later packet may consume any earlier packet's deliverables, never the reverse.
@@ -12,7 +12,7 @@
 > | 1 | Foundation decisions | ✅ [record](#delivery-record-packets-03) |
 > | 2 | Shared Kernel core | ✅ [record](#delivery-record-packets-03) |
 > | 3 | Cross-cutting foundation | ✅ [record](#delivery-record-packets-03) |
-> | 3b | Decision repair | ⏳ [scope](#packet-sequence) |
+> | 3b | Decision repair | ✅ [record](#delivery-record-packet-3b) |
 > | 4 | API conventions | ⏳ [scope](#packet-sequence) |
 > | 5 | Foundation ports and default implementations | ⏳ [scope](#packet-sequence) |
 > | 6 | Tenancy schema and the corrected RLS template | ⏳ [scope](#packet-sequence) |
@@ -26,7 +26,9 @@
 > read it when you want the shape of a subsystem, read the sequence when you want the
 > order. The shipped Packet 0–3 records are at the end of this document under
 > [`## Delivery Record (Packets 0–3)`](#delivery-record-packets-03) and are not
-> rewritten.**
+> rewritten. Packet 3b has its own record in
+> [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), kept separate
+> because the frozen one is scoped to packets 0–3.**
 
 ## Goal
 
@@ -78,7 +80,7 @@ The forward plan for packets 3b–10. Each entry states what the packet lands, w
 depends on, and what gates it. The subsystem view of the same work is [`## Scope`](#scope);
 where the two overlap, Scope is the authority on shape and this section on order.
 
-**Packet 3b — Decision repair ⏳**
+**Packet 3b — Decision repair ✅** ([delivery record](#delivery-record-packet-3b))
 A repair slice. Packets 0–3 are shipped and their records stand — see
 [`## Delivery Record`](#delivery-record-packets-03) at the end of this document; what
 they left behind lands here rather than being edited into their history. This
@@ -1572,3 +1574,74 @@ Nothing in them was reworded when they moved.
 >   [Phase 02d](phase-02d-walking-skeleton.md) then renders both of them in a
 >   browser.
 >
+
+## Delivery Record (Packet 3b)
+
+Kept separate from the Packets 0–3 record above, which is frozen and scoped to those
+packets. This one records what Packet 3b actually shipped, including where its own
+plan turned out wrong — a repair packet that hides its misses teaches nothing.
+
+> **Packet 3b — Decision repair ✅**
+>
+> **Shared Kernel.** `Results.Unit` → **`None`**, chosen by compiling the candidate
+> against MediatR, FluentValidation, EF Core and Vogen rather than by argument.
+> `[MemberNotNullWhen]` on `Result<T>` **and** `IResultBase` — the annotations do not
+> flow from an interface to its implementations. `Entity<TId>` gained
+> `IEquatable<Entity<TId>>`, `==` / `!=`, and one typed body every entry point
+> delegates to; `Equals(object?)` and `GetHashCode()` are `sealed override`.
+>
+> Three things the packet's own plan had wrong, all found by measuring:
+>
+> - **The transient guard was dead code.** `Id.Equals(default(TId))` cannot detect an
+>   unset Vogen id — Vogen returns `false` when either side is uninitialized — so
+>   `GetHashCode()` threw `ValueObjectValidationException` for any unsaved aggregate.
+>   A `HashSet` of two new aggregates was an exception, not a set.
+>   `IStronglyTypedId` gained `IsInitialized()`; ADR-0023 Amendment 3 records it.
+> - **The boxing was never where the plan said.** `Entity<TId>` is a class, so
+>   `Equals(object?)` never boxed anything. Measured: 120 B/call as Packet 3 shipped
+>   it, 40 B once the dead guard went, 0 B once the constraint gained
+>   `IEquatable<TId>`. Two causes, not one.
+> - **`AuditableEntity`'s audit-actor guard had the identical defect**, one file from
+>   the one being fixed.
+>
+> **Corpus.** ADR-0035's explicitly rejected Vault trigger was quoted in four places;
+> ADR-0032's `Decorate<TPort, …>` example did not compile, and neither did its copy in
+> `wire-cross-cutting-foundation/SKILL.md` — the executable one. Four skills taught
+> `LocalizedMessage` keys without the `lockey_` prefix, which the constructor rejects
+> by throwing: code that compiles and fails on first use. `add-mediatr-handler` taught
+> an `ICommand`/`ICommandHandler` layer that exists nowhere. Ten secret-provider
+> comments were repointed to Phase 11 with the four elements CLAUDE.md requires, and
+> **thirteen of nineteen** `<see href>` targets in C# XML docs were broken — the
+> majority spelling used three `../` and resolved to a `backend/docs/` that has never
+> existed, because CI's link audit reads Markdown only.
+>
+> **Dev loop.** `make seed` exits 0. It had failed on **every** run since Phase 01:
+> the gate flagged any service with no healthcheck, and two images cannot carry one
+> (`daprio/placement` and `daprio/daprd` have no shell). `coturn` was not exempt —
+> it ships `turnutils_stunclient`. The e2e overlay had **never booted**: `cp-kafka`
+> runs as uid 1000 and Docker gives a tmpfs target the parent's mode but not its
+> ownership. Its `volumes: !reset []` was also discarding `postgres-init` and the S3
+> identity file — under that overlay an isolation suite would have run as the owning
+> superuser, where `FORCE ROW LEVEL SECURITY` is inert. Every published port binds
+> `127.0.0.1`; Kafka's 9092 and placement's 50005 were removed rather than rebound.
+> The 14 `container_name:` literals are gone, so compose projects isolate.
+>
+> **Frontend.** The Vitest harness replaces `--passWithNoTests`, verified by deleting
+> the test rather than by running it. `jsdom` is capped at `^26` and `jest-dom` at
+> `^6.9` because CI pins Node 20.11.0 — see the Packet 3b scope entry for the
+> mechanism and the trigger to revisit.
+>
+> **Governance.** ADR-0017 Amendment 2 settles the `Organization` aggregate in
+> `LearnStack.Modules.Tenancy.Domain`; ADR-0023 Amendments 2 and 3 cover the three
+> cross-cutting identifiers and `IsInitialized()`. No new ADR number was taken —
+> 0036 remains unclaimed. Two branch-protection settings are deferred by maintainer
+> decision (2026-08-10) with a named trigger, recorded in
+> [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md).
+>
+> **Method.** Every step ran two adversarial review rounds. The recurring finding was
+> one shape: *a claim verified against something other than what ships* — an awk
+> tested on synthetic `docker compose ps` rows, a fence compiled inside a wrapper
+> written for the test, a diff whose normaliser filtered out exactly the lines that
+> differed, a harness verified on Node 22 when CI pins 20.11.0. Two `verify.sh` checks
+> were added against the classes that recur: `<see href>` resolution, and prose column
+> width on the lines a branch adds.

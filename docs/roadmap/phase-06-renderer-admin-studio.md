@@ -201,7 +201,7 @@ a stack where the isolation roles are absent and every isolation assumption the 
 tests inherit is quietly untrue. The same overlay leaves Valkey on its named volume, so
 cache and rate-limit state leaks between runs.
 
-The fix lands in [Phase 02a Packet 3b](phase-02a-kernel-tenancy.md). It is recorded here
+The fix landed in [Phase 02a Packet 3b](phase-02a-kernel-tenancy.md#delivery-record-packet-3b). It is recorded here
 because Phase 06 is its consumer and the phase that notices if it regresses: a green
 browser suite against a mis-provisioned stack is worse evidence than no suite.
 

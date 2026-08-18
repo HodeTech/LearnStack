@@ -210,8 +210,9 @@ here:
 - A demo script (`make demo` or equivalent) that boots the stack, seeds, and prints the
   two URLs.
 - Frontend tests covering host-to-tenant resolution and `(public)` route rendering —
-  the first real tests in `apps/web`, replacing the `--passWithNoTests` placeholder
-  removed in [Phase 02a Packet 3b](phase-02a-kernel-tenancy.md). There is no
+  the first *substantive* tests in `apps/web`. Packet 3b removed the
+  `--passWithNoTests` placeholder and left one render test plus the harness
+  (`vitest.config.ts`, jsdom, Testing Library) for this phase to build on. There is no
   authenticated route to test against yet; that split arrives with
   [Phase 02b](phase-02b-events-auth.md)'s session.
 - **Two CI jobs activate here.** [Phase 01](phase-01-repository-tooling.md) scaffolded

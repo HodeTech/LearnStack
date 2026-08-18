@@ -123,7 +123,7 @@ PRs do not merge unless:
 - Architecture tests pass.
 - Tenant-isolation tests pass.
 - Coverage report is attached (informational).
-- At least one approving review (two for security-sensitive changes).
+- At least one approving review (**deferred while the repository has one active contributor** — see [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md) for the dated decision and its trigger) (two for security-sensitive changes).
 - Migration is reviewed by a database-owner reviewer if schema changes.
 
 ### Merge Strategy

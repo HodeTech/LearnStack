@@ -8,6 +8,23 @@ short, branch-protection-and-PR-hygiene companion.
 Configure these in **GitHub → Settings → Branches → Branch protection rules
 → Branch name pattern: `main`** so the corpus matches what GitHub enforces:
 
+> **Two settings are deferred — maintainer decision, 2026-08-10.** While
+> LearnStack has one active contributor, the live `main` rule sets
+> **Require approvals: 0** and leaves **Do not allow bypassing** *off*. A second
+> approver on a single-contributor repository blocks every merge, and admin
+> enforcement with no second admin blocks the only person who could unblock it.
+> The settings below are the **target state**, not the current one.
+>
+> **Trigger:** a second active contributor gains write access. That is the
+> condition that makes the rule mean something, and it is self-evidencing —
+> nobody has to remember to check a date. Activating it is the same discipline
+> as the deferred status checks below: set both settings, and drop this note in
+> the same pull request.
+>
+> Everything else in this section — required status checks, linear history, no
+> force pushes, no direct pushes — is live today. Only the two named settings
+> are deferred.
+
 - **Require a pull request before merging**
   - Require approvals: **1** (raise to 2 once the team grows past two
     active contributors).
