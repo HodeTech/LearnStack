@@ -1,0 +1,20 @@
+# Prettier is scoped to the frontend workspace.
+#
+# `make format` already runs it from `frontend/`, and no CI job verifies its
+# output anywhere in this repository. Outside that workspace every file is
+# hand-authored — the documentation corpus is hard-wrapped prose with
+# blockquote-heavy delivery records, and prettier's Markdown printer rewrites
+# it: it joins blockquote lines onto the preceding one, drops the `>` from
+# continuation lines, and reads the `*` inside a code span as an emphasis
+# marker. It silently turned `/api/v1/*` into `/api/v1/_` in
+# docs/roadmap/phase-01-repository-tooling.md.
+#
+# This file is what stops the editor. `.vscode/settings.json` maps `[markdown]`
+# to the Prettier extension, which honours `.prettierignore` from the workspace
+# root — so ignoring here covers both format-on-save and an explicit
+# Format Document. The pre-commit hook runs prettier with `frontend/` as its
+# working directory, where this file does not apply, so it carries the same
+# boundary as a path filter of its own.
+
+/*
+!/frontend/
