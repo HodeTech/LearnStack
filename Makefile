@@ -4,7 +4,12 @@
 # so `${VAR:-default}` interpolation in `infra/compose/dev.yml` reads the
 # repo-root `.env` (the developer's copy of `.env.example`).
 
-SHELL := /usr/bin/env bash
+# /bin/bash, not `/usr/bin/env bash`: GNU Make execs SHELL without splitting
+# it on whitespace, so the two-word form makes every recipe die with
+# `/usr/bin/env bash: No such file or directory` under .ONESHELL. macOS
+# ships make 3.81, which ignores .ONESHELL entirely - which is why this
+# worked here and failed on every Linux/WSL contributor's make 4.x.
+SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 .ONESHELL:
@@ -16,9 +21,16 @@ SHELL := /usr/bin/env bash
 # Without `--env-file` the repo-root `.env` that `.env.example` documents is
 # silently ignored and every `${VAR:-default}` falls back. `--env-file` on a
 # missing path is a hard error, so the flag is conditional.
-ENV_FILE     := $(if $(wildcard .env),--env-file .env,)
-COMPOSE_DEV  := docker compose $(ENV_FILE) -f infra/compose/dev.yml
-COMPOSE_E2E  := docker compose $(ENV_FILE) -f infra/compose/dev.yml -f infra/compose/e2e.yml
+# Recursively expanded (`=`, not `:=`) AND $(shell), not $(wildcard): `.env` is
+# a prerequisite that the rule below creates. `:=` would evaluate at parse time,
+# before the file exists; $(wildcard) would not help either, because make caches
+# its directory listing for the whole invocation and keeps answering "absent"
+# even after the prerequisite wrote the file. Either way the first `make dev` on
+# a fresh clone ran without the `.env` it had just written, and silently picked
+# up any stray `infra/compose/.env` instead.
+ENV_FILE      = $(shell test -f .env && echo --env-file .env)
+COMPOSE_DEV   = docker compose $(ENV_FILE) -f infra/compose/dev.yml
+COMPOSE_E2E   = docker compose $(ENV_FILE) -f infra/compose/dev.yml -f infra/compose/e2e.yml
 
 # Colour helpers (no-op when stdout is not a TTY).
 ifeq ($(shell test -t 1 && echo 1),1)

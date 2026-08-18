@@ -138,7 +138,11 @@ internal sealed class LearnStackExceptionHandler(
             RequestMethod: httpContext.Request.Method,
             TenantId: context?.IsResolved == true ? context.TenantId : null,
             OrganizationId: context?.OrganizationId,
-            UserId: context?.UserId?.Value,
+            // IsInitialized() before Value: this builds context while already
+            // handling an exception, so a throw here loses the original one.
+            UserId: context?.UserId is { } userId && userId.IsInitialized()
+                ? userId.Value
+                : null,
             ModuleName: context?.ModuleName,
             AdditionalTags: null);
     }

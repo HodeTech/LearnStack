@@ -87,7 +87,11 @@ public sealed class LoggingBehavior<TRequest, TResponse>(
             ["RequestName"] = requestName,
             ["TenantId"] = context?.IsResolved == true ? context.TenantId : null,
             ["OrganizationId"] = context?.OrganizationId,
-            ["UserId"] = context?.UserId?.Value,
+            // IsInitialized() before Value: an unassigned Vogen id throws on
+            // read, and this runs at pipeline step 2, before the handler.
+            ["UserId"] = context?.UserId is { } userId && userId.IsInitialized()
+                ? userId.Value
+                : null,
             ["CorrelationId"] = context?.CorrelationId,
             ["Module"] = context?.ModuleName,
         };

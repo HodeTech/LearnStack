@@ -41,15 +41,27 @@ public static class SensitiveTokenCatalog
             "apikey",
             "authorization",
             "cardnumber",
+            "connectionstring",  // embeds the database password
+            "cookie",            // session material
             "credential",
+            "creditcard",
             "cvc",
             "cvv",
             "dsn",
+            "encryptionkey",
+            "hmac",              // ADR-0019's Hub request envelope
             "iban",
             "jwt",
+            "otp",
+            "pan",               // primary account number
             "passwd",
             "password",
+            "pin",
+            "privatekey",        // signed-licence RSA material, per ISecretProvider
+            "pwd",
             "secret",
+            "signature",
+            "signingkey",
             "ssn",     // national ID (US SSN / TR shorthand)
             "tckn",    // Turkish national ID
             "token",
@@ -63,9 +75,15 @@ public static class SensitiveTokenCatalog
     private static readonly HashSet<string> TwoWordTokens =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            "apikey",      // api_key / ApiKey
-            "cardnumber",  // card_number / CardNumber
-            "authheader",  // auth_header / AuthHeader
+            "apikey",           // api_key / ApiKey
+            "cardnumber",       // card_number / CardNumber
+            "authheader",       // auth_header / AuthHeader
+            "connectionstring", // connection_string / ConnectionString
+            "creditcard",       // credit_card / CreditCard
+            "encryptionkey",    // encryption_key / EncryptionKey
+            "privatekey",       // private_key / PrivateKey
+            "setcookie",        // set_cookie / SetCookie
+            "signingkey",       // signing_key / SigningKey
         };
 
     /// <summary>
