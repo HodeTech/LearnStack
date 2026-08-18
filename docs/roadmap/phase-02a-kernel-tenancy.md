@@ -231,10 +231,22 @@ here:
   Standing the harness up is more than deleting a flag: it needs
   `vitest.config.ts`, a jsdom environment, `@vitejs/plugin-react` (pinned to
   `^4` — `@vitejs/plugin-react@6` requires Vite 8 while vitest 2.1.x resolves
-  Vite 5), `@testing-library/react` + `jest-dom`, and a setup file. The config
-  lives in `apps/web`, not in `@learnstack/config`: that package declares no
-  `scripts` block, so a shared export would be validated by nothing until
-  Phase 02d brings a second consumer.
+  Vite 5), `@testing-library/react` + `jest-dom`, and a setup file.
+
+  **`jsdom` is capped at `^26` and `jest-dom` at `^6.9` on purpose.** CI pins
+  Node 20.11.0; `jsdom@30` requires `^22.22.2 || ^24.15.0 || >=26.0.0` and pulls
+  `html-encoding-sniffer@6`, so on CI's Node the suite dies with an
+  `ERR_REQUIRE_ESM` naming a transitive package, with nothing in the output
+  mentioning Node or jsdom. jsdom 27, 28 and 29 do not help — same transitive.
+  Revisit when the Node pin rises, not before.
+
+  The config lives in `apps/web` rather than `@learnstack/config` — but not
+  because a shared export could not work: that package already exports
+  `./eslint`, `./tsconfig/*` and `./tailwind`, validated the same way, by
+  `apps/web` consuming them. There is no second consumer **by design**.
+  ADR-0009 keeps one Next.js app in this repository, the operator portal lives
+  in `LearnStack-Hub`, and the *Implemented* architecture test
+  `Frontend_Has_Only_The_Web_App` fails the build if a second app appears here.
 
   One limit worth stating rather than discovering later: `pnpm -r test` covers
   `apps/web` alone. `packages/config`, `packages/sdk` and `packages/ui` declare

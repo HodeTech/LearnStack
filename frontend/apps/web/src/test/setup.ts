@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-// Testing Library auto-cleans only when it detects a global `afterEach`, which
-// depends on `globals: true` staying on. Doing it explicitly keeps the harness
-// correct if that flag is ever turned off.
+// Load-bearing, not belt-and-braces: Testing Library auto-cleans only when it
+// detects a global `afterEach`, and `globals` is off. Comment this line out and
+// the suite goes red — verified.
 afterEach(cleanup);
