@@ -1,4 +1,5 @@
 using LearnStack.Api.Composition;
+using LearnStack.Api.Versioning;
 using LearnStack.SharedKernel.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,17 +14,22 @@ var deploymentMode = builder.Configuration.GetValue("Deployment:Mode", Deploymen
 
 builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
 
-builder.Services.AddOpenApi();
-builder.Services.AddControllers();
+// Controllers + the /api/v{N} route convention + one OpenAPI document per
+// live major, per ADR-0024. AddLearnStackApiVersioning owns the
+// AddControllers call so the convention cannot be registered twice or, worse,
+// registered after a second AddControllers has already built the model.
+builder.Services.AddLearnStackApiVersioning();
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+// The OpenAPI document and its reference UI are served in every environment,
+// not only Development. The document IS the contract Standards 04 § OpenAPI
+// publishes and the SDK generates from; hiding it outside Development would
+// mean the artefact CI diffs is one no deployed instance serves. Exposure is
+// an edge concern — APISIX blocks or allow-lists /openapi per environment.
+app.MapLearnStackOpenApi();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
     .WithName("HealthCheck");

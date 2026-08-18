@@ -91,12 +91,18 @@ jobs:
           CI: "true"
         run: dotnet build LearnStack.slnx --no-restore --configuration Release
 
-      - name: Test (unit + architecture + contract; integration excluded)
+      # No --filter. LearnStack.Tests.Integration holds WebApplicationFactory
+      # tests that need no Docker, and they carry rules the structural tests
+      # cannot: no-op'ing VersionedRouteConvention leaves every architecture
+      # test green and turns 9 of 14 ApiVersioningHttpTests red. Excluding the
+      # assembly meant a broken route convention shipped green. Testcontainers
+      # tests arrive in Packet 7 and move to the backend-integration job then;
+      # this job's NAME is a required check and does not change.
+      - name: Test (unit + architecture + contract + HTTP integration)
         working-directory: backend
         run: |
           dotnet test LearnStack.slnx \
             --no-restore --no-build --configuration Release \
-            --filter "FullyQualifiedName!~LearnStack.Tests.Integration" \
             --logger "trx;LogFileName=test-results.trx" \
             --results-directory ../artifacts/backend-tests
 

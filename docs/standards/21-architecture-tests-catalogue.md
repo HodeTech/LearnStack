@@ -1158,6 +1158,61 @@ started.
   inside that test's SHOULD/MAY cases.
 - Never implemented, so nothing was deleted from CI.
 
+### API conventions (ADR-0024)
+
+#### `Every_Endpoint_Is_Under_Versioned_Route`
+
+- **Asserts:** after `VersionedRouteConvention` runs, no controller in a
+  production assembly is routed outside `/api/v{N}/…`. The exemptions are the
+  `/api/internal/*` Hub surface, which versions itself per ADR-0019, and the
+  unversioned `/healthz` / `/readyz` infrastructure endpoints, which are minimal
+  APIs rather than controllers and so are outside the scan by construction.
+- **Source:** ADR-0024 § Implementation Notes.
+- **Type:** xUnit + `ApplicationModel` inspection. **Kind:** structural.
+- **Status:** **Implemented** (`ApiConventionTests`).
+- **Phase:** 02a Packet 4.
+- **Note:** **vacuous until the first production controller ships**, and this is
+  measured rather than assumed — no-op'ing `VersionedRouteConvention.Apply`
+  leaves all 29 architecture tests green while turning 9 of the 14
+  `ApiVersioningHttpTests` red. The runtime tests carry the rule today; this
+  entry is the net for a future controller declared outside the convention's
+  reach. It is also why Packet 4 removed the
+  `FullyQualifiedName!~LearnStack.Tests.Integration` filter from the `backend`
+  CI job.
+
+#### `Live_Majors_Are_At_Most_Two_Adjacent`
+
+- **Asserts:** `ApiVersioningExtensions.LiveMajors` holds at most two majors,
+  they are distinct and adjacent, and none is below 1.
+- **Source:** ADR-0024 § The version axis ("Two adjacent majors coexist";
+  "No `/api/v0/*` endpoints exist or will exist").
+- **Type:** xUnit. **Kind:** structural.
+- **Status:** **Implemented** (`ApiConventionTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Unversioned_Route_Prefixes_Are_Declared_Once`
+
+- **Asserts:** `VersionedRouteConvention.UnversionedRoutePrefixes` equals
+  exactly `["api/internal"]`, so a widening of the exemption set is a failing
+  test rather than a silent hole.
+- **Source:** ADR-0024 § The version axis; ADR-0019.
+- **Type:** xUnit. **Kind:** structural.
+- **Status:** **Implemented** (`ApiConventionTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Every_Deprecated_Endpoint_Has_Sunset_And_Successor`
+
+- **Asserts:** every controller action marked `[Obsolete]` declares both a
+  sunset date and a successor route, and the emitted OpenAPI operation carries
+  `x-sunset`, `x-successor` and `x-migration-guide`.
+- **Source:** ADR-0024 § Lifecycle of a deprecated endpoint.
+- **Type:** xUnit + OpenAPI document inspection. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** the packet that adds the first `/api/v2` endpoint. ADR-0024 states
+  it lands "when the first `/v2` endpoint is added"; there is no deprecated
+  operation before one exists, so registering it now records the name without
+  claiming coverage.
+
 ### Tenant and organization resolution (ADR-0036)
 
 The binding evidence for this group is the **runtime** matrix in
@@ -1323,6 +1378,7 @@ structural test proves — and what it does not.
 - [ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 - [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+- [ADR-0024 API Versioning Policy](../decisions/0024-api-versioning-policy.md)
 - [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
