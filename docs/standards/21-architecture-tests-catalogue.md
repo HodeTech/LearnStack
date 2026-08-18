@@ -81,7 +81,17 @@ not implemented is the failure mode this column exists to prevent.
 Fourteen test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md) and
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md):
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md).
+
+**Not every implemented rule lives in that assembly.** Packet 4 added two
+data-shape rules there (`Live_Majors_Are_At_Most_Two_Adjacent`,
+`Unversioned_Route_Prefixes_Are_Declared_Once`) and four **behavioural** ones in
+[`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration)
+(`Every_Endpoint_Is_Under_Versioned_Route` and the three startup guards under
+§ API conventions). Both assemblies run in the same required `backend` CI check,
+and a rule belongs where it can actually fail: the route-shape rule was
+originally written as a reflection scan in the architecture assembly and passed
+against a host serving unversioned endpoints.
 
 | Test | File |
 |---|---|
@@ -1162,23 +1172,66 @@ started.
 
 #### `Every_Endpoint_Is_Under_Versioned_Route`
 
-- **Asserts:** after `VersionedRouteConvention` runs, no controller in a
-  production assembly is routed outside `/api/v{N}/…`. The exemptions are the
-  `/api/internal/*` Hub surface, which versions itself per ADR-0019, and the
-  unversioned `/healthz` / `/readyz` infrastructure endpoints, which are minimal
-  APIs rather than controllers and so are outside the scan by construction.
+- **Asserts:** every route in the production host's `EndpointDataSource` is
+  under `/api/v{N}/`, except the unversioned infrastructure endpoints
+  (`/healthz`, `/readyz`), the OpenAPI document and its UI, and the
+  `/api/internal/*` Hub surface, which versions itself per ADR-0019. Paired
+  with `The_Endpoint_Set_Is_Not_Empty` and
+  `The_Production_Host_Sees_No_Test_Controller`, so it cannot pass by finding
+  nothing or by inspecting the wrong host.
 - **Source:** ADR-0024 § Implementation Notes.
-- **Type:** xUnit + `ApplicationModel` inspection. **Kind:** structural.
-- **Status:** **Implemented** (`ApiConventionTests`).
+- **Type:** xUnit + `EndpointDataSource` inspection over a
+  `WebApplicationFactory<Program>` host. **Kind:** behavioural.
+- **Status:** **Implemented** (`VersionedRouteEnforcementTests`, in
+  `LearnStack.Tests.Integration`).
 - **Phase:** 02a Packet 4.
-- **Note:** **vacuous until the first production controller ships**, and this is
-  measured rather than assumed — no-op'ing `VersionedRouteConvention.Apply`
-  leaves all 29 architecture tests green while turning 9 of the 14
-  `ApiVersioningHttpTests` red. The runtime tests carry the rule today; this
-  entry is the net for a future controller declared outside the convention's
-  reach. It is also why Packet 4 removed the
+- **Note:** it was **first written as a reflection scan and was wrong twice
+  over**, which is worth recording because both mistakes look like working
+  tests. It scanned `Assembly.GetReferencedAssemblies()` — the emitted
+  AssemblyRef table, not the project's references, and the compiler elides a
+  reference whose types the IL never touches — so it reached four assemblies
+  and no module, while MVC discovers controllers from the runtime dependency
+  graph. And with no production controller to find, it passed vacuously: no-op'ing
+  `VersionedRouteConvention.Apply` left every architecture test green while
+  turning 9 of the 14 tests then in `LearnStack.Tests.Integration` red. That
+  measurement is why Packet 4 removed the
   `FullyQualifiedName!~LearnStack.Tests.Integration` filter from the `backend`
   CI job.
+
+#### `An_Absolute_Route_Fails_At_Startup`
+
+- **Asserts:** a controller or action declaring an absolute route template
+  (`/x` or `~/x`) aborts host startup. MVC leaves an absolute template outside
+  every prefix, so such an endpoint is served unversioned — the one escape from
+  `VersionedRouteConvention` that no route-shape assertion can see, because the
+  offending route simply is not where the test looks.
+- **Source:** ADR-0024 § Implementation Notes.
+- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Major_Outside_LiveMajors_Fails_At_Startup`
+
+- **Asserts:** a controller declaring `[ApiVersion(N)]` for an `N` absent from
+  `ApiVersioningExtensions.LiveMajors` aborts host startup, so a route can
+  never be served under a major no OpenAPI document publishes and no generated
+  SDK can call.
+- **Source:** ADR-0024 § The version axis.
+- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Hand_Written_Prefix_That_Disagrees_With_The_Attribute_Fails_At_Startup`
+
+- **Asserts:** a route template already written under `api/v{N}` must agree
+  with the controller's `[ApiVersion]`. The idempotency guard that makes a
+  double convention registration harmless would otherwise double as an escape
+  hatch, with the route saying one major and the `x-version-introduced`
+  extension — read off the attribute — saying another.
+- **Source:** ADR-0024 § The version axis.
+- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
+- **Phase:** 02a Packet 4.
 
 #### `Live_Majors_Are_At_Most_Two_Adjacent`
 

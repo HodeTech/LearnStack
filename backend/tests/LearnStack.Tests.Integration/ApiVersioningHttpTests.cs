@@ -95,20 +95,14 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
 
         foreach (var path in paths.EnumerateObject())
         {
-            foreach (var operation in path.Value.EnumerateObject())
+            // A path item carries non-operation members too — `parameters`,
+            // `summary`, `$ref`. Only the HTTP methods are operations.
+            foreach (var operation in path.Value.EnumerateObject().Where(IsOperation))
             {
                 operation.Value.GetProperty("x-version-introduced")
                     .GetString().Should().Be("v1",
                         "operation {0} {1} must declare the major it was introduced in",
                         operation.Name, path.Name);
-                // Microsoft.OpenApi omits default-valued properties, and
-                // OpenAPI reads an absent `deprecated` as false. Assert the
-                // meaning, not the bytes — requiring the key would fail
-                // against a correct document.
-                if (operation.Value.TryGetProperty("deprecated", out var deprecated))
-                {
-                    deprecated.GetBoolean().Should().BeFalse();
-                }
             }
         }
     }
@@ -126,6 +120,14 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
             .Select(p => p.Name).Should().OnlyContain(p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
         v2.RootElement.GetProperty("paths").EnumerateObject()
             .Select(p => p.Name).Should().OnlyContain(p => p.StartsWith("/api/v2/", StringComparison.Ordinal));
+
+        // Filtering must happen at the ApiDescription level, before schema and
+        // tag generation. Removing paths from a finished document leaves the
+        // other major's components.schemas and document-level tags behind as
+        // orphans — the same mechanism would publish the /api/internal/* Hub
+        // surface's shapes in the tenant-facing document.
+        TagNames(v1).Should().NotContain("VersionProbeV2");
+        TagNames(v2).Should().NotContain("VersionProbe");
     }
 
     [Fact]
@@ -166,6 +168,80 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
         (await page.Content.ReadAsStringAsync()).Should().Contain("openapi/v1.json");
     }
 
+    [Fact]
+    public async Task Published_Paths_Are_Lowercase()
+    {
+        // Standards 04 § Style — plural lowercase resource nouns. The
+        // [controller] token expands to the C# class name, so without
+        // RouteOptions.LowercaseUrls a MixedCaseProbeController publishes
+        // /api/v1/MixedCaseProbe. A URL is part of the contract and renaming
+        // it later is a breaking change under ADR-0024.
+        var document = await GetDocumentAsync("v1");
+
+        document.RootElement.GetProperty("paths").EnumerateObject()
+            .Select(path => path.Name)
+            .Should().Contain("/api/v1/mixedcaseprobe")
+            .And.NotContain("/api/v1/MixedCaseProbe");
+
+        var response = await _client.GetAsync(new Uri("/api/v1/mixedcaseprobe", UriKind.Relative));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Document_Declares_No_Servers()
+    {
+        // `servers` defaults to the request's scheme + Host, which is
+        // client-chosen. ADR-0036 fixes that no client input decides anything
+        // the API asserts, and the openapi-diff gate needs an artefact that
+        // does not change with the caller.
+        var document = await GetDocumentAsync("v1");
+
+        document.RootElement.TryGetProperty("servers", out var servers).Should().BeFalse(
+            "a host-derived servers entry makes the contract diff against itself");
+    }
+
+    [Fact]
+    public async Task An_Obsolete_Action_Is_Published_As_Deprecated()
+    {
+        var document = await GetDocumentAsync("v1");
+
+        document.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/obsoleteprobe")
+            .GetProperty("get")
+            .GetProperty("deprecated").GetBoolean().Should().BeTrue();
+
+        // And a live one carries no `deprecated` key at all: Microsoft.OpenApi
+        // omits default-valued properties and OpenAPI reads an absent
+        // `deprecated` as false. Asserting the pair is what makes the
+        // derivation — rather than a constant — the thing under test.
+        document.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/versionprobe")
+            .GetProperty("get")
+            .TryGetProperty("deprecated", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_V2_Operation_Declares_v2_As_The_Major_It_Was_Introduced_In()
+    {
+        // The v1 assertions alone would pass against a transformer that
+        // hardcoded "v1".
+        var document = await GetDocumentAsync("v2");
+
+        document.RootElement.GetProperty("paths")
+            .GetProperty("/api/v2/versionprobev2")
+            .GetProperty("get")
+            .GetProperty("x-version-introduced").GetString().Should().Be("v2");
+    }
+
+    private static bool IsOperation(JsonProperty member) =>
+        member.Name is "get" or "put" or "post" or "delete"
+            or "options" or "head" or "patch" or "trace";
+
+    private static IEnumerable<string> TagNames(JsonDocument document) =>
+        document.RootElement.TryGetProperty("tags", out var tags)
+            ? tags.EnumerateArray().Select(tag => tag.GetProperty("name").GetString() ?? string.Empty)
+            : [];
+
     private async Task<JsonDocument> GetDocumentAsync(string major)
     {
         var response = await _client.GetAsync(new Uri($"/openapi/{major}.json", UriKind.Relative));
@@ -187,7 +263,27 @@ public sealed class ApiVersioningFixture : WebApplicationFactory<Program>
         builder.UseEnvironment(Environments.Development);
         builder.ConfigureTestServices(services =>
         {
-            services.AddControllers()
+            // Keep only this file's probes — the enforcement probes in
+            // VersionedRouteEnforcementTests are deliberately broken and would
+            // abort this host. And swap the production convention for one that
+            // knows about v2, so the routing layer agrees with the second
+            // document registered below; the guard that refuses an unpublished
+            // major is exactly what would otherwise reject VersionProbeV2.
+            services.AddControllers(options =>
+                {
+                    options.Conventions.Insert(0, new TestControllerFilter(
+                        typeof(VersionProbeController),
+                        typeof(VersionProbeV2Controller),
+                        typeof(MixedCaseProbeController),
+                        typeof(ObsoleteProbeController)));
+                    foreach (var production in options.Conventions
+                                 .OfType<VersionedRouteConvention>().ToList())
+                    {
+                        options.Conventions.Remove(production);
+                    }
+
+                    options.Conventions.Add(new VersionedRouteConvention([1, 2]));
+                })
                 .AddApplicationPart(typeof(VersionProbeController).Assembly);
 
             // A second live major, registered through the SAME production
@@ -204,15 +300,30 @@ public sealed class ApiVersioningFixture : WebApplicationFactory<Program>
 // controller two selectors and two addresses. The [controller] token resolves
 // against the DERIVED name, which is exactly the convention Standards 04
 // § URL Structure asks for (plural resource nouns -> /api/v1/courses).
-public sealed class VersionProbeController : ApiControllerBase
+public sealed class VersionProbeController : ApiControllerBase, ITestOnlyController
 {
     [HttpGet]
     public IActionResult Get() => Ok(new { major = "v1" });
 }
 
 [ApiVersion(2)]
-public sealed class VersionProbeV2Controller : ApiControllerBase
+public sealed class VersionProbeV2Controller : ApiControllerBase, ITestOnlyController
 {
     [HttpGet]
     public IActionResult Get() => Ok(new { major = "v2" });
+}
+
+/// <summary>Proves the published path is lowercased, not the C# class name.</summary>
+public sealed class MixedCaseProbeController : ApiControllerBase, ITestOnlyController
+{
+    [HttpGet]
+    public IActionResult Get() => Ok();
+}
+
+/// <summary>Proves `deprecated` is derived from <see cref="ObsoleteAttribute"/>.</summary>
+public sealed class ObsoleteProbeController : ApiControllerBase, ITestOnlyController
+{
+    [HttpGet]
+    [Obsolete("Probe for the deprecated-derivation rule.")]
+    public IActionResult Get() => Ok();
 }

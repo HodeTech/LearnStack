@@ -104,7 +104,11 @@ test-backend: ## `dotnet test` (unit + architecture + contract + HTTP integratio
 	(cd backend && dotnet test LearnStack.slnx --nologo)
 
 .PHONY: test-integration
-test-integration: ## Testcontainers-backed integration tests (requires Docker).
+test-integration: ## Just the LearnStack.Tests.Integration assembly (a subset of test-backend).
+	@# Today this assembly holds only WebApplicationFactory HTTP tests and needs
+	@# no Docker, so `make test-backend` already covers it. The target stays as
+	@# the fast inner loop while working on that assembly, and becomes the
+	@# Docker-bound entry point in Packet 7 when Testcontainers tests land.
 	(cd backend && dotnet test tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj --nologo)
 
 .PHONY: test-frontend

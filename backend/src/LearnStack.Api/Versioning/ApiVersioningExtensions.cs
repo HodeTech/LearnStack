@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Scalar.AspNetCore;
 
@@ -16,7 +17,10 @@ public static class ApiVersioningExtensions
     /// The majors that currently accept traffic. ADR-0024 allows exactly two
     /// adjacent majors to coexist; a third requires the oldest to have reached
     /// its sunset date first. Adding <c>2</c> here is what makes
-    /// <c>/openapi/v2.json</c> exist.
+    /// <c>/openapi/v2.json</c> exist — and what lets a controller declare
+    /// <c>[ApiVersion(2)]</c> at all: <see cref="VersionedRouteConvention"/>
+    /// refuses to start against a major this list does not carry, so a route
+    /// can never be served under a major nothing publishes.
     /// </summary>
     public static readonly IReadOnlyList<int> LiveMajors = [1];
 
@@ -28,8 +32,23 @@ public static class ApiVersioningExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Standards 04 § Style — "Resources are plural nouns (/courses,
+        // /users)". The [controller] token expands to the C# class name, so
+        // CoursesController would otherwise publish /api/v1/Courses. URLs are
+        // part of the contract and renaming one later is a breaking change
+        // under ADR-0024, so the casing is fixed here rather than left to
+        // whoever writes the first controller.
+        services.Configure<RouteOptions>(options => options.LowercaseUrls = true);
+
         services.AddControllers(options =>
             options.Conventions.Add(new VersionedRouteConvention()));
+
+        // [ApiController]'s automatic 400 runs before MediatR, so a binding
+        // failure never reaches ValidationBehavior. Left at its default it
+        // emits ASP.NET's own Problem Details body — a second error shape,
+        // which Standards 09 § API Surface does not admit.
+        services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+            options.InvalidModelStateResponseFactory = Common.ModelBindingProblemDetails.For);
 
         foreach (var major in LiveMajors)
         {
@@ -53,7 +72,7 @@ public static class ApiVersioningExtensions
         ArgumentOutOfRangeException.ThrowIfLessThan(major, 1);
 
         var documentName = $"v{major}";
-        var pathPrefix = $"/api/{documentName}/";
+        var routePrefix = $"api/{documentName}/";
 
         // The document name IS the URL segment: MapOpenApi serves
         // /openapi/{documentName}.json, so naming the document "v1" produces
@@ -61,26 +80,30 @@ public static class ApiVersioningExtensions
         // Renaming it silently moves the contract's address.
         services.AddOpenApi(documentName, options =>
         {
+            // Filter at the ApiDescription level, BEFORE schemas and tags are
+            // generated. Removing paths from a finished document leaves the
+            // other majors' `components.schemas` and document-level `tags`
+            // behind as orphans — including the /api/internal/* Hub surface's,
+            // which would publish the shape of an mTLS-only contract in the
+            // tenant-facing document.
+            options.ShouldInclude = api =>
+                api.RelativePath?.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase) == true;
+
             options.AddOperationTransformer(new VersionIntroducedOperationTransformer());
 
-            // One document per major, holding only that major's operations.
-            // Without the filter every document would carry every operation
-            // and `oasdiff` — which Phase 02d wires against the prior main
-            // spec — would read a v2 addition as a breaking change to v1.
             options.AddDocumentTransformer((document, _, _) =>
             {
-                var foreign = document.Paths
-                    .Where(path => !path.Key.StartsWith(pathPrefix, StringComparison.Ordinal))
-                    .Select(path => path.Key)
-                    .ToList();
-
-                foreach (var path in foreign)
-                {
-                    document.Paths.Remove(path);
-                }
-
                 document.Info.Title = "LearnStack API";
                 document.Info.Version = documentName;
+
+                // `servers` defaults to the request's scheme + Host, which is
+                // client-controlled (AllowedHosts is "*"). Two reasons to drop
+                // it: ADR-0036 fixes that no client input decides anything the
+                // API asserts, and the openapi-diff gate Phase 02d wires needs
+                // a byte-stable artefact — a document whose first bytes change
+                // with the caller's Host header diffs against itself.
+                document.Servers?.Clear();
+
                 return Task.CompletedTask;
             });
         });
