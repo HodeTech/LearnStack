@@ -1,8 +1,8 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-17).** Phase 02a in progress. Packets 0–3 and 3b shipped; the
-> 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet is independently
-> reviewable in its own commit, matching the
+> **Status (2026-08-18).** Phase 02a in progress. Packets 0–3 and 3b shipped; the
+> 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
+> is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
 > later packet may consume any earlier packet's deliverables, never the reverse.
 >
@@ -180,11 +180,15 @@ orphan.
   a second error beyond the phase: `ISecretProvider.cs` says Packet 5 adds the
   `DeploymentMode` branching, when Packet 3 shipped the single selection site and only
   the branch is deferred; and the `SelectSecretProvider` TODO invents a
-  `FileSecretProvider` that appears in no document and contradicts
-  [Standards 20](../standards/20-infrastructure-stack.md)'s deployment matrix, which
-  gives air-gapped the same Vault-backed provider. Each site gets the four-element
-  deferral form CLAUDE.md requires — port, default, owning phase, trigger — so a
-  one-word phase swap would not have finished the job. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+  `FileSecretProvider` type that appears in no document. The matrix in
+  [Standards 20](../standards/20-infrastructure-stack.md) reads
+  "`DaprSecretProvider` → Vault **or file**" for air-gapped, so a file *store* is
+  allowed and a separate *provider type* is not — the earlier wording overstated
+  it in the other direction. The deferral now carries the four elements CLAUDE.md
+  requires — port, default, owning phase, trigger — stated once in full at
+  `SelectSecretProvider`'s TODO; the four neighbouring mentions are
+  cross-references to it, not four copies, because the rule is single-source and
+  four copies is how the RLS template shipped broken in four files at once. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
   moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
   against a written trigger, so those comments now point at a packet that will
   not ship them. The seam they describe is correct and unchanged — only the
@@ -1608,12 +1612,14 @@ plan turned out wrong — a repair packet that hides its misses teaches nothing.
 >
 > **Corpus.** ADR-0035's explicitly rejected Vault trigger was quoted in four places;
 > ADR-0032's `Decorate<TPort, …>` example did not compile, and neither did its copy in
-> `wire-cross-cutting-foundation/SKILL.md` — the executable one. Four skills taught
+> `wire-cross-cutting-foundation/SKILL.md` — the executable one. Three skills taught
 > `LocalizedMessage` keys without the `lockey_` prefix, which the constructor rejects
-> by throwing: code that compiles and fails on first use. `add-mediatr-handler` taught
-> an `ICommand`/`ICommandHandler` layer that exists nowhere. Ten secret-provider
+> by throwing: code that compiles and fails on first use; a fourth,
+> `standards-check`, taught the wrong `Result.Fail` signature instead.
+> `add-mediatr-handler` taught an `ICommand`/`ICommandHandler` layer that exists
+> nowhere. Ten secret-provider
 > comments were repointed to Phase 11 with the four elements CLAUDE.md requires, and
-> **thirteen of nineteen** `<see href>` targets in C# XML docs were broken — the
+> **fourteen of nineteen** `<see href>` targets in C# XML docs were broken — the
 > majority spelling used three `../` and resolved to a `backend/docs/` that has never
 > existed, because CI's link audit reads Markdown only.
 >
@@ -1626,6 +1632,10 @@ plan turned out wrong — a repair packet that hides its misses teaches nothing.
 > identity file — under that overlay an isolation suite would have run as the owning
 > superuser, where `FORCE ROW LEVEL SECURITY` is inert. Every published port binds
 > `127.0.0.1`; Kafka's 9092 and placement's 50005 were removed rather than rebound.
+> The 14 `container_name:` literals are gone so `-p` means something, but that alone
+> does **not** make two projects concurrently runnable: the host ports are fixed
+> literals, so a second project now fails on a port bind instead of a name clash.
+> `make dev` and `make e2e-up` are still mutually exclusive.
 > The 14 `container_name:` literals are gone, so compose projects isolate.
 >
 > **Frontend.** The Vitest harness replaces `--passWithNoTests`, verified by deleting
@@ -1644,6 +1654,13 @@ plan turned out wrong — a repair packet that hides its misses teaches nothing.
 > one shape: *a claim verified against something other than what ships* — an awk
 > tested on synthetic `docker compose ps` rows, a fence compiled inside a wrapper
 > written for the test, a diff whose normaliser filtered out exactly the lines that
-> differed, a harness verified on Node 22 when CI pins 20.11.0. Two `verify.sh` checks
-> were added against the classes that recur: `<see href>` resolution, and prose column
-> width on the lines a branch adds.
+> differed, a harness verified on Node 22 when CI pins 20.11.0. Two of those classes
+> are now mechanically checkable and were run against this branch: every `<see href>`
+> target in the backend resolves, and every prose line the branch adds respects the
+> 88-column rule in
+> [Documentation Standards](../standards/13-documentation.md). Both checks live in
+> the author's local scratchpad, which is gitignored — a reader of this repository
+> cannot run them, so treat the claim as a measurement taken, not as shipped tooling.
+> Promoting them to CI is [Phase 02b](phase-02b-events-auth.md)'s to do, on the
+> trigger that a second contributor gains write access and the checks stop being
+> one person's habit.

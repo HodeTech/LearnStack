@@ -36,8 +36,8 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3 shipped; packets 3b–10 were re-scoped on 2026-08-08 after a
-four-report audit of the corpus.**
+packets 0–3 and 3b shipped; packets 4–10 were re-scoped on 2026-08-08 after
+a four-report audit of the corpus.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -59,6 +59,15 @@ cross-cutting foundation (L1 `IExceptionHandler`, the eight-step MediatR
 pipeline, Serilog → OTLP, `TenantContextSpanProcessor`,
 `IErrorTrackingProvider`, `IProviderResilience<TPort>`, the `LS0001`
 analyzer). Those records are frozen delivery history.
+
+**Packet 3b** repaired what the audit found before the first consumer
+existed: `Results.Unit` renamed to `None`, `Entity<TId>` given one typed
+equality body and `IStronglyTypedId` an `IsInitialized()`, the corpus's
+non-compiling examples and mis-prefixed localization keys corrected, and
+the Phase 01 development loop made to work — `make seed` exits 0, the e2e
+overlay boots, and compose ports bind loopback. Its record is
+[Delivery Record (Packet 3b)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b),
+kept separate from the frozen packets 0–3 record.
 
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:

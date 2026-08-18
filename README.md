@@ -41,7 +41,7 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3 shipped; packets 3b–10 re-scoped on 2026-08-08.**
+packets 0–3 and 3b shipped; packets 4–10 re-scoped on 2026-08-08.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the
@@ -55,7 +55,8 @@ Phase 02a packets 0–3 shipped the foundation decisions
 [ADR-0028](docs/decisions/0028-audit-log-partition-management.md) audit partition
 management — whose *timing* later moved to Phase 11), the shared kernel core, and the
 [ADR-0032](docs/decisions/0032-exception-handling-logging-and-observability.md)
-cross-cutting foundation.
+cross-cutting foundation. [Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b)
+then repaired what a corpus audit found — before any consumer existed.
 
 The 2026-08-08 restructure moved correctness earlier (the corrected RLS template in
 [ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md), durable

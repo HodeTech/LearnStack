@@ -268,8 +268,9 @@ Two clarifications surfaced when the ADR met implementation in
   [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
   at that point.
 
-### Amendment 2 — `UserId`, `TenantId` and `OrganizationId` are cross-cutting
-(2026-08-10)
+### Amendment 2 — cross-cutting identifiers (2026-08-10)
+
+`UserId`, `TenantId` and `OrganizationId` live in `LearnStack.SharedKernel`.
 
 The Decision splits `[ValueObject<>]` declarations two ways: `LearnStack.SharedKernel`
 for cross-cutting value objects, and each `LearnStack.Modules.<X>.Domain` for **that

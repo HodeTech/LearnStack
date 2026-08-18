@@ -539,7 +539,16 @@ otherwise).
   is named `System.IEquatable<Course>.Equals` in metadata, so a name check alone
   misses it, and `List<Course>.Contains` then answers differently from `==`. Scope
   the check to interfaces declared on the type — the inherited
-  `IEquatable<Entity<TId>>` must not trip it.
+  `IEquatable<Entity<TId>>` must not trip it. **Do not implement that scoping as
+  `GetInterfaces().Except(BaseType.GetInterfaces())`**: a derived type that
+  explicitly re-implements the *inherited* `IEquatable<Entity<TId>>` declares no
+  new interface and no method named `Equals` (the slot is
+  `System.IEquatable<Entity<CourseId>>.Equals`), so that idiom sees nothing and
+  the rule passes. Measured on such a type: `a == b` and `a.Equals(b)` are both
+  correct, and `new List<Entity<CourseId>> { a }.Contains(b)` returns `true` for
+  different ids. Match declared slots — Cecil's `TypeDefinition.Interfaces`, or
+  `GetInterfaceMap` against explicit implementations — and match method names with
+  `EndsWith("Equals", Ordinal)`.
   Overriding is already impossible — `Entity<TId>` seals `Equals(object?)` and
   `GetHashCode()`, and with both sealed a derived operator cannot silence
   CS0660 / CS0661 — but a derived **overload** such as `bool Equals(Course? other)`
@@ -551,7 +560,7 @@ otherwise).
   [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
 - **Status:** **Registered.**
-- **Phase:** 02a (Packet 3b introduces, Packet 10 closes).
+- **Phase:** 02a (Packet 3b registers this entry, Packet 10 writes the test).
 
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
 

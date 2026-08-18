@@ -17,6 +17,19 @@
 
 set -eu -o pipefail
 
+# Hard dependencies. python3 is not obvious from the name of this script and
+# is not listed in any prerequisites document, so check it here rather than
+# letting `set -o pipefail` kill the run mid-gate with a raw shell error. It
+# parses `docker compose config --format json` to derive the per-service
+# healthcheck exemption; jq is not used because it is less commonly present
+# on a fresh macOS box than python3.
+for _dep in docker python3; do
+    if ! command -v "$_dep" >/dev/null 2>&1; then
+        echo "seed: '$_dep' is required and was not found on PATH." >&2
+        exit 1
+    fi
+done
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
@@ -89,7 +102,7 @@ while true; do
     # climbing RestartCount.
     exempt=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" \
              config --format json \
-             | python3 -c 'import json,sys; print(" ".join(n for n,s in json.load(sys.stdin)["services"].items() if "healthcheck" not in s))')
+             | python3 -c 'import json,sys; print(" ".join(n for n,s in json.load(sys.stdin)["services"].items() if "healthcheck" not in s or s["healthcheck"].get("disable")))')
 
     not_healthy=$(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" \
                   ps -a --format '{{.Service}}\t{{.State}}\t{{.Health}}' \
@@ -110,12 +123,29 @@ while true; do
         if [[ -n "$not_healthy" ]]; then
             not_healthy="${not_healthy}"$'\n'
         fi
-        not_healthy="${not_healthy}(saw $observed of $declared declared services)"
+            missing=$(comm -13 \
+            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | sort -u) \
+            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | sort -u) \
+            | xargs)
+        extra=$(comm -23 \
+            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" ps -a --format '{{.Service}}' | sort -u) \
+            <(docker compose "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" -f "$COMPOSE_FILE" config --services | sort -u) \
+            | xargs)
+        detail="saw $observed of $declared declared services"
+        if [[ -n "$missing" ]]; then
+            detail="$detail; never created: $missing"
+        fi
+        # An orphan makes the count exceed the declaration, so the message has to
+        # point at --remove-orphans rather than at a service that failed to start.
+        if [[ -n "$extra" ]]; then
+            detail="$detail; orphaned (docker compose down --remove-orphans): $extra"
+        fi
+        not_healthy="${not_healthy}($detail)"
     fi
     if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
         red "Services still not healthy after ${HEALTH_TIMEOUT_SECONDS}s — inspect with:"
-        red "  docker compose -f $COMPOSE_FILE ps"
-        red "  docker compose -f $COMPOSE_FILE logs --tail=200"
+        red "  docker compose ${ENV_FILE_ARGS[*]+${ENV_FILE_ARGS[*]} }-f $COMPOSE_FILE ps"
+        red "  docker compose ${ENV_FILE_ARGS[*]+${ENV_FILE_ARGS[*]} }-f $COMPOSE_FILE logs --tail=200"
         red "Still pending:"
         while IFS= read -r line; do red "  - $line"; done <<<"$not_healthy"
         exit 1

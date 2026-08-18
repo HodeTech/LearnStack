@@ -414,7 +414,8 @@ capability-area lists, not assembly manifests; neither survives contact with
 `backend/src/Modules/`, which has never held an `Organization` project. There is no
 `LearnStack.Modules.Organization`, and
 [`Organization_Aggregate_Declared_In_Tenancy_Domain`](../standards/21-architecture-tests-catalogue.md#organization_aggregate_declared_in_tenancy_domain)
-now rejects one.
+is **Registered** against one — the catalogue entry exists, the test code lands in
+Packet 6. Until it does, nothing rejects the shape mechanically.
 
 **§ Architecture tests' count of five reads as six**, the sixth being that rule.
 

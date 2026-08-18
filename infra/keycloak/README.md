@@ -31,7 +31,7 @@ any of these strings outside local Docker.
 ## Two realms, zero cross-trust
 
 The realm separation is a **hard architectural invariant** per
-[ADR-0004 Amendment 1](../../docs/decisions/0004-authentication-strategy.md#amendment-1):
+[ADR-0004 Amendment 1](../../docs/decisions/0004-authentication-strategy.md#amendment-1--learnstack-hub-realm-for-operators-2026-05-18):
 
 - A `learnstack-hub` token MUST be rejected on every tenant-facing endpoint
   (the gateway + the backend both check the `iss` claim against the realm URL).

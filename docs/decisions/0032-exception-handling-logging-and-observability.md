@@ -21,8 +21,10 @@ None of the three changes a sub-decision; all three correct text that would misl
    `LearnStack.Infrastructure.Resilience` is correct — it registers
    `IProviderResilience<TPort>` as a singleton that adapters take as a collaborator
    rather than decorating the port itself. The example is corrected in place to the
-   shipped shape (Implementation Notes is not the Decision section, so
-   [Documentation Standards](../standards/13-documentation.md) permits it), and its
+   shipped shape. [Documentation Standards](../standards/13-documentation.md)
+   allows an accepted ADR only typo fixes and dated Amendments, and a rewritten
+   registration example is neither — so the correction is recorded here, in this
+   Amendment, which is what carries it. The Decision section is untouched. Its
    copy in `.claude/skills/wire-cross-cutting-foundation/SKILL.md` is corrected with
    it — that copy is an executable instruction, so it was the one that would have
    produced non-compiling code.

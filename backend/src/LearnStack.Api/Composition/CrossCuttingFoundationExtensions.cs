@@ -211,9 +211,11 @@ public static class CrossCuttingFoundationExtensions
         //   every non-Development mode → new DaprSecretProvider(...)  // Vault
         //   DeploymentMode.Development →
         //     keep ConfigurationSecretProvider (delegates to IConfiguration).
-        // SelfHostedAirGapped is Vault-backed too — an earlier draft of this
-        // TODO named a FileSecretProvider, which exists in no document and
-        // contradicts that matrix.
+        // SelfHostedAirGapped keeps the same provider TYPE — the matrix reads
+        // "DaprSecretProvider → Vault or file", so what varies for air-gapped
+        // is the backing store, not the adapter. An earlier draft of this TODO
+        // named a separate FileSecretProvider type, which is the part that
+        // exists in no document and contradicts the matrix.
         // The signature stays the same so AddLearnStackErrorTracking's
         // ISecretProvider argument resolves correctly across modes.
         _ = deploymentMode;
