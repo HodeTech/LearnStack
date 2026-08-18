@@ -167,43 +167,78 @@ internal sealed class LiveKitClient(
     public async Task<LiveRoom> CreateRoomAsync(
         CreateRoomCommand cmd, CancellationToken ct)
     {
+        // MapToSdkRequest / MapToDomain are this adapter's own private helpers —
+        // translation is the adapter's whole job.
+        var sdkRequest = MapToSdkRequest(cmd);
+
         try
         {
-            // Every outbound call goes through the pipeline. There is no
-            // decorator doing this for you — see Step 4.
-            // MapToSdkRequest / MapToDomain are this adapter's own private
-            // helpers — translation is the adapter's whole job.
-            var sdkRequest = MapToSdkRequest(cmd);
             var room = await resilience.Pipeline.ExecuteAsync(
-                async token => await _sdk.CreateRoom(sdkRequest, token), ct);
+                async token =>
+                {
+                    // Translation happens INSIDE the callback. The pipeline's
+                    // ShouldHandle predicates match ProviderException,
+                    // InfrastructureException and TimeoutRejectedException — an SDK
+                    // exception matches none of them, so translating outside the
+                    // pipeline means retry and the circuit breaker never fire and
+                    // the configuration in Step 5 is inert.
+                    try
+                    {
+                        return await _sdk.CreateRoom(sdkRequest, token);
+                    }
+                    catch (global::LiveKit.RoomAlreadyExistsException ex)
+                    {
+                        throw new LiveClassProviderException(
+                            ex.Message, isClientError: true, innerException: ex);
+                    }
+                    catch (global::LiveKit.QuotaExceededException ex)
+                    {
+                        throw new LiveClassProviderException(
+                            ex.Message, isClientError: true, innerException: ex);
+                    }
+                    // .NET 5+ exposes HttpRequestException.StatusCode as
+                    // HttpStatusCode?. A raw 4xx is the caller's fault, so it is a
+                    // client error and must not be retried.
+                    catch (HttpRequestException ex)
+                        when (ex.StatusCode is not null && (int)ex.StatusCode < 500)
+                    {
+                        throw new LiveClassProviderException(
+                            ex.Message, isClientError: true, innerException: ex);
+                    }
+                    // null StatusCode = transport failure (DNS, connection refused);
+                    // 5xx = the provider's infra. Both are retryable.
+                    catch (HttpRequestException ex)
+                    {
+                        throw new LiveClassProviderException(
+                            "Live-class provider unavailable.",
+                            isClientError: false, innerException: ex);
+                    }
+                },
+                ct);
+
             return MapToDomain(room);
         }
-        catch (global::LiveKit.RoomAlreadyExistsException ex)
+        catch (LiveClassProviderException)
         {
-            throw new LiveClassProviderException(
-                ex.Message, isClientError: true, innerException: ex);
+            // Already translated inside the callback; the pipeline re-raises the
+            // final attempt's exception unchanged.
+            throw;
         }
-        catch (global::LiveKit.QuotaExceededException ex)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw new LiveClassProviderException(
-                ex.Message, isClientError: true, innerException: ex);
-        }
-        // .NET 5+ exposes `HttpRequestException.StatusCode` as `HttpStatusCode?`.
-        // `null` = transport failure (DNS, connection refused, timeout) which is
-        // an infra fault → isClientError: false. 5xx upstream → isClientError: false.
-        // 4xx upstream is handled by the SDK-specific catches above; if a raw 4xx
-        // reaches this clause it falls through to the catch-all below.
-        catch (HttpRequestException ex)
-            when (ex.StatusCode is null || (int)ex.StatusCode >= 500)
-        {
-            throw new LiveClassProviderException(
-                "Live-class provider unavailable.",
-                isClientError: false, innerException: ex);
+            // Caller-initiated cancellation is not a provider failure. Rethrow
+            // unchanged so the L1 handler maps it to 499 rather than 503.
+            throw;
         }
         catch (Exception ex)
         {
+            // Polly's own outcomes reach here: BrokenCircuitException,
+            // TimeoutRejectedException, RateLimiterRejectedException. Wrapping
+            // them in a bare ProviderException gives them the default
+            // `dependency_unavailable` Error, which HttpStatusMap turns into 503.
+            // Left untranslated they would surface as a generic 500.
             throw new LiveClassProviderException(
-                "Unexpected live-class provider failure.",
+                "Live-class provider unavailable.",
                 isClientError: false, innerException: ex);
         }
     }
@@ -221,7 +256,15 @@ Rules:
 - The adapter is `internal sealed` — the composition root sees only the port
   interface.
 - Every public method is wrapped in a `try / catch` whose only purpose is
-  exception translation.
+  exception translation, and the **SDK-facing half of it sits inside the pipeline
+  callback**. The pipeline classifies by exception type, so it has to see a
+  `ProviderException`; hand it a raw SDK exception and every policy in Step 5 is
+  configured, loaded, and never triggered.
+- The **outer** `catch` exists for Polly's own outcomes —
+  `BrokenCircuitException`, `TimeoutRejectedException`,
+  `RateLimiterRejectedException` — which the callback cannot produce. They carry
+  no `Error`, so untranslated they map to 500; wrapped, they inherit
+  `dependency_unavailable` → 503.
 - Provider SDK exception types (`LiveKit.RoomAlreadyExistsException`,
   `Stripe.StripeException`, `Meilisearch.MeilisearchApiError`, …) **never**
   leave the adapter's namespace. The architecture test
@@ -266,7 +309,7 @@ Add to `appsettings.json`:
   "Resilience": {
     "liveclass": {
       "retry": {
-        "maxAttempts": 3,
+        "maxRetryAttempts": 2,
         "delaySeconds": 1,
         "useJitter": true
       },
@@ -286,7 +329,7 @@ Add to `appsettings.json`:
 Tune per port based on the upstream's known characteristics. Document the
 chosen values in the adapter's README (under
 `backend/src/LearnStack.Infrastructure.<X>/README.md`) so reviewers know
-*why* `maxAttempts: 3` and not 5.
+*why* `maxRetryAttempts: 2` and not 5.
 
 ### Step 6: Map provider 4xx vs 5xx correctly
 

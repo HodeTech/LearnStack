@@ -27,7 +27,12 @@ None of the three changes a sub-decision; all three correct text that would misl
    Amendment, which is what carries it. The Decision section is untouched. Its
    copy in `.claude/skills/wire-cross-cutting-foundation/SKILL.md` is corrected with
    it — that copy is an executable instruction, so it was the one that would have
-   produced non-compiling code.
+   produced non-compiling code. The same § Implementation Notes `Resilience:`
+   sample carried `retry.maxAttempts`; the shipped option is
+   `ResilienceOptions.Retry.MaxRetryAttempts`, which maps 1:1 onto Polly v8's
+   retry count. `maxAttempts` read as a total and behaved as a retry count, so
+   every configured value issued one more call than the name promised. The
+   sample now uses the shipped key.
 2. **The "Hub HTTPS contract is closed at four endpoints" decision driver is
    superseded** by [ADR-0034](0034-hub-contract-surface-invariant.md), which replaces
    the count with two invariants (the Hub stores no tenant content; every crossing goes
@@ -703,7 +708,7 @@ SDK creates and disposes warm-up `Activity` instances during startup).
 {
   "Resilience": {
     "liveclass": {
-      "retry": { "maxAttempts": 3, "delaySeconds": 1, "useJitter": true },
+      "retry": { "maxRetryAttempts": 2, "delaySeconds": 1, "useJitter": true },
       "circuitBreaker": { "failureRatio": 0.5, "samplingDurationSeconds": 30, "minimumThroughput": 10, "breakDurationSeconds": 30 },
       "timeout": { "totalSeconds": 10 }
     },

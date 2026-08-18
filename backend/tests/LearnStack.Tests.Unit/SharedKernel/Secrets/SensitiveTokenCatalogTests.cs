@@ -61,6 +61,9 @@ public sealed class SensitiveTokenCatalogTests
     // count of signatures redacts too. Losing a count is cheaper than
     // shipping an HMAC that lets someone forge the envelope it signed.
     [InlineData("SignatureCount")]
+    [InlineData("AuthenticationHeader")]
+    [InlineData("authentication_header")]
+    [InlineData("authenticationheader")]
     public void IsSensitive_True_For_Token_Segments(string name)
     {
         SensitiveTokenCatalog.IsSensitive(name).Should().BeTrue();

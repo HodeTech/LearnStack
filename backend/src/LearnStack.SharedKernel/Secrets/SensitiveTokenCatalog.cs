@@ -78,6 +78,7 @@ public static class SensitiveTokenCatalog
             "apikey",           // api_key / ApiKey
             "cardnumber",       // card_number / CardNumber
             "authheader",       // auth_header / AuthHeader
+            "authenticationheader", // authentication_header / AuthenticationHeader
             "connectionstring", // connection_string / ConnectionString
             "creditcard",       // credit_card / CreditCard
             "encryptionkey",    // encryption_key / EncryptionKey

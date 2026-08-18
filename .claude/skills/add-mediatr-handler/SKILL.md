@@ -143,7 +143,7 @@ public sealed class CreateEnrollmentCommandHandler(
 
         db.Enrollments.Add(enrollment);
 
-        await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
+        await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
         {
             TenantId = tenantContext.TenantId,
             OrganizationId = tenantContext.OrganizationId,

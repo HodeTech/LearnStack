@@ -393,7 +393,7 @@ Configuration shape (excerpt):
 {
   "Resilience": {
     "liveclass": {
-      "retry": { "maxAttempts": 3, "delaySeconds": 1, "useJitter": true },
+      "retry": { "maxRetryAttempts": 2, "delaySeconds": 1, "useJitter": true },
       "circuitBreaker": { "failureRatio": 0.5, "samplingDurationSeconds": 30, "minimumThroughput": 10, "breakDurationSeconds": 30 },
       "timeout": { "totalSeconds": 10 }
     }

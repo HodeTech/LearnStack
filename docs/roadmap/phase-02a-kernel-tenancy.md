@@ -1636,7 +1636,6 @@ plan turned out wrong — a repair packet that hides its misses teaches nothing.
 > does **not** make two projects concurrently runnable: the host ports are fixed
 > literals, so a second project now fails on a port bind instead of a name clash.
 > `make dev` and `make e2e-up` are still mutually exclusive.
-> The 14 `container_name:` literals are gone, so compose projects isolate.
 >
 > **Frontend.** The Vitest harness replaces `--passWithNoTests`, verified by deleting
 > the test rather than by running it. `jsdom` is capped at `^26` and `jest-dom` at

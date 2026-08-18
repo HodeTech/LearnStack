@@ -87,7 +87,7 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
     CourseVersionId = request.CourseVersionId.Value,
-    Source = request.Source.ToString().ToLower(),
+    Source = request.Source.ToString().ToLowerInvariant(),
 }, cancellationToken);
 
 await db.SaveChangesAsync(cancellationToken);   // atomic

@@ -82,10 +82,20 @@ pnpm install --frozen-lockfile
 ### Step 3: Bring up the stack
 
 ```bash
-make dev      # the canonical orchestrator; wraps docker-compose + dotnet + pnpm
+make dev      # brings the containers up — and only the containers
 ```
 
-Equivalent without the make wrapper:
+`make dev` is `docker compose up -d` plus a status line. It does **not** start
+the API or the web app, and it does not run migrations or seeds; those are
+separate commands you run yourself:
+
+```bash
+dotnet run --project backend/src/LearnStack.Api    # API on 5080
+pnpm --filter @learnstack/web dev                  # web on 3000
+make seed                                          # health gate + demo credentials
+```
+
+What `make dev` expands to:
 
 ```bash
 # One file holds the whole stack. --env-file is not optional: Compose resolves
@@ -116,16 +126,19 @@ The components and their default ports:
 
 Every one of these binds to `127.0.0.1`, never `0.0.0.0` — see
 [Infrastructure Standards § Published ports](../../../docs/standards/12-infrastructure.md).
-The backend host is **not** a compose service: `LearnStack.Api` runs on the
-workstation via `dotnet run`, on the `ASPNETCORE_URLS` port in `.env.example`.
-Regenerate this table from the stack itself rather than by hand —
+Regenerate the table from the stack itself rather than by hand —
 `docker compose --env-file .env -f infra/compose/dev.yml config --format json`
 is the source of truth.
-| LearnStack Web (`apps/web`) | 3000 | Frontend dev server. |
+
+Neither application host is a compose service. `LearnStack.Api` runs on the
+workstation via `dotnet run` on the `ASPNETCORE_URLS` port in `.env.example`
+(5080), and `apps/web` runs via `pnpm dev` on 3000.
 
 ### Step 4: First-run bootstrap
 
-The first `make dev` run additionally:
+`make seed` verifies the stack is healthy and prints the demo credentials. The
+steps below are its **Phase 02a** scope — `scripts/seed.sh` carries them as a
+documented placeholder and does not run them yet:
 
 1. Applies every module's EF migrations.
 2. Seeds Keycloak's `learnstack` realm with a platform admin and two demo tenants
