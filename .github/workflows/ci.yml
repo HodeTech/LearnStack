@@ -99,8 +99,8 @@ jobs:
       # No --filter. LearnStack.Tests.Integration holds WebApplicationFactory
       # tests that need no Docker, and they carry rules the structural tests
       # cannot: no-op'ing VersionedRouteConvention leaves every architecture
-      # test green and turns 9 of 14 ApiVersioningHttpTests red. Excluding the
-      # assembly meant a broken route convention shipped green. Testcontainers
+      # test green and turns most of this assembly red. Excluding it meant a
+      # broken route convention shipped green. Testcontainers
       # tests arrive in Packet 7 and move to the backend-integration job then;
       # this job's NAME is a required check and does not change.
       - name: Test (unit + architecture + contract + HTTP integration)

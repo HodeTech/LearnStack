@@ -38,16 +38,31 @@ public static class ModelBindingProblemDetails
     /// </summary>
     public const string FieldMessageKey = "lockey_invalid_value";
 
+    /// <summary>
+    /// The <c>errors</c> key a body-level failure is reported under.
+    /// ModelState uses the empty string for "the body as a whole"; the wire
+    /// shape needs a name, and <c>$</c> is the JSONPath root.
+    /// </summary>
+    public const string BodyKey = "$";
+
     public static IActionResult For(ActionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Group, do not ToDictionary. ModelStateDictionary guarantees its own
+        // keys are unique, but the normalisation below does not preserve that:
+        // a body-level error keyed "" and a field literally named "$" both
+        // normalise to "$", and a bare ToDictionary throws ArgumentException —
+        // turning a client's malformed body into a 500.
         var details = context.ModelState
             .Where(entry => entry.Value?.Errors.Count > 0)
+            .GroupBy(
+                entry => string.IsNullOrEmpty(entry.Key) ? BodyKey : entry.Key,
+                StringComparer.Ordinal)
             .ToDictionary(
-                entry => string.IsNullOrEmpty(entry.Key) ? "$" : entry.Key,
-                entry => (IReadOnlyList<LocalizedMessage>)
-                    [new LocalizedMessage(FieldMessageKey)],
+                group => group.Key,
+                group => (IReadOnlyList<LocalizedMessage>)
+                    [.. group.Select(_ => new LocalizedMessage(FieldMessageKey))],
                 StringComparer.Ordinal);
 
         return new ProblemDetailsActionResult(

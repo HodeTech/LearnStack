@@ -129,7 +129,17 @@ public static class ApiVersioningExtensions
 
         app.MapOpenApi();
         app.MapScalarApiReference("/openapi", options =>
-            options.WithTitle("LearnStack API"));
+        {
+            options.WithTitle("LearnStack API");
+
+            // No proxy. Scalar's "Test Request" button otherwise routes the
+            // call through a Scalar-operated service, so a developer trying an
+            // endpoint would send a LearnStack bearer token to a third party.
+            // The same setting is what makes the console usable in a
+            // SelfHostedAirGapped deployment, where nothing outside the
+            // network is reachable by design ([ADR-0020]).
+            options.WithProxy(string.Empty);
+        });
 
         return app;
     }

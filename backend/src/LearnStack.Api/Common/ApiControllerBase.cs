@@ -23,12 +23,24 @@ namespace LearnStack.Api.Common;
 ///     =&gt; (await _mediator.Send(cmd, ct)).ToActionResult();
 /// </code>
 /// <para>
-/// Deriving is a convenience, not the enforcement point. A controller that
-/// derives from <see cref="ControllerBase"/> directly is still routed under
-/// <c>/api/v{N}</c> by the convention, and
-/// <c>Every_Endpoint_Is_Under_Versioned_Route</c> is what fails the build if it
-/// somehow is not — a base class nobody is obliged to use cannot be a
-/// guarantee.
+/// <b>Derive from this type.</b> An earlier version of this comment said the
+/// base class was "a convenience, not the enforcement point" and that a
+/// controller deriving from <see cref="ControllerBase"/> directly was still
+/// routed correctly. Both halves were wrong, and the second was actively
+/// harmful: such a controller has no controller-level route template, so MVC
+/// routes every action on it at the bare <c>api/v{N}</c> with the resource
+/// segment dropped, and two of them collide as a 500
+/// <c>AmbiguousMatchException</c> at request time. It also lacks
+/// <see cref="ApiControllerAttribute"/>, so a malformed body bypasses the
+/// automatic 400 and surfaces as a 500 rather than the single Problem Details
+/// shape Standards 09 § API Surface fixes.
+/// </para>
+/// <para>
+/// <see cref="Versioning.VersionedRouteConvention"/> now refuses to start
+/// against a controller missing either, so the requirement is a startup
+/// failure rather than a convention nobody is obliged to follow. Declaring
+/// <c>[ApiController]</c> and a <c>[Route]</c> by hand satisfies it too; this
+/// type is simply the one place that already does.
 /// </para>
 /// </remarks>
 [ApiController]

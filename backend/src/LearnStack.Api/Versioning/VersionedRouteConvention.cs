@@ -86,6 +86,17 @@ public sealed partial class VersionedRouteConvention : IApplicationModelConventi
                     + "the major to LiveMajors, or correct the attribute.");
             }
 
+            if (!IsExemptController(controller)
+                && !controller.Attributes.OfType<Microsoft.AspNetCore.Mvc.ApiControllerAttribute>().Any())
+            {
+                throw new InvalidOperationException(
+                    $"'{name}' does not carry [ApiController]. Without it MVC's automatic "
+                    + "400 never runs, so a malformed request body reaches the handler and "
+                    + "surfaces as a 500 internal_error instead of the 400 "
+                    + "validation_failed Problem Details that Standards 09 § API Surface "
+                    + "fixes as the single error shape. Derive from ApiControllerBase.");
+            }
+
             var prefix = new AttributeRouteModel(
                 new Microsoft.AspNetCore.Mvc.RouteAttribute(
                     string.Create(CultureInfo.InvariantCulture, $"api/v{major}")));
@@ -96,10 +107,33 @@ public sealed partial class VersionedRouteConvention : IApplicationModelConventi
 
                 // Per SELECTOR, not per controller: a controller carrying both
                 // an api/internal route and a tenant-facing one must not have
-                // the second exempted by the first.
-                if (IsExempt(template))
+                // the second exempted by the first. Normalise first — an
+                // absolute internal template ("/api/internal/x") is still
+                // exempt, and the action-level guard below has always trimmed
+                // while this one did not.
+                if (IsExempt(template?.TrimStart('~', '/')))
                 {
                     continue;
+                }
+
+                // Defence in depth, and deliberately unreachable today: a
+                // controller WITH [ApiController] and no attribute route is
+                // rejected by MVC's own ApiBehaviorApplicationModelProvider
+                // during the provider phase, before any convention runs, and
+                // one WITHOUT it is already refused by the check above. The
+                // branch stays because it is the failure this whole class
+                // exists to prevent, and because the [ApiController] rule could
+                // be relaxed one day without anyone remembering why it mattered.
+                if (template is null)
+                {
+                    throw new InvalidOperationException(
+                        $"'{name}' declares no controller-level route template. The "
+                        + "convention has nothing to prefix, so MVC routes every action "
+                        + $"on it at the bare api/v{major} — the resource segment is "
+                        + "silently dropped, and a second such controller collides with "
+                        + "it as a 500 AmbiguousMatchException at request time rather "
+                        + "than as a startup error. Derive from ApiControllerBase, which "
+                        + "carries [Route(\"[controller]\")].");
                 }
 
                 if (IsAbsolute(template))
@@ -188,6 +222,15 @@ public sealed partial class VersionedRouteConvention : IApplicationModelConventi
     private static bool IsAbsolute(string? template) =>
         template is not null
         && (template.StartsWith('/') || template.StartsWith("~/", StringComparison.Ordinal));
+
+    /// <summary>
+    /// True when every one of the controller's selectors is exempt. Used for
+    /// the controller-wide checks, which cannot be decided per selector.
+    /// </summary>
+    private static bool IsExemptController(ControllerModel controller) =>
+        controller.Selectors.Count > 0
+        && controller.Selectors.All(selector =>
+            IsExempt(selector.AttributeRouteModel?.Template?.TrimStart('~', '/')));
 
     private static bool IsExempt(string? template) =>
         template is not null
