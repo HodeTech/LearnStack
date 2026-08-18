@@ -113,7 +113,10 @@ similarly invalidate via Dapr pub/sub.
 
 A request to an org-scoped subdomain (`branch-istanbul.example.edu`) resolves to the
 parent tenant id **plus** an organization id; the rest of the page render gets
-appropriate filtering for free because the API enforces the org scope from the headers.
+appropriate filtering for free because the API resolves that same host itself and scopes
+the request to the organization on its mapping row. The scope comes from the host
+lookup, never from a header — headers are assertions the API compares against its own
+answer ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
 
 ```mermaid
 sequenceDiagram

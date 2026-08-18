@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted (**Amendment 1: 2026-08-18**: a standalone MUST-class write
+failure changes the response only when the operation would otherwise have succeeded;
+see bottom of document)
 
 **Date:** 2026-08-08
 **Supersedes:** [ADR-0016](0016-audit-log-subsystem.md)
@@ -276,6 +278,56 @@ the architecture document is the outlier and is corrected.
   forced to roll back at `COMMIT` produces **zero** business rows and **exactly one**
   `audit_log` row with outcome `failed`; a command whose durable audit write is forced to
   fail produces zero business rows and returns `503 audit_unavailable`.
+
+## Amendment 1 — Standalone MUST-class write failure and the response (2026-08-18)
+
+**Status: Accepted.** Raised by [ADR-0036](0036-tenant-resolution-trusted-inputs.md),
+whose rejection path is the first caller of `WriteStandaloneAsync` that runs on an
+anonymous, unauthenticated request.
+
+### What was ambiguous
+
+§ Decision states the fail-closed rule without distinguishing the two shapes of
+MUST-class write: "Two failures reject the operation: an operation the catalogue does
+not classify at all (`audit_unclassified_operation`), and a MUST-class row that cannot
+be written durably (`audit_unavailable`, HTTP 503)." Read literally, that applies the
+503 to a **standalone** row recording an operation that is *already being rejected* — a
+`denied` authorisation outcome, or a rejected tenant assertion. There is nothing to fail
+closed on: no state change is uncommitted-but-unaudited, and no disclosure is
+granted-but-unaudited. Worse, on a rejection path an anonymous client can drive, it
+converts audit-store pressure into a per-request availability signal that the same
+client controls.
+
+### How it should be read
+
+A MUST-class **standalone** write failure changes the response only when the operation
+would otherwise have **succeeded**.
+
+- A standalone row recording an access that is being **granted** — a `read-sensitive`
+  query is the case that matters — still rejects with **`503 audit_unavailable`**.
+  Without it, data leaves the system unaudited, which is the whole point of the class.
+- A standalone row recording an operation that is **already being refused** — a `denied`
+  authorisation outcome, a rejected tenant assertion — keeps its own status (403, 404).
+  The refusal is the security outcome; downgrading it to a 503 tells the caller more,
+  not less.
+
+In both cases the failure is not silent: it logs at `Critical`, increments the
+standalone-write-failure counter, and marks the audit health check unhealthy. Beyond a
+configured maximum unhealthy window the deployment fails closed at the **deployment**
+level — it stops serving — rather than serving indefinitely with an audit trail nobody
+is writing. Availability that is bought by losing the record is bought on credit, and
+this is where the loan comes due.
+
+**The in-transaction MUST class is untouched.** A command whose durable audit write
+fails still produces zero business rows and returns `503 audit_unavailable`, exactly as
+§ Decision and the binding integration test in § Implementation Notes state.
+
+### Why this is a clarification and not a new decision
+
+The guarantee § Decision protects is that nothing proceeds unaudited. An operation that
+is being rejected does not proceed. The rule's subject was always the operation that
+would otherwise have happened; this amendment says so in the one case where the original
+wording could be read against its own purpose.
 
 ## References
 

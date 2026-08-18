@@ -1,7 +1,7 @@
 # 04 — API Design Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -106,11 +106,20 @@ Rules:
 
 ## Tenant Context
 
-The tenant is **never** read from a request body or query param at the API edge. Resolution order:
+**[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) is the single
+authority for how tenant and organization are resolved.** It is not restated here,
+because the ordered list this section used to carry was one of four incompatible
+statements in the corpus and reading it as a priority chain produced the wrong answer.
 
-1. Host header → registered domain → tenant id.
-2. `tenant_id` claim in the JWT (studio / platform-admin contexts).
-3. Explicit override in `/api/v1/platform/...` endpoints with proper scope.
+The two rules an API author needs at the point of writing an endpoint:
+
+- **Resolution is by agreement, not priority.** Every authoritative signal present on a
+  request — the host lookup result, the validated JWT claims, live membership — is
+  resolved independently, and the request proceeds only on their intersection. Two
+  authoritative signals that disagree do not produce a winner; they produce a 404.
+- **No request input selects a tenant.** Not a body field, not a query param, not a
+  cookie, and not a header. `X-Tenant-Id` and `X-Organization-Id` are *assertions*: they
+  are compared against the resolved value and can only cause the request to be rejected.
 
 A request that cannot resolve a tenant returns **404** (not 403, to avoid disclosure).
 
@@ -232,6 +241,9 @@ Public but rate-limited.
 ## Forbidden
 
 - Tenant id read from a request body or query param.
+- Tenant id **selected** from a request header. `X-Tenant-Id` / `X-Organization-Id`
+  are assertions compared against the resolved value, never a resolution source
+  ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
 - Domain logic in controllers.
 - Returning EF entities directly.
 - Mixing API versions in a single endpoint.

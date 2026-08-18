@@ -1158,6 +1158,165 @@ started.
   inside that test's SHOULD/MAY cases.
 - Never implemented, so nothing was deleted from CI.
 
+### Tenant and organization resolution (ADR-0036)
+
+The binding evidence for this group is the **runtime** matrix in
+[ADR-0036 § Architecture tests](../decisions/0036-tenant-resolution-trusted-inputs.md),
+executed against a live PostgreSQL connected as `learnstack_app`. Data flow from a
+header into a tenant context is not reliably provable by a type-reference scan — a
+helper, an interface or an indirect assignment slips past one. The structural entries
+below narrow where the bug can hide; they do not prove isolation. See § What a
+structural test proves — and what it does not.
+
+#### `Tenant_Headers_Are_Never_A_Resolution_Source`
+
+- **Asserts:** no production type assigns `ITenantContext.TenantId` or `OrganizationId` from a bound `X-Tenant-Id` / `X-Organization-Id` value, in any deployment mode. There is no mode-guarded exception.
+- **Source:** ADR-0036 § What the assertions do.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Effective_Host_Computed_In_One_Place`
+
+- **Asserts:** only `EffectiveHostAccessor` reads a request host. Bans `HttpRequest.Host`, `RequestHeaders.Host`, `HeaderDictionary` indexers carrying a `Host` / `X-Forwarded-Host` / `X-LearnStack-Host` / `Forwarded` literal, and `UriHelper.GetDisplayUrl` / `GetEncodedUrl` everywhere else.
+- **Source:** ADR-0036 § Effective host and the trusted hop.
+- **Type:** Roslyn analyzer under `backend/analyzers/`. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+- **Note:** Analyzer rather than NetArchTest: three of the four banned inputs appear only as string literals inside header lookups, which a type-reference scan cannot see.
+
+#### `Forwarded_Host_Header_Is_Never_Read_Directly`
+
+- **Asserts:** `ForwardedHeadersOptions.ForwardedHeaders` never includes `XForwardedHost`, and RFC 7239 `Forwarded` is never parsed. That middleware overwrites `Request.Host` in place, collapsing the socket-addressed host and a proxy-claimed host into one property with no in-band signal.
+- **Source:** ADR-0036 § Effective host and the trusted hop.
+- **Type:** xUnit + options inspection. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Trusted_Hop_Requires_Network_And_Secret`
+
+- **Asserts:** the trusted-hop predicate is false unless **both** the socket peer is inside `Tenancy:TrustedHop:Networks` **and** a fixed-time secret comparison succeeds. Neither condition alone admits the hop.
+- **Source:** ADR-0036 § Effective host and the trusted hop.
+- **Type:** xUnit behavioural matrix. **Kind:** behavioural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Trusted_Hop_Reads_The_Socket_Peer`
+
+- **Asserts:** the network check reads `IHttpConnectionFeature.RemoteIpAddress`, never `HttpContext.Connection.RemoteIpAddress`. With `XForwardedFor` enabled the latter is a client-supplied value for exactly the peers designated as the hop.
+- **Source:** ADR-0036 § Effective host and the trusted hop.
+- **Type:** Roslyn analyzer + xUnit. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Deployment_Mode_Is_Required_Configuration`
+
+- **Asserts:** the composition root throws when `Deployment:Mode` is absent, and the key is **not** present in `appsettings.json`. It shipped there as `Development` — the file that goes to every environment — with the same value as the code default, so every Development-guarded mechanism was on by default in a deployment that never set it.
+- **Source:** ADR-0036 § There is no Development override.
+- **Type:** xUnit + configuration-file inspection. **Kind:** behavioural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Assertion_Recorder_Is_The_Only_Mismatch_Writer`
+
+- **Asserts:** no type other than an `ITenantAssertionRecorder` implementation writes a tenant-assertion mismatch to a log, a metric or `IAuditStore`.
+- **Source:** ADR-0036 § Recording a rejected assertion.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
+
+- **Asserts:** the anonymous-burst counters resolve no `ICacheService`. A cache outage must not decide whether a MUST-class security event is recorded.
+- **Source:** ADR-0036 § Recording a rejected assertion.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 4.
+
+#### `Api_Registers_Only_The_Tenant_Realm_Authority`
+
+- **Asserts:** the composition root registers exactly one JWT authority for `/api/v1/*`, the `learnstack` realm. A `learnstack-hub` token on a tenant-facing endpoint is 401.
+- **Source:** ADR-0036 § The signals; ADR-0004 Amendment 1.
+- **Type:** xUnit + DI inspection. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02b.
+- **Note:** The integration test is the load-bearing half: the structural test passes while issuer validation is disabled in configuration.
+
+#### `Host_Classification_Applies_To_Tenant_Facing_Routes_Only`
+
+- **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + route-table inspection. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `TenantContext_Is_Constructed_Only_By_The_Factory`
+
+- **Asserts:** `TenantContext` is sealed with no public constructor and `TenantContextFactory.Create` is its only entry point. The factory returns `Result.Fail` on any disagreement and never a partially populated context.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `SetTenant_Callers_Are_The_Enumerated_Four`
+
+- **Asserts:** `ITenantContextAccessor.SetTenant` is called only by `TenantResolverMiddleware`, `HubCorrelationMiddleware`, the Hangfire `JobActivator`, and the outbox / inbox handler scope. `EnterPlatformAdminScope` is not among them.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `PublicSurface_Marker_Set_Is_Enumerated`
+
+- **Asserts:** every `[PublicSurface]` request type appears in the catalogue's enumerated set with its permitted methods; the default is `GET`/`HEAD` and a mutating entry states why. No `[PublicSurface]` type performs a tenant-owned write.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `PublicSurface_Requests_Are_Never_ReadSensitive`
+
+- **Asserts:** no `[PublicSurface]` request type is classified MUST-class `read-sensitive`. Otherwise an anonymous `GET` becomes a durable standalone audit write.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + audit-catalogue cross-check. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `Organizations_Are_Read_By_Composite_Key`
+
+- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
+
+- **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `PlatformAdminScope_Entry_Requires_Platform_Permission`
+
+- **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit. **Kind:** behavioural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+
+#### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
+
+- **Status:** **Reserved and retired.** Never implemented.
+- **Why:** an early draft of ADR-0036 carried a `DeploymentMode.Development` flag that
+  let `X-Tenant-Id` act as the resolution source, and this test would have guarded it.
+  The flag was retired before it shipped: the trusted hop lets a `curl` supply an
+  effective host that goes through the real resolver, the real policy and the real
+  matrix, so there is no code path anywhere that writes a tenant id from a header. The
+  name is recorded here so it does not reappear as a second spelling for something else.
+- **Source:** ADR-0036 § There is no Development override.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
@@ -1166,6 +1325,7 @@ started.
 - [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 - [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
+- [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
 - [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)
 - [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md)
 - [09-error-handling.md](09-error-handling.md)

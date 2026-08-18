@@ -59,7 +59,7 @@ sequenceDiagram
     APISIX->>APISIX: Validate JWT signature + expiry
     APISIX->>API: Forward with X-Correlation-Id
     API->>MW: HTTP pipeline
-    MW->>MW: Read tenant_id, organization_id from JWT claims
+    MW->>MW: Resolve host via platform_host_to_tenant AND read JWT claims;<br/>reject on disagreement (ADR-0036 — agreement, not priority)
     MW->>Accessor: SetTenant(tenantId, organizationId, userId)
     MW->>API: continue
     API->>EF: BeginTransaction, then SET LOCAL app.tenant_id /<br/>app.organization_id as the first statement (TransactionBehavior, step 6)
