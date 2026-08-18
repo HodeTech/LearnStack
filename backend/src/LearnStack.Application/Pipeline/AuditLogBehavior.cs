@@ -8,7 +8,7 @@ namespace LearnStack.Application.Pipeline;
 /// <summary>
 /// MediatR pipeline behavior — step 3 of the canonical 8-step order
 /// (ADR-0032 § Sub-decision 2). Per
-/// <see href="../../../docs/decisions/0016-audit-log-subsystem.md">ADR-0016</see>
+/// <see href="../../../../docs/decisions/0033-audit-durability-model.md">ADR-0033</see>
 /// this behavior wraps the inner pipeline with <c>try / catch</c>, writes a
 /// failure-class audit entry on exception, and rethrows via
 /// <see cref="ExceptionDispatchInfo"/> to preserve the original stack trace.
@@ -56,14 +56,15 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
 
             // TODO(2026-05-21, @platform): Phase 02a Packet 9 — on success,
             // resolve IAuditStateCapture for the request type and write the
-            // success-class audit entry through IAuditStore. Per ADR-0016 +
-            // Standards 18 audit-coverage matrix. The shell shape here keeps
+            // success-class audit entry through IAuditStore. Per ADR-0033
+            // (which supersedes ADR-0016) + the Standards 18 audit-coverage
+            // matrix. The shell shape here keeps
             // the pipeline contract intact until the audit infrastructure
             // lands.
 
             return response;
         }
-#pragma warning disable CA1031 // Do not catch general exception types — ADR-0016 binds the audit-then-rethrow contract here.
+#pragma warning disable CA1031 // Do not catch general exception types — ADR-0032 § Sub-decision 2 binds the audit-then-rethrow contract here.
         // Cancellation = client disconnect = noise per Standards 09 §
         // Sentry vs OpenTelemetry table; the L1 handler already swallows
         // it, and an audit entry for "user pressed Stop" is not useful.

@@ -2,7 +2,7 @@
 
   <!--
     Audit interceptor + state capture + the MediatR `AuditLogBehavior`
-    pipeline (ADR-0016). Phase 02a wires `AuditLogBehavior` into MediatR
+    pipeline (ADR-0033, which supersedes ADR-0016). Phase 02a wires `AuditLogBehavior` into MediatR
     via the core `LearnStack.Application` composition root — that's why we
     pull in `MediatR` here but DO NOT reference `LearnStack.Application`.
     The behavior implements `IPipelineBehavior<,>` (from MediatR) directly;

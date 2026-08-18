@@ -45,9 +45,9 @@ A single bucket per environment is created at first use by the
 ## Re-seed / wipe
 
 ```bash
-docker compose -f infra/compose/dev.yml down seaweedfs
+docker compose --env-file .env -f infra/compose/dev.yml down seaweedfs
 docker volume rm learnstack-dev_seaweedfs-data
-docker compose -f infra/compose/dev.yml up -d seaweedfs
+docker compose --env-file .env -f infra/compose/dev.yml up -d seaweedfs
 ```
 
 ## What does NOT live here

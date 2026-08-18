@@ -3,7 +3,8 @@
 # Glob syntax (same as .gitignore). Each entry must cite WHY the path
 # carries intentional dev-only literals; production never reads from these
 # files, and every production credential surface goes through
-# `ISecretProvider` per Standards 20 § Secrets Management.
+# `ISecretProvider` per Standards 20 § `ISecretProvider` (secrets), and the
+# development-default exemption in Standards 12 § Secrets Management.
 #
 # Prefer inline `# leakwatch:ignore` over .leakwatchignore for single
 # literals — path-level exclusion turns off EVERY detector on the file.

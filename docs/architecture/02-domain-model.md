@@ -6,7 +6,9 @@ This document describes the first domain shape. It is intentionally conceptual a
 > and [ADR-0018](../decisions/0018-tenant-driven-customization-model.md), the domain model
 > adds:
 >
-> 1. **`Organization` aggregate** in the Identity / Tenancy module — sub-unit within a
+> 1. **`Organization` aggregate** in the **Tenancy** module
+>    ([ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md)) —
+>    sub-unit within a
 >    tenant; carries optional `CustomSubdomain`, `BrandingOverride`, `Status`. See
 >    [28-platform-tenant-organization.md](28-platform-tenant-organization.md) for the full
 >    conceptual diagram. Org-scoped entities (`Course`, `Enrollment`, `LiveSession`, ...)

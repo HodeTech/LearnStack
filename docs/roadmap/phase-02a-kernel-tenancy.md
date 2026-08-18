@@ -1,8 +1,8 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-09).** Phase 02a in progress. Packets 0–3 shipped; the 2026-08-08
-> restructure re-scoped packets 4–10 and added packet 3b. Each packet is independently
-> reviewable in its own commit, matching the
+> **Status (2026-08-18).** Phase 02a in progress. Packets 0–3 and 3b shipped; the
+> 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
+> is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
 > later packet may consume any earlier packet's deliverables, never the reverse.
 >
@@ -12,7 +12,7 @@
 > | 1 | Foundation decisions | ✅ [record](#delivery-record-packets-03) |
 > | 2 | Shared Kernel core | ✅ [record](#delivery-record-packets-03) |
 > | 3 | Cross-cutting foundation | ✅ [record](#delivery-record-packets-03) |
-> | 3b | Decision repair | ⏳ [scope](#packet-sequence) |
+> | 3b | Decision repair | ✅ [record](#delivery-record-packet-3b) |
 > | 4 | API conventions | ⏳ [scope](#packet-sequence) |
 > | 5 | Foundation ports and default implementations | ⏳ [scope](#packet-sequence) |
 > | 6 | Tenancy schema and the corrected RLS template | ⏳ [scope](#packet-sequence) |
@@ -26,7 +26,9 @@
 > read it when you want the shape of a subsystem, read the sequence when you want the
 > order. The shipped Packet 0–3 records are at the end of this document under
 > [`## Delivery Record (Packets 0–3)`](#delivery-record-packets-03) and are not
-> rewritten.**
+> rewritten. Packet 3b has its own record in
+> [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), kept separate
+> because the frozen one is scoped to packets 0–3.**
 
 ## Goal
 
@@ -78,7 +80,7 @@ The forward plan for packets 3b–10. Each entry states what the packet lands, w
 depends on, and what gates it. The subsystem view of the same work is [`## Scope`](#scope);
 where the two overlap, Scope is the authority on shape and this section on order.
 
-**Packet 3b — Decision repair ⏳**
+**Packet 3b — Decision repair ✅** ([delivery record](#delivery-record-packet-3b))
 A repair slice. Packets 0–3 are shipped and their records stand — see
 [`## Delivery Record`](#delivery-record-packets-03) at the end of this document; what
 they left behind lands here rather than being edited into their history. This
@@ -94,15 +96,70 @@ orphan.
 
 - `Results.Unit` collides with `MediatR.Unit`. Any handler file that imports
   both namespaces gets an ambiguous reference, and every handler file will
-  import both. Rename before the first handler exists —
-  [Phase 02d](phase-02d-walking-skeleton.md) writes it.
+  import both. Renamed to **`None`** before the first module handler exists —
+  [Phase 02d](phase-02d-walking-skeleton.md) writes it. `None` was chosen
+  because it collides with nothing in the BCL, MediatR, EF Core, Vogen,
+  FluentValidation or Polly, and needs no keyword suppression. The rename
+  sweeps `Result.cs`'s XML doc and its `ArgumentNullException` message,
+  `ResultTests`, [Standards 09](../standards/09-error-handling.md),
+  [Standards 02](../standards/02-backend-coding.md) and the
+  [glossary](../glossary.md) — the type file alone is not "done".
+
+  `LearnStack-Hub` mirrors this kernel and hit the same collision, which it
+  mitigated differently rather than missing. Its current state and its
+  reconciliation are tracked in that repository, not restated here — a second copy
+  of a plan is a plan that will be wrong ([Phase 02c](phase-02c-hub-foundation.md)).
+  LearnStack's side of the boundary is the name: **`None`**.
 - `Result<T>` carries no `[MemberNotNullWhen]` annotations, so the compiler
   cannot prove `Value` is non-null after an `IsSuccess` check. Without them
   every consumer writes `!` or a justification comment, in every module, for
-  the lifetime of the codebase.
+  the lifetime of the codebase. Annotated on **both** `Result<T>` and
+  `IResultBase` — the attributes do not flow from an interface to its
+  implementations, so a caller typed to `Result<T>` gains nothing from the
+  interface's copy alone. Proved by a test that dereferences `Value` after an
+  `IsSuccess` check with no `!` and no `#pragma`: remove the annotations and the
+  test stops compiling, which is the only way to assert a compile-time contract
+  from inside a test suite.
 - `Entity<TId>` overrides `Equals(object?)` but implements neither
-  `IEquatable<Entity<TId>>` nor `operator ==`. Every equality comparison boxes,
-  and the EF change tracker compares constantly.
+  `IEquatable<Entity<TId>>` nor `operator ==`. Two consequences, and the widely
+  assumed one is not among them: **EF Core's change tracker does not call
+  `Entity<TId>.Equals`** — its identity map keys on the primary-key value through
+  a `ValueComparer` and tracks instances by reference. What actually breaks is
+  (a) without `==`, two aggregates compared with `==` fall back to reference
+  equality, silently skipping the transient and cross-type guards `Equals`
+  enforces — so `a == b` and `a.Equals(b)` disagree; and (b) `Id.Equals(other.Id)`
+  binds to `ValueType.Equals(object)` and boxes the struct id on **every**
+  comparison. Measured per call on the shipped kernel, Release:
+
+  | | `Equals` / `==` / `Equals(object)` | `GetHashCode` |
+  |---|---|---|
+  | As Packet 3 shipped it | 120 B | 40 B |
+  | Dead `default(TId)` guard removed | 40 B | 0 B |
+  | `IEquatable<TId>` added to the constraint | **0 B** | **0 B** |
+
+  Two causes, not one, and it is worth keeping them apart: the constraint accounts
+  for a single boxed call, while the guard that turned out to be dead accounted for
+  two more. All three equality entry points now delegate to one typed body, and
+  `Equals(object?)` / `GetHashCode()` are `sealed override` so no aggregate can
+  redefine them — with both sealed, a derived `operator ==` can no longer silence
+  CS0660 / CS0661 and fails the build.
+
+  Two things this packet found only by measuring, both now fixed and both
+  previously stated wrong in this document:
+
+  - The transient guard was **dead code**. It asked `Id.Equals(default(TId))`, but
+    a Vogen `[ValueObject]` returns `false` from `Equals` when either side is
+    uninitialized — so the question answered `false` for a transient id and the
+    guard never ran. `GetHashCode` therefore took the `HashCode.Combine` branch and
+    **threw** `ValueObjectValidationException` for any unsaved aggregate: a
+    `HashSet` of two new aggregates was an exception, not a set. `IStronglyTypedId`
+    gains `IsInitialized()` — which every Vogen id already emits — and both guards
+    ask that instead.
+  - `EqualityComparer<T>.Default` still picks `ObjectEqualityComparer` for a
+    concrete aggregate, because `Course` is `IEquatable<Entity<CourseId>>` and never
+    `IEquatable<Course>`. Fixing that needs a CRTP base (`Entity<TSelf, TId>`) and
+    is **not** worth it: with the id constraint in place, routing through
+    `Equals(object?)` allocates nothing.
 
 **Corpus repairs:**
 
@@ -117,9 +174,21 @@ orphan.
   "Packet 5", across four files: `CrossCuttingFoundationExtensions.cs` (five sites,
   including the `TODO(2026-05-21, @platform)`), `ErrorTrackingRegistration.cs` (two),
   `LearnStack.SharedKernel.csproj` (one) and `ISecretProvider.cs` (one).
-  `ConfigurationSecretProvider.cs` carried a tenth and is **already corrected** — the
-  restructure fixed it while sweeping the provider's name, so it is not part of this
-  packet's work. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+  `ConfigurationSecretProvider.cs` carries a tenth. The restructure fixed its
+  *packet pointer* but left ADR-0035's explicitly rejected trigger clause — "or a
+  non-development deployment" — in place, so it is **ten** sites, not nine. Two carry
+  a second error beyond the phase: `ISecretProvider.cs` says Packet 5 adds the
+  `DeploymentMode` branching, when Packet 3 shipped the single selection site and only
+  the branch is deferred; and the `SelectSecretProvider` TODO invents a
+  `FileSecretProvider` type that appears in no document. The matrix in
+  [Standards 20](../standards/20-infrastructure-stack.md) reads
+  "`DaprSecretProvider` → Vault **or file**" for air-gapped, so a file *store* is
+  allowed and a separate *provider type* is not — the earlier wording overstated
+  it in the other direction. The deferral now carries the four elements CLAUDE.md
+  requires — port, default, owning phase, trigger — stated once in full at
+  `SelectSecretProvider`'s TODO; the four neighbouring mentions are
+  cross-references to it, not four copies, because the rule is single-source and
+  four copies is how the RLS template shipped broken in four files at once. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
   moved every Dapr adapter to [Phase 11](phase-11-production-hardening.md)
   against a written trigger, so those comments now point at a packet that will
   not ship them. The seam they describe is correct and unchanged — only the
@@ -128,18 +197,29 @@ orphan.
   as the mechanism for setting the Row Level Security session variables.
   Interceptors fire when the connection opens, not when the transaction starts,
   and `set_config(..., true)` is transaction-local — so the value would be gone
-  before the query it protects. The TODO is corrected to point at
-  [Security Standards § Tenant Context](../standards/11-security.md) and at
-  Packet 7, which implements it.
+  before the query it protects. **Three** sites carry the wrong mechanism, not one —
+  and the third says "RLS interceptor" rather than the type name, so a sweep that
+  greps the type finds two and reports itself finished. All three are corrected to
+  name `TransactionBehavior`'s `SET LOCAL` at step 6, per
+  [Security Standards § Tenant Context](../standards/11-security.md) — the single
+  authority for the placement, which assigns the implementation to **Packet 7**.
+  Packet 6 opens the transaction; Packet 7 issues the `SET LOCAL` inside it, together
+  with the resolver that gives it a tenant to write. Correcting the TODO is 3b's;
+  implementing the mechanism is Packet 7's.
 
 **Development-loop and CI repairs.** [Phase 01](phase-01-repository-tooling.md)
 is complete and its record stands; the gaps it shipped with are remediated
 here:
 
-- `make seed`'s health gate requires every compose service to report healthy,
-  but `coturn`, `dapr-placement` and `dapr-sidecar-api` declare no healthcheck —
-  so the gate times out and the script exits non-zero on **every** run. This is
-  step three of the quickstart.
+- `make seed`'s health gate requires every compose service to report healthy, but
+  three declare no healthcheck — so the gate times out and the script exits non-zero
+  on **every** run. This is step three of the quickstart. Only two of the three are
+  genuinely exempt: `daprio/placement` and `daprio/daprd` are single-binary images
+  with no shell and no probe tool. `coturn` is not — it ships
+  `turnutils_stunclient` and gains a real STUN probe. The gate skips the exempt set,
+  derived per service from the compose file rather than from an empty Health value,
+  because a crash-looping service reports an empty Health for the instant after each
+  restart attempt and a value-based skip passes it.
 - `infra/compose/e2e.yml` resets PostgreSQL, SeaweedFS, Meilisearch and Kafka to
   `tmpfs` but leaves Valkey on its named volume, so cache and rate-limit state
   leaks between end-to-end runs. Its `volumes: !reset []` additionally discards
@@ -153,6 +233,31 @@ here:
   required `frontend` check never sits red across a packet boundary. The
   substantive frontend suite still arrives with
   [Phase 02d](phase-02d-walking-skeleton.md).
+
+  Standing the harness up is more than deleting a flag: it needs
+  `vitest.config.ts`, a jsdom environment, `@vitejs/plugin-react` (pinned to
+  `^4` — `@vitejs/plugin-react@6` requires Vite 8 while vitest 2.1.x resolves
+  Vite 5), `@testing-library/react` + `jest-dom`, and a setup file.
+
+  **`jsdom` is capped at `^26` and `jest-dom` at `^6.9` on purpose.** CI pins
+  Node 20.11.0; `jsdom@30` requires `^22.22.2 || ^24.15.0 || >=26.0.0` and pulls
+  `html-encoding-sniffer@6`, so on CI's Node the suite dies with an
+  `ERR_REQUIRE_ESM` naming a transitive package, with nothing in the output
+  mentioning Node or jsdom. jsdom 27, 28 and 29 do not help — same transitive.
+  Revisit when the Node pin rises, not before.
+
+  The config lives in `apps/web` rather than `@learnstack/config` — but not
+  because a shared export could not work: that package already exports
+  `./eslint`, `./tsconfig/*` and `./tailwind`, validated the same way, by
+  `apps/web` consuming them. There is no second consumer **by design**.
+  ADR-0009 keeps one Next.js app in this repository, the operator portal lives
+  in `LearnStack-Hub`, and the *Implemented* architecture test
+  `Frontend_Has_Only_The_Web_App` fails the build if a second app appears here.
+
+  One limit worth stating rather than discovering later: `pnpm -r test` covers
+  `apps/web` alone. `packages/config`, `packages/sdk` and `packages/ui` declare
+  no `test` script, so they stay silently green — the required `frontend` check
+  proves something about the app and nothing about the packages.
 - Branch protection requires four checks but zero approvals and does not enforce
   for administrators, which contradicts
   [Git Workflow Standards](../standards/14-git-workflow.md). Either the setting
@@ -221,6 +326,12 @@ nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
 projection), `platform_entitlement_cache`, `platform_host_to_tenant`, and
 `outbox_messages`. Default-organization seeding at tenant creation.
 
+The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, with
+its EF configuration and its migration on `TenancyDbContext`, per [ADR-0017 Amendment 2
+(2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md). Identity holds
+`OrganizationId` by value from `LearnStack.SharedKernel` and reads organization data
+through an application contract; it declares no `Organization` type of its own.
+
 The `outbox_messages` table ships here even though nothing dispatches from it
 until [Phase 02b](phase-02b-events-auth.md): the table's schema and its
 ownership by LearnStack are a one-way door, and that ownership is precisely
@@ -275,8 +386,9 @@ from a MediatR behavior that runs before `TransactionBehavior`, or from a
 connection interceptor that fires at connection open, it is discarded before the
 query it is meant to protect ever runs. The corpus previously described all
 three placements; [Security Standards § Tenant Context](../standards/11-security.md)
-is now the single authority, and the Packet 3 `TenantContextBehavior` TODO —
-which names the connection-interceptor option — is corrected here.
+is now the single authority. The Packet 3 `TenantContextBehavior` TODO — which
+named the connection-interceptor option — was corrected in Packet 3b; this packet
+implements the mechanism it now points at.
 
 Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the narrow
 cross-tenant access path. It reaches `learnstack_platform` through a **second,
@@ -675,12 +787,14 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
   `backend/analyzers/` flags every `throw new DomainException(...)` outside
   aggregate invariant guards. Warning in Phase 02a, escalates to Error after
   Phase 03 exit.
-- **`IProviderResilience<TPort>` decorator** with Polly v8
+- **`IProviderResilience<TPort>` collaborator** with Polly v8
   `ResiliencePipeline` (retry + circuit breaker + timeout + bulkhead) lives
   in `LearnStack.Infrastructure.Resilience`. Configuration shape:
   `appsettings.Resilience:<port-name>:`. Every adapter is wired through the
-  `AddProviderResilience<TPort, TImpl>(string portName)` composition-root
-  extension. The
+  `AddProviderResilience<TPort>(IConfiguration, string portName)`
+  composition-root extension and takes the pipeline as a constructor
+  collaborator — there is no decorator, because C# forbids a type parameter
+  as a base type ([ADR-0032 Amendment 2](../decisions/0032-exception-handling-logging-and-observability.md)). The
   [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
   skill walks the canonical wiring.
 - **Serilog primary logger + OTLP sink.** Hosts wire
@@ -921,7 +1035,7 @@ land in Phase 02b.
 - Cross-cutting foundation (per
   [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)):
   `LearnStackExceptionHandler`, 8-step MediatR pipeline, `Result.ToActionResult`
-  extension, `IProviderResilience<TPort>` decorator, Serilog + OTLP sink,
+  extension, `IProviderResilience<TPort>` collaborator, Serilog + OTLP sink,
   `TenantContextSpanProcessor`, `IErrorTrackingProvider` with three
   implementations, Roslyn analyzer for `DomainException`. The
   [wire-cross-cutting-foundation](../../.claude/skills/wire-cross-cutting-foundation/SKILL.md)
@@ -1466,3 +1580,86 @@ Nothing in them was reworded when they moved.
 >   [Phase 02d](phase-02d-walking-skeleton.md) then renders both of them in a
 >   browser.
 >
+
+## Delivery Record (Packet 3b)
+
+Kept separate from the Packets 0–3 record above, which is frozen and scoped to those
+packets. This one records what Packet 3b actually shipped, including where its own
+plan turned out wrong — a repair packet that hides its misses teaches nothing.
+
+> **Packet 3b — Decision repair ✅**
+>
+> **Shared Kernel.** `Results.Unit` → **`None`**, chosen by compiling the candidate
+> against MediatR, FluentValidation, EF Core and Vogen rather than by argument.
+> `[MemberNotNullWhen]` on `Result<T>` **and** `IResultBase` — the annotations do not
+> flow from an interface to its implementations. `Entity<TId>` gained
+> `IEquatable<Entity<TId>>`, `==` / `!=`, and one typed body every entry point
+> delegates to; `Equals(object?)` and `GetHashCode()` are `sealed override`.
+>
+> Three things the packet's own plan had wrong, all found by measuring:
+>
+> - **The transient guard was dead code.** `Id.Equals(default(TId))` cannot detect an
+>   unset Vogen id — Vogen returns `false` when either side is uninitialized — so
+>   `GetHashCode()` threw `ValueObjectValidationException` for any unsaved aggregate.
+>   A `HashSet` of two new aggregates was an exception, not a set.
+>   `IStronglyTypedId` gained `IsInitialized()`; ADR-0023 Amendment 3 records it.
+> - **The boxing was never where the plan said.** `Entity<TId>` is a class, so
+>   `Equals(object?)` never boxed anything. Measured: 120 B/call as Packet 3 shipped
+>   it, 40 B once the dead guard went, 0 B once the constraint gained
+>   `IEquatable<TId>`. Two causes, not one.
+> - **`AuditableEntity`'s audit-actor guard had the identical defect**, one file from
+>   the one being fixed.
+>
+> **Corpus.** ADR-0035's explicitly rejected Vault trigger was quoted in four places;
+> ADR-0032's `Decorate<TPort, …>` example did not compile, and neither did its copy in
+> `wire-cross-cutting-foundation/SKILL.md` — the executable one. Three skills taught
+> `LocalizedMessage` keys without the `lockey_` prefix, which the constructor rejects
+> by throwing: code that compiles and fails on first use; a fourth,
+> `standards-check`, taught the wrong `Result.Fail` signature instead.
+> `add-mediatr-handler` taught an `ICommand`/`ICommandHandler` layer that exists
+> nowhere. Ten secret-provider
+> comments were repointed to Phase 11 with the four elements CLAUDE.md requires, and
+> **fourteen of nineteen** `<see href>` targets in C# XML docs were broken — the
+> majority spelling used three `../` and resolved to a `backend/docs/` that has never
+> existed, because CI's link audit reads Markdown only.
+>
+> **Dev loop.** `make seed` exits 0. It had failed on **every** run since Phase 01:
+> the gate flagged any service with no healthcheck, and two images cannot carry one
+> (`daprio/placement` and `daprio/daprd` have no shell). `coturn` was not exempt —
+> it ships `turnutils_stunclient`. The e2e overlay had **never booted**: `cp-kafka`
+> runs as uid 1000 and Docker gives a tmpfs target the parent's mode but not its
+> ownership. Its `volumes: !reset []` was also discarding `postgres-init` and the S3
+> identity file — under that overlay an isolation suite would have run as the owning
+> superuser, where `FORCE ROW LEVEL SECURITY` is inert. Every published port binds
+> `127.0.0.1`; Kafka's 9092 and placement's 50005 were removed rather than rebound.
+> The 14 `container_name:` literals are gone so `-p` means something, but that alone
+> does **not** make two projects concurrently runnable: the host ports are fixed
+> literals, so a second project now fails on a port bind instead of a name clash.
+> `make dev` and `make e2e-up` are still mutually exclusive.
+>
+> **Frontend.** The Vitest harness replaces `--passWithNoTests`, verified by deleting
+> the test rather than by running it. `jsdom` is capped at `^26` and `jest-dom` at
+> `^6.9` because CI pins Node 20.11.0 — see the Packet 3b scope entry for the
+> mechanism and the trigger to revisit.
+>
+> **Governance.** ADR-0017 Amendment 2 settles the `Organization` aggregate in
+> `LearnStack.Modules.Tenancy.Domain`; ADR-0023 Amendments 2 and 3 cover the three
+> cross-cutting identifiers and `IsInitialized()`. No new ADR number was taken —
+> 0036 remains unclaimed. Two branch-protection settings are deferred by maintainer
+> decision (2026-08-10) with a named trigger, recorded in
+> [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md).
+>
+> **Method.** Every step ran two adversarial review rounds. The recurring finding was
+> one shape: *a claim verified against something other than what ships* — an awk
+> tested on synthetic `docker compose ps` rows, a fence compiled inside a wrapper
+> written for the test, a diff whose normaliser filtered out exactly the lines that
+> differed, a harness verified on Node 22 when CI pins 20.11.0. Two of those classes
+> are now mechanically checkable and were run against this branch: every `<see href>`
+> target in the backend resolves, and every prose line the branch adds respects the
+> 88-column rule in
+> [Documentation Standards](../standards/13-documentation.md). Both checks live in
+> the author's local scratchpad, which is gitignored — a reader of this repository
+> cannot run them, so treat the claim as a measurement taken, not as shipped tooling.
+> Promoting them to CI is [Phase 02b](phase-02b-events-auth.md)'s to do, on the
+> trigger that a second contributor gains write access and the checks stop being
+> one person's habit.

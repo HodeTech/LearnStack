@@ -8,7 +8,7 @@ namespace LearnStack.Application.Pipeline;
 /// (ADR-0032 § Sub-decision 2). Enrols <c>IOutbox</c> messages in the
 /// current unit-of-work transaction; the outbox processor publishes them
 /// via <c>IEventBus</c> on commit (see
-/// <see href="../../../docs/architecture/15-event-and-outbox.md">15-event-and-outbox.md</see>).
+/// <see href="../../../../docs/architecture/15-event-and-outbox.md">15-event-and-outbox.md</see>).
 /// </summary>
 /// <remarks>
 /// Phase 02a Packet 3 ships the <strong>shell</strong>: there is no

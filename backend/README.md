@@ -19,14 +19,14 @@ backend/
     LearnStack.Application.Contracts/      # cross-module contracts root
     LearnStack.Application/                # composition pipeline (MediatR + validators)
     LearnStack.Infrastructure/             # EF + cross-cutting infra
-    LearnStack.Infrastructure.Audit/       # ADR-0016 audit pipeline plumbing
+    LearnStack.Infrastructure.Audit/       # ADR-0033 audit pipeline plumbing
     LearnStack.Api/                        # ASP.NET host
 
     Modules/
       Tenancy/                             # 4-package layout per module
       Identity/
       Customization/                       # ADR-0018 tenant customization aggregates
-      Audit/                               # AuditEntry aggregate (ADR-0016)
+      Audit/                               # AuditEntry aggregate (ADR-0033)
       Content/
       Media/
       Education/

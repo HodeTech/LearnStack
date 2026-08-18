@@ -10,8 +10,9 @@ LearnStack starts as a modular monolith. Modules must be independently understan
 >    (interceptor + state capture + MediatR behavior + `audit_log` table) lives in
 >    `LearnStack.Infrastructure.Audit` and is shared across modules. See
 >    [31-audit-subsystem.md](31-audit-subsystem.md).
-> 2. **`Organization` aggregate** lives inside the Tenancy / Identity module per
->    [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). Tenant-owned entities
+> 2. **`Organization` aggregate** lives inside the **Tenancy** module per
+>    [ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md).
+>    Tenant-owned entities
 >    that are org-scoped carry `OrganizationId`; the column is nullable
 >    (tenant-wide rows leave it null).
 > 3. **LearnStack Hub** ([ADR-0019](../decisions/0019-learnstack-hub.md)) is **NOT a

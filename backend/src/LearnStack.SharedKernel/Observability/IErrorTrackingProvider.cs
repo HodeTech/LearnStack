@@ -2,7 +2,7 @@ namespace LearnStack.SharedKernel.Observability;
 
 /// <summary>
 /// Sanctioned entry point for error capture. Per
-/// <see href="../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
+/// <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
 /// § Sub-decision 9</see> the L1 <c>IExceptionHandler</c> is the only
 /// production caller; modules never import <c>Sentry.SentrySdk</c> directly.
 /// The composition root selects the implementation by <c>DeploymentMode</c>

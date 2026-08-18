@@ -82,15 +82,16 @@ In the producer's command handler (see
 ```csharp
 await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
 {
-    TenantId = tenantContext.Current.TenantId.Value,
-    OrganizationId = tenantContext.Current.OrganizationId?.Value,
+    TenantId = tenantContext.TenantId,
+    OrganizationId = tenantContext.OrganizationId,
     EnrollmentId = enrollment.Id.Value,
-    LearnerId = cmd.LearnerId.Value,
-    CourseVersionId = cmd.CourseVersionId.Value,
-    Source = cmd.Source.ToString().ToLower(),
-}, ct);
+    LearnerId = request.LearnerId.Value,
+    CourseVersionId = request.CourseVersionId.Value,
+    CohortId = request.CohortId?.Value,
+    Source = request.Source.ToString().ToLowerInvariant(),
+}, cancellationToken);
 
-await db.SaveChangesAsync(ct);   // atomic
+await db.SaveChangesAsync(cancellationToken);   // atomic
 ```
 
 Rules:

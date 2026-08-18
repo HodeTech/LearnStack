@@ -60,14 +60,18 @@ public sealed record CreateEnrollmentCommand(
     CourseVersionId CourseVersionId,
     CohortId? CohortId,
     EnrollmentSource Source)
-    : ICommand<Result<EnrollmentDto>>;
+    : IRequest<Result<EnrollmentDto>>;
 ```
 
 Rules:
 
 - Records, not classes.
 - Strongly-typed ids; no raw `Guid` in the command surface.
-- `: ICommand<Result<T>>` for writes; `: IQuery<Result<T>>` for reads.
+- `: IRequest<Result<T>>` for both writes and reads — MediatR's own marker.
+  There is no `ICommand<T>` / `IQuery<T>` layer in LearnStack: nothing declares one,
+  and [Standards 02 § MediatR Use Cases](../../../docs/standards/02-backend-coding.md)
+  shows `IRequest` / `IRequestHandler` directly. Name the type for the intent instead
+  (`…Command` / `…Query`).
 - Live in `Application.Contracts` so other modules can subscribe to the typed contract
   (rare; usually they consume integration events instead).
 
@@ -89,7 +93,19 @@ public sealed class CreateEnrollmentCommandValidator : AbstractValidator<CreateE
 
 The `ValidationBehavior` in the pipeline runs the validator before the handler. A
 validation failure returns
-`Result.Fail(LocalizedMessage.Of("validation.<key>"))` automatically.
+`Result.Fail<T>(new Error(LocalizedMessage.Of("lockey_validation_failed", …)))`
+automatically — it never throws `ValidationException`.
+
+Two shapes to get right, because both fail at runtime rather than at review:
+
+- **`Fail` takes an `Error`, not a `LocalizedMessage`.** The signature is
+  `Result.Fail<T>(Error error)` / `Result<T>.Fail(Error error)`; wrap the message:
+  `new Error(LocalizedMessage.Of("lockey_…"))`.
+- **Every localization key starts with `lockey_`.** `LocalizedMessage`'s constructor
+  throws `ArgumentException` otherwise, so
+  `LocalizedMessage.Of("enrollment.already_exists")`
+  compiles and then throws on first use. `Error.Code` is this key with the prefix
+  stripped, which is why the prefix is an invariant rather than a convention.
 
 ### Step 3: Handler
 
@@ -99,49 +115,52 @@ In `<Module>.Application/<Aggregate>/<Verb><Aggregate>CommandHandler.cs`:
 public sealed class CreateEnrollmentCommandHandler(
     EnrollmentDbContext db,
     ITenantContext tenantContext,
-    IOutbox outbox,
-    ILogger<CreateEnrollmentCommandHandler> logger)
-    : ICommandHandler<CreateEnrollmentCommand, Result<EnrollmentDto>>
+    IOutbox outbox)
+    : IRequestHandler<CreateEnrollmentCommand, Result<EnrollmentDto>>
 {
+    // Parameter names match IRequestHandler<,>.Handle exactly. CA1725 is an error
+    // under this repo's CI settings, so `cmd` / `ct` would fail the build. Logging
+    // lives in LoggingBehavior, so a handler takes no ILogger unless it logs.
     public async Task<Result<EnrollmentDto>> Handle(
-        CreateEnrollmentCommand cmd, CancellationToken ct)
+        CreateEnrollmentCommand request, CancellationToken cancellationToken)
     {
         // Domain check
         var existing = await db.Enrollments.AnyAsync(
-            x => x.LearnerId == cmd.LearnerId && x.CourseVersionId == cmd.CourseVersionId,
-            ct);
+            x => x.LearnerId == request.LearnerId && x.CourseVersionId == request.CourseVersionId,
+            cancellationToken);
 
         if (existing)
             return Result.Fail<EnrollmentDto>(
-                LocalizedMessage.Of("enrollment.already_exists"));
+                new Error(LocalizedMessage.Of("lockey_enrollment_already_exists")));
 
         var enrollment = Enrollment.Create(
-            tenantContext.Current.TenantId,
-            tenantContext.Current.OrganizationId,
-            cmd.LearnerId,
-            cmd.CourseVersionId,
-            cmd.CohortId,
-            cmd.Source);
+            tenantContext.TenantId,
+            tenantContext.OrganizationId,
+            request.LearnerId,
+            request.CourseVersionId,
+            request.CohortId,
+            request.Source);
 
         db.Enrollments.Add(enrollment);
 
-        await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
+        await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
         {
-            TenantId = tenantContext.Current.TenantId.Value,
-            OrganizationId = tenantContext.Current.OrganizationId?.Value,
+            TenantId = tenantContext.TenantId,
+            OrganizationId = tenantContext.OrganizationId,
             EnrollmentId = enrollment.Id.Value,
-            LearnerId = cmd.LearnerId.Value,
-            CourseVersionId = cmd.CourseVersionId.Value,
+            LearnerId = request.LearnerId.Value,
+            CourseVersionId = request.CourseVersionId.Value,
+            CohortId = request.CohortId?.Value,
             // OccurredAt is auto-populated by IntegrationEventBase — do not set
             // it manually. If you need it explicitly, inject IClock and use
             // clock.UtcNow per 02-backend-coding.md § Time.
-        }, ct);
+        }, cancellationToken);
 
-        await db.SaveChangesAsync(ct);   // atomic: aggregate + outbox row
+        await db.SaveChangesAsync(cancellationToken);   // atomic: aggregate + outbox row
 
-        return Result.Success(
+        return Result.Ok(
             MapToDto(enrollment),
-            LocalizedMessage.Of("enrollment.created"));
+            LocalizedMessage.Of("lockey_enrollment_created"));
     }
 }
 ```
@@ -149,12 +168,16 @@ public sealed class CreateEnrollmentCommandHandler(
 Rules:
 
 - `Result<T>` everywhere. Throw only for *unexpected* failures (network, db down).
-- `LocalizedMessage` keys carry the `lockey_` prefix invariant in serialization
-  (handled by the result mapper).
+- `LocalizedMessage` keys carry the `lockey_` prefix, enforced by the **constructor**
+  — not by serialization and not by a mapper. A mis-prefixed key throws where it is
+  written, which is the point.
 - Outbox row written **inside** the same `DbContext` transaction. Never open a
   second transaction for the event publish.
-- Read `TenantContext.Current` for tenant + org; don't accept them from the command
-  body.
+- Read `ITenantContext.TenantId` / `.OrganizationId` for tenant + org; don't accept them
+  from the command body. There is no `.Current` on `ITenantContext` —
+  `Current` belongs to `ITenantContextAccessor`, which is cross-cutting
+  infrastructure and is not injected into
+  handlers ([ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)).
 
 ### Step 4: Audit catalogue entry
 

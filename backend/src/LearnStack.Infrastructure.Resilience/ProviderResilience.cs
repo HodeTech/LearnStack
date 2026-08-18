@@ -51,7 +51,7 @@ internal sealed class ProviderResilience<TPort> : IProviderResilience<TPort>
     {
         var builder = new ResiliencePipelineBuilder();
 
-        if (options.Retry.Enabled && options.Retry.MaxAttempts > 0)
+        if (options.Retry.Enabled && options.Retry.MaxRetryAttempts > 0)
         {
             builder.AddRetry(new RetryStrategyOptions
             {
@@ -59,7 +59,7 @@ internal sealed class ProviderResilience<TPort> : IProviderResilience<TPort>
                     .Handle<InfrastructureException>()
                     .Handle<ProviderException>(static ex => !ex.IsClientError)
                     .Handle<TimeoutRejectedException>(),
-                MaxRetryAttempts = options.Retry.MaxAttempts,
+                MaxRetryAttempts = options.Retry.MaxRetryAttempts,
                 Delay = TimeSpan.FromSeconds(options.Retry.DelaySeconds),
                 BackoffType = DelayBackoffType.Exponential,
                 UseJitter = options.Retry.UseJitter,

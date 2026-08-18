@@ -268,6 +268,77 @@ Two clarifications surfaced when the ADR met implementation in
   [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
   at that point.
 
+### Amendment 2 — cross-cutting identifiers (2026-08-10)
+
+`UserId`, `TenantId` and `OrganizationId` live in `LearnStack.SharedKernel`.
+
+The Decision splits `[ValueObject<>]` declarations two ways: `LearnStack.SharedKernel`
+for cross-cutting value objects, and each `LearnStack.Modules.<X>.Domain` for **that
+module's aggregate-root IDs**. Three identifiers satisfy both arms, and the Decision's
+illustrative list — `Email`, `Slug`, `LocaleCode`, `Money` — contains no identifier, so
+it settles nothing for them.
+
+**`UserId`, `TenantId` and `OrganizationId` are cross-cutting value objects and live in
+`LearnStack.SharedKernel`.** They are the only three; every other aggregate-root ID
+follows the Decision's second arm unchanged.
+
+The reason is structural, not stylistic. `AuditableEntity<TId>` is a **SharedKernel**
+type and carries `CreatedBy` / `UpdatedBy` / `DeletedBy` as `UserId`, so `UserId` cannot
+live in `LearnStack.Modules.Identity.Domain` — SharedKernel may not reference a module.
+`TenantId` appears on every tenant-owned entity in every module and `OrganizationId` on
+every org-scoped one, so placing either in its owning module's `Domain` would make every
+other module's `Domain` reference `Tenancy.Domain`, which
+`ModuleDomain_DoesNotDependOn_OtherModuleDomain` rejects.
+
+This records what shipped and what the corpus already assumed: `UserId` is listed under
+SharedKernel in § Implementation Notes and exists at
+`backend/src/LearnStack.SharedKernel/Identifiers/UserId.cs`, and [Phase 02a Packet
+6](../roadmap/phase-02a-kernel-tenancy.md) introduces `TenantId` / `OrganizationId` in
+the same assembly. What was missing was the rule that licenses it, so each of the three
+read as an unexplained exception.
+
+Aggregate-root **ownership** is unaffected: the `Organization` aggregate is declared in
+`LearnStack.Modules.Tenancy.Domain` per
+[ADR-0017 Amendment 2 (2026-08-10)](0017-tenant-organization-hierarchy.md#2026-08-10--module-ownership-of-the-organization-aggregate).
+An ID in SharedKernel is a shared vocabulary, not a claim on the aggregate.
+
+This is a clarification; the Decision is unchanged.
+
+### Amendment 3 — `IStronglyTypedId<TKey>` is no longer a pure marker (2026-08-10)
+
+The Decision calls `IStronglyTypedId<TKey>` a **marker** interface and closes with
+"the interface stays; Vogen is just the body". Both readings need narrowing after
+[Phase 02a Packet 3b](../roadmap/phase-02a-kernel-tenancy.md).
+
+**The interface carries one behavioural member: `bool IsInitialized()`.** It is no
+longer a pure marker. The member exists because the obvious spelling of "is this id
+unset?" — `id.Equals(default(TId))` — silently answers `false` for an unset id: a
+Vogen `[ValueObject]` returns `false` from `Equals` whenever either side is
+uninitialized. A guard written that way never runs, which is what shipped in Packet 2
+and what Packet 3b found by measuring: `Entity<TId>.GetHashCode()` threw
+`ValueObjectValidationException` for any aggregate that had not been given an id, so
+a `HashSet` of two new aggregates was an exception rather than a set.
+
+**"Vogen is just the body" now has a direction.** Vogen emits `IsInitialized()`, so
+every existing id satisfies the member without a line of code — but the dependency
+runs the other way too: the interface now requires something only Vogen happens to
+generate. A hand-written id must implement it explicitly, and replacing Vogen means
+replacing that member as well. That is a real narrowing of the Decision's "the
+interface stays" independence, and it is recorded here rather than discovered later.
+
+**Aggregate id type parameters also constrain to `IEquatable<TId>`.** Without it
+`id.Equals(other.Id)` binds to `ValueType.Equals(object)` and boxes. Measured per
+call on the shipped kernel: 40 bytes for that single call, and 0 with the constraint.
+Every Vogen `record struct` already implements `IEquatable<TSelf>`, so this is a
+constraint on the *use* of ids, not a new requirement on ids themselves. It is stated
+here because it is a consequence of choosing a struct-based id generator, which is
+this ADR's decision.
+
+Both rules are written in
+[Standards 02 § Domain Modeling](../standards/02-backend-coding.md).
+
+This is a clarification; the Decision is unchanged.
+
 ## References
 
 - [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)

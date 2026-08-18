@@ -50,7 +50,11 @@ public sealed class TenantContextSpanProcessor(ITenantContextAccessor accessor)
                 data.SetTag("organization.id", orgId.ToString());
             }
 
-            if (context.UserId is { } userId)
+            // IsInitialized() before Value: UserId? being non-null says a
+            // UserId struct is there, not that it was ever assigned one, and
+            // reading Value on an unassigned Vogen id throws. This processor
+            // runs inside Activity.Start() for every span and must never throw.
+            if (context.UserId is { } userId && userId.IsInitialized())
             {
                 data.SetTag("user.id", userId.Value.ToString());
             }

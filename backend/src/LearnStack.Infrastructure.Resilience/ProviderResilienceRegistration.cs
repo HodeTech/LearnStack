@@ -13,14 +13,13 @@ namespace LearnStack.Infrastructure.Resilience;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The decorator wiring itself lives on the per-adapter <c>AddProviderAdapter</c>
-/// path (added together with the first real adapter; see
-/// <c>add-provider-adapter</c> skill). Phase 02a Packet 3 ships the
-/// resilience socket only — adapters consume
-/// <see cref="IProviderResilience{TPort}"/> from their constructor and route
-/// outbound calls through <c>Pipeline.ExecuteAsync</c>. Subsequent packets
-/// can layer a Scrutor / DynamicProxy-based decorator on top without
-/// changing the socket shape.
+/// There is no decorator and no <c>AddProviderAdapter</c> — the adapter takes
+/// <see cref="IProviderResilience{TPort}"/> as a constructor collaborator and
+/// routes outbound calls through <c>Pipeline.ExecuteAsync</c> itself (see the
+/// <c>add-provider-adapter</c> skill). C# forbids a type parameter as a base
+/// type, so no <c>ResilientProviderAdapter&lt;TPort&gt; : TPort</c> can exist;
+/// ADR-0032 Amendment 2 records that its original example could not compile.
+/// Phase 02a Packet 3 ships the resilience socket only.
 /// </para>
 /// </remarks>
 public static class ProviderResilienceRegistration

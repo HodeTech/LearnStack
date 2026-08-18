@@ -82,42 +82,57 @@ pnpm install --frozen-lockfile
 ### Step 3: Bring up the stack
 
 ```bash
-make dev      # the canonical orchestrator; wraps docker-compose + dotnet + pnpm
+make dev      # brings the containers up — and only the containers
 ```
 
-Equivalent without the make wrapper:
+`make dev` is `docker compose up -d` plus a status line. It does **not** start
+the API or the web app, and it does not run migrations or seeds; those are
+separate commands you run yourself:
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up -d
-docker compose -f infra/compose/dapr.yml up -d
-docker compose -f infra/compose/apisix.yml up -d
+dotnet run --project backend/src/LearnStack.Api    # API on 5080
+pnpm --filter @learnstack/web dev                  # web on 3000
+make seed                                          # health gate + demo credentials
 ```
 
-The components and their default ports:
+What `make dev` expands to:
 
-| Component | Port | Purpose |
-|-----------|------|---------|
-| Postgres | 5432 | Main DB. |
-| Valkey | 6379 | Cache + Dapr state. |
-| Kafka | 9092 | Dapr pub/sub backend. |
-| Kafka UI | 9094 | Optional UI for topics. |
-| Vault (dev mode) | 8200 | Secrets backend; `root` token, **not** for production. |
-| Keycloak | 8080 | Two realms: `learnstack` (tenants) + `learnstack-hub` (operators). |
-| SeaweedFS | 9000 (S3 API) / 9001 (filer UI) / 9333 (master) | Object storage (single dev binary: master + volume + filer + S3 gateway). |
-| Meilisearch | 7700 | Search. |
-| LiveKit | 7880 (API) / 7881 (TLS) / 7882 (RTC) | Live classroom. |
-| coturn | 3478 / 5349 | TURN for LiveKit. |
-| LiveKit Egress | — | Recording worker. |
-| Mailhog | 8025 | Captures outbound email in dev. |
-| OTel Collector | 4317 (gRPC) | Local observability. |
-| Dapr sidecar (per service) | 3500 (HTTP) / 50001 (gRPC) | Building-block runtime. |
-| APISIX | 9080 (HTTP gateway) / 9443 (HTTPS) / 9091 (Prometheus metrics) | File-driven standalone (`data_plane`) per ADR-0015 — no Admin API, no dashboard companion. `apisix.yaml` is the only source of truth. |
-| LearnStack API | 5100 | Backend host. |
-| LearnStack Web (`apps/web`) | 3000 | Frontend dev server. |
+```bash
+# One file holds the whole stack. --env-file is not optional: Compose resolves
+# its default env file from the project directory (infra/compose/), not the cwd,
+# so without the flag the repo-root .env is ignored and every ${VAR:-default}
+# silently falls back.
+docker compose --env-file .env -f infra/compose/dev.yml up -d
+```
+
+The canonical service inventory — image, local endpoint and default credentials
+for every service in the stack — lives in
+[`infra/compose/README.md`](../../../infra/compose/README.md), grouped by the
+Phase 01 packet that introduced each one. It is not repeated here; a second copy
+is a second thing to keep true, and this file has no way to notice when
+`dev.yml` changes.
+
+Three properties of that inventory matter while you are setting up:
+
+- **Every published port binds `127.0.0.1`, never `0.0.0.0`** — see
+  [Infrastructure Standards § Published ports](../../../docs/standards/12-infrastructure.md).
+- **Kafka and the Dapr placement service publish nothing.** They are reached
+  over the compose network only; nothing on the host speaks to them directly.
+- **Neither application host is a compose service.** `LearnStack.Api` runs on
+  the workstation via `dotnet run` on the `ASPNETCORE_URLS` port in
+  `.env.example` (5080), and `apps/web` runs via `pnpm dev` on 3000.
+
+To read the resolved truth rather than any document, ask the stack:
+
+```bash
+docker compose --env-file .env -f infra/compose/dev.yml config --format json
+```
 
 ### Step 4: First-run bootstrap
 
-The first `make dev` run additionally:
+`make seed` verifies the stack is healthy and prints the demo credentials. The
+steps below are its **Phase 02a** scope — `scripts/seed.sh` carries them as a
+documented placeholder and does not run them yet:
 
 1. Applies every module's EF migrations.
 2. Seeds Keycloak's `learnstack` realm with a platform admin and two demo tenants
@@ -140,7 +155,8 @@ make seed-reset
 
 ```bash
 # API health
-curl -fsS http://localhost:5100/healthz | jq
+# 5080 is ASPNETCORE_URLS in .env.example - the single source of truth for it.
+curl -fsS http://localhost:5080/healthz | jq
 
 # APISIX (gateway pass-through)
 curl -fsS http://localhost:9080/healthz | jq
@@ -182,7 +198,7 @@ make restart-api
 
 | Symptom | Fix |
 |---------|-----|
-| `Bind for 0.0.0.0:5432 failed: port is already allocated` | Stop your local Postgres (or change `POSTGRES_PORT` in `.env`). |
+| `Bind for 127.0.0.1:5432 failed: port is already allocated` | Stop your local Postgres, or stop the other compose project holding the port — host ports are fixed in `dev.yml`, so two projects cannot both bind them. |
 | `relation "tenants" does not exist` | Migrations didn't run; `make migrate`. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | First-run seed failed; `make seed-reset` rebuilds. |

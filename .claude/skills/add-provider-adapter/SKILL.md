@@ -5,7 +5,7 @@ description: >
   / Keycloak / external HTTP service) in `LearnStack.Infrastructure.<X>` with
   the canonical pattern: port interface in `SharedKernel`, adapter in
   `Infrastructure` doing only SDK-exception → `ProviderException` translation,
-  and the `IProviderResilience<TPort>` decorator carrying retry + circuit
+  and the `IProviderResilience<TPort>` collaborator carrying retry + circuit
   breaker + timeout + bulkhead from `appsettings.Resilience:<portName>:`.
   USE FOR: every new external integration that LearnStack reaches over the
   network. DO NOT USE FOR: the Dapr building-block ports (`IEventBus`,
@@ -30,7 +30,8 @@ through the same shape:
 ```text
 Application code
   ↓ (port interface in SharedKernel)
-ResilientProviderAdapter<TPort>           ← Polly v8 ResiliencePipeline
+IProviderResilience<TPort>                ← Polly v8 ResiliencePipeline,
+                                            injected into the adapter
   ↓
 LiveKitClient (adapter in Infrastructure) ← SDK exception → ProviderException
   ↓
@@ -39,8 +40,9 @@ LiveKit .NET SDK
 upstream
 ```
 
-The point: the application sees one port; resilience is centralised in the
-decorator; exception translation is the adapter's only job. This skill walks
+The point: the application sees one port; the resilience policy is centralised in
+configuration and carried by `IProviderResilience<TPort>`; exception translation is
+the adapter's only job. This skill walks
 the canonical wiring per
 [ADR-0032 § Sub-decision 5](../../../docs/decisions/0032-exception-handling-logging-and-observability.md).
 
@@ -110,19 +112,28 @@ Rules:
 
 ### Step 2: Add the `ProviderException` subclass
 
-In `LearnStack.SharedKernel.Exceptions/`:
+In `LearnStack.SharedKernel/Errors/`:
 
 ```csharp
 public sealed class LiveClassProviderException : ProviderException
 {
+    // ProviderException(string providerName, string message, bool isClientError,
+    //                   Exception? innerException = null)
+    // providerName is the PROVIDER identity ("livekit") — it tags every span,
+    // metric and error-tracking event. It is not an error code; passing one there
+    // compiles and then mislabels the adapter everywhere it is observed.
     public LiveClassProviderException(
-        string code,
         string message,
-        Exception? innerException = null,
-        bool isClientError = false)
-        : base(code, message, innerException, isClientError)
+        bool isClientError = false,
+        Exception? innerException = null)
+        : base("livekit", message, isClientError, innerException)
     {
     }
+
+    // Use the Error-carrying overload when the failure needs a specific
+    // Problem Details code:
+    //   : base(new Error(LocalizedMessage.Of("lockey_provider_room_exists")),
+    //          "livekit", message, isClientError, innerException)
 }
 ```
 
@@ -133,8 +144,10 @@ Rules:
   failed). The L1 `IExceptionHandler` uses this flag to decide whether to
   Sentry-capture. See
   [09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](../../../docs/standards/09-error-handling.md).
-- Codes follow the pattern `provider.<short-reason>` (e.g.
-  `provider.room_full`, `provider.unauthenticated`, `provider.unavailable`).
+- `ProviderException`'s first argument is the **provider name** (`"livekit"`,
+  `"stripe"`), not a code. When a failure needs its own Problem Details code, use the
+  `Error`-carrying overload with a `lockey_`-prefixed key; `Error.Code` is that key
+  with the prefix stripped.
 
 ### Step 3: Write the adapter — translation only
 
@@ -143,46 +156,90 @@ In `LearnStack.Infrastructure.LiveClassroom.LiveKit/LiveKitClient.cs`:
 ```csharp
 internal sealed class LiveKitClient(
     LiveKitClientOptions options,
+    IProviderResilience<ILiveClassProvider> resilience,
     ILogger<LiveKitClient> logger) : ILiveClassProvider
 {
-    private readonly LiveKit.RoomServiceClient _sdk = new(
+    // global:: is required — this namespace ends in `.LiveKit`, so an unqualified
+    // `LiveKit.X` binds to the enclosing segment, not the SDK (CS0234).
+    private readonly global::LiveKit.RoomServiceClient _sdk = new(
         options.WsUrl, options.ApiKey, options.ApiSecret);
 
     public async Task<LiveRoom> CreateRoomAsync(
         CreateRoomCommand cmd, CancellationToken ct)
     {
+        // MapToSdkRequest / MapToDomain are this adapter's own private helpers —
+        // translation is the adapter's whole job.
+        var sdkRequest = MapToSdkRequest(cmd);
+
         try
         {
-            var room = await _sdk.CreateRoom(/* SDK call */, ct);
+            var room = await resilience.Pipeline.ExecuteAsync(
+                async token =>
+                {
+                    // Translation happens INSIDE the callback. The pipeline's
+                    // ShouldHandle predicates match ProviderException,
+                    // InfrastructureException and TimeoutRejectedException — an SDK
+                    // exception matches none of them, so translating outside the
+                    // pipeline means retry and the circuit breaker never fire and
+                    // the configuration in Step 5 is inert.
+                    try
+                    {
+                        return await _sdk.CreateRoom(sdkRequest, token);
+                    }
+                    catch (global::LiveKit.RoomAlreadyExistsException ex)
+                    {
+                        throw new LiveClassProviderException(
+                            ex.Message, isClientError: true, innerException: ex);
+                    }
+                    catch (global::LiveKit.QuotaExceededException ex)
+                    {
+                        throw new LiveClassProviderException(
+                            ex.Message, isClientError: true, innerException: ex);
+                    }
+                    // .NET 5+ exposes HttpRequestException.StatusCode as
+                    // HttpStatusCode?. A raw 4xx is the caller's fault, so it is a
+                    // client error and must not be retried.
+                    catch (HttpRequestException ex)
+                        when (ex.StatusCode is not null && (int)ex.StatusCode < 500)
+                    {
+                        throw new LiveClassProviderException(
+                            ex.Message, isClientError: true, innerException: ex);
+                    }
+                    // null StatusCode = transport failure (DNS, connection refused);
+                    // 5xx = the provider's infra. Both are retryable.
+                    catch (HttpRequestException ex)
+                    {
+                        throw new LiveClassProviderException(
+                            "Live-class provider unavailable.",
+                            isClientError: false, innerException: ex);
+                    }
+                },
+                ct);
+
             return MapToDomain(room);
         }
-        catch (LiveKit.RoomAlreadyExistsException ex)
+        catch (LiveClassProviderException)
         {
-            throw new LiveClassProviderException(
-                "provider.room_already_exists", ex.Message, ex, isClientError: true);
+            // Already translated inside the callback; the pipeline re-raises the
+            // final attempt's exception unchanged.
+            throw;
         }
-        catch (LiveKit.QuotaExceededException ex)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw new LiveClassProviderException(
-                "provider.quota_exceeded", ex.Message, ex, isClientError: true);
-        }
-        // .NET 5+ exposes `HttpRequestException.StatusCode` as `HttpStatusCode?`.
-        // `null` = transport failure (DNS, connection refused, timeout) which is
-        // an infra fault → isClientError: false. 5xx upstream → isClientError: false.
-        // 4xx upstream is handled by the SDK-specific catches above; if a raw 4xx
-        // reaches this clause it falls through to the catch-all below.
-        catch (HttpRequestException ex)
-            when (ex.StatusCode is null || (int)ex.StatusCode >= 500)
-        {
-            throw new LiveClassProviderException(
-                "provider.unavailable", "Live-class provider unavailable.",
-                ex, isClientError: false);
+            // Caller-initiated cancellation is not a provider failure. Rethrow
+            // unchanged so the L1 handler maps it to 499 rather than 503.
+            throw;
         }
         catch (Exception ex)
         {
+            // Polly's own outcomes reach here: BrokenCircuitException,
+            // TimeoutRejectedException, RateLimiterRejectedException. Wrapping
+            // them in a bare ProviderException gives them the default
+            // `dependency_unavailable` Error, which HttpStatusMap turns into 503.
+            // Left untranslated they would surface as a generic 500.
             throw new LiveClassProviderException(
-                "provider.unknown", "Unexpected live-class provider failure.",
-                ex, isClientError: false);
+                "Live-class provider unavailable.",
+                isClientError: false, innerException: ex);
         }
     }
 
@@ -192,12 +249,22 @@ internal sealed class LiveKitClient(
 
 Rules:
 
-- **No** retry, **no** circuit breaker, **no** timeout in the adapter — that
-  is the decorator's job.
+- **No** retry, **no** circuit breaker, **no** timeout policy authored in the
+  adapter — the policy comes from `IProviderResilience<TPort>.Pipeline`, built from
+  configuration. The adapter *invokes* that pipeline; it does not define one, and
+  nothing wraps the adapter on its behalf.
 - The adapter is `internal sealed` — the composition root sees only the port
   interface.
 - Every public method is wrapped in a `try / catch` whose only purpose is
-  exception translation.
+  exception translation, and the **SDK-facing half of it sits inside the pipeline
+  callback**. The pipeline classifies by exception type, so it has to see a
+  `ProviderException`; hand it a raw SDK exception and every policy in Step 5 is
+  configured, loaded, and never triggered.
+- The **outer** `catch` exists for Polly's own outcomes —
+  `BrokenCircuitException`, `TimeoutRejectedException`,
+  `RateLimiterRejectedException` — which the callback cannot produce. They carry
+  no `Error`, so untranslated they map to 500; wrapped, they inherit
+  `dependency_unavailable` → 503.
 - Provider SDK exception types (`LiveKit.RoomAlreadyExistsException`,
   `Stripe.StripeException`, `Meilisearch.MeilisearchApiError`, …) **never**
   leave the adapter's namespace. The architecture test
@@ -213,21 +280,25 @@ public static IServiceCollection AddLiveClassroomProvider(
 {
     services.Configure<LiveKitClientOptions>(config.GetSection("LiveKit"));
 
-    services.AddProviderResilience<ILiveClassProvider, LiveKitClient>("liveclass");
+    services.AddSingleton<ILiveClassProvider, LiveKitClient>();
+    services.AddProviderResilience<ILiveClassProvider>(config, "liveclass");
 
     return services;
 }
 ```
 
-The `AddProviderResilience<TPort, TImpl>` extension (registered by
-[wire-cross-cutting-foundation](../wire-cross-cutting-foundation/SKILL.md))
-does three things:
+The `AddProviderResilience<TPort>` extension (see
+[wire-cross-cutting-foundation](../wire-cross-cutting-foundation/SKILL.md)) does
+exactly one thing: it builds an `IProviderResilience<TPort>` carrying the Polly v8
+`ResiliencePipeline` from `appsettings.Resilience:<portName>:` and registers it as a
+singleton.
 
-1. Registers `TImpl` as the base implementation.
-2. Builds an `IProviderResilience<TPort>` carrying the Polly v8
-   `ResiliencePipeline` from `appsettings.Resilience:<portName>:`.
-3. Decorates `TPort` with `ResilientProviderAdapter<TPort>` so every call
-   goes through the pipeline.
+It does **not** register the base implementation — that is the line above it — and it
+does **not** decorate the port. C# forbids a type parameter as a base type, so no
+`ResilientProviderAdapter<TPort>` can satisfy `: TPort`. The adapter takes
+`IProviderResilience<TPort>` as a constructor collaborator and wraps its own outbound
+calls in `Pipeline.ExecuteAsync`. ADR-0032's example showed the decorator shape for
+months; it never compiled.
 
 ### Step 5: Author the resilience configuration
 
@@ -238,7 +309,7 @@ Add to `appsettings.json`:
   "Resilience": {
     "liveclass": {
       "retry": {
-        "maxAttempts": 3,
+        "maxRetryAttempts": 2,
         "delaySeconds": 1,
         "useJitter": true
       },
@@ -258,16 +329,16 @@ Add to `appsettings.json`:
 Tune per port based on the upstream's known characteristics. Document the
 chosen values in the adapter's README (under
 `backend/src/LearnStack.Infrastructure.<X>/README.md`) so reviewers know
-*why* `maxAttempts: 3` and not 5.
+*why* `maxRetryAttempts: 2` and not 5.
 
 ### Step 6: Map provider 4xx vs 5xx correctly
 
-The decorator only retries on `IsClientError == false` provider exceptions
+The pipeline only retries on `IsClientError == false` provider exceptions
 and on `InfrastructureException`. A `LiveClassProviderException` with
 `isClientError: true` skips retry — retrying "room already exists" is wrong.
 Verify the mapping table for every translated SDK exception:
 
-| Upstream signal | `ProviderException.IsClientError` | Sentry capture | Decorator retries |
+| Upstream signal | `ProviderException.IsClientError` | Sentry capture | Pipeline retries |
 |---|---|---|---|
 | 4xx response | `true` | No | No |
 | 5xx response | `false` | Yes | Yes |
@@ -289,12 +360,12 @@ public async Task CreateRoomAsync_translates_RoomAlreadyExists_to_4xx_provider_e
     var act = async () => await sut.CreateRoomAsync(cmd, ct);
     // Assert
     var ex = await act.Should().ThrowAsync<LiveClassProviderException>();
-    ex.Which.Code.Should().Be("provider.room_already_exists");
+    ex.Which.ProviderName.Should().Be("livekit");
     ex.Which.IsClientError.Should().BeTrue();
 }
 
 [Fact]
-public async Task ResilientProviderAdapter_retries_on_5xx_until_circuit_opens()
+public async Task ProviderPipeline_retries_on_5xx_until_circuit_opens()
 {
     // Arrange — wrap a flaky in-memory adapter
     // Act — fire enough requests to open the breaker
@@ -331,9 +402,10 @@ In `docs/modules/<module>/providers.md`, add the adapter:
 
 ## Common pitfalls
 
-- **Adding retry / timeout in the adapter.** The decorator handles those.
-  Adapter-level retry double-counts attempts and breaks the circuit-breaker
-  accounting.
+- **Authoring a retry / timeout policy in the adapter.** The policy comes from
+  configuration through `IProviderResilience<TPort>.Pipeline`; the adapter only
+  invokes it. A second policy in adapter code double-counts attempts and breaks the
+  circuit-breaker accounting.
 - **Letting the SDK exception escape.** A `LiveKit.LiveKitException`
   reaching the application layer means the architecture test fires and the
   rest of the system can't decide whether to Sentry-capture (no
@@ -341,15 +413,15 @@ In `docs/modules/<module>/providers.md`, add the adapter:
 - **Setting `isClientError: false` on 4xx.** Forces a retry on
   invalid-input failures (the upstream will reject again and again until
   the circuit opens) and floods Sentry with "client mistake" events.
-- **Forgetting the `Resilience:<portName>:` configuration block.** The
-  decorator falls back to no-policy mode and silently masks failures during
-  development — they only surface under load.
+- **Forgetting the `Resilience:<portName>:` configuration block.**
+  `ProviderResilience<TPort>` falls back to `new ResilienceOptions()` and silently
+  masks failures during development — they only surface under load.
 - **Reusing a single adapter for two ports with different resilience
-  needs.** Split them. Each port has its own decorator instance and its
-  own configuration section.
-- **Calling the adapter directly from a module** (bypassing the port
-  interface). The decorator is registered on the port; calling the
-  concrete adapter skips resilience entirely.
+  needs.** Split them. Each port has its own `IProviderResilience<TPort>` instance
+  and its own configuration section.
+- **Calling the adapter directly from a module** (bypassing the port interface).
+  The module must depend on the port; the concrete adapter is `internal` precisely so
+  it cannot.
 
 ## References
 

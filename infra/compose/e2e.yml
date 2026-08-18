@@ -27,10 +27,15 @@ services:
   postgres:
     tmpfs:
       - /var/lib/postgresql
-    # `tmpfs:` and `volumes:` are mutually exclusive for the same target;
-    # overlay null'ing the dev `volumes` list keeps Compose from merging
-    # the parent's named volume back in.
-    volumes: !reset []
+    # `tmpfs:` and `volumes:` are mutually exclusive for the same target, so the
+    # dev `volumes:` list is reset — but `!reset []` drops the whole list, and it
+    # carried a bind mount that is NOT storage: the init scripts. Without them
+    # there is no `keycloak` database (dev.yml's keycloak service requires it),
+    # and from Packet 6 no four-role model either — every isolation test would
+    # then run as the owning superuser, where FORCE ROW LEVEL SECURITY is inert
+    # and the suite passes against policies that constrain nothing.
+    volumes: !override
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
 
   # ─── Mailpit — clear inbox between runs ─────────────────────────────────
   # Mailpit stores received messages in memory by default (no persistence),
@@ -49,6 +54,19 @@ services:
   seaweedfs:
     tmpfs:
       - /data
+    # Same shape: the reset drops storage AND the S3 identity file that
+    # `-s3.config=/etc/s3-identities.json` in dev.yml requires at boot.
+    volumes: !override
+      - ../seaweedfs/s3-identities.json:/etc/s3-identities.json:ro
+
+  # ─── Valkey — ephemeral cache + rate-limit state ────────────────────────
+  # Without this the dev named volume survives between e2e runs, so cache
+  # entries and rate-limit counters leak across tests: a run that exhausts a
+  # limit leaves the next run pre-throttled, and a cached tenant resolution
+  # outlives the tenant that produced it.
+  valkey:
+    tmpfs:
+      - /data
     volumes: !reset []
 
   # ─── Meilisearch — ephemeral search index ───────────────────────────────
@@ -64,5 +82,10 @@ services:
   # regeneration script.
   kafka:
     tmpfs:
-      - /var/lib/kafka/data
+      # uid/gid are required here and nowhere else in this file: cp-kafka is the
+      # only image in the stack with a non-root USER (appuser, 1000), and Docker
+      # copies a tmpfs target's mode but not its ownership — the mount lands
+      # root:root and the broker dies with "permission denied" on
+      # /var/lib/kafka/data. The overlay never booted before this.
+      - /var/lib/kafka/data:uid=1000,gid=1000
     volumes: !reset []

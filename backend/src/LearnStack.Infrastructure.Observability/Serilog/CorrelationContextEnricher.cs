@@ -44,7 +44,9 @@ public sealed class CorrelationContextEnricher(ITenantContextAccessor accessor) 
                     propertyFactory.CreateProperty("organization.id", orgId.ToString()));
             }
 
-            if (context.UserId is { } userId)
+            // IsInitialized() before Value - see TenantContextSpanProcessor;
+            // an enricher that throws takes down the log line it enriches.
+            if (context.UserId is { } userId && userId.IsInitialized())
             {
                 logEvent.AddOrUpdateProperty(
                     propertyFactory.CreateProperty("user.id", userId.Value.ToString()));

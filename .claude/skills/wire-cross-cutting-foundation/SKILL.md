@@ -41,8 +41,8 @@ tests pass.
   already wired; new handlers participate automatically.
 - Adding a new provider adapter — use
   [add-provider-adapter](../add-provider-adapter/SKILL.md). That skill
-  handles the resilience decorator and `ProviderException` translation for
-  a single adapter.
+  handles the `IProviderResilience<TPort>` collaborator and `ProviderException`
+  translation for a single adapter.
 - Deploying / configuring an OTel Collector or a Sentry SaaS project — that
   is Phase 11 ops work, not application-code wiring.
 - Adjusting a Resilience policy for a single port — edit
@@ -100,7 +100,7 @@ the `Sentry.AspNetCore` reference being restricted to
 ```csharp
 builder.Host.UseSerilog((ctx, services, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
-    .Enrich.WithCorrelationContext(services)            // tenant / org / user / module / correlation_id
+    .Enrich.With(services.GetRequiredService<CorrelationContextEnricher>())
     .Enrich.With<RedactSensitiveFieldsEnricher>()       // strips tokens, passwords, PII
     .WriteTo.Console(new RenderedCompactJsonFormatter())
     .WriteTo.OpenTelemetry(o =>
@@ -233,21 +233,36 @@ handler exceptions, writes the failure audit, and rethrows via
 In `LearnStack.Infrastructure.Resilience`:
 
 ```csharp
-public static IServiceCollection AddProviderResilience<TPort, TImpl>(
-    this IServiceCollection services, string portName)
-    where TPort : class
-    where TImpl : class, TPort
+public static class ProviderResilienceRegistration
 {
-    services.AddSingleton<TPort, TImpl>();
-    services.AddSingleton<IProviderResilience<TPort>>(sp =>
-        new ProviderResilience<TPort>(
-            portName,
-            sp.GetRequiredService<IConfiguration>()
-              .GetSection($"Resilience:{portName}")));
-    services.Decorate<TPort, ResilientProviderAdapter<TPort>>();
-    return services;
+    public static IServiceCollection AddProviderResilience<TPort>(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string portName)
+        where TPort : class
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(portName);
+
+        var options = configuration
+            .GetSection($"Resilience:{portName}")
+            .Get<ResilienceOptions>() ?? new ResilienceOptions();
+
+        services.AddSingleton<IProviderResilience<TPort>>(
+            _ => new ProviderResilience<TPort>(portName, options));
+
+        return services;
+    }
 }
 ```
+
+This is the shipped shape, verbatim from
+`ProviderResilienceRegistration.cs`. It does **not** decorate the port: C# forbids a
+type parameter as a base type, so no `ResilientProviderAdapter<TPort>` can satisfy
+`: TPort`. Adapters take `IProviderResilience<TPort>` as a constructor collaborator
+and route outbound calls through `Pipeline.ExecuteAsync` themselves. Registering the
+base adapter (`AddSingleton<TPort, TImpl>()`) is the caller's job, not this helper's.
 
 The composition root calls this extension once per provider port (see
 [add-provider-adapter](../add-provider-adapter/SKILL.md) for the per-adapter
@@ -336,9 +351,9 @@ services
 - **Capturing every exception to Sentry, including `OperationCanceled`
   and 4xx provider responses.** Sentry noise. The `ShouldCapture` switch is
   binding.
-- **Hand-rolling retry / circuit breaker inside an adapter.** Resilience
-  policies live in the `IProviderResilience<TPort>` decorator, not in
-  adapter code.
+- **Hand-rolling retry / circuit breaker inside an adapter.** The policy comes from
+  `IProviderResilience<TPort>.Pipeline`, built from configuration. The adapter
+  *invokes* it via `Pipeline.ExecuteAsync`; nothing wraps the adapter on its behalf.
 
 ## References
 

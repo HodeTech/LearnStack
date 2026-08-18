@@ -41,7 +41,7 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3 shipped; packets 3b–10 re-scoped on 2026-08-08.**
+packets 0–3 and 3b shipped; packets 4–10 re-scoped on 2026-08-08.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the
@@ -55,7 +55,8 @@ Phase 02a packets 0–3 shipped the foundation decisions
 [ADR-0028](docs/decisions/0028-audit-log-partition-management.md) audit partition
 management — whose *timing* later moved to Phase 11), the shared kernel core, and the
 [ADR-0032](docs/decisions/0032-exception-handling-logging-and-observability.md)
-cross-cutting foundation.
+cross-cutting foundation. [Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b)
+then repaired what a corpus audit found — before any consumer existed.
 
 The 2026-08-08 restructure moved correctness earlier (the corrected RLS template in
 [ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md), durable
@@ -72,9 +73,13 @@ make dev       # bring local stack up
 make seed      # verify health + print demo credentials
 ```
 
-> `make seed`'s health gate currently times out, because three compose services declare
-> no healthcheck. [Phase 02a Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md) fixes
-> it along with the rest of the Phase 01 development-loop debt.
+> `make seed` exits 0 on a clean stack. The health gate used to time out on every run:
+> it read every service's `healthcheck:` block in the Compose file and flagged any
+> service that declared none, but `dapr-placement` and `dapr-sidecar-api` cannot
+> declare one — their images ship a single binary on an empty base, with no shell
+> and no `wget`/`curl`/`nc` to probe with.
+> [Phase 02a Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md) repaired that along
+> with the rest of the Phase 01 development-loop debt.
 
 ## Direction At A Glance
 

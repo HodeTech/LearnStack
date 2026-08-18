@@ -8,7 +8,7 @@ namespace LearnStack.SharedKernel.Errors;
 /// invariant is bypassed by a programming mistake — never for expected
 /// business-rule violations (those return
 /// <c>Result.Fail(business_rule_violation, …)</c> per
-/// <see href="../../../docs/standards/09-error-handling.md">Standards 09 § Domain Exceptions</see>).
+/// <see href="../../../../docs/standards/09-error-handling.md">Standards 09 § Domain Exceptions</see>).
 /// </summary>
 /// <remarks>
 /// The Roslyn analyzer <c>LearnStackException-DomainExceptionThrow</c> flags

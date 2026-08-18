@@ -33,8 +33,19 @@ Both end in **RFC 7807 Problem Details** at the API boundary.
 public sealed record Result<T> : IResultBase
 {
     internal Result(bool isSuccess, T? value, Error? error, LocalizedMessage? successMessage = null) { ... }
+    // The annotations are the contract, not decoration: they let a consumer
+    // dereference Value or Error after one check without `!`. They do NOT flow
+    // from IResultBase to its implementations, so both carry their own copy.
+    // They are load-bearing only where T is a reference type: for a non-nullable
+    // struct T — Result<None>, Result<CourseId> — `T?` is already non-nullable, so
+    // flow analysis never had a warning to suppress. Nothing is lost; the
+    // annotation is simply inert there.
+    [MemberNotNullWhen(true, nameof(Value)), MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess { get; }
+
+    [MemberNotNullWhen(false, nameof(Value)), MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => !IsSuccess;
+
     public T? Value { get; }
     public Error? Error { get; }
     public LocalizedMessage? SuccessMessage { get; }
@@ -56,7 +67,7 @@ public sealed record LocalizedMessage(string Key, IReadOnlyDictionary<string, st
     // ctor enforces Key.StartsWith(RequiredPrefix); see Phase 02a Packet 2.
 }
 
-public readonly record struct Unit { public static Unit Value { get; } }
+public readonly record struct None { public static None Value { get; } }
 ```
 
 The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
@@ -73,7 +84,7 @@ sync by construction. Per
 `Result<T>`'s primary constructor is `internal`; callers go through
 `Ok` / `Fail` so the success-must-carry-value rule
 (see § Forbidden) cannot be bypassed via positional record syntax.
-`Result<Unit>` is the canonical payload-less success shape.
+`Result<None>` is the canonical payload-less success shape.
 
 Field-level errors in `Error.Details` flow as `LocalizedMessage` lists
 per key, so the `lockey_` invariant covers every user-facing string the
@@ -342,19 +353,24 @@ The SDK maps Problem Details payloads to `AppError`; UI code switches on `code`.
 
 Per
 [ADR-0032 § Sub-decision 5](../decisions/0032-exception-handling-logging-and-observability.md),
-every provider adapter is wrapped with a Polly v8 `ResiliencePipeline` via
-the `IProviderResilience<TPort>` decorator pattern. The composition root
-wires every adapter:
+every provider adapter routes its outbound calls through a Polly v8
+`ResiliencePipeline` carried by `IProviderResilience<TPort>`. The port is **not**
+decorated — C# forbids a type parameter as a base type, so no
+`ResilientProviderAdapter<TPort>` can satisfy `: TPort`. The composition root
+registers the adapter and its pipeline separately:
 
 ```csharp
-services.AddProviderResilience<ILiveClassProvider, LiveKitClient>("liveclass");
-services.AddProviderResilience<IPaymentProvider, StripePaymentClient>("payment");
-services.AddProviderResilience<IStorageProvider, SeaweedFSStorageClient>("storage");
+services.AddSingleton<ILiveClassProvider, LiveKitClient>();
+services.AddProviderResilience<ILiveClassProvider>(configuration, "liveclass");
+
+services.AddSingleton<IPaymentProvider, StripePaymentClient>();
+services.AddProviderResilience<IPaymentProvider>(configuration, "payment");
 // ...
 ```
 
-The decorator reads `Resilience:<portName>:` from `appsettings.{env}.json`
-and builds a pipeline with:
+The adapter takes `IProviderResilience<TPort>` as a constructor collaborator and
+wraps each SDK call in `Pipeline.ExecuteAsync`. `ProviderResilience<TPort>` reads
+`Resilience:<portName>:` from `appsettings.{env}.json` and builds a pipeline with:
 
 - **Retry** — exponential backoff with jitter; only retries
   `ProviderException` with `IsClientError == false` and `InfrastructureException`
@@ -365,8 +381,9 @@ and builds a pipeline with:
 - **Bulkhead** — caps concurrent in-flight calls per upstream.
 
 The adapter's only exception-related job is **SDK → ProviderException
-translation**. The decorator is the only place retry / circuit breaker /
-timeout live. The
+translation**. The retry / circuit-breaker / timeout policy lives in configuration
+and is carried by `IProviderResilience<TPort>`; the adapter invokes it and never
+authors one. The
 [add-provider-adapter](../../.claude/skills/add-provider-adapter/SKILL.md)
 skill walks the canonical shape for every new adapter.
 
@@ -376,7 +393,7 @@ Configuration shape (excerpt):
 {
   "Resilience": {
     "liveclass": {
-      "retry": { "maxAttempts": 3, "delaySeconds": 1, "useJitter": true },
+      "retry": { "maxRetryAttempts": 2, "delaySeconds": 1, "useJitter": true },
       "circuitBreaker": { "failureRatio": 0.5, "samplingDurationSeconds": 30, "minimumThroughput": 10, "breakDurationSeconds": 30 },
       "timeout": { "totalSeconds": 10 }
     }
@@ -417,7 +434,8 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 - Throwing `Exception` directly.
 - Throwing inside catch blocks without preserving the inner exception.
 - Including stack traces or query text in Problem Details.
-- `Result<T>` with `IsSuccess = true` but `Value = null` (use a Maybe / Option or throw at boundary).
+- `Result<T>` with `IsSuccess = true` but `Value = null` — model expected absence as
+  `Result.Fail` with a `not_found` code, and payload-less success as `Result<None>`.
 - Localizing error codes (codes are stable English identifiers; only `title` and `detail` are localized).
 - Throwing `DomainException` for expected business-rule violations — use
   `Result.Fail(business_rule_violation, ...)` instead. The Roslyn analyzer

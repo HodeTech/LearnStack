@@ -17,13 +17,19 @@ namespace LearnStack.SharedKernel.Domain;
 /// <c>AuditEntry_Inherits_Entity_Not_AuditableEntity</c> guards that rule.
 /// </para>
 /// <para>
-/// Equality contract: identity-based, with three guards every aggregate
-/// inherits — transient entities (<see cref="Id"/> equal to
-/// <c>default(TId)</c>) are never equal to each other (reference equality
-/// is the only match), runtime-type mismatches are never equal even when
-/// the underlying ID matches, and the hash code partitions transient
-/// instances apart so EF Core's change-tracker identity map and any
-/// <c>HashSet</c> in a collection navigation behave correctly.
+/// Equality contract: identity-based, defined once in
+/// <see cref="Equals(Entity{TId}?)"/>; <see cref="Equals(object?)"/> and
+/// <c>operator ==</c> both delegate to it. Three guards every aggregate
+/// inherits — an entity whose <see cref="Id"/> is uninitialized is equal only
+/// to itself by reference, runtime-type mismatches are never equal even when
+/// the underlying ID matches, and the hash code partitions uninitialized
+/// instances apart so a <c>HashSet</c> in a collection navigation, a
+/// <c>Distinct()</c> or a <c>Contains</c> behaves correctly.
+/// </para>
+/// <para>
+/// EF Core's change tracker is <em>not</em> among the reasons: its identity map
+/// keys on the primary-key value through a <c>ValueComparer</c> and tracks
+/// instances by reference, so it never calls these members.
 /// </para>
 /// <para>
 /// Domain-event collection state is lazily allocated: the backing
@@ -35,8 +41,8 @@ namespace LearnStack.SharedKernel.Domain;
 /// when an aggregate actually raises events (command paths).
 /// </para>
 /// </remarks>
-public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
-    where TId : struct, IStronglyTypedId<Guid>
+public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents, IEquatable<Entity<TId>>
+    where TId : struct, IStronglyTypedId<Guid>, IEquatable<TId>
 {
     private List<IDomainEvent>? _domainEvents;
     private ReadOnlyCollection<IDomainEvent>? _domainEventsView;
@@ -72,9 +78,14 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
 
     public void ClearDomainEvents() => _domainEvents?.Clear();
 
-    public override bool Equals(object? obj)
+    /// <summary>
+    /// Identity equality, typed. This is the single implementation;
+    /// <see cref="Equals(object?)"/> and <c>operator ==</c> both delegate here so
+    /// the three guards below cannot be bypassed by picking a different overload.
+    /// </summary>
+    public bool Equals(Entity<TId>? other)
     {
-        if (obj is not Entity<TId> other)
+        if (other is null)
         {
             return false;
         }
@@ -92,10 +103,10 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
             return false;
         }
 
-        // Transient guard: two newly-constructed aggregates carry default(TId)
-        // until SaveChangesAsync stamps them. They must never collapse into
-        // each other in EF's change tracker or in a HashSet-backed navigation.
-        if (Id.Equals(default(TId)) || other.Id.Equals(default(TId)))
+        // Transient guard: an aggregate constructed without an id carries an
+        // uninitialized TId until one is minted. Two of those must never collapse
+        // into each other in a HashSet-backed navigation or a Distinct().
+        if (!Id.IsInitialized() || !other.Id.IsInitialized())
         {
             return false;
         }
@@ -103,8 +114,28 @@ public abstract class Entity<TId> : IHasId<TId>, IHasDomainEvents
         return Id.Equals(other.Id);
     }
 
-    public override int GetHashCode() =>
-        Id.Equals(default(TId))
-            ? base.GetHashCode()
-            : HashCode.Combine(GetType(), Id);
+    /// <summary>
+    /// Sealed on purpose. A derived aggregate that overrode this — or
+    /// <see cref="GetHashCode"/> — could redefine <c>operator ==</c> too and
+    /// reintroduce the <c>a == b</c> / <c>a.Equals(b)</c> split this type exists to
+    /// prevent. With both sealed, a derived <c>operator ==</c> can no longer silence
+    /// CS0660 / CS0661, so it fails the build instead.
+    /// </summary>
+    public sealed override bool Equals(object? obj) => Equals(obj as Entity<TId>);
+
+    /// <summary>
+    /// Identity equality. Delegates to <see cref="Equals(Entity{TId}?)"/>, so a
+    /// transient aggregate is not equal to another transient aggregate even when
+    /// both sides are written as <c>==</c>.
+    /// </summary>
+    public static bool operator ==(Entity<TId>? left, Entity<TId>? right) =>
+        left is null ? right is null : left.Equals(right);
+
+    /// <summary>The negation of <see cref="op_Equality"/>.</summary>
+    public static bool operator !=(Entity<TId>? left, Entity<TId>? right) => !(left == right);
+
+    public sealed override int GetHashCode() =>
+        Id.IsInitialized()
+            ? HashCode.Combine(GetType(), Id)
+            : base.GetHashCode();
 }

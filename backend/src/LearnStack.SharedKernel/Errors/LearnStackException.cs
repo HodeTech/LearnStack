@@ -4,9 +4,9 @@ namespace LearnStack.SharedKernel.Errors;
 
 /// <summary>
 /// Base class for every exception LearnStack itself raises. Per
-/// <see href="../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
+/// <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
 /// § Sub-decision 4</see> and
-/// <see href="../../../docs/standards/09-error-handling.md">Standards 09 § Hierarchy</see>:
+/// <see href="../../../../docs/standards/09-error-handling.md">Standards 09 § Hierarchy</see>:
 /// exceptions are reserved for <em>unexpected</em> failures (bugs, transient
 /// infrastructure faults, contract violations). Expected outcomes return
 /// <see cref="Result{T}"/> instead.

@@ -530,6 +530,57 @@ otherwise).
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 10).
 
+#### `Aggregates_Do_Not_Redeclare_Entity_Equality`
+
+- **Asserts:** no type deriving from `Entity<>` declares a method named `Equals`, a
+  method named `GetHashCode`, or an `op_Equality` / `op_Inequality` operator,
+  **and** no such type declares `IEquatable<TSelf>` on itself. The last clause is
+  not redundant: an explicitly-implemented `bool IEquatable<Course>.Equals(Course?)`
+  is named `System.IEquatable<Course>.Equals` in metadata, so a name check alone
+  misses it, and `List<Course>.Contains` then answers differently from `==`. Scope
+  the check to interfaces declared on the type — the inherited
+  `IEquatable<Entity<TId>>` must not trip it. **Do not implement that scoping as
+  `GetInterfaces().Except(BaseType.GetInterfaces())`**: a derived type that
+  explicitly re-implements the *inherited* `IEquatable<Entity<TId>>` declares no
+  new interface and no method named `Equals` (the slot is
+  `System.IEquatable<Entity<CourseId>>.Equals`), so that idiom sees nothing and
+  the rule passes. Measured on such a type: `a == b` and `a.Equals(b)` are both
+  correct, and `new List<Entity<CourseId>> { a }.Contains(b)` returns `true` for
+  different ids. Match declared slots — Cecil's `TypeDefinition.Interfaces`, or
+  `GetInterfaceMap` against explicit implementations — and match method names with
+  `EndsWith("Equals", Ordinal)`.
+  Overriding is already impossible — `Entity<TId>` seals `Equals(object?)` and
+  `GetHashCode()`, and with both sealed a derived operator cannot silence
+  CS0660 / CS0661 — but a derived **overload** such as `bool Equals(Course? other)`
+  is a new method, so there is nothing to seal and the compiler is silent. Measured:
+  with such an overload, `a.Equals(b)` returns `true` while `a == b` and
+  `((Entity<CourseId>)a).Equals(b)` return `false` for the same pair. Three answers
+  for one question, decided by static type.
+- **Source:** [02-backend-coding.md § Domain Modeling](02-backend-coding.md);
+  [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 3b registers this entry, Packet 10 writes the test).
+
+#### `Organization_Aggregate_Declared_In_Tenancy_Domain`
+
+- **Asserts:** exactly one type named `Organization` exists across the **enumerated**
+  set
+  of `LearnStack.Modules.*.Domain` assemblies, and it is declared in
+  `LearnStack.Modules.Tenancy.Domain`. Same for the `OrganizationBranding` value object.
+  The assembly set is enumerated from the module list, not discovered by scanning loaded
+  assemblies — a discovery-based set that silently misses a module makes this rule
+  vacuously green, which is the failure `Meta_NetArchTest_DetectsAPlantedViolation`
+  guards against generally. The rule constrains module `Domain` assemblies only:
+  `OrganizationId` lives in `LearnStack.SharedKernel` per
+  [ADR-0023 Amendment 2](../decisions/0023-strongly-typed-id-source-generator.md) and is
+  out of scope here.
+- **Source:** [ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md);
+  [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md).
+- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
+
 ### Tenancy and isolation
 
 Source: [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendments

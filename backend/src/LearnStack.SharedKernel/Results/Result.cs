@@ -34,8 +34,22 @@ public sealed record Result<T> : IResultBase
         SuccessMessage = successMessage;
     }
 
+    /// <summary>
+    /// True when the operation succeeded. The <see cref="MemberNotNullWhenAttribute"/>
+    /// pairs teach flow analysis that a successful result carries a
+    /// <see cref="Value"/> and no <see cref="Error"/>, so consumers can dereference
+    /// either one after a single check without <c>!</c> and without a justification
+    /// comment. Both this type and <see cref="IResultBase"/> carry the annotations:
+    /// they do not flow from an interface to its implementation, so a caller typed
+    /// to <c>Result&lt;T&gt;</c> would get nothing from the interface's copy alone.
+    /// </summary>
+    [MemberNotNullWhen(true, nameof(Value))]
+    [MemberNotNullWhen(false, nameof(Error))]
     public bool IsSuccess { get; }
 
+    /// <inheritdoc cref="IResultBase.IsFailure" />
+    [MemberNotNullWhen(false, nameof(Value))]
+    [MemberNotNullWhen(true, nameof(Error))]
     public bool IsFailure => !IsSuccess;
 
     public T? Value { get; }
@@ -48,7 +62,7 @@ public sealed record Result<T> : IResultBase
     /// Constructs a success result. Throws when <paramref name="value"/> is
     /// <c>null</c>: Standards 09 § Forbidden bans <c>IsSuccess = true</c>
     /// with <c>Value = null</c> — if a payload-less success shape is needed,
-    /// model it as <c>Result&lt;Unit&gt;</c>.
+    /// model it as <c>Result&lt;None&gt;</c>.
     /// </summary>
     public static Result<T> Ok(T value, LocalizedMessage? message = null)
     {
@@ -56,7 +70,7 @@ public sealed record Result<T> : IResultBase
         {
             throw new ArgumentNullException(
                 nameof(value),
-                "Result<T>.Ok cannot wrap a null value. Use Result<Unit> for payload-less success per Standards 09 § Forbidden.");
+                "Result<T>.Ok cannot wrap a null value. Use Result<None> for payload-less success per Standards 09 § Forbidden.");
         }
 
         return new Result<T>(isSuccess: true, value: value, error: null, successMessage: message);

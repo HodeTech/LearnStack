@@ -55,12 +55,22 @@ cross-tenant leak; this skill is the prevention.
 In `<Module>.Domain/<Name>/<Name>Id.cs`:
 
 ```csharp
-public readonly record struct <Name>Id(Guid Value)
+[ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
+public readonly partial record struct <Name>Id : IStronglyTypedId<Guid>
 {
-    public static <Name>Id New() => new(Guid.CreateVersion7());
-    public override string ToString() => Value.ToString();
 }
 ```
+
+Vogen generates the body — `From`, `TryFrom`, `Value`, `IsInitialized()`, the
+EF Core value converter, the JSON converter and the `TypeConverter`. Do not
+hand-roll the struct: a hand-written `record struct <Name>Id(Guid Value)` has
+no `IsInitialized()`, so `Entity<TId>` cannot satisfy its constraint, and it
+silently permits the `default(<Name>Id)` state that
+[ADR-0023](../../../docs/decisions/0023-strongly-typed-id-source-generator.md)
+exists to forbid. New values are minted through the injected `IGuidFactory`
+(`<Name>Id.From(guidFactory.NewUuidV7())`) rather than a static `New()`, so
+tests can pin them — see
+[Backend Coding Standards § Time](../../../docs/standards/02-backend-coding.md).
 
 In `<Module>.Domain/<Name>/<Name>.cs`:
 

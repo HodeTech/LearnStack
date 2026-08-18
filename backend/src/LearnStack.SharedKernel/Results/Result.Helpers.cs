@@ -28,8 +28,15 @@ public static class Result
     /// The reflected <see cref="MethodInfo"/> is cached per closed
     /// <typeparamref name="TResponse"/> in the nested
     /// <see cref="FailForCache{TResponse}"/> — initialised once on first
-    /// touch, zero per-call overhead afterwards. The hot path is the
-    /// MediatR pipeline behavior that runs on every command.
+    /// touch, so the reflective <em>lookup</em> happens once. The
+    /// <c>Invoke</c> does not: measured in Release over 200k warm calls,
+    /// <c>FailFor</c> costs ~44 ns and 80 B against ~7 ns and 48 B for a
+    /// direct <c>Result&lt;string&gt;.Fail</c>, the extra bytes being the
+    /// <c>object[]</c> parameter array. Immaterial next to a request, but not
+    /// free — if this ever shows up in a profile, cache a
+    /// <c>CreateDelegate&lt;Func&lt;Error, TResponse&gt;&gt;()</c> instead of
+    /// the <see cref="MethodInfo"/>. The hot path is the MediatR pipeline
+    /// behavior that runs on every command.
     /// </remarks>
     public static TResponse FailFor<TResponse>(Error error)
         where TResponse : IResultBase

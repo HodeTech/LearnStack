@@ -55,7 +55,7 @@ public static class CrossCuttingFoundationExtensions
         // route through one seam. SelectSecretProvider is the SINGLE site
         // that picks the implementation per DeploymentMode — both the DI
         // registration and the local AddLearnStackErrorTracking call read
-        // the same instance. Packet 5 extends SelectSecretProvider with the
+        // the same instance. Phase 11 extends SelectSecretProvider with the
         // Dapr branch so adding DaprSecretProvider touches one line, not
         // two.
         var secretProvider = SelectSecretProvider(deploymentMode, builder.Configuration);
@@ -184,7 +184,7 @@ public static class CrossCuttingFoundationExtensions
     /// <summary>
     /// Single composition-root site that picks the
     /// <see cref="ISecretProvider"/> implementation per
-    /// <see cref="DeploymentMode"/>. Packet 5 extends this method with the
+    /// <see cref="DeploymentMode"/>. Phase 11 extends this method with the
     /// Dapr branch so the swap touches one line, not two. Both the DI
     /// registration and the local <c>AddLearnStackErrorTracking</c> call
     /// read the same instance returned here.
@@ -192,25 +192,30 @@ public static class CrossCuttingFoundationExtensions
     /// <remarks>
     /// CA1859 (prefer concrete return type for perf) is suppressed
     /// deliberately: the interface return is the entire point of the
-    /// helper — Packet 5 returns <c>DaprSecretProvider</c> for some
+    /// helper — Phase 11 returns <c>DaprSecretProvider</c> for some
     /// modes, and the call site must not bind to a concrete type.
     /// </remarks>
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Performance",
         "CA1859:Use concrete types when possible for improved performance",
-        Justification = "Return type is intentionally ISecretProvider so Packet 5 can swap implementations per DeploymentMode.")]
+        Justification = "Return type is intentionally ISecretProvider so Phase 11 can swap implementations per DeploymentMode.")]
     private static ISecretProvider SelectSecretProvider(
         DeploymentMode deploymentMode,
         IConfiguration configuration)
     {
-        // TODO(2026-05-21, @platform): Phase 02a Packet 5 — light up the
-        // Dapr-backed branch.
-        //   DeploymentMode.SaaS / Dedicated / SelfHostedOnline →
-        //     new DaprSecretProvider(...)  // Vault-backed
-        //   DeploymentMode.SelfHostedAirGapped →
-        //     new FileSecretProvider(...)  // disk-backed
+        // TODO(2026-08-10, @platform): Phase 11 — light up the Dapr-backed
+        // branch. Demand-gated per ADR-0035; trigger: a production secret must
+        // rotate without a redeploy, or more than one operator needs access to
+        // production secrets. The target wiring is Standards 20 § Deployment
+        // matrix:
+        //   every non-Development mode → new DaprSecretProvider(...)  // Vault
         //   DeploymentMode.Development →
         //     keep ConfigurationSecretProvider (delegates to IConfiguration).
+        // SelfHostedAirGapped keeps the same provider TYPE — the matrix reads
+        // "DaprSecretProvider → Vault or file", so what varies for air-gapped
+        // is the backing store, not the adapter. An earlier draft of this TODO
+        // named a separate FileSecretProvider type, which is the part that
+        // exists in no document and contradicts the matrix.
         // The signature stays the same so AddLearnStackErrorTracking's
         // ISecretProvider argument resolves correctly across modes.
         _ = deploymentMode;

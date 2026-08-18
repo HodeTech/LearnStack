@@ -138,11 +138,36 @@ public sealed class AuditableEntityTests
     }
 
     [Fact]
+    public void MarkCreated_WithUninitializedActor_ThrowsArgumentException()
+    {
+        // Vogen's analyzer rejects `default(UserId)` outright (VOG009), so this
+        // state cannot be written on purpose — it is only ever arrived at by
+        // omission, which is why it went unnoticed. A command record whose ActorId
+        // nothing assigns is the realistic shape. The guard must answer with its own
+        // ArgumentException naming the parameter, not with Vogen's
+        // ValueObjectValidationException, which is what reading .Value before
+        // IsInitialized() produced.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        var command = new CommandWithUnassignedActor("Any title");
+
+        aggregate.Invoking(a => a.MarkCreated(DateTimeOffset.UtcNow, command.ActorId))
+            .Should().Throw<ArgumentException>()
+            .WithParameterName("by");
+    }
+
+    [Fact]
     public void NewlyConstructed_AggregateIsNotDeleted()
     {
         var aggregate = new TestAuditableAggregate(TestId.New());
 
         aggregate.IsDeleted.Should().BeFalse();
         aggregate.Version.Should().Be(0u);
+    }
+
+    // A command whose ActorId is never assigned — the only way an uninitialized
+    // UserId reaches a guard, since Vogen forbids writing default(UserId).
+    private sealed record CommandWithUnassignedActor(string Title)
+    {
+        public UserId ActorId { get; init; }
     }
 }

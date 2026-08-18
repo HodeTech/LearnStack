@@ -141,7 +141,10 @@ Rules:
 
 A single composition project wires modules together:
 
-- `LearnStack.Application` registers MediatR pipelines, validators, outbox dispatcher, and module-level service bindings.
+- `LearnStack.Api/Composition/` is the composition root: it wires the cross-cutting
+  foundation and, from Packet 6, each module's registration.
+  `LearnStack.Application/Pipeline/` owns only the MediatR pipeline registration, which
+  the composition root calls.
 - Each module exposes a single extension method (`services.AddXxxModule()`).
 - Provider adapters are registered explicitly with configuration-bound options.
 

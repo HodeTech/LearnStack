@@ -78,7 +78,10 @@ value-object's invariant captured in a `Validate` static method.
 - Reference types are non-nullable unless declared `T?`.
 - Never use `!` (null-forgiving operator) without a comment explaining why.
 - Prefer `ArgumentNullException.ThrowIfNull(param)` at public boundaries.
-- Return `Result<T>` or `Maybe<T>` for expected absences; reserve null for true uninitialized state.
+- Return `Result<T>` for expected absences — `Result.Fail` with a `not_found` code, per
+  [Standards 09](09-error-handling.md). There is no `Maybe<T>` / `Option<T>` in the
+  kernel and none is planned; a second absence type would compete with `Result<T>` for
+  the same job. Reserve null for true uninitialized state.
 
 ## Async
 
@@ -108,7 +111,7 @@ public sealed record Result<T> : IResultBase
 
     // Throws when value is null — Standards 09 § Forbidden bans
     // IsSuccess = true with Value = null. For payload-less success use
-    // Result<Unit>.
+    // Result<None>.
     public static Result<T> Ok(T value, LocalizedMessage? message = null);
     public static Result<T> Fail(Error error);
 }
@@ -182,6 +185,34 @@ Rules:
 - Domain events raised from aggregate methods; collected by the unit-of-work and dispatched on commit.
 - Avoid anemic models (data + getters/setters with logic outside).
 - Avoid primitive obsession; use value objects.
+- **Entity equality is identity equality, and it is defined once.** `Entity<TId>`
+  implements `IEquatable<Entity<TId>>` and overloads `==` / `!=`; both, plus
+  `Equals(object?)`, delegate to the single typed `Equals(Entity<TId>?)`. Aggregates
+  do not redefine any of them. Three guards live in that one body and must not be
+  bypassed: an entity whose `Id` is uninitialized is equal only to itself by
+  reference, two entities of different runtime types are never equal even when their
+  `Id` matches, and `GetHashCode` partitions uninitialized instances apart.
+- **Ask `IStronglyTypedId.IsInitialized()`, never `id.Equals(default(TId))`**
+  ([ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md))**.** A
+  Vogen `[ValueObject]` returns `false` from `Equals` when either side is
+  uninitialized, so the `default` comparison answers `false` for exactly the case it
+  is meant to catch, and the guard behind it silently never runs.
+- **Constrain aggregate id parameters to `IEquatable<TId>`.** Without it
+  `id.Equals(other.Id)` binds to `ValueType.Equals(object)` and boxes — 40 bytes per
+  boxed call, measured. `Entity<TId>` used to box three times per comparison (120 B)
+  because the dead `default(TId)` guard above added two more; the constraint removes
+  the remaining one, taking every equality path and `GetHashCode` to 0 B.
+- **`Equals(object?)` and `GetHashCode()` on `Entity<TId>` are `sealed override`.**
+  A derived aggregate that overrode them could also declare its own `operator ==`;
+  sealed, it cannot silence CS0660 / CS0661 and the build fails instead. Aggregates
+  never redefine equality — enforced from Packet 10 by
+  [`Aggregates_Do_Not_Redeclare_Entity_Equality`](21-architecture-tests-catalogue.md#aggregates_do_not_redeclare_entity_equality),
+  which catches the one case the compiler cannot: a derived `Equals(TSelf?)`
+  **overload**, which is a new method rather than an override.
+- **Do not enable EF Core lazy-loading proxies.** The cross-type guard compares
+  `GetType()`, and a proxy's runtime type is `Castle.Proxies.<Name>Proxy`, so a
+  proxied instance would never equal the entity it proxies. Lazy loading is already
+  barred under [EF Core](#ef-core); this is the second reason.
 
 ## Pipeline Behaviors
 

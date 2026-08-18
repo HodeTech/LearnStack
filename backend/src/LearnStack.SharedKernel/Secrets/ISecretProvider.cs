@@ -2,7 +2,7 @@ namespace LearnStack.SharedKernel.Secrets;
 
 /// <summary>
 /// Composition-root-resolved secret provider. Per
-/// <see href="../../../docs/standards/20-infrastructure-stack.md">Standards 20 § ISecretProvider</see>
+/// <see href="../../../../docs/standards/20-infrastructure-stack.md">Standards 20 § ISecretProvider</see>
 /// and ADR-0032 § Sub-decision 9, every secret-bearing value (Sentry DSN,
 /// signed-license RSA key paths, provider API keys, …) is read through
 /// this contract — modules never call <c>Environment.GetEnvironmentVariable</c>
@@ -10,11 +10,14 @@ namespace LearnStack.SharedKernel.Secrets;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Phase 02a Packet 3 ships the contract + the default
-/// <see cref="ConfigurationSecretProvider"/> implementation that delegates
-/// to <see cref="Microsoft.Extensions.Configuration.IConfiguration"/>. Packet 5 adds the
-/// <c>DaprSecretProvider</c> (Vault-backed) and the composition root branches by
-/// <c>DeploymentMode</c>.
+/// Phase 02a Packet 3 ships the contract, the default
+/// <see cref="ConfigurationSecretProvider"/> implementation that delegates to
+/// <see cref="Microsoft.Extensions.Configuration.IConfiguration"/>, and the single
+/// composition-root site that selects an implementation. That site does not yet
+/// branch: every <c>DeploymentMode</c> resolves to the default. The Vault-backed
+/// <c>DaprSecretProvider</c> and the branch that returns it are demand-gated to
+/// Phase 11 per ADR-0035 — trigger: a production secret must rotate without a
+/// redeploy, or more than one operator needs access to production secrets.
 /// </para>
 /// <para>
 /// The interface is intentionally synchronous: most secret reads happen at

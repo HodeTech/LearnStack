@@ -58,10 +58,10 @@ recording / consent / cost-tracking story.
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
-| Kafka (KRaft) | `confluentinc/cp-kafka:8.2.1` | `localhost:9092` (in-cluster only — see note below) | none (`PLAINTEXT`, `authType: none`) |
+| Kafka (KRaft) | `confluentinc/cp-kafka:8.2.1` | in-cluster only — no host port; use `kafka-ui` | none (`PLAINTEXT`, `authType: none`) |
 | kafka-ui | `ghcr.io/kafbat/kafka-ui:v1.5.0` | `localhost:8081` | open UI (dev only) |
 | Vault | `hashicorp/vault:1.21.4` | `localhost:8200` | root token `learnstack-dev-root-token` |
-| Dapr placement | `daprio/placement:1.17.7` | `localhost:50005` | — |
+| Dapr placement | `daprio/placement:1.17.7` | in-cluster only (sidecars reach it over the compose network) | — |
 | Dapr sidecar (api) | `daprio/daprd:1.17.7` | `localhost:3500` (HTTP), `localhost:50001` (gRPC) | — |
 | APISIX | `apache/apisix:3.16.0-debian` | `localhost:9080` (HTTP), `localhost:9443` (HTTPS), `localhost:9091` (metrics) | none (file-driven standalone — no Admin API) |
 
@@ -71,10 +71,10 @@ Configs:
   log dir survives restarts without re-format. Only the in-cluster
   `PLAINTEXT://kafka:9092` listener is advertised; host-side tools (kcat,
   kafka-topics from the workstation) will resolve the bootstrap address as
-  `kafka:9092` and fail unless `127.0.0.1 kafka` is added to `/etc/hosts`.
-  Use `kafka-ui` (`localhost:8081`) for workstation-side browsing; the
-  Phase 07 DX packet ships either an EXTERNAL listener or documents the
-  `kafka-ui`-only workflow as canonical.
+  `kafka:9092`, and no host port is published at all. Use `kafka-ui`
+  (`127.0.0.1:8081`) for workstation-side browsing — Phase 01 packet 7 shipped
+  that as the canonical workstation path. An EXTERNAL listener for host-side
+  `kcat` / `kafka-topics` is a Phase 11 production-hardening item.
 - **Vault** runs in `-dev` mode with the root token baked in — production
   runs HA + auto-unseal + AppRole.
 - **Dapr** components live under `infra/dapr/components/`
@@ -106,16 +106,16 @@ make down                                           # stop, keep volumes
 make clean                                          # stop, wipe local data
 
 # Raw compose (equivalent — useful when `make` is unavailable):
-docker compose -f infra/compose/dev.yml up -d
-docker compose -f infra/compose/dev.yml ps
-docker compose -f infra/compose/dev.yml down
-docker compose -f infra/compose/dev.yml down -v
+docker compose --env-file .env -f infra/compose/dev.yml up -d
+docker compose --env-file .env -f infra/compose/dev.yml ps
+docker compose --env-file .env -f infra/compose/dev.yml down
+docker compose --env-file .env -f infra/compose/dev.yml down -v
 ```
 
 ## `e2e.yml` — end-to-end overlay
 
 Layered on top of `dev.yml` to swap durable named volumes for tmpfs, so
-every run starts from a clean Postgres / SeaweedFS / Meilisearch / Kafka.
+every run starts from a clean Postgres / Valkey / SeaweedFS / Meilisearch / Kafka.
 Images, ports, and credentials are identical to dev — only the
 *operational posture* (data persistence + Mailpit retention) changes.
 
@@ -124,7 +124,7 @@ make e2e-up                                         # tmpfs-backed stack up
 make e2e-down                                       # stop; tmpfs evaporates
 
 # Raw equivalent:
-docker compose -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
+docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
 ```
 
 Phase 06 Playwright + Phase 07 SDK contract tests run against this overlay

@@ -251,8 +251,9 @@ an abstraction.
 - **Hub URL** — pointed at LearnStack-hosted (SaaS / Dedicated / SelfHostedOnline) OR
   customer-hosted (rare) OR not set (SelfHostedAirGapped).
 - **Secret store** — `ConfigurationSecretProvider` today in every mode; the Vault-backed
-  provider is demand-gated to Phase 11 behind `ISecretProvider`, triggered by secrets
-  needing rotation without a redeploy or by a non-development deployment existing.
+  provider is demand-gated to Phase 11 behind `ISecretProvider`, triggered when a
+  production secret must rotate without a redeploy, or more than one operator needs
+  access to production secrets.
 - **Telemetry sink** — LearnStack OTel collector (SaaS / Dedicated) OR customer OTel
   (Self-Hosted). `SelfHostedAirGapped` wires no network exporter at all; its file target
   lands in Phase 11.

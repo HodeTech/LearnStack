@@ -11,12 +11,20 @@
 
     <!-- ADR-0023: Vogen emits the strongly-typed ID + value-object pipeline
          (record struct + EF converter + JSON converter + TypeConverter).
-         PrivateAssets="all" keeps the generator build-time only; the
-         Vogen.SharedTypes runtime helpers flow transitively because Vogen's
-         package opts them out of PrivateAssets internally. Every consuming
+         PrivateAssets excludes `analyzers;build;buildtransitive` but NOT
+         `runtime`, because the generated members bind to Vogen.SharedTypes:
+         `ValueObjectValidationException` on the uninitialized-access path,
+         and `ValueObjectOrError<T>` in the `TryFrom` return type. With
+         PrivateAssets="all" that assembly is suppressed for every consumer -
+         `dotnet publish LearnStack.Api` emitted 77 DLLs and none of them was
+         Vogen's, so reading `.Value` on an unset id threw FileNotFoundException
+         instead of ValueObjectValidationException, and `TryFrom` did not even
+         compile downstream (CS0012). The unit tests missed it because
+         LearnStack.Tests.Unit.csproj carries its own Vogen reference, so they
+         ran against a directory the API host does not ship. Every consuming
          project (each Modules.<X>.Domain) adds its own reference too -
          source generators only run in projects that reference them. -->
-    <PackageReference Include="Vogen" PrivateAssets="all" />
+    <PackageReference Include="Vogen" PrivateAssets="analyzers;build;buildtransitive" />
 
     <!-- LearnStackVogenDefaults.IdMask includes Conversions.EfCoreValueConverter
          per ADR-0023 Implementation Notes; Vogen therefore emits an
@@ -37,7 +45,9 @@
          ConfigurationSecretProvider default delegates to IConfiguration so
          every secret-bearing value (Sentry DSN, signed-license key paths,
          provider credentials) reads through one seam. The Vault-backed
-         DaprSecretProvider lands in Packet 5. -->
+         DaprSecretProvider is demand-gated to Phase 11 per ADR-0035; trigger:
+         a production secret must rotate without a redeploy, or more than one
+         operator needs access to production secrets. -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
   </ItemGroup>
 

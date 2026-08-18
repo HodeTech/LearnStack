@@ -151,7 +151,7 @@ var validator = JsonSchema.FromText(contentType.SchemaJson);
 var validation = validator.Evaluate(entryPayload);
 if (!validation.IsValid)
     return Result.Fail<ContentEntryDto>(
-        LocalizedMessage.Of("content_type.payload_invalid"));
+        new Error(LocalizedMessage.Of("lockey_content_type_payload_invalid")));
 ```
 
 The reader is per-tenant; the schema is **never** loaded from a global registry.
@@ -206,7 +206,9 @@ public async Task EnglishTenant_VocabularyCard_rejects_invalid_payload()
     var bad = new { term = "x" /* missing definition */ };
     var result = await mediator.Send(new CreateContentEntryCommand(...));
     Assert.False(result.IsSuccess);
-    Assert.Contains("content_type.payload_invalid", result.Errors);
+    Assert.Equal(
+        "lockey_content_type_payload_invalid",
+        result.Error!.Message.Key);
 }
 ```
 

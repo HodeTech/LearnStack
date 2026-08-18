@@ -167,13 +167,15 @@ Backend:
 
 ```csharp
 if (!await featureFlags.IsEnabledAsync(FeatureKeys.ClassroomRecording, ct))
-    return Result.Fail<RecordingDto>(LocalizedMessage.Of("classroom.recording.disabled"));
+    return Result.Fail<RecordingDto>(
+        new Error(LocalizedMessage.Of("lockey_classroom_recording_disabled")));
 ```
 
 ```csharp
 var limit = await featureFlags.GetLimitAsync(LimitKeys.MaxConcurrentLiveSessions, ct);
 if (currentConcurrent >= limit)
-    return Result.Fail<...>(LocalizedMessage.Of("limit.exceeded.classroom_concurrent"));
+    return Result.Fail<LiveSessionDto>(
+        new Error(LocalizedMessage.Of("lockey_limit_exceeded_classroom_concurrent")));
 ```
 
 Frontend (`apps/web`):

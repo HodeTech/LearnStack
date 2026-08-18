@@ -190,7 +190,7 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
 
     await _outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
     {
-        TenantId = _tenantContext.Current.TenantId,
+        TenantId = _tenantContext.TenantId,   // ITenantContext, not the accessor
         EnrollmentId = enrollment.Id.Value,
         LearnerId = cmd.LearnerId,
         CourseId = cmd.CourseId,
