@@ -112,7 +112,7 @@ public sealed class CourseTenantIsolationTests : IntegrationTestBase
         var courseInB = await CreateCourseAsync(tenantB);
 
         var response = await Client.As(tenantA.AdminUser)
-            .GetAsync($"/v1/courses/{courseInB.Id}");
+            .GetAsync($"/api/v1/courses/{courseInB.Id}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

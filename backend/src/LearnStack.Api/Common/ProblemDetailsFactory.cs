@@ -71,6 +71,18 @@ public static class ProblemDetailsFactory
             context: context);
     }
 
+    /// <summary>
+    /// Builds the body for a client error the framework produced without a
+    /// handler — an unmatched route, a wrong method, an unsupported media
+    /// type. There is no <see cref="Error"/> to carry, so the code comes from
+    /// the status and the message key from the code.
+    /// </summary>
+    public static ProblemDetails ForStatus(int status, HttpContext? context = null)
+    {
+        var code = HttpStatusMap.CanonicalCodeFor(status);
+        return BuildBase(code, LocalizedMessage.RequiredPrefix + code, status, context);
+    }
+
     private static ProblemDetails BuildBase(string code, string messageKey, int status, HttpContext? context)
     {
         var problem = new ProblemDetails

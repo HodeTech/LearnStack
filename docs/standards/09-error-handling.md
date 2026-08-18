@@ -215,7 +215,7 @@ All API errors are **RFC 7807 Problem Details**:
   "status": 400,
   "code": "validation_failed",
   "messageKey": "lockey_validation_failed",
-  "instance": "/v1/courses",
+  "instance": "/api/v1/courses",
   "correlationId": "01H...",
   "errors": {
     "title": [
