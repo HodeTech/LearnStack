@@ -28,6 +28,8 @@ public static class HttpStatusMap
         "resource_scope_violation" => (int)HttpStatusCode.Forbidden,
         "feature_disabled" => (int)HttpStatusCode.Forbidden,
         "not_found" => (int)HttpStatusCode.NotFound,
+        "method_not_allowed" => (int)HttpStatusCode.MethodNotAllowed,
+        "unsupported_media_type" => (int)HttpStatusCode.UnsupportedMediaType,
         "tenant_mismatch" => (int)HttpStatusCode.NotFound,
         "concurrency_conflict" => (int)HttpStatusCode.Conflict,
         "business_rule_violation" => (int)HttpStatusCode.Conflict,
@@ -35,6 +37,34 @@ public static class HttpStatusMap
         "rate_limited" => (int)HttpStatusCode.TooManyRequests,
         "dependency_unavailable" => (int)HttpStatusCode.ServiceUnavailable,
         _ => (int)HttpStatusCode.InternalServerError,
+    };
+
+    /// <summary>
+    /// The code a bodyless client error is reported under. The inverse of
+    /// <see cref="For(string)"/>, for the statuses the framework can produce
+    /// without ever reaching a handler — an unmatched route, a wrong method, an
+    /// unsupported media type. Standards 04 § Error Responses admits one error
+    /// shape; without this, three of them arrive with no body at all.
+    /// </summary>
+    /// <remarks>
+    /// 409 maps to <c>concurrency_conflict</c> because that is the only one of
+    /// its three codes a framework-level 409 could plausibly mean. The others
+    /// (<c>business_rule_violation</c>, <c>recording_consent_required</c>) are
+    /// carried by a handler that always supplies its own body.
+    /// </remarks>
+    public static string CanonicalCodeFor(int status) => status switch
+    {
+        (int)HttpStatusCode.BadRequest => "validation_failed",
+        (int)HttpStatusCode.Unauthorized => "unauthorized",
+        (int)HttpStatusCode.Forbidden => "forbidden",
+        (int)HttpStatusCode.NotFound => "not_found",
+        (int)HttpStatusCode.MethodNotAllowed => "method_not_allowed",
+        (int)HttpStatusCode.Conflict => "concurrency_conflict",
+        (int)HttpStatusCode.Gone => "api_version_sunset",
+        (int)HttpStatusCode.UnsupportedMediaType => "unsupported_media_type",
+        (int)HttpStatusCode.TooManyRequests => "rate_limited",
+        (int)HttpStatusCode.ServiceUnavailable => "dependency_unavailable",
+        _ => "internal_error",
     };
 
     public static int For(Exception exception)

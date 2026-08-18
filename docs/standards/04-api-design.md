@@ -72,30 +72,26 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 
 ## Error Responses
 
-All errors use **Problem Details (RFC 7807)**.
+All errors use **Problem Details (RFC 7807)**, in exactly one shape.
+[09-error-handling.md § API Surface](09-error-handling.md) is the authority for
+its fields; the example there is canonical and is not duplicated here.
 
-```json
-{
-  "type": "https://errors.learnstack.dev/validation",
-  "title": "Validation failed",
-  "status": 400,
-  "code": "validation_failed",
-  "detail": "One or more fields are invalid.",
-  "instance": "/api/v1/courses",
-  "correlationId": "01H7F...",
-  "errors": {
-    "title": ["Title is required."],
-    "slug": ["Slug already exists in this tenant."]
-  }
-}
-```
+Two things a reader of this document needs, because both are easy to get wrong:
 
-Rules:
-- `type` is a stable grouping URL.
-- `code` is a stable machine-readable string (`validation_failed`, `not_found`, `concurrency_conflict`, `tenant_mismatch`, `recording_consent_required`, ...).
-- `correlationId` matches the trace id in logs.
-- Stack traces, table names, query text never appear in responses.
-- See [09-error-handling.md](09-error-handling.md).
+- **`title` carries the `lockey_*` key, not English prose, and there is no
+  `detail`.** The backend never returns raw English — the frontend resolves the
+  key against its i18n catalogue. An earlier version of this section showed
+  `"title": "Validation failed"` and a `detail` field; both contradicted
+  Standards 09 and the shipped `ProblemDetailsFactory`.
+- **Every error carries it, including the ones no handler produces.** An
+  unmatched route (404), a wrong method (405) and an unsupported media type
+  (415) are framework-level and arrive with no body by default. Packet 4 gives
+  them the same shape, so a client parses one thing.
+
+`code` is a stable machine-readable string — `validation_failed`, `not_found`,
+`method_not_allowed`, `unsupported_media_type`, `concurrency_conflict`,
+`tenant_mismatch`, `recording_consent_required`, … — and always equals
+`title` with the `lockey_` prefix stripped, by construction.
 
 ## Authentication
 
@@ -146,8 +142,13 @@ Response:
 ```
 
 Rules:
-- `limit` default 20, max 100.
-- Cursor is opaque; clients must never parse it.
+- `limit` default 20, max 100. A larger `limit` is **clamped to 100, not
+  rejected** — one behaviour, decided once in `CursorPagination` and not
+  re-decided at the edge. A `limit` of zero or less **is** rejected, with
+  `errors.limit` naming the parameter the client sent.
+- Cursor is opaque; clients must never parse it. Nothing validates its *shape*
+  yet: the payload belongs to whoever mints it, and the first minting query
+  lands with the tenancy read paths.
 - Offset pagination is allowed only for admin-bounded lists (≤ 10k total rows).
 
 ## Filtering and Sorting

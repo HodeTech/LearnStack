@@ -1307,6 +1307,57 @@ started.
   operation before one exists, so registering it now records the name without
   claiming coverage.
 
+### Error shape (Standards 04 § Error Responses, Standards 09 § API Surface)
+
+#### `A_Non_Positive_Limit_Names_The_Parameter_The_Client_Sent`
+
+- **Asserts:** `?limit=0` and `?limit=-5` return 400 with `errors.limit`, and
+  with neither `$` nor `pagination` — the binder-internal names MVC produced
+  when the kernel's `CursorPagination` was bound directly and its `init`
+  accessor threw.
+- **Source:** Standards 04 § Pagination; Phase 02a Packet 4's named correctness
+  fix.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`ErrorShapeHttpTests`).
+- **Phase:** 02a Packet 4.
+- **Note:** the roadmap described this defect as an **unhandled
+  `ArgumentOutOfRangeException` producing a 500**. Measured at the start of
+  Packet 4 step 2, it was already a 400 — the `InvalidModelStateResponseFactory`
+  wired one step earlier catches the binder's exception. What remained was that
+  the 400 named no parameter the client had sent. The record is corrected here
+  rather than in the roadmap's frozen packet text.
+
+#### `A_Limit_Above_The_Maximum_Is_Clamped_Not_Rejected`
+
+- **Asserts:** `?limit=9999` returns 200 with an effective limit of 100. The
+  wire type deliberately does not enforce the ceiling, because
+  `CursorPagination` clamps and two layers disagreeing about it is worse than
+  either answer.
+- **Source:** Standards 04 § Pagination.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`ErrorShapeHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Framework_Client_Errors_Carry_Problem_Details`
+
+- **Asserts:** an unmatched route (404), a wrong method (405) and an
+  unsupported media type (415) each return `application/problem+json` with
+  `code`, `messageKey`, `status` and `correlationId` — the same shape a handler
+  error carries. Implemented as
+  `An_Unmatched_Route_Returns_Problem_Details`,
+  `A_Wrong_Method_Returns_Problem_Details` and
+  `An_Unsupported_Media_Type_Returns_Problem_Details`.
+- **Source:** Standards 04 § Error Responses; Standards 09 § API Surface.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`ErrorShapeHttpTests`).
+- **Phase:** 02a Packet 4.
+- **Note:** the three come from two different places and needed two hooks. 404
+  and 405 are produced by **routing**, before MVC, so no MVC hook sees them —
+  `UseStatusCodePages` does. 415 is produced by **MVC**, which already converted
+  it to ASP.NET's own `ProblemDetails`: the right idea in the wrong shape, with
+  no `code`, `messageKey` or `correlationId`. `IClientErrorFactory` replaces
+  that conversion instead of layering over it.
+
 ### Tenant and organization resolution (ADR-0036)
 
 The binding evidence for this group is the **runtime** matrix in

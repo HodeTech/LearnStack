@@ -50,6 +50,14 @@ public static class ApiVersioningExtensions
         services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
             options.InvalidModelStateResponseFactory = Common.ModelBindingProblemDetails.For);
 
+        // MVC converts a bodyless StatusCodeResult from an [ApiController]
+        // action into ASP.NET's own ProblemDetails — right idea, wrong shape:
+        // no code, no messageKey, no correlationId. Replacing the factory is
+        // the sanctioned hook, and it keeps one shape rather than two.
+        services.AddHttpContextAccessor();
+        services.AddSingleton<Microsoft.AspNetCore.Mvc.Infrastructure.IClientErrorFactory,
+            Common.LearnStackClientErrorFactory>();
+
         foreach (var major in LiveMajors)
         {
             services.AddLearnStackOpenApiDocument(major);

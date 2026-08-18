@@ -1,3 +1,4 @@
+using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Versioning;
 using LearnStack.SharedKernel.Hosting;
@@ -23,6 +24,11 @@ builder.Services.AddLearnStackApiVersioning();
 var app = builder.Build();
 
 app.UseExceptionHandler();
+
+// 404 and 405 come from routing, before MVC — no action runs, so no MVC hook
+// sees them and they reach the client with no body. Registered after the
+// exception handler so an error that already produced a body keeps it.
+app.MapLearnStackClientErrors();
 
 // The OpenAPI document and its reference UI are served in every environment,
 // not only Development. The document IS the contract Standards 04 § OpenAPI
