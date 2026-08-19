@@ -170,6 +170,7 @@ public sealed class VersionedRouteEnforcementTests(ProductionHostFixture fixture
     private static bool IsUnversionedByDesign(string pattern) =>
         pattern is "healthz" or "readyz"
         || pattern.StartsWith("openapi", StringComparison.OrdinalIgnoreCase)
+        || pattern.StartsWith("docs", StringComparison.OrdinalIgnoreCase)
         || pattern.StartsWith("scalar", StringComparison.OrdinalIgnoreCase)
         || VersionedRouteConvention.UnversionedRoutePrefixes.Any(prefix =>
             pattern.Equals(prefix, StringComparison.OrdinalIgnoreCase)

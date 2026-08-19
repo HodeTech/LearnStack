@@ -50,10 +50,14 @@ public sealed record CursorPaginationRequest
     /// </summary>
     /// <remarks>
     /// The range's upper bound is <see cref="int.MaxValue"/> on purpose — see
-    /// the type's remarks. Only a non-positive limit is a client error.
+    /// the type's remarks. Only a non-positive limit is a client error. The
+    /// attribute carries no <c>ErrorMessage</c> for a related reason: its text
+    /// would be raw English, and <see cref="Common.ModelBindingProblemDetails"/>
+    /// discards ModelState's message and emits a localisation key instead, so
+    /// any string here would be dead text that reads as if a client sees it.
     /// </remarks>
     [FromQuery(Name = "limit")]
-    [Range(1, int.MaxValue, ErrorMessage = "limit must be greater than zero.")]
+    [Range(1, int.MaxValue)]
     public int? Limit { get; init; }
 
     /// <summary>

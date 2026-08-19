@@ -25,6 +25,12 @@ public static class ApiVersioningExtensions
     public static readonly IReadOnlyList<int> LiveMajors = [1];
 
     /// <summary>
+    /// Where the reference console is served. Deliberately not under
+    /// <c>/openapi</c>: see <see cref="MapLearnStackOpenApi"/>.
+    /// </summary>
+    public const string ScalarUiPath = "/docs";
+
+    /// <summary>
     /// Registers controllers under the versioned route convention and one
     /// OpenAPI document per entry in <see cref="LiveMajors"/>.
     /// </summary>
@@ -41,7 +47,15 @@ public static class ApiVersioningExtensions
         services.Configure<RouteOptions>(options => options.LowercaseUrls = true);
 
         services.AddControllers(options =>
-            options.Conventions.Add(new VersionedRouteConvention()));
+        {
+            options.Conventions.Add(new VersionedRouteConvention());
+
+            // Last-resort normaliser. The IClientErrorFactory below only sees
+            // IClientErrorActionResult, which the *ObjectResult family does not
+            // implement — NotFound() produced the LearnStack shape while
+            // NotFound(body), Problem() and ValidationProblem() did not.
+            options.Filters.Add<Common.ProblemDetailsNormalizationFilter>();
+        });
 
         // [ApiController]'s automatic 400 runs before MediatR, so a binding
         // failure never reaches ValidationBehavior. Left at its default it
@@ -54,7 +68,6 @@ public static class ApiVersioningExtensions
         // action into ASP.NET's own ProblemDetails — right idea, wrong shape:
         // no code, no messageKey, no correlationId. Replacing the factory is
         // the sanctioned hook, and it keeps one shape rather than two.
-        services.AddHttpContextAccessor();
         services.AddSingleton<Microsoft.AspNetCore.Mvc.Infrastructure.IClientErrorFactory,
             Common.LearnStackClientErrorFactory>();
 
@@ -81,6 +94,12 @@ public static class ApiVersioningExtensions
 
         var documentName = $"v{major}";
         var routePrefix = $"api/{documentName}/";
+
+        // Record the name so MapLearnStackOpenApi can constrain its route to
+        // the documents that actually exist. Reading LiveMajors there instead
+        // would be wrong the moment anything registers a document outside it —
+        // which a test exercising two adjacent majors does by construction.
+        RegistryFor(services).Add(documentName);
 
         // The document name IS the URL segment: MapOpenApi serves
         // /openapi/{documentName}.json, so naming the document "v1" produces
@@ -119,6 +138,19 @@ public static class ApiVersioningExtensions
         return services;
     }
 
+    private static OpenApiDocumentRegistry RegistryFor(IServiceCollection services)
+    {
+        if (services.FirstOrDefault(d => d.ServiceType == typeof(OpenApiDocumentRegistry))
+                ?.ImplementationInstance is OpenApiDocumentRegistry existing)
+        {
+            return existing;
+        }
+
+        var registry = new OpenApiDocumentRegistry();
+        services.AddSingleton(registry);
+        return registry;
+    }
+
     /// <summary>
     /// Maps <c>/openapi/v{N}.json</c> for every registered major, plus the
     /// Scalar reference UI at <c>/openapi</c>.
@@ -135,8 +167,23 @@ public static class ApiVersioningExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        app.MapOpenApi();
-        app.MapScalarApiReference("/openapi", options =>
+        // The document route is constrained to the majors that actually exist.
+        // Unconstrained, `/openapi/v9.json` answered 404 in text/plain with
+        // English framework prose — a fourth error shape, on a published route.
+        // Constrained, it matches no route and becomes an ordinary routing 404
+        // in the one Problem Details shape.
+        var documentNames = string.Join(
+            "|", app.Services.GetRequiredService<OpenApiDocumentRegistry>().Names);
+        app.MapOpenApi($"/openapi/{{documentName:regex(^({documentNames})$)}}.json");
+
+        // The console lives at /docs, not under /openapi. Scalar maps its own
+        // `{documentName?}` inside the prefix it is given, so a prefix under
+        // /openapi both collides with the parameter name and shadows the whole
+        // document namespace with a catch-all — `/openapi/garbage` answered
+        // 200 text/html, making an unknown document look like a success.
+        // Separating the console from the contract removes the shadowing
+        // instead of fighting it.
+        app.MapScalarApiReference(ScalarUiPath, options =>
         {
             options.WithTitle("LearnStack API");
 
@@ -151,4 +198,19 @@ public static class ApiVersioningExtensions
 
         return app;
     }
+}
+
+/// <summary>
+/// The OpenAPI document names this host registered. Exists so the document
+/// route can be constrained to them: unconstrained,
+/// <c>/openapi/v9.json</c> answered 404 in <c>text/plain</c> with English
+/// framework prose — a fourth error shape on a published route.
+/// </summary>
+public sealed class OpenApiDocumentRegistry
+{
+    private readonly SortedSet<string> _names = new(StringComparer.Ordinal);
+
+    public IReadOnlyCollection<string> Names => _names;
+
+    public void Add(string documentName) => _names.Add(documentName);
 }

@@ -29,7 +29,9 @@ public static class HttpStatusMap
         "feature_disabled" => (int)HttpStatusCode.Forbidden,
         "not_found" => (int)HttpStatusCode.NotFound,
         "method_not_allowed" => (int)HttpStatusCode.MethodNotAllowed,
+        "payload_too_large" => (int)HttpStatusCode.RequestEntityTooLarge,
         "unsupported_media_type" => (int)HttpStatusCode.UnsupportedMediaType,
+        "request_rejected" => (int)HttpStatusCode.BadRequest,
         "tenant_mismatch" => (int)HttpStatusCode.NotFound,
         "concurrency_conflict" => (int)HttpStatusCode.Conflict,
         "business_rule_violation" => (int)HttpStatusCode.Conflict,
@@ -47,10 +49,20 @@ public static class HttpStatusMap
     /// shape; without this, three of them arrive with no body at all.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 409 maps to <c>concurrency_conflict</c> because that is the only one of
     /// its three codes a framework-level 409 could plausibly mean. The others
     /// (<c>business_rule_violation</c>, <c>recording_consent_required</c>) are
     /// carried by a handler that always supplies its own body.
+    /// </para>
+    /// <para>
+    /// This is <b>not</b> the inverse of <see cref="For(string)"/> and does not
+    /// claim to be: several codes share a status, so the mapping is many-to-one
+    /// in that direction and a canonical pick in this one. What must hold — and
+    /// what <c>CanonicalCodeFor_RoundTrips_To_Its_Own_Status</c> asserts — is
+    /// that feeding any code this method returns back through
+    /// <see cref="For(string)"/> yields the status it was derived from.
+    /// </para>
     /// </remarks>
     public static string CanonicalCodeFor(int status) => status switch
     {
@@ -60,10 +72,18 @@ public static class HttpStatusMap
         (int)HttpStatusCode.NotFound => "not_found",
         (int)HttpStatusCode.MethodNotAllowed => "method_not_allowed",
         (int)HttpStatusCode.Conflict => "concurrency_conflict",
-        (int)HttpStatusCode.Gone => "api_version_sunset",
+        (int)HttpStatusCode.RequestEntityTooLarge => "payload_too_large",
         (int)HttpStatusCode.UnsupportedMediaType => "unsupported_media_type",
+        (int)HttpStatusCode.UnprocessableEntity => "validation_failed",
         (int)HttpStatusCode.TooManyRequests => "rate_limited",
         (int)HttpStatusCode.ServiceUnavailable => "dependency_unavailable",
+
+        // A 4xx nobody mapped is still the client's fault, and saying
+        // `internal_error` in a body whose whole contract is that `code` and
+        // `status` agree would be a lie the SDK reads. 410 lands here on
+        // purpose: ADR-0024's sunset body is minted by a handler with its own
+        // successor and migration-guide fields, never by this fallback.
+        >= 400 and < 500 => "request_rejected",
         _ => "internal_error",
     };
 
@@ -90,6 +110,13 @@ public static class HttpStatusMap
             // behaviour. If a future ADR pins a different code, change
             // this line.
             OperationCanceledException => 499,
+
+            // Kestrel and the body readers throw this for a request the
+            // framework rejected before any handler saw it — a body over
+            // MaxRequestBodySize (413), a malformed chunk (400). It carries
+            // the status it decided on; discarding it turned a client's
+            // oversized upload into a 500 that pages someone.
+            Microsoft.AspNetCore.Http.BadHttpRequestException bad => bad.StatusCode,
 
             // Every LearnStackException carries a structured Error; the HTTP
             // status is derived from that Error.Code so the response status
