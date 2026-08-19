@@ -36,6 +36,7 @@ public static class HttpStatusMap
         "concurrency_conflict" => (int)HttpStatusCode.Conflict,
         "request_in_progress" => (int)HttpStatusCode.Conflict,
         "idempotency_key_reuse" => (int)HttpStatusCode.Conflict,
+        "idempotency_outcome_unavailable" => (int)HttpStatusCode.Conflict,
         "business_rule_violation" => (int)HttpStatusCode.Conflict,
         "recording_consent_required" => (int)HttpStatusCode.Conflict,
         "rate_limited" => (int)HttpStatusCode.TooManyRequests,
@@ -55,7 +56,8 @@ public static class HttpStatusMap
     /// 409 maps to <c>concurrency_conflict</c> because that is the only one of
     /// its codes a framework-level 409 could plausibly mean. The others
     /// (<c>business_rule_violation</c>, <c>recording_consent_required</c>,
-    /// <c>request_in_progress</c>, <c>idempotency_key_reuse</c>) are carried by
+    /// <c>request_in_progress</c>, <c>idempotency_key_reuse</c>,
+    /// <c>idempotency_outcome_unavailable</c>) are carried by
     /// a handler or a filter that always supplies its own body.
     /// </para>
     /// <para>

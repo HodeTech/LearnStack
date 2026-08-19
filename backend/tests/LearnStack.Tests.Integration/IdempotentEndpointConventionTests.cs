@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Api.Idempotency;
@@ -46,6 +48,35 @@ public sealed class IdempotentEndpointConventionTests(ProductionHostFixture fixt
             .Which.Should().Contain("IdempotentReadProbe", Exactly.Once());
     }
 
+    [Fact]
+    public async Task An_Idempotent_Operation_Publishes_Its_Header_In_The_Contract()
+    {
+        // Without this the attribute is invisible to the generated SDK, every
+        // call it produced would be answered 400, and "the first consumer is a
+        // one-attribute change" would not be true.
+        using var host = new ProbeHostFixture(typeof(IdempotentWriteProbeController));
+        using var client = host.CreateClient();
+
+        var document = await client.GetFromJsonAsync<JsonElement>(
+            new Uri("/openapi/v1.json", UriKind.Relative));
+
+        // RouteOptions.LowercaseUrls is on, so the document publishes the
+        // lowercased path rather than the controller's declared casing.
+        var path = document.GetProperty("paths").EnumerateObject()
+            .Single(entry => entry.Name.Contains(
+                "idempotentwriteprobe", StringComparison.OrdinalIgnoreCase));
+        var operation = path.Value.GetProperty("post");
+
+        operation.GetProperty("parameters").EnumerateArray()
+            .Should().ContainSingle(parameter =>
+                parameter.GetProperty("name").GetString() == IdempotentAttribute.HeaderName
+                && parameter.GetProperty("in").GetString() == "header"
+                && parameter.GetProperty("required").GetBoolean());
+
+        operation.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue(
+            "a client has to branch on the three conflicts this surface can answer");
+    }
+
     private static IReadOnlyList<string> SafeIdempotentEndpoints(IServiceProvider services) =>
         [.. services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
@@ -55,6 +86,14 @@ public sealed class IdempotentEndpointConventionTests(ProductionHostFixture fixt
                 || !methods.HttpMethods.Any(method =>
                     UnsafeMethods.Contains(method, StringComparer.OrdinalIgnoreCase)))
             .Select(endpoint => endpoint.RoutePattern.RawText ?? string.Empty)];
+}
+
+/// <summary>A write marked idempotent, so the contract has something to publish.</summary>
+public sealed class IdempotentWriteProbeController : ApiControllerBase, ITestOnlyController
+{
+    [HttpPost]
+    [Idempotent]
+    public IActionResult Post() => Ok();
 }
 
 /// <summary>A read marked idempotent, so the rule has something to catch.</summary>

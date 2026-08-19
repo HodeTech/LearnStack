@@ -239,41 +239,36 @@ public sealed class InMemoryIdempotencyStoreTests
             .Outcome.Should().Be(IdempotencyClaim.Completed);
     }
 
-    // ---- ceilings ----------------------------------------------------------
+    // ---- capacity ----------------------------------------------------------
 
     [Fact]
-    public async Task The_Ceiling_Never_Evicts_A_Live_Claim()
+    public async Task A_Tenant_At_Its_Allowance_Is_Refused_A_New_Key()
     {
-        // Evicting a live claim releases a key whose operation is still
-        // running, so the next retry executes it again — the exact duplication
-        // the store exists to prevent. A bounded overshoot is the cheaper side.
-        var (store, clock) = NewStore();
-        var claimed = new List<string>();
+        // Admission, not eviction. The alternative — dropping an unexpired
+        // record to make room — would let the operation that record describes
+        // run a second time, so the capacity control would be quietly
+        // cancelling the guarantee it exists to protect.
+        var (store, clock) = await FilledToAllowanceAsync();
 
-        for (var i = 0; i <= InMemoryIdempotencyStore.MaxEntriesPerTenant + 50; i++)
-        {
-            var key = $"live-{i:D5}";
-            (await store.TryClaimAsync(Tenant, key, Fingerprint, default))
-                .Outcome.Should().Be(IdempotencyClaim.Acquired);
-            claimed.Add(key);
-        }
+        (await store.TryClaimAsync(Tenant, "one-key-too-many", Fingerprint, default))
+            .Outcome.Should().Be(IdempotencyClaim.CapacityExhausted);
 
-        // Arm the sweep — the ceilings are enforced inside it — without letting
-        // any of the claims above reach the claim timeout, so an eviction here
-        // could only be the ceiling's doing.
-        clock.Advance(InMemoryIdempotencyStore.SweepInterval);
-        await store.TryClaimAsync(Tenant, "trigger-the-sweep", Fingerprint, default);
-
-        foreach (var key in claimed)
-        {
-            (await store.TryClaimAsync(Tenant, key, Fingerprint, default))
-                .Outcome.Should().Be(IdempotencyClaim.InFlight,
-                    $"the claim on {key} is still running and must not have been evicted");
-        }
+        clock.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task One_Tenants_Flood_Does_Not_Evict_Another_Tenants_Record()
+    public async Task An_Existing_Key_Is_Still_Served_At_Capacity()
+    {
+        // A client holding a key must never be locked out by another client's
+        // flood — its retry is the request the mechanism exists to answer.
+        var (store, _) = await FilledToAllowanceAsync();
+
+        (await store.TryClaimAsync(Tenant, "filler-00000", Fingerprint, default))
+            .Outcome.Should().Be(IdempotencyClaim.Completed);
+    }
+
+    [Fact]
+    public async Task An_Unexpired_Record_Survives_Another_Tenants_Flood()
     {
         // The global ceiling is a shared resource. Without a per-tenant bound,
         // one tenant minting keys in a loop revokes every other tenant's
@@ -282,35 +277,118 @@ public sealed class InMemoryIdempotencyStoreTests
         var victim = await store.TryClaimAsync(OtherTenant, Key, Fingerprint, default);
         await store.CompleteAsync(OtherTenant, Key, victim.Token, Response(200), default);
 
+        var refused = 0;
         for (var i = 0; i < InMemoryIdempotencyStore.MaxEntriesPerTenant * 2; i++)
         {
-            var key = $"flood-{i:D6}";
-            var claim = await store.TryClaimAsync(Tenant, key, Fingerprint, default);
-            await store.CompleteAsync(Tenant, key, claim.Token, Response(200), default);
             clock.Advance(InMemoryIdempotencyStore.SweepInterval);
+            var claim = await store.TryClaimAsync(Tenant, $"flood-{i:D6}", Fingerprint, default);
+            if (claim.Outcome == IdempotencyClaim.CapacityExhausted)
+            {
+                refused++;
+                continue;
+            }
+
+            await store.CompleteAsync(Tenant, $"flood-{i:D6}", claim.Token, Response(200), default);
         }
 
+        refused.Should().BeGreaterThan(0, "the flooding tenant hits its own allowance");
         (await store.TryClaimAsync(OtherTenant, Key, Fingerprint, default))
             .Outcome.Should().Be(IdempotencyClaim.Completed,
-                "the flooding tenant's keys are evicted against its own allowance");
+                "the victim's record had not expired, so nothing may drop it");
     }
 
     [Fact]
-    public async Task A_Flooding_Tenant_Is_Held_To_Its_Own_Allowance()
+    public async Task Capacity_Comes_Back_When_Records_Expire()
+    {
+        // Refusing has to be temporary, or a tenant that once filled its
+        // allowance would be locked out for good.
+        var (store, clock) = await FilledToAllowanceAsync();
+
+        clock.Advance(InMemoryIdempotencyStore.Retention);
+
+        (await store.TryClaimAsync(Tenant, "after-the-window", Fingerprint, default))
+            .Outcome.Should().Be(IdempotencyClaim.Acquired);
+    }
+
+    // ---- tombstones --------------------------------------------------------
+
+    [Fact]
+    public async Task An_Outcome_Recorded_Without_A_Response_Refuses_The_Retry()
+    {
+        // The operation happened and its answer was not retained. Releasing the
+        // key would let a retry do the work again; that is the one outcome this
+        // type exists to prevent, so the retry is refused instead.
+        var (store, _) = NewStore();
+        var claim = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+
+        await store.CompleteAsync(Tenant, Key, claim.Token, response: null, default);
+
+        var retry = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+        retry.Outcome.Should().Be(IdempotencyClaim.Unreplayable);
+        retry.Stored.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_Tombstone_Expires_With_The_Retention_Window()
+    {
+        var (store, clock) = NewStore();
+        var claim = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+        await store.CompleteAsync(Tenant, Key, claim.Token, response: null, default);
+
+        clock.Advance(InMemoryIdempotencyStore.Retention);
+
+        (await store.TryClaimAsync(Tenant, Key, Fingerprint, default))
+            .Outcome.Should().Be(IdempotencyClaim.Acquired);
+    }
+
+    // ---- fencing is observable ---------------------------------------------
+
+    [Fact]
+    public async Task A_Caller_That_Lost_Its_Claim_Is_Told_So()
+    {
+        // Silence here is how a side effect nobody will replay becomes
+        // invisible: the operation ran, the lease had expired, and the caller
+        // needs to know its outcome was not recorded.
+        var (store, clock) = NewStore();
+        var first = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+
+        clock.Advance(InMemoryIdempotencyStore.ClaimTimeout);
+        await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+
+        (await store.CompleteAsync(Tenant, Key, first.Token, Response(200), default))
+            .Should().BeFalse();
+        (await store.AbandonAsync(Tenant, Key, first.Token, default)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_Caller_That_Still_Owns_Its_Claim_Records_Successfully()
+    {
+        var (store, _) = NewStore();
+        var claim = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+
+        (await store.CompleteAsync(Tenant, Key, claim.Token, Response(200), default))
+            .Should().BeTrue();
+    }
+
+    /// <summary>A tenant holding exactly its allowance in completed records.</summary>
+    private static async Task<(InMemoryIdempotencyStore Store, FixedClock Clock)> FilledToAllowanceAsync()
     {
         var (store, clock) = NewStore();
 
-        for (var i = 0; i < InMemoryIdempotencyStore.MaxEntriesPerTenant + 200; i++)
+        for (var i = 0; i < InMemoryIdempotencyStore.MaxEntriesPerTenant; i++)
         {
-            var key = $"flood-{i:D6}";
+            var key = $"filler-{i:D5}";
             var claim = await store.TryClaimAsync(Tenant, key, Fingerprint, default);
+            claim.Outcome.Should().Be(IdempotencyClaim.Acquired);
             await store.CompleteAsync(Tenant, key, claim.Token, Response(200), default);
-            clock.Advance(InMemoryIdempotencyStore.SweepInterval);
         }
 
-        (await store.TryClaimAsync(Tenant, "flood-000000", Fingerprint, default))
-            .Outcome.Should().Be(IdempotencyClaim.Acquired,
-                "the oldest completed records are the ones the allowance drops");
+        // The census is refreshed by the sweep, so admission only sees the
+        // filled map after one interval has passed.
+        clock.Advance(InMemoryIdempotencyStore.SweepInterval);
+        await store.TryClaimAsync(Tenant, "filler-00000", Fingerprint, default);
+
+        return (store, clock);
     }
 
     // ---- the race ----------------------------------------------------------
@@ -324,50 +402,51 @@ public sealed class InMemoryIdempotencyStoreTests
         // deleted — and the next caller, finding the key absent, was told to run
         // the operation. Two callers, one key, one tenant, both running.
         //
-        // Every key below starts out holding an EXPIRED claim, so the sweep has
-        // something to collect on every pass. The clock advances one sweep
-        // interval per round and the run is bounded well under ClaimTimeout, so
-        // no claim taken during the run can legitimately expire. Each key may
-        // therefore be acquired exactly once: the takeover. A second acquire is
-        // the bug.
-        const int keys = 8;
-        const int threads = 16;
-        const int rounds = 200;
+        // The window is the sweep's own enumeration, so the test widens it
+        // deliberately: each round starts with several hundred EXPIRED entries
+        // for the sweep to walk while the workers race to take them over. Every
+        // key may be acquired exactly once per round — the takeover — and a
+        // second acquire is the bug. Between rounds the clock jumps a full claim
+        // timeout, which expires everything again and re-arms the sweep.
+        const int keys = 400;
+        const int threads = 12;
+        const int rounds = 8;
 
         var clock = new AtomicClock(Origin);
         var store = new InMemoryIdempotencyStore(clock);
+        var names = Enumerable.Range(0, keys).Select(i => $"raced-{i:D4}").ToArray();
 
-        for (var i = 0; i < keys; i++)
+        foreach (var name in names)
         {
-            await store.TryClaimAsync(Tenant, $"raced-{i}", Fingerprint, default);
+            await store.TryClaimAsync(Tenant, name, Fingerprint, default);
         }
 
-        clock.Advance(InMemoryIdempotencyStore.ClaimTimeout);
+        for (var round = 0; round < rounds; round++)
+        {
+            // Everything in the map is now expired, so every key is takeable
+            // and the sweep has the whole map to walk.
+            clock.Advance(InMemoryIdempotencyStore.ClaimTimeout);
 
-        var acquisitions = new int[keys];
-        using var start = new Barrier(threads);
+            var acquisitions = new int[keys];
+            using var start = new Barrier(threads);
 
-        // Dedicated threads, not pool tasks: the claims complete synchronously,
-        // so pool tasks would largely run one after another and the interleaving
-        // this test is looking for would never happen.
-        var workers = Enumerable.Range(0, threads).Select(worker =>
-            Task.Factory.StartNew(
-                () =>
-                {
-                    start.SignalAndWait();
-
-                    for (var round = 0; round < rounds; round++)
+            // Dedicated threads, not pool tasks: the claims complete
+            // synchronously, so pool tasks would largely run one after another
+            // and the interleaving this test looks for would never happen.
+            var workers = Enumerable.Range(0, threads).Select(worker =>
+                Task.Factory.StartNew(
+                    () =>
                     {
-                        // One driver, so the total advance stays bounded.
-                        if (worker == 0)
-                        {
-                            clock.Advance(InMemoryIdempotencyStore.SweepInterval);
-                        }
+                        start.SignalAndWait();
 
-                        for (var i = 0; i < keys; i++)
+                        // Each worker walks the keys from a different offset, so
+                        // the takeovers spread across the sweep's enumeration
+                        // instead of all landing at its head.
+                        for (var step = 0; step < keys; step++)
                         {
+                            var i = (step + (worker * (keys / threads))) % keys;
                             var claim = store
-                                .TryClaimAsync(Tenant, $"raced-{i}", Fingerprint, default)
+                                .TryClaimAsync(Tenant, names[i], Fingerprint, default)
                                 .GetAwaiter().GetResult();
 
                             if (claim.Outcome == IdempotencyClaim.Acquired)
@@ -375,17 +454,18 @@ public sealed class InMemoryIdempotencyStoreTests
                                 Interlocked.Increment(ref acquisitions[i]);
                             }
                         }
-                    }
-                },
-                CancellationToken.None,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default)).ToArray();
+                    },
+                    CancellationToken.None,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default)).ToArray();
 
-        await Task.WhenAll(workers);
+            await Task.WhenAll(workers);
 
-        acquisitions.Should().OnlyContain(count => count == 1,
-            "each key was acquired by exactly one caller; a second acquire means a live "
-            + "claim was destroyed and the operation would have run twice");
+            acquisitions.Should().OnlyContain(count => count == 1,
+                $"round {round}: each key was acquired by exactly one caller; a second "
+                + "acquire means a live claim was destroyed and the operation would "
+                + "have run twice");
+        }
     }
 
     private static (InMemoryIdempotencyStore Store, FixedClock Clock) NewStore()

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using LearnStack.Api.Common;
@@ -152,6 +153,21 @@ internal sealed partial class IdempotencyFilter(
         StatusCodes.Status429TooManyRequests,
     ];
 
+    /// <summary>
+    /// Error codes whose whole meaning is "try again", whatever status carries
+    /// them. Classifying by status alone would pin these: a 409
+    /// <c>concurrency_conflict</c> tells the client to re-read and re-submit,
+    /// and recording it makes that impossible for the retention window — the key
+    /// would answer "conflict" forever, and the client could never succeed.
+    /// </summary>
+    private static readonly HashSet<string> RetryableCodes =
+        new(StringComparer.Ordinal)
+        {
+            "concurrency_conflict",
+            "dependency_unavailable",
+            "rate_limited",
+        };
+
     public async Task OnResourceExecutionAsync(
         ResourceExecutingContext context, ResourceExecutionDelegate next)
     {
@@ -205,6 +221,23 @@ internal sealed partial class IdempotencyFilter(
                     new Error(new LocalizedMessage("lockey_request_in_progress")));
                 return;
 
+            case IdempotencyClaim.Unreplayable:
+                // The operation happened and its answer was not retained. The
+                // one thing that must not happen now is running it again, so
+                // the caller is told the outcome exists rather than invited to
+                // reproduce it.
+                context.Result = new ProblemDetailsActionResult(
+                    new Error(new LocalizedMessage("lockey_idempotency_outcome_unavailable")));
+                return;
+
+            case IdempotencyClaim.CapacityExhausted:
+                // No room for a new key without dropping a guarantee that has
+                // not expired. Refusing costs this caller a retry; admitting
+                // would cost some other caller its exactly-once.
+                context.Result = new ProblemDetailsActionResult(
+                    new Error(new LocalizedMessage("lockey_dependency_unavailable")));
+                return;
+
             case IdempotencyClaim.Mismatched:
                 // Same key, different request. Replaying would answer a question
                 // the client did not ask; running would defeat the key. Both are
@@ -253,14 +286,29 @@ internal sealed partial class IdempotencyFilter(
 
         response.Body = original;
 
+        // An unhandled exception leaves this method WITHOUT delivering anything.
+        // MVC returns normally from next() in that case and rethrows after the
+        // filter unwinds, so the buffer can already hold a half-written body — a
+        // formatter that threw partway through serialisation. Copying it out
+        // starts the response, which both hands the client a truncated 2xx and
+        // takes the exception away from UseExceptionHandler, whose RFC 7807 500
+        // can no longer be written once the response has started. The partial
+        // bytes are discarded; the framework's rethrow does the rest.
+        if (executed.Exception is not null && !executed.ExceptionHandled)
+        {
+            await AbandonAsync(tenantId, key, token).ConfigureAwait(false);
+            return;
+        }
+
         // Record BEFORE delivering, and with a token that does not follow the
         // connection. A client that disconnects at exactly the moment its
         // operation completes is the case idempotency exists for: it will retry.
         // Recording after the copy — or under RequestAborted — loses the answer
         // precisely then, and the retry re-runs the work.
-        if (ShouldRecord(executed, response, buffer.Length))
+        var outcome = Classify(executed, response, buffer.Length);
+        var fenced = outcome switch
         {
-            await store.CompleteAsync(
+            Outcome.Record => await store.CompleteAsync(
                 tenantId,
                 key,
                 token,
@@ -269,66 +317,114 @@ internal sealed partial class IdempotencyFilter(
                     response.ContentType,
                     CaptureHeaders(response),
                     buffer.ToArray()),
-                CancellationToken.None).ConfigureAwait(false);
-        }
-        else
+                CancellationToken.None).ConfigureAwait(false),
+
+            // Not a release. The side effect happened; releasing would let a
+            // retry do it again, which is the one failure this whole mechanism
+            // exists to prevent. The key stays taken and says so.
+            Outcome.Tombstone => await store.CompleteAsync(
+                tenantId, key, token, null, CancellationToken.None).ConfigureAwait(false),
+
+            _ => await AbandonAsync(tenantId, key, token).ConfigureAwait(false),
+        };
+
+        if (!fenced && outcome != Outcome.Release)
         {
-            await AbandonAsync(tenantId, key, token).ConfigureAwait(false);
+            // The claim lease expired while the operation ran, so somebody else
+            // owns the key now and this outcome will never be replayed. Silence
+            // here is how a duplicate charge becomes invisible.
+            OutcomeLostItsClaim(logger, key.Length);
         }
 
         buffer.Position = 0;
         await buffer.CopyToAsync(original, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Whether this outcome is worth replaying for the retention window.</summary>
-    private bool ShouldRecord(ResourceExecutedContext executed, HttpResponse response, long bodyLength)
+    /// <summary>What should become of the key once the operation has answered.</summary>
+    private enum Outcome
     {
-        // Release rather than record. Storing a failure would make every retry
-        // replay it for the retention window, turning one transient fault into a
-        // day of them.
-        if (executed.Exception is not null && !executed.ExceptionHandled)
-        {
-            return false;
-        }
+        /// <summary>Store the response; a retry replays it.</summary>
+        Record,
 
-        // A 5xx is not an outcome worth replaying either — the operation may or
-        // may not have happened, and pinning the answer removes the client's
-        // only way to find out.
-        if (response.StatusCode >= 500 || RetryableStatuses.Contains(response.StatusCode))
-        {
-            return false;
-        }
+        /// <summary>Store that it happened, without the response; a retry is refused.</summary>
+        Tombstone,
 
-        if (bodyLength > IdempotentAttribute.MaxStoredResponseBytes)
-        {
-            ResponseTooLargeToReplay(logger, bodyLength, IdempotentAttribute.MaxStoredResponseBytes);
-            return false;
-        }
-
-        return true;
+        /// <summary>Free the key; a retry runs the operation again.</summary>
+        Release,
     }
 
-    private Task AbandonAsync(Guid tenantId, string key, Guid token) =>
+    private Outcome Classify(ResourceExecutedContext executed, HttpResponse response, long bodyLength)
+    {
+        // A 5xx is not an outcome worth replaying — the operation may or may not
+        // have happened, and pinning the answer removes the client's only way to
+        // find out. Nothing ran to completion, so nothing needs a tombstone.
+        if (response.StatusCode >= 500 || RetryableStatuses.Contains(response.StatusCode))
+        {
+            return Outcome.Release;
+        }
+
+        // Status alone cannot separate "this is the answer" from "ask again":
+        // both arrive as 409. The code can, and every failure on this surface
+        // carries one.
+        if (executed.Result is ProblemDetailsActionResult problem
+            && RetryableCodes.Contains(problem.Error.Code))
+        {
+            return Outcome.Release;
+        }
+
+        var headerBytes = MeasureHeaders(response);
+        if (bodyLength + headerBytes > IdempotentAttribute.MaxStoredResponseBytes)
+        {
+            ResponseTooLargeToReplay(
+                logger, bodyLength + headerBytes, IdempotentAttribute.MaxStoredResponseBytes);
+            return Outcome.Tombstone;
+        }
+
+        return Outcome.Record;
+    }
+
+    private Task<bool> AbandonAsync(Guid tenantId, string key, Guid token) =>
         store.AbandonAsync(tenantId, key, token, CancellationToken.None);
 
     /// <summary>
     /// Digests everything that must match for a replay to be the same answer:
-    /// who is asking, what they are asking of, and with what.
+    /// who is asking, of what, and with what.
     /// </summary>
     /// <remarks>
-    /// The key alone is not enough. It is chosen by the client, so two users in
-    /// one tenant can pick the same one — and without the principal in the
+    /// <para>
+    /// The key alone is not enough. It is chosen by the client, so two callers
+    /// in one tenant can pick the same one — and without the principal in the
     /// digest the second would be handed the first one's response body. The
-    /// method, path and query bound the key to one endpoint; the body catches
-    /// the classic client bug of reusing a key after editing the payload, which
-    /// would otherwise be answered "that succeeded" about the wrong amount.
+    /// organization is in it for the same reason one layer down: a tenant is not
+    /// an organization, and a user who belongs to two of them would otherwise
+    /// collect one organization's answer inside the other. The method, path and
+    /// query bound the key to one endpoint; the body catches the classic client
+    /// bug of reusing a key after editing the payload, which would otherwise be
+    /// answered "that succeeded" about the wrong amount.
+    /// </para>
+    /// <para>
+    /// Each component is length-prefixed rather than separator-delimited. A
+    /// delimiter is only unambiguous while no component can contain it, and a
+    /// path or a body can contain any byte at all — <c>("ab", "c")</c> and
+    /// <c>("a", "bc")</c> would otherwise digest identically. The body is
+    /// streamed last and needs no prefix, because nothing follows it.
+    /// </para>
+    /// <para>
+    /// Two <b>anonymous</b> callers in one tenant share the principal component.
+    /// That is deliberate: with no authenticated subject, and with the
+    /// organization, method, path, query and body all equal, the two requests
+    /// are indistinguishable to the server, and replaying is the same answer to
+    /// the same question.
+    /// </para>
     /// </remarks>
     private async Task<string> ComputeFingerprintAsync(
         HttpContext context, CancellationToken cancellationToken)
     {
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        Append(digest, tenantContext.UserId?.ToString() ?? string.Empty);
+        Append(digest, tenantContext.TenantId.ToString());
+        Append(digest, tenantContext.OrganizationId?.ToString() ?? string.Empty);
+        Append(digest, tenantContext.UserId is { } user ? $"user:{user}" : "anonymous");
         Append(digest, context.Request.Method);
         Append(digest, context.Request.Path.Value ?? string.Empty);
         Append(digest, context.Request.QueryString.Value ?? string.Empty);
@@ -356,13 +452,36 @@ internal sealed partial class IdempotencyFilter(
         context.Request.Body.Position = 0;
         return Convert.ToHexStringLower(digest.GetHashAndReset());
 
-        // A separator no component can contain, so that ("ab", "c") and
-        // ("a", "bc") are different requests rather than the same digest.
         static void Append(IncrementalHash target, string value)
         {
-            target.AppendData(Encoding.UTF8.GetBytes(value));
-            target.AppendData([0x1F]);
+            var bytes = Encoding.UTF8.GetBytes(value);
+            Span<byte> length = stackalloc byte[sizeof(int)];
+            BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
+            target.AppendData(length);
+            target.AppendData(bytes);
         }
+    }
+
+    /// <summary>Bytes the replayable headers would occupy in the store.</summary>
+    private static long MeasureHeaders(HttpResponse response)
+    {
+        long total = 0;
+
+        foreach (var (name, values) in response.Headers)
+        {
+            if (NonReplayableHeaders.Contains(name))
+            {
+                continue;
+            }
+
+            total += name.Length;
+            foreach (var value in values)
+            {
+                total += value?.Length ?? 0;
+            }
+        }
+
+        return total;
     }
 
     /// <summary>Snapshots the response headers that describe the outcome.</summary>
@@ -441,6 +560,14 @@ internal sealed partial class IdempotencyFilter(
         key = candidate;
         return true;
     }
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Error,
+        Message = "An idempotent operation completed but its claim had already expired "
+            + "(key length {KeyLength}); the outcome was not recorded and a retry will "
+            + "run the operation again.")]
+    private static partial void OutcomeLostItsClaim(ILogger logger, int keyLength);
 
     [LoggerMessage(
         EventId = 1,

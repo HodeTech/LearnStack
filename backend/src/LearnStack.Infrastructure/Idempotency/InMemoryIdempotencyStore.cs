@@ -38,6 +38,12 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     /// A process that dies mid-operation would otherwise hold the key for the
     /// full retention window.
     /// </summary>
+    /// <remarks>
+    /// This is a <b>lease</b>, and the distinction matters: when it expires the
+    /// store stops treating the first attempt as the owner, but it cannot stop
+    /// that attempt from still running. ADR-0037 states the resulting guarantee
+    /// as at-most-once <i>while a claim is live</i> rather than as exactly-once.
+    /// </remarks>
     public static readonly TimeSpan ClaimTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>
@@ -50,22 +56,23 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     public static readonly TimeSpan SweepInterval = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    /// The most keys held at once. Bounded because the key is client-chosen:
-    /// unbounded, a caller with a fresh key per request is an out-of-memory
-    /// condition rather than a rate-limited one.
+    /// The most keys held at once, across every tenant. Bounded because the key
+    /// is client-chosen: unbounded, a caller with a fresh key per request is an
+    /// out-of-memory condition rather than a rate-limited one.
     /// </summary>
     public const int MaxEntries = 10_000;
 
     /// <summary>
     /// The most keys one tenant may hold. Without it the global ceiling is a
-    /// shared resource with no owner: one tenant minting keys in a loop evicts
-    /// every other tenant's records, and their retries then re-run operations
-    /// that had already completed.
+    /// shared resource with no owner: one tenant minting keys in a loop would
+    /// crowd out every other tenant.
     /// </summary>
     public const int MaxEntriesPerTenant = 1_000;
 
     private readonly ConcurrentDictionary<(Guid Tenant, string Key), Entry> _entries = new();
+
     private long _lastSweepTicks;
+    private Census _census = Census.Empty;
 
     public Task<IdempotencyClaimResult> TryClaimAsync(
         Guid tenantId, string key, string fingerprint, CancellationToken cancellationToken)
@@ -76,13 +83,28 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         var now = clock.UtcNow;
         Sweep(now);
 
+        var composite = (tenantId, key);
+
+        // Admission, not eviction. A record that has not expired is a promise
+        // for the rest of its window, and dropping one to make room for a new
+        // key would let the operation it describes run a second time — the
+        // capacity control quietly cancelling the guarantee it exists to
+        // protect. Refusing a NEW key costs the caller a retry and costs the
+        // guarantee nothing. An existing key is always served, so a client
+        // holding one is never locked out by another's flood.
+        if (!_entries.ContainsKey(composite) && _census.IsFull(tenantId))
+        {
+            return Result(new IdempotencyClaimResult(
+                IdempotencyClaim.CapacityExhausted, Guid.Empty, null));
+        }
+
         // Reference identity decides who won, not the timestamp. IClock can
         // return the same instant to two callers in one tick, and comparing
         // ClaimedAt would then hand both of them the claim — the one outcome
         // this type exists to prevent.
         var mine = Entry.Claimed(now, fingerprint);
         var entry = _entries.AddOrUpdate(
-            (tenantId, key),
+            composite,
             mine,
             (_, existing) => existing.IsUsable(now) ? existing : mine);
 
@@ -98,37 +120,52 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
             return Result(new IdempotencyClaimResult(IdempotencyClaim.Mismatched, Guid.Empty, null));
         }
 
-        return Result(entry.Response is { } stored
-            ? new IdempotencyClaimResult(IdempotencyClaim.Completed, Guid.Empty, stored)
-            : new IdempotencyClaimResult(IdempotencyClaim.InFlight, Guid.Empty, null));
+        return Result(entry.State switch
+        {
+            EntryState.Completed => new IdempotencyClaimResult(
+                IdempotencyClaim.Completed, Guid.Empty, entry.Response),
+            EntryState.Unreplayable => new IdempotencyClaimResult(
+                IdempotencyClaim.Unreplayable, Guid.Empty, null),
+            _ => new IdempotencyClaimResult(IdempotencyClaim.InFlight, Guid.Empty, null),
+        });
     }
 
-    public Task CompleteAsync(
+    public Task<bool> CompleteAsync(
         Guid tenantId,
         string key,
         Guid token,
-        IdempotentResponse response,
+        IdempotentResponse? response,
         CancellationToken cancellationToken)
     {
         Guard(tenantId, key);
-        ArgumentNullException.ThrowIfNull(response);
 
         // Fenced. An attempt that overran the claim timeout no longer owns the
         // key, and writing its response here would overwrite the record of the
         // attempt that replaced it — the newer answer replaced by the older one,
         // silently, for the rest of the retention window.
+        // TryGetValue then TryUpdate is a compare-and-swap, not a read-then-write:
+        // the update only lands if the entry is still byte-for-byte the one that
+        // was read, so a sweep or a successor that intervened makes this a no-op
+        // rather than a clobber. Losing that race means the lease expired while
+        // the operation ran, which the caller is told about rather than left to
+        // assume.
         if (_entries.TryGetValue((tenantId, key), out var current) && current.Token == token)
         {
-            _entries.TryUpdate(
+            return Task.FromResult(_entries.TryUpdate(
                 (tenantId, key),
-                current with { ClaimedAt = clock.UtcNow, Response = response },
-                current);
+                current with
+                {
+                    ClaimedAt = clock.UtcNow,
+                    State = response is null ? EntryState.Unreplayable : EntryState.Completed,
+                    Response = response,
+                },
+                current));
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult(false);
     }
 
-    public Task AbandonAsync(
+    public Task<bool> AbandonAsync(
         Guid tenantId, string key, Guid token, CancellationToken cancellationToken)
     {
         Guard(tenantId, key);
@@ -138,10 +175,11 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         // then run the operation concurrently.
         if (_entries.TryGetValue((tenantId, key), out var current) && current.Token == token)
         {
-            _entries.TryRemove(new KeyValuePair<(Guid, string), Entry>((tenantId, key), current));
+            return Task.FromResult(
+                _entries.TryRemove(new KeyValuePair<(Guid, string), Entry>((tenantId, key), current)));
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult(false);
     }
 
     private static void Guard(Guid tenantId, string key)
@@ -162,14 +200,22 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         Task.FromResult(result);
 
     /// <summary>
-    /// Drops expired entries and enforces the ceilings, at most once per
+    /// Drops expired entries and recounts what is left, at most once per
     /// <see cref="SweepInterval"/>.
     /// </summary>
+    /// <remarks>
+    /// Expiry is the <b>only</b> reason an entry leaves this map. Nothing here
+    /// evicts a live claim or an unexpired record.
+    /// </remarks>
     private void Sweep(DateTimeOffset now)
     {
         var ticks = now.UtcTicks;
         var last = Interlocked.Read(ref _lastSweepTicks);
-        if (ticks - last < SweepInterval.Ticks)
+
+        // A clock that steps backwards (an NTP correction) would otherwise wedge
+        // the sweep until real time caught up, so a backwards step sweeps
+        // immediately rather than waiting out the difference.
+        if (ticks >= last && ticks - last < SweepInterval.Ticks)
         {
             return;
         }
@@ -182,6 +228,9 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
             return;
         }
 
+        var counts = new Dictionary<Guid, int>();
+        var total = 0;
+
         foreach (var pair in _entries)
         {
             if (!pair.Value.IsUsable(now))
@@ -193,68 +242,54 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
                 // caller would then find the key absent and run the operation a
                 // second time, concurrently with the first.
                 _entries.TryRemove(pair);
-            }
-        }
-
-        EnforceCeilings();
-    }
-
-    /// <summary>
-    /// Evicts completed records — and only completed records — down to the
-    /// per-tenant and global ceilings, oldest first.
-    /// </summary>
-    /// <remarks>
-    /// A live in-flight claim is never evicted. Dropping one releases a key
-    /// whose operation is still running, so the next retry executes it again;
-    /// that trades a bounded memory overshoot for a duplicated side effect,
-    /// which is the wrong direction for a mechanism whose entire purpose is the
-    /// opposite. Live claims are bounded by concurrent requests in flight, which
-    /// the server bounds independently.
-    /// </remarks>
-    private void EnforceCeilings()
-    {
-        var snapshot = _entries.ToArray();
-        var evicted = 0;
-        var dropped = new HashSet<(Guid, string)>();
-
-        foreach (var group in snapshot.GroupBy(pair => pair.Key.Tenant))
-        {
-            var excess = group.Count() - MaxEntriesPerTenant;
-            if (excess <= 0)
-            {
                 continue;
             }
 
-            foreach (var pair in Completed(group).Take(excess))
-            {
-                if (_entries.TryRemove(pair))
-                {
-                    dropped.Add(pair.Key);
-                    evicted++;
-                }
-            }
+            counts[pair.Key.Tenant] = counts.GetValueOrDefault(pair.Key.Tenant) + 1;
+            total++;
         }
 
-        var remaining = snapshot.Length - evicted;
-        if (remaining <= MaxEntries)
-        {
-            return;
-        }
+        _census = new Census(counts, total);
+    }
 
-        foreach (var pair in Completed(snapshot.Where(pair => !dropped.Contains(pair.Key)))
-                     .Take(remaining - MaxEntries))
-        {
-            _entries.TryRemove(pair);
-        }
+    /// <summary>
+    /// What the last sweep counted.
+    /// </summary>
+    /// <remarks>
+    /// Admission reads this rather than the live map because counting a
+    /// <see cref="ConcurrentDictionary{TKey,TValue}"/> takes every one of its
+    /// locks, and doing that on each claim is the O(n) cost the sweep throttle
+    /// exists to avoid. It is therefore up to one <see cref="SweepInterval"/>
+    /// stale, so a tenant can overshoot its allowance by one interval's worth of
+    /// claims — a soft ceiling, which is what a ceiling that must never evict a
+    /// live record has to be.
+    /// </remarks>
+    private sealed record Census(IReadOnlyDictionary<Guid, int> PerTenant, int Total)
+    {
+        public static readonly Census Empty = new(new Dictionary<Guid, int>(), 0);
 
-        static IOrderedEnumerable<KeyValuePair<(Guid Tenant, string Key), Entry>> Completed(
-            IEnumerable<KeyValuePair<(Guid Tenant, string Key), Entry>> pairs) =>
-            pairs.Where(pair => pair.Value.Response is not null)
-                .OrderBy(pair => pair.Value.ClaimedAt);
+        public bool IsFull(Guid tenantId) =>
+            Total >= MaxEntries || PerTenant.GetValueOrDefault(tenantId) >= MaxEntriesPerTenant;
+    }
+
+    private enum EntryState
+    {
+        /// <summary>An attempt holds the key and has not finished.</summary>
+        Claimed,
+
+        /// <summary>An attempt finished and its response can be replayed.</summary>
+        Completed,
+
+        /// <summary>An attempt finished and its response was not retained.</summary>
+        Unreplayable,
     }
 
     private sealed record Entry(
-        DateTimeOffset ClaimedAt, Guid Token, string Fingerprint, IdempotentResponse? Response)
+        DateTimeOffset ClaimedAt,
+        Guid Token,
+        string Fingerprint,
+        EntryState State,
+        IdempotentResponse? Response)
     {
         /// <summary>
         /// A fresh claim. The token is <see cref="Guid.NewGuid"/> rather than
@@ -264,15 +299,15 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         /// asked of it.
         /// </summary>
         public static Entry Claimed(DateTimeOffset now, string fingerprint) =>
-            new(now, Guid.NewGuid(), fingerprint, null);
+            new(now, Guid.NewGuid(), fingerprint, EntryState.Claimed, null);
 
         /// <summary>
-        /// A completed entry lives for the retention window; an unfinished
+        /// A finished outcome lives for the retention window; an unfinished
         /// claim only for the claim timeout, so a process that died mid-flight
         /// does not hold the key for a day.
         /// </summary>
         public bool IsUsable(DateTimeOffset now) =>
-            Response is null
+            State == EntryState.Claimed
                 ? now - ClaimedAt < ClaimTimeout
                 : now - ClaimedAt < Retention;
     }
