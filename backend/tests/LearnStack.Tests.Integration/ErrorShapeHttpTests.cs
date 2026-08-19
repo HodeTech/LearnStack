@@ -264,9 +264,19 @@ public sealed class ErrorShapeHttpTests(ErrorShapeFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("code").GetString().Should().Be("validation_failed");
-        problem.GetProperty("errors").TryGetProperty("sort", out _).Should().BeTrue(
-            "the client sent `sort`, so that is the name it can act on — not the "
-            + "C# property name and not a binder key");
+
+        // Assert the whole entry, not just that the key exists. Asserting
+        // presence alone hid a real gap once: a richer, segment-bearing error
+        // was written for this path and never reached a client, because
+        // [ApiController]'s automatic 400 answers before the action runs — and
+        // the test could not tell the two bodies apart.
+        var entry = problem.GetProperty("errors").GetProperty("sort");
+        entry.GetArrayLength().Should().Be(1);
+        entry[0].GetProperty("key").GetString().Should().Be("lockey_invalid_value",
+            "a grammar failure is a binding failure and answers exactly as one — "
+            + "?limit=abc and ?sort=title, produce the same shape under different keys");
+        entry[0].TryGetProperty("params", out _).Should().BeFalse(
+            "a message with no parameters emits `key` and nothing else");
     }
 
     [Fact]
@@ -383,16 +393,11 @@ public sealed class ListProbeController : ApiControllerBase, ITestOnlyController
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        // Two steps, two failures: the grammar, then the allow-list. Neither
-        // falls back to an unsorted page — a 200 in an order the client did
-        // not ask for is the one outcome it cannot detect.
-        var parsed = request.ToSort();
-        if (parsed.IsFailure)
-        {
-            return parsed.ToActionResult();
-        }
-
-        var sort = parsed.Value!.Restrict(Sortable);
+        // ToSort cannot fail here — a malformed sort is a ModelState error
+        // and [ApiController] answered 400 before this action ran. Restrict
+        // can, because the allow-list is the endpoint's and nothing upstream
+        // knows it.
+        var sort = request.ToSort().Restrict(Sortable);
         if (sort.IsFailure)
         {
             return sort.ToActionResult();

@@ -152,32 +152,15 @@ public sealed record SortSpecification
     /// silently ignored key: a client that believes it sorted and did not gets
     /// a page in an order it did not ask for, and no way to notice.
     /// </summary>
-    /// <summary>
-    /// Builds the <c>validation_failed</c> error for a <c>sort</c> that did not
-    /// parse, naming the offending segment so the client can find it. Lives
-    /// here so the message key and the <c>errors</c> key are stated once,
-    /// beside the grammar that produces them.
-    /// </summary>
-    public static Error MalformedSortError(string offendingSegment)
-    {
-        ArgumentNullException.ThrowIfNull(offendingSegment);
-
-        return new Error(
-            new LocalizedMessage("lockey_validation_failed"),
-            new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
-            {
-                [ErrorsKey] = [new LocalizedMessage(
-                    "lockey_sort_malformed",
-                    new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        // Bounded: the raw value is attacker-controlled and the
-                        // key-count path passes the whole string through.
-                        ["segment"] = offendingSegment.Length > 64
-                            ? offendingSegment[..64]
-                            : offendingSegment,
-                    })],
-            });
-    }
+    // There is deliberately no MalformedSortError here. One was written, and
+    // it was dead on arrival: a malformed `sort` is caught by the wire type's
+    // IValidatableObject, and [ApiController]'s automatic 400 answers before
+    // any action runs — so the richer body, naming the offending segment,
+    // never reached a client. A grammar failure now answers exactly as every
+    // other binding failure does, which is also the more consistent contract:
+    // `?limit=abc` and `?sort=title,` produce the same shape under different
+    // keys. The segment TryParse computes is still returned to the caller for
+    // logging; it is simply not a wire field.
 
     public Result<SortSpecification> Restrict(IReadOnlyCollection<string> allowedFields)
     {

@@ -59,22 +59,44 @@ public record ListRequest : CursorPaginationRequest, IValidatableObject
     public string? Q { get; init; }
 
     /// <summary>
-    /// Parses <see cref="Sort"/>, or reports why it could not.
+    /// Parses <see cref="Sort"/>. Cannot fail by the time an action can call
+    /// it.
     /// </summary>
     /// <remarks>
-    /// It returns a <see cref="Result{T}"/> rather than falling back to
-    /// <see cref="SortSpecification.Empty"/>. Failing open looked safe —
-    /// validation runs first, so the failure path is unreachable — but
-    /// "unreachable" there rests on <c>[ApiController]</c> being present and on
-    /// MVC having run <see cref="IValidatableObject"/>, and MVC skips the
-    /// latter once any property has already failed. An endpoint would then
-    /// answer <b>200 with a silently unsorted page</b>: the worst available
-    /// outcome, because the client cannot tell.
+    /// <para>
+    /// Measured, because two plausible-sounding stories about this are both
+    /// wrong. <see cref="Validate"/> flags a malformed <c>sort</c> into
+    /// <c>ModelState</c>, and <c>[ApiController]</c> — which
+    /// <c>VersionedRouteConvention</c> requires on every controller — returns
+    /// 400 for <b>any</b> ModelState error before the action runs. So an
+    /// action that reaches this method is an action whose ModelState was
+    /// clean, which means <see cref="Validate"/> ran and the value parsed.
+    /// </para>
+    /// <para>
+    /// An earlier version returned a <see cref="Result{T}"/> on the theory
+    /// that MVC skips <see cref="IValidatableObject"/> once another property
+    /// has failed, leaving a malformed sort to reach the action and produce a
+    /// silently unsorted 200. MVC does skip it — but the action does not run
+    /// either, because the other property's failure is itself a 400.
+    /// <c>?limit=0&amp;sort=title,</c> answers 400 naming <c>limit</c>, never
+    /// 200. The <see cref="Result{T}"/> was a failure branch no caller could
+    /// reach and no test could cover.
+    /// </para>
     /// </remarks>
-    public Result<SortSpecification> ToSort() =>
-        SortSpecification.TryParse(Sort, out var specification, out var offending)
-            ? Result<SortSpecification>.Ok(specification)
-            : Result<SortSpecification>.Fail(SortSpecification.MalformedSortError(offending));
+    public SortSpecification ToSort() =>
+        SortSpecification.TryParse(Sort, out var specification, out _)
+            ? specification
+            // Not a fallback — an assertion. If this ever throws, the
+            // invariant above has broken: an action ran with an invalid
+            // ModelState. Returning Empty here instead would answer 200 with
+            // a page in an order the client did not ask for, which is the one
+            // failure the client cannot detect. A programmer error belongs in
+            // an exception per ADR-0032 § Sub-decision 4.
+            : throw new InvalidOperationException(
+                $"'{Sort}' reached ToSort() unparsed. ListRequest.Validate flags a "
+                + "malformed sort into ModelState and [ApiController] answers 400 "
+                + "before an action runs, so this is unreachable unless the "
+                + "controller lost [ApiController] or validation was suppressed.");
 
     /// <summary>
     /// Reports a malformed <c>sort</c> against the parameter the client sent,
