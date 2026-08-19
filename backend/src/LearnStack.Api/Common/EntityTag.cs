@@ -56,6 +56,92 @@ public static class EntityTag
     }
 
     /// <summary>
+    /// What an <c>If-Match</c> asserted, read without knowing the resource's
+    /// current version.
+    /// </summary>
+    public enum Assertion
+    {
+        /// <summary>No <c>If-Match</c> header.</summary>
+        Absent,
+
+        /// <summary>The caller named one or more concrete versions.</summary>
+        Versions,
+
+        /// <summary><c>If-Match: *</c> — "whatever version, as long as it exists".</summary>
+        AnyExisting,
+
+        /// <summary>Present, but not a precondition this API can evaluate.</summary>
+        Malformed,
+    }
+
+    /// <summary>
+    /// Reads the versions an <c>If-Match</c> asserted, so a command can carry
+    /// them to the handler that loads the row.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Evaluate"/> answers the question a caller who already holds
+    /// the current version can ask, and a controller following the sanctioned
+    /// shape — <c>(await mediator.Send(command, ct)).ToActionResult()</c> — does
+    /// not hold it: the row is loaded inside the handler. Without this overload
+    /// the mechanism could only be used by a controller that queried the
+    /// database first, which is the shape ADR-0032 § Sub-decision 6 exists to
+    /// prevent.
+    /// </remarks>
+    public static Assertion ReadAssertion(HttpRequest request, out IReadOnlyList<long> versions)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        versions = [];
+        var raw = request.Headers.IfMatch;
+        if (raw.Count == 0)
+        {
+            return Assertion.Absent;
+        }
+
+        if (!EntityTagHeaderValue.TryParseStrictList(raw, out var tags) || tags.Count == 0)
+        {
+            return Assertion.Malformed;
+        }
+
+        var asserted = new List<long>(tags.Count);
+
+        foreach (var tag in tags)
+        {
+            if (tag.Equals(EntityTagHeaderValue.Any))
+            {
+                return Assertion.AnyExisting;
+            }
+
+            // Strong comparison: a weak tag says "semantically equivalent", and
+            // two versions of a row that are semantically equivalent are still
+            // two versions — one of which the client did not see.
+            if (tag.IsWeak)
+            {
+                continue;
+            }
+
+            var quoted = tag.Tag.AsSpan();
+            if (quoted.Length >= 2
+                && long.TryParse(
+                    quoted[1..^1],
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var version))
+            {
+                asserted.Add(version);
+            }
+        }
+
+        if (asserted.Count == 0)
+        {
+            return Assertion.Malformed;
+        }
+
+        versions = asserted;
+        return Assertion.Versions;
+    }
+
+    /// <summary>
     /// Evaluates <c>If-Match</c> against the resource's current version.
     /// </summary>
     /// <remarks>
@@ -65,39 +151,14 @@ public static class EntityTag
     /// an unconditional one — the exact overwrite the client was trying to
     /// prevent.
     /// </remarks>
-    public static Precondition Evaluate(HttpRequest request, long currentVersion)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var raw = request.Headers.IfMatch;
-        if (raw.Count == 0)
+    public static Precondition Evaluate(HttpRequest request, long currentVersion) =>
+        ReadAssertion(request, out var versions) switch
         {
-            return Precondition.Absent;
-        }
-
-        if (!EntityTagHeaderValue.TryParseStrictList(raw, out var tags) || tags.Count == 0)
-        {
-            return Precondition.Failed;
-        }
-
-        var current = new EntityTagHeaderValue(For(currentVersion));
-
-        foreach (var tag in tags)
-        {
-            if (tag.Equals(EntityTagHeaderValue.Any))
-            {
-                return Precondition.AnyExisting;
-            }
-
-            // Strong comparison: a weak tag never matches, even against itself.
-            if (!tag.IsWeak && tag.Compare(current, useStrongComparison: true))
-            {
-                return Precondition.Matched;
-            }
-        }
-
-        return Precondition.Failed;
-    }
+            Assertion.Absent => Precondition.Absent,
+            Assertion.AnyExisting => Precondition.AnyExisting,
+            Assertion.Malformed => Precondition.Failed,
+            _ => versions.Contains(currentVersion) ? Precondition.Matched : Precondition.Failed,
+        };
 
     /// <summary>
     /// The failure a mismatched precondition produces: <b>409</b> with
