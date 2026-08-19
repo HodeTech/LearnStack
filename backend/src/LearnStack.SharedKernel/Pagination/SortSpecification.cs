@@ -11,8 +11,17 @@ public enum SortDirection
     Descending,
 }
 
-/// <summary>One key of an ordered sort, already parsed.</summary>
-public sealed record SortKey(string Field, SortDirection Direction);
+/// <summary>
+/// One term of an ordered sort, already parsed.
+/// </summary>
+/// <remarks>
+/// Named <c>SortTerm</c> rather than the more obvious <c>SortKey</c> because
+/// <c>System.Globalization.SortKey</c> exists: any file importing both
+/// namespaces — and the API layer already imports
+/// <c>System.Globalization</c> — would fail to compile on an ambiguous
+/// reference. Cheap to avoid now, impossible once anything consumes it.
+/// </remarks>
+public sealed record SortTerm(string Field, SortDirection Direction);
 
 /// <summary>
 /// The parsed form of the <c>sort</c> query parameter that
@@ -39,22 +48,49 @@ public sealed record SortKey(string Field, SortDirection Direction);
 public sealed record SortSpecification
 {
     /// <summary>
-    /// The most keys one request may name. A sort is a query plan, and each
-    /// key is an index decision; an unbounded list lets a client compose an
+    /// The most terms one request may name. A sort is a query plan, and each
+    /// term is an index decision; an unbounded list lets a client compose an
     /// arbitrarily expensive ordering. Four covers every ordering the corpus
     /// describes with room to spare.
     /// </summary>
-    public const int MaxKeys = 4;
+    public const int MaxTerms = 4;
 
-    private SortSpecification(IReadOnlyList<SortKey> keys) => Keys = keys;
+    /// <summary>
+    /// The <c>errors</c> map key a sort failure is reported under — the name
+    /// the client sent. Stated once here so the kernel, the wire type and the
+    /// standard cannot drift to three spellings.
+    /// </summary>
+    public const string ErrorsKey = "sort";
+
+    private SortSpecification(IReadOnlyList<SortTerm> terms) => Terms = terms;
+
+    /// <summary>
+    /// Structural equality by hand. A positional/record <c>Equals</c> compares
+    /// <see cref="Terms"/> by reference, so two specifications parsed from the
+    /// same string would compare unequal — the same trap
+    /// <see cref="Results.Error"/> documents and overrides for.
+    /// </summary>
+    public bool Equals(SortSpecification? other) =>
+        other is not null && Terms.SequenceEqual(other.Terms);
+
+    public override int GetHashCode()
+    {
+        var hash = default(HashCode);
+        foreach (var term in Terms)
+        {
+            hash.Add(term);
+        }
+
+        return hash.ToHashCode();
+    }
 
     /// <summary>No sort requested; the endpoint's default ordering applies.</summary>
-    public static SortSpecification Empty { get; } = new([]);
+    public static SortSpecification Empty { get; } = new(Array.Empty<SortTerm>());
 
-    /// <summary>Keys in the order the client gave them, which is priority order.</summary>
-    public IReadOnlyList<SortKey> Keys { get; }
+    /// <summary>Terms in the order the client gave them, which is priority order.</summary>
+    public IReadOnlyList<SortTerm> Terms { get; }
 
-    public bool IsEmpty => Keys.Count == 0;
+    public bool IsEmpty => Terms.Count == 0;
 
     /// <summary>
     /// Parses the raw <c>sort</c> value. Returns <c>false</c> and names the
@@ -74,14 +110,18 @@ public sealed record SortSpecification
             return true;
         }
 
-        var segments = raw.Split(',');
-        if (segments.Length > MaxKeys)
+        // Count before splitting. Split materialises every segment first, so
+        // an 8 KB `sort` allocated tens of kilobytes before the guard that
+        // exists to reject it — the guard paid for the attack it prevents.
+        if (raw.AsSpan().Count(',') >= MaxTerms)
         {
             offendingSegment = raw;
             return false;
         }
 
-        var keys = new List<SortKey>(segments.Length);
+        var segments = raw.Split(',');
+
+        var terms = new List<SortTerm>(segments.Length);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var segment in segments)
@@ -99,10 +139,10 @@ public sealed record SortSpecification
                 return false;
             }
 
-            keys.Add(new SortKey(field, direction));
+            terms.Add(new SortTerm(field, direction));
         }
 
-        specification = new SortSpecification(keys);
+        specification = new SortSpecification(terms.AsReadOnly());
         return true;
     }
 
@@ -112,25 +152,66 @@ public sealed record SortSpecification
     /// silently ignored key: a client that believes it sorted and did not gets
     /// a page in an order it did not ask for, and no way to notice.
     /// </summary>
+    /// <summary>
+    /// Builds the <c>validation_failed</c> error for a <c>sort</c> that did not
+    /// parse, naming the offending segment so the client can find it. Lives
+    /// here so the message key and the <c>errors</c> key are stated once,
+    /// beside the grammar that produces them.
+    /// </summary>
+    public static Error MalformedSortError(string offendingSegment)
+    {
+        ArgumentNullException.ThrowIfNull(offendingSegment);
+
+        return new Error(
+            new LocalizedMessage("lockey_validation_failed"),
+            new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+            {
+                [ErrorsKey] = [new LocalizedMessage(
+                    "lockey_sort_malformed",
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        // Bounded: the raw value is attacker-controlled and the
+                        // key-count path passes the whole string through.
+                        ["segment"] = offendingSegment.Length > 64
+                            ? offendingSegment[..64]
+                            : offendingSegment,
+                    })],
+            });
+    }
+
     public Result<SortSpecification> Restrict(IReadOnlyCollection<string> allowedFields)
     {
         ArgumentNullException.ThrowIfNull(allowedFields);
 
-        var rejected = Keys
-            .Where(key => !allowedFields.Contains(key.Field, StringComparer.OrdinalIgnoreCase))
-            .Select(key => key.Field)
+        var rejected = Terms
+            .Where(term => !allowedFields.Contains(term.Field, StringComparer.OrdinalIgnoreCase))
+            .Select(term => term.Field)
             .ToList();
 
         if (rejected.Count == 0)
         {
-            return Result<SortSpecification>.Ok(this);
+            // Canonicalise to the allow-list's spelling. The match is
+            // case-insensitive, so `?sort=PublishedAt` is accepted — and a
+            // handler that switches on the field name, or builds an EF
+            // OrderBy from it, would then be handed a string the endpoint
+            // never declared. Approving one spelling and returning another is
+            // the sort of asymmetry that fails once, in production, on a
+            // field nobody thought to test in mixed case.
+            var canonical = Terms
+                .Select(term => new SortTerm(
+                    allowedFields.First(allowed =>
+                        string.Equals(allowed, term.Field, StringComparison.OrdinalIgnoreCase)),
+                    term.Direction))
+                .ToList();
+
+            return Result<SortSpecification>.Ok(new SortSpecification(canonical.AsReadOnly()));
         }
 
         return Result<SortSpecification>.Fail(new Error(
             new LocalizedMessage("lockey_validation_failed"),
             new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
             {
-                ["sort"] = [.. rejected.Select(field => new LocalizedMessage(
+                [ErrorsKey] = [.. rejected.Select(field => new LocalizedMessage(
                     "lockey_sort_field_not_allowed",
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {

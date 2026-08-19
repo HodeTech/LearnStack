@@ -383,7 +383,16 @@ public sealed class ListProbeController : ApiControllerBase, ITestOnlyController
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var sort = request.ToSort().Restrict(Sortable);
+        // Two steps, two failures: the grammar, then the allow-list. Neither
+        // falls back to an unsorted page — a 200 in an order the client did
+        // not ask for is the one outcome it cannot detect.
+        var parsed = request.ToSort();
+        if (parsed.IsFailure)
+        {
+            return parsed.ToActionResult();
+        }
+
+        var sort = parsed.Value!.Restrict(Sortable);
         if (sort.IsFailure)
         {
             return sort.ToActionResult();
@@ -395,7 +404,7 @@ public sealed class ListProbeController : ApiControllerBase, ITestOnlyController
             pagination.Limit,
             pagination.Cursor,
             request.Q,
-            sort = string.Join(",", sort.Value!.Keys.Select(k =>
+            sort = string.Join(",", sort.Value!.Terms.Select(k =>
                 $"{k.Field}:{(k.Direction == SortDirection.Descending ? "desc" : "asc")}")),
         });
     }

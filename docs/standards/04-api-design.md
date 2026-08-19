@@ -167,15 +167,23 @@ Rules:
 - Sort via `sort=field` or `sort=-field` (prefix `-` for descending).
 - Multiple sort keys: `sort=-publishedAt,title`. The order is **priority
   order** and is preserved.
-- Search via `q=...` for free text. No separate length cap — § Request and
-  Response Limits already bounds the whole URL.
+- Search via `q=...` for free text. No separate length cap. The 2 KB URL bound
+  in § Request and Response Limits is a **target**, not something the
+  application enforces: today the real ceiling is the host's request-line and
+  header limits, and the gateway's once it fronts the app. A third bound
+  agreeing with neither would be worse than inheriting whichever actually
+  rejects an over-long URL.
 
 The `sort` grammar is enforced by `SortSpecification`, and its edges are
 decided rather than left to each endpoint:
 
 - A field is one or more dot-separated segments of ASCII letters and digits,
   each starting with a letter — the camelCase shape § Style fixes, with a dot
-  for a nested path. Anything else is **400**.
+  for a nested path — and at most **64 characters**. Anything else is **400**.
+- A permitted field comes back in the **allow-list's** spelling. The match is
+  case-insensitive, so `?sort=PublishedAt` is accepted; handing a handler back
+  a spelling the endpoint never declared is how a field name that reaches a
+  `switch` or an `OrderBy` breaks on a casing nobody tested.
 - An empty segment (`title,` or `a,,b`), a bare `-`, or the **same field
   twice** is **400**. Each is a typo, and accepting one silently drops or
   reorders a key the client believes it asked for.
