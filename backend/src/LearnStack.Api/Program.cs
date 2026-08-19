@@ -1,5 +1,6 @@
 using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
+using LearnStack.Api.Tenancy;
 using LearnStack.Api.Versioning;
 using LearnStack.SharedKernel.Hosting;
 
@@ -11,9 +12,15 @@ var builder = WebApplication.CreateBuilder(args);
 // the right error tracker, OTLP exporter target, and (later packets) the
 // right Dapr / entitlement / host-resolver implementations per
 // docs/standards/20-infrastructure-stack.md § Composition Root.
-var deploymentMode = builder.Configuration.GetValue("Deployment:Mode", DeploymentMode.Development);
+// No default. The key used to ship as "Development" in appsettings.json —
+// the file that goes to every environment — while appsettings.Development.json
+// set none, so every Development-guarded mechanism was on by default in a
+// deployment that never configured it. A startup failure naming the key is the
+// version of that mistake an operator can see (ADR-0036).
+var deploymentMode = builder.Configuration.RequireDeploymentMode();
 
 builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
+builder.Services.AddLearnStackTenancyEdge(builder.Configuration, deploymentMode);
 
 // Controllers + the /api/v{N} route convention + one OpenAPI document per
 // live major, per ADR-0024. AddLearnStackApiVersioning owns the
@@ -24,6 +31,10 @@ builder.Services.AddLearnStackApiVersioning();
 var app = builder.Build();
 
 app.UseExceptionHandler();
+
+// Outermost after the exception handler, so every response carries the
+// correlation id — including the ones produced by the middleware below.
+app.UseLearnStackCorrelationHeader();
 
 // 404 and 405 come from routing, before MVC — no action runs, so no MVC hook
 // sees them and they reach the client with no body. Registered after the
@@ -36,6 +47,13 @@ app.MapLearnStackClientErrors();
 // mean the artefact CI diffs is one no deployed instance serves. Exposure is
 // an edge concern — APISIX blocks or allow-lists /openapi per environment.
 app.MapLearnStackOpenApi();
+
+// X-Tenant-Id / X-Organization-Id are assertions: compared against what the
+// API resolved, never a source of it (ADR-0036). Registered after
+// MapLearnStackClientErrors so a rejection gets the one Problem Details shape,
+// and before the endpoints so no handler runs on a request that lost the
+// comparison.
+app.UseLearnStackTenantAssertions();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
     .WithName("HealthCheck");
