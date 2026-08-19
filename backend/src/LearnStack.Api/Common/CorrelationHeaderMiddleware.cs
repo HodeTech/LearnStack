@@ -18,34 +18,35 @@ namespace LearnStack.Api.Common;
 /// handle at all, because the only way to obtain one was to receive an error.
 /// </para>
 /// <para>
-/// <b>The inbound header is echoed, never trusted as the id.</b>
+/// <b>The inbound header is ignored entirely.</b>
 /// <see href="../../../../docs/architecture/30-api-gateway.md">architecture/30</see>
-/// has APISIX inject <c>X-Correlation-Id</c>, and until the gateway lands the
-/// value would otherwise be whatever a client typed — which would let two
-/// unrelated requests share a correlation id, or one request poison a log
-/// search. The trace context is the identity; the header is a copy of it.
-/// A client-supplied value is preserved under a separate name so a caller that
-/// threads its own id keeps it, without either value pretending to be the
-/// other.
+/// has APISIX inject <c>X-Correlation-Id</c>, but the identity is the trace
+/// context — adopting a client's value would let two unrelated requests share a
+/// correlation id, or let one request poison a log search. Cross-service
+/// correlation is already handled properly by W3C <c>traceparent</c>
+/// propagation.
+/// </para>
+/// <para>
+/// A first version <i>echoed</i> the client's value back under a second header,
+/// on the theory that a caller threading its own id should keep it. That was
+/// wrong twice. The caller already knows what it sent, so the echo bought
+/// nothing — and Kestrel accepts bytes in a <b>request</b> header that it
+/// refuses to write into a <b>response</b> header, so <c>é</c>, a control
+/// character or an emoji made the assignment throw. Measured: a 500 on every
+/// route, pre-auth and pre-routing, each one captured by
+/// <c>IErrorTrackingProvider</c> — an anonymous client owning the Sentry quota
+/// with one header. Exactly the failure
+/// <see cref="LearnStack.SharedKernel.Tenancy.EffectiveHost"/> was made total to
+/// avoid, shipped one file away from it.
 /// </para>
 /// </remarks>
 public sealed class CorrelationHeaderMiddleware(RequestDelegate next)
 {
     public const string HeaderName = "X-Correlation-Id";
 
-    /// <summary>
-    /// Where a client-supplied correlation id is echoed back. Separate from
-    /// <see cref="HeaderName"/> because they are different things: one is what
-    /// this system will log the request under, the other is what the caller
-    /// asked us to remember.
-    /// </summary>
-    public const string RequestHeaderName = "X-Request-Correlation-Id";
-
     public Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-
-        var inbound = context.Request.Headers[HeaderName];
 
         context.Response.OnStarting(static state =>
         {
@@ -60,16 +61,6 @@ public sealed class CorrelationHeaderMiddleware(RequestDelegate next)
 
             return Task.CompletedTask;
         }, context);
-
-        if (inbound.Count == 1 && !string.IsNullOrWhiteSpace(inbound[0]))
-        {
-            // Bounded and echoed verbatim under its own name. It is
-            // attacker-controlled, so it is capped before it can be logged by
-            // anything downstream.
-            var supplied = inbound[0]!;
-            context.Response.Headers[RequestHeaderName] =
-                supplied.Length > 128 ? supplied[..128] : supplied;
-        }
 
         return next(context);
     }

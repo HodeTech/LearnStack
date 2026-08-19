@@ -150,21 +150,53 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
         values!.Single().Should().NotBeNullOrWhiteSpace();
     }
 
-    [Fact]
-    public async Task A_Client_Supplied_Correlation_Id_Is_Echoed_Under_Its_Own_Name()
+    [Theory]
+    [InlineData("client-chosen-value")]
+    [InlineData("café")]
+    [InlineData("a\u0001b")]
+    [InlineData("\U0001F4A9")]
+    [InlineData("a\u007Fb")]
+    public async Task A_Client_Supplied_Correlation_Id_Is_Ignored_Not_Reflected(string supplied)
     {
-        // Echoed, never adopted. Trusting it would let two unrelated requests
-        // share one id, or let a caller poison a log search.
+        // A first version echoed this back under a second header. Kestrel
+        // accepts bytes in a REQUEST header that it refuses to write into a
+        // RESPONSE header, so 'é', a control character or an emoji made the
+        // assignment throw: a 500 on every route, pre-auth and pre-routing,
+        // each one captured by IErrorTrackingProvider. One header, anonymous,
+        // and the error-tracker quota is someone else's.
         using var request = Get("/api/v1/assertionprobe");
-        request.Headers.Add(CorrelationHeaderMiddleware.HeaderName, "client-chosen-value");
+        request.Headers.TryAddWithoutValidation(
+            CorrelationHeaderMiddleware.HeaderName, supplied);
 
         var response = await _client.SendAsync(request);
 
-        response.Headers.GetValues(CorrelationHeaderMiddleware.RequestHeaderName)
-            .Single().Should().Be("client-chosen-value");
-        response.Headers.GetValues(CorrelationHeaderMiddleware.HeaderName)
-            .Single().Should().NotBe("client-chosen-value",
-                "the trace context is the identity; the header is a copy of it");
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "no client-supplied value may decide whether this request succeeds");
+
+        var returned = response.Headers.GetValues(CorrelationHeaderMiddleware.HeaderName).Single();
+        returned.Should().NotBe(supplied,
+            "the trace context is the identity, and the client's value is not adopted");
+        response.Headers.Should().NotContain(header =>
+            header.Key.Contains("Request-Correlation", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("/healthz")]
+    [InlineData("/openapi/v1.json")]
+    public async Task A_Malformed_Assertion_Does_Not_Break_An_Unscoped_Route(string path)
+    {
+        // Registered globally, a malformed X-Tenant-Id 400s the orchestrator's
+        // health probe — which takes the pod out — and the Hub's
+        // /api/internal/* surface, neither of which has an assertion to
+        // compare. ADR-0036 scopes host classification to /api/v1/* for the
+        // same reason.
+        using var request = Get(path);
+        request.Headers.TryAddWithoutValidation(
+            TenantAssertionMiddleware.TenantHeaderName, "not-a-guid");
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private static HttpRequestMessage Get(string path) =>

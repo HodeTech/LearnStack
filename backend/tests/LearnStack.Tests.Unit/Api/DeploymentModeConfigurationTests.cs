@@ -8,7 +8,7 @@ namespace LearnStack.Tests.Unit.Api;
 
 /// <summary>
 /// <c>Deployment:Mode</c> has no default, per
-/// <see href="../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
+/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
 /// § There is no Development override</see>.
 /// </summary>
 public sealed class DeploymentModeConfigurationTests
@@ -39,6 +39,22 @@ public sealed class DeploymentModeConfigurationTests
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*SaaS*", "the message has to make the typo obvious");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("Development,SaaS")]
+    [InlineData(" ")]
+    public void A_Numeric_Or_Composite_Mode_Refuses_To_Start(string raw)
+    {
+        // Enum.TryParse accepts ordinals and comma-separated lists, so
+        // Deployment__Mode=0 would have parsed as Development — reintroducing
+        // the exact silent default this method exists to remove, through a
+        // value that looks like a typo rather than a mode.
+        var act = () => Build(raw).RequireDeploymentMode();
+
+        act.Should().Throw<InvalidOperationException>();
     }
 
     [Theory]

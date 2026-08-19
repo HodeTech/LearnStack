@@ -48,7 +48,13 @@ public static class TenancyCompositionExtensions
                 + "environment-specific appsettings file or in the environment.");
         }
 
-        if (!Enum.TryParse<DeploymentMode>(raw, ignoreCase: true, out var mode))
+        // Enum.TryParse also accepts ordinals and comma-separated lists, so
+        // `Deployment__Mode=0` would parse as Development — reintroducing the
+        // exact silent-default this method exists to remove, through a value
+        // that looks like a typo rather than a mode. Only a declared name is
+        // accepted.
+        if (!Enum.TryParse<DeploymentMode>(raw, ignoreCase: true, out var mode)
+            || !Enum.GetNames<DeploymentMode>().Contains(raw.Trim(), StringComparer.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 $"'{DeploymentModeKey}' is '{raw}', which is not one of "
