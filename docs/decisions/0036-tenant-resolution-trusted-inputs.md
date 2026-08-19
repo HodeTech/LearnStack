@@ -672,7 +672,66 @@ trailing dot, an IPv4 literal and a 300-character host; a `learnstack-hub` token
 
 ## Amendments
 
-_(none yet)_
+### 2026-08-20 — Amendment 1: the normalization order, corrected by measurement
+
+The Decision is unchanged: `EffectiveHost.Normalize` is still the sole producer of
+the lookup key and of `app.resolving_host`, still total, still returns `null` on
+every failure, and still never throws. What this amendment corrects is the
+**order of steps** written above, which Packet 4 found to be wrong in two
+security-relevant ways when it implemented them.
+
+**1. IPv4 rejection must come *after* the port is stripped, not before.**
+
+The order as written rejects IPv4 literals by `IPAddress.TryParse` and only then
+strips a port. Measured on .NET 10:
+
+```
+IPAddress.TryParse("1.2.3.4:443")   => False
+IPAddress.TryParse("1.2.3.4")       => True
+IPAddress.TryParse("0x7f.1")        => True   (127.0.0.1)
+IPAddress.TryParse("2130706433")    => True   (127.0.0.1)
+```
+
+So `1.2.3.4:443` passes the IPv4 gate — it is not a parseable address *with* the
+port attached — and the next step removes the port, leaving `1.2.3.4` as an
+accepted host name. The rejection this ADR asks for is bypassed by appending a
+port. Stripping first and parsing second closes it, and also catches the
+dotted-hex and integer spellings above, which the written order never reached.
+
+**2. The character rejection must be an output whitelist, not only an input
+denylist.**
+
+The order as written scans the *raw input* for whitespace, `/`, `@`, `%` and NUL,
+and ends at `ToLowerInvariant()`. Measured: `IdnMapping.GetAscii` performs a
+compatibility mapping, so U+FF0F FULLWIDTH SOLIDUS arrives as a literal `/`,
+U+FF20 as `@`, and U+FF05 as `%` — *after* the input scan has already run. The
+function would therefore return a "normalised host" containing exactly the
+characters it promises to reject, on its way to becoming a SQL lookup key and a
+session variable. `;`, `'` and `"` were never on the input list at all.
+
+Normalization therefore ends with a **whitelist over the produced value**:
+letters, digits, hyphen and dot only, with no label starting or ending in a
+hyphen. A whitelist is the right shape and a denylist never was — the set of
+characters a hostname may contain is small and closed, and the set it may not is
+neither.
+
+**Corrected order.** Reject empty, whitespace-only, or over-253-character input →
+reject the input outright if it contains whitespace, `/`, `@`, `%`, NUL, `\`, `?`
+or `#` (a superset of the original list; the last three are equally not part of a
+name) → reject IPv6 literals by the `[`…`]` form → **strip a port** when the tail
+after the last `:` is all digits → **reject IPv4 literals** by `IPAddress.TryParse`
+→ strip exactly one trailing dot, reject two → `IdnMapping.GetAscii` inside
+`catch (ArgumentException) ⇒ null` → `ToLowerInvariant()` → **return only if the
+result is letters, digits, hyphen and dot with no leading or trailing hyphen in
+any label**, otherwise `null`.
+
+Everything else in § Normalization stands, including the prohibition on
+`HostString.FromUriComponent` and the reason invariant lowering is stated
+explicitly.
+
+Implemented in `LearnStack.SharedKernel.Tenancy.EffectiveHost`; covered by
+`EffectiveHostTests`.
+
 
 ## References
 
