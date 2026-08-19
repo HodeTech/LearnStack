@@ -214,9 +214,27 @@ Idempotency-Key: 01HX7F...
 
 Rules:
 - Server stores `(idempotency_key, response)` for 24 hours.
-- Subsequent requests with the same key return the stored response.
+- Subsequent requests with the same key return the stored response, marked
+  `Idempotency-Replayed: true` — a client retrying after a timeout otherwise
+  cannot tell whether its second call did the work or collected the first
+  one's answer.
+- **The key space is scoped to the tenant.** The key is client-chosen, so two
+  tenants will eventually pick the same one; a flat space would hand the second
+  one the first one's response body. A request with no resolved tenant is
+  refused rather than served from an unscoped space.
+- A key is 8–128 printable ASCII characters with no space. Malformed, absent,
+  or repeated is **400** under `errors.idempotencyKey`.
+- A **concurrent** request holding the same key gets **409**
+  `concurrency_conflict`. Waiting would hold a connection open for work the
+  server cannot speed up.
+- A **5xx or a thrown** attempt releases its key instead of recording it.
+  Storing a failure would replay it for the whole retention window, turning one
+  transient fault into a day of them.
 - Required for: payment operations, webhook processing, notification sending, recording start/stop.
 - Encouraged for: enrollment creation, invitation sending.
+
+Marked per endpoint with `[Idempotent]`, because which operations have external
+side effects is knowledge the endpoint has and the pipeline does not.
 
 ## Optimistic Concurrency
 
@@ -228,7 +246,20 @@ PATCH /api/v1/courses/{id}
   If-Match: "7"
 ```
 
-Version mismatch returns **409** with `concurrency_conflict`.
+Version mismatch returns **409** with `concurrency_conflict` — not the 412 RFC
+9110 describes for `If-Match`. That is this corpus's call: `HttpStatusMap` maps
+`concurrency_conflict` to 409 and § Status Codes lists 409 and not 412, so a
+412 would put a status on the wire that no error code maps to and the generated
+SDK has no branch for.
+
+- **Strong comparison, always** (RFC 9110 § 13.1.1). A weak tag says
+  "semantically equivalent", and two versions of a row that are semantically
+  equivalent are still two versions — one of which the client did not see.
+- `If-Match: *` means "whatever version, as long as it exists".
+- A **malformed** `If-Match` fails the precondition; it is never treated as
+  absent. Reading "I could not parse your precondition" as "you did not send
+  one" turns a conditional write into an unconditional one — exactly the
+  overwrite the client was preventing.
 
 ## OpenAPI
 
