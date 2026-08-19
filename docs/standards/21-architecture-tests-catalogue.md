@@ -1343,7 +1343,13 @@ started.
 - **Asserts:** a `sort` value that violates the grammar — trailing comma, empty
   segment, a field starting with a digit, punctuation, the same field twice —
   returns 400 with `errors.sort`, keyed by the name the client sent rather than
-  by the C# property or a binder key.
+  by the C# property or a binder key, carrying exactly one entry whose key is
+  `lockey_invalid_value` and which has no `params`.
+- **Note:** the entry is asserted whole, not merely present. Asserting presence
+  hid a real gap: a richer, segment-bearing error was written for this path and
+  was dead on arrival, because the wire type's `IValidatableObject` puts the
+  failure in `ModelState` and `[ApiController]`'s automatic 400 answers before
+  any action runs. The test could not tell the two bodies apart.
 - **Source:** Standards 04 § Filtering and Sorting.
 - **Type:** xUnit + HTTP, over `SortSpecificationTests` for the grammar itself.
   **Kind:** behavioural.

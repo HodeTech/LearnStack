@@ -191,18 +191,6 @@ public sealed class SortSpecificationTests
     }
 
     [Fact]
-    public void A_Malformed_Sort_Error_Names_The_Segment_And_Bounds_It()
-    {
-        var error = SortSpecification.MalformedSortError(new string('x', 200));
-
-        error.Code.Should().Be("validation_failed");
-        error.Details.Should().NotBeNull().And.ContainKey(SortSpecification.ErrorsKey);
-        error.Details![SortSpecification.ErrorsKey].Should().ContainSingle()
-            .Which.Params!["segment"].Length.Should().Be(64,
-                "the raw value is attacker-controlled and reaches a log and an audit row");
-    }
-
-    [Fact]
     public void Restrict_Is_Case_Insensitive_About_The_Allow_List()
     {
         // Asserting the parse is load-bearing, not ceremony: TryParse sets

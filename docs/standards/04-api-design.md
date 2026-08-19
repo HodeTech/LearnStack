@@ -194,8 +194,14 @@ decided rather than left to each endpoint:
   allow-list, and silently ignoring an unpermitted key returns a page in an
   order the client did not ask for with no way to notice.
 
-A malformed or unpermitted `sort` reports under `errors.sort` — the name the
-client sent.
+Both report under `errors.sort` — the name the client sent — and the two are
+deliberately different shapes, because they fail at different times:
+
+- A **grammar** failure is a binding failure and answers exactly as one:
+  `lockey_invalid_value`, no parameters. `?limit=abc` and `?sort=title,` produce
+  the same body under different keys, which is the point.
+- An **unpermitted field** is refused by the endpoint after binding succeeded,
+  so it carries `lockey_sort_field_not_allowed` with the field in `params`.
 
 ## Idempotency
 
