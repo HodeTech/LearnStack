@@ -196,12 +196,52 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         SideEffectProbeController.Invocations.Should().Be(1);
     }
 
-    [Fact]
-    public async Task A_Response_Too_Large_To_Store_Is_Not_Silently_Replayed()
+    [Theory]
+    [InlineData(408)]
+    [InlineData(425)]
+    public async Task A_Retryable_Status_Does_Not_Pin_The_Key(int status)
     {
-        // The cap exists so the entry ceiling is a memory ceiling too. When it
-        // is hit the key is released rather than a truncated body recorded, so
-        // the client's retry re-runs instead of being handed half an answer.
+        // 408 and 425 say "the exchange did not work", not "here is the
+        // outcome". Recording either would answer a transport condition for the
+        // whole retention window.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync($"/api/v1/sideeffectprobe?status={status}", key);
+        await PostAsync($"/api/v1/sideeffectprobe?status={status}", key);
+
+        SideEffectProbeController.Invocations.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_Concurrency_Conflict_Is_Not_Pinned_To_The_Key()
+    {
+        // A 409 concurrency_conflict tells the client to re-read and re-submit.
+        // Recording it makes that impossible: the key would answer "conflict"
+        // for the whole window and the client could never succeed with it.
+        // Status alone cannot separate this from an outcome — both are 409 —
+        // which is why the classification reads the error code.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        var first = await PostAsync("/api/v1/sideeffectprobe?conflict=true", key);
+        first.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(first)).Should().Be("concurrency_conflict");
+
+        await PostAsync("/api/v1/sideeffectprobe?conflict=true", key);
+
+        SideEffectProbeController.Invocations.Should().Be(2,
+            "the key was released, so the client's retry is allowed to run");
+    }
+
+    [Fact]
+    public async Task A_Response_Too_Large_To_Store_Refuses_The_Retry_Rather_Than_Rerunning_It()
+    {
+        // The cap keeps the entry ceiling a memory ceiling too. But releasing
+        // the key when it is hit would let the operation run twice — silently,
+        // with a 2xx both times, on the surface Standards 04 reserves for
+        // payments. The outcome is tombstoned instead: it happened, the answer
+        // is gone, and the retry is told so.
         var key = NewKey();
         SideEffectProbeController.Reset();
 
@@ -210,7 +250,33 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
 
         var retried = await PostAsync("/api/v1/sideeffectprobe?big=true", key);
 
-        retried.Headers.Contains(IdempotentAttribute.ReplayedHeaderName).Should().BeFalse();
+        retried.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(retried)).Should().Be("idempotency_outcome_unavailable");
+        SideEffectProbeController.Invocations.Should().Be(1,
+            "the operation must not run a second time just because its answer was too big");
+    }
+
+    [Fact]
+    public async Task A_Result_That_Throws_After_Writing_Part_Of_The_Body_Still_Answers_A_Problem_Details_500()
+    {
+        // The filter buffers the response body. MVC returns normally from
+        // next() when the result throws and rethrows only after the filter
+        // unwinds, so at that point the buffer can already hold a half-written
+        // body. Copying it out would start the response — handing the client a
+        // truncated 2xx and taking the exception away from UseExceptionHandler,
+        // which can no longer write its 500 once the response has started.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        var response = await PostAsync("/api/v1/sideeffectprobe?partial=true", key);
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        (await ReadCodeAsync(response)).Should().Be("internal_error",
+            "the client gets the error shape, not the bytes the formatter managed to write");
+
+        var retried = await PostAsync("/api/v1/sideeffectprobe?partial=true", key);
+        retried.StatusCode.Should().Be(HttpStatusCode.InternalServerError,
+            "a thrown attempt releases its key");
         SideEffectProbeController.Invocations.Should().Be(2);
     }
 
@@ -500,6 +566,8 @@ public sealed class SideEffectProbeController : ApiControllerBase, ITestOnlyCont
         [FromQuery] bool created = false,
         [FromQuery] bool big = false,
         [FromQuery] bool hold = false,
+        [FromQuery] bool conflict = false,
+        [FromQuery] bool partial = false,
         [FromQuery] int? status = null)
     {
         Interlocked.Increment(ref _invocations);
@@ -513,6 +581,16 @@ public sealed class SideEffectProbeController : ApiControllerBase, ITestOnlyCont
         if (fail)
         {
             throw new InvalidOperationException("probe: a failed attempt must release its key");
+        }
+
+        if (conflict)
+        {
+            return new ProblemDetailsActionResult(EntityTag.ConflictError());
+        }
+
+        if (partial)
+        {
+            return new PartialThenThrowResult();
         }
 
         if (status is { } explicitStatus)
@@ -539,6 +617,20 @@ public sealed class SideEffectProbeController : ApiControllerBase, ITestOnlyCont
 
     private static TaskCompletionSource NewGate() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Writes part of a body and then throws, the way an output formatter does
+    /// when a converter fails partway through serialising a payload.
+    /// </summary>
+    private sealed class PartialThenThrowResult : IActionResult
+    {
+        public async Task ExecuteResultAsync(ActionContext context)
+        {
+            context.HttpContext.Response.ContentType = "application/json";
+            await context.HttpContext.Response.WriteAsync("{\"partial\":\"written-before-the-throw\"");
+            throw new InvalidOperationException("probe: the formatter failed mid-body");
+        }
+    }
 }
 
 /// <summary>A second idempotent endpoint, so "same key, different endpoint" is reachable.</summary>

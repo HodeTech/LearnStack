@@ -36,6 +36,20 @@ public enum IdempotencyClaim
     /// Neither is safe, so the caller is told instead.
     /// </summary>
     Mismatched,
+
+    /// <summary>
+    /// A previous attempt completed and its response was <b>not retained</b>.
+    /// The operation happened; the answer is gone. The caller must not be told
+    /// to run it again.
+    /// </summary>
+    Unreplayable,
+
+    /// <summary>
+    /// The tenant's key space is full of records that have not expired, so no
+    /// new key can be admitted. Refusing here costs the caller a retry;
+    /// admitting would mean dropping a live guarantee to make room.
+    /// </summary>
+    CapacityExhausted,
 }
 
 /// <summary>
@@ -101,8 +115,9 @@ public interface IIdempotencyStore
     /// <param name="key">The client-chosen key.</param>
     /// <param name="fingerprint">
     /// An opaque digest of everything about the request that must match for a
-    /// replay to be the same answer. Compared by ordinal equality; the store
-    /// never interprets it.
+    /// replay to be the same answer — tenant, organization, principal, method,
+    /// path, query and body. Compared by ordinal equality; the store never
+    /// interprets it.
     /// </param>
     /// <param name="cancellationToken">Cancellation.</param>
     Task<IdempotencyClaimResult> TryClaimAsync(
@@ -112,14 +127,27 @@ public interface IIdempotencyStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Records the response a claimed key produced. A <paramref name="token"/>
+    /// Records the outcome a claimed key produced. A <paramref name="token"/>
     /// that no longer owns the key is ignored.
     /// </summary>
-    Task CompleteAsync(
+    /// <param name="response">
+    /// The response to replay, or <c>null</c> to record that the operation
+    /// completed and its answer was not retained. A null response is a
+    /// <b>tombstone</b>, not a release: the next attempt is refused rather than
+    /// run, because the side effect already happened. Releasing the key instead
+    /// would let the operation happen twice — silently, and with a 2xx on both.
+    /// </param>
+    /// <returns>
+    /// <c>true</c> when the outcome was recorded; <c>false</c> when the caller
+    /// no longer owned the key. A caller that loses the fence has produced a
+    /// side effect nobody will replay, which is worth a log line rather than
+    /// silence.
+    /// </returns>
+    Task<bool> CompleteAsync(
         Guid tenantId,
         string key,
         Guid token,
-        IdempotentResponse response,
+        IdempotentResponse? response,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -132,5 +160,7 @@ public interface IIdempotencyStore
     /// timed out and every retry would answer <see cref="IdempotencyClaim.InFlight"/>
     /// — turning one transient failure into minutes of refusals.
     /// </remarks>
-    Task AbandonAsync(Guid tenantId, string key, Guid token, CancellationToken cancellationToken);
+    /// <returns><c>true</c> when the key was released by this caller.</returns>
+    Task<bool> AbandonAsync(
+        Guid tenantId, string key, Guid token, CancellationToken cancellationToken);
 }

@@ -117,6 +117,8 @@ public static class ApiVersioningExtensions
                 api.RelativePath?.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase) == true;
 
             options.AddOperationTransformer(new VersionIntroducedOperationTransformer());
+            options.AddOperationTransformer(
+                new Idempotency.IdempotencyOperationTransformer());
 
             options.AddDocumentTransformer((document, _, _) =>
             {
