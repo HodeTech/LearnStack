@@ -96,14 +96,18 @@ internal sealed class ProblemDetailsNormalizationFilter : IAlwaysRunResultFilter
 public static class ProblemDetailsMediaType
 {
     /// <summary>
-    /// The media type <b>with</b> its charset. Both spellings shipped —
+    /// The media type <b>with</b> its charset. Several spellings shipped —
     /// <c>WriteAsJsonAsync</c> appends <c>; charset=utf-8</c>, an
     /// <c>ObjectResult</c>'s <c>ContentTypes</c> does not — which made a
-    /// routing 404 tellable from an MVC 404 without reading the body, against
-    /// what
+    /// routing 404 tellable from an MVC 404 without reading either body.
     /// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
-    /// requires. The charset-bearing form is the one to converge on, because
-    /// it is the one the middleware path cannot avoid emitting.
+    /// does not legislate media types; what it fixes is that a rejected
+    /// assertion answers <b>404</b> so a caller cannot tell "wrong tenant" from
+    /// "no such thing". A response header that distinguishes the two 404s
+    /// hands back exactly the bit that decision withholds, which is why the
+    /// spellings had to converge. The charset-bearing form is the one to
+    /// converge on, because it is the one the middleware path cannot avoid
+    /// emitting.
     /// </summary>
     public const string Value = "application/problem+json; charset=utf-8";
 

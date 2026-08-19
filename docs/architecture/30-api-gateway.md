@@ -209,7 +209,7 @@ The banding is therefore **specific-beats-general, written down**:
 
 | Band | Priority | Contents |
 |---|---|---|
-| Infrastructure | 400 | `/healthz`, `/openapi/*` (environment-gated), `/admin/hangfire*` |
+| Infrastructure | 400 | `/healthz`, `/openapi/*` and `/docs*` (environment-gated), `/admin/hangfire*` |
 | Public anonymous | 300 | Named public paths: localization, public catalog reads, auth endpoints with their own strict limits |
 | CORS preflight | 200 | `OPTIONS` on the versioned prefix — must beat the authenticated band so preflight never reaches `openid-connect` |
 | Authenticated catch-all | 100 | Everything else under the versioned prefix |
@@ -250,10 +250,14 @@ routes:
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
 
   - id: 2
-    uri: /openapi/*
+    uris: ["/openapi/*", "/docs", "/docs/*"]
     priority: 400
     upstream: { type: roundrobin, nodes: { "learnstack-api:5000": 1 } }
-    # Dev-only; environment-gated to 404 in production.
+    # The document and the reference console are separate paths on purpose:
+    # Scalar mounts a `{documentName?}` catch-all inside whatever prefix it is
+    # given, and under /openapi that shadowed the document namespace. Gating is
+    # a per-environment decision here; the application serves both everywhere,
+    # because the document is the contract the SDK generates from.
 
   # Hangfire dashboard — defense-in-depth: gateway BasicAuth + backend role check
   - id: 3

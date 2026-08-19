@@ -70,6 +70,36 @@ public sealed class HttpStatusMapCanonicalCodeTests
             "code '{0}' was minted from status {1}", code, status);
     }
 
+    [Theory]
+    [InlineData(400, "validation_failed")]
+    [InlineData(413, "payload_too_large")]
+    [InlineData(418, "request_rejected")]
+    public void A_Framework_Rejection_Never_Reports_Itself_As_A_Server_Error(
+        int status, string expected)
+    {
+        // BadHttpRequestException is what Kestrel throws for an oversized body
+        // or a malformed chunk, and it carries the status it decided on.
+        // Honouring that status without also minting the code from it produced
+        // `status: 413` beside `code: "internal_error"` — the two halves of one
+        // body contradicting each other, which is the exact failure
+        // CanonicalCodeFor exists to prevent.
+        var problem = ProblemDetailsFactory.For(
+            new Microsoft.AspNetCore.Http.BadHttpRequestException("too big", status));
+
+        problem.Status.Should().Be(status);
+        problem.Extensions["code"].Should().Be(expected);
+        problem.Extensions["messageKey"].Should().Be("lockey_" + expected);
+    }
+
+    [Fact]
+    public void An_Ordinary_Unhandled_Exception_Is_Still_internal_error()
+    {
+        var problem = ProblemDetailsFactory.For(new InvalidOperationException("boom"));
+
+        problem.Status.Should().Be(500);
+        problem.Extensions["code"].Should().Be("internal_error");
+    }
+
     [Fact]
     public void Status_422_Is_The_One_Deliberate_Asymmetry()
     {

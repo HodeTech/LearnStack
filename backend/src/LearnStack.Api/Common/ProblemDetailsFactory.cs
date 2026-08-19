@@ -63,10 +63,21 @@ public static class ProblemDetailsFactory
             return problem;
         }
 
-        // Unhandled / unknown — surface a stable generic shape.
+        // Unhandled / unknown — mint the code from the status, exactly as
+        // ForStatus does for a framework error with no exception at all.
+        //
+        // This used to hardcode `internal_error`, which was harmless only
+        // while every such exception also produced a 500. Honouring
+        // BadHttpRequestException's own status broke that: an oversized upload
+        // became `status: 413` with `code: "internal_error"` — a body whose
+        // two halves contradict each other, which is precisely what
+        // CanonicalCodeFor exists to make impossible. A 500 still yields
+        // `internal_error`, because that is what CanonicalCodeFor returns for
+        // it.
+        var unmapped = HttpStatusMap.CanonicalCodeFor(status);
         return BuildBase(
-            code: "internal_error",
-            messageKey: "lockey_internal_error",
+            code: unmapped,
+            messageKey: LocalizedMessage.RequiredPrefix + unmapped,
             status: status,
             context: context);
     }

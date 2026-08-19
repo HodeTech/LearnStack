@@ -221,6 +221,34 @@ public sealed class ErrorShapeHttpTests(ErrorShapeFixture fixture)
         await AssertProblemAsync(response, HttpStatusCode.NotFound, "not_found");
     }
 
+    [Fact]
+    public async Task Every_Error_Path_Emits_The_Same_Media_Type()
+    {
+        // Four writers can produce an error body: routing (UseStatusCodePages),
+        // MVC (IClientErrorFactory), the normalisation filter, and the L1
+        // exception handler. The last one kept the bare spelling after the
+        // other three converged — and it is the busiest path there is, since
+        // every unhandled exception takes it.
+        var paths = new[]
+        {
+            "/api/v1/no-such-route",                     // routing
+            "/api/v1/escapeprobe/notfound-bare",         // MVC client error
+            "/api/v1/escapeprobe/notfound-with-body",    // normalisation filter
+            "/api/v1/escapeprobe/throws",                // L1 exception handler
+            "/api/v1/paginationprobe?limit=0",           // model binding
+        };
+
+        var mediaTypes = new List<string?>();
+        foreach (var path in paths)
+        {
+            var response = await _client.GetAsync(new Uri(path, UriKind.Relative));
+            mediaTypes.Add(response.Content.Headers.ContentType?.ToString());
+        }
+
+        mediaTypes.Should().AllBe(mediaTypes[0])
+            .And.AllBe("application/problem+json; charset=utf-8");
+    }
+
     private static async Task AssertProblemAsync(
         HttpResponseMessage response, HttpStatusCode expected, string code)
     {
@@ -307,4 +335,10 @@ public sealed class EscapeProbeController : ApiControllerBase, ITestOnlyControll
     [HttpGet("aspnet-problem")]
     public IActionResult AspNetProblem() =>
         Problem(detail: "raw english", statusCode: 400);
+
+    [HttpGet("throws")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Controller actions are instance methods by ASP.NET routing convention.")]
+    public IActionResult Throws() =>
+        throw new InvalidOperationException("probe for the L1 handler's media type");
 }

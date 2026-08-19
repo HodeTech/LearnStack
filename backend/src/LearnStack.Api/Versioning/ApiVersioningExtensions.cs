@@ -153,7 +153,7 @@ public static class ApiVersioningExtensions
 
     /// <summary>
     /// Maps <c>/openapi/v{N}.json</c> for every registered major, plus the
-    /// Scalar reference UI at <c>/openapi</c>.
+    /// Scalar reference console at <see cref="ScalarUiPath"/>.
     /// </summary>
     /// <remarks>
     /// Standards 04 § OpenAPI previously promised "Swagger UI at
