@@ -32,6 +32,17 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     public const string TenantHeaderName = "X-Tenant-Id";
     public const string OrganizationHeaderName = "X-Organization-Id";
 
+    /// <summary>
+    /// The only prefix the comparison applies to. Registered globally, a
+    /// malformed <c>X-Tenant-Id</c> 400s the orchestrator's health probe and the
+    /// Hub's <c>/api/internal/*</c> surface — neither of which has a tenant
+    /// assertion to compare, and the first of which failing takes the pod out.
+    /// ADR-0036 scopes host classification to <c>/api/v1/*</c> for the same
+    /// reason; the assertion is part of that surface's binding, not of the
+    /// process's.
+    /// </summary>
+    public const string ScopedPrefix = "/api/v";
+
     public async Task InvokeAsync(
         HttpContext context,
         ITenantContext tenantContext,
@@ -41,6 +52,13 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         ArgumentNullException.ThrowIfNull(tenantContext);
         ArgumentNullException.ThrowIfNull(recorder);
 
+        if (!context.Request.Path.StartsWithSegments("/api")
+            || !context.Request.Path.Value!.StartsWith(ScopedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context);
+            return;
+        }
+
         if (!TryReadAssertion(context, TenantHeaderName, out var assertedTenant)
             || !TryReadAssertion(context, OrganizationHeaderName, out var assertedOrganization))
         {
@@ -49,6 +67,10 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
             // Refused rather than resolved by first-or-last: a header present
             // twice is the classic confusion bug, and whichever end you pick,
             // some topology makes it the attacker's.
+            //
+            // Counted, not recorded: there is no resolved tenant to record it
+            // under, and the value was never a tenant id in the first place.
+            recorder.RecordUnresolved(TenantAssertionDimension.Tenant);
             await WriteAsync(context, StatusCodes.Status400BadRequest);
             return;
         }

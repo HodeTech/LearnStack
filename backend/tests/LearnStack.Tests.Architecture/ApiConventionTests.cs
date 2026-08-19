@@ -43,6 +43,32 @@ public sealed class ApiConventionTests
     }
 
     [Fact]
+    public void Forwarded_Headers_Are_Not_Wired()
+    {
+        // A tripwire, not a prohibition. EffectiveHostAccessor compares the
+        // connection peer against the trusted hop's networks, and
+        // IHttpConnectionFeature is the same storage UseForwardedHeaders
+        // mutates — so the moment that middleware runs ahead of the hop check,
+        // the check starts comparing a client-supplied address. The API will
+        // want forwarded headers for rate limiting and audit; when it adds
+        // them, this test fails and the peer capture has to be moved ahead of
+        // them deliberately rather than discovered later.
+        typeof(LearnStack.Api.Versioning.ApiVersioningExtensions).Assembly
+            .GetReferencedAssemblies()
+            .Select(name => name.Name)
+            .Should().NotContain("Microsoft.AspNetCore.HttpOverrides");
+
+        var program = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(RepositoryPaths.RepoRoot(),
+                "backend", "src", "LearnStack.Api", "Program.cs"));
+
+        program.Should().NotContain("UseForwardedHeaders",
+            "see EffectiveHostAccessor.PeerIsInsideTrustedNetwork — the hop's peer "
+            + "must be captured before this middleware, or the check compares a "
+            + "client-supplied address against the hop's networks");
+    }
+
+    [Fact]
     public void Unversioned_Route_Prefixes_Are_Declared_Once()
     {
         // The convention and the runtime test read the same list. Asserting

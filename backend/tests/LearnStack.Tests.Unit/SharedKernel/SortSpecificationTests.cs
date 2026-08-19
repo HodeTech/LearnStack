@@ -6,7 +6,7 @@ namespace LearnStack.Tests.Unit.SharedKernel;
 
 /// <summary>
 /// The <c>sort</c> grammar
-/// <see href="../../../docs/standards/04-api-design.md">Standards 04
+/// <see href="../../../../docs/standards/04-api-design.md">Standards 04
 /// § Filtering and Sorting</see> specifies.
 /// </summary>
 public sealed class SortSpecificationTests

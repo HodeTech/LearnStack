@@ -64,14 +64,23 @@ public sealed class EffectiveHostAccessor(IOptions<TrustedHopOptions> options)
     /// <c>HttpContext.Connection.RemoteIpAddress</c>.
     /// </summary>
     /// <remarks>
-    /// With <c>UseForwardedHeaders</c> and <c>XForwardedFor</c> enabled — which
-    /// the API needs for rate limiting and audit —
-    /// <c>Connection.RemoteIpAddress</c> becomes a client-supplied value for
-    /// exactly the peers designated as the hop, and in SaaS the gateway
-    /// legitimately forwards the visitor's address, so the check would be
-    /// permanently false. <c>ForwardedHeadersOptions.KnownNetworks</c> and
-    /// <see cref="TrustedHopOptions.Networks"/> answer different questions and
-    /// stay separate lists.
+    /// <para>
+    /// <b>This is not, by itself, a defence against <c>UseForwardedHeaders</c>,
+    /// and an earlier version of this comment claimed it was.</b>
+    /// <see cref="IHttpConnectionFeature"/> is the same storage
+    /// <c>HttpContext.Connection.RemoteIpAddress</c> reads, and the forwarded-headers
+    /// middleware <i>mutates</i> it — so reading the feature rather than the
+    /// property buys nothing once that middleware runs ahead of this one.
+    /// </para>
+    /// <para>
+    /// What makes the read correct today is that <c>UseForwardedHeaders</c> is
+    /// <b>not wired</b>, which <c>Forwarded_Headers_Are_Not_Wired</c> asserts.
+    /// When it lands — the API will want it for rate limiting and audit — the
+    /// peer must be captured <i>before</i> it runs, or this check silently
+    /// starts comparing a client-supplied address against the hop's networks.
+    /// The test is the tripwire: adding the middleware fails the build and
+    /// forces that ordering to be decided rather than discovered.
+    /// </para>
     /// </remarks>
     private bool PeerIsInsideTrustedNetwork(HttpContext context)
     {
