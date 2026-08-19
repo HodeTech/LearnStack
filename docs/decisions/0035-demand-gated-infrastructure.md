@@ -90,6 +90,7 @@ otherwise equal. This rule is added to
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
 | Custom-domain TLS automation | `IHostToTenantResolver` + `ITlsCertificateProvider` | `platform_host_to_tenant` rows managed by configuration | [Phase 11](../roadmap/phase-11-production-hardening.md) | A tenant needs its own domain in production |
 | `audit_log` partitioning + retention job | — (schema-internal) | Single correct table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
+| Durable idempotency store | `IIdempotencyStore` | `InMemoryIdempotencyStore` | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | The first endpoint carrying `[Idempotent]`, **or** more than one application instance runs concurrently |
 | Meilisearch | `ITenantSearch` | PostgreSQL full-text search | [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | Search quality or scale exceeds PostgreSQL FTS |
 | LiveKit | `ILiveClassProvider` | — (scheduled, not gated — see the exception below) | [Phase 08c](../roadmap/phase-08c-classroom.md) | Live classes become a product requirement |
 | Managed video transcoding | `IVideoTranscoder` | ffmpeg-backed worker ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) | [Phase 11](../roadmap/phase-11-production-hardening.md) | In-house transcode backlog or per-minute cost exceeds the managed alternative |
@@ -203,6 +204,18 @@ not **whether**.
   (`NullEntitlementProvider_NotRegistered_OutsideDevelopment`).
 - Architecture test `Modules_Do_Not_Reference_DeploymentMode` continues to hold — the
   composition root branches once, modules never.
+
+## Amendments
+
+### 2026-08-20 — The idempotency store joins the gated set
+
+[ADR-0037](0037-idempotency-key-contract.md) adds `IIdempotencyStore` to the table
+above. It is listed here rather than argued to be exempt: the four-part rule asks
+for a port, a working default, an owning phase and a written trigger, and this
+building block has all four. An earlier doc comment claimed the block fell outside
+this ADR's sense because the durable implementation is a table rather than a vendor
+adapter — a distinction this ADR does not draw, and the row costs less than the
+argument did.
 
 ## References
 
