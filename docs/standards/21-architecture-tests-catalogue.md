@@ -1338,6 +1338,41 @@ started.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`).
 - **Phase:** 02a Packet 4.
 
+#### `A_Malformed_Sort_Names_The_Parameter_The_Client_Sent`
+
+- **Asserts:** a `sort` value that violates the grammar — trailing comma, empty
+  segment, a field starting with a digit, punctuation, the same field twice —
+  returns 400 with `errors.sort`, keyed by the name the client sent rather than
+  by the C# property or a binder key.
+- **Source:** Standards 04 § Filtering and Sorting.
+- **Type:** xUnit + HTTP, over `SortSpecificationTests` for the grammar itself.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`ErrorShapeHttpTests`, `SortSpecificationTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Field_The_Endpoint_Does_Not_Allow_Is_Refused_By_Name`
+
+- **Asserts:** a well-formed `sort` field outside the endpoint's allow-list
+  returns 400 carrying `lockey_sort_field_not_allowed` with the field in
+  `params`. Parsing and authorising are separate steps, and an ignored key
+  would return a page in an order the client did not request.
+- **Source:** Standards 04 § Filtering and Sorting.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`ErrorShapeHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `List_Query_Parameters_Are_Published_Individually`
+
+- **Asserts:** `cursor`, `limit`, `sort` and `q` appear as individual query
+  parameters in the OpenAPI document, not as one opaque object. Standards 04
+  § Filtering and Sorting requires each to be documented, and a generator that
+  collapses a `[FromQuery]` complex type leaves the generated SDK unable to
+  offer any of them as arguments.
+- **Source:** Standards 04 § Filtering and Sorting, § OpenAPI.
+- **Type:** xUnit + OpenAPI document inspection. **Kind:** behavioural.
+- **Status:** **Implemented** (`ApiVersioningHttpTests`).
+- **Phase:** 02a Packet 4.
+
 #### `An_Unmatched_Route_Returns_Problem_Details` / `A_Wrong_Method_Returns_Problem_Details` / `An_Unsupported_Media_Type_Returns_Problem_Details`
 
 - **Asserts:** an unmatched route (404), a wrong method (405) and an

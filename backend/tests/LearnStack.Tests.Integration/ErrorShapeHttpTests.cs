@@ -5,6 +5,7 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Api.Pagination;
+using LearnStack.SharedKernel.Pagination;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -249,6 +250,68 @@ public sealed class ErrorShapeHttpTests(ErrorShapeFixture fixture)
             .And.AllBe("application/problem+json; charset=utf-8");
     }
 
+    [Theory]
+    [InlineData("title,")]
+    [InlineData("a,,b")]
+    [InlineData("1title")]
+    [InlineData("title;drop")]
+    [InlineData("title,-title")]
+    public async Task A_Malformed_Sort_Names_The_Parameter_The_Client_Sent(string sort)
+    {
+        var response = await _client.GetAsync(
+            new Uri($"/api/v1/listprobe?sort={Uri.EscapeDataString(sort)}", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("validation_failed");
+        problem.GetProperty("errors").TryGetProperty("sort", out _).Should().BeTrue(
+            "the client sent `sort`, so that is the name it can act on — not the "
+            + "C# property name and not a binder key");
+    }
+
+    [Fact]
+    public async Task A_Well_Formed_Sort_Reaches_The_Handler_In_Priority_Order()
+    {
+        var response = await _client.GetAsync(
+            new Uri("/api/v1/listprobe?sort=-publishedAt,title", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("sort").GetString().Should().Be("publishedAt:desc,title:asc");
+    }
+
+    [Fact]
+    public async Task A_List_Request_Still_Carries_The_Pagination_Parameters_Flat()
+    {
+        // ListRequest inherits CursorPaginationRequest rather than containing
+        // one, so `limit` stays `?limit=`, not `?pagination.limit=`.
+        var response = await _client.GetAsync(
+            new Uri("/api/v1/listprobe?limit=7&cursor=abc&q=hello", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("limit").GetInt32().Should().Be(7);
+        body.GetProperty("cursor").GetString().Should().Be("abc");
+        body.GetProperty("q").GetString().Should().Be("hello");
+    }
+
+    [Fact]
+    public async Task A_Field_The_Endpoint_Does_Not_Allow_Is_Refused_By_Name()
+    {
+        // Parsing and authorising are separate: the grammar is fine, the field
+        // is not this resource's to sort by. Silently ignoring it would order
+        // the page by something the client did not ask for, with no signal.
+        var response = await _client.GetAsync(
+            new Uri("/api/v1/listprobe?sort=secretColumn", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("errors").GetProperty("sort")[0]
+            .GetProperty("key").GetString().Should().Be("lockey_sort_field_not_allowed");
+        problem.GetProperty("errors").GetProperty("sort")[0]
+            .GetProperty("params").GetProperty("field").GetString().Should().Be("secretColumn");
+    }
+
     private static async Task AssertProblemAsync(
         HttpResponseMessage response, HttpStatusCode expected, string code)
     {
@@ -283,7 +346,8 @@ public sealed class ErrorShapeFixture : WebApplicationFactory<Program>
                     options.Conventions.Insert(0, new TestControllerFilter(
                         typeof(PaginationProbeController),
                         typeof(EchoProbeController),
-                        typeof(EscapeProbeController))))
+                        typeof(EscapeProbeController),
+                        typeof(ListProbeController))))
                 .AddApplicationPart(typeof(PaginationProbeController).Assembly));
     }
 }
@@ -306,6 +370,36 @@ public sealed class EchoProbeController : ApiControllerBase, ITestOnlyController
 }
 
 public sealed record EchoPayload(string Name);
+
+/// <summary>
+/// A list endpoint taking the composed wire shape: cursor + limit + sort + q.
+/// </summary>
+public sealed class ListProbeController : ApiControllerBase, ITestOnlyController
+{
+    private static readonly string[] Sortable = ["publishedAt", "title"];
+
+    [HttpGet]
+    public IActionResult Get([FromQuery] ListRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var sort = request.ToSort().Restrict(Sortable);
+        if (sort.IsFailure)
+        {
+            return sort.ToActionResult();
+        }
+
+        var pagination = request.ToPagination();
+        return Ok(new
+        {
+            pagination.Limit,
+            pagination.Cursor,
+            request.Q,
+            sort = string.Join(",", sort.Value!.Keys.Select(k =>
+                $"{k.Field}:{(k.Direction == SortDirection.Descending ? "desc" : "asc")}")),
+        });
+    }
+}
 
 /// <summary>
 /// Every way a controller can ship an error body that is not the sanctioned

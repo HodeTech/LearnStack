@@ -233,6 +233,30 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
             .GetProperty("x-version-introduced").GetString().Should().Be("v2");
     }
 
+    [Fact]
+    public async Task List_Query_Parameters_Are_Published_Individually()
+    {
+        // Standards 04 § Filtering and Sorting: "Each filter is documented in
+        // OpenAPI". A [FromQuery] complex type is only documented if the
+        // generator expands it into individual query parameters — if it
+        // publishes one opaque object instead, the generated SDK cannot offer
+        // `limit`, `sort` or `q` as arguments at all.
+        var document = await GetDocumentAsync("v1");
+
+        var parameters = document.RootElement
+            .GetProperty("paths").GetProperty("/api/v1/listprobe")
+            .GetProperty("get").GetProperty("parameters")
+            .EnumerateArray()
+            .Select(p => (name: p.GetProperty("name").GetString(),
+                          location: p.GetProperty("in").GetString()))
+            .ToList();
+
+        parameters.Should().Contain(("cursor", "query"))
+            .And.Contain(("limit", "query"))
+            .And.Contain(("sort", "query"))
+            .And.Contain(("q", "query"));
+    }
+
     private static bool IsOperation(JsonProperty member) =>
         member.Name is "get" or "put" or "post" or "delete"
             or "options" or "head" or "patch" or "trace";
@@ -275,7 +299,8 @@ public sealed class ApiVersioningFixture : WebApplicationFactory<Program>
                         typeof(VersionProbeController),
                         typeof(VersionProbeV2Controller),
                         typeof(MixedCaseProbeController),
-                        typeof(ObsoleteProbeController)));
+                        typeof(ObsoleteProbeController),
+                        typeof(ListProbeController)));
                     foreach (var production in options.Conventions
                                  .OfType<VersionedRouteConvention>().ToList())
                     {

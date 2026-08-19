@@ -34,7 +34,13 @@ namespace LearnStack.Api.Pagination;
 /// behaviour at the edge and another one layer in.
 /// </para>
 /// </remarks>
-public sealed record CursorPaginationRequest
+/// <remarks>
+/// Not sealed: <see cref="ListRequest"/> extends it with <c>sort</c> and
+/// <c>q</c>. Inheritance rather than containment keeps every parameter flat in
+/// the query string — MVC binds a nested complex type under a prefixed name
+/// (<c>?pagination.limit=</c>), which is not the shape Standards 04 publishes.
+/// </remarks>
+public record CursorPaginationRequest
 {
     /// <summary>
     /// Opaque continuation token minted by a previous response. Never parsed

@@ -160,11 +160,34 @@ Rules:
 
 ## Filtering and Sorting
 
-- Filter via query params: `?status=published&level=B1`.
+- Filter via query params: `?status=published&level=B1`. Filters are
+  **resource-specific** and each endpoint declares its own — the names and the
+  value sets belong to the resource, so there is no generic filter type.
+  Declaring them as parameters is what documents them in OpenAPI.
 - Sort via `sort=field` or `sort=-field` (prefix `-` for descending).
-- Multiple sort keys: `sort=-publishedAt,title`.
-- Search via `q=...` for free text.
-- Each filter is documented in OpenAPI.
+- Multiple sort keys: `sort=-publishedAt,title`. The order is **priority
+  order** and is preserved.
+- Search via `q=...` for free text. No separate length cap — § Request and
+  Response Limits already bounds the whole URL.
+
+The `sort` grammar is enforced by `SortSpecification`, and its edges are
+decided rather than left to each endpoint:
+
+- A field is one or more dot-separated segments of ASCII letters and digits,
+  each starting with a letter — the camelCase shape § Style fixes, with a dot
+  for a nested path. Anything else is **400**.
+- An empty segment (`title,` or `a,,b`), a bare `-`, or the **same field
+  twice** is **400**. Each is a typo, and accepting one silently drops or
+  reorders a key the client believes it asked for.
+- At most **four** keys. A sort is a query plan and each key is an index
+  decision; unbounded, a client composes an arbitrarily expensive ordering.
+- A **well-formed field the endpoint does not permit** is also **400**, naming
+  the field. Parsing and authorising are separate steps: the endpoint owns the
+  allow-list, and silently ignoring an unpermitted key returns a page in an
+  order the client did not ask for with no way to notice.
+
+A malformed or unpermitted `sort` reports under `errors.sort` — the name the
+client sent.
 
 ## Idempotency
 
