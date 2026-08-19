@@ -115,6 +115,44 @@ public sealed class EffectiveHostTests
     public void An_Already_Normal_Host_Is_Returned_Unchanged(string raw) =>
         EffectiveHost.Normalize(raw).Should().Be(raw);
 
+    [Theory]
+    // Fullwidth forms. GetAscii applies a compatibility mapping, so each of
+    // these arrives as the literal ASCII character AFTER the raw-input scan has
+    // already run — U+FF0F as '/', U+FF20 as '@', U+FF05 as '%'.
+    [InlineData("example\uFF0Fcom", "fullwidth solidus becomes '/'")]
+    [InlineData("example\uFF20com", "fullwidth commercial at becomes '@'")]
+    [InlineData("example\uFF05com", "fullwidth percent becomes '%'")]
+    [InlineData("example\uFF3Ccom", "fullwidth less-than")]
+    // Plain ASCII that was never on the raw denylist at all.
+    [InlineData("example;com", "a semicolon")]
+    [InlineData("example'com", "an apostrophe")]
+    [InlineData("example\"com", "a double quote")]
+    [InlineData("example,com", "a comma")]
+    [InlineData("example(com", "a parenthesis")]
+    [InlineData("-example.com", "a label starting with a hyphen")]
+    [InlineData("example-.com", "a label ending with a hyphen")]
+    public void No_Non_LDH_Character_Survives_Into_The_Output(string raw, string why)
+    {
+        // The output is what becomes a platform_host_to_tenant lookup key and
+        // the app.resolving_host session variable, so validating the INPUT was
+        // never enough — the mapping happens in between.
+        EffectiveHost.Normalize(raw).Should().BeNull(why);
+    }
+
+    [Theory]
+    [InlineData("example\uFF0Fcom")]
+    [InlineData("example\uFF20com")]
+    [InlineData("example;com")]
+    public void A_Confusable_Cannot_Break_Idempotence(string raw)
+    {
+        // Before the output check, the first call returned "example/com" and
+        // the second returned null — the raw scan finally saw the character the
+        // first call had produced. A cached key and a fresh one would then
+        // disagree.
+        var once = EffectiveHost.Normalize(raw);
+        EffectiveHost.Normalize(once).Should().Be(once);
+    }
+
     [Fact]
     public void Normalisation_Is_Idempotent()
     {
