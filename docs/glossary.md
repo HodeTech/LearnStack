@@ -309,6 +309,15 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Kickoff Packet** | The first packet of a phase when that phase is large enough to need an explicit plan up front. A kickoff packet ships only the per-packet breakdown for its phase plus any glossary / cross-reference updates the breakdown depends on; no code. Phase 01 did not need one (packets fell out cleanly from the existing scaffold targets); Phase 02a does (the foundation surface is wide). |
 | **Walking Skeleton** | A **thin vertical slice through every layer** that produces a working, browser-visible artefact as early as the foundation allows — deliberately shallow in features and complete in path. LearnStack's is [Phase 02d](roadmap/phase-02d-walking-skeleton.md): two hosts, two tenants in unrelated domains, `Course` + `Lesson`, two read endpoints, two public pages, one binary, one database, one schema. Its purpose is evidence, not features: it moves the platform's single most testable claim — that the same code paths serve unrelated education domains — from an assertion five phases away to something a non-engineer can check in a browser. Each capability it touches is delivered shallowly there and completely in its owning phase, and each owning phase records what the skeleton already shipped so no work is claimed twice. The exit gate is a browser, not a feature set: a change that does not move a pixel on one of the two pages belongs to its owning phase. |
 
+## List Queries
+
+| Term | Definition |
+|------|------------|
+| **Cursor Pagination** | The default paging shape for every list endpoint: `?cursor=&limit=`, where the cursor is an opaque token the server minted and the client never parses. `limit` defaults to 20 and is **clamped** at 100, not rejected. Contract in [Standards 04 § Pagination](standards/04-api-design.md); kernel type `CursorPagination`. |
+| **Sort Specification** | The parsed form of `?sort=`, per [Standards 04 § Filtering and Sorting](standards/04-api-design.md): an ordered list of **sort terms**, most significant first. Kernel type `SortSpecification`; parsing (`TryParse`) and authorising (`Restrict`) are separate steps, because only the endpoint knows which fields it permits. |
+| **Sort Term** | One key of a sort: a field name plus a direction, where a leading `-` in the wire form means descending. Named `SortTerm` rather than `SortKey` to avoid colliding with `System.Globalization.SortKey`. |
+| **Sortable Field Allow-List** | The set of field names one endpoint permits in `?sort=`. A well-formed field outside it is a **400 naming the field**, never a silently ignored key — a page returned in an order the client did not request is the one failure the client cannot detect. |
+
 ## Conventions
 
 - `PascalCase` for entities and aggregates.

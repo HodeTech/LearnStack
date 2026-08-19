@@ -29,8 +29,8 @@ public sealed class SortSpecificationTests
     {
         SortSpecification.TryParse("title", out var specification, out _).Should().BeTrue();
 
-        specification.Keys.Should().ContainSingle()
-            .Which.Should().Be(new SortKey("title", SortDirection.Ascending));
+        specification.Terms.Should().ContainSingle()
+            .Which.Should().Be(new SortTerm("title", SortDirection.Ascending));
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public sealed class SortSpecificationTests
     {
         SortSpecification.TryParse("-publishedAt", out var specification, out _).Should().BeTrue();
 
-        specification.Keys.Should().ContainSingle()
-            .Which.Should().Be(new SortKey("publishedAt", SortDirection.Descending));
+        specification.Terms.Should().ContainSingle()
+            .Which.Should().Be(new SortTerm("publishedAt", SortDirection.Descending));
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public sealed class SortSpecificationTests
         SortSpecification.TryParse("-publishedAt,title", out var specification, out _)
             .Should().BeTrue();
 
-        specification.Keys.Should().Equal(
-            new SortKey("publishedAt", SortDirection.Descending),
-            new SortKey("title", SortDirection.Ascending));
+        specification.Terms.Should().Equal(
+            new SortTerm("publishedAt", SortDirection.Descending),
+            new SortTerm("title", SortDirection.Ascending));
     }
 
     [Theory]
@@ -78,7 +78,7 @@ public sealed class SortSpecificationTests
     {
         SortSpecification.TryParse("author.name", out var specification, out _).Should().BeTrue();
 
-        specification.Keys.Should().ContainSingle()
+        specification.Terms.Should().ContainSingle()
             .Which.Field.Should().Be("author.name");
     }
 
@@ -97,7 +97,7 @@ public sealed class SortSpecificationTests
     [Fact]
     public void More_Keys_Than_The_Maximum_Are_Refused()
     {
-        var raw = string.Join(",", Enumerable.Range(0, SortSpecification.MaxKeys + 1)
+        var raw = string.Join(",", Enumerable.Range(0, SortSpecification.MaxTerms + 1)
             .Select(index => "f" + index));
 
         SortSpecification.TryParse(raw, out _, out _).Should().BeFalse();
@@ -106,18 +106,20 @@ public sealed class SortSpecificationTests
     [Fact]
     public void Restrict_Passes_A_Permitted_Field_Through()
     {
-        SortSpecification.TryParse("-publishedAt", out var specification, out _);
+        SortSpecification.TryParse("-publishedAt", out var specification, out _)
+            .Should().BeTrue();
 
         var result = specification.Restrict(["publishedAt", "title"]);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Keys.Should().ContainSingle();
+        result.Value!.Terms.Should().ContainSingle();
     }
 
     [Fact]
     public void Restrict_Fails_With_The_Field_Named_Under_sort()
     {
-        SortSpecification.TryParse("secretColumn", out var specification, out _);
+        SortSpecification.TryParse("secretColumn", out var specification, out _)
+            .Should().BeTrue("the grammar is fine; only the allow-list rejects it");
 
         var result = specification.Restrict(["publishedAt", "title"]);
 
@@ -130,9 +132,85 @@ public sealed class SortSpecificationTests
     }
 
     [Fact]
+    public void Restrict_Returns_The_Allow_Lists_Spelling_Not_The_Clients()
+    {
+        // The match is case-insensitive, so ?sort=PublishedAt is accepted.
+        // Handing the handler "PublishedAt" would then give it a string the
+        // endpoint never declared — and a handler that switches on the field
+        // name, or builds an EF OrderBy from it, breaks on a spelling nobody
+        // thought to test.
+        SortSpecification.TryParse("PUBLISHEDat", out var specification, out _)
+            .Should().BeTrue();
+
+        var result = specification.Restrict(["publishedAt"]);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Terms.Should().ContainSingle()
+            .Which.Field.Should().Be("publishedAt");
+    }
+
+    [Fact]
+    public void Two_Specifications_Parsed_From_The_Same_String_Are_Equal()
+    {
+        // A record's generated Equals compares the Terms list by reference.
+        SortSpecification.TryParse("-a,b", out var first, out _).Should().BeTrue();
+        SortSpecification.TryParse("-a,b", out var second, out _).Should().BeTrue();
+
+        first.Should().Be(second);
+        first.GetHashCode().Should().Be(second.GetHashCode());
+    }
+
+    [Theory]
+    [InlineData(SortSpecification.MaxTerms, true)]
+    [InlineData(SortSpecification.MaxTerms + 1, false)]
+    public void The_Term_Count_Boundary_Is_Exact(int count, bool accepted)
+    {
+        var raw = string.Join(",", Enumerable.Range(0, count).Select(i => "f" + i));
+
+        SortSpecification.TryParse(raw, out _, out _).Should().Be(accepted);
+    }
+
+    [Theory]
+    [InlineData(64, true)]
+    [InlineData(65, false)]
+    public void The_Field_Length_Boundary_Is_Exact(int length, bool accepted)
+    {
+        var field = "a" + new string('b', length - 1);
+
+        SortSpecification.TryParse(field, out _, out _).Should().Be(accepted);
+    }
+
+    [Fact]
+    public void A_Duplicate_Differing_Only_In_Case_Is_Still_A_Duplicate()
+    {
+        // The only thing stopping two contradictory orderings of one column.
+        SortSpecification.TryParse("title,-TITLE", out _, out var offending)
+            .Should().BeFalse();
+
+        offending.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void A_Malformed_Sort_Error_Names_The_Segment_And_Bounds_It()
+    {
+        var error = SortSpecification.MalformedSortError(new string('x', 200));
+
+        error.Code.Should().Be("validation_failed");
+        error.Details.Should().NotBeNull().And.ContainKey(SortSpecification.ErrorsKey);
+        error.Details![SortSpecification.ErrorsKey].Should().ContainSingle()
+            .Which.Params!["segment"].Length.Should().Be(64,
+                "the raw value is attacker-controlled and reaches a log and an audit row");
+    }
+
+    [Fact]
     public void Restrict_Is_Case_Insensitive_About_The_Allow_List()
     {
-        SortSpecification.TryParse("PublishedAt", out var specification, out _);
+        // Asserting the parse is load-bearing, not ceremony: TryParse sets
+        // specification = Empty before it can fail, and Restrict on an empty
+        // spec returns Ok — so without this line the test would pass while
+        // having parsed nothing at all.
+        SortSpecification.TryParse("PublishedAt", out var specification, out _)
+            .Should().BeTrue();
 
         specification.Restrict(["publishedAt"]).IsSuccess.Should().BeTrue();
     }

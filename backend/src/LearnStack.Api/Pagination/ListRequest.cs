@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using LearnStack.SharedKernel.Pagination;
+using LearnStack.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LearnStack.Api.Pagination;
@@ -44,22 +45,36 @@ public record ListRequest : CursorPaginationRequest, IValidatableObject
     public string? Sort { get; init; }
 
     /// <summary>
-    /// Free-text search. No length cap is imposed here: Standards 04 § Request
-    /// and Response Limits already bounds the whole URL at 2 KB, and a second
-    /// limit that disagreed with it would be the harder failure to explain.
+    /// Free-text search.
     /// </summary>
-    [FromQuery(Name = "q")]
+    /// <remarks>
+    /// No length cap here. Standards 04 § Request and Response Limits states a
+    /// 2 KB URL bound, but nothing in this application enforces it — the real
+    /// ceiling today is Kestrel's request-line and header limits, and the
+    /// gateway's once it fronts the app. Capping <c>q</c> at some other number
+    /// would add a third bound that agrees with neither, so the honest move is
+    /// to inherit whatever actually rejects an over-long URL and to say so.
+    /// </remarks>
+    [FromQuery(Name = QParameterName)]
     public string? Q { get; init; }
 
     /// <summary>
-    /// Parses <see cref="Sort"/>. Safe to call only after validation has run —
-    /// <see cref="Validate"/> is what guarantees the value parses, and
-    /// <c>[ApiController]</c> is what guarantees validation ran.
+    /// Parses <see cref="Sort"/>, or reports why it could not.
     /// </summary>
-    public SortSpecification ToSort() =>
-        SortSpecification.TryParse(Sort, out var specification, out _)
-            ? specification
-            : SortSpecification.Empty;
+    /// <remarks>
+    /// It returns a <see cref="Result{T}"/> rather than falling back to
+    /// <see cref="SortSpecification.Empty"/>. Failing open looked safe —
+    /// validation runs first, so the failure path is unreachable — but
+    /// "unreachable" there rests on <c>[ApiController]</c> being present and on
+    /// MVC having run <see cref="IValidatableObject"/>, and MVC skips the
+    /// latter once any property has already failed. An endpoint would then
+    /// answer <b>200 with a silently unsorted page</b>: the worst available
+    /// outcome, because the client cannot tell.
+    /// </remarks>
+    public Result<SortSpecification> ToSort() =>
+        SortSpecification.TryParse(Sort, out var specification, out var offending)
+            ? Result<SortSpecification>.Ok(specification)
+            : Result<SortSpecification>.Fail(SortSpecification.MalformedSortError(offending));
 
     /// <summary>
     /// Reports a malformed <c>sort</c> against the parameter the client sent,
@@ -82,4 +97,9 @@ public record ListRequest : CursorPaginationRequest, IValidatableObject
                 errorMessage: null, memberNames: [SortParameterName]);
         }
     }
+
+    /// <summary>
+    /// The query-string name for free-text search.
+    /// </summary>
+    public const string QParameterName = "q";
 }
