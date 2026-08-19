@@ -21,6 +21,7 @@ var deploymentMode = builder.Configuration.RequireDeploymentMode();
 
 builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration, deploymentMode);
+builder.Services.AddLearnStackRateLimiting();
 
 // Controllers + the /api/v{N} route convention + one OpenAPI document per
 // live major, per ADR-0024. AddLearnStackApiVersioning owns the
@@ -32,14 +33,24 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
-// Outermost after the exception handler, so every response carries the
-// correlation id — including the ones produced by the middleware below.
+// UseStatusCodePages goes here, ahead of everything that can short-circuit
+// with a bodyless status. It only wraps middleware DOWNSTREAM of itself, so
+// registering it after the rate limiter left a 429 with no body at all — the
+// one client error that skipped the shape every other one carries. 404 and 405
+// come from routing, further down, for the same reason: no action runs, so no
+// MVC hook sees them.
+app.MapLearnStackClientErrors();
+
+// Every response carries the correlation id, including the ones the middleware
+// below short-circuits.
 app.UseLearnStackCorrelationHeader();
 
-// 404 and 405 come from routing, before MVC — no action runs, so no MVC hook
-// sees them and they reach the client with no body. Registered after the
-// exception handler so an error that already produced a body keeps it.
-app.MapLearnStackClientErrors();
+// Before anything that costs a database round trip. From Packet 7 every novel
+// Host value buys a Postgres transaction and a cache entry on a pre-auth
+// surface; architecture/30 has promised this middleware since Phase 01 and
+// nothing delivered it, and ADR-0035 puts the gateway that would replace it in
+// Phase 11.
+app.UseRateLimiter();
 
 // The OpenAPI document and its reference UI are served in every environment,
 // not only Development. The document IS the contract Standards 04 § OpenAPI

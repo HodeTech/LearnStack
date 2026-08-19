@@ -109,7 +109,62 @@ public static class EffectiveHost
         // Invariant, not current-culture. This team's default culture is
         // tr-TR, where ToLower() maps 'I' to 'ı' — which would turn every host
         // containing a capital I into a key that matches no row.
-        return ascii.ToLowerInvariant();
+        var lowered = ascii.ToLowerInvariant();
+
+        // Validate the OUTPUT, not just the input. Measured: GetAscii performs
+        // a compatibility mapping, so the fullwidth solidus U+FF0F arrives as a
+        // literal '/', U+FF20 as '@', U+FF05 as '%' — every one of them past
+        // the raw-input scan above, which by then has already run. And ';',
+        // '\'' and '"' were never on that scan at all. The result was a
+        // "normalised host" carrying the characters this type promises to
+        // reject, on its way to being a SQL lookup key and the
+        // app.resolving_host session variable.
+        //
+        // A whitelist is the right shape here and a denylist never was: the
+        // set of things a hostname may contain is small and closed, and the
+        // set of things it may not is neither.
+        return IsLdh(lowered) ? lowered : null;
+    }
+
+    /// <summary>
+    /// True when every character is a letter, digit, hyphen or dot, and no
+    /// label begins or ends with a hyphen — the LDH rule a hostname actually
+    /// obeys.
+    /// </summary>
+    private static bool IsLdh(string host)
+    {
+        var labelStart = true;
+
+        for (var index = 0; index < host.Length; index++)
+        {
+            var character = host[index];
+
+            if (character == '.')
+            {
+                // A label ending in '-' is invalid, and so is an empty one.
+                if (labelStart || host[index - 1] == '-')
+                {
+                    return false;
+                }
+
+                labelStart = true;
+                continue;
+            }
+
+            if (!char.IsAsciiLetterOrDigit(character) && character != '-')
+            {
+                return false;
+            }
+
+            if (labelStart && character == '-')
+            {
+                return false;
+            }
+
+            labelStart = false;
+        }
+
+        return !labelStart && host[^1] != '-';
     }
 
     /// <summary>
