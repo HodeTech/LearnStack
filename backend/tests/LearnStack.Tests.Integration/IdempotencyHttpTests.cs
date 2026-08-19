@@ -4,8 +4,10 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Api.Idempotency;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -19,13 +21,15 @@ namespace LearnStack.Tests.Integration;
 /// <summary>
 /// <c>Idempotency-Key</c>, per
 /// <see href="../../../docs/standards/04-api-design.md">Standards 04
-/// § Idempotency</see>: the server stores <c>(key, response)</c> and a repeat
-/// returns the stored one instead of doing the work twice.
+/// § Idempotency</see> and
+/// <see href="../../../docs/decisions/0037-idempotency-key-contract.md">ADR-0037</see>:
+/// the server stores <c>(key, response)</c> and a repeat returns the stored one
+/// instead of doing the work twice.
 /// </summary>
 public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
     : IClassFixture<IdempotencyFixture>
 {
-    private readonly HttpClient _client = fixture.CreateClient();
+    private readonly HttpClient _client = fixture.CreateClientForTenant(IdempotencyFixture.TenantA);
 
     [Fact]
     public async Task A_Repeat_Replays_The_First_Response_Without_Doing_The_Work_Again()
@@ -78,7 +82,9 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
     [InlineData(null, "absent")]
     [InlineData("short", "under the minimum length")]
     [InlineData("has a space in it", "a space is not printable-ASCII-no-space")]
-    [InlineData("controlchar-key", "a control character")]
+    // Escaped rather than embedded: the raw byte an earlier version carried is
+    // invisible in a diff, in a review, and in every editor that renders it.
+    [InlineData("control\u0001char-key", "a control character")]
     public async Task A_Missing_Or_Malformed_Key_Is_A_400(string? key, string why)
     {
         var response = await PostAsync("/api/v1/sideeffectprobe", key);
@@ -90,6 +96,26 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
             .TryGetProperty(IdempotentAttribute.ErrorsKey, out _).Should().BeTrue(
                 "the camelCase form survives the errors-map projection unchanged; "
                 + "camelCasing the literal header name yields 'idempotency-Key'");
+    }
+
+    [Fact]
+    public async Task A_Key_Over_The_Maximum_Length_Is_A_400()
+    {
+        // The upper bound is the one that keeps a client-chosen value out of a
+        // database column it does not fit; only the lower one was covered.
+        var response = await PostAsync(
+            "/api/v1/sideeffectprobe", new string('k', IdempotentAttribute.MaxKeyLength + 1));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task A_Key_At_The_Maximum_Length_Is_Accepted()
+    {
+        var response = await PostAsync(
+            "/api/v1/sideeffectprobe", new string('k', IdempotentAttribute.MaxKeyLength));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -105,8 +131,10 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    // ---- what is recorded, and what is released ----------------------------
+
     [Fact]
-    public async Task A_Failed_Attempt_Does_Not_Pin_The_Key_For_A_Day()
+    public async Task A_Thrown_Attempt_Does_Not_Pin_The_Key()
     {
         // Storing a failure would make every retry replay it for the retention
         // window, turning one transient fault into a day of them.
@@ -116,10 +144,169 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         var failed = await PostAsync("/api/v1/sideeffectprobe?fail=true", key);
         failed.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
 
-        var retried = await PostAsync("/api/v1/sideeffectprobe", key);
+        var retried = await PostAsync("/api/v1/sideeffectprobe?fail=true", key);
 
-        retried.StatusCode.Should().Be(HttpStatusCode.OK,
+        retried.StatusCode.Should().Be(HttpStatusCode.InternalServerError,
             "the key was released, so the retry is allowed to run");
+        SideEffectProbeController.Invocations.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_Returned_5xx_Does_Not_Pin_The_Key_Either()
+    {
+        // The covering test exercised the THROW path. A handler that returns a
+        // 503 without throwing is a different branch, and it was untested.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync("/api/v1/sideeffectprobe?status=503", key);
+        var retried = await PostAsync("/api/v1/sideeffectprobe?status=503", key);
+
+        retried.Headers.Contains(IdempotentAttribute.ReplayedHeaderName).Should().BeFalse();
+        SideEffectProbeController.Invocations.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_429_Does_Not_Pin_The_Key()
+    {
+        // Same reasoning as a 5xx: it describes a condition, not an outcome.
+        // Pinning it would answer "too many requests" for the whole window.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync("/api/v1/sideeffectprobe?status=429", key);
+        await PostAsync("/api/v1/sideeffectprobe?status=429", key);
+
+        SideEffectProbeController.Invocations.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_Deterministic_4xx_Is_Recorded_And_Replayed()
+    {
+        // A 400 is the operation's answer, and it is the same answer every
+        // time. Re-running it would defeat the key for no gain.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync("/api/v1/sideeffectprobe?status=400", key);
+        var retried = await PostAsync("/api/v1/sideeffectprobe?status=400", key);
+
+        retried.Headers.GetValues(IdempotentAttribute.ReplayedHeaderName).Single()
+            .Should().Be("true");
+        SideEffectProbeController.Invocations.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_Response_Too_Large_To_Store_Is_Not_Silently_Replayed()
+    {
+        // The cap exists so the entry ceiling is a memory ceiling too. When it
+        // is hit the key is released rather than a truncated body recorded, so
+        // the client's retry re-runs instead of being handed half an answer.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        var first = await PostAsync("/api/v1/sideeffectprobe?big=true", key);
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var retried = await PostAsync("/api/v1/sideeffectprobe?big=true", key);
+
+        retried.Headers.Contains(IdempotentAttribute.ReplayedHeaderName).Should().BeFalse();
+        SideEffectProbeController.Invocations.Should().Be(2);
+    }
+
+    // ---- replay fidelity ---------------------------------------------------
+
+    [Fact]
+    public async Task A_Replayed_201_Keeps_Its_Location_And_Every_Other_Outcome_Header()
+    {
+        // A 201 without its Location is not the same response — the location IS
+        // the answer. A client that retried through a timeout would otherwise
+        // learn the resource exists and never learn where.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        var first = await PostAsync("/api/v1/sideeffectprobe?created=true", key);
+        var second = await PostAsync("/api/v1/sideeffectprobe?created=true", key);
+
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        second.StatusCode.Should().Be(HttpStatusCode.Created);
+        second.Headers.Location.Should().Be(first.Headers.Location);
+        second.Headers.ETag.Should().Be(first.Headers.ETag);
+        second.Headers.GetValues(SideEffectProbeController.OutcomeHeader).Single()
+            .Should().Be(first.Headers.GetValues(SideEffectProbeController.OutcomeHeader).Single());
+        second.Content.Headers.ContentType!.ToString()
+            .Should().Be(first.Content.Headers.ContentType!.ToString());
+    }
+
+    [Fact]
+    public async Task A_Replay_Does_Not_Reuse_The_First_Attempts_Correlation_Id()
+    {
+        // The correlation id belongs to the exchange that is happening now.
+        // Replaying the first one would point a support engineer at a trace
+        // that has nothing to do with the request they are holding.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        var first = await PostAsync("/api/v1/sideeffectprobe", key);
+        var second = await PostAsync("/api/v1/sideeffectprobe", key);
+
+        var firstId = first.Headers.GetValues(CorrelationHeaderMiddleware.HeaderName).Single();
+        var secondId = second.Headers.GetValues(CorrelationHeaderMiddleware.HeaderName).Single();
+
+        secondId.Should().NotBe(firstId);
+    }
+
+    // ---- the key does not identify a request on its own --------------------
+
+    [Fact]
+    public async Task The_Same_Key_On_A_Different_Endpoint_Is_Refused_Not_Replayed()
+    {
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync("/api/v1/sideeffectprobe", key);
+        var reused = await PostAsync("/api/v1/otherprobe", key);
+
+        reused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(reused)).Should().Be("idempotency_key_reuse");
+        SideEffectProbeController.Invocations.Should().Be(1,
+            "the second endpoint must not run, and must not be told the first one's answer");
+    }
+
+    [Fact]
+    public async Task The_Same_Key_With_A_Different_Body_Is_Refused()
+    {
+        // The classic client bug: a key reused after the payload was edited.
+        // Replaying would report success about the amount that was NOT sent.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync("/api/v1/sideeffectprobe", key, body: new { amount = 100 });
+        var reused = await PostAsync("/api/v1/sideeffectprobe", key, body: new { amount = 500 });
+
+        reused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(reused)).Should().Be("idempotency_key_reuse");
+    }
+
+    [Fact]
+    public async Task The_Same_Key_From_A_Different_User_In_One_Tenant_Is_Refused()
+    {
+        // A tenant is not a principal. Two users under one tenant can pick the
+        // same client-chosen key, and the second must not be handed the first
+        // one's response body.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        using var alice = fixture.CreateClientForTenant(
+            IdempotencyFixture.TenantA, IdempotencyFixture.Alice);
+        using var bob = fixture.CreateClientForTenant(
+            IdempotencyFixture.TenantA, IdempotencyFixture.Bob);
+
+        await PostAsync("/api/v1/sideeffectprobe", key, client: alice);
+        var asBob = await PostAsync("/api/v1/sideeffectprobe", key, client: bob);
+
+        asBob.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(asBob)).Should().Be("idempotency_key_reuse");
     }
 
     [Fact]
@@ -132,8 +319,8 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         SideEffectProbeController.Reset();
 
         var first = await PostAsync("/api/v1/sideeffectprobe", key);
-        using var otherTenant = fixture.CreateClientForOtherTenant();
-        var second = await PostAsync("/api/v1/sideeffectprobe", key, otherTenant);
+        using var otherTenant = fixture.CreateClientForTenant(IdempotencyFixture.TenantB);
+        var second = await PostAsync("/api/v1/sideeffectprobe", key, client: otherTenant);
 
         second.Headers.Contains(IdempotentAttribute.ReplayedHeaderName).Should().BeFalse(
             "the second tenant's key is its own");
@@ -142,27 +329,86 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         SideEffectProbeController.Invocations.Should().Be(2);
     }
 
+    [Fact]
+    public async Task A_Request_With_No_Resolved_Tenant_Is_Refused()
+    {
+        // There is no unscoped key space to serve it from, and inventing one
+        // is how a key becomes global.
+        using var unresolved = fixture.CreateClientForTenant(tenantId: null);
+
+        var response = await PostAsync("/api/v1/sideeffectprobe", NewKey(), client: unresolved);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ---- concurrency -------------------------------------------------------
+
+    [Fact]
+    public async Task A_Concurrent_Duplicate_Is_Refused_While_The_First_Is_Still_Running()
+    {
+        // The only guard against a genuine double-submit, and it had no test.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+        SideEffectProbeController.CloseGate();
+
+        var first = PostAsync("/api/v1/sideeffectprobe?hold=true", key);
+        await SideEffectProbeController.Entered;
+
+        var concurrent = await PostAsync("/api/v1/sideeffectprobe?hold=true", key);
+
+        concurrent.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(concurrent)).Should().Be("request_in_progress",
+            "the client should retry with this same key — the opposite of what a "
+            + "concurrency_conflict asks for, which is why it is a different code");
+
+        SideEffectProbeController.Release();
+        (await first).StatusCode.Should().Be(HttpStatusCode.OK);
+        SideEffectProbeController.Invocations.Should().Be(1);
+    }
+
     private static string NewKey() => "01HX" + Guid.NewGuid().ToString("N");
 
-    private Task<HttpResponseMessage> PostAsync(string path, string? key, HttpClient? client = null)
+    private static async Task<string?> ReadCodeAsync(HttpResponseMessage response)
     {
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return problem.GetProperty("code").GetString();
+    }
+
+    private async Task<HttpResponseMessage> PostAsync(
+        string path, string? key, HttpClient? client = null, object? body = null)
+    {
+        // Awaited inside, so the request is not disposed while it is being sent.
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(path, UriKind.Relative));
         if (key is not null)
         {
             request.Headers.TryAddWithoutValidation(IdempotentAttribute.HeaderName, key);
         }
 
-        return (client ?? _client).SendAsync(request);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        return await (client ?? _client).SendAsync(request);
     }
 }
 
-/// <summary>A host with a resolved tenant, because an idempotency key is tenant-scoped.</summary>
+/// <summary>A host whose tenant and user are chosen per request, not per host.</summary>
+/// <remarks>
+/// The tenant arrives on a header rather than through a mutable singleton. An
+/// earlier version switched a host-wide context object and never restored it,
+/// which made every test in the class depend on the order the others ran in —
+/// Standards 06 § Forbidden bars exactly that.
+/// </remarks>
 public sealed class IdempotencyFixture : WebApplicationFactory<Program>
 {
     public static readonly Guid TenantA = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
     public static readonly Guid TenantB = Guid.Parse("018f4d40-0000-7000-8000-00000000000b");
+    public static readonly Guid Alice = Guid.Parse("018f4d40-0000-7000-8000-0000000000a1");
+    public static readonly Guid Bob = Guid.Parse("018f4d40-0000-7000-8000-0000000000b1");
 
-    private readonly SwitchableTenantContext _tenantContext = new();
+    internal const string TenantHeader = "X-Test-Tenant";
+    internal const string UserHeader = "X-Test-User";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -172,56 +418,133 @@ public sealed class IdempotencyFixture : WebApplicationFactory<Program>
         {
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(
-                        typeof(SideEffectProbeController))))
+                        typeof(SideEffectProbeController), typeof(OtherProbeController))))
                 .AddApplicationPart(typeof(SideEffectProbeController).Assembly);
 
+            services.AddHttpContextAccessor();
             services.RemoveAll<ITenantContext>();
-            services.AddSingleton<ITenantContext>(_tenantContext);
+            services.AddScoped<ITenantContext, HeaderTenantContext>();
         });
     }
 
-    /// <summary>
-    /// A client whose requests resolve to a different tenant. The context is
-    /// switched rather than a second host started, because the store is a
-    /// singleton and two hosts would not share it — which would make the
-    /// cross-tenant test pass for the wrong reason.
-    /// </summary>
-    public HttpClient CreateClientForOtherTenant()
+    /// <summary>A client whose requests resolve to the given tenant, or to none.</summary>
+    public HttpClient CreateClientForTenant(Guid? tenantId, Guid? userId = null)
     {
-        _tenantContext.TenantId = TenantB;
-        return CreateClient();
+        var client = CreateClient();
+        if (tenantId is { } tenant)
+        {
+            client.DefaultRequestHeaders.Add(TenantHeader, tenant.ToString());
+        }
+
+        if (userId is { } user)
+        {
+            client.DefaultRequestHeaders.Add(UserHeader, user.ToString());
+        }
+
+        return client;
     }
 
-    internal sealed class SwitchableTenantContext : ITenantContext
+    internal sealed class HeaderTenantContext(IHttpContextAccessor accessor) : ITenantContext
     {
-        public bool IsResolved => true;
-        public Guid TenantId { get; set; } = TenantA;
+        public bool IsResolved => Read(TenantHeader) is not null;
+
+        public Guid TenantId => Read(TenantHeader)
+            ?? throw new InvalidOperationException("No tenant on this request.");
+
         public Guid? OrganizationId => null;
-        public SharedKernel.Identifiers.UserId? UserId => null;
+
+        public UserId? UserId => Read(UserHeader) is { } id
+            ? SharedKernel.Identifiers.UserId.From(id)
+            : null;
+
         public string? CorrelationId => null;
+
         public string? ModuleName => "integration-test";
+
+        private Guid? Read(string header) =>
+            accessor.HttpContext?.Request.Headers[header] is { Count: 1 } raw
+            && Guid.TryParse(raw[0], out var value)
+                ? value
+                : null;
     }
 }
 
 public sealed class SideEffectProbeController : ApiControllerBase, ITestOnlyController
 {
+    /// <summary>A header that is part of the outcome and must survive a replay.</summary>
+    public const string OutcomeHeader = "X-Probe-Outcome";
+
     private static int _invocations;
+    private static TaskCompletionSource _entered = NewGate();
+    private static TaskCompletionSource _release = NewGate();
 
     public static int Invocations => _invocations;
 
+    /// <summary>Completes once a held request has reached the action body.</summary>
+    public static Task Entered => _entered.Task;
+
     public static void Reset() => Interlocked.Exchange(ref _invocations, 0);
+
+    public static void CloseGate()
+    {
+        _entered = NewGate();
+        _release = NewGate();
+    }
+
+    public static void Release() => _release.TrySetResult();
 
     [HttpPost]
     [Idempotent]
-    public IActionResult Post([FromQuery] bool fail = false)
+    public async Task<IActionResult> Post(
+        [FromQuery] bool fail = false,
+        [FromQuery] bool created = false,
+        [FromQuery] bool big = false,
+        [FromQuery] bool hold = false,
+        [FromQuery] int? status = null)
     {
         Interlocked.Increment(ref _invocations);
+
+        if (hold)
+        {
+            _entered.TrySetResult();
+            await _release.Task;
+        }
 
         if (fail)
         {
             throw new InvalidOperationException("probe: a failed attempt must release its key");
         }
 
+        if (status is { } explicitStatus)
+        {
+            return StatusCode(explicitStatus, new { ran = _invocations });
+        }
+
+        if (big)
+        {
+            return Ok(new { blob = new string('x', IdempotentAttribute.MaxStoredResponseBytes + 1) });
+        }
+
+        if (created)
+        {
+            Response.Headers[OutcomeHeader] = "created";
+            EntityTag.SetEntityTag(Response, _invocations);
+            return Created(
+                new Uri($"/api/v1/sideeffectprobe/{_invocations}", UriKind.Relative),
+                new { ran = _invocations });
+        }
+
         return Ok(new { ran = _invocations, at = Guid.NewGuid() });
     }
+
+    private static TaskCompletionSource NewGate() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+/// <summary>A second idempotent endpoint, so "same key, different endpoint" is reachable.</summary>
+public sealed class OtherProbeController : ApiControllerBase, ITestOnlyController
+{
+    [HttpPost]
+    [Idempotent]
+    public IActionResult Post() => Ok(new { probe = "other" });
 }
