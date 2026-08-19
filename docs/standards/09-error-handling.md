@@ -237,9 +237,11 @@ Rules:
   `method_not_allowed` (405), `payload_too_large` (413),
   `unsupported_media_type` (415), `validation_failed` (400 and 422),
   `concurrency_conflict` (409), `rate_limited` (429),
-  `dependency_unavailable` (503), and `request_rejected` for any other 4xx —
-  never `internal_error`, which would put a code and a status that contradict
-  each other in the same body.
+  `dependency_unavailable` (503), `unauthorized` (401), `forbidden` (403), and
+  `request_rejected` for any other 4xx — never `internal_error` on a 4xx, which
+  would put a code and a status that contradict each other in the same body.
+  `internal_error` is reserved for 5xx, which is what the same method returns
+  there.
 - `messageKey` is the `LocalizedMessage.Key` (always begins with `lockey_`)
   the frontend resolves against its i18n catalogue. The legacy
   `detail` field is omitted — backend never returns raw English.

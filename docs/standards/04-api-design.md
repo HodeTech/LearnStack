@@ -62,7 +62,7 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 | 401 | Missing/invalid authentication |
 | 403 | Authenticated but not authorized |
 | 404 | Not found (also used to hide cross-tenant existence) |
-| 405 | Method not allowed; `Allow` header lists the methods that are |
+| 405 | Method not allowed; the `Allow` header lists the methods that are |
 | 409 | Concurrency or business-rule conflict |
 | 413 | Request body over the configured limit |
 | 410 | Permanently gone |

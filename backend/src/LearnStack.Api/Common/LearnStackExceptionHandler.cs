@@ -93,12 +93,16 @@ internal sealed class LearnStackExceptionHandler(
             return true;
         }
 
-        httpContext.Response.ContentType = "application/problem+json";
+        // One spelling, from one constant. This path is the busiest error path
+        // there is — every unhandled exception — and it was still emitting the
+        // bare media type after the routing and MVC paths converged on the
+        // charset-bearing one, which is what made two error responses tellable
+        // apart without reading either body.
         await httpContext.Response.WriteAsJsonAsync(
                 problem,
                 problem.GetType(),
                 options: null,
-                contentType: "application/problem+json",
+                contentType: ProblemDetailsMediaType.Value,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
