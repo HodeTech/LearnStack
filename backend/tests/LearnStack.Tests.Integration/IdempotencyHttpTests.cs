@@ -376,6 +376,48 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
     }
 
     [Fact]
+    public async Task Two_Anonymous_Callers_Sending_The_Same_Request_Share_The_Answer()
+    {
+        // The principal component degenerates to "anonymous" when there is no
+        // authenticated subject, so two anonymous callers in one tenant CAN
+        // collide on a key. That is a decision, not an oversight: with the
+        // organization, method, path, query and body all equal, the two requests
+        // are indistinguishable to the server, and replaying is the same answer
+        // to the same question. ADR-0037 § Scope records it; this pins it.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        using var first = fixture.CreateClientForTenant(IdempotencyFixture.TenantA);
+        using var second = fixture.CreateClientForTenant(IdempotencyFixture.TenantA);
+
+        await PostAsync("/api/v1/sideeffectprobe", key, client: first);
+        var replayed = await PostAsync("/api/v1/sideeffectprobe", key, client: second);
+
+        replayed.Headers.GetValues(IdempotentAttribute.ReplayedHeaderName).Single()
+            .Should().Be("true");
+        SideEffectProbeController.Invocations.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task An_Anonymous_Key_Still_Does_Not_Cross_To_An_Authenticated_Caller()
+    {
+        // The degeneracy stops at "no subject". Once a caller has one, it is in
+        // the digest, so an authenticated request cannot collect an anonymous
+        // one's response — or the reverse.
+        var key = NewKey();
+        SideEffectProbeController.Reset();
+
+        await PostAsync("/api/v1/sideeffectprobe", key);
+        using var alice = fixture.CreateClientForTenant(
+            IdempotencyFixture.TenantA, IdempotencyFixture.Alice);
+
+        var asAlice = await PostAsync("/api/v1/sideeffectprobe", key, client: alice);
+
+        asAlice.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await ReadCodeAsync(asAlice)).Should().Be("idempotency_key_reuse");
+    }
+
+    [Fact]
     public async Task Two_Tenants_Using_The_Same_Key_Do_Not_Share_A_Response()
     {
         // The key is client-chosen, so two tenants WILL eventually pick the
