@@ -102,6 +102,9 @@ matching localization key adds the `lockey_` prefix.
 | `forbidden` | Authenticated but not permitted | 403 |
 | `tenant_mismatch` | Tenant context mismatch | 404 |
 | `concurrency_conflict` | Optimistic concurrency token mismatch | 409 |
+| `request_in_progress` | An earlier attempt with this idempotency key is still running | 409 |
+| `idempotency_key_reuse` | This idempotency key belongs to a different request | 409 |
+| `idempotency_outcome_unavailable` | The operation completed; its response was not retained | 409 |
 | `business_rule_violation` | Domain invariant violation | 409 |
 | `resource_scope_violation` | Resource-level authorization failure | 403 |
 | `rate_limited` | Too many requests | 429 |
@@ -332,6 +335,9 @@ type AppError =
   | { code: "validation_failed"; fieldErrors: Record<string, string[]> }
   | { code: "not_found"; resource?: string }
   | { code: "concurrency_conflict"; latestVersion?: number }
+  | { code: "request_in_progress" }
+  | { code: "idempotency_key_reuse" }
+  | { code: "idempotency_outcome_unavailable" }
   | { code: "dependency_unavailable"; provider?: string; retryAfter?: number }
   | { code: "rate_limited"; retryAfter?: number }
   | { code: "forbidden" }

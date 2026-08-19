@@ -706,13 +706,19 @@ have to retrofit:
 - `platform_host_to_tenant` — host → `(tenant_id, organization_id?)` mapping
   (Hub-populated for SaaS / Dedicated, config-populated for SelfHosted; the table
   ships now).
+- `idempotency_keys` — the durable `IIdempotencyStore`
+  ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). Packet 4 ships the port
+  and an in-memory default that is correct for one instance and wrong for two; this is
+  the table that makes it survive a restart and a second instance. Each store call opens
+  its own short transaction and sets `app.tenant_id` as its first statement, because a
+  claim is taken **before** the MediatR `TransactionBehavior` that would otherwise do it.
 - `outbox_messages` — the outbox table. Nothing dispatches from it until
   [Phase 02b](phase-02b-events-auth.md), but its schema and LearnStack's ownership of
   it are a one-way door — and that ownership is exactly what makes the dispatch
   transport swappable later
   ([ADR-0006](../decisions/0006-events-and-outbox.md)).
 
-All nine tables ship with `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and an explicit
+All ten tables ship with `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and an explicit
 `WITH CHECK`. They do **not** all take the same policy, and saying they do produces a
 migration that cannot run: the corrected template's predicate names a `tenant_id`
 column, which `tenants` does not have, and it would deadlock host resolution, which
@@ -722,7 +728,7 @@ reads `platform_host_to_tenant` in order to *determine* the tenant. Three classe
 
 | Class | Tables | Policy |
 |---|---|---|
-| Tenant-owned | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings` (the one org-scoped table — it also takes the two `AS RESTRICTIVE` write guards), `tenant_feature_flags`, `platform_entitlement_cache`, `outbox_messages` | the corrected template verbatim |
+| Tenant-owned | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings` (the one org-scoped table — it also takes the two `AS RESTRICTIVE` write guards), `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` | the corrected template verbatim |
 | Tenant-owned, self-keyed | `tenants` | the corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id |
 | Platform-scoped | `platform_host_to_tenant` | `ENABLE` + `FORCE` with role-qualified per-command policies: reads keyed on the declared `app.resolving_host` (pre-context, single row) or on `app.tenant_id` (a tenant listing its own hosts); writes keyed on `app.tenant_id` only |
 

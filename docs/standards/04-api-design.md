@@ -1,7 +1,7 @@
 # 04 — API Design Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md), [ADR 0037 — What an Idempotency Key Identifies, Owns, and Replays](../decisions/0037-idempotency-key-contract.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -205,36 +205,73 @@ deliberately different shapes, because they fail at different times:
 
 ## Idempotency
 
-`POST` operations with external side effects accept an `Idempotency-Key` header:
+**Derives from:** [ADR-0037](../decisions/0037-idempotency-key-contract.md).
+
+Unsafe operations with external side effects accept an `Idempotency-Key` header:
 
 ```
 POST /api/v1/orders
 Idempotency-Key: 01HX7F...
 ```
 
+**A key is a nonce, not an identity.** The stored record is addressed by
+`(tenant, key)`, and it carries a **fingerprint** of the organization, the acting
+principal, the method, the path, the query string and the body. A key presented
+with a different fingerprint is refused — the client reused it for a different
+request, and both alternatives (replaying the old answer, or running the new
+one) fail silently.
+
 Rules:
-- Server stores `(idempotency_key, response)` for 24 hours.
-- Subsequent requests with the same key return the stored response, marked
+
+- The server stores the outcome for **24 hours** and replays it, marked
   `Idempotency-Replayed: true` — a client retrying after a timeout otherwise
-  cannot tell whether its second call did the work or collected the first
-  one's answer.
-- **The key space is scoped to the tenant.** The key is client-chosen, so two
-  tenants will eventually pick the same one; a flat space would hand the second
-  one the first one's response body. A request with no resolved tenant is
+  cannot tell whether its second call did the work or collected the first one's
+  answer.
+- **A replay is the whole response**, not its status line: the body, the content
+  type and every header describing the outcome, including `Location` and `ETag`.
+  Headers describing the exchange — framing, `Date`, `Server`, `Set-Cookie`,
+  `X-Correlation-Id` — are not replayed.
+- **The key space is scoped to the tenant.** A request with no resolved tenant is
   refused rather than served from an unscoped space.
-- A key is 8–128 printable ASCII characters with no space. Malformed, absent,
-  or repeated is **400** under `errors.idempotencyKey`.
+- A key is 8–128 printable ASCII characters with no space. Malformed, absent, or
+  repeated is **400** under `errors.idempotencyKey`.
 - A **concurrent** request holding the same key gets **409**
-  `concurrency_conflict`. Waiting would hold a connection open for work the
-  server cannot speed up.
-- A **5xx or a thrown** attempt releases its key instead of recording it.
-  Storing a failure would replay it for the whole retention window, turning one
-  transient fault into a day of them.
-- Required for: payment operations, webhook processing, notification sending, recording start/stop.
+  `request_in_progress` — retry with the same key. This is deliberately *not*
+  `concurrency_conflict`, which tells a client to re-read and re-submit; one code
+  cannot carry both instructions.
+- A key presented for a **different request** gets **409**
+  `idempotency_key_reuse`. Use a new key.
+- A **5xx, a thrown attempt, a 408/425/429, or a response carrying
+  `concurrency_conflict` / `rate_limited` / `dependency_unavailable`** releases
+  its key. Each describes a condition rather than an outcome, and pinning one
+  would answer it for the whole window.
+- A response too large to retain (**256 KiB**, headers included) records a
+  tombstone: the retry gets **409** `idempotency_outcome_unavailable` rather than
+  re-running an operation that already happened. An endpoint that trips this is a
+  design mistake and is logged as one.
+- When the store is at capacity a **new** key is refused with **503**
+  `dependency_unavailable`; an **existing** key is always served. Nothing
+  unexpired is ever displaced to make room, because displacing a record lets the
+  operation it describes run again.
+- Required for: payment operations, notification sending, recording start/stop.
 - Encouraged for: enrollment creation, invitation sending.
 
+**Inbound webhooks do not use this mechanism.** A provider cannot be made to send
+an `Idempotency-Key`; they deduplicate on `(provider, event_id)` from the
+verified payload — see § Webhooks (Inbound).
+
+**The guarantee is at-most-once while a claim is live, and at-least-once across
+process death.** The response is recorded before it is delivered, so a client
+disconnect is not a loss; a process that dies between the operation committing
+and the record being written releases the key and the retry re-runs. An operation
+whose duplicate execution is genuinely intolerable needs its own guard inside the
+business transaction.
+
 Marked per endpoint with `[Idempotent]`, because which operations have external
-side effects is knowledge the endpoint has and the pipeline does not.
+side effects is knowledge the endpoint has and the pipeline does not. The
+attribute publishes its own OpenAPI contract — the required header and the
+statuses it can answer before the action runs.
+
 
 ## Optimistic Concurrency
 

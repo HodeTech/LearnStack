@@ -73,11 +73,19 @@ Every row below carries a status:
 | **Registered** | The name is reserved and the assertion is agreed; no code yet. The row names the owning phase or packet. A registered test is a commitment, not a claim. |
 | **Retired** | Moved to § Retired with the reason and the replacement. |
 
-Each row also carries a **Kind**: **structural** (asserts a shape — types,
-references, attributes, configuration) or **behavioural** (starts or exercises
-the real thing and asserts what it does). A structural assertion that a rule
-*exists* is not a proof that it *holds*; see § What a structural test proves —
-and what it does not.
+Each row also carries a **Kind**:
+
+| Kind | Asserts |
+|---|---|
+| **structural** | A shape — types, references, attributes, configuration |
+| **behavioural** | What the real thing does when started or exercised |
+| **compile** | That the build fails, via an analyzer diagnostic |
+| **runtime** | That the host refuses to start, via a composition-root guard |
+
+A structural assertion that a rule *exists* is not a proof that it *holds*; see
+§ What a structural test proves — and what it does not. `compile` and `runtime`
+are the two kinds that fail *before* anything can be observed misbehaving, which
+is why they are named separately rather than folded into `structural`.
 
 Claiming a rule is "enforced by an architecture test" when the test is registered but
 not implemented is the failure mode this column exists to prevent.
@@ -1416,20 +1424,23 @@ started.
 
 - **Asserts:** the same key under two tenants produces two runs and two bodies.
   The key is client-chosen, so two tenants will eventually pick the same one;
-  a flat key space would hand the second one the first one's response body. The
-  test switches tenants on **one** host rather than starting two, because the
-  store is a singleton and separate hosts would not share it — which would make
-  the test pass for the wrong reason.
+  a flat key space would hand the second one the first one's response body. Both
+  clients run against **one** host — the store is a singleton and separate hosts
+  would not share it, which would make the test pass for the wrong reason — and
+  each names its tenant per request rather than switching a host-wide object no
+  test restores.
 - **Source:** Standards 04 § Idempotency; ADR-0003.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
 - **Phase:** 02a Packet 4.
 
-#### `A_Failed_Attempt_Does_Not_Pin_The_Key_For_A_Day`
+#### `A_Thrown_Attempt_Does_Not_Pin_The_Key`
 
 - **Asserts:** an attempt that throws releases its key, so the retry runs.
   Recording a failure would replay it for the 24-hour retention window, turning
-  one transient fault into a day of them.
+  one transient fault into a day of them. `A_Returned_5xx_Does_Not_Pin_The_Key_Either`
+  covers the sibling branch — a handler that *returns* a 5xx rather than throwing
+  is a different path, and it was untested.
 - **Source:** Standards 04 § Idempotency.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
@@ -1446,6 +1457,93 @@ started.
 - **Source:** Standards 04 § Optimistic Concurrency.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Implemented** (`EntityTagTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Idempotent_Endpoints_Are_Unsafe_Methods`
+
+- **Asserts:** no endpoint marks a safe method `[Idempotent]`. An idempotency
+  key exists to keep an operation with external side effects from happening
+  twice; a safe method has none to repeat, so the attribute protects nothing and
+  only makes a read fail for every client that did not send a header no read
+  needs.
+- **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md).
+- **Type:** xUnit over the host's real `EndpointDataSource`. **Kind:**
+  structural.
+- **Status:** **Implemented** (`IdempotentEndpointConventionTests`). The
+  production surface carries no `[Idempotent]` endpoint until Phase 09, so the
+  rule would pass vacuously; a companion test drives the same predicate over a
+  probe host that *does* violate it, which is what distinguishes the guard from
+  an empty assertion.
+- **Phase:** 02a Packet 4.
+
+#### `A_Sweep_Never_Destroys_A_Claim_Another_Thread_Just_Won`
+
+- **Asserts:** the store's expiry sweep never removes an entry other than the one
+  it observed. Removing by key alone deletes whatever sits there *now*, which —
+  between the enumerator seeing an expired entry and the removal running — may be
+  a live claim another thread just acquired; the next caller then finds the key
+  absent and runs the operation a second time, concurrently with the first.
+- **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md).
+- **Type:** xUnit stress test on a frozen, hand-advanced clock. **Kind:**
+  behavioural.
+- **Status:** **Implemented** (`InMemoryIdempotencyStoreTests`). The window is
+  the sweep's own enumeration, so the test walks 400 expired entries per round
+  while twelve dedicated threads take them over from staggered offsets. Verified
+  by mutation: the key-only removal is killed 5/5, and the correct code passes
+  10/10.
+- **Phase:** 02a Packet 4.
+
+#### `The_Same_Key_On_A_Different_Endpoint_Is_Refused_Not_Replayed`
+
+- **Asserts:** a key presented for a different request answers **409**
+  `idempotency_key_reuse` rather than replaying. Sibling cases cover a different
+  body (`The_Same_Key_With_A_Different_Body_Is_Refused`) and a different user in
+  one tenant (`The_Same_Key_From_A_Different_User_In_One_Tenant_Is_Refused`) —
+  the three leaks a client-chosen key enables, closed by one fingerprint.
+- **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md) §
+  Identity.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotencyHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Response_Too_Large_To_Store_Refuses_The_Retry_Rather_Than_Rerunning_It`
+
+- **Asserts:** an outcome that exceeds the replay cap is tombstoned, so the retry
+  answers **409** `idempotency_outcome_unavailable` and the operation runs once.
+  Releasing the key instead would let it run twice with a `2xx` both times, on
+  the surface Standards 04 reserves for payments.
+- **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md) § What is
+  recorded.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotencyHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Result_That_Throws_After_Writing_Part_Of_The_Body_Still_Answers_A_Problem_Details_500`
+
+- **Asserts:** when an action's result throws partway through writing, the client
+  receives the RFC 7807 500 rather than the bytes the formatter managed to
+  produce. The filter buffers the response body, and MVC returns normally from
+  `next()` and rethrows only after the filter unwinds — so the buffer can already
+  hold a half-written body. Copying it out starts the response, which both hands
+  the client a truncated `2xx` and takes the exception away from
+  `UseExceptionHandler`, whose 500 cannot be written once the response has
+  started.
+- **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md);
+  [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md).
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotencyHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `An_Idempotent_Operation_Publishes_Its_Header_In_The_Contract`
+
+- **Asserts:** the OpenAPI document for an `[Idempotent]` operation carries the
+  required `Idempotency-Key` header and documents its 409. Without it the
+  attribute is invisible to the generated SDK, every call the SDK makes is
+  answered 400, and "the first consumer is a one-attribute change" is not true.
+- **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md);
+  Standards 04 § OpenAPI.
+- **Type:** xUnit + HTTP against the emitted document. **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotentEndpointConventionTests`).
 - **Phase:** 02a Packet 4.
 
 ### Tenant and organization resolution (ADR-0036)
