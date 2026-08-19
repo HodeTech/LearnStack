@@ -73,6 +73,13 @@ public static class CrossCuttingFoundationExtensions
         // AddLearnStackObservabilityServices above.
         builder.Services.TryAddScoped<ITenantContext>(_ => UnresolvedTenantContext.Instance);
 
+        // IClock has existed in the kernel since Packet 2 and was never
+        // registered, because nothing consumed it. Packet 4's idempotency store
+        // is the first — and its doc comment already said "registered as a
+        // singleton at the composition root", which was true of nowhere.
+        builder.Services.TryAddSingleton<LearnStack.SharedKernel.Time.IClock,
+            LearnStack.SharedKernel.Time.SystemClock>();
+
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<LearnStackExceptionHandler>();
 

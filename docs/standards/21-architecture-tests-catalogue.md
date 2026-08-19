@@ -1399,6 +1399,55 @@ started.
   no `code`, `messageKey` or `correlationId`. `IClientErrorFactory` replaces
   that conversion instead of layering over it.
 
+### Idempotency and optimistic concurrency (Standards 04)
+
+#### `A_Repeat_Replays_The_First_Response_Without_Doing_The_Work_Again`
+
+- **Asserts:** two `POST`s carrying the same `Idempotency-Key` run the operation
+  once and return byte-identical bodies, the second marked
+  `Idempotency-Replayed: true`.
+- **Source:** Standards 04 § Idempotency.
+- **Type:** xUnit + HTTP over a probe that counts its own invocations.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotencyHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Two_Tenants_Using_The_Same_Key_Do_Not_Share_A_Response`
+
+- **Asserts:** the same key under two tenants produces two runs and two bodies.
+  The key is client-chosen, so two tenants will eventually pick the same one;
+  a flat key space would hand the second one the first one's response body. The
+  test switches tenants on **one** host rather than starting two, because the
+  store is a singleton and separate hosts would not share it — which would make
+  the test pass for the wrong reason.
+- **Source:** Standards 04 § Idempotency; ADR-0003.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotencyHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Failed_Attempt_Does_Not_Pin_The_Key_For_A_Day`
+
+- **Asserts:** an attempt that throws releases its key, so the retry runs.
+  Recording a failure would replay it for the 24-hour retention window, turning
+  one transient fault into a day of them.
+- **Source:** Standards 04 § Idempotency.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`IdempotencyHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `A_Malformed_Header_Fails_Rather_Than_Counting_As_Absent`
+
+- **Asserts:** an unparseable `If-Match` fails the precondition rather than
+  being read as absent. Reading "I could not parse your precondition" as "you
+  did not send one" turns a conditional write into an unconditional one —
+  exactly the overwrite the client was preventing. Paired with
+  `A_Weak_Tag_Never_Matches`, which pins the strong comparison RFC 9110
+  § 13.1.1 requires.
+- **Source:** Standards 04 § Optimistic Concurrency.
+- **Type:** xUnit. **Kind:** behavioural.
+- **Status:** **Implemented** (`EntityTagTests`).
+- **Phase:** 02a Packet 4.
+
 ### Tenant and organization resolution (ADR-0036)
 
 The binding evidence for this group is the **runtime** matrix in

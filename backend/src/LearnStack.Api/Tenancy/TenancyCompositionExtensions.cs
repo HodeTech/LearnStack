@@ -107,6 +107,13 @@ public static class TenancyCompositionExtensions
         services.AddSingleton<EffectiveHostAccessor>();
         services.AddSingleton<ITenantAssertionRecorder, LoggingTenantAssertionRecorder>();
 
+        // The only registered IIdempotencyStore. Correct for one instance and
+        // wrong for two — the durable implementation lands with the schema in
+        // Packet 6, and Standards 04's "required for payment operations" list
+        // has no member before then.
+        services.AddSingleton<LearnStack.SharedKernel.Idempotency.IIdempotencyStore,
+            LearnStack.Infrastructure.Idempotency.InMemoryIdempotencyStore>();
+
         return services;
     }
 }
