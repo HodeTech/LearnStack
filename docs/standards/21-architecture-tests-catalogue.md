@@ -1338,7 +1338,7 @@ started.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`).
 - **Phase:** 02a Packet 4.
 
-#### `Framework_Client_Errors_Carry_Problem_Details`
+#### `An_Unmatched_Route_Returns_Problem_Details` / `A_Wrong_Method_Returns_Problem_Details` / `An_Unsupported_Media_Type_Returns_Problem_Details`
 
 - **Asserts:** an unmatched route (404), a wrong method (405) and an
   unsupported media type (415) each return `application/problem+json` with

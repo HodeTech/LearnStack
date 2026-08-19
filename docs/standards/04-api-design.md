@@ -62,7 +62,9 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 | 401 | Missing/invalid authentication |
 | 403 | Authenticated but not authorized |
 | 404 | Not found (also used to hide cross-tenant existence) |
+| 405 | Method not allowed; `Allow` header lists the methods that are |
 | 409 | Concurrency or business-rule conflict |
+| 413 | Request body over the configured limit |
 | 410 | Permanently gone |
 | 415 | Unsupported media type |
 | 422 | Semantic validation failure (rarely needed; prefer 400) |
@@ -72,7 +74,12 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 
 ## Error Responses
 
-All errors use **Problem Details (RFC 7807)**, in exactly one shape.
+All errors use **Problem Details (RFC 7807)**, in exactly one shape, served as
+`application/problem+json; charset=utf-8`. One spelling, deliberately: two —
+one with the charset and one without — made a routing 404 tellable from an MVC
+404 without reading the body, which
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) requires not
+to be possible.
 [09-error-handling.md § API Surface](09-error-handling.md) is the authority for
 its fields; the example there is canonical and is not duplicated here.
 
@@ -196,12 +203,25 @@ Version mismatch returns **409** with `concurrency_conflict`.
   `/openapi/v1.json` today. Each document holds only its own major's paths;
   without that filter an added `/api/v2` operation reads as a breaking change
   to `v1` under `oasdiff`.
-- **Reference UI at `/openapi`** (redirects to `/openapi/`), rendered by
-  **Scalar**. `Microsoft.AspNetCore.OpenApi` ships no UI of its own.
+- **Reference console at `/docs`** (redirects to `/docs/`), rendered by
+  **Scalar**. `Microsoft.AspNetCore.OpenApi` ships no UI of its own. The
+  console is deliberately **not** under `/openapi`: Scalar mounts a
+  `{documentName?}` catch-all inside whatever prefix it is given, which
+  shadowed the document namespace and answered `/openapi/garbage` with 200 and
+  an HTML page. Scalar's request proxy is disabled, so its "Test Request"
+  button never routes a LearnStack bearer token through a third party — which
+  is also what makes the console usable under `SelfHostedAirGapped`.
+- **An unknown document name is a 404 in the one error shape.** The document
+  route is constrained to the documents actually registered; without that,
+  `/openapi/v9.json` answered 404 in `text/plain` with English framework
+  prose.
 - The document is served in **every** environment, not only Development: it is
   the contract the SDK generates from and CI diffs, so an artefact no deployed
   instance serves is not the contract. Restricting who may reach it is an edge
   concern (APISIX), not an application one.
+- **`servers` is omitted.** Its default value is derived from the request's
+  `Host`, which is client-chosen — so the published contract would vary with
+  the caller, and the `oasdiff` gate would diff the document against itself.
 - Every operation carries `x-version-introduced`;
   [ADR-0024 § OpenAPI marking](../decisions/0024-api-versioning-policy.md) owns
   the full extension set. `deprecated` is derived from `[Obsolete]` and is

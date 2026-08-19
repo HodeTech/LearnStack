@@ -41,8 +41,15 @@ public static class ClientErrorProblemDetails
 {
     /// <summary>
     /// Writes a Problem Details body for any 4xx/5xx response that reached the
-    /// client with none. Register before routing.
+    /// client with none.
     /// </summary>
+    /// <remarks>
+    /// Registered right after <c>UseExceptionHandler</c>. "Before routing" is
+    /// not something a caller can arrange in minimal hosting — the implicit
+    /// <c>UseRouting</c> is inserted ahead of user middleware — so what
+    /// actually matters is the order relative to the exception handler, and
+    /// that a routing 404 unwinds back through this middleware on the way out.
+    /// </remarks>
     public static WebApplication MapLearnStackClientErrors(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -77,7 +84,7 @@ public static class ClientErrorProblemDetails
             await http.Response.WriteAsJsonAsync(
                 problem,
                 options: null,
-                contentType: "application/problem+json",
+                contentType: ProblemDetailsMediaType.Value,
                 cancellationToken: http.RequestAborted);
         });
 
@@ -90,8 +97,7 @@ public static class ClientErrorProblemDetails
 /// <see cref="StatusCodeResult"/> from an <see cref="ApiControllerAttribute"/>
 /// action carries the LearnStack shape rather than ASP.NET's.
 /// </summary>
-internal sealed class LearnStackClientErrorFactory(IHttpContextAccessor accessor)
-    : IClientErrorFactory
+internal sealed class LearnStackClientErrorFactory : IClientErrorFactory
 {
     public IActionResult GetClientError(ActionContext actionContext, IClientErrorActionResult clientError)
     {
@@ -99,12 +105,17 @@ internal sealed class LearnStackClientErrorFactory(IHttpContextAccessor accessor
         ArgumentNullException.ThrowIfNull(clientError);
 
         var status = clientError.StatusCode ?? StatusCodes.Status500InternalServerError;
-        var problem = ProblemDetailsFactory.ForStatus(status, accessor.HttpContext);
+
+        // actionContext.HttpContext, not an injected IHttpContextAccessor: MVC
+        // hands the context in, and registering the accessor app-wide to reach
+        // something already in the parameter list costs an AsyncLocal write on
+        // every request for nothing.
+        var problem = ProblemDetailsFactory.ForStatus(status, actionContext.HttpContext);
 
         return new ObjectResult(problem)
         {
             StatusCode = status,
-            ContentTypes = { "application/problem+json" },
+            ContentTypes = { ProblemDetailsMediaType.Value },
         };
     }
 }

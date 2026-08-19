@@ -141,11 +141,13 @@ public static class ProblemDetailsFactory
                 merged[camelKey] = messages;
             }
 
-            messages.AddRange(list.Select(m => (object)new
-            {
-                key = m.Key,
-                @params = m.Params,
-            }));
+            // A message with no parameters emits `{ "key": ... }` and nothing
+            // else. Standards 09's canonical body shows exactly that; emitting
+            // `"params": null` alongside it publishes a field whose only value
+            // is "absent" and makes the SDK type it as nullable for no reason.
+            messages.AddRange(list.Select(m => m.Params is { Count: > 0 }
+                ? (object)new { key = m.Key, @params = m.Params }
+                : new { key = m.Key }));
         }
 
         return merged.ToDictionary(

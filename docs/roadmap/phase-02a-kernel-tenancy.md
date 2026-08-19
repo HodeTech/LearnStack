@@ -279,10 +279,16 @@ endpoints with external side effects, ETag concurrency, correlation IDs in
 headers and logs, OpenAPI generated from code, tenant + organization header
 binding (`X-Tenant-Id`, `X-Organization-Id`).
 
-Carries one correctness fix: `CursorPagination`'s constructor validation
-currently surfaces as an unhandled `ArgumentOutOfRangeException` during model
-binding, producing a 500 where a malformed cursor is a client error. Binding
-failures return **400** with Problem Details.
+Carries one correctness fix, whose shape turned out to differ from the one
+scoped here. `CursorPagination`'s `Limit` guard throws during model binding, and
+that was expected to surface as an unhandled `ArgumentOutOfRangeException` — a
+500 where a client error belongs. Measured when the packet reached it, the
+status was already **400**: the `InvalidModelStateResponseFactory` wired one
+step earlier catches the binder's exception. What remained was worse than the
+status suggested — the `errors` map named `$` and `pagination`, the binder's own
+keys, so a client got a 400 with no way to learn that `limit` was the problem.
+Binding failures return **400** with Problem Details **naming the parameter the
+client sent**.
 
 Also lands the Packet 4 half of
 [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md): the in-process rate

@@ -149,17 +149,17 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
         using var client = fixture.CreateClient(
             new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        var redirect = await client.GetAsync(new Uri("/openapi", UriKind.Relative));
+        var redirect = await client.GetAsync(new Uri("/docs", UriKind.Relative));
         redirect.StatusCode.Should().Be(HttpStatusCode.Found);
 
-        // Location is emitted relative ("openapi/"), so resolve it against the
+        // Location is emitted relative ("docs/"), so resolve it against the
         // request before asserting. Comparing the raw header would pin an
         // implementation detail of Scalar's writer rather than the address.
         redirect.Headers.Location.Should().NotBeNull();
-        new Uri(new Uri("http://localhost/openapi"), redirect.Headers.Location!)
-            .AbsolutePath.Should().Be("/openapi/");
+        new Uri(new Uri("http://localhost/docs"), redirect.Headers.Location!)
+            .AbsolutePath.Should().Be("/docs/");
 
-        var page = await client.GetAsync(new Uri("/openapi/", UriKind.Relative));
+        var page = await client.GetAsync(new Uri("/docs/", UriKind.Relative));
         page.StatusCode.Should().Be(HttpStatusCode.OK);
         page.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
 

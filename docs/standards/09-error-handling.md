@@ -231,7 +231,15 @@ All API errors are **RFC 7807 Problem Details**:
 Rules:
 - `type` is a stable URL.
 - `code` is the machine-readable identifier — the unprefixed `Error.Code`
-  (Standards 04 § Problem Details).
+  (Standards 04 § Problem Details). The codes a **framework-level** client
+  error carries, where no handler ran and so no `Error` exists, are minted from
+  the status by `HttpStatusMap.CanonicalCodeFor`: `not_found` (404),
+  `method_not_allowed` (405), `payload_too_large` (413),
+  `unsupported_media_type` (415), `validation_failed` (400 and 422),
+  `concurrency_conflict` (409), `rate_limited` (429),
+  `dependency_unavailable` (503), and `request_rejected` for any other 4xx —
+  never `internal_error`, which would put a code and a status that contradict
+  each other in the same body.
 - `messageKey` is the `LocalizedMessage.Key` (always begins with `lockey_`)
   the frontend resolves against its i18n catalogue. The legacy
   `detail` field is omitted — backend never returns raw English.

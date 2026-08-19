@@ -33,7 +33,7 @@ public sealed class ProblemDetailsActionResult : ObjectResult
         Value = problem;
         StatusCode = problem.Status;
         ContentTypes.Clear();
-        ContentTypes.Add("application/problem+json");
+        ContentTypes.Add(ProblemDetailsMediaType.Value);
         return base.ExecuteResultAsync(context);
     }
 }
