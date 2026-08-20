@@ -74,21 +74,25 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 
 ## Tenant + Organization Resolution at the Edge
 
-Next.js middleware resolves the tenant (and optionally the organization) before any
-route handler runs — for **rendering**. It is not the backend's source of truth and
-never was one: the API resolves the host itself, independently and authoritatively,
-and the edge's answer is a render-time convenience
-([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md);
-[Standards 07 § Tenant Context](../standards/07-frontend-architecture.md) owns the
-rules). What the server-side SDK sends the API is the **visitor's host** over the
-trusted hop — `X-LearnStack-Host` with `X-LearnStack-Hop-Secret` — and the tenant
-header travels only as an assertion the API compares against its own answer.
+Next.js middleware resolves the tenant, and optionally the organization, before any
+route handler runs. Four rules, all of them from
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md);
+[Standards 07 § Tenant Context](../standards/07-frontend-architecture.md) owns them.
+
+- **The edge resolves for rendering, not for authority.** Branding, locale, which
+  navigation to draw. It is not the backend's source of truth and never was one.
+- **The API resolves the host itself**, independently, on every request.
+- **The SDK states the visitor's *host*** over the trusted hop —
+  `X-LearnStack-Host` with `X-LearnStack-Hop-Secret`. A host is a lookup key with a
+  closed codomain; a tenant id is a selection.
+- **`X-Tenant-Id` is an assertion.** The API compares it against what it resolved.
+  A mismatch is a 404; the header never selects a tenant.
 
 ```ts
 // src/middleware.ts
 export async function middleware(req: NextRequest) {
   const host = normaliseHost(req.headers.get('host') ?? '');
-  const resolved = await resolveHost(host);   // calls /v1/tenants/resolve-host
+  const resolved = await resolveHost(host);   // an /api/v1 lookup; Phase 02d ships it
   if (!resolved) return new NextResponse(null, { status: 404 });
 
   const locale = resolveLocaleFromPathOrTenant(req.nextUrl, resolved.tenant);
@@ -165,13 +169,13 @@ sequenceDiagram
     Browser->>Edge: GET https://english.example.com/tr/courses
     Edge->>Edge: cache lookup host -> {tenantId, organizationId?}
     alt cache miss
-        Edge->>API: GET /v1/tenants/resolve-host?host=english.example.com
+        Edge->>API: GET /api/v1 host lookup (Phase 02d)
         API->>API: SELECT FROM platform_host_to_tenant WHERE host = $1
         API-->>Edge: { tenantId, organizationId?, branding }
         Edge->>Edge: cache (60s SWR)
     end
     Edge->>Next: forward with x-tenant-id (assertion), x-organization-id?, x-locale
-    Next->>API: fetches state X-LearnStack-Host + X-LearnStack-Hop-Secret
+    Next->>API: call carrying X-LearnStack-Host + X-LearnStack-Hop-Secret
     API->>API: resolve the host independently; compare any assertion
     API-->>Next: tenant- + org-scoped responses
     Next-->>Browser: rendered HTML
@@ -234,7 +238,7 @@ Two paths:
 - **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from the backend's OpenAPI document; [Standards 07 § SDK](../standards/07-frontend-architecture.md) owns when and how.
 - **Client-side** — interactive components fetch through a thin BFF endpoint under `/api/...` that forwards the request with the user's JWT and the tenant header. The BFF exists to keep API base URLs and CORS off the public web origin, not to wrap business logic.
 
-The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
+The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/api/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
 
 ## Authentication on the Frontend
 
