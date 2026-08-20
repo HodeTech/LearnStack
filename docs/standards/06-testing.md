@@ -36,10 +36,10 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 | Type | Project | Tool |
 |------|---------|------|
 | Unit | `LearnStack.Tests.Unit` | xUnit, FluentAssertions |
-| Integration | `LearnStack.Tests.Integration` | xUnit, Testcontainers, Respawn |
+| Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 7, Testcontainers + Respawn |
 | Architecture | `LearnStack.Tests.Architecture` | NetArchTest / ArchUnitNET |
 | API contract | `LearnStack.Tests.Contract` | OpenAPI snapshot, Pact-style consumer tests |
-| End-to-end | `LearnStack.Tests.EndToEnd` | xUnit via `WebApplicationFactory` |
+| End-to-end | `frontend/e2e` | Playwright — [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) ships the first golden flow |
 
 ### Unit Tests
 
@@ -50,10 +50,25 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 
 ### Integration Tests
 
-- Real Postgres + Valkey + SeaweedFS via Testcontainers.
-- One Postgres database per test class (or Respawn between tests).
-- Real module configuration; no mocked repositories.
-- Cover happy path, edge cases, and **every tenant-isolation invariant**.
+`LearnStack.Tests.Integration` holds **two populations**, and which one a test
+belongs to is decided by what it needs, not by what it is about:
+
+- **Host tests** — a real HTTP pipeline through `WebApplicationFactory`, no
+  Docker. Everything that is a property of the API surface lives here: routing,
+  the error shape, idempotency, limits, the tenancy edge. These run in the
+  required `backend` CI job alongside the unit suite.
+- **Data tests** — real Postgres + Valkey + SeaweedFS via Testcontainers, one
+  database per test class (or Respawn between tests). Everything that is a
+  property of the schema lives here, and **every tenant-isolation invariant**
+  does. These arrive with the schema in Packet 7 and run in the separate
+  `backend-integration` job.
+
+Both: real module configuration, no mocked repositories, and coverage of the
+happy path and the edges.
+
+**An isolation test connects as `learnstack_app`.** One that runs as
+`learnstack_migration`, `learnstack_platform` or `learnstack_outbox_admin`
+passes even when every policy is inert, and therefore proves nothing.
 
 ### Architecture Tests
 

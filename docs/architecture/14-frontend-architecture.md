@@ -75,8 +75,14 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 ## Tenant + Organization Resolution at the Edge
 
 Next.js middleware resolves the tenant (and optionally the organization) before any
-route handler runs. The same resolution is the backend's source of truth: the API
-re-validates the resolved IDs from the JWT and host against `IHostToTenantResolver`.
+route handler runs — for **rendering**. It is not the backend's source of truth and
+never was one: the API resolves the host itself, independently and authoritatively,
+and the edge's answer is a render-time convenience
+([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md);
+[Standards 07 § Tenant Context](../standards/07-frontend-architecture.md) owns the
+rules). What the server-side SDK sends the API is the **visitor's host** over the
+trusted hop — `X-LearnStack-Host` with `X-LearnStack-Hop-Secret` — and the tenant
+header travels only as an assertion the API compares against its own answer.
 
 ```ts
 // src/middleware.ts
@@ -91,9 +97,18 @@ export async function middleware(req: NextRequest) {
   // headers reach downstream Server Components / route handlers via
   // `next/headers`. Writing to `res.headers` only surfaces them to the browser.
   const requestHeaders = new Headers(req.headers);
+
+  // Carried for RENDERING — branding, locale, which nav to draw. The API does
+  // not read these to decide anything; it resolves the host itself and treats
+  // x-tenant-id as an assertion to compare against that answer.
   requestHeaders.set('x-tenant-id', resolved.tenant.id);
   if (resolved.organizationId) requestHeaders.set('x-organization-id', resolved.organizationId);
   requestHeaders.set('x-locale', locale);
+
+  // What the server-side SDK actually states to the API on the way out, over
+  // the authenticated hop. The host — not the tenant — is the input the API
+  // resolves from.
+  requestHeaders.set('x-learnstack-host', host);
 
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
@@ -128,8 +143,9 @@ sequenceDiagram
         API-->>Edge: { tenantId, organizationId?, branding }
         Edge->>Edge: cache (60s SWR)
     end
-    Edge->>Next: forward with x-tenant-id, x-organization-id?, x-locale
-    Next->>API: subsequent fetches include the headers
+    Edge->>Next: forward with x-tenant-id (assertion), x-organization-id?, x-locale
+    Next->>API: fetches state X-LearnStack-Host + X-LearnStack-Hop-Secret
+    API->>API: resolve the host independently; compare any assertion
     API-->>Next: tenant- + org-scoped responses
     Next-->>Browser: rendered HTML
 ```

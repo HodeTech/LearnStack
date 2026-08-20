@@ -9,8 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Resolve the deployment mode once at the composition root. Modules never
 // read DeploymentMode (architecture test
 // Modules_Do_Not_Reference_DeploymentMode enforces it); the value selects
-// the right error tracker, OTLP exporter target, and (later packets) the
-// right Dapr / entitlement / host-resolver implementations per
+// the right error tracker, OTLP exporter target, and — each with a named
+// owner rather than "later" — the host resolver (Packet 7), the entitlement
+// provider (Packet 9 / Phase 02c) and the Dapr-backed event bus, cache and
+// secret adapters (Phase 11, per ADR-0035's triggers), all per
 // docs/standards/20-infrastructure-stack.md § Composition Root.
 // No default. The key used to ship as "Development" in appsettings.json —
 // the file that goes to every environment — while appsettings.Development.json

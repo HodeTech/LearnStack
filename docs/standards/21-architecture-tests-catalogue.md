@@ -92,14 +92,16 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Fourteen test methods exist in
+Seventeen test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
-shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md) and
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md).
+shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md) and Packet 4.
 
-**Not every implemented rule lives in that assembly.** Packet 4 added two
-data-shape rules there (`Live_Majors_Are_At_Most_Two_Adjacent`,
-`Unversioned_Route_Prefixes_Are_Declared_Once`) and four **behavioural** ones in
+**Not every implemented rule lives in that assembly.** Packet 4 added four
+rules there (`Live_Majors_Are_At_Most_Two_Adjacent`,
+`Unversioned_Route_Prefixes_Are_Declared_Once`,
+`Forwarded_Headers_Are_Not_Wired`, `Deployment_Mode_Is_Required_Configuration`)
+and four **behavioural** ones in
 [`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration)
 (`Every_Endpoint_Is_Under_Versioned_Route` and the three startup guards under
 § API conventions). Both assemblies run in the same required `backend` CI check,
@@ -121,6 +123,10 @@ against a host serving unversioned endpoints.
 | `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
 | `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
+| `Live_Majors_Are_At_Most_Two_Adjacent` | `ApiConventionTests.cs` |
+| `Unversioned_Route_Prefixes_Are_Declared_Once` | `ApiConventionTests.cs` |
+| `Forwarded_Headers_Are_Not_Wired` | `ApiConventionTests.cs` |
+| `Deployment_Mode_Is_Required_Configuration` | `ApiConventionTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
@@ -1556,6 +1562,30 @@ helper, an interface or an indirect assignment slips past one. The structural en
 below narrow where the bug can hide; they do not prove isolation. See § What a
 structural test proves — and what it does not.
 
+#### `Effective_Host_Normalization_Is_Total`
+
+- **Asserts:** `EffectiveHost.Normalize` returns a value or `null` for every input and never throws — including the `xn--` forms that make `HostString.FromUriComponent` raise, which an anonymous remote client could otherwise use to drive unhandled exceptions into the error tracker. Covers the two corrections in [ADR-0036 Amendment 1](../decisions/0036-tenant-resolution-trusted-inputs.md): the port is stripped **before** the IPv4 test, so `1.2.3.4:443` is refused, and the result passes a letters-digits-hyphen-dot whitelist, so `IdnMapping`'s compatibility mapping cannot smuggle `/`, `@` or `%` past the input scan.
+- **Source:** ADR-0036 § Normalization, Amendment 1.
+- **Type:** xUnit. **Kind:** behavioural.
+- **Status:** **Implemented** (`EffectiveHostTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Tenant_Assertions_Are_Compared_Not_Resolved`
+
+- **Asserts:** `X-Tenant-Id` and `X-Organization-Id` never select anything. An assertion that agrees with what the API resolved passes; one that disagrees is **404**, not 403 — a wrong tenant id must not be able to tell the difference between "exists, not yours" and "does not exist"; a malformed or repeated one is **400** and counted; and an unresolved context passes the request through to be refused downstream rather than inventing a tenant.
+- **Source:** ADR-0036 § The reconciliation matrix.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`TenantAssertionHttpTests`).
+- **Phase:** 02a Packet 4.
+
+#### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
+
+- **Asserts:** the anonymous budget is spent per socket peer, a request over it is **429** with `Retry-After` and the one Problem Details shape, and the partition key never comes from a header. architecture/30 has promised this middleware since Phase 01; from Packet 7 every novel `Host` value buys a Postgres round trip on a pre-auth surface.
+- **Source:** Standards 04 § Request and Response Limits; ADR-0036.
+- **Type:** xUnit + HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** (`RateLimitingHttpTests`).
+- **Phase:** 02a Packet 4.
+
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
 - **Asserts:** no production type assigns `ITenantContext.TenantId` or `OrganizationId` from a bound `X-Tenant-Id` / `X-Organization-Id` value, in any deployment mode. There is no mode-guarded exception.
@@ -1573,36 +1603,46 @@ structural test proves — and what it does not.
 - **Phase:** 02a Packet 4.
 - **Note:** Analyzer rather than NetArchTest: three of the four banned inputs appear only as string literals inside header lookups, which a type-reference scan cannot see.
 
-#### `Forwarded_Host_Header_Is_Never_Read_Directly`
+#### `Forwarded_Headers_Are_Not_Wired`
 
-- **Asserts:** `ForwardedHeadersOptions.ForwardedHeaders` never includes `XForwardedHost`, and RFC 7239 `Forwarded` is never parsed. That middleware overwrites `Request.Host` in place, collapsing the socket-addressed host and a proxy-claimed host into one property with no in-band signal.
+- **Asserts:** the forwarded-headers middleware is not registered at all, so
+  `Request.Host` and the socket peer are never overwritten in place. Broader than
+  the `XForwardedHost`-only rule this row reserved: the peer check in
+  `EffectiveHostAccessor` reads `IHttpConnectionFeature.RemoteIpAddress`, which is
+  the **same storage** the middleware mutates — so banning one forwarded header
+  would not have protected it. A tripwire, not a prohibition: the API will want
+  forwarded headers for rate limiting and audit, and when they land the peer must
+  be captured before that middleware runs. Failing the build is what forces that
+  ordering to be decided rather than discovered.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** xUnit + options inspection. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`ApiConventionTests`). Supersedes the reserved
+  spelling `Forwarded_Host_Header_Is_Never_Read_Directly`, which named a narrower
+  rule than the one that holds.
 - **Phase:** 02a Packet 4.
 
 #### `Trusted_Hop_Requires_Network_And_Secret`
 
-- **Asserts:** the trusted-hop predicate is false unless **both** the socket peer is inside `Tenancy:TrustedHop:Networks` **and** a fixed-time secret comparison succeeds. Neither condition alone admits the hop.
+- **Asserts:** the trusted-hop predicate is false unless **both** the socket peer is inside `Tenancy:TrustedHop:Networks` **and** a fixed-time secret comparison succeeds. Neither condition alone admits the hop. Also covers what an untrusted request does with the host header — ignored entirely, so a scanner learns nothing — and that a repeated header is ignored even over the hop.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** xUnit behavioural matrix. **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`EffectiveHostAccessorTests`). Verified by mutation: dropping the network half leaves eleven of thirteen cases green, and the two that fail are the two that exist for it.
 - **Phase:** 02a Packet 4.
 
 #### `Trusted_Hop_Reads_The_Socket_Peer`
 
-- **Asserts:** the network check reads `IHttpConnectionFeature.RemoteIpAddress`, never `HttpContext.Connection.RemoteIpAddress`. With `XForwardedFor` enabled the latter is a client-supplied value for exactly the peers designated as the hop.
+- **Asserts:** the network check reads `IHttpConnectionFeature.RemoteIpAddress`, never `HttpContext.Connection.RemoteIpAddress`.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** Roslyn analyzer + xUnit. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02a Packet 4.
+- **Status:** **Registered** — and the ADR's stated reason for it does not survive measurement. The two are the **same storage**, and `UseForwardedHeaders` mutates it, so reading the feature rather than the property buys nothing once that middleware runs. What makes the read correct today is `Forwarded_Headers_Are_Not_Wired` above. This rule keeps its place as the thing to implement when forwarded headers land, with the peer captured *before* them.
+- **Phase:** the packet that wires forwarded headers.
 
 #### `Deployment_Mode_Is_Required_Configuration`
 
-- **Asserts:** the composition root throws when `Deployment:Mode` is absent, and the key is **not** present in `appsettings.json`. It shipped there as `Development` — the file that goes to every environment — with the same value as the code default, so every Development-guarded mechanism was on by default in a deployment that never set it.
+- **Asserts:** the composition root throws when `Deployment:Mode` is absent, unknown, or given as an ordinal, and the key is **not** present in `appsettings.json`. It shipped there as `Development` — the file that goes to every environment — with the same value as the code default, so every Development-guarded mechanism was on by default in a deployment that never set it. No guard on the *value* could have caught that; only a guard on the file.
 - **Source:** ADR-0036 § There is no Development override.
-- **Type:** xUnit + configuration-file inspection. **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Type:** xUnit + configuration-file inspection. **Kind:** behavioural (value) + structural (file).
+- **Status:** **Implemented** in two halves — `DeploymentModeConfigurationTests` for the value, `ApiConventionTests` for the file. Verified by mutation: putting the key back into `appsettings.json` turns the file half red.
 - **Phase:** 02a Packet 4.
 
 #### `Assertion_Recorder_Is_The_Only_Mismatch_Writer`

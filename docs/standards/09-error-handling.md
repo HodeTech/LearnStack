@@ -112,6 +112,15 @@ matching localization key adds the `lockey_` prefix.
 | `recording_consent_required` | Live session requires consent | 409 |
 | `unsupported_locale` | Locale not enabled for tenant | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
+| `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
+| `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |
+| `unsupported_media_type` | `Content-Type` the endpoint does not accept — *framework-minted* | 415 |
+| `request_rejected` | Any other 4xx nothing else names — *framework-minted* | 4xx as sent |
+
+A **framework-minted** code is one no handler produced: routing or the server
+rejected the request before an `Error` could exist, so the code is derived from
+the status by `HttpStatusMap.CanonicalCodeFor`. See § API Surface below for the
+full mapping and for why a 4xx never carries `internal_error`.
 
 ## Exceptions
 
@@ -339,6 +348,10 @@ type AppError =
   | { code: "request_in_progress" }
   | { code: "idempotency_key_reuse" }
   | { code: "idempotency_outcome_unavailable" }
+  | { code: "method_not_allowed" }
+  | { code: "payload_too_large" }
+  | { code: "unsupported_media_type" }
+  | { code: "request_rejected" }
   | { code: "dependency_unavailable"; provider?: string; retryAfter?: number }
   | { code: "rate_limited"; retryAfter?: number }
   | { code: "forbidden" }

@@ -41,8 +41,9 @@ The rule:
   violation.
 
 Both paths converge on **RFC 7807 Problem Details** at the API boundary, with
-a stable `Error.Code` (one of the 13 listed in
-[09-error-handling.md § Result Type](../standards/09-error-handling.md)), an
+a stable `Error.Code` (from the table in
+[09-error-handling.md § Result Type](../standards/09-error-handling.md) — a link
+rather than a count, which is a second thing to keep in step), an
 HTTP status mapped from the code, and a `correlationId` field.
 
 The exception hierarchy

@@ -340,8 +340,11 @@ Migrations and EF configurations for `tenants`, `organizations` (per
 [ADR-0008](../decisions/0008-localization-schema.md)), `tenant_settings` (with
 nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
 (tenant-flag level only — plan-level features arrive through the entitlement
-projection), `platform_entitlement_cache`, `platform_host_to_tenant`, and
-`outbox_messages`. Default-organization seeding at tenant creation.
+projection), `platform_entitlement_cache`, `platform_host_to_tenant`, `idempotency_keys`
+(the durable `IIdempotencyStore` per
+[ADR-0037](../decisions/0037-idempotency-key-contract.md); Packet 4 shipped the
+port and an in-memory default that is correct for one instance and wrong for
+two), and `outbox_messages`. Default-organization seeding at tenant creation.
 
 The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, with
 its EF configuration and its migration on `TenancyDbContext`, per [ADR-0017 Amendment 2
@@ -366,14 +369,14 @@ canonical SQL lives in exactly one place:
 
 The migration also declares each table's **class** — tenant-owned, tenant-owned
 self-keyed (`tenants`), or platform-scoped (`platform_host_to_tenant`) — because
-two of the nine cannot take the template verbatim: `tenants` has no `tenant_id`
+two of the ten cannot take the template verbatim: `tenants` has no `tenant_id`
 column, and `platform_host_to_tenant` is read in order to determine the tenant, so
 a tenant-keyed predicate would make host resolution return zero rows forever. See
 [Database Standards § Table classes](../standards/05-database.md). Every table's
 `GRANT`s are written in this migration too; there are no `ALTER DEFAULT PRIVILEGES`
 grants, so a table nobody granted fails loudly rather than inheriting DML — and can
 never silently widen a `BYPASSRLS` role. Row security is enabled and forced on all
-nine, so the structural scan needs no exception list.
+ten, so the structural scan needs no exception list.
 
 Introduces the `TenantId` / `OrganizationId` Vogen value objects in
 `LearnStack.SharedKernel` alongside the schema — the kernel-level identifiers
@@ -747,7 +750,7 @@ recreates exactly the ownership arrangement `FORCE ROW LEVEL SECURITY` exists to
 tenant from `ITenantContext` first and every write arrives on
 `PUT /api/internal/tenants/{id}/entitlements`, so nothing about it is pre-context and
 the application role never gets a table-wide read of every tenant's plan. Row security
-is never *disabled* on any of the nine; the grant matrix that goes with the policies is
+is never *disabled* on any of the ten; the grant matrix that goes with the policies is
 in [Database Standards § Database roles](../standards/05-database.md). The canonical SQL
 lives in exactly one place because the template that preceded it was copied into four
 documents and drifted in all of them.
@@ -1110,7 +1113,7 @@ land in Phase 02b.
 - Tenant A cannot repoint tenant B's host even though the resolver policy can see it —
   the `UPDATE` affects zero rows and an `INSERT` naming tenant B is rejected by
   `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
-- All nine tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
+- All ten tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
   `pg_class`, with no exception list.
 - `make dev`, `make seed` and `make test` succeed on a clean checkout — `make seed`
   currently exits non-zero on every run, and that is a completion blocker, not a
@@ -1172,7 +1175,7 @@ Three ADRs targeted Phase 02a as exit blockers; all three are now Accepted
 | [ADR-0024](../decisions/0024-api-versioning-policy.md) | API versioning policy | **Accepted** (2026-05-20) | URL `/v{N}/`, 6-month deprecation window, RFC 8594 `Sunset` + `Deprecation` headers, OpenAPI `x-sunset` extensions |
 | [ADR-0028](../decisions/0028-audit-log-partition-management.md) | `audit_log` monthly partition management | **Accepted** (2026-05-20) | Daily Hangfire recurring job (`learnstack:audit:partition-management`); no `pg_partman` runtime dependency. Its *implementation* moves to [Phase 11](phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — the decision stands, the schedule changed |
 
-Four further decisions were taken during the phase and are Accepted:
+Six further decisions were taken during the phase and are Accepted:
 
 | # | Topic | Status | Decision |
 |---|---|---|---|
@@ -1180,6 +1183,8 @@ Four further decisions were taken during the phase and are Accepted:
 | [ADR-0033](../decisions/0033-audit-durability-model.md) | Audit durability | **Accepted** (2026-08-08) | Supersedes ADR-0016. MUST-class audit is a durable intent inside the business transaction and fails closed; SHOULD/MAY stays best-effort |
 | [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) | Hub contract surface | **Accepted** (2026-08-08) | Two invariants replace the endpoint count; host resolution never calls the Hub |
 | [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) | Demand-gated infrastructure | **Accepted** (2026-08-08) | The one-way-door test; ports ship now, adapters ship on a named trigger |
+| [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) | Trusted inputs for tenant + organization resolution | **Accepted** (2026-08-18, Amendment 1 2026-08-20) | Resolution by **agreement, not priority**; no request header names a tenant, one header names a **host** over an authenticated hop; Amendment 1 corrects the normalization order |
+| [ADR-0037](../decisions/0037-idempotency-key-contract.md) | What an idempotency key identifies, owns and replays | **Accepted** (2026-08-20) | A key is a **nonce inside a tenant's key space**, not an identity; a fingerprint decides whether a replay answers the question asked; a fencing token owns the claim; capacity is admission, not eviction |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
 `learnstack_app`, the durable audit pipeline, customization runtime read paths, API
