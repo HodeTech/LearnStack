@@ -1808,7 +1808,14 @@ only reason they are in a record rather than in production.
 >
 > ### What Packet 4 did not deliver
 >
-> Nothing from its scope paragraph. The deprecation headers ADR-0024 describes are
+> Nothing from its scope paragraph, and — after the Step 6 review round found
+> them still marked `Registered` — none of the architecture tests ADR-0036
+> assigns to it either: the four tenancy-edge rules are in
+> `TenancyConventionTests`, as source scans, because the resolver that could
+> misuse those symbols does not land until Packet 7 and a scan holds the line
+> from the day a symbol exists rather than the day it acquires a caller.
+>
+> The deprecation headers ADR-0024 describes are
 > **not** in it and were never meant to be: they attach to a deprecated endpoint, and
 > `Every_Deprecated_Endpoint_Has_Sunset_And_Successor` is Registered against the
 > packet that adds the first `/api/v2`. The authenticated and write-endpoint rate

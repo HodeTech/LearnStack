@@ -65,6 +65,61 @@ public static class TenancyCompositionExtensions
     }
 
     /// <summary>
+    /// The host-configuration key that wires the forwarded-headers middleware
+    /// without a line of code — <c>ASPNETCORE_FORWARDEDHEADERS_ENABLED</c> in
+    /// the environment.
+    /// </summary>
+    public const string ForwardedHeadersKey = "ForwardedHeaders_Enabled";
+
+    /// <summary>
+    /// Refuses to start when forwarded headers are enabled from configuration.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured, not assumed.</b> With the key set, seventy requests to
+    /// <c>/healthz</c> carrying a rotating <c>X-Forwarded-For</c> produced
+    /// <b>zero</b> rate-limit rejections; without it, eleven. The middleware
+    /// <c>ConfigureWebDefaults</c> adds from this key runs first in the
+    /// pipeline and clears <c>KnownNetworks</c>/<c>KnownProxies</c>, so
+    /// <c>RemoteIpAddress</c> becomes whatever the caller wrote — which is the
+    /// partition key the anonymous limiter counts on, and the storage
+    /// <c>EffectiveHostAccessor</c> compares against the trusted hop's
+    /// networks.
+    /// </para>
+    /// <para>
+    /// <c>Forwarded_Headers_Are_Not_Wired</c> could not see this: it reads the
+    /// assembly reference table and the text of <c>Program.cs</c>, and this
+    /// path touches neither. A guard on configuration is the only thing that
+    /// can, which is the same lesson <see cref="RequireDeploymentMode"/>
+    /// records — the inversion was in which file carried the key.
+    /// </para>
+    /// <para>
+    /// This is a refusal, not a correction, because there is a correct way to
+    /// want forwarded headers and it is not this one: the peer must be captured
+    /// <i>before</i> the middleware runs. When that ordering is built, this
+    /// guard is what forces it to be designed rather than discovered.
+    /// </para>
+    /// </remarks>
+    public static void RefuseAmbientForwardedHeaders(this IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (!configuration.GetValue<bool>(ForwardedHeadersKey))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"'{ForwardedHeadersKey}' is enabled (ASPNETCORE_FORWARDEDHEADERS_ENABLED). "
+            + "That wires the forwarded-headers middleware ahead of everything, which "
+            + "makes HttpContext.Connection.RemoteIpAddress client-supplied — the anonymous "
+            + "rate limiter's partition key and the trusted hop's network check both read "
+            + "it. Measured: with this key set, a client rotating X-Forwarded-For is never "
+            + "rate limited. If the API needs forwarded headers, capture the peer before "
+            + "them and remove this guard deliberately.");
+    }
+
+    /// <summary>
     /// Registers the effective-host accessor, the trusted-hop options and the
     /// Packet 4 assertion recorder.
     /// </summary>

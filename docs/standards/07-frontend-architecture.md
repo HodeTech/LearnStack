@@ -110,9 +110,13 @@ The SDK is the only allowed way to talk to the API from frontend code.
 - **Generated** from the backend's `/openapi/v{N}.json` by `openapi-typescript`
   into `src/generated/schema.d.ts`, which is **checked in** so a reviewer sees the
   contract the app compiles against. `pnpm --filter @learnstack/sdk generate`
-  runs it against a local API; `LEARNSTACK_OPENAPI` overrides the source. CI
-  regenerates and fails on a diff once the document has operations to generate
-  from — today it has none, so the pipeline is wired and its output is empty.
+  runs it against a local API; `LEARNSTACK_OPENAPI` overrides the source.
+  Regeneration is byte-stable — the generated directory is in `.prettierignore`,
+  because reformatting the generator's output makes every run dirty the tree.
+  That is what makes `generate && git diff --exit-code` a usable gate;
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) wires it into CI, when
+  the document has an operation for a diff to catch. Today it has none, so the
+  pipeline is wired and its output is empty.
 - Typed end to end.
 - Reads tenant + locale from request headers (server) or context (client).
 - Maps Problem Details → typed `AppError`.

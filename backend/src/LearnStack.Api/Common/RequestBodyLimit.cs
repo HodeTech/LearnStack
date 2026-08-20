@@ -43,6 +43,23 @@ public static class RequestBodyLimit
     public const long MaxBytes = 1024 * 1024;
 
     /// <summary>
+    /// The outer Kestrel bound, deliberately <b>above</b> <see cref="MaxBytes"/>.
+    /// </summary>
+    /// <remarks>
+    /// The two do not count the same quantity: this middleware counts decoded
+    /// payload bytes, and Kestrel counts raw bytes off the wire — chunk headers,
+    /// per-chunk CRLFs and the terminating chunk included. Setting them equal
+    /// makes Kestrel strictly tighter for a chunked body, so the bound that
+    /// fires is the one that counts the quantity the standard does not publish.
+    /// Measured against real Kestrel with both set to 1 MiB: a 1 MiB payload in
+    /// 64 KiB chunks is 413, and so is a **762 KB** payload sent in 16-byte
+    /// chunks, because its framing alone crosses the line. Headroom keeps the
+    /// middleware the bound that decides and leaves Kestrel a coarse backstop
+    /// for the one case the middleware cannot see: a body nothing reads.
+    /// </remarks>
+    public const long KestrelBackstopBytes = MaxBytes * 4;
+
+    /// <summary>
     /// Refuses an oversized body with <b>413</b>.
     /// </summary>
     /// <remarks>

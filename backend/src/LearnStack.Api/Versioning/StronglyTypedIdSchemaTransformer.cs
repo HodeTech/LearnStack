@@ -24,12 +24,14 @@ namespace LearnStack.Api.Versioning;
 /// should survive replacing it.
 /// </para>
 /// <para>
-/// Without this a <c>UserId</c> reaches a client as
-/// <c>{"value": "018f…"}</c> — an object with one property — while the wire
-/// actually carries the bare GUID, because Vogen's
-/// <c>SystemTextJson</c> converter already flattens it. The document would
-/// describe a shape the API never sends, and the generated SDK would be typed
-/// against that shape.
+/// Measured, not assumed: without this the published schema for a
+/// <c>UserId</c> is <c>{}</c> — the empty schema, which means "anything" — not
+/// an object with a <c>value</c> property. Vogen's <c>SystemTextJson</c>
+/// converter hands the type to the schema generator in a form it declines to
+/// describe. The wire is correct either way (a bare GUID), so the failure is
+/// entirely in the contract: the generated SDK types the identifier
+/// <c>unknown</c>, which is not a wrong shape but the absence of one, and it
+/// propagates to every property that references it.
 /// </para>
 /// </remarks>
 internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransformer
@@ -42,7 +44,34 @@ internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransform
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(context);
 
-        if (UnderlyingKeyOf(context.JsonTypeInfo.Type) is not { } key)
+        var type = context.JsonTypeInfo.Type;
+
+        // A collection or map of identifiers is transformed in place: this
+        // method is invoked once for `IReadOnlyList<UserId>` with `Items` still
+        // null, and the element type never gets a call of its own — measured, an
+        // `IReadOnlyList<Guid>` beside it arrives with `items` already set, so
+        // the omission is specific to a type the schema generator hands to a
+        // converter. Left alone the array publishes with no `items` at all,
+        // which every generator reads as `unknown[]`, and a map publishes with
+        // no `additionalProperties`, which reads as a map admitting no value.
+        if (ElementKeyOf(type) is { } element)
+        {
+            var elementSchema = new OpenApiSchema();
+            Describe(elementSchema, element.Key);
+
+            if (element.IsMap)
+            {
+                schema.AdditionalProperties = elementSchema;
+            }
+            else
+            {
+                schema.Items = elementSchema;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        if (UnderlyingKeyOf(type) is not { } key)
         {
             return Task.CompletedTask;
         }
@@ -51,7 +80,14 @@ internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransform
         // an implementation detail of the struct, not a field on the wire.
         schema.Properties?.Clear();
         schema.Required?.Clear();
+        Describe(schema, key);
 
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Writes the primitive shape a key type travels as.</summary>
+    private static void Describe(OpenApiSchema schema, Type key)
+    {
         (schema.Type, schema.Format) = key switch
         {
             _ when key == typeof(Guid) => (JsonSchemaType.String, "uuid"),
@@ -65,17 +101,26 @@ internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransform
             // detail, right in kind, and visible.
             _ => (JsonSchemaType.String, null),
         };
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
     /// The primitive a strongly-typed identifier wraps, or <c>null</c> when the
     /// type is not one.
     /// </summary>
+    /// <remarks>
+    /// <see cref="Nullable{T}"/> is unwrapped first, and that is not a detail:
+    /// <c>typeof(UserId?).GetInterfaces()</c> is <b>empty</b>, so without the
+    /// unwrap an optional id is skipped — and because .NET registers one shared
+    /// <c>components.schemas.UserId</c> that the last writer wins, the skipped
+    /// occurrence empties the schema every other occurrence references.
+    /// Measured: one <c>UserId?</c> property beside a <c>UserId</c> one publishes
+    /// <c>"UserId": {}</c>, which the generator types <c>unknown</c> — and
+    /// swapping the two declarations flips the result, so it is positional and
+    /// invisible.
+    /// </remarks>
     private static Type? UnderlyingKeyOf(Type type)
     {
-        foreach (var contract in type.GetInterfaces())
+        foreach (var contract in (Nullable.GetUnderlyingType(type) ?? type).GetInterfaces())
         {
             if (contract.IsGenericType
                 && contract.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>))
@@ -85,5 +130,54 @@ internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransform
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The key a sequence's element — or a map's value — wraps, and which of the
+    /// two it is. <c>null</c> when the type is neither, or holds something that
+    /// is not an identifier.
+    /// </summary>
+    private static (Type Key, bool IsMap)? ElementKeyOf(Type type)
+    {
+        if (type == typeof(string))
+        {
+            return null;
+        }
+
+        // Maps first: a dictionary is also an IEnumerable of key-value pairs, so
+        // the sequence branch would match it and describe the wrong thing.
+        foreach (var contract in Interfaces(type))
+        {
+            if (!contract.IsGenericType)
+            {
+                continue;
+            }
+
+            var definition = contract.GetGenericTypeDefinition();
+            if (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>))
+            {
+                return UnderlyingKeyOf(contract.GetGenericArguments()[1]) is { } value
+                    ? (value, true)
+                    : null;
+            }
+        }
+
+        foreach (var contract in Interfaces(type))
+        {
+            if (contract.IsGenericType
+                && contract.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            {
+                return UnderlyingKeyOf(contract.GetGenericArguments()[0]) is { } element
+                    ? (element, false)
+                    : null;
+            }
+        }
+
+        return null;
+
+        // An array's element type is not reachable through GetInterfaces() in a
+        // form that names it, and the type itself may BE the interface.
+        static IEnumerable<Type> Interfaces(Type type) =>
+            type.IsInterface ? [type, .. type.GetInterfaces()] : type.GetInterfaces();
     }
 }

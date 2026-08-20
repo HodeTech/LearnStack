@@ -92,18 +92,20 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Seventeen test methods exist in
+Twenty-two test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md) and Packet 4.
 
-**Not every implemented rule lives in that assembly.** Packet 4 added four
-rules there (`Live_Majors_Are_At_Most_Two_Adjacent`,
+**Not every implemented rule lives in that assembly.** Packet 4 added eight
+rules there — four API-convention ones
+(`Live_Majors_Are_At_Most_Two_Adjacent`,
 `Unversioned_Route_Prefixes_Are_Declared_Once`,
 `Forwarded_Headers_Are_Not_Wired`, `Deployment_Mode_Is_Required_Configuration`)
-and four **behavioural** ones in
+and the four ADR-0036 tenancy-edge scans in `TenancyConventionTests` — plus
+four **behavioural** ones in
 [`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration)
-(`Every_Endpoint_Is_Under_Versioned_Route` and the three startup guards under
+(`Every_Endpoint_Is_Under_Versioned_Route` and the four startup guards under
 § API conventions). Both assemblies run in the same required `backend` CI check,
 and a rule belongs where it can actually fail: the route-shape rule was
 originally written as a reflection scan in the architecture assembly and passed
@@ -127,6 +129,10 @@ against a host serving unversioned endpoints.
 | `Unversioned_Route_Prefixes_Are_Declared_Once` | `ApiConventionTests.cs` |
 | `Forwarded_Headers_Are_Not_Wired` | `ApiConventionTests.cs` |
 | `Deployment_Mode_Is_Required_Configuration` | `ApiConventionTests.cs` |
+| `Effective_Host_Computed_In_One_Place` | `TenancyConventionTests.cs` |
+| `Tenant_Headers_Are_Never_A_Resolution_Source` | `TenancyConventionTests.cs` |
+| `Assertion_Recorder_Is_The_Only_Mismatch_Writer` | `TenancyConventionTests.cs` |
+| `Assertion_Budget_Does_Not_Depend_On_ICacheService` | `TenancyConventionTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
@@ -1583,23 +1589,29 @@ structural test proves — and what it does not.
 - **Asserts:** the anonymous budget is spent per socket peer, a request over it is **429** with `Retry-After` and the one Problem Details shape, and the partition key never comes from a header. architecture/30 has promised this middleware since Phase 01; from Packet 7 every novel `Host` value buys a Postgres round trip on a pre-auth surface.
 - **Source:** Standards 04 § Request and Response Limits; ADR-0036.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
-- **Status:** **Implemented** (`RateLimitingHttpTests`).
+- **Status:** **Implemented** (`RateLimitingHttpTests`, two cases: the budget and
+  its error shape, and that a rotating `X-Forwarded-For` buys nothing). The
+  partition key is guarded from the other side by
+  `Ambient_Forwarded_Headers_Refuse_To_Start` — measured, with
+  `ASPNETCORE_FORWARDEDHEADERS_ENABLED` set, seventy requests rotating that
+  header produced **zero** rejections against eleven without it, and the
+  composition root refuses to start in that configuration now.
 - **Phase:** 02a Packet 4.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
 - **Asserts:** no production type assigns `ITenantContext.TenantId` or `OrganizationId` from a bound `X-Tenant-Id` / `X-Organization-Id` value, in any deployment mode. There is no mode-guarded exception.
 - **Source:** ADR-0036 § What the assertions do.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`). A scan rather than a dependency check, because the resolver that could misuse these values lands in Packet 7 — a scan holds the line from the day the symbol exists.
 - **Phase:** 02a Packet 4.
 
 #### `Effective_Host_Computed_In_One_Place`
 
 - **Asserts:** only `EffectiveHostAccessor` reads a request host. Bans `HttpRequest.Host`, `RequestHeaders.Host`, `HeaderDictionary` indexers carrying a `Host` / `X-Forwarded-Host` / `X-LearnStack-Host` / `Forwarded` literal, and `UriHelper.GetDisplayUrl` / `GetEncodedUrl` everywhere else.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
-- **Type:** Roslyn analyzer under `backend/analyzers/`. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`). Bans `Request.Host`, `GetDisplayUrl`, `GetEncodedUrl` and `X-Forwarded-Host` outside `EffectiveHostAccessor`.
 - **Phase:** 02a Packet 4.
 - **Note:** Analyzer rather than NetArchTest: three of the four banned inputs appear only as string literals inside header lookups, which a type-reference scan cannot see.
 
@@ -1649,16 +1661,16 @@ structural test proves — and what it does not.
 
 - **Asserts:** no type other than an `ITenantAssertionRecorder` implementation writes a tenant-assertion mismatch to a log, a metric or `IAuditStore`.
 - **Source:** ADR-0036 § Recording a rejected assertion.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`). Keyed on the two counter names, so Packet 9's auditing recorder inherits the same single-writer rule.
 - **Phase:** 02a Packet 4.
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
 
 - **Asserts:** the anonymous-burst counters resolve no `ICacheService`. A cache outage must not decide whether a MUST-class security event is recorded.
 - **Source:** ADR-0036 § Recording a rejected assertion.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`) as a **tripwire**: `ICacheService` does not exist until Packet 5, so this cannot yet be a dependency check. It holds the line from now, because a shared burst counter is exactly what someone reaches a cache for.
 - **Phase:** 02a Packet 4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

@@ -362,9 +362,12 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 The edge (APISIX) limits a noisy *client* to protect the platform, keyed on the
 remote address; its policy is owned by
 [30-api-gateway.md § 6](../architecture/30-api-gateway.md) and is deliberately
-much looser per second. The table below is the **application** policy: fair use
-per principal, keyed on the token, which is the only key that can express "this
-tenant's plan allows N". A request passes both or neither.
+much looser per second. The table below is the **application** policy: fair use per *principal*, on
+whatever names one — a token where the caller is authenticated, the peer where
+it is not, the mTLS client certificate for the Hub surface, the provider account
+for a webhook. Only a principal key can express "this tenant's plan allows N",
+which is why the edge cannot own these rows. A request passes both layers or
+neither.
 
 Until the gateway fronts the app ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
 gates it to [Phase 11](../roadmap/phase-11-production-hardening.md)), only the

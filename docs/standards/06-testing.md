@@ -39,7 +39,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 | Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 7, Testcontainers + Respawn |
 | Architecture | `LearnStack.Tests.Architecture` | NetArchTest / ArchUnitNET |
 | API contract | `LearnStack.Tests.Contract` | OpenAPI snapshot, Pact-style consumer tests |
-| End-to-end | `frontend/e2e` | Playwright — [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) ships the first golden flow |
+| End-to-end | none yet | Playwright, per § End-to-End Tests below. No project exists; the owning phase is named there |
 
 ### Unit Tests
 
@@ -92,9 +92,21 @@ Non-skippable. Enforced on every PR.
 
 ### End-to-End Tests
 
-- Drive the API via `WebApplicationFactory<Program>` against real Postgres.
-- Cover the MVP vertical slice end to end (tenant → page → course → enrollment → live session).
+**None exist, and the project this section used to name never did.** Driving the
+API through `WebApplicationFactory` is what the *host tests* above do; that is
+not end-to-end, and listing it as a separate suite made a phantom look shipped.
+
+End-to-end here means a browser: Playwright over a running stack, per the
+frontend tooling table below.
+
+- Cover the MVP vertical slice (tenant → page → course → enrollment → live
+  session).
 - ~10 high-signal scenarios.
+- **Owner:** the first flow arrives with the first rendered surface, in
+  [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), which also wires the
+  axe accessibility checks that run through the same harness.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) puts two tenants in a
+  browser but gates on a human opening them, not on a Playwright run.
 
 ## Frontend Test Types
 

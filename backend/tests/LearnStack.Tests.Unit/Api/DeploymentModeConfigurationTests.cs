@@ -71,4 +71,35 @@ public sealed class DeploymentModeConfigurationTests
                 [TenancyCompositionExtensions.DeploymentModeKey] = mode,
             })
             .Build();
+
+    [Fact]
+    public void Ambient_Forwarded_Headers_Refuse_To_Start()
+    {
+        // ASPNETCORE_FORWARDEDHEADERS_ENABLED wires the forwarded-headers
+        // middleware from host configuration — no code, no assembly reference —
+        // ahead of everything, with KnownNetworks and KnownProxies cleared. That
+        // makes RemoteIpAddress client-supplied, and it is the anonymous rate
+        // limiter's partition key. Measured against the real host: seventy
+        // requests rotating X-Forwarded-For produced zero 429s with the key set
+        // and eleven without it.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [TenancyCompositionExtensions.ForwardedHeadersKey] = "true",
+            })
+            .Build();
+
+        var act = configuration.RefuseAmbientForwardedHeaders;
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ForwardedHeaders_Enabled*rate limited*");
+    }
+
+    [Fact]
+    public void An_Unset_Forwarded_Headers_Key_Starts_Normally()
+    {
+        var act = new ConfigurationBuilder().Build().RefuseAmbientForwardedHeaders;
+
+        act.Should().NotThrow();
+    }
 }
