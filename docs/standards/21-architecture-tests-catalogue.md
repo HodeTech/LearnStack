@@ -103,10 +103,18 @@ rules there — four API-convention ones
 `Unversioned_Route_Prefixes_Are_Declared_Once`,
 `Forwarded_Headers_Are_Not_Wired`, `Deployment_Mode_Is_Required_Configuration`)
 and the four ADR-0036 tenancy-edge scans in `TenancyConventionTests` — plus
-four **behavioural** ones in
-[`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration)
-(`Every_Endpoint_Is_Under_Versioned_Route` and the four startup guards under
-§ API conventions). Both assemblies run in the same required `backend` CI check,
+**six** behavioural rows in
+[`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration),
+all under § API conventions: `Every_Endpoint_Is_Under_Versioned_Route`, the four
+startup guards (`An_Absolute_Controller_Route_Fails_At_Startup` and
+`An_Absolute_Action_Route_Fails_At_Startup` share one row,
+`A_Major_Outside_LiveMajors_Fails_At_Startup`,
+`A_Bare_ControllerBase_Fails_At_Startup`, and
+`A_Hand_Written_Prefix_That_Disagrees_With_The_Attribute_Fails_At_Startup`), and
+`An_Absolute_Internal_Route_Is_Exempt_At_Both_Levels`, which is a guard's mirror
+rather than a guard — it asserts a host that *does* start. Rows are not test
+methods: `VersionedRouteEnforcementTests` carries ten, because several rows pair
+a rule with the companion assertion that stops it passing vacuously. Both assemblies run in the same required `backend` CI check,
 and a rule belongs where it can actually fail: the route-shape rule was
 originally written as a reflection scan in the architecture assembly and passed
 against a host serving unversioned endpoints.
