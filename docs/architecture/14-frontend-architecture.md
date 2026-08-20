@@ -105,9 +105,11 @@ export async function middleware(req: NextRequest) {
   if (resolved.organizationId) requestHeaders.set('x-organization-id', resolved.organizationId);
   requestHeaders.set('x-locale', locale);
 
-  // What the server-side SDK actually states to the API on the way out, over
-  // the authenticated hop. The host — not the tenant — is the input the API
-  // resolves from.
+  // The visitor's host, carried INWARD so the server-side SDK can state it to
+  // the API. The host — not the tenant — is the input the API resolves from.
+  // The hop SECRET is deliberately not here: it is server configuration, and a
+  // secret written into a forwarded request header travels further than the one
+  // hop it authenticates.
   requestHeaders.set('x-learnstack-host', host);
 
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -116,6 +118,28 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
+```
+
+The SDK is what states the hop, on the way **out**. It reads the host the
+middleware carried inward and pairs it with the secret from server configuration
+— which is why `createServerSdk` is a server-only entry point and why the secret
+never appears in the middleware above:
+
+```ts
+// packages/sdk/src/server.ts — the shape, once the first operation exists.
+const response = await fetch(new URL(path, options.apiBaseUrl), {
+  headers: {
+    // The trusted hop: both halves, or the API ignores the host header
+    // entirely and resolves from its own Host (ADR-0036).
+    'X-LearnStack-Host': options.host,
+    'X-LearnStack-Hop-Secret': process.env.LEARNSTACK_HOP_SECRET!,
+
+    // An assertion, not a selector. The API compares it against the host it
+    // resolved for itself; a mismatch is a 404.
+    'X-Tenant-Id': options.tenantId,
+    'Accept-Language': options.locale,
+  },
+});
 ```
 
 `resolveHost` is backed by a short-TTL edge cache (~60 s) that calls the LearnStack API,

@@ -194,12 +194,33 @@ public sealed class TenancyConventionTests
     }
 
     /// <summary>Copies one string or character literal and returns the index after it.</summary>
+    /// <remarks>
+    /// Three shapes, because C# has three and they terminate differently: a
+    /// normal literal ends at an unescaped quote, a verbatim one (<c>@"…"</c>)
+    /// escapes a quote by doubling it, and a raw one opens with a <b>run</b> of
+    /// three or more quotes and closes only on a run of the same length. Reading
+    /// a raw literal's first quote as its terminator puts the scanner back
+    /// inside code while it is still inside a string — which is how a <c>//</c>
+    /// there would swallow the rest of the line again.
+    /// </remarks>
     private static int CopyLiteral(string source, int start, System.Text.StringBuilder kept)
     {
         var quote = source[start];
 
-        // Raw string literals ("""…""") have no escapes and end on a matching
-        // run of quotes; verbatim ones (@"…") escape a quote by doubling it.
+        if (quote == '"')
+        {
+            var opening = 0;
+            while (start + opening < source.Length && source[start + opening] == '"')
+            {
+                opening++;
+            }
+
+            if (opening >= 3)
+            {
+                return CopyRawLiteral(source, start, opening, kept);
+            }
+        }
+
         var verbatim = start > 0 && source[start - 1] == '@';
         var i = start;
 
@@ -230,8 +251,8 @@ public sealed class TenancyConventionTests
                 return i + 1;
             }
 
-            // An unterminated literal cannot span a line unless it is verbatim;
-            // bailing keeps a malformed file from swallowing the whole scan.
+            // An unterminated non-verbatim literal cannot span a line; bailing
+            // keeps a malformed file from swallowing the rest of the scan.
             if (!verbatim && c == '\n')
             {
                 return i;
@@ -239,6 +260,41 @@ public sealed class TenancyConventionTests
 
             kept.Append(c);
             i++;
+        }
+
+        return i;
+    }
+
+    /// <summary>Copies a raw string literal, closing only on a run of the opening length.</summary>
+    private static int CopyRawLiteral(
+        string source, int start, int opening, System.Text.StringBuilder kept)
+    {
+        var i = start;
+        kept.Append(source, i, opening);
+        i += opening;
+
+        while (i < source.Length)
+        {
+            if (source[i] != '"')
+            {
+                kept.Append(source[i]);
+                i++;
+                continue;
+            }
+
+            var run = 0;
+            while (i + run < source.Length && source[i + run] == '"')
+            {
+                run++;
+            }
+
+            kept.Append(source, i, run);
+            i += run;
+
+            if (run >= opening)
+            {
+                return i;
+            }
         }
 
         return i;

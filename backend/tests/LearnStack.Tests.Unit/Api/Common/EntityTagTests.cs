@@ -128,6 +128,29 @@ public sealed class EntityTagTests
     }
 
     [Theory]
+    [InlineData("*, \"7\"")]
+    [InlineData("\"7\", *")]
+    public void A_Wildcard_Mixed_With_A_Tag_Is_Malformed_Not_A_Wildcard(string raw)
+    {
+        // RFC 9110 § 13.1.1 makes `*` an alternative to the tag list, not a
+        // member of it. Microsoft's parser accepts the mixed form as a
+        // two-element list, so reading the `*` out of it would answer "any
+        // version, as long as it exists" to a client that also named one —
+        // the weaker interpretation of a header the API could not understand,
+        // which is the failure Evaluate refuses everywhere else.
+        ReadAssertion(raw, out var versions).Should().Be(EntityTag.Assertion.Malformed);
+        versions.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("*, \"7\"")]
+    [InlineData("\"7\", *")]
+    public void And_Evaluate_Fails_It_Rather_Than_Matching(string raw)
+    {
+        Evaluate(raw, 7).Should().Be(EntityTag.Precondition.Failed);
+    }
+
+    [Theory]
     [InlineData(null, EntityTag.Assertion.Absent)]
     [InlineData("*", EntityTag.Assertion.AnyExisting)]
     [InlineData("W/\"7\"", EntityTag.Assertion.Malformed)]

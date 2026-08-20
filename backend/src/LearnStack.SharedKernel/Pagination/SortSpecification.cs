@@ -127,9 +127,7 @@ public sealed record SortSpecification
             // whole client-supplied value — an 8 KB `sort` is exactly the input
             // this guard exists to reject, and echoing it whole puts it in a
             // Problem Details body and every log line that carries one.
-            offendingSegment = raw.Length > MaxFieldLength
-                ? raw[..MaxFieldLength]
-                : raw;
+            offendingSegment = Bounded(raw);
             return false;
         }
 
@@ -149,7 +147,11 @@ public sealed record SortSpecification
             // a key the client believes it asked for.
             if (!IsWellFormedField(field) || !seen.Add(field))
             {
-                offendingSegment = segment;
+                // Bounded for the same reason the term-count guard above is: a
+                // `sort` with no commas never reaches that guard, so an 8 KB
+                // single field arrives here whole and would be quoted back into
+                // a Problem Details body and every log line carrying one.
+                offendingSegment = Bounded(segment);
                 return false;
             }
 
@@ -224,6 +226,13 @@ public sealed record SortSpecification
     /// rather than left for the endpoint's allow-list, so a value that could
     /// only have come from a malformed client never travels further in.
     /// </summary>
+    /// <summary>
+    /// The most of a rejected value this type will quote back. Nothing the
+    /// client sent leaves here longer than a single field is allowed to be.
+    /// </summary>
+    private static string Bounded(string value) =>
+        value.Length > MaxFieldLength ? value[..MaxFieldLength] : value;
+
     private static bool IsWellFormedField(string field)
     {
         if (field.Length == 0 || field.Length > MaxFieldLength)
