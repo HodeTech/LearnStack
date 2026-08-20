@@ -42,8 +42,8 @@ public static class TenancyCompositionExtensions
         {
             throw new InvalidOperationException(
                 $"'{DeploymentModeKey}' is not configured. It selects the error tracker, "
-                + "the OTLP target and — from Packet 5 — the event bus, cache and secret "
-                + "provider, so there is no safe default: an unset key used to mean "
+                + "the OTLP target and — from Packet 5 — the event bus and cache, so "
+                + "there is no safe default: an unset key used to mean "
                 + $"'{nameof(DeploymentMode.Development)}' in production. Set it in the "
                 + "environment-specific appsettings file or in the environment.");
         }

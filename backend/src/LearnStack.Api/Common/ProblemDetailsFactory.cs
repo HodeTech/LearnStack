@@ -20,8 +20,12 @@ namespace LearnStack.Api.Common;
 /// example). The frontend resolves the key against its i18n catalogue; the
 /// wire value is stable across locales so support staff debugging in
 /// Insomnia / curl can match the lockey back to the catalogue entry. A
-/// future LocalizedMessage → text projector (Phase 02b, Accept-Language
-/// binding) may compose a human-readable Title alongside.
+/// future LocalizedMessage → text projector may compose a human-readable
+/// Title alongside; locale negotiation from <c>Accept-Language</c> is
+/// <see href="../../../../docs/roadmap/phase-04-cms-media-pages.md">Phase 04</see>'s,
+/// which is what
+/// <see href="../../../../docs/roadmap/phase-02d-walking-skeleton.md">Phase 02d</see>
+/// names when it lists what it does not build.
 /// </remarks>
 public static class ProblemDetailsFactory
 {

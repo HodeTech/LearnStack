@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Versioning;
 using Xunit;
@@ -66,6 +67,31 @@ public sealed class ApiConventionTests
             "see EffectiveHostAccessor.PeerIsInsideTrustedNetwork — the hop's peer "
             + "must be captured before this middleware, or the check compares a "
             + "client-supplied address against the hop's networks");
+    }
+
+    [Fact]
+    public void Deployment_Mode_Is_Required_Configuration()
+    {
+        // The file half of the rule. `DeploymentModeConfigurationTests` covers
+        // the behaviour — an absent, unknown or ordinal mode refuses to start —
+        // and none of those catch the defect this replaces, which was the key
+        // being PRESENT: `Deployment:Mode` shipped as "Development" in
+        // appsettings.json, the file that goes to every environment, with the
+        // same value as the code default. Every Development-guarded mechanism
+        // was on by default in a deployment that never configured it, and a
+        // guard on the value could not have seen it. Only a guard on the file
+        // can.
+        var shared = Path.Combine(
+            RepositoryPaths.BackendSrc(), "LearnStack.Api", "appsettings.json");
+
+        var document = JsonDocument.Parse(File.ReadAllText(shared));
+
+        document.RootElement.TryGetProperty("Deployment", out var deployment)
+            .Should().BeFalse(
+                "appsettings.json is loaded in every environment, so a deployment mode set "
+                + "there is a default wearing a configuration key's clothes. It belongs in "
+                + "appsettings.{Environment}.json or the environment itself. "
+                + $"Found: {deployment}");
     }
 
     [Fact]
