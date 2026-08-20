@@ -408,6 +408,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 ## 6. Rate limit policy
 
+This is the **edge** policy: it limits a noisy client to protect the platform, and
+it is keyed on the remote address. It is deliberately looser per second than the
+per-principal fair-use policy in
+[Standards 11 § Rate Limiting](../standards/11-security.md), which is keyed on the
+token and is the only one that can express a plan limit. The two are not competing
+statements of one number — a request passes both or neither.
+
 | Surface | Rate | Burst | Key |
 |---------|------|-------|-----|
 | `/healthz` | 10/s | 5 | remote_addr |
