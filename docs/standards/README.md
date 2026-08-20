@@ -67,8 +67,8 @@ bookkeeping pass.
 
 ### Honest status today
 
-The table below is the current, accurate state as of 2026-08-18, at HEAD with
-[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) Packets 0–3 and 3b shipped.
+The table below is the current, accurate state as of 2026-08-20, at HEAD with
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) Packets 0–3, 3b and 4 shipped.
 
 **The individual documents still declare `Active` in their own headers.** Reconciling the
 twenty-two status lines with this table is a

@@ -131,10 +131,16 @@ public static class TenancyCompositionExtensions
     /// Registers the effective-host accessor, the trusted-hop options and the
     /// Packet 4 assertion recorder.
     /// </summary>
+    /// <remarks>
+    /// Takes no <c>DeploymentMode</c>. It used to, for a hop check that skipped
+    /// Development; that check is now mode-independent, and an unused parameter
+    /// on a composition-root extension is an invitation to branch on it — which
+    /// is the thing <c>Modules_Do_Not_Reference_DeploymentMode</c> exists to
+    /// stop one layer down.
+    /// </remarks>
     public static IServiceCollection AddLearnStackTenancyEdge(
         this IServiceCollection services,
-        IConfiguration configuration,
-        DeploymentMode deploymentMode)
+        IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -155,16 +161,25 @@ public static class TenancyCompositionExtensions
                 + "the failure only shows as an anonymous page render answering 404.");
         }
 
-        // Outside Development a configured hop is expected but not demanded:
-        // a deployment with nothing in front of the API legitimately has none.
-        // What is refused is a half-configured one, above.
-        if (deploymentMode != DeploymentMode.Development && options.Networks.Count > 0
-            && options.Secrets.Count == 0)
+        // A configured hop is expected but never demanded: a deployment with
+        // nothing in front of the API legitimately has none, and that is both
+        // lists empty. What is refused is exactly one of them — in every mode
+        // and in both directions.
+        //
+        // Validate() above checks the shape of each entry and nothing about the
+        // pair, so it did not catch this; the comment that used to sit here said
+        // it did. And the check that did exist skipped Development, which is
+        // where a half-configured hop is most likely to be typed and least
+        // likely to be noticed, because the API answers 404 rather than
+        // anything that reads as a misconfiguration.
+        if (options.Networks.Count > 0 != options.Secrets.Count > 0)
         {
             throw new InvalidOperationException(
-                $"'{TrustedHopOptions.SectionName}:Networks' is set with no Secrets. "
-                + "Network position alone is not the hop — on a container bridge or a pod "
-                + "CIDR everything in the mesh is the gateway's neighbour.");
+                $"'{TrustedHopOptions.SectionName}' has "
+                + (options.Networks.Count > 0 ? "Networks with no Secrets" : "Secrets with no Networks")
+                + ". Both are required or neither: network position alone is not the hop — on a "
+                + "container bridge or a pod CIDR everything in the mesh is the gateway's "
+                + "neighbour — and a secret alone is defeated by one leak into a bundle or a log.");
         }
 
         services.AddSingleton<EffectiveHostAccessor>();

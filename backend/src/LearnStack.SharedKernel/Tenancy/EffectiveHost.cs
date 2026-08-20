@@ -123,6 +123,14 @@ public static class EffectiveHost
         // A whitelist is the right shape here and a denylist never was: the
         // set of things a hostname may contain is small and closed, and the
         // set of things it may not is neither.
+        // No second length check, and that is measured rather than assumed.
+        // GetAscii expands — a Unicode label becomes a longer `xn--` A-label —
+        // so an input inside 253 characters can convert to more. It cannot
+        // *return* more: GetAscii enforces the 253-character total itself and
+        // throws for 254, which the catch above already turns into null.
+        // Measured on .NET 10: nine 20-character `ü` labels convert to 246 and
+        // pass; twenty-one throw. A guard here would be unreachable code
+        // claiming to prevent something that cannot happen.
         return IsLdh(lowered) ? lowered : null;
     }
 

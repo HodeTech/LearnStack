@@ -78,6 +78,15 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
         // No tenant label: there is no tenant. Adding one would mean inventing
         // a sentinel, and a sentinel tenant is an unauthenticated, unbounded
         // write target no tenant admin watches.
-        _unresolved.Add(1, new KeyValuePair<string, object?>("source", "header"));
+        //
+        // The dimension IS labelled. It is bounded by the enum, and without it
+        // the counter cannot answer the first question an operator asks —
+        // whether the malformed header was the tenant's or the organization's.
+        // The parameter was accepted and dropped, which made the signature
+        // promise something the metric did not carry.
+        _unresolved.Add(
+            1,
+            new KeyValuePair<string, object?>("source", "header"),
+            new KeyValuePair<string, object?>("dimension", dimension.ToString()));
     }
 }

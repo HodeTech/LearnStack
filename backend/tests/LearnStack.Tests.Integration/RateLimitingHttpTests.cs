@@ -61,7 +61,20 @@ public sealed class RateLimitingHttpTests : IClassFixture<RateLimitedHostFixture
         problem.GetProperty("code").GetString().Should().Be("rate_limited");
         problem.GetProperty("status").GetInt32().Should().Be(429);
     }
+}
 
+/// <summary>
+/// The same rule, on its own host — and that is the point.
+/// </summary>
+/// <remarks>
+/// A limiter is per-host state, so two tests sharing one fixture share one
+/// budget: whichever ran first exhausted it, and the other then passed or
+/// failed on that leftover rather than on its own assertion. Two fixtures, two
+/// budgets, no ordering.
+/// </remarks>
+public sealed class RateLimitForwardedForTests(ForwardedForHostFixture fixture)
+    : IClassFixture<ForwardedForHostFixture>
+{
     [Fact]
     public async Task A_Forwarded_For_Header_Does_Not_Buy_A_Fresh_Budget()
     {
@@ -74,7 +87,7 @@ public sealed class RateLimitingHttpTests : IClassFixture<RateLimitedHostFixture
         // against eleven without it. `RefuseAmbientForwardedHeaders` refuses to
         // start in that configuration; this asserts the other half — that the
         // header buys nothing while it is off.
-        using var client = _fixture.CreateClient();
+        using var client = fixture.CreateClient();
         var path = new Uri("/healthz", UriKind.Relative);
         var rejected = 0;
 
@@ -96,8 +109,9 @@ public sealed class RateLimitingHttpTests : IClassFixture<RateLimitedHostFixture
     }
 }
 
+
 /// <summary>A host used by nothing else, so its exhausted budget poisons nothing.</summary>
-public sealed class RateLimitedHostFixture : WebApplicationFactory<Program>
+public class RateLimitedHostFixture : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -105,3 +119,6 @@ public sealed class RateLimitedHostFixture : WebApplicationFactory<Program>
         builder.UseEnvironment(Environments.Development);
     }
 }
+
+/// <summary>Its own host, so its own limiter budget.</summary>
+public sealed class ForwardedForHostFixture : RateLimitedHostFixture;

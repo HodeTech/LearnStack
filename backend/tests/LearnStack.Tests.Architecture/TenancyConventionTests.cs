@@ -143,37 +143,105 @@ public sealed class TenancyConventionTests
         return offenders;
     }
 
-    /// <summary>Strips line and block comments, leaving string literals alone.</summary>
+    /// <summary>Strips line and block comments, leaving literals alone.</summary>
+    /// <remarks>
+    /// Literal state is tracked, because a <c>//</c> inside a string is not a
+    /// comment: <c>"https://…"</c> would otherwise truncate the rest of that
+    /// line, and anything after it — including a banned literal — would go
+    /// unseen. A false negative in a rule that guards the tenancy edge is worth
+    /// the twenty lines.
+    /// </remarks>
     private static string WithoutComments(string source)
     {
         var kept = new System.Text.StringBuilder(source.Length);
+        var i = 0;
 
-        for (var i = 0; i < source.Length; i++)
+        while (i < source.Length)
         {
-            if (source[i] == '/' && i + 1 < source.Length)
+            var c = source[i];
+
+            if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
             {
-                if (source[i + 1] == '/')
+                while (i < source.Length && source[i] != '\n')
                 {
-                    while (i < source.Length && source[i] != '\n')
-                    {
-                        i++;
-                    }
-
-                    continue;
+                    i++;
                 }
 
-                if (source[i + 1] == '*')
-                {
-                    var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                    i = close < 0 ? source.Length : close + 1;
-                    continue;
-                }
+                continue;
             }
 
-            kept.Append(source[i]);
+            if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
+            {
+                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = close < 0 ? source.Length : close + 2;
+                continue;
+            }
+
+            // A literal is copied through verbatim, so nothing inside it is read
+            // as a comment marker — and nothing inside it is lost, so a banned
+            // literal written as a string is still found.
+            if (c is '"' or '\'')
+            {
+                i = CopyLiteral(source, i, kept);
+                continue;
+            }
+
+            kept.Append(c);
+            i++;
         }
 
         return kept.ToString();
+    }
+
+    /// <summary>Copies one string or character literal and returns the index after it.</summary>
+    private static int CopyLiteral(string source, int start, System.Text.StringBuilder kept)
+    {
+        var quote = source[start];
+
+        // Raw string literals ("""…""") have no escapes and end on a matching
+        // run of quotes; verbatim ones (@"…") escape a quote by doubling it.
+        var verbatim = start > 0 && source[start - 1] == '@';
+        var i = start;
+
+        kept.Append(source[i]);
+        i++;
+
+        while (i < source.Length)
+        {
+            var c = source[i];
+
+            if (!verbatim && c == '\\' && i + 1 < source.Length)
+            {
+                kept.Append(c).Append(source[i + 1]);
+                i += 2;
+                continue;
+            }
+
+            if (c == quote)
+            {
+                if (verbatim && i + 1 < source.Length && source[i + 1] == quote)
+                {
+                    kept.Append(c).Append(source[i + 1]);
+                    i += 2;
+                    continue;
+                }
+
+                kept.Append(c);
+                return i + 1;
+            }
+
+            // An unterminated literal cannot span a line unless it is verbatim;
+            // bailing keeps a malformed file from swallowing the whole scan.
+            if (!verbatim && c == '\n')
+            {
+                return i;
+            }
+
+            kept.Append(c);
+            i++;
+        }
+
+        return i;
     }
 
     private static string WithoutWhitespace(string value) =>

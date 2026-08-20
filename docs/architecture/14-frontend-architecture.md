@@ -133,6 +133,9 @@ the request to the organization on its mapping row. The scope comes from the hos
 lookup, never from a header — headers are assertions the API compares against its own
 answer ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
 
+**One page load, from the browser to a tenant-scoped render.** The edge resolves
+for rendering; the API resolves again, for itself.
+
 ```mermaid
 sequenceDiagram
     Browser->>Edge: GET https://english.example.com/tr/courses
@@ -149,6 +152,20 @@ sequenceDiagram
     API-->>Next: tenant- + org-scoped responses
     Next-->>Browser: rendered HTML
 ```
+
+In text, for a reader whose renderer does not draw it:
+
+1. The browser requests a page on a tenant's host.
+2. The edge looks the host up in a short-TTL cache.
+3. On a miss it asks the API, which reads `platform_host_to_tenant`, and caches
+   the answer for 60 seconds.
+4. The edge forwards to Next.js with `x-tenant-id` as an **assertion**, plus the
+   organization and locale it resolved for rendering.
+5. Next.js calls the API stating the **visitor's host** over the trusted hop —
+   `X-LearnStack-Host` with `X-LearnStack-Hop-Secret`.
+6. The API resolves that host itself and compares any assertion against its own
+   answer; a mismatch is a 404.
+7. The API returns tenant- and organization-scoped data, and Next.js renders.
 
 ## Rendering Strategies
 

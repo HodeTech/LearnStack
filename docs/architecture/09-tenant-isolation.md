@@ -45,6 +45,9 @@ two scopes (tenant + organization):
 
 ## Isolation flow
 
+**One request, from the browser to a tenant-scoped row.** Each hop narrows what
+the next one can see; no hop trusts the one before it to have done so.
+
 ```mermaid
 sequenceDiagram
     participant Browser
@@ -59,7 +62,7 @@ sequenceDiagram
     APISIX->>APISIX: Validate JWT signature + expiry
     APISIX->>API: Forward with X-Correlation-Id
     API->>MW: HTTP pipeline
-    MW->>MW: Resolve host via platform_host_to_tenant AND read JWT claims;<br/>reject on disagreement (ADR-0036 — agreement, not priority)
+    MW->>MW: Resolve host via platform_host_to_tenant AND read JWT claims#59;<br/>reject on disagreement (ADR-0036 — agreement, not priority)
     MW->>Accessor: SetTenant(tenantId, organizationId, userId)
     MW->>API: continue
     API->>EF: BeginTransaction, then SET LOCAL app.tenant_id /<br/>app.organization_id as the first statement (TransactionBehavior, step 6)
@@ -69,6 +72,23 @@ sequenceDiagram
     PG->>PG: Enforce RLS policy (tenant + org)
     PG-->>API: Tenant + org-scoped rows
 ```
+
+In text, for a reader whose renderer does not draw it:
+
+1. The browser sends a request carrying a JWT with `tenant_id` and
+   `organization_id` claims.
+2. APISIX validates the signature and expiry, then forwards with an
+   `X-Correlation-Id`.
+3. Middleware resolves the host through `platform_host_to_tenant` **and** reads
+   the JWT claims, rejecting on disagreement — agreement, not priority
+   ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
+4. It sets the ambient context and the request continues.
+5. `TransactionBehavior` opens the transaction and issues
+   `SET LOCAL app.tenant_id` / `app.organization_id` as its **first** statement.
+6. EF Core applies the global query filter, so the SQL carries the tenant and
+   organization predicate before it leaves the process.
+7. PostgreSQL enforces the RLS policy on the same row set, and returns only what
+   both layers agree on.
 
 ## RLS policy templates
 

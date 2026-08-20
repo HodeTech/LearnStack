@@ -136,7 +136,7 @@ against `platform_host_to_tenant`, and the ceiling that result carries.
 **Effective host.** Exactly one type, `EffectiveHostAccessor`, computes it once per
 request:
 
-```
+```text
 trustedHop = socketPeer ∈ Tenancy:TrustedHop:Networks
              AND FixedTimeEquals(X-LearnStack-Hop-Secret, any configured secret)
 
@@ -685,7 +685,7 @@ security-relevant ways when it implemented them.
 The order as written rejects IPv4 literals by `IPAddress.TryParse` and only then
 strips a port. Measured on .NET 10:
 
-```
+```text
 IPAddress.TryParse("1.2.3.4:443")   => False
 IPAddress.TryParse("1.2.3.4")       => True
 IPAddress.TryParse("0x7f.1")        => True   (127.0.0.1)
