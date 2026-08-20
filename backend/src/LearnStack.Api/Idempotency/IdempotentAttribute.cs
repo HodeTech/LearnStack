@@ -573,6 +573,7 @@ internal sealed partial class IdempotencyFilter(
         EventId = 1,
         Level = LogLevel.Error,
         Message = "An [Idempotent] endpoint answered with {ByteCount} bytes, over the {Limit}-byte "
-            + "replay cap; the key was released and a retry will re-run the operation.")]
+            + "replay cap; the outcome was tombstoned, so a retry is refused with "
+            + "idempotency_outcome_unavailable rather than re-run. Shrink the response.")]
     private static partial void ResponseTooLargeToReplay(ILogger logger, long byteCount, int limit);
 }

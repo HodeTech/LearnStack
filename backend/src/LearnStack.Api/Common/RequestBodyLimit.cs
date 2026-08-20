@@ -1,0 +1,157 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+
+namespace LearnStack.Api.Common;
+
+/// <summary>
+/// Bounds the request body at the size
+/// <see href="../../../../docs/standards/04-api-design.md">Standards 04
+/// § Request and Response Limits</see> publishes.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Middleware, not <c>KestrelServerLimits.MaxRequestBodySize</c>, and not
+/// <c>[RequestSizeLimit]</c>.</b> Both of those are server features, and the
+/// integration suite runs on <c>TestServer</c>, which implements neither:
+/// measured, an action carrying <c>[RequestSizeLimit(1024)]</c> accepts a
+/// 5000-byte body under <c>WebApplicationFactory</c> and logs
+/// "This server does not support the IHttpMaxRequestBodySizeFeature". A bound
+/// that cannot be asserted is a bound that can be deleted without anything
+/// going red, which is how a published limit becomes fiction — the condition
+/// this packet found the whole limits table in.
+/// </para>
+/// <para>
+/// Kestrel's own limit is still set, to the same number, at the composition
+/// root. This one is authoritative and testable; that one tears the connection
+/// down before the bytes are buffered. Two bounds, one number, in that order —
+/// not two numbers competing.
+/// </para>
+/// <para>
+/// A declared <c>Content-Length</c> over the limit is refused without reading
+/// anything. A request that declares nothing — <c>Transfer-Encoding:
+/// chunked</c> — is counted as it is read, because a body with no declared
+/// length slips any guard that only inspects the header.
+/// </para>
+/// </remarks>
+public static class RequestBodyLimit
+{
+    /// <summary>
+    /// Standards 04 § Request and Response Limits: "Request body (JSON) — 1 MB".
+    /// Binary, so the number in the table and the number in the code are the
+    /// same quantity rather than 4.9% apart.
+    /// </summary>
+    public const long MaxBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Refuses an oversized body with <b>413</b>.
+    /// </summary>
+    /// <remarks>
+    /// Registered <b>below</b> <c>MapLearnStackClientErrors</c>, so the status
+    /// set here acquires the one Problem Details shape on the way out rather
+    /// than growing a second writer beside it — the same route the rate
+    /// limiter's 429 takes. Registered <b>after</b> the rate limiter, so a
+    /// client flooding oversized bodies is told it is being rate limited, which
+    /// is the more useful of the two answers and the cheaper one to produce.
+    /// </remarks>
+    public static WebApplication UseLearnStackRequestBodyLimit(this WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.ContentLength is > MaxBytes)
+            {
+                context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                return;
+            }
+
+            if (context.Request.ContentLength is null)
+            {
+                context.Request.Body = new CountedStream(context.Request.Body, MaxBytes);
+            }
+
+            await next(context).ConfigureAwait(false);
+        });
+
+        return app;
+    }
+
+    /// <summary>
+    /// A read-only pass-through that refuses to hand out more than
+    /// <paramref name="limit"/> bytes.
+    /// </summary>
+    /// <remarks>
+    /// Throws <see cref="BadHttpRequestException"/> with 413 rather than
+    /// truncating, because a truncated body reaches the deserializer as a
+    /// malformed one and the client is told its JSON is invalid when the real
+    /// answer is that it was too big. That is also the exception Kestrel itself
+    /// throws for this condition, so <c>HttpStatusMap.For(Exception)</c> already
+    /// carries it to the right status.
+    /// </remarks>
+    private sealed class CountedStream(Stream inner, long limit) : Stream
+    {
+        private long _read;
+
+        public override bool CanRead => inner.CanRead;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => _read;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            Count(inner.Read(buffer, offset, count));
+
+        public override int Read(Span<byte> buffer) => Count(inner.Read(buffer));
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            Count(await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false));
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            Count(await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken)
+                .ConfigureAwait(false));
+
+        public override void Flush() => inner.Flush();
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private int Count(int read)
+        {
+            _read += read;
+
+            if (_read > limit)
+            {
+                throw new BadHttpRequestException(
+                    $"Request body exceeds the {limit}-byte limit.",
+                    StatusCodes.Status413PayloadTooLarge);
+            }
+
+            return read;
+        }
+    }
+}

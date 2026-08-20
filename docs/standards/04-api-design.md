@@ -167,12 +167,10 @@ Rules:
 - Sort via `sort=field` or `sort=-field` (prefix `-` for descending).
 - Multiple sort keys: `sort=-publishedAt,title`. The order is **priority
   order** and is preserved.
-- Search via `q=...` for free text. No separate length cap. The 2 KB URL bound
-  in § Request and Response Limits is a **target**, not something the
-  application enforces: today the real ceiling is the host's request-line and
-  header limits, and the gateway's once it fronts the app. A third bound
-  agreeing with neither would be worse than inheriting whichever actually
-  rejects an over-long URL.
+- Search via `q=...` for free text. No separate length cap: the URL bound in
+  § Request and Response Limits is the host's request-line limit, and a third
+  bound agreeing with neither it nor the gateway's would be worse than
+  inheriting whichever actually rejects an over-long URL.
 
 The `sort` grammar is enforced by `SortSpecification`, and its edges are
 decided rather than left to each endpoint:
@@ -337,18 +335,50 @@ SDK has no branch for.
 
 ## Request and Response Limits
 
-| Limit | Default |
-|-------|---------|
-| Request body (JSON) | 1 MB |
-| Multipart upload (excluding files) | 1 MB |
-| File upload | per content type, default 100 MB |
-| Headers | 8 KB total |
-| URL length | 2 KB |
-| Rate limit (anonymous) | 60 req/min per IP |
-| Rate limit (authenticated) | 600 req/min per token |
-| Rate limit (write endpoints) | 60 req/min per token |
+Each row says what enforces it. A published limit that nothing enforces is not
+a limit, and the first version of this table was four of those.
+
+| Limit | Value | Enforced by |
+|-------|-------|-------------|
+| Request body (JSON) | **1 MiB** | `RequestBodyLimit` middleware, and `KestrelServerLimits.MaxRequestBodySize` behind it |
+| Request headers, total | 32 KiB | Kestrel (`MaxRequestHeadersTotalSize`), server default |
+| Request header count | 100 | Kestrel (`MaxRequestHeaderCount`), server default |
+| URL length | 8 KiB | Kestrel (`MaxRequestLineSize`), server default |
+| Multipart upload (excluding files) | — | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
+| File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
+| Rate limit (anonymous) | 60 req/min per peer | `AddLearnStackRateLimiting` |
+| Rate limit (authenticated) | 600 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
+| Rate limit (write endpoints) | 60 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 
 429 responses include `Retry-After`.
+
+**The body bound is middleware, not only a Kestrel option.** `TestServer` — what
+the integration suite runs on — implements neither
+`IHttpMaxRequestBodySizeFeature` nor `IHttpRequestBodySizeFeature`, so a Kestrel
+limit or a `[RequestSizeLimit]` attribute is silently inert there and no test can
+tell whether it is wired. The middleware is the authoritative bound because it is
+the one that can be asserted; the Kestrel option is set to the same number behind
+it, so an oversized body is refused before it is buffered. A declared
+`Content-Length` over the limit is refused without reading anything; a request
+that declares no length is counted as it is read.
+
+**The header and URL rows are server bounds, not application bounds, and they
+cannot carry the standard error shape.** Kestrel rejects an over-long request
+line or header block before any middleware runs, so a **414** or **431** arrives
+without the Problem Details body every other error on this surface carries — and
+over HTTP/2 the connection is reset with no status at all. That is a property of
+where the rejection happens, not something the application can wrap. The numbers
+are Kestrel's defaults, written down here so the table describes the running
+binary rather than an intention. Tightening them is an
+[ADR-0015](../decisions/0015-api-gateway-apisix.md) / APISIX concern: the edge is
+where a limit can be enforced *and* given a body.
+
+**File-size limits are owned by
+[architecture/16 § Validation](../architecture/16-media-pipeline.md)**, which
+carries the per-category numbers and the tenant-override rule. This section and
+[Standards 11 § File Upload](11-security.md) link there rather than restating
+them — the three used to disagree three ways about the same image.
+
 
 ## Webhooks (Inbound)
 
