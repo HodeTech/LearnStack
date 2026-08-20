@@ -18,3 +18,13 @@
 
 /*
 !/frontend/
+
+# Generated from the backend's OpenAPI document. Reformatting the generator's
+# output makes every `pnpm generate` dirty the tree, which is what would stop
+# `generate && git diff --exit-code` being a usable freshness gate.
+#
+# Listed here AND in frontend/.prettierignore on purpose, because prettier reads
+# the ignore file relative to its working directory and the three callers do not
+# share one: the editor extension runs from the repository root, and the
+# pre-commit hook and `make format` both run from `frontend/`.
+/frontend/packages/sdk/src/generated/

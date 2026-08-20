@@ -79,6 +79,14 @@ public sealed class RequestBodyLimitHttpTests : IDisposable
         var response = await PostUndeclaredAsync(client, RequestBodyLimit.MaxBytes + 4096);
 
         response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+
+        // This path reaches the client through a thrown BadHttpRequestException
+        // and UseExceptionHandler, not through UseStatusCodePages like the
+        // declared one — a different route to the same contract, and one that
+        // would be easy to leave bodyless.
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("payload_too_large");
+        problem.GetProperty("status").GetInt32().Should().Be(413);
     }
 
     [Fact]

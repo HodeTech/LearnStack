@@ -51,7 +51,7 @@ internal sealed class LearnStackExceptionHandler(
         // Activity.RecordException — the ADR's Implementation Notes still
         // reference the older name; both add the same exception.* tags.
         var isCallersFault = exception is ProviderException { IsClientError: true }
-            or Microsoft.AspNetCore.Http.BadHttpRequestException { StatusCode: >= 400 and < 500 };
+            or BadHttpRequestException { StatusCode: >= 400 and < 500 };
 
         if (!isCancellation)
         {
@@ -133,8 +133,7 @@ internal sealed class LearnStackExceptionHandler(
         // capturing it hands an anonymous caller a switch that fills the error
         // tracker and marks a span failed, one request at a time. A 5xx form
         // would be ours, so the status decides rather than the type.
-        Microsoft.AspNetCore.Http.BadHttpRequestException bad
-            when bad.StatusCode is >= 400 and < 500 => false,
+        BadHttpRequestException bad when bad.StatusCode is >= 400 and < 500 => false,
 
         _ => true,
     };

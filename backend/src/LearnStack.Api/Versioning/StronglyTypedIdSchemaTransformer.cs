@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Identifiers;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -73,6 +74,20 @@ internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransform
 
         if (UnderlyingKeyOf(type) is not { } key)
         {
+            // A route- or query-bound identifier never arrives as itself.
+            // Measured: for `[FromRoute] UserId id`, both
+            // `JsonTypeInfo.Type` and `ParameterDescription.Type` are
+            // `System.String` — ApiExplorer collapses a parameter bound through
+            // Vogen's TypeConverter before any schema transformer runs. The
+            // declared CLR type survives on the descriptor, and recovering it
+            // there is the only way this rule reaches `GET /{id}`, which is
+            // where identifiers will mostly appear.
+            if (DeclaredParameterTypeOf(context) is { } declared
+                && UnderlyingKeyOf(declared) is { } parameterKey)
+            {
+                Describe(schema, parameterKey);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -130,6 +145,28 @@ internal sealed class StronglyTypedIdSchemaTransformer : IOpenApiSchemaTransform
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The type a parameter was <b>declared</b> as, before model binding
+    /// flattened it. <c>null</c> when this schema is not a parameter's.
+    /// </summary>
+    private static Type? DeclaredParameterTypeOf(OpenApiSchemaTransformerContext context)
+    {
+        if (context.ParameterDescription is not { } parameter)
+        {
+            return null;
+        }
+
+        // MVC controllers — what this API uses — carry the ParameterInfo.
+        if (parameter.ParameterDescriptor is ControllerParameterDescriptor controller)
+        {
+            return controller.ParameterInfo.ParameterType;
+        }
+
+        // Minimal APIs resolve the declared type directly, so the fallback is
+        // not dead: /healthz is one today and module endpoints may be later.
+        return parameter.Type;
     }
 
     /// <summary>

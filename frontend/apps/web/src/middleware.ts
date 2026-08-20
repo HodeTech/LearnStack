@@ -21,10 +21,9 @@ export function middleware(request: NextRequest) {
   // tenant resolution, tenant isolation would be decided by the caller — fail
   // closed instead of silently degrading.
   if (process.env.NODE_ENV === 'production') {
-    return new NextResponse(
-      'tenant resolution scaffold; production wiring lands in Phase 02a',
-      { status: 503 },
-    );
+    return new NextResponse('tenant resolution scaffold; production wiring lands in Phase 02a', {
+      status: 503,
+    });
   }
 
   const url = new URL(request.url);
