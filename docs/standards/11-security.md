@@ -318,7 +318,9 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 
 - Validate MIME type with content sniffing, not just the `Content-Type` header.
 - Validate extension against an allow-list per content type.
-- Enforce per-content-type size limits (image: 10 MB, document: 50 MB, video: 5 GB).
+- Enforce per-content-type size limits. The numbers and the tenant-override rule are
+  owned by [16-media-pipeline.md § Validation](../architecture/16-media-pipeline.md);
+  three documents used to state them and disagreed three ways about the same image.
 - Strip EXIF where appropriate.
 - Store in tenant-scoped object storage prefix.
 - Never trust the original filename. Generate a server-side key under the canonical tenant prefix: `tenants/{tenantId}/{category}/{uuid}.{ext}` (with `organizations/{orgId}/` segment for org-scoped assets), per [09-tenant-isolation.md § Storage (SeaweedFS)](../architecture/09-tenant-isolation.md) and [16-media-pipeline.md § Key Layout](../architecture/16-media-pipeline.md).

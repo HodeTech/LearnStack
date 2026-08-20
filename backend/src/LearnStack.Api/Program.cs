@@ -23,6 +23,14 @@ builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration, deploymentMode);
 builder.Services.AddLearnStackRateLimiting();
 
+// The outer half of the body bound. RequestBodyLimit's middleware is the
+// authoritative one — it is the only one TestServer honours, so it is the only
+// one the integration suite can assert — and this tears the connection down
+// before an oversized body is buffered at all. One number, two places, in that
+// order.
+builder.WebHost.ConfigureKestrel(options =>
+    options.Limits.MaxRequestBodySize = RequestBodyLimit.MaxBytes);
+
 // Controllers + the /api/v{N} route convention + one OpenAPI document per
 // live major, per ADR-0024. AddLearnStackApiVersioning owns the
 // AddControllers call so the convention cannot be registered twice or, worse,
@@ -51,6 +59,11 @@ app.UseLearnStackCorrelationHeader();
 // nothing delivered it, and ADR-0035 puts the gateway that would replace it in
 // Phase 11.
 app.UseRateLimiter();
+
+// Below MapLearnStackClientErrors, so a 413 acquires the one Problem Details
+// shape without a second writer; after the rate limiter, so a client flooding
+// oversized bodies hears about the rate limit rather than the size.
+app.UseLearnStackRequestBodyLimit();
 
 // The OpenAPI document and its reference UI are served in every environment,
 // not only Development. The document IS the contract Standards 04 § OpenAPI

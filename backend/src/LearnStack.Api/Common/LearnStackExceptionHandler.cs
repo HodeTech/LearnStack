@@ -119,6 +119,16 @@ internal sealed class LearnStackExceptionHandler(
     {
         OperationCanceledException => false,
         ProviderException pex when pex.IsClientError => false,
+
+        // Kestrel — and RequestBodyLimit — throw this for a request the client
+        // got wrong: too large, malformed chunking, a bad header. It is the
+        // same class as a provider's 4xx one row above ("not our bug"), and
+        // capturing it hands an anonymous caller a switch that fills the error
+        // tracker and marks a span failed, one request at a time. A 5xx form
+        // would be ours, so the status decides rather than the type.
+        Microsoft.AspNetCore.Http.BadHttpRequestException bad
+            when bad.StatusCode is >= 400 and < 500 => false,
+
         _ => true,
     };
 
