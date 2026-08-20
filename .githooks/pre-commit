@@ -116,6 +116,15 @@ restage() { git add -- "$@"; }
 # once and degrade to a message rather than blocking; CI is the real gate.
 leakwatch_takes_files() {
     local probe
+
+    # An empty staged set — `git commit --amend` with nothing new, for one —
+    # expands to an unbound variable under `set -u`, and the resulting error
+    # made the caller take the "this build only scans directories" branch and
+    # skip the secret scan over a capability problem that does not exist.
+    # Nothing staged means nothing to scan, so the answer is moot: say yes and
+    # let the (equally empty) scan loop below no-op.
+    (( ${#all_staged[@]} == 0 )) && return 0
+
     for probe in "${all_staged[@]}"; do
         [[ -f "$probe" ]] || continue
         if leakwatch scan fs "$probe" --config .leakwatch.yaml \
