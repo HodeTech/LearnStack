@@ -317,7 +317,44 @@ is not a platform, it's a script we run.
 
 ## Amendments
 
-_(none yet)_
+### 2026-08-20 — Amendment 1: the SDK codegen instructions describe a C# SDK
+
+The Decision is unchanged: URL versioning, two adjacent live majors, the
+six-month window, the `Deprecation` / `Sunset` / `Link` headers, the
+`x-sunset` / `x-successor` / `x-migration-guide` extensions, and the 410 Gone
+body all stand exactly as written.
+
+What this amendment corrects is that three instructions in § OpenAPI marking,
+and one in § Implementation Notes, tell the SDK generator to emit **C#**:
+
+- "Mark generated SDK methods `[Obsolete("…")]` with the sunset date."
+- "Surface the migration-guide URL in the method's XML doc comment."
+- "Emit a compile-time warning that turns into an error 30 days before sunset."
+- "the generated typed SDK (`packages/sdk`) ships a class per major;
+  `LearnStackClient.V1` … The codegen reads `x-sunset` to emit `[Obsolete]`."
+
+`@learnstack/sdk` is TypeScript. `[Obsolete]` is a C# attribute, XML doc
+comments are a C# convention, and TypeScript has no compile-time deprecation
+error at all — a `@deprecated` tag is advisory to `tsc` and to editors, and
+nothing more. The instructions were unimplementable as written, and Packet 4
+made that concrete by choosing the generator: `openapi-typescript`, which emits
+**types**, not classes with methods.
+
+**The intent, restated in the language the artefact is actually written in:**
+
+| Written as | Reads as |
+|---|---|
+| `[Obsolete("…")]` on a method | `/** @deprecated … */` on the generated operation type and on the client method that wraps it |
+| The migration-guide URL in an XML doc comment | The same URL in that JSDoc block, so it appears on hover |
+| A compile-time warning that becomes an error at sunset − 30 days | `@typescript-eslint/no-deprecated` at `warn`, escalated to `error` in the CI lint job — TypeScript itself cannot fail a build on a deprecation, so the gate is the linter |
+| "a class per major, `LearnStackClient.V1`" | One generated module per live major (`schema.v1.d.ts`, `schema.v2.d.ts`) and one client factory per major, coexisting for the cycle |
+
+The **when** is unchanged and is still not this packet's: none of the above is
+implementable before a second major exists, and
+`Every_Deprecated_Endpoint_Has_Sunset_And_Successor` remains Registered against
+the packet that adds the first `/api/v2`. This amendment exists so that packet
+inherits an instruction it can follow rather than one it has to reinterpret.
+
 
 ## References
 
