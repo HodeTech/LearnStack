@@ -28,3 +28,9 @@
 # share one: the editor extension runs from the repository root, and the
 # pre-commit hook and `make format` both run from `frontend/`.
 /frontend/packages/sdk/src/generated/
+
+# Same argument, and the asymmetry is worth closing: a lockfile is generated and
+# prettier is not its author. `frontend/.prettierignore` covers the two callers
+# that run from `frontend/`; this file covers the editor, which runs from here.
+# Measured — without it, an explicit Format Document rewrites 3761 lines of it.
+/frontend/pnpm-lock.yaml
