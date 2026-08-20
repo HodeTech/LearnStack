@@ -330,7 +330,8 @@ SDK has no branch for.
   the full extension set. `deprecated` is derived from `[Obsolete]` and is
   absent when false — OpenAPI defines an absent `deprecated` as `false`, and
   the serializer omits defaults.
-- TypeScript SDK `@learnstack/sdk` is generated from this spec in CI.
+- TypeScript SDK `@learnstack/sdk` is generated from this spec;
+  [Standards 07 § SDK](07-frontend-architecture.md) owns how and when.
 - Breaking OpenAPI changes fail CI unless the version bumps.
 
 ## Request and Response Limits

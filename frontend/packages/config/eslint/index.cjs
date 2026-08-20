@@ -25,7 +25,10 @@ module.exports = {
   },
   rules: {
     '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
     '@typescript-eslint/no-explicit-any': 'error',
     'import/no-cycle': 'error',
     'import/order': [
@@ -37,5 +40,20 @@ module.exports = {
       },
     ],
     'no-console': ['warn', { allow: ['warn', 'error'] }],
+
+    // Standards 03 § Forbidden bars direct `fetch`, and architecture/14 names
+    // the SDK as the only sanctioned way to reach the API. This is the rule
+    // that makes those true. It is `no-restricted-globals` and not
+    // `no-restricted-imports`, which the corpus used to name: `fetch` is a
+    // global, so an import rule could never have caught a single call.
+    'no-restricted-globals': [
+      'error',
+      {
+        name: 'fetch',
+        message:
+          'Call the API through @learnstack/sdk (Standards 03 § Forbidden). For a ' +
+          'non-API request, disable this rule on the line with a reason.',
+      },
+    ],
   },
 };

@@ -95,6 +95,12 @@ build-backend: ## `dotnet build` the solution.
 build-frontend: ## `pnpm -r build` the frontend monorepo.
 	(cd frontend && pnpm -r build)
 
+.PHONY: sdk
+sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
+	@# Needs the API up — `make dev` or `dotnet run --project backend/src/LearnStack.Api`.
+	@# Override the source with LEARNSTACK_OPENAPI=<url-or-path>.
+	(cd frontend && pnpm --filter @learnstack/sdk generate)
+
 # ─── Tests ────────────────────────────────────────────────────────────────
 .PHONY: test
 test: test-backend test-frontend ## Run all test suites (backend + frontend).

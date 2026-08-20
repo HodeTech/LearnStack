@@ -11,10 +11,11 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "generate": "echo 'SDK generation from /openapi/v1.json wires up in a later Phase 01 package' && exit 0"
+    "generate": "openapi-typescript ${LEARNSTACK_OPENAPI:-http://localhost:5080/openapi/v1.json} -o src/generated/schema.d.ts"
   },
   "devDependencies": {
     "@learnstack/config": "workspace:*",
+    "openapi-typescript": "^7.13.0",
     "typescript": "5.6.3"
   }
 }

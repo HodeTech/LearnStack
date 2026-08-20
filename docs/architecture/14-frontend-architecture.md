@@ -174,10 +174,10 @@ merge of tenant + optional org) more cheaply.
 
 Two paths:
 
-- **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from OpenAPI on `dotnet build`.
+- **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from the backend's OpenAPI document; [Standards 07 § SDK](../standards/07-frontend-architecture.md) owns when and how.
 - **Client-side** — interactive components fetch through a thin BFF endpoint under `/api/...` that forwards the request with the user's JWT and the tenant header. The BFF exists to keep API base URLs and CORS off the public web origin, not to wrap business logic.
 
-The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/v1/...')` calls are blocked by lint (`no-restricted-imports`).
+The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
 
 ## Authentication on the Frontend
 
