@@ -113,14 +113,23 @@ public static class EntityTag
             return Assertion.Malformed;
         }
 
+        // RFC 9110 § 13.1.1: `If-Match = "*" / #entity-tag`. The wildcard is one
+        // of two alternatives, not a member of the list — so `*, "7"` is not a
+        // wildcard with extra detail, it is a malformed precondition.
+        // `TryParseStrictList` accepts it as a two-element list (measured), and
+        // reading the `*` out of it would answer "any version, as long as it
+        // exists" to a client that also named one. That is the same failure this
+        // type refuses one paragraph up, wearing a different shape: the weaker
+        // interpretation of something it could not understand.
+        if (tags.Any(tag => tag.Equals(EntityTagHeaderValue.Any)))
+        {
+            return tags.Count == 1 ? Assertion.AnyExisting : Assertion.Malformed;
+        }
+
         var asserted = new List<long>(tags.Count);
 
         foreach (var tag in tags)
         {
-            if (tag.Equals(EntityTagHeaderValue.Any))
-            {
-                return Assertion.AnyExisting;
-            }
 
             // Strong comparison: a weak tag says "semantically equivalent", and
             // two versions of a row that are semantically equivalent are still
