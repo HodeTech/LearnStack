@@ -36,19 +36,26 @@ internal sealed class LearnStackExceptionHandler(
 
         var problem = ProblemDetailsFactory.For(exception, httpContext);
         var capture = ShouldCapture(exception);
-        var isProviderClientError = exception is ProviderException { IsClientError: true };
         var isCancellation = exception is OperationCanceledException;
 
         // Span semantics per Standards 09 § Sentry vs OpenTelemetry table:
         //   OperationCanceled   → leave span Unset, no RecordException
         //   Provider 4xx        → SetStatus(Error), no RecordException
+        //   Client's bad request → SetStatus(Error), no RecordException
         //   everything else     → RecordException + SetStatus(Error)
+        // The third row joins the second for the reason the second exists: a
+        // fault the caller committed is not a fault of ours, and attaching its
+        // stack trace to the span buys a reader nothing while making a normal
+        // 413 look like an incident.
         // Activity.AddException is the .NET 9+ replacement for the legacy
         // Activity.RecordException — the ADR's Implementation Notes still
         // reference the older name; both add the same exception.* tags.
+        var isCallersFault = exception is ProviderException { IsClientError: true }
+            or Microsoft.AspNetCore.Http.BadHttpRequestException { StatusCode: >= 400 and < 500 };
+
         if (!isCancellation)
         {
-            if (!isProviderClientError)
+            if (!isCallersFault)
             {
                 Activity.Current?.AddException(exception);
             }

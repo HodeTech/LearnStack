@@ -36,7 +36,7 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b and 4 shipped; packets 5–10 were re-scoped on 2026-08-08 after
+packets 0–3, 3b and 4 shipped; packets 4–10 were re-scoped on 2026-08-08 after
 a four-report audit of the corpus.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -83,8 +83,10 @@ the OpenAPI mapping for strongly-typed identifiers that ADR-0023 had assigned
 to it. Its record —
 [Delivery Record (Packet 4)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-4)
 — lists the six defects the packet introduced and caught in its own review
-rounds alongside what it built, because every one of them answered `2xx` while
-being wrong.
+rounds alongside what it built, because most of them answered a **success** the
+client had no way to question — and the two that did not were worse: one handed
+back a truncated body under a `200`, the other a `500` per request that an
+anonymous caller could trigger at will.
 
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:

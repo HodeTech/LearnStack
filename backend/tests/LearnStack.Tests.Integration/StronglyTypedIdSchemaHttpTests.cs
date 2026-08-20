@@ -66,10 +66,72 @@ public sealed class StronglyTypedIdSchemaHttpTests : IDisposable
         Guid.TryParse(payload.GetProperty("owner").GetString(), out _).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task A_Nullable_Id_Does_Not_Empty_The_Shared_Component()
+    {
+        // .NET registers ONE components.schemas.UserId and the last writer wins,
+        // so an occurrence the transformer skips does not merely go
+        // untransformed — it empties the schema every other occurrence $refs.
+        // Positional, too: swapping two record parameters flips the result.
+        using var client = _host.CreateClient();
+
+        var document = await client.GetFromJsonAsync<JsonElement>(
+            new Uri("/openapi/v1.json", UriKind.Relative));
+        var id = document.GetProperty("components").GetProperty("schemas")
+            .GetProperty(nameof(UserId));
+
+        id.GetProperty("type").GetString().Should().Be("string",
+            "a UserId? occurrence must not degrade the component to {}");
+        id.GetProperty("format").GetString().Should().Be("uuid");
+    }
+
+    [Fact]
+    public async Task A_Collection_Of_Ids_Publishes_Its_Element_Type()
+    {
+        // Without this the array publishes with no `items` at all, and the
+        // generated SDK types it `unknown[]`.
+        using var client = _host.CreateClient();
+
+        var document = await client.GetFromJsonAsync<JsonElement>(
+            new Uri("/openapi/v1.json", UriKind.Relative));
+        var many = document.GetProperty("components").GetProperty("schemas")
+            .GetProperty(nameof(IdSchemaProbeResponse))
+            .GetProperty("properties").GetProperty("many");
+
+        many.GetProperty("type").GetString().Should().Be("array");
+        many.TryGetProperty("items", out var items).Should().BeTrue(
+            "an array with no items is `unknown[]` to every generator");
+        items.GetProperty("type").GetString().Should().Be("string");
+        items.GetProperty("format").GetString().Should().Be("uuid");
+    }
+
+    [Fact]
+    public async Task A_Dictionary_Of_Ids_Publishes_Its_Value_Type()
+    {
+        // Without this the object publishes with no additionalProperties, which
+        // the generated SDK types Record<string, never> — a map that admits no
+        // value at all.
+        using var client = _host.CreateClient();
+
+        var document = await client.GetFromJsonAsync<JsonElement>(
+            new Uri("/openapi/v1.json", UriKind.Relative));
+        var byName = document.GetProperty("components").GetProperty("schemas")
+            .GetProperty(nameof(IdSchemaProbeResponse))
+            .GetProperty("properties").GetProperty("byName");
+
+        byName.TryGetProperty("additionalProperties", out var value).Should().BeTrue();
+        value.GetProperty("type").GetString().Should().Be("string");
+        value.GetProperty("format").GetString().Should().Be("uuid");
+    }
+
     public void Dispose() => _host.Dispose();
 }
 
-public sealed record IdSchemaProbeResponse(UserId Owner);
+public sealed record IdSchemaProbeResponse(
+    UserId Owner,
+    UserId? Maybe,
+    IReadOnlyList<UserId> Many,
+    IReadOnlyDictionary<string, UserId> ByName);
 
 /// <summary>Returns a strongly-typed identifier, so the document has one to describe.</summary>
 public sealed class IdSchemaProbeController : ApiControllerBase, ITestOnlyController
@@ -81,6 +143,7 @@ public sealed class IdSchemaProbeController : ApiControllerBase, ITestOnlyContro
     // is simply not routed.
 #pragma warning disable CA1822
     [HttpGet]
-    public ActionResult<IdSchemaProbeResponse> Get() => new IdSchemaProbeResponse(Owner);
+    public ActionResult<IdSchemaProbeResponse> Get() =>
+        new IdSchemaProbeResponse(Owner, Owner, [Owner], new Dictionary<string, UserId> { ["a"] = Owner });
 #pragma warning restore CA1822
 }

@@ -76,9 +76,7 @@ public sealed class RequestBodyLimitHttpTests : IDisposable
         using var client = _host.CreateClient();
         BodyProbeController.Reset();
 
-        using var content = Chunked(RequestBodyLimit.MaxBytes + 4096);
-        var response = await client.PostAsync(
-            Path, content);
+        var response = await PostUndeclaredAsync(client, RequestBodyLimit.MaxBytes + 4096);
 
         response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
     }
@@ -91,9 +89,7 @@ public sealed class RequestBodyLimitHttpTests : IDisposable
         using var client = _host.CreateClient();
         BodyProbeController.Reset();
 
-        using var content = Chunked(4096);
-        var response = await client.PostAsync(
-            Path, content);
+        var response = await PostUndeclaredAsync(client, 4096);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadFromJsonAsync<JsonElement>())
@@ -132,13 +128,54 @@ public sealed class RequestBodyLimitHttpTests : IDisposable
 
     private static StringContent Exactly(long bytes) => Json(bytes);
 
-    /// <summary>Content with no <c>Content-Length</c>, so the body arrives chunked.</summary>
-    private static StreamContent Chunked(long bytes)
+    /// <summary>
+    /// Posts a body the request declares no length for, so the counting stream —
+    /// not the header check — is what has to catch it.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are required, and each was measured. Setting
+    /// <c>Headers.ContentLength = null</c> on a <see cref="StreamContent"/> does
+    /// not work: it clears the assigned value and the getter falls back to
+    /// <c>TryComputeLength()</c>, which succeeds for a seekable stream — the
+    /// first version of this class did that, and every one of its requests
+    /// arrived with a <c>Content-Length</c>, so <c>CountedStream</c> was never
+    /// constructed and deleting it left all six tests green. An
+    /// <see cref="HttpContent"/> that refuses to compute a length is still not
+    /// enough on its own under <c>TestServer</c>; the request must also ask for
+    /// chunked. Together they produce what the middleware sees as
+    /// <c>ContentLength=null, Transfer-Encoding: chunked</c>.
+    /// </remarks>
+    private static Task<HttpResponseMessage> PostUndeclaredAsync(HttpClient client, long bytes)
     {
-        var content = new StreamContent(new MemoryStream(new byte[bytes]));
-        content.Headers.ContentType = new("application/octet-stream");
-        content.Headers.ContentLength = null;
-        return content;
+        var request = new HttpRequestMessage(HttpMethod.Post, Path)
+        {
+            Content = new UndeclaredContent(bytes),
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        return client.SendAsync(request);
+    }
+
+    /// <summary>Content that genuinely refuses to declare a length.</summary>
+    private sealed class UndeclaredContent(long bytes) : HttpContent
+    {
+        protected override async Task SerializeToStreamAsync(
+            Stream stream, TransportContext? context)
+        {
+            var buffer = new byte[8192];
+            for (var remaining = bytes; remaining > 0;)
+            {
+                var take = (int)Math.Min(buffer.Length, remaining);
+                await stream.WriteAsync(buffer.AsMemory(0, take));
+                remaining -= take;
+            }
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
     }
 }
 

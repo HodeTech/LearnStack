@@ -18,5 +18,7 @@ export type ServerSdk = {
 };
 
 export function createServerSdk(_options: ServerSdkOptions): ServerSdk {
-  return {} as ServerSdk;
+  // No cast: see createClientSdk. An empty object satisfies the generated
+  // `paths` while it is empty, and stops doing so when it is not.
+  return {};
 }

@@ -21,17 +21,28 @@ var builder = WebApplication.CreateBuilder(args);
 // version of that mistake an operator can see (ADR-0036).
 var deploymentMode = builder.Configuration.RequireDeploymentMode();
 
+// Refuse the one way forwarded headers can be wired without touching this
+// file. Forwarded_Headers_Are_Not_Wired reads the assembly reference table and
+// the text of Program.cs; ASPNETCORE_FORWARDEDHEADERS_ENABLED touches neither,
+// and measured, it turns the anonymous rate limiter off for anyone who sends
+// X-Forwarded-For.
+builder.Configuration.RefuseAmbientForwardedHeaders();
+
 builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration, deploymentMode);
 builder.Services.AddLearnStackRateLimiting();
 
-// The outer half of the body bound. RequestBodyLimit's middleware is the
-// authoritative one — it is the only one TestServer honours, so it is the only
-// one the integration suite can assert — and this tears the connection down
-// before an oversized body is buffered at all. One number, two places, in that
-// order.
+// The outer half of the body bound, and deliberately NOT the same number.
+// RequestBodyLimit's middleware is the authoritative one — it is the only one
+// TestServer honours, so it is the only one the integration suite can assert —
+// and it counts decoded payload bytes. Kestrel counts raw bytes off the wire,
+// chunk framing included, so an equal number would make Kestrel strictly
+// tighter for a chunked body: measured, a 762 KB payload in 16-byte chunks is
+// 413 when both are 1 MiB. Headroom keeps the middleware the bound that
+// decides, and leaves Kestrel the case the middleware cannot see — a body
+// nothing ever reads.
 builder.WebHost.ConfigureKestrel(options =>
-    options.Limits.MaxRequestBodySize = RequestBodyLimit.MaxBytes);
+    options.Limits.MaxRequestBodySize = RequestBodyLimit.KestrelBackstopBytes);
 
 // Controllers + the /api/v{N} route convention + one OpenAPI document per
 // live major, per ADR-0024. AddLearnStackApiVersioning owns the

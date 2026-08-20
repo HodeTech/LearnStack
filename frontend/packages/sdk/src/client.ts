@@ -19,8 +19,10 @@ export type ClientSdk = {
 };
 
 export function createClientSdk(_options: ClientSdkOptions): ClientSdk {
-  // No operations to bind yet. The shape is the generated one so that adding
-  // an endpoint to the backend is what changes this type, rather than a
-  // hand-maintained mirror drifting from it.
-  return {} as ClientSdk;
+  // No operations to bind yet, and no cast. `ClientSdk` is the generated
+  // `paths`, which is empty, so an empty object satisfies it today — and stops
+  // satisfying it the moment the backend publishes its first operation. That
+  // compile error is the point: a cast here would suppress the one signal that
+  // says this factory now has work to do.
+  return {};
 }

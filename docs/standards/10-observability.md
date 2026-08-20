@@ -182,7 +182,12 @@ Per
 (see also
 [09-error-handling.md § Sentry vs OpenTelemetry — Error Capture Boundary](09-error-handling.md)),
 the L1 `IExceptionHandler` calls `Activity.Current.RecordException` and
-`SetStatus(Error, ...)` on every unhandled exception. `Result.Fail` is **not**
+`SetStatus(Error, ...)` on an unhandled exception — with two exceptions of its
+own, both listed in that table. A client disconnect leaves the span `Unset` and
+records nothing, and a fault the **caller** committed — a provider's 4xx, or a
+`BadHttpRequestException` carrying one — gets `SetStatus(Error)` without the
+exception event, because attaching a stack trace to a normal 413 makes it look
+like an incident. `Result.Fail` is **not**
 an error span — the HTTP response is still a structured outcome (the Problem
 Details with the correct 4xx status), so `SetStatus(Ok)` is the right value.
 Putting `SetStatus(Error)` on every refused request would make the trace

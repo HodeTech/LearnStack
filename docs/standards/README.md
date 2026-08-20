@@ -99,7 +99,7 @@ enforced" change in one commit. Until that lands, **this table wins**.
 | 18 | [Audit Coverage](18-audit-coverage.md) | **Adopted** | `AuditLogBehavior` is a shell and `audit_log` does not exist. Lands in Packet 9 under [ADR-0033](../decisions/0033-audit-durability-model.md). |
 | 19 | [Permissions](19-permissions.md) | **Adopted** | No permission key, policy or role exists. Lands in [Phase 03](../roadmap/phase-03-identity-admin.md). |
 | 20 | [Infrastructure Stack](20-infrastructure-stack.md) | **Adopted** | `ISecretProvider` shipped in Packet 3 and `DeploymentMode` branching is real, but the ports land in Packet 5 and the Dapr / Kafka / APISIX / Vault adapters are demand-gated to [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
-| 21 | [Architecture Tests Catalogue](21-architecture-tests-catalogue.md) | **Active** | Seventeen tests run in the architecture assembly and more behavioural rules run beside it; the catalogue's own per-row status column distinguishes those from the registered-but-unimplemented majority. |
+| 21 | [Architecture Tests Catalogue](21-architecture-tests-catalogue.md) | **Active** | Twenty-two tests run in the architecture assembly and more behavioural rules run beside it; the catalogue's own per-row status column distinguishes those from the registered-but-unimplemented majority. |
 
 Twelve `Active`, ten `Adopted`. That split is the honest picture of a platform whose
 foundation is real and whose domain has not been written yet — and it is far more useful

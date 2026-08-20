@@ -16,9 +16,13 @@ namespace LearnStack.Tests.Unit.Api.Common;
 /// <remarks>
 /// The table is a binding rule with a single enforcement point —
 /// <c>LearnStackExceptionHandler.ShouldCapture</c> — and until now no test at
-/// all. Every row is one case here, because the cost of getting a row wrong is
-/// asymmetric: a missing capture hides a bug, and a spurious one lets an
-/// anonymous caller fill the error tracker one request at a time.
+/// all. These cover the table's <b>capture</b> column, which is what
+/// <c>ShouldCapture</c> decides; the two <c>Result.Fail</c> rows are not here
+/// because a <c>Result</c> never reaches this handler, and the <b>span</b>
+/// column is asserted by the handler's own tests rather than by this switch.
+/// The cost of getting a row wrong is asymmetric: a missing capture hides a
+/// bug, and a spurious one lets an anonymous caller fill the error tracker one
+/// request at a time.
 /// </remarks>
 public sealed class ErrorCaptureBoundaryTests
 {
