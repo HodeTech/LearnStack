@@ -36,7 +36,7 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3 and 3b shipped; packets 4–10 were re-scoped on 2026-08-08 after
+packets 0–3, 3b and 4 shipped; packets 5–10 were re-scoped on 2026-08-08 after
 a four-report audit of the corpus.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -68,6 +68,23 @@ the Phase 01 development loop made to work — `make seed` exits 0, the e2e
 overlay boots, and compose ports bind loopback. Its record is
 [Delivery Record (Packet 3b)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b),
 kept separate from the frozen packets 0–3 record.
+
+**Packet 4** shipped the API conventions: `/api/v{N}` routing with startup
+guards for the escapes a route rule cannot see, one RFC 7807 shape on every
+error including the three the framework used to produce without one, cursor
+pagination and the sort grammar, the
+[ADR-0036](docs/decisions/0036-tenant-resolution-trusted-inputs.md) tenancy
+edge (host normalization, the trusted hop, headers as assertions, the anonymous
+rate limiter, a required `Deployment:Mode`), idempotency keys and ETag
+concurrency under
+[ADR-0037](docs/decisions/0037-idempotency-key-contract.md), a request-body
+limit that a test can actually assert, the first working SDK generation, and
+the OpenAPI mapping for strongly-typed identifiers that ADR-0023 had assigned
+to it. Its record —
+[Delivery Record (Packet 4)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-4)
+— lists the six defects the packet introduced and caught in its own review
+rounds alongside what it built, because every one of them answered `2xx` while
+being wrong.
 
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
