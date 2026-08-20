@@ -346,7 +346,7 @@ made that concrete by choosing the generator: `openapi-typescript`, which emits
 |---|---|
 | `[Obsolete("…")]` on a method | `/** @deprecated … */` on the generated operation type and on the client method that wraps it |
 | The migration-guide URL in an XML doc comment | The same URL in that JSDoc block, so it appears on hover |
-| A compile-time warning that becomes an error at sunset − 30 days | `@typescript-eslint/no-deprecated` at `warn`, escalated to `error` in the CI lint job — TypeScript itself cannot fail a build on a deprecation, so the gate is the linter |
+| A compile-time warning that becomes an error at sunset − 30 days | A lint rule, because TypeScript itself cannot fail a build on a deprecation: `@typescript-eslint/no-deprecated` at `warn`, escalated to `error` in the CI lint job. **Not configured today** — there is nothing deprecated to catch until a second major exists, and the packet that adds `/api/v2` wires it |
 | "a class per major, `LearnStackClient.V1`" | One generated module per live major (`schema.v1.d.ts`, `schema.v2.d.ts`) and one client factory per major, coexisting for the cycle |
 
 The **when** is unchanged and is still not this packet's: none of the above is

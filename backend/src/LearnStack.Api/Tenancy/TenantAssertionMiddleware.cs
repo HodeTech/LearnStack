@@ -52,15 +52,21 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         ArgumentNullException.ThrowIfNull(tenantContext);
         ArgumentNullException.ThrowIfNull(recorder);
 
-        if (!context.Request.Path.StartsWithSegments("/api")
-            || !context.Request.Path.Value!.StartsWith(ScopedPrefix, StringComparison.OrdinalIgnoreCase))
+        if (!IsVersionedApiPath(context.Request.Path.Value))
         {
             await next(context);
             return;
         }
 
-        if (!TryReadAssertion(context, TenantHeaderName, out var assertedTenant)
-            || !TryReadAssertion(context, OrganizationHeaderName, out var assertedOrganization))
+        // Evaluated separately, not short-circuited: `||` reports the tenant
+        // dimension even when the organization header was the malformed one,
+        // which is the one thing this counter exists to tell an operator.
+        var tenantIsReadable =
+            TryReadAssertion(context, TenantHeaderName, out var assertedTenant);
+        var organizationIsReadable =
+            TryReadAssertion(context, OrganizationHeaderName, out var assertedOrganization);
+
+        if (!tenantIsReadable || !organizationIsReadable)
         {
             // Malformed or repeated. 400 rather than 404, because this is not
             // a claim about a tenant at all — it is a value that cannot be one.
@@ -70,7 +76,9 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
             //
             // Counted, not recorded: there is no resolved tenant to record it
             // under, and the value was never a tenant id in the first place.
-            recorder.RecordUnresolved(TenantAssertionDimension.Tenant);
+            recorder.RecordUnresolved(tenantIsReadable
+                ? TenantAssertionDimension.Organization
+                : TenantAssertionDimension.Tenant);
             await WriteAsync(context, StatusCodes.Status400BadRequest);
             return;
         }
@@ -143,6 +151,34 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     /// <summary>
     /// Reads one assertion. Absent is fine; malformed or repeated is not.
     /// </summary>
+    /// <summary>
+    /// <c>/api/v{N}</c> and nothing that merely starts the same way.
+    /// </summary>
+    /// <remarks>
+    /// A bare <c>StartsWith("/api/v")</c> also matches <c>/api/validate</c>,
+    /// <c>/api/vault</c> and <c>/api/verify</c>. The route convention makes
+    /// those unreachable today — every controller is prefixed <c>api/v{N}</c>
+    /// and only <c>api/internal</c> is exempt — so this is not a live bug. It is
+    /// a predicate that says what it means, which is what keeps it true when the
+    /// exemption list grows.
+    /// </remarks>
+    private static bool IsVersionedApiPath(string? path)
+    {
+        if (path is null || !path.StartsWith(ScopedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var rest = path.AsSpan(ScopedPrefix.Length);
+        var digits = 0;
+        while (digits < rest.Length && char.IsAsciiDigit(rest[digits]))
+        {
+            digits++;
+        }
+
+        return digits > 0 && (digits == rest.Length || rest[digits] == '/');
+    }
+
     private static bool TryReadAssertion(HttpContext context, string header, out Guid? value)
     {
         value = null;

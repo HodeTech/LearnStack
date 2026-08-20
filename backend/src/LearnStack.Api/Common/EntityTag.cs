@@ -35,7 +35,17 @@ public static class EntityTag
     /// decoration — an unquoted value is not a valid entity tag and a client
     /// echoing it back produces a header the server cannot parse.
     /// </summary>
-    public static string For(long version) => $"\"{version}\"";
+    /// <remarks>
+    /// Invariant, because <see cref="ReadAssertion"/> parses with
+    /// <see cref="System.Globalization.NumberStyles.None"/> and
+    /// <see cref="System.Globalization.CultureInfo.InvariantCulture"/>. A tag
+    /// minted under the server's locale and parsed under the invariant one is
+    /// an asymmetry waiting for the first culture whose negative sign or digits
+    /// differ — and this team's default culture is already not the invariant
+    /// one.
+    /// </remarks>
+    public static string For(long version) =>
+        $"\"{version.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"";
 
     /// <summary>
     /// What a conditional request asked for.

@@ -83,6 +83,14 @@ to be possible.
 [09-error-handling.md § API Surface](09-error-handling.md) is the authority for
 its fields; the example there is canonical and is not duplicated here.
 
+**The rule is one shape for every error the application can see.** It does not
+reach the two the server rejects before any middleware runs: an over-long
+request line (**414**) and an over-large header block (**431**) are refused by
+Kestrel, with no body at all — and over HTTP/2 the connection is reset with no
+status. That is a property of where the rejection happens, not an exemption
+anyone chose; § Request and Response Limits says which bounds those are and why
+the edge is where such a limit can be given a body.
+
 Two things a reader of this document needs, because both are easy to get wrong:
 
 - **`title` carries the `lockey_*` key, not English prose, and there is no
@@ -207,7 +215,7 @@ deliberately different shapes, because they fail at different times:
 
 Unsafe operations with external side effects accept an `Idempotency-Key` header:
 
-```
+```http
 POST /api/v1/orders
 Idempotency-Key: 01HX7F...
 ```

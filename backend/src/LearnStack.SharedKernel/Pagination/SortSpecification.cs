@@ -56,6 +56,14 @@ public sealed record SortSpecification
     public const int MaxTerms = 4;
 
     /// <summary>
+    /// The longest a single sort field may be, and the bound on anything of the
+    /// client's this type quotes back in an error. A rejected value travels into
+    /// a Problem Details body and every log line that carries one, so the guard
+    /// that refuses an 8 KB `sort` must not be the thing that republishes it.
+    /// </summary>
+    public const int MaxFieldLength = 64;
+
+    /// <summary>
     /// The <c>errors</c> map key a sort failure is reported under — the name
     /// the client sent. Stated once here so the kernel, the wire type and the
     /// standard cannot drift to three spellings.
@@ -115,7 +123,13 @@ public sealed record SortSpecification
         // exists to reject it — the guard paid for the attack it prevents.
         if (raw.AsSpan().Count(',') >= MaxTerms)
         {
-            offendingSegment = raw;
+            // Truncated to the same bound a single field gets. `raw` here is the
+            // whole client-supplied value — an 8 KB `sort` is exactly the input
+            // this guard exists to reject, and echoing it whole puts it in a
+            // Problem Details body and every log line that carries one.
+            offendingSegment = raw.Length > MaxFieldLength
+                ? raw[..MaxFieldLength]
+                : raw;
             return false;
         }
 
@@ -212,7 +226,7 @@ public sealed record SortSpecification
     /// </summary>
     private static bool IsWellFormedField(string field)
     {
-        if (field.Length == 0 || field.Length > 64)
+        if (field.Length == 0 || field.Length > MaxFieldLength)
         {
             return false;
         }

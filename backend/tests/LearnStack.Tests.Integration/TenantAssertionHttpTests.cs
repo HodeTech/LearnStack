@@ -207,7 +207,7 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
 /// A host whose <see cref="ITenantContext"/> is resolved, so the assertion
 /// comparison has something to compare against.
 /// </summary>
-public sealed class ResolvedTenantFixture : WebApplicationFactory<Program>
+public class ResolvedTenantFixture : WebApplicationFactory<Program>
 {
     public static readonly Guid TenantId = Guid.Parse("018f4d40-0000-7000-8000-0000000000aa");
     public static readonly Guid OrganizationId = Guid.Parse("018f4d40-0000-7000-8000-0000000000bb");
@@ -225,7 +225,40 @@ public sealed class ResolvedTenantFixture : WebApplicationFactory<Program>
 
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext>(_ => ResolvedContext.Instance);
+
+            // The dimension a malformed header is counted under is otherwise
+            // observable only as a metric label, and the parameter carrying it
+            // was accepted and dropped once already.
+            services.RemoveAll<ITenantAssertionRecorder>();
+            services.AddSingleton<ITenantAssertionRecorder>(Recorder);
         });
+    }
+
+    /// <summary>What the middleware reported, for the test to read back.</summary>
+    public SpyRecorder Recorder { get; } = new();
+
+    public sealed class SpyRecorder : ITenantAssertionRecorder
+    {
+        private readonly List<TenantAssertionDimension> _unresolved = [];
+
+        public IReadOnlyList<TenantAssertionDimension> Unresolved
+        {
+            get { lock (_unresolved) { return [.. _unresolved]; } }
+        }
+
+        public void Clear()
+        {
+            lock (_unresolved) { _unresolved.Clear(); }
+        }
+
+        public void RecordRejection(TenantAssertionRejection rejection)
+        {
+        }
+
+        public void RecordUnresolved(TenantAssertionDimension dimension)
+        {
+            lock (_unresolved) { _unresolved.Add(dimension); }
+        }
     }
 
     internal sealed class ResolvedContext : ITenantContext
@@ -240,6 +273,60 @@ public sealed class ResolvedTenantFixture : WebApplicationFactory<Program>
         public string? ModuleName => "integration-test";
     }
 }
+
+/// <summary>
+/// Which dimension a malformed assertion is counted under.
+/// </summary>
+/// <remarks>
+/// Its own fixture, because these read a recorder that every other test in the
+/// class also writes to.
+/// </remarks>
+public sealed class TenantAssertionDimensionTests(DimensionFixture fixture)
+    : IClassFixture<DimensionFixture>
+{
+    [Fact]
+    public async Task A_Malformed_Organization_Header_Is_Counted_As_An_Organization()
+    {
+        // The two reads used to be short-circuited with `||`, so a valid tenant
+        // beside a malformed organization still reported Tenant — the one thing
+        // this counter exists to tell an operator.
+        fixture.Recorder.Clear();
+        using var client = fixture.CreateClient();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+        request.Headers.TryAddWithoutValidation(
+            TenantAssertionMiddleware.TenantHeaderName, ResolvedTenantFixture.TenantId.ToString());
+        request.Headers.TryAddWithoutValidation(
+            TenantAssertionMiddleware.OrganizationHeaderName, "not-a-guid");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        fixture.Recorder.Unresolved.Should().Equal(TenantAssertionDimension.Organization);
+    }
+
+    [Fact]
+    public async Task A_Malformed_Tenant_Header_Is_Counted_As_A_Tenant()
+    {
+        fixture.Recorder.Clear();
+        using var client = fixture.CreateClient();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+        request.Headers.TryAddWithoutValidation(
+            TenantAssertionMiddleware.TenantHeaderName, "not-a-guid");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        fixture.Recorder.Unresolved.Should().Equal(TenantAssertionDimension.Tenant);
+    }
+}
+
+/// <summary>A resolved host whose recorder nothing else shares.</summary>
+public sealed class DimensionFixture : ResolvedTenantFixture;
+
 
 public sealed class AssertionProbeController : ApiControllerBase, ITestOnlyController
 {
