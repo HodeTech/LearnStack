@@ -120,6 +120,12 @@ public static class ApiVersioningExtensions
             options.AddOperationTransformer(
                 new Idempotency.IdempotencyOperationTransformer());
 
+            // ADR-0023 § Implementation Notes leaves the OpenAPI mapping for
+            // Vogen identifiers to this packet. Without it a UserId is
+            // published as an object with a `value` property, while the wire
+            // carries the bare GUID.
+            options.AddSchemaTransformer(new StronglyTypedIdSchemaTransformer());
+
             options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info.Title = "LearnStack API";
