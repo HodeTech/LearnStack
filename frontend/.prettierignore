@@ -5,3 +5,9 @@
 # The generator's output is the artefact; leaving it byte-for-byte is what makes
 # `generate && git diff --exit-code` a meaningful gate.
 packages/sdk/src/generated/
+
+# A lockfile is a generated artefact and prettier is not its author. Left to
+# itself it rewrites every `resolution: {...}` onto four lines and adds trailing
+# commas — measured, 3761 lines of pure churn with all 596 integrity hashes
+# unchanged. That noise buries a real dependency change in any future review.
+pnpm-lock.yaml

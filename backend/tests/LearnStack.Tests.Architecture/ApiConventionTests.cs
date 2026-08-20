@@ -86,12 +86,16 @@ public sealed class ApiConventionTests
 
         var document = JsonDocument.Parse(File.ReadAllText(shared));
 
-        document.RootElement.TryGetProperty("Deployment", out var deployment)
+        // Case-insensitively, because that is how IConfiguration reads it: a
+        // lowercase "deployment" block takes effect at runtime exactly the same
+        // way and would have walked past a TryGetProperty("Deployment") check.
+        document.RootElement.EnumerateObject()
+            .Any(property => property.NameEquals("Deployment")
+                || string.Equals(property.Name, "Deployment", StringComparison.OrdinalIgnoreCase))
             .Should().BeFalse(
                 "appsettings.json is loaded in every environment, so a deployment mode set "
                 + "there is a default wearing a configuration key's clothes. It belongs in "
-                + "appsettings.{Environment}.json or the environment itself. "
-                + $"Found: {deployment}");
+                + "appsettings.{Environment}.json or the environment itself.");
     }
 
     [Fact]

@@ -52,10 +52,20 @@ public static class RequestBodyLimit
     /// makes Kestrel strictly tighter for a chunked body, so the bound that
     /// fires is the one that counts the quantity the standard does not publish.
     /// Measured against real Kestrel with both set to 1 MiB: a 1 MiB payload in
-    /// 64 KiB chunks is 413, and so is a **762 KB** payload sent in 16-byte
-    /// chunks, because its framing alone crosses the line. Headroom keeps the
-    /// middleware the bound that decides and leaves Kestrel a coarse backstop
-    /// for the one case the middleware cannot see: a body nothing reads.
+    /// 64 KiB chunks is 413, and so is a <b>762 KB</b> payload sent in 16-byte
+    /// chunks, because its framing alone crosses the line.
+    /// <para>
+    /// Four times is headroom, not a proof. Chunked framing costs a fixed
+    /// overhead per chunk, so a sufficiently pathological chunking still crosses
+    /// Kestrel's line first: at one byte per chunk the wire cost is six bytes per
+    /// payload byte, and a payload over roughly <b>683 KiB</b> is refused by
+    /// Kestrel rather than by the middleware. That case is accepted rather than
+    /// chased. The client still gets a 413 — the right status, without the
+    /// Problem Details body — and no legitimate client frames a 683 KiB payload
+    /// one byte at a time; one that does is a denial-of-service shape in its own
+    /// right, which is exactly what a backstop is for. Raising the multiplier
+    /// only moves the threshold; nothing finite removes it.
+    /// </para>
     /// </remarks>
     public const long KestrelBackstopBytes = MaxBytes * 4;
 
@@ -136,6 +146,54 @@ public static class RequestBodyLimit
             byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
             Count(await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken)
                 .ConfigureAwait(false));
+
+        /// <summary>
+        /// The legacy APM pair, bridged to the async path.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="Stream"/>'s default <c>BeginRead</c> invokes the
+        /// <b>synchronous</b> <see cref="Read(byte[], int, int)"/> on a pool
+        /// thread, and ASP.NET refuses synchronous reads of a request body —
+        /// measured, a five-byte chunked body through
+        /// <c>Task.Factory.FromAsync(req.Body.BeginRead, …)</c> threw
+        /// "Synchronous operations are disallowed" and became a 500. Wrapping
+        /// this type must not take an API away from a caller that had it.
+        /// </remarks>
+        public override IAsyncResult BeginRead(
+            byte[] buffer, int offset, int count, AsyncCallback? callback, object? state)
+        {
+            var completion = new TaskCompletionSource<int>(
+                state, TaskCreationOptions.RunContinuationsAsynchronously);
+
+            _ = Complete(completion, callback, ReadAsync(buffer, offset, count, default));
+
+            return completion.Task;
+
+            static async Task Complete(
+                TaskCompletionSource<int> completion, AsyncCallback? callback, Task<int> read)
+            {
+                try
+                {
+                    completion.TrySetResult(await read.ConfigureAwait(false));
+                }
+                catch (OperationCanceledException)
+                {
+                    completion.TrySetCanceled();
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+
+                callback?.Invoke(completion.Task);
+            }
+        }
+
+        public override int EndRead(IAsyncResult asyncResult)
+        {
+            ArgumentNullException.ThrowIfNull(asyncResult);
+            return ((Task<int>)asyncResult).GetAwaiter().GetResult();
+        }
 
         public override void Flush() => inner.Flush();
 

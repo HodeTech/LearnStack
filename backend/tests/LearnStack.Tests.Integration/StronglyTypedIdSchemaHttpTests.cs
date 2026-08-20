@@ -124,6 +124,35 @@ public sealed class StronglyTypedIdSchemaHttpTests : IDisposable
         value.GetProperty("format").GetString().Should().Be("uuid");
     }
 
+    [Theory]
+    [InlineData("path", "id")]
+    [InlineData("query", "owner")]
+    public async Task A_Route_Or_Query_Bound_Id_Publishes_Its_Primitive_Too(string where, string name)
+    {
+        // `GET /{id}` is where an identifier will mostly appear, and it is the
+        // one place the type never arrives as itself: measured, both
+        // JsonTypeInfo.Type and ParameterDescription.Type are System.String for
+        // a route-bound Vogen id, because ApiExplorer collapses a parameter
+        // bound through its TypeConverter before any transformer runs.
+        using var client = _host.CreateClient();
+
+        var document = await client.GetFromJsonAsync<JsonElement>(
+            new Uri("/openapi/v1.json", UriKind.Relative));
+
+        var parameter = document.GetProperty("paths").EnumerateObject()
+            .SelectMany(path => path.Value.EnumerateObject())
+            .Where(operation => operation.Value.TryGetProperty("parameters", out _))
+            .SelectMany(operation => operation.Value.GetProperty("parameters").EnumerateArray())
+            .Single(p => p.GetProperty("in").GetString() == where
+                && p.GetProperty("name").GetString() == name);
+
+        var schema = parameter.GetProperty("schema");
+        schema.GetProperty("type").GetString().Should().Be("string");
+        schema.GetProperty("format").GetString().Should().Be("uuid",
+            "a parameter that publishes no format is a parameter the SDK types as a "
+            + "bare string, and the id it carries stops being distinguishable");
+    }
+
     public void Dispose() => _host.Dispose();
 }
 
@@ -142,6 +171,15 @@ public sealed class IdSchemaProbeController : ApiControllerBase, ITestOnlyContro
     // Not static: MVC discovers actions as instance members, and a static one
     // is simply not routed.
 #pragma warning disable CA1822
+    [HttpGet("{id}")]
+    public ActionResult<IdSchemaProbeResponse> ById([FromRoute] UserId id) =>
+        new IdSchemaProbeResponse(id, id, [id], new Dictionary<string, UserId> { ["a"] = id });
+
+    [HttpGet("by-owner")]
+    public ActionResult<IdSchemaProbeResponse> ByOwner([FromQuery] UserId owner) =>
+        new IdSchemaProbeResponse(owner, owner, [owner],
+            new Dictionary<string, UserId> { ["a"] = owner });
+
     [HttpGet]
     public ActionResult<IdSchemaProbeResponse> Get() =>
         new IdSchemaProbeResponse(Owner, Owner, [Owner], new Dictionary<string, UserId> { ["a"] = Owner });

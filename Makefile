@@ -137,7 +137,11 @@ lint-frontend: ## `pnpm -r lint` (Next/ESLint).
 .PHONY: format
 format: ## Apply formatters in place (backend dotnet-format + frontend prettier).
 	(cd backend && dotnet format LearnStack.slnx --no-restore)
-	(cd frontend && pnpm -r exec prettier --write .)
+	@# One invocation from `frontend/`, not `pnpm -r exec`: that runs prettier once
+	@# per package with the PACKAGE as its working directory, where
+	@# frontend/.prettierignore is not found — measured, it reformatted the
+	@# generated SDK schema every run.
+	(cd frontend && pnpm exec prettier --write .)
 
 # ─── Typecheck (frontend) ─────────────────────────────────────────────────
 .PHONY: typecheck

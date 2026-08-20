@@ -104,7 +104,15 @@ public static class TenancyCompositionExtensions
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (!configuration.GetValue<bool>(ForwardedHeadersKey))
+        // Matched the way the framework matches it, and deliberately not with
+        // GetValue<bool>: that throws a conversion error for "1", "yes", "on"
+        // and "" — values a live host does **not** treat as enabling forwarded
+        // headers, so the guard would have refused to start over a setting that
+        // was never dangerous, with a message about type conversion rather than
+        // about the hop. Measured: only a literal, case-insensitive `true`
+        // makes ConfigureWebDefaults add the middleware.
+        if (!string.Equals(
+                configuration[ForwardedHeadersKey], "true", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

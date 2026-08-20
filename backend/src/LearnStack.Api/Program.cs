@@ -38,9 +38,10 @@ builder.Services.AddLearnStackRateLimiting();
 // and it counts decoded payload bytes. Kestrel counts raw bytes off the wire,
 // chunk framing included, so an equal number would make Kestrel strictly
 // tighter for a chunked body: measured, a 762 KB payload in 16-byte chunks is
-// 413 when both are 1 MiB. Headroom keeps the middleware the bound that
-// decides, and leaves Kestrel the case the middleware cannot see — a body
-// nothing ever reads.
+// 413 when both are 1 MiB. Headroom makes the middleware the bound that
+// decides for any realistic framing, and leaves Kestrel the case the middleware
+// cannot see — a body nothing ever reads. See KestrelBackstopBytes for the
+// residual it does not close and why that one is accepted.
 builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = RequestBodyLimit.KestrelBackstopBytes);
 
