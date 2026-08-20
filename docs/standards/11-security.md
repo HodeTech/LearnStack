@@ -358,6 +358,20 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 
 ## Rate Limiting
 
+**Two layers, two jobs, two key spaces — and they are not the same numbers.**
+The edge (APISIX) limits a noisy *client* to protect the platform, keyed on the
+remote address; its policy is owned by
+[30-api-gateway.md § 6](../architecture/30-api-gateway.md) and is deliberately
+much looser per second. The table below is the **application** policy: fair use
+per principal, keyed on the token, which is the only key that can express "this
+tenant's plan allows N". A request passes both or neither.
+
+Until the gateway fronts the app ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
+gates it to [Phase 11](../roadmap/phase-11-production-hardening.md)), only the
+anonymous row is enforced, in process, keyed on the socket peer — see
+[Standards 04 § Request and Response Limits](04-api-design.md) for what enforces
+which row today.
+
 | Surface | Limit |
 |---------|-------|
 | `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
@@ -367,9 +381,10 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 | Webhook endpoints | 1000 req/min per provider |
 | Hub internal API (`/api/internal/*`) | 60 req/min per mTLS client cert |
 
-429 responses include `Retry-After`. Rate-limit policy lives at **APISIX**
-(`limit-req` / `limit-count` plugins) plus a per-handler ASP.NET layer for finer grain
-where plan-level `LimitKeys.MaxApiRequestsPerHour` differs per tenant.
+429 responses include `Retry-After`. The edge half runs on **APISIX**
+(`limit-req` / `limit-count` plugins); the application half runs in ASP.NET, where
+plan-level `LimitKeys.MaxApiRequestsPerHour` can differ per tenant and the edge has
+no way to know it.
 
 ## Webhooks (Inbound)
 

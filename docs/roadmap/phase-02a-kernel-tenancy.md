@@ -1,6 +1,6 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-18).** Phase 02a in progress. Packets 0–3 and 3b shipped; the
+> **Status (2026-08-20).** Phase 02a in progress. Packets 0–3, 3b and 4 shipped; the
 > 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -13,7 +13,7 @@
 > | 2 | Shared Kernel core | ✅ [record](#delivery-record-packets-03) |
 > | 3 | Cross-cutting foundation | ✅ [record](#delivery-record-packets-03) |
 > | 3b | Decision repair | ✅ [record](#delivery-record-packet-3b) |
-> | 4 | API conventions | ⏳ [scope](#packet-sequence) |
+> | 4 | API conventions | ✅ [record](#delivery-record-packet-4) |
 > | 5 | Foundation ports and default implementations | ⏳ [scope](#packet-sequence) |
 > | 6 | Tenancy schema and the corrected RLS template | ⏳ [scope](#packet-sequence) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ⏳ [scope](#packet-sequence) |
@@ -27,7 +27,8 @@
 > order. The shipped Packet 0–3 records are at the end of this document under
 > [`## Delivery Record (Packets 0–3)`](#delivery-record-packets-03) and are not
 > rewritten. Packet 3b has its own record in
-> [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), kept separate
+> [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), and Packet 4 in
+> [`## Delivery Record (Packet 4)`](#delivery-record-packet-4) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -271,7 +272,7 @@ here:
   development credentials, and `MEILI_MASTER_KEY` is hardcoded rather than read
   from the environment. Bind to loopback; read from `.env`.
 
-**Packet 4 — API conventions ⏳**
+**Packet 4 — API conventions ✅**
 REST + URL versioning (`/api/v1/...` per
 [ADR-0024](../decisions/0024-api-versioning-policy.md)), Problem Details
 (RFC 7807) on every error, cursor pagination, idempotency keys for write
@@ -1694,3 +1695,124 @@ plan turned out wrong — a repair packet that hides its misses teaches nothing.
 > Promoting them to CI is [Phase 02b](phase-02b-events-auth.md)'s to do, on the
 > trigger that a second contributor gains write access and the checks stop being
 > one person's habit.
+
+## Delivery Record (Packet 4)
+
+Kept separate from the two records above for the same reason they are separate from
+each other: each is scoped to its own packets and is not rewritten. This one records
+what Packet 4 shipped, and what its own plan had wrong — six of the entries below are
+defects the packet introduced and then found in its own review rounds, which is the
+only reason they are in a record rather than in production.
+
+> **Packet 4 — API conventions ✅**
+>
+> **Versioned routing.** `VersionedRouteConvention` prefixes every controller with
+> `api/v{N}`, and four **startup guards** refuse the escapes a route rule cannot see
+> at runtime: a missing `[ApiController]`, a null template, an absolute template on
+> either the controller or the action, a major outside `LiveMajors`, and a
+> hand-written prefix disagreeing with the attribute. One OpenAPI document per live
+> major, at `/openapi/v{N}.json`, with Scalar over it.
+>
+> The rule that enforces this is **not** in the architecture assembly, and that is
+> the packet's first lesson. It was first written there as a reflection scan over
+> `Assembly.GetReferencedAssemblies()` — which returns the emitted AssemblyRef table,
+> not the project's references, so the compiler had elided every module. The scan
+> reached four assemblies and no module while a module controller served
+> `/legacy/courses` with the suite green. It now runs against a production host's real
+> `EndpointDataSource`, and the CI filter that had been excluding that assembly was
+> removed: mutation-testing the convention turned nine of fourteen integration tests
+> red and left all twenty-nine architecture tests green.
+>
+> **One error shape.** Every 4xx and 5xx carries RFC 7807 with `code`, `messageKey`
+> and `correlationId` — including the three that used to escape it. 404 and 405 come
+> from routing before MVC, so `UseStatusCodePages` catches them; 415 comes from MVC,
+> which had already converted it to ASP.NET's own `ProblemDetails` — the right idea
+> in the wrong shape — so `IClientErrorFactory` replaces that conversion rather than
+> layering over it. `ProblemDetailsNormalizationFilter` rewrites any 4xx/5xx
+> `ObjectResult` that reaches the wire without a `code`.
+>
+> **Cursor pagination and the sort grammar.** Binding failures return 400 naming the
+> parameter the client sent, not the binder's `$` and `pagination`. `SortSpecification`
+> decides the edges once — at most four terms, canonicalised to the allow-list
+> spelling, and an unparsed spec **throws** rather than silently falling back, because
+> a fallback would answer a sorted query with an unsorted page.
+>
+> **The ADR-0036 edge.** `EffectiveHost.Normalize` as a total function;
+> `EffectiveHostAccessor` with the trusted-hop predicate; `X-Tenant-Id` /
+> `X-Organization-Id` compared and never resolved from; the in-process anonymous rate
+> limiter architecture/30 had promised since Phase 01; and `Deployment:Mode` made
+> required, which corrected a key that shipped as `Development` in the
+> `appsettings.json` that goes to every environment.
+>
+> **Idempotency and ETag.** `IIdempotencyStore` with a fencing token and a request
+> fingerprint, an in-memory default that is correct for one instance and says so, and
+> `EntityTag` with strong comparison and an `If-Match` reader a command can carry.
+>
+> **Limits, the SDK, and the identifier contract.** The request body is bounded at
+> 1 MiB by middleware — `TestServer` implements neither request-body-size feature, so
+> a Kestrel-only limit is one no test can assert — with Kestrel set to the same number
+> behind it. The SDK generation pipeline runs for the first time. Strongly-typed
+> identifiers publish as the primitive they actually send, a choice
+> [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md) assigned to this
+> packet and that nothing had made.
+>
+> **Two decision records.**
+> [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) — resolution by
+> agreement, not priority — and
+> [ADR-0037](../decisions/0037-idempotency-key-contract.md) — what an idempotency key
+> identifies, owns and replays. ADR-0036 gained Amendment 1 when the implementation
+> measured its normalization order and found a hole in it.
+>
+> ### What the packet got wrong, and how it found out
+>
+> Every item here was introduced by this packet and caught by its own review rounds.
+> None reached `main`.
+>
+> - **A sweep deleted a claim someone had just won.** The idempotency store's expiry
+>   pass observed an entry and then removed it *by key*, so a live claim installed in
+>   between was destroyed and the next caller was told to run the operation — two
+>   callers, one key, both answered 2xx. On the surface Standards 04 reserves for
+>   payments that is a double charge with nothing anywhere reporting it. Reproduced on
+>   a frozen clock, fixed with a value-comparing removal, and the stress test that
+>   proves it kills the old line 5/5 and passes 10/10 clean.
+> - **Capacity cancelled the guarantee it protects.** The entry ceiling evicted
+>   completed records to make room — a record that has not expired is a promise for
+>   the rest of its window, so evicting one let the operation run again, and a tenant
+>   could trigger it on itself. Capacity is admission now; expiry is the only reason
+>   an entry leaves.
+> - **A response over the replay cap released its key**, so the retry re-ran the
+>   operation and both attempts answered 2xx. It records a tombstone now. The test
+>   that covered the old behaviour was asserting the bug.
+> - **A partial body was delivered when the action's result threw.** MVC returns
+>   normally from `next()` and rethrows after the filter unwinds, so the buffer can
+>   hold a half-written body; copying it out handed the client a truncated 2xx *and*
+>   took the exception away from `UseExceptionHandler`, whose 500 cannot be written
+>   once the response has started.
+> - **The correlation header echoed the client's value**, which meant an anonymous
+>   caller could put bytes Kestrel accepts in a request header and refuses in a
+>   response header into every reply — 500 and an error-tracker capture per request.
+>   Four captures for four requests, measured; zero after.
+> - **A "normalised" host could contain `/`, `@` and `%`.** `IdnMapping.GetAscii`
+>   performs a compatibility mapping, so the fullwidth forms arrive as the real
+>   characters *after* the input scan has run. The function ends with a whitelist over
+>   its own output now, and [ADR-0036 Amendment 1](../decisions/0036-tenant-resolution-trusted-inputs.md)
+>   records both that and the port-before-IPv4 ordering it also got wrong.
+>
+> Two process notes, because they cost real time. The solution was built without
+> `CI=true` for most of the packet — `TreatWarningsAsErrors` is conditioned on it — so
+> a commit shipped that failed the required check; `CI=true` is now the only way this
+> repository is built. And a review agent left an artefact in the tracked tree,
+> including a deliberately-throwing diagnostic test; the file was reverted and the
+> legitimate finding redone by hand. Later review prompts forbid touching tracked
+> files by name.
+>
+> ### What Packet 4 did not deliver
+>
+> Nothing from its scope paragraph. The deprecation headers ADR-0024 describes are
+> **not** in it and were never meant to be: they attach to a deprecated endpoint, and
+> `Every_Deprecated_Endpoint_Has_Sunset_And_Successor` is Registered against the
+> packet that adds the first `/api/v2`. The authenticated and write-endpoint rate
+> limits need a token to key on and wait for [Phase 02b](phase-02b-events-auth.md);
+> the multipart and file-upload rows need an endpoint and wait for
+> [Phase 04](phase-04-cms-media-pages.md). Each is written down where the limit is
+> published, with the phase that owns it.
