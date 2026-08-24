@@ -379,10 +379,18 @@ domain is:
 ```csharp
 public interface IEventBus
 {
-    Task PublishAsync<TEvent>(TEvent @event, string partitionKey, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent;
+    Task PublishAsync(IIntegrationEvent @event, string partitionKey, CancellationToken ct = default);
 }
 ```
+
+**Not generic**, per
+[ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md). The outbox processor
+deserializes to `object` and publishes through the base interface, so a generic parameter
+would bind to `IIntegrationEvent` at the only call site that matters — and a transport
+resolving `IIntegrationEventHandler<TEvent>` would then look for
+`IIntegrationEventHandler<IIntegrationEvent>`, which no concrete handler implements. The
+publish would reach zero handlers and report success. Both transports resolve handlers by
+the event's **runtime** type instead.
 
 The durable implementation forwards it as Dapr's `partitionKey` metadata, which the Kafka
 pub/sub component maps onto the Kafka message key:
@@ -390,14 +398,22 @@ pub/sub component maps onto the Kafka message key:
 ```csharp
 public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
 {
-    public Task PublishAsync<TEvent>(TEvent @event, string partitionKey, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent
-        => daprClient.PublishEventAsync(
-               "pubsub",
-               ConventionTopicName(@event),          // "learnstack.{module}.{aggregate}"
-               @event,
-               new Dictionary<string, string> { ["partitionKey"] = partitionKey },
-               ct);
+    public Task PublishAsync(
+        IIntegrationEvent @event, string partitionKey, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(partitionKey);
+
+        // Published as the runtime type, not as IIntegrationEvent: the serializer
+        // writes the members of the type it is given, and handing it the base
+        // interface produces a payload with none of the event's own fields.
+        return daprClient.PublishEventAsync(
+            "pubsub",
+            ConventionTopicName(@event),             // "learnstack.{module}.{aggregate}"
+            @event.GetType(),
+            @event,
+            new Dictionary<string, string> { ["partitionKey"] = partitionKey },
+            ct);
+    }
 
     private static string ConventionTopicName(IIntegrationEvent @event)
         => $"learnstack.{ExtractModule(@event.GetType())}.{ExtractAggregate(@event.GetType())}";
@@ -437,15 +453,36 @@ public sealed class InProcessEventBus(
     ITenantContextAccessor tenantAccessor,
     IPartitionSerializer partitions) : IEventBus
 {
-    public Task PublishAsync<TEvent>(TEvent @event, string partitionKey, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent
-        => partitions.RunSequentiallyFor(partitionKey, async () =>
+    public Task PublishAsync(
+        IIntegrationEvent @event, string partitionKey, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(partitionKey);
+
+        return partitions.RunSequentiallyFor(partitionKey, async () =>
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            tenantAccessor.Set(TenantContext.FromEvent(@event));    // same restore as the durable path
-            foreach (var handler in scope.ServiceProvider.GetServices<IIntegrationEventHandler<TEvent>>())
-                await handler.HandleAsync(@event, ct);              // handler calls IInboxGuard itself
-        });
+
+            // Same restore as the durable path, into the SCOPE the handler
+            // resolves from — and the publisher's own ambient context is put
+            // back afterwards, or a synchronous dispatch leaks a tenant into
+            // the caller's flow.
+            var previous = tenantAccessor.Current;
+            tenantAccessor.Set(TenantContext.FromEvent(@event));
+            try
+            {
+                // By runtime type. `@event` is declared as the base interface
+                // here, so a closed generic over its static type would resolve
+                // nothing.
+                var contract = typeof(IIntegrationEventHandler<>).MakeGenericType(@event.GetType());
+                foreach (var handler in scope.ServiceProvider.GetServices(contract))
+                    await ((dynamic)handler!).HandleAsync((dynamic)@event, ct);
+            }
+            finally
+            {
+                tenantAccessor.Set(previous);
+            }
+        });                                          // handler calls IInboxGuard itself
+    }
 }
 ```
 

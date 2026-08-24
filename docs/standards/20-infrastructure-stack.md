@@ -187,12 +187,24 @@ different decisions:
 |---|---|---|---|
 | `hub:host:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
 | `hub:entitlement:{tenant_id}` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
-| `tenant_feature_flags:{tenant_id}` | 60 s | 15 min | `learnstack.cache.invalidation` (key prefix) |
+| `tenant_feature_flags:{tenant_id}` | 60 s | 15 min | `learnstack.cache.invalidation` (generation key — see the rule below) |
 | Permission lookup per session | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
 | Tenant settings (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
 
 Rules:
 
+- **There is no prefix invalidation.** `ICacheService` has no
+  `RemoveByPrefixAsync` — it was removed in
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) per
+  [ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md), because the only
+  implementable form iterated a process-local key set and never evicted what
+  another instance wrote. A key family that needs to invalidate a set it cannot
+  enumerate uses the **generation-key** pattern instead: a durable counter bumped
+  inside the business transaction and embedded in the key template
+  ([architecture/32 § 8.2](../architecture/32-tenant-customization-model.md)), so
+  a write makes every stale key unreachable at once without deleting any of them.
+  The counter is domain state, never a cache entry — an evicted counter would make
+  abandoned keys addressable again.
 - L1 protects per-pod hot path; cross-pod consistency relies on L2 + eager
   invalidation.
 - The 15-min L2 figure is an **upper bound**, not the typical refresh window —

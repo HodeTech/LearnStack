@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted (Amendment 1: 2026-08-08 — schedule moved to Phase 11; **Amendment 2:
+2026-08-24 — corrects the published `IEventBus` and `ICacheService` signatures**;
+see bottom of document)
 
 ## Date
 
@@ -144,6 +146,12 @@ Adopt **Option A**: Dapr for pub/sub + state + secrets.
 
 ### Application access pattern
 
+**The `IEventBus` and `ICacheService` signatures below are superseded by**
+[Amendment 2](#2026-08-24--amendment-2-two-port-signatures-corrected-before-first-use).
+They are left as written because an Accepted ADR's Decision section is not rewritten;
+what Packet 5 ships is the amended shape. `ISecretProvider` is unchanged and shipped in
+Packet 3.
+
 Every module's domain and application code uses:
 
 ```csharp
@@ -271,6 +279,75 @@ The default secret provider that shipped in Phase 02a Packet 3 is named
 `ConfigurationSecretProvider`, not `EnvironmentSecretProvider`, and reads
 `IConfiguration` — which already merges environment variables, user secrets and
 `appsettings.{env}.json` — rather than process environment variables alone.
+
+### 2026-08-24 — Amendment 2: two port signatures, corrected before first use
+
+The Decision stands. Dapr remains the cross-process choice for pub/sub, state and
+secrets, and application code still reaches all three only through `IEventBus` /
+`ICacheService` / `ISecretProvider`. What this amendment corrects is the **published
+shape** of two of those interfaces, which Phase 02a Packet 5 is about to ship as code
+and can only ship one way.
+
+**1. `ICacheService.RemoveByPrefixAsync` is removed.**
+
+The port becomes `GetAsync` / `GetOrSetAsync` / `SetAsync` / `RemoveAsync` and nothing
+else. The reference implementation iterates a process-local key set, so keys written by
+another instance are never evicted — a contract no candidate backend can honour, and one
+whose name promises a global effect while delivering a local one.
+
+The roadmap offered "removed **or** redesigned to a generation-key pattern". That is not
+a fork at the port: the corpus's own definition of the pattern puts the counter in
+**durable domain state** — a `customization_generation` column bumped inside the
+business transaction and embedded in the key template ([architecture/32 §
+8.2](../architecture/32-tenant-customization-model.md)) — which adds no member to this
+interface. It also cannot live in the cache: an evicted counter would make previously
+abandoned keys addressable again and resurrect stale values. Both branches therefore
+remove the method, and the generation-key pattern is recorded as a **caller-side
+convention** owned by the consumers that specify it.
+
+Nothing is lost by the removal: the corpus contains no call site for the method.
+
+**2. `IEventBus.PublishAsync` takes a partition key, and is not generic.**
+
+Published here as:
+
+```csharp
+Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default)
+    where TEvent : IIntegrationEvent;
+```
+
+It becomes:
+
+```csharp
+Task PublishAsync(IIntegrationEvent @event, string partitionKey, CancellationToken ct = default);
+```
+
+Two corrections in one signature.
+
+*The partition key* is what
+[architecture/15 § The bus](../architecture/15-event-and-outbox.md) and [Phase
+02b](../roadmap/phase-02b-events-auth.md) already publish, and it is what lets the
+durable transport map onto a Kafka message key and preserve per-aggregate ordering.
+Adding a required parameter after the first consumer exists breaks every call site, so
+the two shapes cannot be left to be reconciled later.
+
+*The generic parameter* is removed because the outbox dispatcher deserializes to
+`object` and calls through the base interface —
+`eventBus.PublishAsync((IIntegrationEvent)eventInstance!, msg.PartitionKey, ct)` at
+[architecture/15](../architecture/15-event-and-outbox.md). With a generic port, `TEvent`
+binds to `IIntegrationEvent` at that call, so a transport resolving
+`IIntegrationEventHandler<TEvent>` looks for
+`IIntegrationEventHandler<IIntegrationEvent>` — which no concrete handler implements.
+The result is a publish that dispatches to **zero handlers** and reports success. A
+non-generic port makes the runtime-type resolution the transport has to do anyway
+explicit, rather than hiding it behind a type parameter that is always erased to the
+base interface at the only call site that matters.
+
+Every other document publishing either signature is corrected in the same change:
+`architecture/15`'s three sketches (the interface, `DaprEventBus` and `InProcessEventBus`,
+the last of which must resolve handlers by runtime type rather than through a type
+parameter), `architecture/32 § 8.2` and the Packet 5 scope paragraph, both of which stop
+saying "removed **or** redesigned" now that it is removed.
 
 ## References
 

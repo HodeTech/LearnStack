@@ -322,11 +322,18 @@ tenant-context restoration as the durable path. A development path that skips
 those is a development path that never exercises the isolation code, and every
 consumer would end up with two implementations.
 
-`ICacheService.RemoveByPrefixAsync` is **removed or redesigned** before this
-packet ships. The published implementation iterates an instance-local key set,
-so keys written by another instance are never evicted — the contract cannot be
-honoured by any candidate backend. Either the method leaves the interface, or
-it is replaced by a generation-key pattern whose guarantee is achievable.
+`ICacheService.RemoveByPrefixAsync` is **removed**
+([ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md)). The published
+implementation iterates an instance-local key set, so keys written by another
+instance are never evicted — the contract cannot be honoured by any candidate
+backend, and the corpus contains no call site for it.
+
+"Removed **or** redesigned to a generation-key pattern" was not a fork at the
+port: that pattern puts its counter in durable domain state — a column bumped
+inside the business transaction and embedded in the key template
+([architecture/32 § 8.2](../architecture/32-tenant-customization-model.md)) — so
+it adds no member to the interface. It stays a caller-side convention, owned by
+the consumers that specify it.
 
 The Dapr sidecar, Kafka, APISIX and Vault adapters are **not** in this packet.
 They are demand-gated with written triggers in

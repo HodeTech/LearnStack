@@ -66,9 +66,10 @@ a producer. See [15-event-and-outbox.md](../architecture/15-event-and-outbox.md)
 application instance runs concurrently.* The `InMemoryCacheService` from Packet 5 is
 correct for exactly one process and silently wrong for two, so this adapter lands the
 moment a second replica does. Includes the L1/L2 layering used by the entitlement read
-path, the cross-instance invalidation topic, and — if the generation-key redesign from
-Packet 5 was chosen over removal — the generation counters that replace
-`RemoveByPrefixAsync`. See [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md).
+path, and the cross-instance invalidation topic. It does **not** carry generation counters:
+Packet 5 removed `RemoveByPrefixAsync` rather than redesigning it, and the generation
+pattern that replaces it is a caller-side convention over durable domain state, which no
+cache adapter can own. See [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md).
 
 **Vault behind `ISecretProvider`** — *trigger: a production secret must rotate without
 a redeploy, or more than one operator needs access to production secrets.* KV mount

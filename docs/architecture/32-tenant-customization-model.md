@@ -450,8 +450,11 @@ Two rules make this safe:
   write. Cache keys embed it, so a write makes every stale key unreachable at once,
   across every pod, without enumerating keys. This is deliberate: the published
   `ICacheService.RemoveByPrefixAsync` contract cannot be honoured across instances by any
-  candidate backend, and it is removed or redesigned to exactly this pattern before
-  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) ships.
+  candidate backend, and it is **removed** in
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md)
+  ([ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md)). This pattern replaces it,
+  and it is a convention here rather than a member of that interface — the counter is
+  durable domain state, not a cache entry.
 - **Compiled validators are cached separately from definitions**, keyed by an immutable
   `(key, schema_version)` tuple. Compiling a JSON Schema is the expensive part; because a
   published schema version is immutable ([§ 4](#4-schema-versioning)), the compiled form
