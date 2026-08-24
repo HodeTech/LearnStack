@@ -86,6 +86,11 @@ public static class CrossCuttingFoundationExtensions
         builder.Services.TryAddSingleton<LearnStack.SharedKernel.Identifiers.IGuidFactory,
             LearnStack.SharedKernel.Identifiers.SystemGuidFactory>();
 
+        // The cache socket. SelectCacheService is the SINGLE site that picks the
+        // implementation per DeploymentMode, so Phase 11's Valkey adapter is one
+        // line here rather than a search for every registration.
+        builder.Services.TryAddSingleton(SelectCacheService);
+
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<LearnStackExceptionHandler>();
 
@@ -192,6 +197,35 @@ public static class CrossCuttingFoundationExtensions
             });
 
         _ = otel;
+    }
+
+    /// <summary>
+    /// Single composition-root site that picks the
+    /// <see cref="LearnStack.SharedKernel.Caching.ICacheService"/> implementation
+    /// per <see cref="DeploymentMode"/>.
+    /// </summary>
+    /// <remarks>
+    /// Every mode resolves <c>InMemoryCacheService</c> today, and the method
+    /// exists anyway: it is the seam ADR-0035 asks for, and a seam that is one
+    /// method is a seam Phase 11 can widen without hunting for call sites. It
+    /// takes the provider rather than the mode because the mode is not what it
+    /// branches on yet — a five-arm switch returning the same instance would be
+    /// a branch whose test could only assert something vacuous.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible for improved performance",
+        Justification = "Return type is intentionally ICacheService so Phase 11 can swap implementations per DeploymentMode.")]
+    private static LearnStack.SharedKernel.Caching.ICacheService SelectCacheService(
+        IServiceProvider services)
+    {
+        // TODO(2026-08-24, @platform): Phase 11 — light up the Valkey-backed
+        // branch. Demand-gated per ADR-0035; trigger: more than one application
+        // instance runs concurrently. InMemoryCacheService is correct for one
+        // process and costs hit rate rather than correctness for two, which is
+        // why the trigger is a replica count and not a date.
+        return new LearnStack.Infrastructure.Caching.InMemoryCacheService(
+            services.GetRequiredService<LearnStack.SharedKernel.Time.IClock>());
     }
 
     /// <summary>
