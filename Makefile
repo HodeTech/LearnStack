@@ -32,6 +32,22 @@ ENV_FILE      = $(shell test -f .env && echo --env-file .env)
 COMPOSE_DEV   = docker compose $(ENV_FILE) -f infra/compose/dev.yml
 COMPOSE_E2E   = docker compose $(ENV_FILE) -f infra/compose/dev.yml -f infra/compose/e2e.yml
 
+# Kafka, Valkey, Vault, APISIX and the two Dapr services sit behind the `gated`
+# compose profile per ADR-0035: their ports ship now, their adapters land in
+# Phase 11, and nothing the backend runs today calls any of them. `make dev`
+# therefore starts 7 services rather than 14.
+#
+# Every teardown and inspection target uses `--profile '*'`, and that is not
+# tidiness. Measured: `docker compose down` without the profile LEAVES a running
+# profiled container behind — `down -v` too, and `--remove-orphans` does not help,
+# because a profiled service is not an orphan, merely unselected. Without this,
+# a developer who ran the gated stack once and then `make clean` would keep a
+# Kafka broker, a Vault and their volumes, while `make ps` said the stack was
+# down.
+GATED_PROFILE = gated
+COMPOSE_ALL   = docker compose $(ENV_FILE) --profile '*' -f infra/compose/dev.yml
+COMPOSE_E2E_ALL = docker compose $(ENV_FILE) --profile '*' -f infra/compose/dev.yml -f infra/compose/e2e.yml
+
 # Colour helpers (no-op when stdout is not a TTY).
 ifeq ($(shell test -t 1 && echo 1),1)
   CYAN  := \033[36m
@@ -48,26 +64,32 @@ help: ## Show this help, listing every target and its one-line description.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_.-]+:.*?## / {printf "  $(CYAN)%-18s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ─── Dev infrastructure ───────────────────────────────────────────────────
-.PHONY: dev
-dev: .env ## Bring the local dev stack up (Postgres, Valkey, Keycloak, …).
+.PHONY: dev dev-gated
+dev: .env ## Bring the local dev stack up (Postgres, Keycloak, SeaweedFS, …).
 	$(COMPOSE_DEV) up -d
 	@printf "\n$(CYAN)Stack up.$(RESET) Tail logs with: make logs\n"
+	@printf "Kafka, Valkey, Vault, APISIX and Dapr are behind the '$(GATED_PROFILE)' profile — $(CYAN)make dev-gated$(RESET).\n"
 
 .PHONY: down
-down: ## Stop the dev stack (preserves volumes).
-	$(COMPOSE_DEV) down
+dev-gated: .env ## Bring the dev stack up INCLUDING the demand-gated services (Kafka, Valkey, Vault, APISIX, Dapr).
+	COMPOSE_PROFILES=$(GATED_PROFILE) $(COMPOSE_DEV) up -d
+	@printf "\n$(CYAN)Full stack up.$(RESET) Nothing the backend runs today calls these — see ADR-0035.\n"
+
+.PHONY: down
+down: ## Stop the dev stack, gated services included (preserves volumes).
+	$(COMPOSE_ALL) down
 
 .PHONY: clean
 clean: ## Stop the dev stack AND drop named volumes (destructive — wipes data).
-	$(COMPOSE_DEV) down -v
+	$(COMPOSE_ALL) down -v
 
 .PHONY: logs
 logs: ## Tail compose logs (Ctrl+C to detach).
-	$(COMPOSE_DEV) logs -f --tail=100
+	$(COMPOSE_ALL) logs -f --tail=100
 
 .PHONY: ps
-ps: ## Show service health summary.
-	$(COMPOSE_DEV) ps
+ps: ## Show service health summary, gated services included.
+	$(COMPOSE_ALL) ps
 
 .PHONY: e2e-up
 e2e-up: .env ## Bring the dev stack up with the e2e overlay (tmpfs volumes — ephemeral).
@@ -76,7 +98,7 @@ e2e-up: .env ## Bring the dev stack up with the e2e overlay (tmpfs volumes — e
 
 .PHONY: e2e-down
 e2e-down: ## Stop the e2e overlay (tmpfs volumes evaporate automatically).
-	$(COMPOSE_E2E) down
+	$(COMPOSE_E2E_ALL) down
 
 # ─── Build ────────────────────────────────────────────────────────────────
 .PHONY: build

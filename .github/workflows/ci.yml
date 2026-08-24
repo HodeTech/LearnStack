@@ -196,7 +196,7 @@ jobs:
 
   # ─── Meta (commit-message format, link audit) ─────────────────────────
   meta:
-    name: meta (commit hygiene + link audit)
+    name: meta (compose + commit hygiene + link audit)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -205,6 +205,29 @@ jobs:
         with:
           fetch-depth: 0   # link audit walks the full tree
           persist-credentials: false
+
+      - name: Compose stack validates, with and without the gated profile
+        run: |
+          # Nothing validated these files before, and the profile they now carry
+          # has one failure mode that is not local to the service involved:
+          # MEASURED, a DEFAULT service declaring `depends_on` a PROFILED one is
+          # not a warning but a whole-project error —
+          #   service "x" depends on undefined service "y": invalid compose project
+          # — so `config`, `up`, `down` and `ps` all refuse to run and the entire
+          # local development loop stops, for every developer, on a one-line edit.
+          # The default projection is therefore the one that must be checked; the
+          # gated one is checked too, since a broken edge there is invisible to it.
+          cp .env.example .env
+          for profile in "" "gated"; do
+              label="${profile:-<default>}"
+              echo "==> validating profile: ${label}"
+              COMPOSE_PROFILES="$profile" docker compose --env-file .env \
+                  -f infra/compose/dev.yml config -q
+              COMPOSE_PROFILES="$profile" docker compose --env-file .env \
+                  -f infra/compose/dev.yml -f infra/compose/e2e.yml config -q
+          done
+          rm -f .env
+          echo "Compose files validate in every profile projection."
 
       - name: Markdown link audit (changed docs)
         # Template values from `github.event.*` are passed through `env:` so

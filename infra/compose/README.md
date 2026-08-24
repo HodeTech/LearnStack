@@ -54,7 +54,21 @@ LiveKit config at `infra/livekit/livekit.yaml`; Coturn config at
 for the `ILiveClassProvider` integration plan (Phase 08c) + the
 recording / consent / cost-tracking story.
 
-### Eventing + secrets + Dapr sidecar + gateway (Phase 01 packet 6)
+### Eventing + secrets + Dapr sidecar + gateway (Phase 01 packet 6) — profile `gated`
+
+**These do not start with `make dev`.** Nothing the backend runs today calls any
+of them: `IEventBus` resolves to `InProcessEventBus`, `ICacheService` to
+`InMemoryCacheService`, `ISecretProvider` to `ConfigurationSecretProvider`, and
+the edge concerns APISIX would take are ASP.NET middleware. Their adapters land
+in [Phase 11](../../docs/roadmap/phase-11-production-hardening.md) against the
+written triggers in
+[ADR-0035](../../docs/decisions/0035-demand-gated-infrastructure.md), so until
+then they are seven containers of carrying cost. `make dev` starts **7**
+services; `make dev-gated` starts all **14**.
+
+Valkey is here too, though it is listed under the data plane above: it is the
+Dapr state component, and the same trigger governs it — more than one
+application instance running concurrently.
 
 | Service | Image | Local endpoint | Default credentials |
 |---------|-------|----------------|---------------------|
@@ -100,17 +114,32 @@ reach the workstation-local `dotnet run` process. The
 
 ```bash
 # Repo-root orchestrator (preferred):
-make dev                                            # bring stack up
+make dev                                            # 7 services — the daily loop
+make dev-gated                                      # all 14, gated ones included
 make ps                                             # confirm healthchecks pass
 make down                                           # stop, keep volumes
 make clean                                          # stop, wipe local data
 
 # Raw compose (equivalent — useful when `make` is unavailable):
 docker compose --env-file .env -f infra/compose/dev.yml up -d
-docker compose --env-file .env -f infra/compose/dev.yml ps
-docker compose --env-file .env -f infra/compose/dev.yml down
-docker compose --env-file .env -f infra/compose/dev.yml down -v
+COMPOSE_PROFILES=gated docker compose --env-file .env -f infra/compose/dev.yml up -d
+docker compose --env-file .env --profile '*' -f infra/compose/dev.yml ps
+docker compose --env-file .env --profile '*' -f infra/compose/dev.yml down
+docker compose --env-file .env --profile '*' -f infra/compose/dev.yml down -v
 ```
+
+> **`--profile '*'` on every teardown is not tidiness.** Measured: `docker
+> compose down` without it LEAVES a running profiled container behind — `down -v`
+> too, and `--remove-orphans` does not help, because a profiled service is not an
+> orphan, merely unselected. Verified against this stack: after `make dev-gated`,
+> a profile-less `down` left exactly the seven gated containers running while
+> `make ps` would have reported the stack down. The `make` targets all carry it.
+>
+> The reverse direction is a harder failure and the reason no default service may
+> ever `depends_on` a gated one: measured, that combination is not a warning but a
+> **whole-project validation error** — `config`, `up`, `down` and `ps` all refuse
+> to run, not just the service involved. Today every edge into a gated service
+> comes from another gated service, and it has to stay that way.
 
 ## `e2e.yml` — end-to-end overlay
 

@@ -93,6 +93,7 @@ services:
   # The service name is `valkey` so a new reader sees the right backend;
   # `redis-cli` continues to ship inside the Valkey image as a symlink.
   valkey:
+    profiles: ["gated"]
     image: valkey/valkey:8.1-alpine
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
@@ -317,6 +318,7 @@ services:
   # shipped as canonical (see infra/compose/README.md § Eventing). An EXTERNAL
   # listener for host-side kcat / kafka-topics is a Phase 11 item.
   kafka:
+    profiles: ["gated"]
     image: confluentinc/cp-kafka:8.2.1
     restart: unless-stopped
     environment:
@@ -357,6 +359,7 @@ services:
   # Standards 12 § Image Conventions (every dev image carries an explicit
   # tag; bump deliberately, never let `:latest` drift).
   kafka-ui:
+    profiles: ["gated"]
     image: ghcr.io/kafbat/kafka-ui:v1.5.0
     restart: unless-stopped
     environment:
@@ -394,6 +397,7 @@ services:
   # endpoints at the next `docker compose up`. See `infra/dapr/README.md`
   # § Vault token for the full chain (Phase 01 packet 7 DX commitment).
   vault:
+    profiles: ["gated"]
     image: hashicorp/vault:1.21.4
     restart: unless-stopped
     command: ["server", "-dev", "-dev-root-token-id=${VAULT_ROOT_TOKEN:-learnstack-dev-root-token}", "-dev-listen-address=0.0.0.0:8200"]
@@ -416,6 +420,7 @@ services:
   # Placement service required by daprd even though actors are out of scope
   # per ADR-0014 non-goals (daprd will not boot without it).
   dapr-placement:
+    profiles: ["gated"]
     image: daprio/placement:1.17.7
     restart: unless-stopped
     command: ["./placement", "-log-level", "info"]
@@ -438,6 +443,7 @@ services:
   # anchor at the top of the file maps `host.docker.internal` on Linux.
   # See ../dapr/README.md.
   dapr-sidecar-api:
+    profiles: ["gated"]
     image: daprio/daprd:1.17.7
     restart: unless-stopped
     # no healthcheck possible: same single-binary image family as
@@ -494,6 +500,7 @@ services:
   # the standalone-no-etcd commitment of ADR-0015. Diff-review of
   # `apisix.yaml` replaces the dashboard for the dev workflow.
   apisix:
+    profiles: ["gated"]
     image: apache/apisix:3.16.0-debian
     restart: unless-stopped
     <<: *host-gateway

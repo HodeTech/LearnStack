@@ -36,8 +36,10 @@ The Dapr pub/sub and Kafka adapters are **not in this phase**. They are demand-g
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), whose trigger is "a second
 process needs to consume an integration event". Until that is true, a cross-process
 broker moves an event from one thread to another thread in the same process, through two
-network hops and a serialization boundary, and adds a fourteenth service to the
-development loop. [ADR-0006 Amendment 1](../decisions/0006-events-and-outbox.md) and
+network hops and a serialization boundary, for a service the daily loop no longer
+starts — Packet 5 moved Kafka, Valkey, Vault, APISIX and the two Dapr containers
+behind the `gated` compose profile, taking `make dev` from fourteen services to
+seven. [ADR-0006 Amendment 1](../decisions/0006-events-and-outbox.md) and
 [ADR-0014](../decisions/0014-adopt-dapr.md) remain the decision about **which** transport
 LearnStack uses when it needs one; ADR-0035 decides **when**, and the answer is not this
 phase.
