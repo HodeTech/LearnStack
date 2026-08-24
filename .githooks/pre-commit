@@ -109,6 +109,20 @@ restage() { git add -- "$@"; }
 # (the alternative — `leakwatch scan fs .` — walks the entire tree).
 # Iterating costs one CLI invocation per file but each one is fast
 # (Aho-Corasick pre-filter); for small commits this is sub-second.
+#
+# `.leakwatchignore` is applied HERE, by us, not by the scanner. Measured on
+# v1.8.0: leakwatch resolves the ignore file relative to the scan TARGET, so a
+# root scan (`scan fs .`, what CI runs) honours it and a per-file scan (what
+# this hook runs) does not — and `--exclude` does not apply to an explicitly
+# named file target either. The result was a hook that blocked every commit
+# touching one of the seven intentionally-ignored files while CI went green on
+# the same tree, and whose own remediation message told the developer to extend
+# a file that could not have helped. `.leakwatchignore` is documented as
+# gitignore syntax, so git itself is the correct matcher for it.
+leakwatch_path_ignored() {
+    git -c core.excludesFile=.leakwatchignore \
+        check-ignore --no-index -q -- "$1" 2>/dev/null
+}
 
 # Older builds only accept a DIRECTORY target. CI pins v1.5.0, which rejects a
 # file with "source validation failed: source is not a directory" — so a
@@ -127,6 +141,7 @@ leakwatch_takes_files() {
 
     for probe in "${all_staged[@]}"; do
         [[ -f "$probe" ]] || continue
+        leakwatch_path_ignored "$probe" && continue
         if leakwatch scan fs "$probe" --config .leakwatch.yaml \
                --min-severity medium --no-verify >/dev/null 2>&1; then
             return 0
@@ -157,6 +172,9 @@ elif command -v leakwatch >/dev/null 2>&1; then
         for f in "${all_staged[@]}"; do
             # Skip files that don't exist (D for delete in --diff-filter).
             [[ -f "$f" ]] || continue
+            # Path-level ignores, which the scanner cannot apply to a file
+            # target — see the note above `leakwatch_path_ignored`.
+            leakwatch_path_ignored "$f" && continue
             # Capture stdout+stderr; on failure replay the scanner output to
             # the developer (suppressing it would leave them guessing which
             # detector fired). Exit code drives the gate; output drives the
@@ -165,7 +183,9 @@ elif command -v leakwatch >/dev/null 2>&1; then
                 printf "\npre-commit: leakwatch found a likely secret in %s\n\n" "$f" >&2
                 printf "%s\n\n" "$scan_output" >&2
                 printf "If it is a legitimate dev credential, add an inline\n" >&2
-                printf "\`# leakwatch:ignore\` comment or extend .leakwatchignore.\n" >&2
+                printf "\`# leakwatch:ignore\` comment (preferred — it disables one\n" >&2
+                printf "detector on one line), or add the path to .leakwatchignore\n" >&2
+                printf "with a comment saying why.\n" >&2
                 exit 1
             fi
         done
