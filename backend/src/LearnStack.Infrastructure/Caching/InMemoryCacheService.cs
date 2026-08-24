@@ -62,17 +62,13 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// One factory run per key, however many callers miss at once.
+    /// One factory run per (key, requested type), however many callers miss at
+    /// once. Keyed by type as well as key because a flight hands its result to
+    /// every joiner: two callers asking for the same key as different <c>T</c>
+    /// would otherwise share one run, and the loser would receive the winner's
+    /// payload — its own factory never invoked at all.
     /// </summary>
-    private readonly ConcurrentDictionary<string, Lazy<Task<object?>>> _inFlight =
-        new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Per-key write counter. A <see cref="GetOrSetAsync{T}"/> flight reads it
-    /// before running its factory and refuses to store a result the caller has
-    /// since superseded.
-    /// </summary>
-    private readonly ConcurrentDictionary<string, long> _versions = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string Key, Type Type), Flight> _inFlight = new();
 
     private long _lastSweepTicks;
 
@@ -100,6 +96,17 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     /// </remarks>
     public int Count => _entries.Count;
 
+    /// <summary>
+    /// How many factory runs are registered as in flight. A diagnostic, for the
+    /// same reason and with the same caveat as <see cref="Count"/>.
+    /// </summary>
+    /// <remarks>
+    /// This map is the other structure that could grow without bound, and the
+    /// one whose cleanup is subtlest: it is unregistered when the flight ends,
+    /// not when a caller stops waiting for it.
+    /// </remarks>
+    public int InFlightCount => _inFlight.Count;
+
     public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
     {
         CacheKey.EnsureValid(key);
@@ -107,9 +114,13 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
         var now = clock.UtcNow;
         Sweep(now);
 
-        if (_entries.TryGetValue(key, out var entry) && entry.IsFresh(now))
+        // `is T` rather than a cast: a key holding some other type is a caller
+        // bug, and answering it with a miss lets the caller read the source of
+        // truth instead of taking an InvalidCastException out of a component
+        // whose contract is that a miss is never an error.
+        if (_entries.TryGetValue(key, out var entry) && entry.IsFresh(now) && entry.Value is T hit)
         {
-            return Task.FromResult((T?)entry.Value);
+            return Task.FromResult<T?>(hit);
         }
 
         return Task.FromResult<T?>(default);
@@ -127,22 +138,17 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
         var now = clock.UtcNow;
         Sweep(now);
 
-        if (_entries.TryGetValue(key, out var hit) && hit.IsFresh(now))
+        if (_entries.TryGetValue(key, out var hit) && hit.IsFresh(now) && hit.Value is T cached)
         {
-            return (T)hit.Value!;
+            return cached;
         }
 
-        // The version is read BEFORE the factory runs. If a Set or a Remove
-        // lands while it is running, storing the result would resurrect a value
-        // the caller already replaced or deleted — eager invalidation silently
-        // lost for a full TTL, which is the one thing a cache must not do
-        // quietly.
-        var versionAtStart = VersionOf(key);
-
-        // Lazy with ExecutionAndPublication, not a bare GetOrAdd: the value
-        // factory of a ConcurrentDictionary may run more than once under
+        // Lazy with ExecutionAndPublication, not a bare GetOrAdd value factory:
+        // a ConcurrentDictionary's value factory may run more than once under
         // contention, and running the caller's factory twice is the stampede
-        // this method exists to prevent.
+        // this method exists to prevent. The Lazy is built before the GetOrAdd
+        // and passed as a VALUE, so the loser of a creation race simply
+        // discards an object whose .Value was never touched — no factory run.
         //
         // The flight runs on CancellationToken.None, NOT on this caller's
         // token. Measured: with the caller's token, one client pressing refresh
@@ -150,31 +156,93 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
         // key died with it — as a 499, which this host treats as "the client
         // hung up" and therefore writes no body, captures no error and records
         // no span. A request that did nothing wrong failed invisibly.
-        var flight = _inFlight.GetOrAdd(
-            key,
-            _ => new Lazy<Task<object?>>(
-                async () => await factory(CancellationToken.None).ConfigureAwait(false),
-                LazyThreadSafetyMode.ExecutionAndPublication));
+        var mine = new Flight(new Lazy<Task<object?>>(
+            async () => await factory(CancellationToken.None).ConfigureAwait(false),
+            LazyThreadSafetyMode.ExecutionAndPublication));
+
+        var registration = (key, typeof(T));
+        var flight = _inFlight.GetOrAdd(registration, mine);
+
+        // Registered before anything can observe the count, so the completion
+        // continuation below never sees a zero that is about to become one.
+        Interlocked.Increment(ref flight.Waiters);
 
         try
         {
+            if (ReferenceEquals(flight, mine))
+            {
+                // Covers the case the `finally` cannot: every caller abandoned
+                // before the factory finished, so no `finally` runs again to
+                // notice the flight is done.
+                _ = flight.Task.Value.ContinueWith(
+                    _ => Retire(registration, flight),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+
             // Each caller observes its OWN token while waiting, so a joiner can
-            // abandon a slow flight without affecting the others.
-            var produced = (T)(await flight.Value.WaitAsync(cancellationToken)
+            // abandon a slow flight without ending it for anybody else.
+            var produced = (T)(await flight.Task.Value.WaitAsync(cancellationToken)
                 .ConfigureAwait(false))!;
 
-            if (VersionOf(key) == versionAtStart)
+            // A Set or a Remove landing while the factory ran marks the flight
+            // superseded. Storing anyway would resurrect a value the caller
+            // already replaced or deleted — eager invalidation silently lost for
+            // a full TTL, which is the one thing a cache must not do quietly.
+            if (!flight.Superseded)
             {
                 Store(key, produced, options, clock.UtcNow);
+
+                // Re-checked after the write, because the check above and the
+                // write are two steps rather than one: a write landing between
+                // them would otherwise be overwritten by this stale result.
+                // Evicting is the safe resolution — the next reader takes a miss
+                // and goes to the source of truth, and a miss is never an error,
+                // whereas a stale value presented as fresh is.
+                if (flight.Superseded)
+                {
+                    _entries.TryRemove(key, out _);
+                }
             }
 
             return produced;
         }
         finally
         {
-            // Value-comparing, so a later flight started by another caller is
-            // not removed by this one's cleanup.
-            _inFlight.TryRemove(new KeyValuePair<string, Lazy<Task<object?>>>(key, flight));
+            // Unregistered when the last caller is DONE, not when the factory
+            // finishes. Measured on two earlier versions, each of which fixed
+            // one half and broke the other:
+            //
+            //   - Unregistering on the caller's exit meant a joiner that
+            //     cancelled removed the shared registration while the factory
+            //     was still running, so the next arrival started a second
+            //     concurrent run — the stampede this method exists to prevent,
+            //     reintroduced by its own cleanup.
+            //   - Unregistering on the factory's completion instead meant the
+            //     flight was already gone by the time the caller stored, so
+            //     `Supersede` had nothing left to mark and a write landing in
+            //     that window was silently overwritten.
+            //
+            // The registration is what `Supersede` reaches, so it has to outlive
+            // the store, and it has to outlive every other caller's store too.
+            if (Interlocked.Decrement(ref flight.Waiters) == 0)
+            {
+                Retire(registration, flight);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Unregisters a flight once it has finished and no caller is still using
+    /// it. Value-comparing, so a later flight for the same key is never removed
+    /// by an earlier one's cleanup.
+    /// </summary>
+    private void Retire((string Key, Type Type) registration, Flight flight)
+    {
+        if (Volatile.Read(ref flight.Waiters) == 0 && flight.Task.Value.IsCompleted)
+        {
+            _inFlight.TryRemove(new KeyValuePair<(string, Type), Flight>(registration, flight));
         }
     }
 
@@ -188,7 +256,7 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
 
         var now = clock.UtcNow;
         Sweep(now);
-        Bump(key);
+        Supersede(key);
         Store(key, value, options, now);
 
         return Task.CompletedTask;
@@ -198,14 +266,32 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     {
         CacheKey.EnsureValid(key);
 
-        Bump(key);
+        Supersede(key);
         _entries.TryRemove(key, out _);
         return Task.CompletedTask;
     }
 
-    private long VersionOf(string key) => _versions.TryGetValue(key, out var v) ? v : 0;
-
-    private void Bump(string key) => _versions.AddOrUpdate(key, 1, (_, v) => v + 1);
+    /// <summary>
+    /// Marks every in-flight factory for <paramref name="key"/> as superseded,
+    /// so none of them writes over the change that just landed.
+    /// </summary>
+    /// <remarks>
+    /// The flag lives on the flight and dies with it. An earlier version kept a
+    /// per-key version counter in a dictionary of its own, which was never
+    /// swept: measured at 50,000 distinct keys, <c>_entries</c> held its 10,000
+    /// ceiling while that map held all 50,000 — an unbounded structure behind a
+    /// bounded one, reachable by ordinary per-entity keys rather than by misuse.
+    /// </remarks>
+    private void Supersede(string key)
+    {
+        foreach (var pair in _inFlight)
+        {
+            if (string.Equals(pair.Key.Key, key, StringComparison.Ordinal))
+            {
+                pair.Value.Superseded = true;
+            }
+        }
+    }
 
     private void Store<T>(string key, T value, CacheOptions? options, DateTimeOffset now)
     {
@@ -300,5 +386,16 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     private sealed record Entry(object? Value, DateTimeOffset ExpiresAt, long Sequence)
     {
         public bool IsFresh(DateTimeOffset now) => now < ExpiresAt;
+    }
+
+    /// <summary>One shared factory run, and whether a write has superseded it.</summary>
+    private sealed class Flight(Lazy<Task<object?>> task)
+    {
+        public Lazy<Task<object?>> Task { get; } = task;
+
+        public volatile bool Superseded;
+
+        /// <summary>Callers still using this flight. A field, for Interlocked.</summary>
+        public int Waiters;
     }
 }

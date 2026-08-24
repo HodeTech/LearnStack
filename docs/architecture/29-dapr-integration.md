@@ -243,7 +243,8 @@ cannot be honoured across instances.
 **Keys are composed by the caller, not by the adapter.** `CacheKey.For(tenantId, module,
 name)` — or `ForOrganization(...)` — produces the key and `CacheKey.EnsureValid` guards
 its shape, so an adapter that also prefixed would emit `{tenant}:{tenant}:{module}:{name}`.
-Standards 20 § Cache fixes the shape; every implementation validates, none rewrites.
+[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md) fixes the
+shape; every implementation validates, none rewrites.
 
 Concrete implementations (`DaprEventBus`, `DaprCacheService`, `DaprSecretProvider`) live
 in `LearnStack.Infrastructure.{Messaging, Caching, Secrets}`. They are the **only**

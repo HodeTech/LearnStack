@@ -30,9 +30,18 @@ public static class CacheKey
     /// <summary>The separator between the three segments.</summary>
     public const char Separator = ':';
 
-    /// <summary>Composes a key for a tenant-owned value.</summary>
-    public static string For(Guid tenantId, string module, string logicalName) =>
-        For(tenantId.ToString(), module, logicalName);
+    /// <summary>Composes a key for a tenant-wide value.</summary>
+    /// <remarks>
+    /// Named <c>ForTenant</c> rather than <c>For</c> on purpose. The one mistake
+    /// this class cannot catch is a caller reaching for the default-looking
+    /// method when the value is actually scoped to one organization — and
+    /// <see cref="EnsureValid"/> is powerless there, because an
+    /// organization-scoped key and a tenant-wide one are indistinguishable as
+    /// strings. With all three factories naming their scope, choosing one is a
+    /// decision rather than a habit.
+    /// </remarks>
+    public static string ForTenant(Guid tenantId, string module, string logicalName) =>
+        For(Canonical(tenantId, nameof(tenantId)), module, logicalName);
 
     /// <summary>
     /// Composes a key for a value scoped to one organization within a tenant:
@@ -50,7 +59,11 @@ public static class CacheKey
     /// </remarks>
     public static string ForOrganization(
         Guid tenantId, Guid organizationId, string module, string logicalName) =>
-        For(tenantId.ToString(), organizationId.ToString(), module, logicalName);
+        For(
+            Canonical(tenantId, nameof(tenantId)),
+            Canonical(organizationId, nameof(organizationId)),
+            module,
+            logicalName);
 
     /// <summary>Composes a key for a platform-wide value.</summary>
     public static string ForPlatform(string module, string logicalName) =>
@@ -97,7 +110,47 @@ public static class CacheKey
     /// reject is worse than none — it makes the rule look enforced.
     /// </remarks>
     private static bool IsTenantSegment(string segment) =>
-        segment.Equals(PlatformTenant, StringComparison.Ordinal) || Guid.TryParse(segment, out _);
+        segment.Equals(PlatformTenant, StringComparison.Ordinal)
+        || (Guid.TryParse(segment, out var id)
+            && id != Guid.Empty
+            && segment.Equals(id.ToString(), StringComparison.Ordinal));
+
+    /// <summary>
+    /// The canonical rendering of a tenant or organization identifier, refusing
+    /// <see cref="Guid.Empty"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Guid.Empty</c> is what <c>default(Guid)</c> renders as, so accepting it
+    /// means two call sites that both failed to resolve their tenant share one
+    /// cache bucket — the exact failure this class exists to make impossible,
+    /// arrived at by a bug rather than by a collision. Nothing legitimately
+    /// identifies a tenant as all zeroes.
+    /// </para>
+    /// <para>
+    /// The equality check pins the <i>rendering</i>, not just the value.
+    /// Measured: <c>Guid.TryParse</c> accepts the N, B, P and X formats and
+    /// tolerates leading and trailing whitespace, and <c>TryParseExact</c> with
+    /// "D" still tolerates the whitespace. None of those collide with a
+    /// canonical key — the dictionaries compare ordinally, so they land in
+    /// different slots — but that is the point: they are a silent miss rather
+    /// than a hit, and a guard whose job is to police the shape our own
+    /// factories emit should not admit five spellings of one tenant.
+    /// </para>
+    /// </remarks>
+    private static string Canonical(Guid id, string parameterName)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Guid.Empty does not identify a tenant or an organization, and is "
+                + "what an unresolved context renders as. A cache key built from it "
+                + "is a bucket every unresolved caller would share.",
+                parameterName);
+        }
+
+        return id.ToString();
+    }
 
     private static string For(string tenant, string module, string logicalName) =>
         Compose([tenant, module, logicalName]);

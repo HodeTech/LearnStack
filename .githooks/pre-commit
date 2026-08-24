@@ -115,13 +115,44 @@ restage() { git add -- "$@"; }
 # root scan (`scan fs .`, what CI runs) honours it and a per-file scan (what
 # this hook runs) does not — and `--exclude` does not apply to an explicitly
 # named file target either. The result was a hook that blocked every commit
-# touching one of the seven intentionally-ignored files while CI went green on
-# the same tree, and whose own remediation message told the developer to extend
-# a file that could not have helped. `.leakwatchignore` is documented as
-# gitignore syntax, so git itself is the correct matcher for it.
+# touching one of the fourteen intentionally-ignored files while CI went green
+# on the same tree, and whose own remediation message told the developer to
+# extend a file that could not have helped. `.leakwatchignore` is documented as
+# gitignore syntax, so git is the correct matcher for it.
+#
+# It has to be evaluated in ISOLATION, though, and the first version of this fix
+# was not. `git -c core.excludesFile=.leakwatchignore check-ignore` layers that
+# file ON TOP of the repo's own ignore stack rather than replacing it, and that
+# broke it in both directions. Measured:
+#
+#   - `.gitignore` carries `!.env.example` and `!frontend/apps/web/.env.local.example`
+#     — negations, needed so git tracks those files at all — and a negation
+#     outranks `core.excludesFile`. Both files are listed in `.leakwatchignore`
+#     and both came back NOT ignored: 2 of the 14 paths still blocked locally
+#     while CI passed, which is the very defect the fix existed to remove.
+#   - The reverse leaked in too: patterns from `.gitignore` and from the
+#     developer-local `.git/info/exclude` were honoured as if they were
+#     leakwatch's. A tracked file a developer had quietly excluded would have
+#     been skipped by the scan with nothing printed.
+#
+# So the evaluation happens in a throwaway repository whose ONLY ignore source
+# is `.leakwatchignore`. One `git init` per commit, all paths checked in a
+# single batch. If anything about that fails the set comes back empty, which
+# means everything is scanned — the safe direction, never a silent skip.
+leakwatch_ignored_paths=""
+if [[ -f .leakwatchignore && ${#all_staged[@]} -gt 0 ]]; then
+    lw_isolated="$(mktemp -d)"
+    if git init -q "$lw_isolated" >/dev/null 2>&1 \
+        && cp .leakwatchignore "$lw_isolated/.gitignore"; then
+        leakwatch_ignored_paths="$(printf '%s\n' "${all_staged[@]}" \
+            | git -C "$lw_isolated" check-ignore --no-index --stdin 2>/dev/null || true)"
+    fi
+    rm -rf "$lw_isolated"
+fi
+
 leakwatch_path_ignored() {
-    git -c core.excludesFile=.leakwatchignore \
-        check-ignore --no-index -q -- "$1" 2>/dev/null
+    [[ -n "$leakwatch_ignored_paths" ]] || return 1
+    printf '%s\n' "$leakwatch_ignored_paths" | grep -Fxq -- "$1"
 }
 
 # Older builds only accept a DIRECTORY target. CI pins v1.5.0, which rejects a

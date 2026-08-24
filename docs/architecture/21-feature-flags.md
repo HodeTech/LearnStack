@@ -161,7 +161,7 @@ Rules:
   [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
   [29-dapr-integration.md](29-dapr-integration.md).
 - A short-TTL Valkey cache (60 s) fronts both tables for hot-path reads. Eager
-  invalidation flows from `learnstack.cache.invalidation` (intra-instance) and from
+  invalidation flows from `learnstack.cache.invalidation` (cross-instance) and from
   `learnstack.hub.entitlement` (cross-deployment).
 
 ## Evaluation

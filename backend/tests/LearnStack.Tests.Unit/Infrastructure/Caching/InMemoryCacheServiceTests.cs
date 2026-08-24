@@ -23,7 +23,7 @@ public sealed class InMemoryCacheServiceTests
     private static readonly Guid OtherTenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000b");
 
     private static string Key(Guid tenant = default) =>
-        CacheKey.For(tenant == default ? Tenant : tenant, "tenancy", "settings");
+        CacheKey.ForTenant(tenant == default ? Tenant : tenant, "tenancy", "settings");
 
     [Fact]
     public async Task A_Miss_Is_Default_Not_An_Error()
@@ -193,11 +193,24 @@ public sealed class InMemoryCacheServiceTests
             return "made";
         }
 
-        var callers = Enumerable.Range(0, 8)
-            .Select(_ => cache.GetOrSetAsync(Key(), Factory))
+        // Dispatched through Task.Run and held at a barrier, NOT built with
+        // Select(...).ToArray(). Measured: LINQ evaluates sequentially on one
+        // thread, so each caller ran to its first suspension point before the
+        // next was even invoked — caller 1 had already registered its flight
+        // before caller 2 existed. Nothing ever raced, and the mutation this
+        // test exists to catch (LazyThreadSafetyMode.None) survived it, while
+        // failing 5 out of 5 runs once the callers actually ran concurrently.
+        using var start = new ManualResetEventSlim(false);
+        var callers = Enumerable.Range(0, 16)
+            .Select(_ => Task.Run(async () =>
+            {
+                start.Wait(TestTimeout);
+                return await cache.GetOrSetAsync(Key(), Factory);
+            }))
             .ToArray();
 
-        gate.Release(8);
+        start.Set();
+        gate.Release(16);
         var results = await Task.WhenAll(callers);
 
         calls.Should().Be(1, "one flight per key, however many callers miss at once");
@@ -235,17 +248,18 @@ public sealed class InMemoryCacheServiceTests
 
         for (var i = 0; i <= InMemoryCacheService.MaxEntries + 500; i++)
         {
-            await cache.SetAsync(CacheKey.For(Tenant, "tenancy", $"k{i:D6}"), i, ttl);
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"k{i:D6}"), i, ttl);
         }
 
-        cache.Count.Should().BeLessThanOrEqualTo(InMemoryCacheService.MaxEntries,
-            "the ceiling is a count, so that is what the test asserts");
+        cache.Count.Should().Be(InMemoryCacheService.MaxEntries,
+            "the ceiling is a count, so that is what the test asserts — and "
+            + "exactly, because a bound that over-evicts is also a defect");
 
-        (await cache.GetAsync<int?>(CacheKey.For(Tenant, "tenancy", "k000000")))
+        (await cache.GetAsync<int?>(CacheKey.ForTenant(Tenant, "tenancy", "k000000")))
             .Should().BeNull("the oldest entries are the ones the bound drops");
 
         var newest = InMemoryCacheService.MaxEntries + 500;
-        (await cache.GetAsync<int?>(CacheKey.For(Tenant, "tenancy", $"k{newest:D6}")))
+        (await cache.GetAsync<int?>(CacheKey.ForTenant(Tenant, "tenancy", $"k{newest:D6}")))
             .Should().Be(newest, "the newest write is never the one evicted");
     }
 
@@ -262,6 +276,10 @@ public sealed class InMemoryCacheServiceTests
             await cache.SetAsync(Key(), i, ttl);
         }
 
+        cache.Count.Should().Be(1,
+            "which is the invariant this test names — asserting only that the "
+            + "last write wins would pass however Store branched, since one key "
+            + "cannot occupy two slots in a dictionary");
         (await cache.GetAsync<int?>(Key())).Should().Be((InMemoryCacheService.MaxEntries * 2) - 1);
     }
 
@@ -333,6 +351,125 @@ public sealed class InMemoryCacheServiceTests
         (await winner).Should().Be("made", "the flight itself was never cancelled");
     }
 
+    [Fact]
+    public async Task A_Joiner_That_Leaves_Does_Not_Restart_The_Factory_For_The_Next_Arrival()
+    {
+        // The first version unregistered the shared flight in a `finally`, which
+        // runs when a caller stops WAITING — including when it stops by
+        // cancelling. A joiner that walked away therefore removed the
+        // registration while the factory was still running, and the next
+        // arrival started a second concurrent run: the exact stampede this
+        // method exists to prevent, reintroduced by its own cleanup, in the same
+        // change whose comment promised a joiner could leave without affecting
+        // the others.
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        using var leaving = new CancellationTokenSource();
+        var runs = 0;
+        var factoryEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async Task<string> Factory(CancellationToken _)
+        {
+            Interlocked.Increment(ref runs);
+            factoryEntered.TrySetResult();
+            await release.WaitAsync(TestTimeout, CancellationToken.None);
+            return "made";
+        }
+
+        var stays = cache.GetOrSetAsync(Key(), Factory, null, CancellationToken.None);
+        await factoryEntered.Task.WaitAsync(TestTimeout);
+        var leaves = cache.GetOrSetAsync(Key(), Factory, null, leaving.Token);
+
+        await leaving.CancelAsync();
+        await ((Func<Task>)(() => leaves)).Should().ThrowAsync<OperationCanceledException>();
+
+        // The next arrival must JOIN the still-running flight, not start one.
+        var arrives = cache.GetOrSetAsync(Key(), Factory, null, CancellationToken.None);
+
+        release.Release(3);
+        (await stays).Should().Be("made");
+        (await arrives).Should().Be("made");
+
+        runs.Should().Be(1, "one factory run per key, however many callers come and go");
+    }
+
+    [Fact]
+    public async Task A_Finished_Flight_Is_Unregistered()
+    {
+        // The other half of the same rule: binding cleanup to the flight rather
+        // than to a caller must not mean never cleaning up.
+        var (cache, _) = New();
+
+        await cache.GetOrSetAsync(Key(), _ => Task.FromResult("value"));
+
+        cache.InFlightCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Nothing_Unbounded_Survives_A_Large_Key_Space()
+    {
+        // Measured on the first version: a per-key version counter lived in a
+        // dictionary of its own that nothing ever swept, so _entries held its
+        // 10,000 ceiling while that map held all 50,000 — an unbounded
+        // structure hiding behind a bounded one, reached by ordinary per-entity
+        // keys rather than by misuse. The counter is now a flag on the flight,
+        // which dies with it, so there is no second map to grow.
+        var (cache, _) = New();
+        var ttl = new CacheOptions(L1Ttl: TimeSpan.FromDays(30));
+
+        for (var i = 0; i < InMemoryCacheService.MaxEntries * 5; i++)
+        {
+            await cache.GetOrSetAsync(
+                CacheKey.ForTenant(Tenant, "tenancy", $"k{i:D6}"),
+                _ => Task.FromResult(i),
+                ttl);
+        }
+
+        cache.Count.Should().BeLessThanOrEqualTo(InMemoryCacheService.MaxEntries);
+        cache.InFlightCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Two_Types_On_One_Key_Each_Get_Their_Own_Factory()
+    {
+        // A flight hands its result to every joiner, so keying it by the cache
+        // key alone made two callers asking for different types share one run:
+        // measured, the second caller's factory was never invoked and it
+        // received the first caller's payload, which then threw on the cast.
+        // Reusing one key for two types is a caller bug, but the cache must not
+        // answer it by silently skipping a factory.
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        var textEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var text = cache.GetOrSetAsync(Key(), async _ =>
+        {
+            textEntered.TrySetResult();
+            await release.WaitAsync(TestTimeout, CancellationToken.None);
+            return "text";
+        });
+
+        await textEntered.Task.WaitAsync(TestTimeout);
+        var number = cache.GetOrSetAsync(Key(), _ => Task.FromResult(42));
+
+        (await number).Should().Be(42, "its own factory ran");
+        release.Release();
+        (await text).Should().Be("text");
+    }
+
+    [Fact]
+    public async Task A_Key_Holding_Another_Type_Reads_As_A_Miss()
+    {
+        var (cache, _) = New();
+        await cache.SetAsync(Key(), "text");
+
+        (await cache.GetAsync<int?>(Key())).Should().BeNull(
+            "a miss lets the caller read the source of truth; a cast would throw "
+            + "out of a component whose contract is that a miss is never an error");
+    }
+
     // ---- an invalidation during a flight is not undone ----------------------
 
     [Fact]
@@ -397,15 +534,155 @@ public sealed class InMemoryCacheServiceTests
         var (cache, clock) = New();
         for (var i = 0; i < 200; i++)
         {
-            await cache.SetAsync(CacheKey.For(Tenant, "tenancy", $"k{i}"), i);
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"k{i}"), i);
         }
 
         cache.Count.Should().Be(200);
 
         clock.Advance(InMemoryCacheService.DefaultTtl + InMemoryCacheService.SweepInterval);
-        await cache.GetAsync<int?>(CacheKey.For(Tenant, "tenancy", "trigger"));
+        await cache.GetAsync<int?>(CacheKey.ForTenant(Tenant, "tenancy", "trigger"));
 
         cache.Count.Should().Be(0, "a sweep reclaims what expired, bound or no bound");
+    }
+
+    [Fact]
+    public async Task GetOrSet_Recomputes_After_Its_Value_Expires()
+    {
+        // GetOrSetAsync has its own hit check, separate from GetAsync's, and it
+        // is the one a caller reaches for on the hot path. Without this, a
+        // regression that served the first value forever would ship green.
+        var (cache, clock) = New();
+        var runs = 0;
+
+        Task<string> Factory(CancellationToken _)
+        {
+            runs++;
+            return Task.FromResult($"run-{runs}");
+        }
+
+        // A TTL shorter than the sweep interval, and a step that stays inside
+        // that interval: the entry is expired but the sweep is still throttled,
+        // so GetOrSetAsync's own freshness check is the only thing standing
+        // between the caller and a stale value. Step further and the sweep
+        // reclaims it first, which is why an earlier version of this test could
+        // not tell a missing check from a working one.
+        var brief = new CacheOptions(L1Ttl: TimeSpan.FromMilliseconds(300));
+
+        (await cache.GetOrSetAsync(Key(), Factory, brief)).Should().Be("run-1");
+        (await cache.GetOrSetAsync(Key(), Factory, brief)).Should().Be("run-1", "still fresh");
+
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+
+        (await cache.GetOrSetAsync(Key(), Factory, brief)).Should().Be("run-2",
+            "expired, and no sweep is due to have removed it");
+    }
+
+    [Fact]
+    public async Task A_Clock_That_Steps_Backwards_Does_Not_Wedge_The_Sweep()
+    {
+        // The throttle compares tick deltas, so a clock that jumps backwards —
+        // an NTP correction, a leap adjustment — would otherwise park the sweep
+        // until real time caught up to the future value it recorded. Every
+        // other test only moves the clock forward, so the guard against it had
+        // no coverage at all.
+        var (cache, clock) = New();
+        clock.Advance(TimeSpan.FromHours(6));
+        await cache.SetAsync(Key(), "value");
+
+        clock.SetUtcNow(Origin);
+
+        for (var i = 0; i < 200; i++)
+        {
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"k{i}"), i);
+        }
+
+        clock.Advance(InMemoryCacheService.DefaultTtl + InMemoryCacheService.SweepInterval);
+        await cache.GetAsync<int?>(CacheKey.ForTenant(Tenant, "tenancy", "trigger"));
+
+        // 200 reclaimed; the one written six hours ahead is still genuinely
+        // fresh at this instant, so it stays. Without the backwards guard the
+        // sweep would record the future timestamp and refuse to run until real
+        // time passed it — leaving all 201.
+        cache.Count.Should().Be(1, "the sweep still runs after the clock steps back");
+    }
+
+    [Fact]
+    public async Task The_Bound_Reclaims_Expired_Entries_Before_Evicting_Live_Ones()
+    {
+        // Trim has two passes and only the second had coverage: the bound test
+        // uses a 30-day TTL, so nothing is ever expired when Trim runs. An
+        // eviction that drops a live entry while an expired one sits next to it
+        // costs a round trip that nothing was owed.
+        // The two passes only differ when an expired entry is NEWER than a live
+        // one — otherwise evicting by insertion order removes the expired ones
+        // anyway, and dropping the first pass changes nothing observable. So the
+        // live entries go in FIRST and the doomed ones after them.
+        var (cache, clock) = New();
+        var live = new CacheOptions(L1Ttl: TimeSpan.FromDays(30));
+        var half = InMemoryCacheService.MaxEntries / 2;
+
+        for (var i = 0; i < half; i++)
+        {
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"live{i:D6}"), i, live);
+        }
+
+        var brief = new CacheOptions(L1Ttl: TimeSpan.FromMilliseconds(300));
+        for (var i = 0; i < half; i++)
+        {
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"doomed{i}"), i, brief);
+        }
+
+        // Inside the sweep interval, so the doomed entries are expired but still
+        // occupying slots when Trim runs — which is the whole point.
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+
+        // `half`, not `half + 1`: 5,000 live plus 5,000 fresh is exactly the
+        // ceiling, so once the expired ones are reclaimed nothing live has to
+        // go. One more and the oldest live entry is evicted legitimately, which
+        // would make this test fail for a reason it is not about.
+        for (var i = 0; i < half; i++)
+        {
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"fresh{i:D6}"), i, live);
+        }
+
+        (await cache.GetAsync<int?>(CacheKey.ForTenant(Tenant, "tenancy", "live000000")))
+            .Should().Be(0,
+                "the oldest LIVE entry survives, because expired ones are "
+                + "reclaimed before anything live is evicted for space");
+    }
+
+    [Fact]
+    public async Task The_Sweep_Runs_At_Most_Once_Per_Interval()
+    {
+        // The throttle is documented behaviour, and over-sweeping is correct but
+        // wasteful — so it is asserted rather than assumed.
+        var (cache, clock) = New();
+        await cache.SetAsync(Key(), "value", new CacheOptions(L1Ttl: TimeSpan.FromMilliseconds(300)));
+        await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", "other"), 1);
+
+        // Past the entry's TTL, but inside the interval since the last sweep.
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        (await cache.GetAsync<string>(Key())).Should().BeNull("expired entries are never served");
+        cache.Count.Should().Be(2, "but no sweep is due, so the slot is not reclaimed yet");
+
+        clock.Advance(InMemoryCacheService.SweepInterval);
+        await cache.GetAsync<string>(Key());
+        cache.Count.Should().Be(1, "now a sweep is due");
+    }
+
+    [Fact]
+    public async Task An_Explicitly_Stored_Null_Reads_Back_As_A_Miss()
+    {
+        // Pinned rather than fixed: `T?` cannot distinguish "stored null" from
+        // "absent", and inventing a wrapper to tell them apart would complicate
+        // every call site for a distinction none of them makes. The cost is one
+        // occupied slot, which the bound already accounts for.
+        var (cache, _) = New();
+
+        await cache.SetAsync<string?>(Key(), null);
+
+        (await cache.GetAsync<string?>(Key())).Should().BeNull();
+        cache.Count.Should().Be(1, "it does occupy a slot, whatever a reader sees");
     }
 
     // ---- the TTL boundary ---------------------------------------------------
@@ -426,6 +703,60 @@ public sealed class InMemoryCacheServiceTests
     }
 
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public async Task A_Write_Landing_Between_The_Check_And_The_Store_Is_Not_Overwritten()
+    {
+        // The supersede check and the store are two steps, not one, so a write
+        // landing between them would be overwritten by the very stale result
+        // the check exists to reject. Real thread scheduling cannot be aimed at
+        // a window that narrow, so the write is aimed at it through the seam
+        // this class already takes for determinism: an IClock whose UtcNow runs
+        // the write, on the read that sits between the two steps.
+        //
+        // The safe resolution is a miss, not the newer value: this caller has
+        // already overwritten the entry by the time it notices, so it evicts.
+        // The next reader goes to the source of truth, and a miss is never an
+        // error — whereas a stale value presented as fresh is the one thing a
+        // cache must not do quietly.
+        InMemoryCacheService? cache = null;
+        var clock = new WritingClock(Origin, onNthRead: 2, write: () =>
+            cache!.SetAsync(Key(), "landed-in-the-window").GetAwaiter().GetResult());
+        cache = new InMemoryCacheService(clock);
+
+        var produced = await cache.GetOrSetAsync(Key(), _ => Task.FromResult("from-factory"));
+
+        produced.Should().Be("from-factory", "the caller still gets what it asked for");
+        clock.Fired.Should().BeTrue("the window was actually hit — otherwise this proves nothing");
+        (await cache.GetAsync<string>(Key())).Should().BeNull(
+            "but the entry this caller had already overwritten is evicted rather "
+            + "than left holding a value a concurrent write had superseded");
+    }
+
+    /// <summary>
+    /// A clock that performs a write on one chosen read, to land a concurrent
+    /// operation inside a window too narrow to hit by scheduling.
+    /// </summary>
+    private sealed class WritingClock(DateTimeOffset now, int onNthRead, Action write) : IClock
+    {
+        private int _reads;
+
+        public bool Fired { get; private set; }
+
+        public DateTimeOffset UtcNow
+        {
+            get
+            {
+                if (++_reads == onNthRead && !Fired)
+                {
+                    Fired = true;
+                    write();
+                }
+
+                return now;
+            }
+        }
+    }
 
     private static (InMemoryCacheService Cache, FixedClock Clock) New()
     {

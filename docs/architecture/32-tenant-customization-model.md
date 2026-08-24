@@ -438,10 +438,22 @@ per tenant per month. That ratio is the whole design.
 
 | What | Layer | Key | TTL | Invalidated by |
 |---|---|---|---|---|
-| `TenantContentType` set for a tenant | L1 + L2 | `cust:{tenant_id}:content-types:{generation}` | L1 60s, L2 15 min | Generation bump |
-| `TenantLevelTaxonomy` by key | L1 + L2 | `cust:{tenant_id}:taxonomy:{key}:{generation}` | same | Generation bump |
-| `TenantPageBlock` set | L1 + L2 | `cust:{tenant_id}:blocks:{generation}` | same | Generation bump |
+| `TenantContentType` set for a tenant | L1 + L2 | `{tenant_id}:customization:content-types-v{generation}` | L1 60s, L2 15 min | Generation bump |
+| `TenantLevelTaxonomy` by key | L1 + L2 | `{tenant_id}:customization:taxonomy-{key}-v{generation}` | same | Generation bump |
+| `TenantPageBlock` set | L1 + L2 | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 | Compiled JSON Schema validator | L1 only, per pod | `(tenant_id, content_type_key, schema_version)` | Process lifetime, bounded LRU | Immutable — a schema version never changes |
+
+These are composed with `CacheKey.For(tenantId, "customization", logicalName)`, and the
+shape is not cosmetic: the tenant segment comes **first**, per
+[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), and
+`CacheKey.EnsureValid` throws on anything else. An earlier version of this table led
+each key with `cust:` — module first — which would have thrown at the first call.
+
+The generation is folded into the *logical-name* segment rather than added as a fourth
+one, because `CacheKey` forbids a `:` inside any single component: a separator that can
+appear inside a component makes two different key tuples collide. The same rule applies
+to `{key}`, which is tenant-supplied — the caller validates or encodes it before
+composing, and a `:` in it is rejected rather than silently widening the key space.
 
 Two rules make this safe:
 
