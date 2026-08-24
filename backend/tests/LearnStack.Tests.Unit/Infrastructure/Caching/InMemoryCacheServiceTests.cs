@@ -222,33 +222,207 @@ public sealed class InMemoryCacheServiceTests
     // ---- bound -------------------------------------------------------------
 
     [Fact]
-    public async Task The_Map_Is_Bounded()
+    public async Task The_Map_Is_Bounded_Even_When_The_Clock_Never_Moves()
     {
-        // A cache with no bound is an out-of-memory condition waiting for a
-        // caller with an unbounded key space. Evicting a live entry is allowed
-        // here — a miss costs a round trip — which is what makes this bound
-        // simpler than the idempotency store's.
-        var (cache, clock) = New();
-
-        // The TTL must outlast the whole run, or the oldest entries expire and
-        // the assertion below passes for the wrong reason — measured: with a
-        // one-hour TTL and a one-second advance per entry, the run covers about
-        // three hours and `k000000` is gone because it EXPIRED. Deleting the
-        // bound then changed nothing.
+        // The clock is FROZEN, which is the case the first version got wrong: the
+        // bound was enforced only inside a sweep, the sweep is throttled by clock
+        // time, and a burst does not advance the clock. Measured then: 60,000
+        // entries against a ceiling of 10,000. The test that "covered" the bound
+        // advanced the clock one second per write — the one schedule under which
+        // the old code held.
+        var (cache, _) = New();
         var ttl = new CacheOptions(L1Ttl: TimeSpan.FromDays(30));
 
         for (var i = 0; i <= InMemoryCacheService.MaxEntries + 500; i++)
         {
             await cache.SetAsync(CacheKey.For(Tenant, "tenancy", $"k{i:D6}"), i, ttl);
-            clock.Advance(InMemoryCacheService.SweepInterval);
         }
+
+        cache.Count.Should().BeLessThanOrEqualTo(InMemoryCacheService.MaxEntries,
+            "the ceiling is a count, so that is what the test asserts");
 
         (await cache.GetAsync<int?>(CacheKey.For(Tenant, "tenancy", "k000000")))
             .Should().BeNull("the oldest entries are the ones the bound drops");
 
         var newest = InMemoryCacheService.MaxEntries + 500;
         (await cache.GetAsync<int?>(CacheKey.For(Tenant, "tenancy", $"k{newest:D6}")))
-            .Should().Be(newest);
+            .Should().Be(newest, "the newest write is never the one evicted");
+    }
+
+    [Fact]
+    public async Task Replacing_A_Key_Does_Not_Grow_The_Map()
+    {
+        // Only a write that ADDS a key can cross the ceiling, which is why the
+        // bound is checked on TryAdd rather than on every write.
+        var (cache, _) = New();
+        var ttl = new CacheOptions(L1Ttl: TimeSpan.FromDays(30));
+
+        for (var i = 0; i < InMemoryCacheService.MaxEntries * 2; i++)
+        {
+            await cache.SetAsync(Key(), i, ttl);
+        }
+
+        (await cache.GetAsync<int?>(Key())).Should().Be((InMemoryCacheService.MaxEntries * 2) - 1);
+    }
+
+    // ---- cancellation is not contagious -------------------------------------
+
+    [Fact]
+    public async Task One_Callers_Cancellation_Does_Not_Fail_The_Others()
+    {
+        // The first version handed the shared flight the winning caller's token.
+        // Measured: one client pressing refresh cancelled the factory and every
+        // other request waiting on that key died with it — as a 499, which this
+        // host treats as "the client hung up", so it writes no body, captures no
+        // error and records no span. A request that did nothing wrong failed
+        // invisibly.
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        using var leaving = new CancellationTokenSource();
+
+        var factoryEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async Task<string> Factory(CancellationToken cancellationToken)
+        {
+            factoryEntered.TrySetResult();
+            await release.WaitAsync(TestTimeout, cancellationToken);
+            return "made";
+        }
+
+        var leaves = cache.GetOrSetAsync(Key(), Factory, null, leaving.Token);
+        await factoryEntered.Task.WaitAsync(TestTimeout);
+        var stays = cache.GetOrSetAsync(Key(), Factory, null, CancellationToken.None);
+
+        await leaving.CancelAsync();
+        await ((Func<Task>)(() => leaves)).Should().ThrowAsync<OperationCanceledException>();
+
+        release.Release(2);
+
+        (await stays).Should().Be("made",
+            "the caller that stayed connected asked for nothing that failed");
+    }
+
+    [Fact]
+    public async Task A_Joiner_Can_Abandon_A_Slow_Flight()
+    {
+        // The mirror image: before, a joiner awaited the shared task directly and
+        // could not leave until the winner's factory finished.
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        using var impatient = new CancellationTokenSource();
+        var factoryEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async Task<string> Factory(CancellationToken cancellationToken)
+        {
+            factoryEntered.TrySetResult();
+            await release.WaitAsync(TestTimeout, cancellationToken);
+            return "made";
+        }
+
+        var winner = cache.GetOrSetAsync(Key(), Factory, null, CancellationToken.None);
+        await factoryEntered.Task.WaitAsync(TestTimeout);
+        var joiner = cache.GetOrSetAsync(Key(), Factory, null, impatient.Token);
+
+        await impatient.CancelAsync();
+
+        await ((Func<Task>)(() => joiner)).Should().ThrowAsync<OperationCanceledException>();
+
+        release.Release();
+        (await winner).Should().Be("made", "the flight itself was never cancelled");
+    }
+
+    // ---- an invalidation during a flight is not undone ----------------------
+
+    [Fact]
+    public async Task A_Remove_During_A_Flight_Is_Not_Resurrected_By_It()
+    {
+        // Eager invalidation must not be silently lost for a full TTL because it
+        // happened to land while a factory was running.
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        var factoryEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var flight = cache.GetOrSetAsync(Key(), async _ =>
+        {
+            factoryEntered.TrySetResult();
+            await release.WaitAsync(TestTimeout, CancellationToken.None);
+            return "stale";
+        });
+
+        await factoryEntered.Task.WaitAsync(TestTimeout);
+        await cache.RemoveAsync(Key());
+        release.Release();
+
+        (await flight).Should().Be("stale", "the caller still gets what it asked for");
+        (await cache.GetAsync<string>(Key())).Should().BeNull(
+            "but the value it produced is not written over the invalidation");
+    }
+
+    [Fact]
+    public async Task A_Set_During_A_Flight_Wins_Over_It()
+    {
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        var factoryEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var flight = cache.GetOrSetAsync(Key(), async _ =>
+        {
+            factoryEntered.TrySetResult();
+            await release.WaitAsync(TestTimeout, CancellationToken.None);
+            return "from-factory";
+        });
+
+        await factoryEntered.Task.WaitAsync(TestTimeout);
+        await cache.SetAsync(Key(), "explicit");
+        release.Release();
+
+        await flight;
+
+        (await cache.GetAsync<string>(Key())).Should().Be("explicit",
+            "the newer write is the one that stands");
+    }
+
+    [Fact]
+    public async Task Expired_Entries_Are_Reclaimed_Without_Waiting_For_The_Ceiling()
+    {
+        // Expired entries are never READ — IsFresh guards both read paths — so
+        // failing to reclaim them is invisible in every value the cache returns.
+        // It is still a leak: without this, a workload whose keys all expire holds
+        // every one of them until the map crosses MaxEntries, which for a small
+        // key space is never.
+        var (cache, clock) = New();
+        for (var i = 0; i < 200; i++)
+        {
+            await cache.SetAsync(CacheKey.For(Tenant, "tenancy", $"k{i}"), i);
+        }
+
+        cache.Count.Should().Be(200);
+
+        clock.Advance(InMemoryCacheService.DefaultTtl + InMemoryCacheService.SweepInterval);
+        await cache.GetAsync<int?>(CacheKey.For(Tenant, "tenancy", "trigger"));
+
+        cache.Count.Should().Be(0, "a sweep reclaims what expired, bound or no bound");
+    }
+
+    // ---- the TTL boundary ---------------------------------------------------
+
+    [Fact]
+    public async Task An_Entry_Is_Gone_At_Exactly_Its_Expiry_Instant()
+    {
+        // `now < ExpiresAt`, not `<=`. The old "just inside its TTL" case moved a
+        // whole second short of the boundary and would have passed either way.
+        var (cache, clock) = New();
+        await cache.SetAsync(Key(), "value");
+
+        clock.Advance(InMemoryCacheService.DefaultTtl - TimeSpan.FromTicks(1));
+        (await cache.GetAsync<string>(Key())).Should().Be("value", "one tick before expiry");
+
+        clock.Advance(TimeSpan.FromTicks(1));
+        (await cache.GetAsync<string>(Key())).Should().BeNull("at the expiry instant");
     }
 
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);

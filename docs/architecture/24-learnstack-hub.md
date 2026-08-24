@@ -333,7 +333,8 @@ event, invalidates `platform_entitlement_cache` for that tenant, re-fetches on n
 ### Cache TTL
 
 LearnStack runtime caches the `Entitlement` for **15 minutes** via `ICacheService` (key
-`hub:entitlement:{tenant_id}`). Beyond 15 minutes it re-fetches lazily. Eager invalidation
+`{tenant_id}:hub:entitlement` — tenant segment first, per
+[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md)). Beyond 15 minutes it re-fetches lazily. Eager invalidation
 via Dapr pub/sub event (above) makes the cache TTL a worst-case bound, not a typical one.
 
 ## 5. Sequence diagrams

@@ -3,7 +3,9 @@ namespace LearnStack.SharedKernel.Caching;
 /// <summary>
 /// Builds and validates the one cache-key shape
 /// <see href="../../../../docs/standards/20-infrastructure-stack.md">Standards 20
-/// § Cache</see> admits: <c>{tenant_id}:{module}:{logical-name}</c>.
+/// § Cache</see> admits: <c>{tenant_id}:{module}:{logical-name}</c>, or
+/// <c>{tenant_id}:{organization_id}:{module}:{logical-name}</c> for a value scoped
+/// to one organization.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,6 +34,24 @@ public static class CacheKey
     public static string For(Guid tenantId, string module, string logicalName) =>
         For(tenantId.ToString(), module, logicalName);
 
+    /// <summary>
+    /// Composes a key for a value scoped to one organization within a tenant:
+    /// <c>{tenant_id}:{organization_id}:{module}:{logical-name}</c>.
+    /// </summary>
+    /// <remarks>
+    /// The same argument as the tenant segment, one level down. Organizations are
+    /// a scope in their own right
+    /// (<see href="../../../../docs/decisions/0017-tenant-organization-hierarchy.md">ADR-0017</see>),
+    /// so a roster cached as <c>{tenant}:education:roster</c> is a key two
+    /// organizations of one tenant both compute. <see cref="EnsureValid"/> cannot
+    /// catch that — an organization-scoped value and a tenant-wide one are
+    /// indistinguishable as strings — which is exactly why the composition exists
+    /// rather than being left to each call site to spell.
+    /// </remarks>
+    public static string ForOrganization(
+        Guid tenantId, Guid organizationId, string module, string logicalName) =>
+        For(tenantId.ToString(), organizationId.ToString(), module, logicalName);
+
     /// <summary>Composes a key for a platform-wide value.</summary>
     public static string ForPlatform(string module, string logicalName) =>
         For(PlatformTenant, module, logicalName);
@@ -50,7 +70,11 @@ public static class CacheKey
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
         var segments = key.Split(Separator);
-        if (segments.Length < 3 || segments.Any(string.IsNullOrWhiteSpace))
+        var wellFormed = segments.Length >= 3
+            && !segments.Any(string.IsNullOrWhiteSpace)
+            && IsTenantSegment(segments[0]);
+
+        if (!wellFormed)
         {
             throw new ArgumentException(
                 $"'{key}' is not a cache key. Standards 20 fixes the shape as "
@@ -62,16 +86,36 @@ public static class CacheKey
         }
     }
 
-    private static string For(string tenant, string module, string logicalName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tenant);
-        ArgumentException.ThrowIfNullOrWhiteSpace(module);
-        ArgumentException.ThrowIfNullOrWhiteSpace(logicalName);
+    /// <summary>
+    /// Whether the first segment is a tenant identifier or the platform sentinel.
+    /// </summary>
+    /// <remarks>
+    /// Counting segments is not enough, and the first version of this guard did
+    /// only that: <c>hub:entitlement:{tenant_id}</c> has three segments and puts
+    /// the module first, so it passed a check whose own error message says the
+    /// tenant segment is mandatory. A guard that admits the shape it exists to
+    /// reject is worse than none — it makes the rule look enforced.
+    /// </remarks>
+    private static bool IsTenantSegment(string segment) =>
+        segment.Equals(PlatformTenant, StringComparison.Ordinal) || Guid.TryParse(segment, out _);
 
-        // A separator inside a segment would let two different (tenant, module,
-        // name) triples produce the same key — the ambiguity a delimiter always
-        // has when a component can contain it.
-        foreach (var segment in (string[])[tenant, module, logicalName])
+    private static string For(string tenant, string module, string logicalName) =>
+        Compose([tenant, module, logicalName]);
+
+    private static string For(string tenant, string org, string module, string logicalName) =>
+        Compose([tenant, org, module, logicalName]);
+
+    private static string Compose(string[] segments)
+    {
+        foreach (var segment in segments)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+        }
+
+        // A separator inside a segment would let two different segment tuples
+        // produce the same key — the ambiguity a delimiter always has when a
+        // component can contain it.
+        foreach (var segment in segments)
         {
             if (segment.Contains(Separator, StringComparison.Ordinal))
             {
@@ -80,6 +124,6 @@ public static class CacheKey
             }
         }
 
-        return $"{tenant}{Separator}{module}{Separator}{logicalName}";
+        return string.Join(Separator, segments);
     }
 }

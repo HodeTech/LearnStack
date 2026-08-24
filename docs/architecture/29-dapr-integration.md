@@ -203,17 +203,16 @@ spec:
 ## 3. SharedKernel abstractions
 
 Application code interacts with Dapr exclusively through three interfaces in
-`LearnStack.SharedKernel.Abstractions`:
+`LearnStack.SharedKernel`:
 
 ```csharp
-// LearnStack.SharedKernel.Abstractions.Messaging
+// LearnStack.SharedKernel.Messaging
 public interface IEventBus
 {
-    Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent;
+    Task PublishAsync(IIntegrationEvent @event, string partitionKey, CancellationToken ct = default);
 }
 
-// LearnStack.SharedKernel.Abstractions.Caching
+// LearnStack.SharedKernel.Caching
 public interface ICacheService
 {
     Task<T?> GetAsync<T>(string key, CancellationToken ct = default);
@@ -221,14 +220,11 @@ public interface ICacheService
         CacheOptions? options = null, CancellationToken ct = default);
     Task SetAsync<T>(string key, T value, CacheOptions? options = null, CancellationToken ct = default);
     Task RemoveAsync(string key, CancellationToken ct = default);
-    // Removed, or redesigned to a generation-key pattern, before Phase 02a Packet 5
-    // ships (ADR-0035). See the note under the reference implementation below.
-    Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default);
 }
 
-public sealed record CacheOptions(TimeSpan? L1Ttl = null, TimeSpan? L2Ttl = null, string[]? Tags = null);
+public sealed record CacheOptions(TimeSpan? L1Ttl = null, TimeSpan? L2Ttl = null);
 
-// LearnStack.SharedKernel.Abstractions.Secrets
+// LearnStack.SharedKernel.Secrets
 public interface ISecretProvider
 {
     Task<string> GetSecretAsync(string key, CancellationToken ct = default);
@@ -237,57 +233,65 @@ public interface ISecretProvider
 }
 ```
 
+`IEventBus.PublishAsync` is **not generic** and `ICacheService` has **no
+`RemoveByPrefixAsync`**; `CacheOptions` carries **no `Tags`**. All three were settled by
+[ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md) — see
+[15-event-and-outbox.md](15-event-and-outbox.md) for why a generic publish reaches zero
+handlers at the only call site that matters, and § 4 below for why a prefix removal
+cannot be honoured across instances.
+
+**Keys are composed by the caller, not by the adapter.** `CacheKey.For(tenantId, module,
+name)` — or `ForOrganization(...)` — produces the key and `CacheKey.EnsureValid` guards
+its shape, so an adapter that also prefixed would emit `{tenant}:{tenant}:{module}:{name}`.
+Standards 20 § Cache fixes the shape; every implementation validates, none rewrites.
+
 Concrete implementations (`DaprEventBus`, `DaprCacheService`, `DaprSecretProvider`) live
 in `LearnStack.Infrastructure.{Messaging, Caching, Secrets}`. They are the **only**
 Dapr-aware code in the codebase.
 
 ### Development fallback: `InProcessEventBus`
 
-When `DeploymentMode.Development` and the Dapr sidecar is not running, the composition
-root registers `InProcessEventBus : IEventBus` instead. It routes
-`PublishAsync<TEvent>(@event, ct)` to `MediatR.IPublisher.Publish(@event, ct)`. Module
-subscribers (`INotificationHandler<TIntegrationEvent>`) handle the event in-process. No
-durable buffer, no Kafka, no sidecar dependency for dev environments without Docker.
+When the Dapr sidecar is not running, the composition root registers
+`InProcessEventBus : IEventBus`. It is a **transport, not a stub**: it resolves
+`IIntegrationEventHandler<T>` by the event's runtime type, restores tenant context from
+`@event.TenantId` into the handler's scope and puts the publisher's own back afterwards,
+leaves `IInboxGuard` deduplication to the handler exactly as the durable path does, and
+preserves per-partition-key ordering. A dev path that skipped those is a dev path where
+the isolation code is never exercised — see
+[15-event-and-outbox.md](15-event-and-outbox.md), which owns the implementation, and
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md), which makes the four
+obligations a condition of the gating.
 
 ## 4. Cache implementation (DaprCacheService)
 
-L1 in-memory + L2 Dapr State Store, with automatic tenant prefixing.
+L1 in-memory + L2 Dapr state store. The default implementation shipped in Packet 5 is
+`InMemoryCacheService` (L1 only); this adapter lands on
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s trigger — more than one
+application instance running concurrently.
 
 ```csharp
 internal sealed class DaprCacheService : ICacheService
 {
     private readonly DaprClient _dapr;
     private readonly IMemoryCache _memoryCache;
-    private readonly ITenantContextAccessor _tenantContext;
-    private readonly ConcurrentDictionary<string, DateTimeOffset> _trackedKeys = new();
-    private static long _lastCleanupTicks;
     private const string StateStoreName = "statestore";
-    private static readonly Guid InstanceId = Guid.NewGuid();
-
-    private string PrefixKey(string key)
-    {
-        var tenantId = _tenantContext.Current?.TenantId.ToString() ?? "platform";
-        var orgId = _tenantContext.Current?.OrganizationId?.ToString();
-        return orgId is null ? $"{tenantId}:{key}" : $"{tenantId}:{orgId}:{key}";
-    }
 
     public async Task<T> GetOrSetAsync<T>(string key, Func<CancellationToken, Task<T>> factory,
         CacheOptions? options = null, CancellationToken ct = default)
     {
-        var prefixed = PrefixKey(key);
+        // The key already carries its tenant — CacheKey composed it. Validate,
+        // never re-prefix.
+        CacheKey.EnsureValid(key);
 
-        // L1
-        if (_memoryCache.TryGetValue(prefixed, out T? cached) && cached is not null) return cached;
+        if (_memoryCache.TryGetValue(key, out T? cached) && cached is not null) return cached;
 
-        // L2
-        var (state, etag) = await _dapr.GetStateAndETagAsync<T?>(StateStoreName, prefixed, cancellationToken: ct);
+        var (state, etag) = await _dapr.GetStateAndETagAsync<T?>(StateStoreName, key, cancellationToken: ct);
         if (!string.IsNullOrEmpty(etag) && state is not null)
         {
-            _memoryCache.Set(prefixed, state, options?.L1Ttl ?? TimeSpan.FromMinutes(2));
+            _memoryCache.Set(key, state, options?.L1Ttl ?? TimeSpan.FromMinutes(2));
             return state;
         }
 
-        // Factory
         var value = await factory(ct);
         await SetAsync(key, value, options, ct);
         return value;
@@ -295,52 +299,44 @@ internal sealed class DaprCacheService : ICacheService
 
     public Task SetAsync<T>(string key, T value, CacheOptions? options = null, CancellationToken ct = default)
     {
-        var prefixed = PrefixKey(key);
-        _memoryCache.Set(prefixed, value, options?.L1Ttl ?? TimeSpan.FromMinutes(2));
-        _trackedKeys[prefixed] = DateTimeOffset.UtcNow + (options?.L2Ttl ?? TimeSpan.FromMinutes(15));
-        CleanupExpiredTrackedKeys();
+        CacheKey.EnsureValid(key);
+        _memoryCache.Set(key, value, options?.L1Ttl ?? TimeSpan.FromMinutes(2));
 
         var metadata = new Dictionary<string, string>
         {
             ["ttlInSeconds"] = ((int)(options?.L2Ttl ?? TimeSpan.FromMinutes(15)).TotalSeconds).ToString()
         };
-        return _dapr.SaveStateAsync(StateStoreName, prefixed, value, metadata: metadata, cancellationToken: ct);
+        return _dapr.SaveStateAsync(StateStoreName, key, value, metadata: metadata, cancellationToken: ct);
     }
-
-    // NOTE: superseded. `_trackedKeys` is instance-local, so keys written by another
-    // pod are never evicted and this method silently under-invalidates the moment a
-    // second instance runs. Per ADR-0035 it is removed from `ICacheService` or
-    // redesigned to a generation-key pattern before Phase 02a Packet 5 ships; see
-    // 32-tenant-customization-model.md § 8.2 for the generation-counter shape.
-    public async Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
-    {
-        var prefixed = PrefixKey(prefix);
-
-        // Local removal
-        foreach (var tracked in _trackedKeys.Keys.Where(k => k.StartsWith(prefixed, StringComparison.Ordinal)).ToList())
-        {
-            _memoryCache.Remove(tracked);
-            _trackedKeys.TryRemove(tracked, out _);
-            await _dapr.DeleteStateAsync(StateStoreName, tracked, cancellationToken: ct);
-        }
-
-        // Cross-instance L1 invalidation via Dapr pub/sub
-        await _dapr.PublishEventAsync("pubsub", "learnstack.cache.invalidation",
-            new CacheInvalidationEvent(prefixed, InstanceId), ct);
-    }
-
-    // ... (omitted: CleanupExpiredTrackedKeys throttled to once per 30s via Interlocked.CompareExchange)
 }
 ```
 
-Cross-instance L1 invalidation was originally specified against `RemoveByPrefixAsync`:
-one pod publishes a `learnstack.cache.invalidation` event, and a
-`CacheInvalidationSubscriber` on every pod clears matching L1 entries except those it
-published itself. That contract is superseded. A tenant-scoped **generation counter**
-embedded in the cache key makes every stale key unreachable at once without enumerating
-keys, and needs no invalidation topic on the write path. See
-[32-tenant-customization-model.md § 8.2](32-tenant-customization-model.md) and
-[ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
+### Why there is no prefix removal, and no invalidation topic
+
+An earlier version of this document carried a `RemoveByPrefixAsync` backed by an
+instance-local `_trackedKeys` dictionary, whose subscriber cleared *prefix-matching* L1
+entries on every other pod. That is superseded by
+[ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md).
+
+The `learnstack.cache.invalidation` topic itself survives, and it is worth being precise
+about what changed: the topic carries a `(tenant_id, cache_key)` payload and evicts **one
+named key** across instances, which is enumerable by construction. What died is
+invalidating a *set* the caller cannot enumerate. The topic is owned by
+[Phase 11](../roadmap/phase-11-production-hardening.md), which lands the Dapr and Valkey
+adapters and tests it under a broker partition — before that there is one instance and
+one cache, so there is nothing to invalidate across.
+
+The tracked-key set is the defect: it holds only what *this* instance wrote, so keys
+written by another pod were never evicted — a method whose name promised a global effect
+while delivering a local one, and which under-invalidated the moment a second instance
+ran. That is precisely the condition under which the Dapr adapter exists at all.
+
+What replaces it is a tenant-scoped **generation counter** embedded in the key template:
+a durable value bumped inside the business transaction, so a write makes every stale key
+unreachable at once without enumerating or deleting any of them, and without a
+topic on the write path. It is a caller-side convention rather than a member of
+`ICacheService`. See
+[32-tenant-customization-model.md § 8.2](32-tenant-customization-model.md).
 
 ## 5. Sidecar deployment
 

@@ -167,14 +167,23 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
 - All Valkey access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
   `IDistributedCache` injections are forbidden by the architecture test
   `Modules_Do_Not_Inject_Valkey_Directly`.
-- Cache keys are `{tenant_id}:{module}:{logical-name}`. The
-  `tenant_id` prefix is **mandatory** even when a value is platform-wide — use the
-  sentinel `"platform"` tenant id rather than omitting the prefix.
+- Cache keys are `{tenant_id}:{module}:{logical-name}`, or
+  `{tenant_id}:{organization_id}:{module}:{logical-name}` when the value is scoped to
+  one organization. The `tenant_id` segment comes **first** and is mandatory even when
+  a value is platform-wide — use the sentinel `"platform"` tenant id rather than
+  omitting it. Compose with `CacheKey.For` / `CacheKey.ForOrganization` /
+  `CacheKey.ForPlatform`; every `ICacheService` implementation calls
+  `CacheKey.EnsureValid`, and none re-prefixes. There is no query filter and no RLS
+  policy in front of a dictionary, so the key is the entire isolation boundary —
+  which is why the shape is validated rather than left to each call site to remember.
 - TTL defaults: 60s for hot-path reads (host → tenant, entitlement projection cache,
   permission cache), 5min for medium-warm reads, 1h for cold lookups. Anything
   longer needs explicit justification in code review.
-- Eager invalidation publishes to `learnstack.cache.invalidation`; do not rely on TTL
-  expiry for correctness.
+- **Correctness never lives in the cache.** A miss is not an error, and an
+  implementation may evict at any moment for any reason, so a caller that treats a
+  miss as a failure has made a component whose contract is "sometimes" into one it
+  depends on. Eager invalidation bounds staleness; it does not make the cache
+  authoritative.
 
 #### Cache layer cheat sheet
 
@@ -185,11 +194,21 @@ different decisions:
 
 | Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Valkey) | Eager invalidation event |
 |---|---|---|---|
-| `hub:host:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
-| `hub:entitlement:{tenant_id}` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
-| `tenant_feature_flags:{tenant_id}` | 60 s | 15 min | `learnstack.cache.invalidation` (generation key — see the rule below) |
-| Permission lookup per session | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
-| Tenant settings (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
+| `platform:hub:host-map:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
+| `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
+| `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | generation key — see the rule below |
+| `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
+| `{tenant_id}:tenancy:settings` (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
+
+The host lookup is the **one** family that legitimately carries the `platform`
+sentinel, and it is worth saying why: it answers "which tenant is this?", so by
+construction there is no tenant to key it by. Every other family knows its tenant,
+so a `platform` sentinel there would be a bug wearing the sentinel's clothes.
+
+> An earlier version of this table listed these as `hub:host:{host}`,
+> `hub:entitlement:{tenant_id}` and `tenant_feature_flags:{tenant_id}` — module
+> first, tenant in the middle or absent. Each contradicted the key rule stated a few
+> lines above it, and `CacheKey.EnsureValid` now rejects all three.
 
 Rules:
 

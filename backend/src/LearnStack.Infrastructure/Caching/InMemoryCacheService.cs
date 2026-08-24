@@ -47,6 +47,16 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     /// The most entries held at once. A cache with no bound is an
     /// out-of-memory condition waiting for a caller with an unbounded key space.
     /// </summary>
+    /// <remarks>
+    /// Enforced on every write that adds a key, <b>not</b> inside the throttled
+    /// sweep. Measured on the first version, which trimmed only during a sweep:
+    /// a burst of 60,000 writes inside one <see cref="SweepInterval"/> left
+    /// 60,000 entries against this ceiling of 10,000, because the sweep is
+    /// throttled by clock time and a burst does not advance the clock. The test
+    /// that covered the bound advanced the clock one second per write, which is
+    /// the one schedule under which the old code held — a guard and a test that
+    /// agreed with each other and not with reality.
+    /// </remarks>
     public const int MaxEntries = 10_000;
 
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
@@ -57,7 +67,38 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     private readonly ConcurrentDictionary<string, Lazy<Task<object?>>> _inFlight =
         new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Per-key write counter. A <see cref="GetOrSetAsync{T}"/> flight reads it
+    /// before running its factory and refuses to store a result the caller has
+    /// since superseded.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, long> _versions = new(StringComparer.Ordinal);
+
     private long _lastSweepTicks;
+
+    /// <summary>
+    /// Monotonic insertion counter. Eviction orders by this rather than by
+    /// <c>WrittenAt</c>, because a burst shares one instant: with a frozen or
+    /// coarse clock every entry carries the same timestamp and "oldest first"
+    /// silently becomes "an arbitrary one first".
+    /// </summary>
+    private long _sequence;
+
+    /// <summary>
+    /// How many entries the map currently holds, expired-but-unreclaimed ones
+    /// included.
+    /// </summary>
+    /// <remarks>
+    /// A diagnostic on this class, deliberately <b>not</b> on
+    /// <see cref="ICacheService"/>: a caller that branches on the size of a cache
+    /// has made a component whose contract is "sometimes" into one it depends on.
+    /// It exists so the two bounds this class claims — the ceiling and the
+    /// reclamation of expired entries — can be asserted directly rather than
+    /// inferred from which keys happen to survive an eviction. The first version
+    /// of the bound test inferred, and agreed with a ceiling that was holding
+    /// 60,000 entries against 10,000.
+    /// </remarks>
+    public int Count => _entries.Count;
 
     public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
     {
@@ -91,20 +132,42 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
             return (T)hit.Value!;
         }
 
+        // The version is read BEFORE the factory runs. If a Set or a Remove
+        // lands while it is running, storing the result would resurrect a value
+        // the caller already replaced or deleted — eager invalidation silently
+        // lost for a full TTL, which is the one thing a cache must not do
+        // quietly.
+        var versionAtStart = VersionOf(key);
+
         // Lazy with ExecutionAndPublication, not a bare GetOrAdd: the value
         // factory of a ConcurrentDictionary may run more than once under
         // contention, and running the caller's factory twice is the stampede
         // this method exists to prevent.
+        //
+        // The flight runs on CancellationToken.None, NOT on this caller's
+        // token. Measured: with the caller's token, one client pressing refresh
+        // cancelled the shared factory and every other request waiting on that
+        // key died with it — as a 499, which this host treats as "the client
+        // hung up" and therefore writes no body, captures no error and records
+        // no span. A request that did nothing wrong failed invisibly.
         var flight = _inFlight.GetOrAdd(
             key,
             _ => new Lazy<Task<object?>>(
-                async () => await factory(cancellationToken).ConfigureAwait(false),
+                async () => await factory(CancellationToken.None).ConfigureAwait(false),
                 LazyThreadSafetyMode.ExecutionAndPublication));
 
         try
         {
-            var produced = (T)(await flight.Value.ConfigureAwait(false))!;
-            Store(key, produced, options, clock.UtcNow);
+            // Each caller observes its OWN token while waiting, so a joiner can
+            // abandon a slow flight without affecting the others.
+            var produced = (T)(await flight.Value.WaitAsync(cancellationToken)
+                .ConfigureAwait(false))!;
+
+            if (VersionOf(key) == versionAtStart)
+            {
+                Store(key, produced, options, clock.UtcNow);
+            }
+
             return produced;
         }
         finally
@@ -125,6 +188,7 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
 
         var now = clock.UtcNow;
         Sweep(now);
+        Bump(key);
         Store(key, value, options, now);
 
         return Task.CompletedTask;
@@ -134,9 +198,14 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     {
         CacheKey.EnsureValid(key);
 
+        Bump(key);
         _entries.TryRemove(key, out _);
         return Task.CompletedTask;
     }
+
+    private long VersionOf(string key) => _versions.TryGetValue(key, out var v) ? v : 0;
+
+    private void Bump(string key) => _versions.AddOrUpdate(key, 1, (_, v) => v + 1);
 
     private void Store<T>(string key, T value, CacheOptions? options, DateTimeOffset now)
     {
@@ -144,8 +213,55 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
         // means a caller written today does not change when the Valkey adapter
         // gives it a meaning.
         var ttl = options?.L1Ttl ?? DefaultTtl;
+        var entry = new Entry(value, now + ttl, Interlocked.Increment(ref _sequence));
 
-        _entries[key] = new Entry(value, now + ttl, now);
+        // TryAdd first, so a write that GROWS the map is distinguishable from
+        // one that replaces an entry. Only the former can cross the ceiling, so
+        // only the former pays for checking it.
+        if (!_entries.TryAdd(key, entry))
+        {
+            _entries[key] = entry;
+            return;
+        }
+
+        if (_entries.Count > MaxEntries)
+        {
+            Trim(now);
+        }
+    }
+
+    /// <summary>
+    /// Evicts down to <see cref="MaxEntries"/>, expired entries first and then
+    /// the oldest live ones.
+    /// </summary>
+    /// <remarks>
+    /// Evicting a live entry is allowed here — a miss costs a round trip — which
+    /// is what makes this bound simpler than <c>InMemoryIdempotencyStore</c>'s,
+    /// where an entry is a promise and eviction would let an operation run twice.
+    /// </remarks>
+    private void Trim(DateTimeOffset now)
+    {
+        foreach (var pair in _entries)
+        {
+            if (!pair.Value.IsFresh(now))
+            {
+                // Value-comparing: between the enumerator observing an expired
+                // entry and this line, another thread may have written a fresh
+                // one at the same key.
+                _entries.TryRemove(pair);
+            }
+        }
+
+        var excess = _entries.Count - MaxEntries;
+        if (excess <= 0)
+        {
+            return;
+        }
+
+        foreach (var pair in _entries.OrderBy(pair => pair.Value.Sequence).Take(excess))
+        {
+            _entries.TryRemove(pair);
+        }
     }
 
     /// <summary>
@@ -169,39 +285,19 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
             return;
         }
 
-        var live = 0;
-
         foreach (var pair in _entries)
         {
             if (pair.Value.IsFresh(now))
             {
-                live++;
                 continue;
             }
 
-            // Value-comparing: between the enumerator observing an expired entry
-            // and this line, another thread may have written a fresh one at the
-            // same key, and removing by key alone would drop that instead.
-            _entries.TryRemove(pair);
-        }
-
-        if (live <= MaxEntries)
-        {
-            return;
-        }
-
-        // Oldest first. Evicting a live entry is allowed here — a miss costs a
-        // round trip — which is exactly what makes this bound simpler than the
-        // idempotency store's.
-        foreach (var pair in _entries
-                     .OrderBy(pair => pair.Value.WrittenAt)
-                     .Take(live - MaxEntries))
-        {
+            // Value-comparing, for the same reason Trim's pass is.
             _entries.TryRemove(pair);
         }
     }
 
-    private sealed record Entry(object? Value, DateTimeOffset ExpiresAt, DateTimeOffset WrittenAt)
+    private sealed record Entry(object? Value, DateTimeOffset ExpiresAt, long Sequence)
     {
         public bool IsFresh(DateTimeOffset now) => now < ExpiresAt;
     }

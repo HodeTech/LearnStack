@@ -1677,8 +1677,8 @@ structural test proves — and what it does not.
 
 - **Asserts:** the anonymous-burst counters resolve no `ICacheService`. A cache outage must not decide whether a MUST-class security event is recorded.
 - **Source:** ADR-0036 § Recording a rejected assertion.
-- **Type:** xUnit source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`) as a **tripwire**: `ICacheService` does not exist until Packet 5, so this cannot yet be a dependency check. It holds the line from now, because a shared burst counter is exactly what someone reaches a cache for.
+- **Type:** xUnit reflection check over the `LearnStack.Api.Tenancy` namespace **and** a source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`). It shipped in Packet 4 as a **tripwire**, because `ICacheService` did not exist yet; Packet 5 ships the port, so the rule now carries the dependency check it was always meant to be. Both forms are kept: reflection catches an injected dependency, the scan catches a service-locator resolve, and neither sees the other's case.
 - **Phase:** 02a Packet 4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

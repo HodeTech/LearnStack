@@ -380,6 +380,15 @@ public sealed class TenantMiddleware
 `_hostToTenantResolver` is backed by `ICacheService` (Dapr State / Valkey); cache key
 `hub:host:{host}` invalidated on `CustomDomainActivatedEvent` / `CustomDomainRevokedEvent`.
 
+> **Key spelling superseded (2026-08-24).** The cache key shipped as
+> `platform:hub:host-map:{host}`: the tenant segment comes first and is mandatory, and
+> a host lookup is the one family that legitimately carries the `platform` sentinel,
+> because it answers "which tenant is this?" and so has no tenant to key it by.
+> `CacheKey.EnsureValid` rejects the spelling above. The canonical shape lives in
+> [Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md); this
+> paragraph is left as written because an Accepted ADR is not rewritten, and nothing
+> else in this decision depends on the spelling.
+
 ### Public suffix list validation
 
 A tenant cannot register `com`, `co.uk`, `gov`, or other public suffix domains. The

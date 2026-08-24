@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentAssertions;
 using Xunit;
 
@@ -12,12 +13,14 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These are <b>source scans</b>, and that is a deliberate choice rather than a
-/// shortcut. Each rule is about a symbol not appearing outside one file — a
-/// reflection or NetArchTest form would have to observe a call that has no
+/// Most of these are <b>source scans</b>, and that is a deliberate choice rather
+/// than a shortcut. Each rule is about a symbol not appearing outside one file —
+/// a reflection or NetArchTest form would have to observe a call that has no
 /// consumer yet, because the resolver that will read these values does not land
 /// until Packet 7. A scan can hold the line from the day the symbol exists,
-/// which is the day it can first be used wrongly.
+/// which is the day it can first be used wrongly. Where the type a rule names
+/// now exists, the rule adds a reflection check alongside the scan rather than
+/// replacing it: the two catch different mistakes.
 /// </para>
 /// <para>
 /// Comment lines are skipped. Every one of these files argues in prose about the
@@ -76,16 +79,46 @@ public sealed class TenancyConventionTests
     [Fact]
     public void Assertion_Budget_Does_Not_Depend_On_ICacheService()
     {
-        // A tripwire, like Forwarded_Headers_Are_Not_Wired. ICacheService does
-        // not exist yet — Packet 5 ships the port — so this cannot yet be a
-        // dependency check. It holds the line from now, because the anonymous
-        // burst counter is exactly the thing someone will reach for a cache to
-        // share across instances, and a cache outage must not decide whether a
-        // MUST-class security event is recorded.
+        // The anonymous burst counter is exactly the thing someone reaches for a
+        // cache to share across instances, and a cache outage must not decide
+        // whether a MUST-class security event is recorded.
+        //
+        // This began as a tripwire because ICacheService did not exist. Packet 5
+        // ships it, so the rule is now what the catalogue promised: a real
+        // dependency check as well as a text scan. Both are kept — reflection
+        // catches an injected dependency, the scan catches a service-locator
+        // resolve, and neither sees the other's case.
+        Injectors().Should().BeEmpty(
+            "no type under Tenancy takes an ICacheService "
+            + "(ADR-0036 § Recording a rejected assertion)");
+
         Offenders(except: null, banned: ["ICacheService"], folder: "Tenancy")
             .Should().BeEmpty(
-                "the anonymous-burst counters resolve no ICacheService "
+                "and none resolves one by name either "
                 + "(ADR-0036 § Recording a rejected assertion)");
+    }
+
+    /// <summary>
+    /// Types in the <c>LearnStack.Api.Tenancy</c> namespace that take an
+    /// <see cref="LearnStack.SharedKernel.Caching.ICacheService"/> as a
+    /// constructor parameter or hold one in a field.
+    /// </summary>
+    private static List<string> Injectors()
+    {
+        var cache = typeof(LearnStack.SharedKernel.Caching.ICacheService);
+
+        return typeof(LearnStack.Api.Versioning.ApiVersioningExtensions).Assembly
+            .GetTypes()
+            .Where(type => type.Namespace?.StartsWith(
+                "LearnStack.Api.Tenancy", StringComparison.Ordinal) == true)
+            .Where(type =>
+                type.GetConstructors().Any(constructor =>
+                    constructor.GetParameters().Any(p => cache.IsAssignableFrom(p.ParameterType)))
+                || type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic
+                        | BindingFlags.Public)
+                    .Any(field => cache.IsAssignableFrom(field.FieldType)))
+            .Select(type => type.FullName!)
+            .ToList();
     }
 
     /// <summary>

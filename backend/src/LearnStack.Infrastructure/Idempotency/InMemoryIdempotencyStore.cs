@@ -23,9 +23,11 @@ namespace LearnStack.Infrastructure.Idempotency;
 /// </para>
 /// <para>
 /// The same limitation is why <c>ICacheService</c> exists as a port and why
-/// <c>RemoveByPrefixAsync</c> is being removed from it: an instance-local
-/// structure cannot honour a contract phrased as if it were shared. Saying so
-/// here keeps the next reader from mistaking this for a finished component.
+/// <c>RemoveByPrefixAsync</c> was removed from it in
+/// <see href="../../../../docs/decisions/0014-adopt-dapr.md">ADR-0014 Amendment 2</see>:
+/// an instance-local structure cannot honour a contract phrased as if it were
+/// shared. Saying so here keeps the next reader from mistaking this for a
+/// finished component.
 /// </para>
 /// </remarks>
 public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
