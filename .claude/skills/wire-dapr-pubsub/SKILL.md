@@ -171,11 +171,16 @@ else
 }
 ```
 
-`InProcessEventBus` publishes via `IPublisher` (MediatR); subscribers register as
-`INotificationHandler<TIntegrationEvent>` in addition to `IIntegrationEventHandler<T>`.
-The handler code is the **same** — the bus is the only difference. New events
-require no extra registration for the dev path because the handler is discovered
-by assembly scan.
+`InProcessEventBus` resolves `IIntegrationEventHandler<T>`, closed over the
+event's **runtime** type, straight from the DI container. MediatR is not
+involved: there is no `IPublisher` and no `INotificationHandler`, and registering
+a second interface is precisely the mistake the single consumer contract exists
+to prevent — two interfaces mean two implementations per consumer, and the one
+exercised in CI would not be the one that runs in production.
+
+The handler code is the **same** on both transports; the bus is the only
+difference. Register your handler once, as
+`IIntegrationEventHandler<TIntegrationEvent>`.
 
 ### Step 6: Cross-instance L1 cache invalidation
 

@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
 using FluentAssertions;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Messaging;
@@ -24,6 +26,8 @@ public sealed class InProcessEventBusTests
 {
     private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    private const string Topic = "learnstack.test.thing";
+    private const string Trace = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
     [Fact]
     public async Task A_Handler_Receives_The_Event()
@@ -32,7 +36,7 @@ public sealed class InProcessEventBusTests
         var (bus, _) = Build(recorder, services =>
             services.AddScoped<IIntegrationEventHandler<Thing>, ThingHandler>());
 
-        await bus.PublishAsync(NewThing("a"), "p1");
+        await bus.PublishAsync(Envelope(NewThing("a")));
 
         recorder.Handled.Should().ContainSingle().Which.Should().Be("a");
     }
@@ -50,7 +54,7 @@ public sealed class InProcessEventBusTests
         var (bus, _) = Build(recorder, services =>
             services.AddScoped<IIntegrationEventHandler<Thing>, InternalThingHandler>());
 
-        await bus.PublishAsync(NewThing("a"), "p1");
+        await bus.PublishAsync(Envelope(NewThing("a")));
 
         recorder.Handled.Should().ContainSingle().Which.Should().Be("internal:a");
     }
@@ -69,7 +73,7 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>, ThingHandler>());
 
         IIntegrationEvent asBase = NewThing("a");
-        await bus.PublishAsync(asBase, "p1");
+        await bus.PublishAsync(new IntegrationEventEnvelope(asBase, Topic, Trace));
 
         recorder.Handled.Should().ContainSingle();
     }
@@ -84,7 +88,7 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>, SecondThingHandler>();
         });
 
-        await bus.PublishAsync(NewThing("a"), "p1");
+        await bus.PublishAsync(Envelope(NewThing("a")));
 
         recorder.Handled.Should().BeEquivalentTo(["a", "second:a"]);
     }
@@ -94,7 +98,7 @@ public sealed class InProcessEventBusTests
     {
         var (bus, _) = Build(new Recorder(), _ => { });
 
-        var act = () => bus.PublishAsync(NewThing("a"), "p1");
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
 
         await act.Should().NotThrowAsync();
     }
@@ -112,7 +116,7 @@ public sealed class InProcessEventBusTests
         var (bus, _) = Build(recorder, services =>
             services.AddScoped<IIntegrationEventHandler<Thing>, TenantReadingHandler>());
 
-        await bus.PublishAsync(NewThing("a"), "p1");
+        await bus.PublishAsync(Envelope(NewThing("a")));
 
         recorder.Tenants.Should().ContainSingle().Which.Should().Be(Tenant);
     }
@@ -127,10 +131,11 @@ public sealed class InProcessEventBusTests
         var (bus, accessor) = Build(recorder, services =>
             services.AddScoped<IIntegrationEventHandler<Thing>, TenantReadingHandler>());
 
-        var publisher = EventTenantContext.FromEvent(NewThing("x") with { TenantId = Guid.NewGuid() });
+        var publisher = EventTenantContext.FromEnvelope(
+            Envelope(NewThing("x") with { TenantId = Guid.NewGuid() }));
         accessor.Current = publisher;
 
-        await bus.PublishAsync(NewThing("a"), "p1");
+        await bus.PublishAsync(Envelope(NewThing("a")));
 
         accessor.Current.Should().BeSameAs(publisher);
     }
@@ -143,10 +148,170 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>, ThrowingHandler>());
         accessor.Current = null;
 
-        var act = () => bus.PublishAsync(NewThing("a"), "p1");
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         accessor.Current.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_Handler_Reads_The_Scoped_Tenant_Context_Too()
+    {
+        // Setting only the ambient accessor left the SCOPED ITenantContext — the
+        // one ITenantContext's own doc says is handed to MediatR handlers, EF
+        // interceptors and the audit pipeline — unresolved inside the dispatch
+        // scope. A handler injecting it threw, and one sending a MediatR command
+        // was short-circuited by TenantContextBehavior before its business logic
+        // ran. The obligation the transport advertises was half-delivered.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ScopedContextReadingHandler>());
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.Tenants.Should().ContainSingle().Which.Should().Be(Tenant);
+    }
+
+    [Fact]
+    public async Task The_Consumer_Acts_As_The_System_When_The_Envelope_Names_No_Actor()
+    {
+        // AuditableEntity.MarkCreated refuses default(UserId) and Guid.Empty, so
+        // a null actor left every state-writing consumer with no value it could
+        // legally pass — it could not create an aggregate at all.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ActorReadingHandler>());
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.Actors.Should().ContainSingle().Which.Should().Be(UserId.SystemActor);
+    }
+
+    [Fact]
+    public async Task The_Envelopes_Actor_And_Organization_Reach_The_Handler()
+    {
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ActorReadingHandler>());
+
+        var actor = UserId.From(Guid.Parse("018f4d40-0000-7000-8000-0000000000aa"));
+        var organization = Guid.Parse("018f4d40-0000-7000-8000-0000000000c1");
+
+        await bus.PublishAsync(new IntegrationEventEnvelope(
+            NewThing("a"), Topic, Trace, OrganizationId: organization, ActorUserId: actor));
+
+        recorder.Actors.Should().ContainSingle().Which.Should().Be(actor);
+        recorder.Organizations.Should().ContainSingle().Which.Should().Be(organization);
+    }
+
+    [Fact]
+    public async Task An_Event_With_No_Tenant_Is_Refused_Rather_Than_Dispatched()
+    {
+        // A confidently-resolved context for a tenant that does not exist is
+        // worse than an unresolved one: once SET LOCAL app.tenant_id runs, every
+        // query silently returns nothing instead of failing.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThingHandler>());
+
+        var act = () => bus.PublishAsync(
+            Envelope(NewThing("a") with { TenantId = Guid.Empty }));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+        recorder.Handled.Should().BeEmpty();
+    }
+
+    // ---- failure isolation ---------------------------------------------------
+
+    [Fact]
+    public async Task One_Failing_Handler_Does_Not_Deny_The_Others_The_Event()
+    {
+        // Poison-message containment is per subscription: one module's broken
+        // handler must not stop another module consuming the same event, and
+        // in-process there is no retry and no dead-letter to make up for it.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThrowingHandler>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, SecondThingHandler>();
+        });
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        recorder.Handled.Should().ContainSingle().Which.Should().Be("second:a",
+            "the surviving subscription still got its delivery");
+    }
+
+    [Fact]
+    public async Task Several_Failures_Are_Reported_Together()
+    {
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThrowingHandler>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThrowingHandler>();
+        });
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
+
+        (await act.Should().ThrowAsync<AggregateException>())
+            .Which.InnerExceptions.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Each_Handler_Gets_Its_Own_Scope()
+    {
+        // Under a broker each subscription gets its own. Sharing one here would
+        // hand two modules' consumers the same DbContext and the same unit of
+        // work, so a failed handler's dirty state would cross a module boundary
+        // the architecture otherwise enforces hard.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<ScopeMarker>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, ScopeReadingHandler>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, SecondScopeReadingHandler>();
+        });
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.Scopes.Should().HaveCount(2);
+        recorder.Scopes.Distinct().Should().HaveCount(2, "two scopes, two markers");
+    }
+
+    // ---- cancellation --------------------------------------------------------
+
+    [Fact]
+    public async Task A_Publish_On_An_Already_Cancelled_Token_Does_Not_Dispatch()
+    {
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThingHandler>());
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")), cancelled.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        recorder.Handled.Should().BeEmpty("a broker-backed transport would fail before any I/O");
+    }
+
+    [Fact]
+    public async Task A_Handler_Cancelled_By_A_Foreign_Token_Fails_Rather_Than_Cancels()
+    {
+        // An outbox processor cannot distinguish "we are shutting down, retry
+        // later" from "the handler ran and gave up" if both arrive as a cancelled
+        // task — and its shutdown path swallows the former.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>>(_ => new ForeignCancelHandler()));
+
+        var publish = bus.PublishAsync(Envelope(NewThing("a")));
+
+        var act = () => publish;
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        publish.IsCanceled.Should().BeFalse();
     }
 
     // ---- obligation: ordering per partition key ------------------------------
@@ -161,8 +326,8 @@ public sealed class InProcessEventBusTests
         var (bus, _) = Build(recorder, services =>
             services.AddScoped<IIntegrationEventHandler<Thing>, OverlapDetectingHandler>());
 
-        var first = bus.PublishAsync(NewThing("a"), "same-key");
-        var second = bus.PublishAsync(NewThing("b"), "same-key");
+        var first = bus.PublishAsync(Envelope(NewThing("a", "same-key")));
+        var second = bus.PublishAsync(Envelope(NewThing("b", "same-key")));
         await Task.WhenAll(first, second).WaitAsync(Timeout);
 
         recorder.Overlapped.Should().BeFalse("dispatch is sequential within one key");
@@ -181,8 +346,8 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>>(
                 _ => new RendezvousHandler(bothArrived)));
 
-        var first = bus.PublishAsync(NewThing("a"), "key-1");
-        var second = bus.PublishAsync(NewThing("b"), "key-2");
+        var first = bus.PublishAsync(Envelope(NewThing("a", "key-1")));
+        var second = bus.PublishAsync(Envelope(NewThing("b", "key-2")));
 
         // Each handler releases once and waits for the other. If the two keys
         // were serialised, the first would wait forever and this would time out.
@@ -200,22 +365,37 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>, ThrowOnFirstHandler>();
         });
 
-        var failing = bus.PublishAsync(NewThing("boom"), "same-key");
+        var failing = bus.PublishAsync(Envelope(NewThing("boom", "same-key")));
         await ((Func<Task>)(() => failing)).Should().ThrowAsync<InvalidOperationException>();
 
-        await bus.PublishAsync(NewThing("after"), "same-key").WaitAsync(Timeout);
+        await bus.PublishAsync(Envelope(NewThing("after", "same-key"))).WaitAsync(Timeout);
 
         recorder.Handled.Should().Contain("after");
     }
 
     // ---- helpers -------------------------------------------------------------
 
-    private static Thing NewThing(string payload) => new()
+    /// <summary>
+    /// Wraps an event for dispatch.
+    /// </summary>
+    /// <remarks>
+    /// The partition key is the event's own — the envelope reads it and cannot
+    /// disagree with it. An earlier two-parameter shape could: every test here
+    /// published an event declaring one key with a different one passed
+    /// alongside, the transport used the parameter and never the event, and
+    /// nothing noticed. Ordering is guaranteed per partition key, so a key that
+    /// can differ from itself is a guarantee that cannot be stated.
+    /// </remarks>
+    private static IntegrationEventEnvelope Envelope(Thing @event) =>
+        new(@event, Topic, Trace);
+
+    private static Thing NewThing(string payload, string? partitionKey = null) => new()
     {
         EventId = Guid.NewGuid(),
         TenantId = Tenant,
         OccurredAt = DateTimeOffset.UnixEpoch,
         Payload = payload,
+        Key = partitionKey,
     };
 
     private static (IEventBus Bus, ITenantContextAccessor Accessor) Build(
@@ -230,6 +410,14 @@ public sealed class InProcessEventBusTests
         // the dispatch scope reads what the transport restored rather than a
         // second, empty one.
         services.AddSingleton<ITenantContextAccessor>(accessor);
+
+        // The production binding, verbatim (CrossCuttingFoundationExtensions):
+        // the scoped context resolves FROM the accessor. Registering anything
+        // else here would test a container this application never builds.
+        services.AddScoped<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
+
         register(services);
 
         var provider = services.BuildServiceProvider();
@@ -238,7 +426,8 @@ public sealed class InProcessEventBusTests
             new InProcessEventBus(
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 accessor,
-                new PartitionSerializer()),
+                new PartitionSerializer(),
+                NullLogger<InProcessEventBus>.Instance),
             accessor);
     }
 
@@ -267,6 +456,12 @@ public sealed class InProcessEventBusTests
 
         public ConcurrentQueue<Guid> Tenants { get; } = new();
 
+        public ConcurrentQueue<UserId> Actors { get; } = new();
+
+        public ConcurrentQueue<Guid> Organizations { get; } = new();
+
+        public ConcurrentQueue<Guid> Scopes { get; } = new();
+
         /// <summary>Whether two handlers were ever inside the dispatch at once.</summary>
         public bool Overlapped { get; private set; }
 
@@ -285,7 +480,10 @@ public sealed class InProcessEventBusTests
     {
         public required string Payload { get; init; }
 
-        public override string PartitionKey => Payload;
+        /// <summary>An ordering domain independent of the payload, for the ordering cases.</summary>
+        public string? Key { get; init; }
+
+        public override string PartitionKey => Key ?? Payload;
     }
 
     public sealed class ThingHandler(Recorder recorder) : IIntegrationEventHandler<Thing>
@@ -321,6 +519,68 @@ public sealed class InProcessEventBusTests
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
             recorder.Tenants.Enqueue(accessor.Current!.TenantId);
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class ScopedContextReadingHandler(Recorder recorder, ITenantContext context)
+        : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.Tenants.Enqueue(context.TenantId);
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class ActorReadingHandler(Recorder recorder, ITenantContext context)
+        : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.Actors.Enqueue(context.UserId!.Value);
+
+            if (context.OrganizationId is { } organization)
+            {
+                recorder.Organizations.Enqueue(organization);
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class ScopeMarker
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+    }
+
+    public sealed class ScopeReadingHandler(Recorder recorder, ScopeMarker marker)
+        : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.Scopes.Enqueue(marker.Id);
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class SecondScopeReadingHandler(Recorder recorder, ScopeMarker marker)
+        : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.Scopes.Enqueue(marker.Id);
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class ForeignCancelHandler : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            using var unrelated = new CancellationTokenSource();
+            unrelated.Cancel();
+            unrelated.Token.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
     }

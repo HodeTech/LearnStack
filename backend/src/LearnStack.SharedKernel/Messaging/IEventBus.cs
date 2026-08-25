@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace LearnStack.SharedKernel.Messaging;
 
 /// <summary>
@@ -19,24 +17,15 @@ namespace LearnStack.SharedKernel.Messaging;
 /// transports resolve by the event's <b>runtime</b> type instead.
 /// </para>
 /// <para>
-/// The partition key is a parameter rather than being read off the event because
-/// the producer resolves it once, at enqueue time, and writes it to the outbox
-/// row; the processor passes back what it stored. Nothing downstream re-derives
-/// it, so the ordering domain cannot drift between enqueue and publish.
+/// The envelope carries the dispatch metadata the outbox row holds and the event
+/// does not — topic, correlation, organization, causation, actor — and reads the
+/// partition key off the event, so the ordering domain has exactly one source.
 /// </para>
 /// </remarks>
-[SuppressMessage(
-    "Naming",
-    "CA1716:Identifiers should not match keywords",
-    Justification = "LearnStack is C#-only per ADR-0032, and architecture/15 "
-        + "publishes this signature with the parameter spelled @event; renaming "
-        + "would put the corpus and the code out of step for a cross-language "
-        + "concern that does not exist.")]
 public interface IEventBus
 {
-    /// <summary>Publishes one event, ordered against others sharing its partition key.</summary>
+    /// <summary>Publishes one envelope, ordered against others sharing its partition key.</summary>
     Task PublishAsync(
-        IIntegrationEvent @event,
-        string partitionKey,
+        IntegrationEventEnvelope envelope,
         CancellationToken cancellationToken = default);
 }

@@ -71,7 +71,19 @@ public static class CrossCuttingFoundationExtensions
         // resolved instance produced by TenantResolverMiddleware. The
         // singleton ITenantContextAccessor is set in
         // AddLearnStackObservabilityServices above.
-        builder.Services.TryAddScoped<ITenantContext>(_ => UnresolvedTenantContext.Instance);
+        // Resolved FROM the accessor rather than hard-wired to the unresolved
+        // singleton. Nothing wrote the accessor before the event bus, so this is
+        // behaviour-preserving for every HTTP path — and it is what makes the
+        // bus's tenant restoration reach the scope a handler actually resolves
+        // from. Setting only the ambient accessor left the scoped ITenantContext
+        // unresolved: a handler injecting it threw, and one sending a MediatR
+        // command was short-circuited by TenantContextBehavior before its
+        // business logic ran, so the obligation the transport advertises was
+        // half-delivered. Packet 7's TenantResolverMiddleware writes the same
+        // accessor.
+        builder.Services.TryAddScoped<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
 
         // IClock and IGuidFactory have existed in the kernel since Packet 2 and
         // were never registered, because nothing consumed them. Packet 4's
@@ -264,7 +276,10 @@ public static class CrossCuttingFoundationExtensions
         return new LearnStack.Infrastructure.Messaging.InProcessEventBus(
             services.GetRequiredService<IServiceScopeFactory>(),
             services.GetRequiredService<LearnStack.SharedKernel.Tenancy.ITenantContextAccessor>(),
-            services.GetRequiredService<LearnStack.SharedKernel.Messaging.IPartitionSerializer>());
+            services.GetRequiredService<LearnStack.SharedKernel.Messaging.IPartitionSerializer>(),
+            services.GetRequiredService<
+                Microsoft.Extensions.Logging.ILogger<
+                    LearnStack.Infrastructure.Messaging.InProcessEventBus>>());
     }
 
     /// <summary>

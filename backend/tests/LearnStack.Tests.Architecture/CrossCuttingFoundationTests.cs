@@ -313,6 +313,60 @@ public sealed class CrossCuttingFoundationTests
     }
 
     [Fact]
+    public void Modules_Do_Not_Inject_IEventBus_Directly()
+    {
+        // Standards 20 § IEventBus: the only sanctioned publisher is the
+        // OutboxProcessor. A module that injects IEventBus gets a synchronous
+        // cross-module call with no durability and no transactional atomicity —
+        // a fifth cross-module mechanism in everything but name
+        // (ADR-0010 admits four), and one that looks like it works in every
+        // development test because the in-process transport delivers inline.
+        //
+        // A namespace ban cannot express this: modules legitimately depend on
+        // LearnStack.SharedKernel.Messaging for IIntegrationEvent and
+        // IIntegrationEventHandler<T>. Only the bus itself is off limits.
+        //
+        // The module assemblies carry no types yet, so this would be vacuous —
+        // which is why the checker is pointed at a deliberate offender in this
+        // assembly first. A guard that cannot be shown to fire is not a guard.
+        InjectsEventBus(typeof(DeliberateEventBusInjector)).Should().BeTrue(
+            "the checker must catch a type that does inject the bus, or it "
+            + "proves nothing about the modules it is aimed at");
+        InjectsEventBus(typeof(CrossCuttingFoundationTests)).Should().BeFalse();
+
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var assembly = TryLoadAssembly(name);
+            if (assembly is null) continue;
+
+            var offenders = assembly.GetTypes().Where(InjectsEventBus).Select(t => t.FullName).ToList();
+
+            offenders.Should().BeEmpty(
+                $"{name} injects IEventBus. Modules write to the outbox; the "
+                + "OutboxProcessor publishes (Standards 20 § IEventBus).");
+        }
+    }
+
+    private static bool InjectsEventBus(Type type)
+    {
+        var bus = typeof(LearnStack.SharedKernel.Messaging.IEventBus);
+
+        return type.GetConstructors().Any(constructor =>
+                   constructor.GetParameters().Any(p => bus.IsAssignableFrom(p.ParameterType)))
+               || type.GetFields(
+                       System.Reflection.BindingFlags.Instance
+                       | System.Reflection.BindingFlags.NonPublic
+                       | System.Reflection.BindingFlags.Public)
+                   .Any(field => bus.IsAssignableFrom(field.FieldType));
+    }
+
+    /// <summary>A type that breaks the rule, so the checker can be shown to catch it.</summary>
+    private sealed class DeliberateEventBusInjector(LearnStack.SharedKernel.Messaging.IEventBus bus)
+    {
+        public LearnStack.SharedKernel.Messaging.IEventBus Bus { get; } = bus;
+    }
+
+    [Fact]
     public void IErrorTrackingProvider_Is_Singleton()
     {
         // ADR-0032 § Sub-decision 9 — the composition root registers a

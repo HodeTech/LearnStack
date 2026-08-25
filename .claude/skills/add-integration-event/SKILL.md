@@ -46,7 +46,7 @@ and [15-event-and-outbox.md](../../../docs/architecture/15-event-and-outbox.md).
 | Producing module | Yes | Owns the aggregate the event describes. |
 | Consuming module(s) | Yes | At least one; can be many. |
 | Topic | Derived | `learnstack.{module}.{aggregate}` (e.g. `learnstack.enrollment.enrollment`). |
-| Schema fields | Yes | At minimum: `EventId`, `OccurredAt`, `TenantId`. Optional: `OrganizationId`, `CorrelationId`, `CausationId`, `ActorUserId`. |
+| Schema fields | Yes | `IntegrationEventBase` supplies `EventId`, `OccurredAt`, `TenantId` (all `required`) and demands a `PartitionKey` override. Everything else is yours to declare. |
 
 ## Workflow
 
@@ -57,19 +57,36 @@ In `<Producer>.Application.Contracts/IntegrationEvents/<EventName>.cs`:
 ```csharp
 public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
 {
-    public Guid EnrollmentId { get; init; }
-    public Guid LearnerId { get; init; }
-    public Guid CourseVersionId { get; init; }
+    public required Guid EnrollmentId { get; init; }
+    public required Guid LearnerId { get; init; }
+    public required Guid CourseVersionId { get; init; }
     public Guid? CohortId { get; init; }
-    public string Source { get; init; } = default!;  // "manual" | "billing" | "invitation"
+    public required string Source { get; init; }  // "manual" | "billing" | "invitation"
+
+    // Not optional: IntegrationEventBase declares PartitionKey abstract, so this
+    // record does not compile without it. Ordering is guaranteed per partition
+    // key and nowhere else, and the aggregate this event is about is the
+    // ordering domain. Keying on TenantId instead would serialise the tenant's
+    // whole stream onto one partition — a real throughput cost, and one worth
+    // taking deliberately rather than by inheriting a default.
+    public override string PartitionKey => EnrollmentId.ToString();
 }
 ```
 
-`IntegrationEventBase` (shared kernel) provides:
-- `EventId` (uuid v7)
-- `OccurredAt` (UTC)
-- `TenantId`
-- Optional `OrganizationId`, `CorrelationId`, `CausationId`, `ActorUserId`
+`IntegrationEventBase` (`LearnStack.SharedKernel.Messaging`) supplies exactly
+four members, and every one of them is mandatory:
+- `EventId` — `required`; identity for consumer-side deduplication
+- `OccurredAt` — `required`; from `IClock`, never `DateTime.UtcNow`
+- `TenantId` — `required`; what the transport restores before your handler runs
+- `PartitionKey` — `abstract`; the ordering domain, declared by each event
+
+It supplies **no** `OrganizationId`, `CorrelationId`, `CausationId` or
+`ActorUserId`. Correlation travels with the ambient context rather than on the
+payload, and is asserted on the outbox row by
+`Outbox_Row_Carries_Correlation_Context`. If your consumer genuinely needs the
+organization or the acting user, declare them on your own record — but read the
+note under Step 4 first, because the consumer's restored context will not carry
+them.
 
 Versioning: a breaking change ships a **new** record (`V2`). The `V1` stays
 supported during the migration window.
@@ -82,8 +99,9 @@ In the producer's command handler (see
 ```csharp
 await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
 {
+    EventId = guidFactory.NewGuid(),          // IGuidFactory, not Guid.NewGuid
+    OccurredAt = clock.UtcNow,                // IClock per Standards 02 § Time
     TenantId = tenantContext.TenantId,
-    OrganizationId = tenantContext.OrganizationId,
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
     CourseVersionId = request.CourseVersionId.Value,
@@ -156,8 +174,16 @@ Rules:
   `Integration_Event_Handlers_Use_InboxGuard` enforces this.
 - `MarkAsProcessed` enrolls in the same `DbContext`; the inbox marker and the
   business write commit atomically.
-- Tenant + organization context is restored from the event envelope by middleware
-  before the handler runs. Don't read it from anywhere else.
+- The **transport** — not middleware — restores tenant context from
+  `@event.TenantId` before your handler runs, and puts the publisher's own back
+  afterwards. Read it through `ITenantContext` as usual; don't read it from
+  anywhere else.
+- **Organization is deliberately not restored.** A fact crossing a module
+  boundary is a tenant-level fact, and inventing an organization scope for the
+  consumer would narrow queries the producer never narrowed — the failure would
+  be silently missing rows rather than an error. If your consumer is genuinely
+  organization-scoped, carry the id as a field on your own event record and
+  filter on it explicitly.
 
 ### Step 5: Subscription registration
 

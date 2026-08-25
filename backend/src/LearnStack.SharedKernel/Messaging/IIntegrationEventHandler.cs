@@ -22,7 +22,17 @@ namespace LearnStack.SharedKernel.Messaging;
 /// the contract is shaped for it now so no handler is written twice.
 /// </para>
 /// </remarks>
-/// <typeparam name="TEvent">The event type this handler consumes.</typeparam>
+/// <remarks>
+/// <para>
+/// <b>Invariant on purpose.</b> Declaring <c>in TEvent</c> would promise a
+/// variance the container does not honour: measured, a handler registered for a
+/// base event type compiles, registers, and is never invoked, because
+/// <c>GetServices</c> matches the closed generic exactly — and "no handler" is
+/// not an error here, so the publish reports success having reached nobody.
+/// A promise the runtime cannot keep is worse than no promise.
+/// </para>
+/// </remarks>
+/// <typeparam name="TEvent">The concrete event type this handler consumes.</typeparam>
 [SuppressMessage(
     "Naming",
     "CA1711:Identifiers should not have incorrect suffix",
@@ -39,7 +49,7 @@ namespace LearnStack.SharedKernel.Messaging;
         + "consumer sketch in architecture/15 spells the parameter @event; a "
         + "different name here would put the corpus and the code out of step for "
         + "a cross-language concern that does not exist.")]
-public interface IIntegrationEventHandler<in TEvent>
+public interface IIntegrationEventHandler<TEvent>
     where TEvent : IIntegrationEvent
 {
     /// <summary>Handles one delivery. May be called more than once per event.</summary>

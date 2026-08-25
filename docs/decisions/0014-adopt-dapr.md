@@ -349,6 +349,77 @@ the last of which must resolve handlers by runtime type rather than through a ty
 parameter), `architecture/32 § 8.2` and the Packet 5 scope paragraph, both of which stop
 saying "removed **or** redesigned" now that it is removed.
 
+### 2026-08-25 — Amendment 3: the publish envelope, decided before the first call site
+
+The Decision stands, and so does Amendment 2's central correction — `PublishAsync` is
+not generic, and it never becomes generic. What Amendment 3 changes is the **shape of
+its argument**, which Amendment 2 published as `(IIntegrationEvent @event, string
+partitionKey, CancellationToken ct)` and which Packet 5 has now built against.
+
+**`IEventBus.PublishAsync` takes an envelope.**
+
+```csharp
+Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct = default);
+
+public sealed record IntegrationEventEnvelope(
+    IIntegrationEvent Event,
+    string Topic,
+    string CorrelationId,
+    Guid? OrganizationId = null,
+    Guid? CausationId = null,
+    UserId? ActorUserId = null)
+{
+    public string PartitionKey => Event.PartitionKey;
+}
+```
+
+Three things forced it, and all three were measured rather than argued.
+
+**The dispatch metadata had nowhere to travel.** The canonical `outbox_messages` row
+([Database Standards](../standards/05-database.md)) requires `topic` and
+`correlation_id` as `NOT NULL` and carries `organization_id`, `causation_id` and
+`actor_user_id`. None of them belong on the event — they describe the delivery, not the
+fact — and the two-parameter signature had no room for them. The transport therefore
+read correlation from whatever context happened to be ambient at dispatch, which is
+`null` inside the background service the outbox processor is, so the trace chain broke
+at exactly the boundary [Observability Standards](../standards/10-observability.md)
+requires it to cross.
+
+**The partition key had two sources and the transport read the wrong one.** Amendment 2
+put it in the signature; `IntegrationEventBase` also declares it. Measured: the shipped
+bus never read the event's copy, and every test published an event declaring one key
+with a different one passed alongside — green. Ordering is guaranteed per partition key,
+so a key that can differ from itself is a guarantee that cannot be stated. The envelope
+reads it off the event and cannot disagree with it.
+
+**A consumer could not write state at all.** `AuditableEntity.MarkCreated` refuses
+`default(UserId)` and `Guid.Empty`, and the consumer context supplied neither an actor
+nor an organization — so every state-writing handler threw from inside the kernel, and
+every organization-scoped read came back empty under the canonical Row Level Security
+policy, which fails closed when `app.organization_id` is unset. The envelope carries
+both; an absent actor resolves to `UserId.SystemActor`, which is what
+[Audit Coverage](../standards/18-audit-coverage.md) means by auditing such work as an
+actor of type `system`.
+
+**Why now.** Amendment 2 wrote the rule this amendment obeys: *adding a required
+parameter after the first consumer exists breaks every call site, so the two shapes
+cannot be left to be reconciled later.* There is still not one consumer. The envelope is
+one type, it maps onto the outbox row Packet 6 creates, and it is the last moment it
+costs nothing.
+
+> The signature published under Amendment 2 above is superseded by this one. It is left
+> as written because an Accepted ADR is not rewritten; the non-generic decision it makes
+> is unchanged and is the reason the envelope carries the event as `IIntegrationEvent`.
+
+**One consequence worth stating, because it is a trap the non-generic port creates.**
+With `IIntegrationEvent` as the declared type at every dispatch boundary,
+`JsonSerializer.Serialize(@event)` emits only the four interface members and silently
+drops everything the concrete event added — valid JSON, no exception, and the loss
+commits inside the business transaction that reported success. `IntegrationEventBase`
+therefore ships `ToPayloadJson()`, which serialises by runtime type, and a named
+`PayloadJsonOptions` — because a writer and a reader that disagree on casing
+dead-letter every message.
+
 ## References
 
 - ADR-0006 — Events and Outbox (status: Accepted after this ADR; previously Proposed).

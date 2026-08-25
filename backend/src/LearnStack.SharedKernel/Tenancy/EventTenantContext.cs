@@ -4,22 +4,25 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 
 /// <summary>
-/// The tenant context a consumer runs under, rebuilt from the event it is
+/// The tenant context a consumer runs under, rebuilt from the envelope it is
 /// handling.
 /// </summary>
 /// <remarks>
 /// A consumer runs outside the request that produced the fact, so there is no
-/// ambient context to inherit — which is exactly why
-/// <see cref="IIntegrationEvent.TenantId"/> travels on the event. Restoring it
-/// before a handler runs is what makes the query filters and the Row Level
-/// Security policies evaluate against the right tenant; a transport that skipped
-/// it would run every consumer against nothing.
+/// ambient context to inherit — which is why the tenant travels on the event and
+/// the rest travels on the envelope. Restoring it before a handler runs is what
+/// makes the query filters and the Row Level Security policies evaluate against
+/// the right scope; a transport that skipped it would run every consumer against
+/// nothing.
 /// </remarks>
 public sealed class EventTenantContext : ITenantContext
 {
-    private EventTenantContext(Guid tenantId, string? correlationId)
+    private EventTenantContext(
+        Guid tenantId, Guid? organizationId, UserId userId, string? correlationId)
     {
         TenantId = tenantId;
+        OrganizationId = organizationId;
+        UserId = userId;
         CorrelationId = correlationId;
     }
 
@@ -30,19 +33,33 @@ public sealed class EventTenantContext : ITenantContext
     public Guid TenantId { get; }
 
     /// <summary>
-    /// Always <c>null</c>: an integration event carries the tenant, not an
-    /// organization.
+    /// The organization the fact belongs to, when the envelope names one.
     /// </summary>
     /// <remarks>
-    /// Deliberate rather than missing. A fact crossing a module boundary is a
-    /// tenant-level fact, and inventing an organization scope for the consumer
-    /// would narrow queries the producer never narrowed — the failure would be
-    /// silently missing rows, not an error.
+    /// An earlier version hard-coded this to <c>null</c>, reasoning that a
+    /// cross-module fact is tenant-level and that inventing an organization
+    /// scope would narrow queries the producer never narrowed. Under the
+    /// canonical Row Level Security policy
+    /// (<see href="../../../../docs/standards/05-database.md">Standards 05</see>)
+    /// the reasoning inverts: with <c>app.organization_id</c> unset, an
+    /// organization-scoped row evaluates <c>false OR NULL OR NULL</c>, and a
+    /// NULL policy result is false — so a hard <c>null</c> hides every
+    /// organization-scoped row instead of widening to all of them, and
+    /// <c>WITH CHECK</c> rejects writing one. Widening is the
+    /// <c>app.scope = 'tenant'</c> hatch, not an absent value.
     /// </remarks>
-    public Guid? OrganizationId => null;
+    public Guid? OrganizationId { get; }
 
-    /// <summary>Always <c>null</c>: a consumer acts as the system, not as a user.</summary>
-    public UserId? UserId => null;
+    /// <summary>Who the consumer's writes are attributed to.</summary>
+    /// <remarks>
+    /// Never <c>null</c>. <c>AuditableEntity.MarkCreated</c> refuses
+    /// <c>default(UserId)</c> and <c>Guid.Empty</c>, so a null actor left every
+    /// state-writing consumer with no value it could legally pass — it could not
+    /// create an aggregate at all. Absent an actor on the envelope this is
+    /// <see cref="UserId.SystemActor"/>, which is what Standards 18 means by
+    /// auditing such work as an actor of type <c>system</c>.
+    /// </remarks>
+    public UserId? UserId { get; }
 
     /// <inheritdoc />
     public string? CorrelationId { get; }
@@ -50,11 +67,28 @@ public sealed class EventTenantContext : ITenantContext
     /// <inheritdoc />
     public string? ModuleName => null;
 
-    /// <summary>Builds the context a handler for <paramref name="event"/> runs under.</summary>
-    public static EventTenantContext FromEvent(IIntegrationEvent @event, string? correlationId = null)
+    /// <summary>Builds the context a handler for <paramref name="envelope"/> runs under.</summary>
+    public static EventTenantContext FromEnvelope(IntegrationEventEnvelope envelope)
     {
-        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(envelope);
 
-        return new EventTenantContext(@event.TenantId, correlationId);
+        // A confidently-resolved context for a tenant that does not exist is
+        // worse than an unresolved one: once TransactionBehavior issues
+        // SET LOCAL app.tenant_id, every query silently returns nothing instead
+        // of failing. UnresolvedTenantContext.TenantId throws for the same
+        // reason, and this is the path that would otherwise route around it.
+        if (envelope.Event.TenantId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An integration event carries no tenant. A consumer restored into "
+                + "an all-zero tenant reads and writes nothing, silently.",
+                nameof(envelope));
+        }
+
+        return new EventTenantContext(
+            envelope.Event.TenantId,
+            envelope.OrganizationId,
+            envelope.ActorUserId ?? Identifiers.UserId.SystemActor,
+            envelope.CorrelationId);
     }
 }

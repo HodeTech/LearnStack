@@ -26,12 +26,60 @@ public sealed class PartitionSerializer : IPartitionSerializer
     private readonly ConcurrentDictionary<string, Task> _tails = new(StringComparer.Ordinal);
     private readonly object _gate = new();
 
+    /// <summary>
+    /// The key whose work the current execution flow is inside, if any.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Queuing work for a key from inside that key's own work is a deadlock by
+    /// construction: the new unit chains behind a tail that cannot complete
+    /// until the current one returns. Measured on the version with no detection
+    /// at all — it hung, and the partition stayed wedged for every later event
+    /// for the life of the process.
+    /// </para>
+    /// <para>
+    /// <b>Detected to refuse, never to run inline.</b> An earlier attempt ran
+    /// the reentrant call inline, reasoning that the caller <i>is</i> the
+    /// sequence. It is not sound: an <see cref="AsyncLocal{T}"/> flows into
+    /// every task started inside a unit, so a fire-and-forget
+    /// <c>_ = RunSequentiallyFor(sameKey, …)</c> inherited the marker and ran
+    /// <i>concurrently</i> with the unit it should have queued behind —
+    /// measured, and the one guarantee this class exists for. The detection is
+    /// the same either way; only the action differs, and that asymmetry is the
+    /// whole point. A false positive from a spawned flow throws where it could
+    /// have queued: loud, diagnosable, safe. A false positive that runs inline
+    /// is a silent concurrency violation.
+    /// </para>
+    /// <para>
+    /// An instance field, not static: two hosts in one process — which the
+    /// integration tests build deliberately — otherwise share one marker, and
+    /// being inside a key on one serializer would speak for the other.
+    /// </para>
+    /// </remarks>
+    private readonly AsyncLocal<string?> _executingKey = new();
+
     public Task RunSequentiallyFor(string partitionKey, Func<Task> work)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(partitionKey);
         ArgumentNullException.ThrowIfNull(work);
 
+        // Refused rather than deadlocked. The caller that hits this is a
+        // consumer publishing from inside a handler, which Standards 20 already
+        // forbids for its own reasons — a handler writes to the outbox, and the
+        // OutboxProcessor is the only sanctioned publisher. Answering it with a
+        // message beats answering it with a hang.
+        if (string.Equals(_executingKey.Value, partitionKey, StringComparison.Ordinal))
+        {
+            return Task.FromException(new InvalidOperationException(
+                $"Work for partition key '{partitionKey}' is already running on this "
+                + "execution flow, and queuing more behind it would wait for a unit that "
+                + "cannot finish until this one returns. An integration-event handler "
+                + "must not publish — it writes to the outbox, and the OutboxProcessor "
+                + "publishes (Standards 20 § IEventBus)."));
+        }
+
         Task queued;
+        Task observer;
 
         // The read-modify-write of the tail has to be atomic against another
         // publisher for the same key, or two units both continue from the same
@@ -43,12 +91,8 @@ public sealed class PartitionSerializer : IPartitionSerializer
         {
             var previous = _tails.TryGetValue(partitionKey, out var tail) ? tail : Task.CompletedTask;
 
-            // Faults do not break the chain. A handler that throws must not stop
-            // every later event for that aggregate from being delivered — the
-            // failure belongs to one unit, and the caller awaiting `queued` is
-            // the one that sees it.
             queued = previous.ContinueWith(
-                    _ => work(),
+                    _ => RunMarked(_executingKey, partitionKey, work),
                     CancellationToken.None,
                     TaskContinuationOptions.None,
                     TaskScheduler.Default)
@@ -62,20 +106,45 @@ public sealed class PartitionSerializer : IPartitionSerializer
             // free not to await what RunSequentiallyFor returns, and then nobody
             // observes the fault — TaskScheduler.UnobservedTaskException fires,
             // with no request and no correlation id attached to it.
-            _tails[partitionKey] = queued.ContinueWith(
+            observer = queued.ContinueWith(
                 static completed => { _ = completed.Exception; },
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
+
+            _tails[partitionKey] = observer;
         }
 
-        _ = _tails[partitionKey].ContinueWith(
-            _ => Retire(partitionKey),
+        // Attached to the observer captured INSIDE the lock, not re-read from
+        // the dictionary. Measured on the version that re-read it: another
+        // publisher's retirement could remove the key in the window between the
+        // lock and the indexer, and the caller got a KeyNotFoundException for an
+        // event whose work had already been queued and delivered — a success
+        // answered with a failure, which on the outbox path means the row is
+        // marked failed and redelivered.
+        _ = observer.ContinueWith(
+            _ => Retire(partitionKey, observer),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
         return queued;
+    }
+
+    private static async Task RunMarked(
+        AsyncLocal<string?> executingKey, string partitionKey, Func<Task> work)
+    {
+        var previous = executingKey.Value;
+        executingKey.Value = partitionKey;
+
+        try
+        {
+            await work().ConfigureAwait(false);
+        }
+        finally
+        {
+            executingKey.Value = previous;
+        }
     }
 
     /// <summary>How many partition keys currently have work chained. A diagnostic.</summary>
@@ -85,16 +154,16 @@ public sealed class PartitionSerializer : IPartitionSerializer
     /// </remarks>
     public int TrackedPartitions => _tails.Count;
 
-    private void Retire(string partitionKey)
+    private void Retire(string partitionKey, Task observer)
     {
         lock (_gate)
         {
-            // Only when this key's tail is the one that just finished. Another
-            // publisher may have chained onto it in the meantime, and dropping
-            // the entry then would let the next unit start from
+            // Only when this key's tail is still the one that just finished.
+            // Another publisher may have chained onto it in the meantime, and
+            // dropping the entry then would let the next unit start from
             // Task.CompletedTask — running concurrently with work still in
             // flight, which is the ordering break this class prevents.
-            if (_tails.TryGetValue(partitionKey, out var tail) && tail.IsCompleted)
+            if (_tails.TryGetValue(partitionKey, out var tail) && ReferenceEquals(tail, observer))
             {
                 _tails.TryRemove(new KeyValuePair<string, Task>(partitionKey, tail));
             }

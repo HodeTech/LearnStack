@@ -62,6 +62,162 @@ public sealed class PartitionSerializerTests
     }
 
     [Fact]
+    public async Task Queuing_Work_For_The_Key_You_Are_Inside_Is_Refused_Not_Hung()
+    {
+        // A deadlock by construction: the new unit chains behind a tail that
+        // cannot complete until the current one returns. Measured with no
+        // detection at all — it hung, and the partition stayed wedged for every
+        // later event for the life of the process. The caller that hits this is
+        // a consumer publishing from inside a handler, which Standards 20
+        // already forbids: a handler writes to the outbox.
+        var serializer = new PartitionSerializer();
+
+        Exception? inner = null;
+
+        await serializer.RunSequentiallyFor("k", async () =>
+        {
+            try
+            {
+                await serializer.RunSequentiallyFor("k", () => Task.CompletedTask);
+            }
+            catch (InvalidOperationException ex)
+            {
+                inner = ex;
+            }
+        }).WaitAsync(Timeout);
+
+        inner.Should().NotBeNull();
+        inner!.Message.Should().Contain("outbox");
+
+        // The partition still works afterwards.
+        await serializer.RunSequentiallyFor("k", () => Task.CompletedTask).WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task A_Spawned_Flow_Never_Runs_Alongside_The_Unit_That_Spawned_It()
+    {
+        // The detection uses an AsyncLocal, which flows into every task started
+        // inside a unit. An earlier version RAN the reentrant call inline,
+        // reasoning that the caller is the sequence — and a fire-and-forget
+        // spawn inherited the marker and ran concurrently with the unit it
+        // should have queued behind. Measured: the one guarantee this class
+        // exists for, broken by the fix for a different bug. Refusing instead of
+        // running inline makes the same false positive loud rather than silent.
+        var serializer = new PartitionSerializer();
+        var inFlight = 0;
+        var overlapped = false;
+
+        await serializer.RunSequentiallyFor("k", async () =>
+        {
+            Interlocked.Increment(ref inFlight);
+
+            var spawned = Task.Run(async () =>
+            {
+                try
+                {
+                    await serializer.RunSequentiallyFor("k", () =>
+                    {
+                        if (Volatile.Read(ref inFlight) > 0)
+                        {
+                            Volatile.Write(ref overlapped, true);
+                        }
+
+                        return Task.CompletedTask;
+                    });
+                }
+                catch (InvalidOperationException)
+                {
+                    // Refused, which is the point.
+                }
+            });
+
+            await Task.Delay(TimeSpan.FromMilliseconds(80));
+            Interlocked.Decrement(ref inFlight);
+            await spawned;
+        }).WaitAsync(Timeout);
+
+        overlapped.Should().BeFalse("no unit for a key runs alongside another");
+    }
+
+    [Fact]
+    public async Task Two_Serializers_Do_Not_Share_A_Reentrancy_Marker()
+    {
+        // The marker was static, so being inside a key on one instance spoke for
+        // every other — and the integration tests deliberately build two hosts
+        // in one process.
+        var first = new PartitionSerializer();
+        var second = new PartitionSerializer();
+        var ran = false;
+
+        await first.RunSequentiallyFor("k", async () =>
+            await second.RunSequentiallyFor("k", () =>
+            {
+                ran = true;
+                return Task.CompletedTask;
+            })).WaitAsync(Timeout);
+
+        ran.Should().BeTrue("a different serializer's chain is a different sequence");
+    }
+
+    [Fact]
+    public async Task Nesting_A_Different_Key_Is_Fine()
+    {
+        var serializer = new PartitionSerializer();
+        var order = new ConcurrentQueue<string>();
+
+        await serializer.RunSequentiallyFor("outer", async () =>
+        {
+            order.Enqueue("outer-start");
+            await serializer.RunSequentiallyFor("inner", () =>
+            {
+                order.Enqueue("inner");
+                return Task.CompletedTask;
+            });
+            order.Enqueue("outer-end");
+        }).WaitAsync(Timeout);
+
+        order.Should().BeEquivalentTo(
+            ["outer-start", "inner", "outer-end"], o => o.WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task Racing_Publishers_Never_See_A_Missing_Chain()
+    {
+        // The tail used to be re-read from the dictionary AFTER the lock was
+        // released, so another publisher's retirement could remove the key in
+        // that window and the caller got a KeyNotFoundException — for an event
+        // whose work had already been queued and delivered. A success answered
+        // with a failure, which on the outbox path means the row is marked
+        // failed and redelivered.
+        //
+        // This is a stress smoke check, and it is worth saying what it does NOT
+        // do: the window is tiny — the original defect reproduced about four
+        // times in 256,000 calls — so a green run here is weak evidence, and
+        // reintroducing the bad read does not reliably turn it red. The actual
+        // guarantee is structural: the observer task is captured inside the
+        // lock, so there is no dictionary read outside it left to race.
+        var serializer = new PartitionSerializer();
+        var failures = new ConcurrentBag<Exception>();
+
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(worker => Task.Run(() =>
+        {
+            for (var i = 0; i < 20_000; i++)
+            {
+                try
+                {
+                    _ = serializer.RunSequentiallyFor("k", () => Task.CompletedTask);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add(ex);
+                }
+            }
+        })));
+
+        failures.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_Failure_Belongs_To_Its_Own_Unit()
     {
         var serializer = new PartitionSerializer();
