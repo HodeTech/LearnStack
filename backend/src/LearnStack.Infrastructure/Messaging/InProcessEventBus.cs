@@ -86,7 +86,24 @@ public sealed partial class InProcessEventBus(
             .MakeGenericType(envelope.Event.GetType());
         var handle = contract.GetMethod(HandleMethodName)!;
         var context = EventTenantContext.FromEnvelope(envelope);
-        var count = HandlerCount(contract);
+        var count = HandlerCount(contract, envelope, out var constructionFailure);
+
+        if (constructionFailure is not null)
+        {
+            // A handler whose CONSTRUCTOR throws takes every sibling with it,
+            // and there is nothing this class can do about that: the container
+            // materialises the whole array before returning any element, so the
+            // failure lands before the per-handler loop that provides isolation
+            // can start. Measured — a healthy handler registered alongside a
+            // throwing one never had HandleAsync called at all. It is said
+            // plainly here rather than surfacing as a bare constructor exception
+            // from a transport the caller did not know it was in.
+            throw new InvalidOperationException(
+                $"An integration-event handler for {envelope.Event.GetType().Name} failed to "
+                + "construct, so no handler for that event could run. Handler construction "
+                + "happens before per-handler isolation and cannot be contained.",
+                constructionFailure);
+        }
 
         if (count == 0)
         {
@@ -155,6 +172,16 @@ public sealed partial class InProcessEventBus(
         // Selected by index rather than by concrete type, because a handler is
         // registered against the CONTRACT — its own type is not a service, and
         // asking the container for it fails.
+        //
+        // The cost, stated plainly: the container materialises the whole array
+        // for each scope, so N handlers for one event means N constructions per
+        // scope and N scopes — measured, twelve constructions for three
+        // handlers. Only one HandleAsync runs per handler, so business logic is
+        // never duplicated; what repeats is construction. That is affordable
+        // exactly as long as a handler's constructor does nothing but assign
+        // fields — which is the DI convention anyway, and is now a requirement
+        // rather than a habit. A constructor that opens a connection, emits a
+        // metric or writes a log line will do it N+1 times per delivery.
         await using var scope = scopeFactory.CreateAsyncScope();
 
         // Restored into the flow the handler runs in AND into the scope it
@@ -211,11 +238,24 @@ public sealed partial class InProcessEventBus(
         }
     }
 
-    private int HandlerCount(Type contract)
+    private int HandlerCount(
+        Type contract, IntegrationEventEnvelope envelope, out Exception? constructionFailure)
     {
+        constructionFailure = null;
+
         using var scope = scopeFactory.CreateScope();
 
-        return scope.ServiceProvider.GetServices(contract).Count();
+        try
+        {
+            return scope.ServiceProvider.GetServices(contract).Count();
+        }
+        catch (Exception ex)
+        {
+            HandlerConstructionFailed(
+                logger, envelope.Event.GetType().Name, envelope.Event.EventId, ex);
+            constructionFailure = ex;
+            return 0;
+        }
     }
 
     [LoggerMessage(
@@ -231,6 +271,14 @@ public sealed partial class InProcessEventBus(
         Guid tenantId,
         string partitionKey,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Error,
+        Message = "A handler for integration event {EventType} ({IntegrationEventId}) failed "
+            + "to construct; no handler for that event ran")]
+    private static partial void HandlerConstructionFailed(
+        ILogger logger, string eventType, Guid integrationEventId, Exception exception);
 
     [LoggerMessage(
         EventId = 2,

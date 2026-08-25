@@ -32,6 +32,9 @@ public abstract record IntegrationEventBase : IIntegrationEvent
     public required DateTimeOffset OccurredAt { get; init; }
 
     /// <inheritdoc />
+    public abstract string Topic { get; }
+
+    /// <inheritdoc />
     public abstract string PartitionKey { get; }
 
     /// <summary>

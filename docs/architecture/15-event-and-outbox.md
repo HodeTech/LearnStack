@@ -574,7 +574,10 @@ the choice.
 - Consumers are **idempotent** via `IInboxGuard` (per-module inbox table).
 - Mandatory on every integration event: `EventId`, `TenantId`, `OccurredAt`,
   `PartitionKey`. The first three are `required`; the fourth is abstract.
-- Carried on the **envelope**, not the event: `Topic`, `CorrelationId`,
+- Declared by the event and read by the envelope: `Topic`, the channel
+  `learnstack.{module}.{aggregate}` — a property of the event type, checked by
+  `Integration_Event_TopicNames_FollowConvention`.
+- Carried on the **envelope**, not the event: `CorrelationId`,
   `OrganizationId`, `CausationId`, `ActorUserId`. They describe the delivery rather
   than the fact, and they are what the outbox row holds — `correlation_id` and `topic`
   are `NOT NULL` there. Correlation therefore travels from the row to the consumer

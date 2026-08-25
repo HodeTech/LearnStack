@@ -36,6 +36,19 @@ public interface IIntegrationEvent
     DateTimeOffset OccurredAt { get; }
 
     /// <summary>
+    /// The channel this event is published on, <c>learnstack.{module}.{aggregate}</c>.
+    /// </summary>
+    /// <remarks>
+    /// A property of the event <i>type</i>, not of one delivery: two events of
+    /// the same type always go to the same topic, and the name is derivable from
+    /// the type. Declaring it here rather than passing it alongside is the same
+    /// rule as <see cref="PartitionKey"/>, for the same reason — a value with
+    /// two sources is a value that can disagree with itself, and the transport
+    /// would read one of them.
+    /// </remarks>
+    string Topic { get; }
+
+    /// <summary>
     /// The ordering domain this event belongs to.
     /// </summary>
     /// <remarks>

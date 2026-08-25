@@ -363,15 +363,23 @@ Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct = defa
 
 public sealed record IntegrationEventEnvelope(
     IIntegrationEvent Event,
-    string Topic,
     string CorrelationId,
     Guid? OrganizationId = null,
     Guid? CausationId = null,
     UserId? ActorUserId = null)
 {
     public string PartitionKey => Event.PartitionKey;
+    public string Topic => Event.Topic;
 }
 ```
+
+> **Refined the same day.** `Topic` was first a parameter on this record, and it should
+> not have been. It is a property of the event *type* — two events of one type always go
+> to the same channel, and the name is derivable from the type — so a per-delivery
+> parameter is the same second-source hazard `PartitionKey` had. It also made the
+> catalogued `Integration_Event_TopicNames_FollowConvention` unwritable: that rule reads
+> the event declarations, and nothing declared a topic. `Topic` is abstract on
+> `IntegrationEventBase`; the envelope reads it.
 
 Three things forced it, and all three were measured rather than argued.
 

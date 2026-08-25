@@ -143,9 +143,10 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
   write to the outbox.
 - Topic names follow `learnstack.{module}.{aggregate}` (`learnstack.identity.user`,
   `learnstack.enrollment.enrollment`, `learnstack.classroom.session`). The convention
-  applies to `InProcessEventBus` too — it is how handlers are addressed, not a Dapr
-  detail — which is why leaving it unasserted against the transport that is actually
-  registered would be the wrong trade. Two tests, not one:
+  applies to `InProcessEventBus` too. Not because the in-process transport routes on it
+  — it addresses handlers by CLR type — but because the topic is declared by the event
+  type and travels with it to whichever transport is registered, so the convention is
+  checkable, and worth checking, before the first broker exists. Two tests, not one:
   `Integration_Event_TopicNames_FollowConvention` is transport-independent, asserts the
   convention over the declared event types, and lands with `InProcessEventBus` in
   [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md);

@@ -28,12 +28,6 @@ namespace LearnStack.SharedKernel.Messaging;
 /// </para>
 /// </remarks>
 /// <param name="Event">The fact being published.</param>
-/// <param name="Topic">
-/// The channel, <c>learnstack.{module}.{aggregate}</c>. Meaningless to the
-/// in-process transport, which addresses handlers by CLR type, and load-bearing
-/// for every durable one — so it is carried from the start rather than invented
-/// when the first broker arrives.
-/// </param>
 /// <param name="CorrelationId">
 /// The originating request's W3C traceparent, taken from the outbox row rather
 /// than from whatever context happens to be ambient at dispatch.
@@ -50,7 +44,6 @@ namespace LearnStack.SharedKernel.Messaging;
 /// </param>
 public sealed record IntegrationEventEnvelope(
     IIntegrationEvent Event,
-    string Topic,
     string CorrelationId,
     Guid? OrganizationId = null,
     Guid? CausationId = null,
@@ -69,4 +62,18 @@ public sealed record IntegrationEventEnvelope(
     /// that cannot be stated.
     /// </remarks>
     public string PartitionKey => Event.PartitionKey;
+
+    /// <summary>
+    /// The channel, read from the event and from nowhere else.
+    /// </summary>
+    /// <remarks>
+    /// It was briefly a producer-supplied string on this record. The topic is a
+    /// property of the event <i>type</i> — two events of one type always go to
+    /// the same channel — so a per-delivery parameter invited exactly the drift
+    /// <see cref="PartitionKey"/> already had, where the transport read one
+    /// source and the event declared another. It also made
+    /// <c>Integration_Event_TopicNames_FollowConvention</c> unimplementable:
+    /// the rule asserts over declared event types, and nothing declared one.
+    /// </remarks>
+    public string Topic => Event.Topic;
 }

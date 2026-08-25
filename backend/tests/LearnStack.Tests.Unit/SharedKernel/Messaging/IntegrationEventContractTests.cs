@@ -24,6 +24,22 @@ public sealed class IntegrationEventContractTests
 {
     private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
 
+    [Theory]
+    [InlineData(nameof(IIntegrationEvent.Topic))]
+    [InlineData(nameof(IIntegrationEvent.PartitionKey))]
+    public void The_Event_Declares_Its_Own_Channel_And_Ordering_Domain(string member)
+    {
+        // Both are properties of the event TYPE, not of one delivery, and both
+        // were briefly carried alongside the event instead — where a value with
+        // two sources can disagree with itself and the transport reads one of
+        // them. Abstract means the compiler asks every event for its own.
+        typeof(IntegrationEventBase).GetProperty(member)!
+            .GetGetMethod()!.IsAbstract.Should().BeTrue();
+
+        typeof(IntegrationEventEnvelope).GetProperty(member)!
+            .CanWrite.Should().BeFalse($"the envelope reads {member} off the event");
+    }
+
     [Fact]
     public void PartitionKey_Is_Abstract_So_No_Event_Can_Inherit_A_Default()
     {
@@ -109,8 +125,7 @@ public sealed class IntegrationEventContractTests
         var organization = Guid.Parse("018f4d40-0000-7000-8000-0000000000c1");
 
         var context = EventTenantContext.FromEnvelope(new IntegrationEventEnvelope(
-            NewSample(), "learnstack.test.sample", "trace-1",
-            OrganizationId: organization, ActorUserId: actor));
+            NewSample(), "trace-1", OrganizationId: organization, ActorUserId: actor));
 
         // IsResolved false would make TenantContextBehavior short-circuit every
         // consumer that sends a MediatR command — silently, before its business
@@ -142,6 +157,8 @@ public sealed class IntegrationEventContractTests
     public sealed record Sample : IntegrationEventBase
     {
         public required string LearnerName { get; init; }
+
+        public override string Topic => "learnstack.test.sample";
 
         // Independent of the payload, so the truncation is demonstrated on a
         // member the interface does not carry rather than on a value that

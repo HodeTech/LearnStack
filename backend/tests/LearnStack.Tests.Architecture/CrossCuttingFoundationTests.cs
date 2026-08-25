@@ -313,6 +313,56 @@ public sealed class CrossCuttingFoundationTests
     }
 
     [Fact]
+    public void Integration_Event_TopicNames_FollowConvention()
+    {
+        // Standards 20 § IEventBus and ADR-0006: `learnstack.{module}.{aggregate}`,
+        // with `learnstack.hub.*` reserved for Hub-side topics. Asserted over the
+        // declared event TYPES, so it holds for whichever IEventBus
+        // implementation is registered — which is only possible because the topic
+        // is declared by the event. While it was a producer-supplied string on
+        // the envelope there was nothing to read, and this catalogued rule could
+        // not be written at all.
+        //
+        // No module declares an event yet, so this would be vacuous — hence the
+        // deliberate offenders below. A guard that cannot be shown to fire is
+        // not a guard.
+        FollowsTopicConvention("learnstack.enrollment.enrollment").Should().BeTrue();
+        FollowsTopicConvention("learnstack.hub.entitlement").Should().BeTrue();
+        FollowsTopicConvention("EnrollmentCreated").Should().BeFalse("no namespace");
+        FollowsTopicConvention("learnstack.enrollment").Should().BeFalse("no aggregate");
+        FollowsTopicConvention("Learnstack.Enrollment.Enrollment").Should().BeFalse("not lower-case");
+        FollowsTopicConvention("acme.enrollment.enrollment").Should().BeFalse("wrong prefix");
+
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var assembly = TryLoadAssembly(name);
+            if (assembly is null) continue;
+
+            var events = assembly.GetTypes()
+                .Where(t => !t.IsAbstract
+                            && typeof(LearnStack.SharedKernel.Messaging.IIntegrationEvent)
+                                .IsAssignableFrom(t));
+
+            foreach (var type in events)
+            {
+                var topic = ((LearnStack.SharedKernel.Messaging.IIntegrationEvent)
+                    System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type)).Topic;
+
+                FollowsTopicConvention(topic).Should().BeTrue(
+                    $"{type.FullName} declares topic '{topic}', which is not "
+                    + "learnstack.{module}.{aggregate} (Standards 20 § IEventBus)");
+            }
+        }
+    }
+
+    private static bool FollowsTopicConvention(string topic) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            topic,
+            @"^learnstack\.[a-z0-9-]+\.[a-z0-9-]+$",
+            System.Text.RegularExpressions.RegexOptions.None,
+            TimeSpan.FromSeconds(1));
+
+    [Fact]
     public void Modules_Do_Not_Inject_IEventBus_Directly()
     {
         // Standards 20 § IEventBus: the only sanctioned publisher is the

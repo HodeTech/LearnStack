@@ -1169,8 +1169,17 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`CrossCuttingFoundationTests`). No module declares an
+  event yet, so the module sweep is vacuous today; the convention checker is pointed at
+  deliberate offenders first, so the rule can be shown to fire.
 - **Phase:** 02a (Packet 5) — lands with `InProcessEventBus`, the first transport.
+
+Writing it required a contract change. The rule reads the event **declarations**, and
+while the topic was a producer-supplied string on the envelope nothing declared one —
+the rule could not be written at all. `Topic` is now abstract on `IntegrationEventBase`,
+alongside `PartitionKey` and for the same reason: it is a property of the event type,
+not of one delivery, so a per-delivery parameter is a second source that can disagree
+with the first.
 
 `Dapr_PubSub_TopicNames_FollowConvention` keeps its Phase 11 slot and narrows to what
 only it can check: that the Dapr component bindings agree with the topics the events

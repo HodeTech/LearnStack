@@ -26,7 +26,6 @@ public sealed class InProcessEventBusTests
 {
     private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
-    private const string Topic = "learnstack.test.thing";
     private const string Trace = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
     [Fact]
@@ -73,7 +72,7 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>, ThingHandler>());
 
         IIntegrationEvent asBase = NewThing("a");
-        await bus.PublishAsync(new IntegrationEventEnvelope(asBase, Topic, Trace));
+        await bus.PublishAsync(new IntegrationEventEnvelope(asBase, Trace));
 
         recorder.Handled.Should().ContainSingle();
     }
@@ -198,7 +197,7 @@ public sealed class InProcessEventBusTests
         var organization = Guid.Parse("018f4d40-0000-7000-8000-0000000000c1");
 
         await bus.PublishAsync(new IntegrationEventEnvelope(
-            NewThing("a"), Topic, Trace, OrganizationId: organization, ActorUserId: actor));
+            NewThing("a"), Trace, OrganizationId: organization, ActorUserId: actor));
 
         recorder.Actors.Should().ContainSingle().Which.Should().Be(actor);
         recorder.Organizations.Should().ContainSingle().Which.Should().Be(organization);
@@ -459,7 +458,7 @@ public sealed class InProcessEventBusTests
     /// can differ from itself is a guarantee that cannot be stated.
     /// </remarks>
     private static IntegrationEventEnvelope Envelope(Thing @event) =>
-        new(@event, Topic, Trace);
+        new(@event, Trace);
 
     private static Thing NewThing(string payload, string? partitionKey = null) => new()
     {
@@ -564,6 +563,8 @@ public sealed class InProcessEventBusTests
 
         /// <summary>An ordering domain independent of the payload, for the ordering cases.</summary>
         public string? Key { get; init; }
+
+        public override string Topic => "learnstack.test.thing";
 
         public override string PartitionKey => Key ?? Payload;
     }

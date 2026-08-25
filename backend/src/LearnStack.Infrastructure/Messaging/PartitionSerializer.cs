@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using LearnStack.SharedKernel.Messaging;
 
 namespace LearnStack.Infrastructure.Messaging;
@@ -55,8 +56,15 @@ public sealed class PartitionSerializer : IPartitionSerializer
     /// integration tests build deliberately — otherwise share one marker, and
     /// being inside a key on one serializer would speak for the other.
     /// </para>
+    /// <para>
+    /// It records every ancestor key on the flow, not just the innermost one.
+    /// Comparing against the innermost alone catches <c>A → A</c> and misses
+    /// <c>A → B → A</c>, which is the same cycle one hop longer: measured, five
+    /// out of five attempts hung, silently and permanently, with no exception
+    /// and no log. A cycle through any number of keys is still a cycle.
+    /// </para>
     /// </remarks>
-    private readonly AsyncLocal<string?> _executingKey = new();
+    private readonly AsyncLocal<ImmutableHashSet<string>?> _executingKeys = new();
 
     public Task RunSequentiallyFor(string partitionKey, Func<Task> work)
     {
@@ -68,7 +76,9 @@ public sealed class PartitionSerializer : IPartitionSerializer
         // forbids for its own reasons — a handler writes to the outbox, and the
         // OutboxProcessor is the only sanctioned publisher. Answering it with a
         // message beats answering it with a hang.
-        if (string.Equals(_executingKey.Value, partitionKey, StringComparison.Ordinal))
+        var ancestors = _executingKeys.Value ?? ImmutableHashSet<string>.Empty;
+
+        if (ancestors.Contains(partitionKey))
         {
             return Task.FromException(new InvalidOperationException(
                 $"Work for partition key '{partitionKey}' is already running on this "
@@ -92,7 +102,7 @@ public sealed class PartitionSerializer : IPartitionSerializer
             var previous = _tails.TryGetValue(partitionKey, out var tail) ? tail : Task.CompletedTask;
 
             queued = previous.ContinueWith(
-                    _ => RunMarked(_executingKey, partitionKey, work),
+                    _ => RunMarked(_executingKeys, partitionKey, work),
                     CancellationToken.None,
                     TaskContinuationOptions.None,
                     TaskScheduler.Default)
@@ -132,10 +142,12 @@ public sealed class PartitionSerializer : IPartitionSerializer
     }
 
     private static async Task RunMarked(
-        AsyncLocal<string?> executingKey, string partitionKey, Func<Task> work)
+        AsyncLocal<ImmutableHashSet<string>?> executingKeys,
+        string partitionKey,
+        Func<Task> work)
     {
-        var previous = executingKey.Value;
-        executingKey.Value = partitionKey;
+        var previous = executingKeys.Value;
+        executingKeys.Value = (previous ?? ImmutableHashSet<string>.Empty).Add(partitionKey);
 
         try
         {
@@ -143,7 +155,7 @@ public sealed class PartitionSerializer : IPartitionSerializer
         }
         finally
         {
-            executingKey.Value = previous;
+            executingKeys.Value = previous;
         }
     }
 
