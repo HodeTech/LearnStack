@@ -3,6 +3,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using LearnStack.Infrastructure.Caching;
+using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Caching;
+using LearnStack.SharedKernel.Messaging;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Errors;
@@ -134,6 +138,54 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
 }
 
 /// <summary>
+/// <summary>
+/// The foundation sockets resolve from the real composition root.
+/// </summary>
+/// <remarks>
+/// A registration compiles whether or not it can be satisfied, so "it builds" is
+/// not evidence that a caller can get one. These resolve through the host the
+/// application actually starts, which is the only place the lifetimes and the
+/// dependency graph are the real ones — <c>InProcessEventBus</c> takes an
+/// <c>IServiceScopeFactory</c>, an <c>ITenantContextAccessor</c> and an
+/// <c>IPartitionSerializer</c>, and a singleton depending on a scoped service is
+/// a startup failure rather than a compile error.
+/// </remarks>
+public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixture)
+    : IClassFixture<CrossCuttingHttpFixture>
+{
+    [Fact]
+    public void The_Event_Bus_Resolves_To_The_In_Process_Transport()
+    {
+        using var scope = fixture.Services.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IEventBus>()
+            .Should().BeOfType<InProcessEventBus>();
+    }
+
+    [Fact]
+    public void The_Partition_Serializer_Is_A_Singleton()
+    {
+        // The ordering guarantee is process-wide. One instance per scope would
+        // give each publisher its own chains, so two events on one partition key
+        // would run concurrently — while every unit test still passed, because
+        // each of those builds one serializer and uses it throughout.
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<IPartitionSerializer>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<IPartitionSerializer>());
+    }
+
+    [Fact]
+    public void The_Cache_Resolves_To_The_In_Memory_Default()
+    {
+        using var scope = fixture.Services.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<ICacheService>()
+            .Should().BeOfType<InMemoryCacheService>();
+    }
+}
+
 /// Shared <see cref="WebApplicationFactory{TEntryPoint}"/> that wires the
 /// integration test's controllers + MediatR handler + validator into the
 /// real <c>LearnStack.Api</c> host. Reuses the host's

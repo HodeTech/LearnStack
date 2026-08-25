@@ -91,6 +91,16 @@ public static class CrossCuttingFoundationExtensions
         // line here rather than a search for every registration.
         builder.Services.TryAddSingleton(SelectCacheService);
 
+        // The event-bus socket, same shape and the same single site.
+        // IPartitionSerializer is a singleton because the ordering guarantee is
+        // process-wide: one instance per scope would give each publisher its own
+        // chains, and two events on one partition key would run concurrently
+        // while every test still passed.
+        builder.Services
+            .TryAddSingleton<LearnStack.SharedKernel.Messaging.IPartitionSerializer,
+                LearnStack.Infrastructure.Messaging.PartitionSerializer>();
+        builder.Services.TryAddSingleton(SelectEventBus);
+
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<LearnStackExceptionHandler>();
 
@@ -226,6 +236,35 @@ public static class CrossCuttingFoundationExtensions
         // why the trigger is a replica count and not a date.
         return new LearnStack.Infrastructure.Caching.InMemoryCacheService(
             services.GetRequiredService<LearnStack.SharedKernel.Time.IClock>());
+    }
+
+    /// <summary>
+    /// Single composition-root site that picks the <c>IEventBus</c>
+    /// implementation per <see cref="DeploymentMode"/>.
+    /// </summary>
+    /// <remarks>
+    /// CA1859 is suppressed for the same reason as the cache socket: the
+    /// interface return is the point.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible for improved performance",
+        Justification = "Return type is intentionally IEventBus so Phase 11 can swap implementations per DeploymentMode.")]
+    private static LearnStack.SharedKernel.Messaging.IEventBus SelectEventBus(
+        IServiceProvider services)
+    {
+        // TODO(2026-08-25, @platform): Phase 11 — light up the Dapr-backed
+        // branch. Demand-gated per ADR-0035; trigger: a second process needs to
+        // consume an integration event, or event volume, replay or ordering
+        // across processes is required. InProcessEventBus is a first-class
+        // transport rather than a stub — same IIntegrationEventHandler<T>
+        // contract, same IInboxGuard seam, same tenant-context restoration, same
+        // per-partition ordering — so a consumer written today does not change
+        // when the durable adapter lands.
+        return new LearnStack.Infrastructure.Messaging.InProcessEventBus(
+            services.GetRequiredService<IServiceScopeFactory>(),
+            services.GetRequiredService<LearnStack.SharedKernel.Tenancy.ITenantContextAccessor>(),
+            services.GetRequiredService<LearnStack.SharedKernel.Messaging.IPartitionSerializer>());
     }
 
     /// <summary>
