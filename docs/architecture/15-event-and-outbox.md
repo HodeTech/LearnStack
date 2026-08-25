@@ -108,7 +108,7 @@ guarantees below (ordering, single-claimant dispatch) cannot be honoured without
 
 | Column | Why it exists | Lands with |
 |---|---|---|
-| `partition_key text NOT NULL` | The ordering guarantee below is expressed entirely through this value. Defaults to the aggregate id; falls back to `tenant_id` when the event names no aggregate. Set at enqueue time by `IOutbox.EnqueueAsync`, never by the transport. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
+| `partition_key text NOT NULL` | The ordering guarantee below is expressed entirely through this value. **The event declares it** — `PartitionKey` is abstract on `IntegrationEventBase`, so no event inherits a default — and `IOutbox.EnqueueAsync` copies it onto the row. Nothing resolves or re-derives it. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
 | `locked_by text NULL` + `locked_until timestamptz NULL` | The dispatch **lease**. A processor stamps them to claim a row, and the claim survives the claiming transaction's commit. See the claim protocol below. | The dispatcher, in [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | `available_after timestamptz NOT NULL` | Retry backoff. A failed dispatch pushes this forward instead of blocking the batch. | Already in the canonical DDL |
 
@@ -190,11 +190,12 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
 
     await _outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
     {
+        EventId = _guidFactory.NewUuidV7(),   // IGuidFactory, not Guid.NewGuid
         TenantId = _tenantContext.TenantId,   // ITenantContext, not the accessor
+        OccurredAt = _clock.UtcNow,           // IClock per Standards 02 § Time
         EnrollmentId = enrollment.Id.Value,
         LearnerId = cmd.LearnerId,
         CourseId = cmd.CourseId,
-        OccurredAt = _clock.UtcNow,   // IClock per Standards 02 § Time
     }, ct);
 
     await _dbContext.SaveChangesAsync(ct);    // aggregate + outbox row, atomic
@@ -204,9 +205,20 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
 ```
 
 `IOutbox.EnqueueAsync` writes to the same `DbContext` (no separate transaction); commit
-is atomic with the aggregate write. It also resolves and stores the row's
-`partition_key` — here `EnrollmentId`, the aggregate this event is about. See
-[Ordering](#ordering).
+is atomic with the aggregate write. It copies the event's `PartitionKey` onto the row —
+here `EnrollmentId`, the aggregate this event is about — along with the correlation id
+and organization from the ambient `ITenantContext`, which is the last point at which
+they are available. See [Ordering](#ordering).
+
+**The payload is written by `event.ToPayloadJson()`, never by
+`JsonSerializer.Serialize(@event)`.** `EnqueueAsync` takes `IIntegrationEvent`, so the
+declared type at that call is the interface — and serializing through it emits the four
+interface members and silently drops everything the concrete event added. Valid JSON, no
+exception, and the truncated row commits inside the transaction that reported success;
+the loss surfaces later as a `JsonException` on every dispatch attempt until the message
+dead-letters. `ToPayloadJson` serialises by runtime type, and `PayloadJsonOptions` is
+named and fixed because a writer and a reader that disagree on casing dead-letter
+everything.
 
 ## Consumer pattern
 
@@ -448,43 +460,101 @@ obligations as the durable path:
 | Same per-partition-key ordering | Ordering assumptions that hold only in process are discovered in production |
 
 ```csharp
-public sealed class InProcessEventBus(
+public sealed partial class InProcessEventBus(
     IServiceScopeFactory scopeFactory,
     ITenantContextAccessor tenantAccessor,
-    IPartitionSerializer partitions) : IEventBus
+    IPartitionSerializer partitions,
+    ILogger<InProcessEventBus> logger) : IEventBus
 {
     public Task PublishAsync(
-        IIntegrationEvent @event, string partitionKey, CancellationToken ct = default)
+        IntegrationEventEnvelope envelope, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(partitionKey);
+        ArgumentNullException.ThrowIfNull(envelope);
 
-        return partitions.RunSequentiallyFor(partitionKey, async () =>
+        // Returned as a cancelled task rather than thrown inline: a
+        // fire-and-forget call site must not crash its caller synchronously.
+        if (ct.IsCancellationRequested) return Task.FromCanceled(ct);
+
+        return partitions.RunSequentiallyFor(
+            envelope.PartitionKey, () => DispatchAsync(envelope, ct));
+    }
+
+    private async Task DispatchAsync(IntegrationEventEnvelope envelope, CancellationToken ct)
+    {
+        // By RUNTIME type. The event is declared as the base interface here, so a
+        // closed generic over its static type would resolve
+        // IIntegrationEventHandler<IIntegrationEvent> — which no concrete
+        // consumer implements — and the publish would reach zero handlers and
+        // report success.
+        var contract = typeof(IIntegrationEventHandler<>).MakeGenericType(envelope.Event.GetType());
+        var handle = contract.GetMethod(nameof(IIntegrationEventHandler<IIntegrationEvent>.HandleAsync))!;
+        var context = EventTenantContext.FromEnvelope(envelope);
+
+        List<Exception>? failures = null;
+
+        for (var index = 0; index < HandlerCount(contract); index++)
         {
+            // ONE SCOPE PER HANDLER. Under a broker each subscription gets its
+            // own; sharing one hands two modules' consumers the same DbContext
+            // and unit of work, across a boundary the architecture otherwise
+            // enforces hard. Selected by index because a handler is registered
+            // against the CONTRACT — its own type is not a service.
             await using var scope = scopeFactory.CreateAsyncScope();
 
-            // Same restore as the durable path, into the SCOPE the handler
-            // resolves from — and the publisher's own ambient context is put
-            // back afterwards, or a synchronous dispatch leaks a tenant into
-            // the caller's flow.
+            // Restored into the handler's flow AND into the scope it resolves
+            // ITenantContext from — the composition root binds the scoped
+            // context to this accessor. Put back in the finally, or a
+            // synchronous dispatch leaks a tenant into the caller's flow.
             var previous = tenantAccessor.Current;
-            tenantAccessor.Set(TenantContext.FromEvent(@event));
+            tenantAccessor.Current = context;
             try
             {
-                // By runtime type. `@event` is declared as the base interface
-                // here, so a closed generic over its static type would resolve
-                // nothing.
-                var contract = typeof(IIntegrationEventHandler<>).MakeGenericType(@event.GetType());
-                foreach (var handler in scope.ServiceProvider.GetServices(contract))
-                    await ((dynamic)handler!).HandleAsync((dynamic)@event, ct);
+                var handler = scope.ServiceProvider.GetServices(contract).ElementAt(index)!;
+
+                // Through the interface's MethodInfo, NOT `dynamic`: the dynamic
+                // binder honours accessibility, so an `internal` handler — the
+                // normal shape for a module's own consumer — fails to bind at
+                // runtime. Invoke wraps a synchronous throw, so the inner
+                // exception is rethrown with ExceptionDispatchInfo; a
+                // TargetInvocationException would tell the error pipeline the
+                // transport failed when the handler did.
+                await (Task)handle.Invoke(handler, [envelope.Event, ct])!;
+            }
+            catch (Exception ex)
+            {
+                // Collected, not rethrown here. Poison-message containment is
+                // per subscription: letting the first fault escape the loop lets
+                // one module's broken handler deny every other module the event.
+                (failures ??= []).Add(ex);
             }
             finally
             {
-                tenantAccessor.Set(previous);
+                tenantAccessor.Current = previous;
             }
-        });                                          // handler calls IInboxGuard itself
-    }
+        }
+
+        // One failure rethrown as itself; several as an AggregateException.
+    }                                        // the handler calls IInboxGuard itself
 }
 ```
+
+The listing is abridged — the shipped class also logs each failure with event, tenant
+and partition key, refuses a `null` Task from a handler by name, and wraps an
+`OperationCanceledException` raised by a token other than the publish token, so an
+outbox processor cannot read "the handler gave up" as "we are shutting down". See
+`backend/src/LearnStack.Infrastructure/Messaging/InProcessEventBus.cs`.
+
+**`PartitionSerializer` refuses reentrant work for the key it is already inside.**
+Queuing work for a key from within that key's own work is a deadlock by construction:
+the new unit chains behind a tail that cannot complete until the current one returns.
+An earlier attempt ran such a call inline, reasoning the caller *is* the sequence — which
+is unsound, because an `AsyncLocal` marker flows into every task started inside a unit,
+so a fire-and-forget spawn inherited it and ran concurrently with the unit it should have
+queued behind. Detection is the same either way; only the action differs. A false
+positive that throws is loud and diagnosable; one that runs inline is a silent
+concurrency violation. The caller that hits it is publishing from inside a handler,
+which [Standards 20](../standards/20-infrastructure-stack.md) already forbids — a
+handler writes to the outbox.
 
 What the in-process transport genuinely does **not** provide, and what therefore
 constitutes the trigger for the Dapr adapter: delivery to a second process, broker-side
@@ -502,8 +572,14 @@ the choice.
   (`UserCreatedIntegrationEventV2`); old version remains supported during a migration
   window.
 - Consumers are **idempotent** via `IInboxGuard` (per-module inbox table).
-- Mandatory metadata on every integration event: `EventId`, `TenantId`, `OccurredAt`,
-  `CorrelationId`. Optional but recommended: `CausationId`, `ActorUserId`.
+- Mandatory on every integration event: `EventId`, `TenantId`, `OccurredAt`,
+  `PartitionKey`. The first three are `required`; the fourth is abstract.
+- Carried on the **envelope**, not the event: `Topic`, `CorrelationId`,
+  `OrganizationId`, `CausationId`, `ActorUserId`. They describe the delivery rather
+  than the fact, and they are what the outbox row holds — `correlation_id` and `topic`
+  are `NOT NULL` there. Correlation therefore travels from the row to the consumer
+  rather than from whatever context happens to be ambient at dispatch, which is `null`
+  inside the background service the processor is.
 - **Tenant context** restored on the consumer side before any business logic runs. The
   transport delivers the event payload; the consumer scope sets the ambient context from
   `@event.TenantId` before invoking the handler, so the handler's queries carry the same
@@ -517,16 +593,26 @@ guarantee nobody has.
 
 The rule, therefore, is that **every outbox row carries a non-null `partition_key`**:
 
+Every event overrides `PartitionKey`; the table below is how to choose its value, not
+a list of mechanisms:
+
 | Event shape | Partition key |
 |---|---|
 | Event about one aggregate instance (the normal case) | The aggregate id — `EnrollmentCreatedIntegrationEvent` keys on `EnrollmentId` |
-| Event about the tenant as a whole (`TenantSuspended`, `EntitlementUpdated`) | `TenantId` |
-| Event with an explicit ordering domain that is neither (rare) | Declared by the event type through `IPartitionedIntegrationEvent.PartitionKey` |
+| Event about the tenant as a whole (`TenantSuspended`, `EntitlementUpdated`) | `TenantId`, deliberately — it serialises that tenant's whole stream onto one partition |
 
-`IOutbox.EnqueueAsync` resolves the key at enqueue time and writes it to the row; the
-processor reads it from the row and passes it to `IEventBus.PublishAsync`. Nothing
-downstream re-derives it, so the ordering domain is decided once, by the producer that
-knows it.
+The member is **abstract rather than defaulted**, and that is the decision: a default
+would have to be the tenant id, which takes the throughput cost above by accident
+instead of on purpose.
+
+`IOutbox.EnqueueAsync` copies the event's key onto the row; the processor reads it back
+and builds the envelope from it. `IntegrationEventEnvelope.PartitionKey` is
+`Event.PartitionKey` — it cannot hold a second answer. An earlier shape passed the key
+alongside the event as a separate parameter, which meant two sources with nothing
+reconciling them: measured, the transport read the parameter and never the event, and
+every test published an event whose declared key disagreed with the one passed, green.
+Ordering is guaranteed per partition key, so a key that can differ from itself is a
+guarantee that cannot be stated.
 
 Consequences worth stating plainly:
 

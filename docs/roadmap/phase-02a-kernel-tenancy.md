@@ -354,6 +354,14 @@ projection), `platform_entitlement_cache`, `platform_host_to_tenant`, `idempoten
 port and an in-memory default that is correct for one instance and wrong for
 two), and `outbox_messages`. Default-organization seeding at tenant creation.
 
+**Seed the system actor.** `UserId.SystemActor` — a fixed, non-empty id in
+`LearnStack.SharedKernel.Identifiers` — is what an integration-event consumer, a
+background job, or any other non-request execution writes state as, per
+[Audit Coverage](../standards/18-audit-coverage.md)'s actor-of-type-`system` rule.
+`AuditableEntity.MarkCreated` refuses `default(UserId)` and `Guid.Empty` alike, so
+without it no consumer can create an aggregate at all. It is a foreign key: this
+packet's migration seeds the matching `users` row so `created_by` resolves.
+
 The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, with
 its EF configuration and its migration on `TenancyDbContext`, per [ADR-0017 Amendment 2
 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md). Identity holds
@@ -660,10 +668,12 @@ here with **working default implementations**; the vendor adapters ship on a tri
   `IIntegrationEventHandler<T>` interface, same `IInboxGuard`, same tenant-context
   restoration as the durable path, so development exercises the isolation code and no
   consumer needs two implementations.
-- `ICacheService` with `InMemoryCacheService`. `RemoveByPrefixAsync` is removed from
-  the interface or redesigned to a generation-key pattern before Packet 5 ships — the
-  published contract iterates an instance-local key set and cannot be honoured across
-  instances by any candidate backend.
+- `ICacheService` with `InMemoryCacheService`. `RemoveByPrefixAsync` is **removed**
+  ([ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md)) — the published contract
+  iterated an instance-local key set and could not be honoured across instances by any
+  candidate backend. "Removed **or** redesigned" was never a fork at the port: the
+  generation-key pattern puts its counter in durable domain state, so it adds no member
+  to the interface and stays a caller-side convention.
 - `ISecretProvider` with `ConfigurationSecretProvider`.
 - `IEntitlementProvider` with `NullEntitlementProvider` (all features enabled, no
   limits).
