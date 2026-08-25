@@ -59,6 +59,19 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     /// </remarks>
     public const int MaxEntries = 10_000;
 
+    /// <summary>
+    /// What a trim evicts down to, rather than back to <see cref="MaxEntries"/>.
+    /// </summary>
+    /// <remarks>
+    /// Without this gap the steady state of an unbounded key space — the exact
+    /// workload the ceiling exists for — is a trim on <b>every</b> write, each one
+    /// evicting a single entry. Measured on that version: 0.26 ms and 281 KB of
+    /// garbage per write, because evicting one entry copied and sorted all ten
+    /// thousand. Evicting a tenth of the map at once pays that cost once per
+    /// thousand writes instead of once per write.
+    /// </remarks>
+    public const int TrimTarget = MaxEntries * 9 / 10;
+
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -79,6 +92,9 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     /// silently becomes "an arbitrary one first".
     /// </summary>
     private long _sequence;
+
+    /// <summary>1 while a trim is running. A field, for Interlocked.</summary>
+    private int _trimming;
 
     /// <summary>
     /// How many entries the map currently holds, expired-but-unreclaimed ones
@@ -161,7 +177,26 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
             LazyThreadSafetyMode.ExecutionAndPublication));
 
         var registration = (key, typeof(T));
-        var flight = _inFlight.GetOrAdd(registration, mine);
+
+        // A flight that a write has ALREADY superseded must not be joined. It is
+        // only stopped from storing, so a caller whose GetOrSetAsync begins
+        // strictly after RemoveAsync returned would otherwise miss _entries —
+        // the Remove emptied it — join the doomed flight, and be answered with
+        // the value the invalidation existed to kill, its own factory never run.
+        // Its callers keep their own reference and still get their result; they
+        // were already in flight when the write landed, which is an ordinary
+        // race. Arriving afterwards is not.
+        Flight flight;
+        while (true)
+        {
+            flight = _inFlight.GetOrAdd(registration, mine);
+            if (ReferenceEquals(flight, mine) || !flight.Superseded)
+            {
+                break;
+            }
+
+            _inFlight.TryRemove(new KeyValuePair<(string, Type), Flight>(registration, flight));
+        }
 
         // Registered before anything can observe the count, so the completion
         // continuation below never sees a zero that is about to become one.
@@ -175,7 +210,19 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
                 // before the factory finished, so no `finally` runs again to
                 // notice the flight is done.
                 _ = flight.Task.Value.ContinueWith(
-                    _ => Retire(registration, flight),
+                    completed =>
+                    {
+                        // Touching Exception marks the fault observed. Without
+                        // it, a factory that faults after every caller has
+                        // abandoned its flight — the correlated failure, since a
+                        // dependency being down is exactly when clients
+                        // disconnect — leaves the task unobserved, and
+                        // TaskScheduler.UnobservedTaskException fires once per
+                        // key with no request, no span and no correlation id
+                        // attached to it.
+                        _ = completed.Exception;
+                        Retire(registration, flight);
+                    },
                     CancellationToken.None,
                     TaskContinuationOptions.ExecuteSynchronously,
                     TaskScheduler.Default);
@@ -226,6 +273,17 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
             //
             // The registration is what `Supersede` reaches, so it has to outlive
             // the store, and it has to outlive every other caller's store too.
+            //
+            // Retiring turns only on the caller count, NOT on the factory having
+            // finished. An earlier version also required IsCompleted, which meant
+            // a factory that never completes — no deadline exists anywhere, since
+            // the flight deliberately runs on CancellationToken.None so one
+            // caller cannot cancel it for the rest — left its registration in
+            // place forever. `_inFlight` has no ceiling, and worse, every later
+            // caller JOINED that dead flight: the key never ran a factory again
+            // for the life of the process, once per generic instantiation. With
+            // no callers left there is nothing to stampede, so a fresh arrival
+            // starting its own flight is right.
             if (Interlocked.Decrement(ref flight.Waiters) == 0)
             {
                 Retire(registration, flight);
@@ -240,10 +298,12 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     /// </summary>
     private void Retire((string Key, Type Type) registration, Flight flight)
     {
-        if (Volatile.Read(ref flight.Waiters) == 0 && flight.Task.Value.IsCompleted)
+        if (Volatile.Read(ref flight.Waiters) != 0)
         {
-            _inFlight.TryRemove(new KeyValuePair<(string, Type), Flight>(registration, flight));
+            return;
         }
+
+        _inFlight.TryRemove(new KeyValuePair<(string, Type), Flight>(registration, flight));
     }
 
     public Task SetAsync<T>(
@@ -327,26 +387,61 @@ public sealed class InMemoryCacheService(IClock clock) : ICacheService
     /// </remarks>
     private void Trim(DateTimeOffset now)
     {
-        foreach (var pair in _entries)
-        {
-            if (!pair.Value.IsFresh(now))
-            {
-                // Value-comparing: between the enumerator observing an expired
-                // entry and this line, another thread may have written a fresh
-                // one at the same key.
-                _entries.TryRemove(pair);
-            }
-        }
-
-        var excess = _entries.Count - MaxEntries;
-        if (excess <= 0)
+        // One trimmer at a time. Concurrent writers all cross the ceiling
+        // together, and without this each of them snapshots and sorts the whole
+        // map to do work the first one is already doing.
+        if (Interlocked.CompareExchange(ref _trimming, 1, 0) != 0)
         {
             return;
         }
 
-        foreach (var pair in _entries.OrderBy(pair => pair.Value.Sequence).Take(excess))
+        try
         {
-            _entries.TryRemove(pair);
+            // ToArray(), NOT LINQ over `_entries` directly. Measured: an
+            // `_entries.OrderBy(...)` buffers the LIVE dictionary through
+            // ICollection.CopyTo after reading Count, and those two steps are not
+            // atomic — if the map grew in between, CopyTo throws
+            // ArgumentException; if it shrank, the tail of the buffer keeps
+            // default(KeyValuePair) whose Value is null and the sort key
+            // dereferences it. Both escaped Trim into SetAsync and
+            // GetOrSetAsync, so a component whose contract says it may no-op at
+            // any time was instead failing the caller's request: with two
+            // concurrent writers at the ceiling, 4.1% of ordinary writes threw;
+            // with four, 15.5%. ToArray takes every bucket lock and hands back a
+            // consistent snapshot — measured at 0 failures over the same probe.
+            var snapshot = _entries.ToArray();
+            var live = new List<KeyValuePair<string, Entry>>(snapshot.Length);
+
+            foreach (var pair in snapshot)
+            {
+                if (pair.Value.IsFresh(now))
+                {
+                    live.Add(pair);
+                }
+                else
+                {
+                    // Value-comparing: between the snapshot and this line another
+                    // thread may have written a fresh entry at the same key.
+                    _entries.TryRemove(pair);
+                }
+            }
+
+            var excess = live.Count - TrimTarget;
+            if (excess <= 0)
+            {
+                return;
+            }
+
+            live.Sort(static (left, right) => left.Value.Sequence.CompareTo(right.Value.Sequence));
+
+            for (var i = 0; i < excess; i++)
+            {
+                _entries.TryRemove(live[i]);
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _trimming, 0);
         }
     }
 

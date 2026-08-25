@@ -200,10 +200,34 @@ different decisions:
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
 | `{tenant_id}:tenancy:settings` (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
 
+Each of these is produced by a `CacheKey` factory, never by string
+interpolation, and the mapping is written down because it is the part that
+drifts:
+
+| Family | Composed by |
+|---|---|
+| `platform:hub:host-map:{host}` | `CacheKey.ForPlatform("hub", "host-map", host)` |
+| `{tenant_id}:hub:entitlement` | `CacheKey.ForTenant(tenantId, "hub", "entitlement")` |
+| `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
+| `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |
+| `{tenant_id}:tenancy:settings` | `CacheKey.ForTenant(tenantId, "tenancy", "settings")` |
+
+The last-but-one takes a **multi-part** logical name, and so does the host
+lookup. That is why the factories take one: a caller joining the parts itself
+would put a separator inside a single segment, which `CacheKey` rejects — so
+without multi-part names these two families could only have been hand-built,
+past the one place `Guid.Empty`, non-canonical identifier rendering and
+separator injection are checked. The host segment is the normalized host per
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md), which has
+already had its port stripped; a host that still carried `:8443` would be
+refused rather than silently splitting into two segments.
+
 The host lookup is the **one** family that legitimately carries the `platform`
 sentinel, and it is worth saying why: it answers "which tenant is this?", so by
 construction there is no tenant to key it by. Every other family knows its tenant,
-so a `platform` sentinel there would be a bug wearing the sentinel's clothes.
+so a `platform` sentinel there would be a bug wearing the sentinel's clothes —
+and `CacheKey.EnsureValid` now refuses that shape outright, rejecting any key
+whose sentinel is followed by an identifier segment.
 
 > An earlier version of this table listed these as `hub:host:{host}`,
 > `hub:entitlement:{tenant_id}` and `tenant_feature_flags:{tenant_id}` — module

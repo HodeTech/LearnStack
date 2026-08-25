@@ -115,14 +115,84 @@ public sealed class CacheKeyTests
     }
 
     [Fact]
-    public void A_Key_May_Carry_More_Than_Three_Segments()
+    public void A_Structured_Logical_Name_Is_Composed_Not_Hand_Joined()
     {
-        // The logical name is the caller's to structure — "settings:theme:dark"
-        // is one name with internal structure, not a violation. What is fixed is
-        // that the FIRST segment identifies the tenant.
-        var act = () => CacheKey.EnsureValid($"{Tenant}:tenancy:settings:theme");
+        // An earlier version of this test asserted only that EnsureValid ACCEPTS
+        // a four-segment key, and said the caller could structure its own
+        // logical name. Compose forbids exactly that — a caller joining parts
+        // with the separator puts one inside a segment — so the guard blessed a
+        // shape no factory could emit, and the two key families Standards 20
+        // mandates with structured names would have been hand-built past it.
+        CacheKey.ForTenant(Tenant, "tenancy", "settings", "theme")
+            .Should().Be($"{Tenant}:tenancy:settings:theme");
+
+        var act = () => CacheKey.EnsureValid(
+            CacheKey.ForTenant(Tenant, "tenancy", "settings", "theme"));
 
         act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void The_Key_Families_Standards_20_Mandates_Are_All_Composable()
+    {
+        // Every family in Standards 20 § ICacheService, built through the
+        // factory and passed through the guard. Two of them are four-segment
+        // keys whose fourth segment is not an organization id, and no factory
+        // could produce either before multi-part logical names existed.
+        var session = Guid.Parse("018f4d40-0000-7000-8000-0000000000f1");
+
+        var families = new[]
+        {
+            CacheKey.ForPlatform("hub", "host-map", "school.example.com"),
+            CacheKey.ForTenant(Tenant, "hub", "entitlement"),
+            CacheKey.ForTenant(Tenant, "tenancy", "feature-flags"),
+            CacheKey.ForTenant(Tenant, "identity", "permissions", session.ToString()),
+            CacheKey.ForTenant(Tenant, "tenancy", "settings"),
+        };
+
+        foreach (var key in families)
+        {
+            var act = () => CacheKey.EnsureValid(key);
+            act.Should().NotThrow($"'{key}' is a family the standard mandates");
+        }
+
+        families[0].Should().Be("platform:hub:host-map:school.example.com");
+        families[3].Should().Be($"{Tenant}:identity:permissions:{session}");
+    }
+
+    [Fact]
+    public void A_Logical_Name_With_No_Parts_Is_Refused()
+    {
+        var act = () => CacheKey.ForTenant(Tenant, "tenancy");
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000000", "an unresolved organization")]
+    [InlineData("018F4D40-0000-7000-8000-0000000000C1", "an uppercase rendering")]
+    [InlineData("  018f4d40-0000-7000-8000-0000000000c1", "a padded rendering")]
+    public void An_Identifier_Segment_Past_The_First_Is_Guarded_Too(string org, string why)
+    {
+        // Only segment 0 used to be checked, so the factory door rejected
+        // Guid.Empty for an organization while the guard door waved it through —
+        // and an unresolved default(Guid) organization collapses every
+        // organization of a tenant into one bucket, which is an ADR-0017 scope
+        // boundary, not a benign miss.
+        var act = () => CacheKey.EnsureValid($"{Tenant}:{org}:education:roster");
+
+        act.Should().Throw<ArgumentException>(why);
+    }
+
+    [Fact]
+    public void An_Organization_Under_The_Platform_Sentinel_Is_Refused()
+    {
+        // Standards 20 calls this "a bug wearing the sentinel's clothes": the
+        // sentinel means "every tenant", and nothing scoped to one organization
+        // can also be platform-wide.
+        var act = () => CacheKey.EnsureValid($"platform:{Org}:education:roster");
+
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]

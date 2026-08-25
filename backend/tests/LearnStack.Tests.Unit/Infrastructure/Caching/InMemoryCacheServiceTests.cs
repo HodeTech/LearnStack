@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using FluentAssertions;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.SharedKernel.Caching;
@@ -251,9 +252,14 @@ public sealed class InMemoryCacheServiceTests
             await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"k{i:D6}"), i, ttl);
         }
 
-        cache.Count.Should().Be(InMemoryCacheService.MaxEntries,
-            "the ceiling is a count, so that is what the test asserts — and "
-            + "exactly, because a bound that over-evicts is also a defect");
+        // Between the low-water mark and the ceiling. A trim evicts down to
+        // TrimTarget rather than back to MaxEntries, deliberately: without that
+        // gap the steady state of an unbounded key space is a trim on every
+        // single write, each one copying and sorting the whole map to drop one
+        // entry. Both ends are asserted, because "bounded" that never evicts
+        // and "bounded" that empties itself are both wrong.
+        cache.Count.Should().BeInRange(
+            InMemoryCacheService.TrimTarget, InMemoryCacheService.MaxEntries);
 
         (await cache.GetAsync<int?>(CacheKey.ForTenant(Tenant, "tenancy", "k000000")))
             .Should().BeNull("the oldest entries are the ones the bound drops");
@@ -281,6 +287,59 @@ public sealed class InMemoryCacheServiceTests
             + "last write wins would pass however Store branched, since one key "
             + "cannot occupy two slots in a dictionary");
         (await cache.GetAsync<int?>(Key())).Should().Be((InMemoryCacheService.MaxEntries * 2) - 1);
+    }
+
+    [Fact]
+    public async Task Writing_At_The_Ceiling_From_Several_Threads_Throws_Nothing()
+    {
+        // The eviction pass used to run LINQ over the LIVE dictionary, which
+        // buffers it through ICollection.CopyTo after reading Count — two steps
+        // that are not atomic. Grow in between and CopyTo throws
+        // ArgumentException; shrink and the buffer's tail keeps a default
+        // KeyValuePair whose Value is null, which the sort key dereferences.
+        // Both escaped into SetAsync and GetOrSetAsync. Measured on that
+        // version: two concurrent writers were enough — 4.1% of ordinary writes
+        // threw, four writers 15.5% — and the whole existing suite stayed green,
+        // because every other test drives the eviction from one thread with
+        // `await` in a `for` loop.
+        //
+        // A component whose contract is that it may no-op at any time must never
+        // fail the caller's request. This asserts exactly that, and nothing about
+        // which entries survive.
+        var (cache, _) = New();
+        var ttl = new CacheOptions(L1Ttl: TimeSpan.FromDays(30));
+
+        for (var i = 0; i < InMemoryCacheService.MaxEntries; i++)
+        {
+            await cache.SetAsync(CacheKey.ForTenant(Tenant, "tenancy", $"warm{i:D6}"), i, ttl);
+        }
+
+        var failures = new ConcurrentBag<Exception>();
+        using var start = new ManualResetEventSlim(false);
+
+        var writers = Enumerable.Range(0, 4).Select(t => Task.Run(async () =>
+        {
+            start.Wait(TestTimeout);
+            for (var i = 0; i < 1_500; i++)
+            {
+                try
+                {
+                    await cache.SetAsync(
+                        CacheKey.ForTenant(Tenant, "tenancy", $"t{t}k{i:D6}"), i, ttl);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add(ex);
+                }
+            }
+        })).ToArray();
+
+        start.Set();
+        await Task.WhenAll(writers);
+
+        failures.Should().BeEmpty(
+            "eviction is the cache's own business and never the caller's error");
+        cache.Count.Should().BeLessThanOrEqualTo(InMemoryCacheService.MaxEntries);
     }
 
     // ---- cancellation is not contagious -------------------------------------
@@ -392,6 +451,151 @@ public sealed class InMemoryCacheServiceTests
         (await arrives).Should().Be("made");
 
         runs.Should().Be(1, "one factory run per key, however many callers come and go");
+    }
+
+    [Fact]
+    public async Task A_Flight_Everyone_Abandons_Does_Not_Poison_Its_Key()
+    {
+        // Retiring used to require the factory to have COMPLETED. Nothing can
+        // impose a deadline on it — the flight deliberately runs on
+        // CancellationToken.None so one caller cannot cancel it for the rest —
+        // so a factory that never finishes left its registration in place for
+        // the life of the process. `_inFlight` has no ceiling, and worse, every
+        // later caller JOINED that dead flight and waited on a task that would
+        // never complete. The key never ran a factory again.
+        var (cache, _) = New();
+        using var never = new SemaphoreSlim(0);
+        using var abandoning = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var abandoned = cache.GetOrSetAsync(Key(), async _ =>
+        {
+            entered.TrySetResult();
+            await never.WaitAsync(TestTimeout, CancellationToken.None);
+            return "never-arrives";
+        }, null, abandoning.Token);
+
+        await entered.Task.WaitAsync(TestTimeout);
+        await abandoning.CancelAsync();
+        await ((Func<Task>)(() => abandoned)).Should().ThrowAsync<OperationCanceledException>();
+
+        cache.InFlightCount.Should().Be(0, "no caller is left, so nothing is in flight");
+
+        // The key must still work. Without the fix this call joins the dead
+        // flight and hangs until its own token fires.
+        var next = cache.GetOrSetAsync(Key(), _ => Task.FromResult("fresh"));
+
+        (await next.WaitAsync(TestTimeout)).Should().Be("fresh");
+        never.Release();
+    }
+
+    [Fact]
+    public async Task A_Caller_Arriving_After_A_Remove_Does_Not_Join_The_Doomed_Flight()
+    {
+        // Supersede only stops a flight from STORING. A caller whose
+        // GetOrSetAsync begins strictly after RemoveAsync returned would
+        // otherwise miss _entries — the Remove emptied it — join the doomed
+        // flight, and be handed the value the invalidation existed to kill,
+        // its own factory never invoked. Callers already in flight when the
+        // write landed are a different case: that is an ordinary race, and they
+        // keep their result.
+        var (cache, _) = New();
+        using var release = new SemaphoreSlim(0);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var inFlight = cache.GetOrSetAsync(Key(), async _ =>
+        {
+            entered.TrySetResult();
+            await release.WaitAsync(TestTimeout, CancellationToken.None);
+            return "before-the-remove";
+        });
+
+        await entered.Task.WaitAsync(TestTimeout);
+        await cache.RemoveAsync(Key());
+
+        var afterwards = await cache.GetOrSetAsync(Key(), _ => Task.FromResult("after-the-remove"));
+
+        afterwards.Should().Be("after-the-remove",
+            "it started after the invalidation, so it reads the source of truth");
+
+        release.Release();
+        (await inFlight).Should().Be("before-the-remove",
+            "the caller already in flight still gets what it asked for");
+    }
+
+    [Fact]
+    public async Task A_Faulted_Flight_Nobody_Awaits_Leaves_No_Unobserved_Exception()
+    {
+        // The correlated failure: a factory faults when a dependency is down,
+        // and a dependency being down is exactly when clients time out and
+        // disconnect. With every caller gone nobody awaits the task, so its
+        // exception goes unobserved and TaskScheduler.UnobservedTaskException
+        // fires — with no request, no span and no correlation id attached, and
+        // a host configured with ThrowUnobservedTaskExceptions terminates on it.
+        // Measured on the shape this reproduces: 20 of 20 abandoned faulted
+        // flights raised the event without the observation, 0 of 20 with it.
+        //
+        // The event is process-global and xUnit runs classes in parallel, so
+        // only this test's own sentinel is counted. Several rounds are run
+        // because the event fires on FINALIZATION, which one collection does
+        // not reliably reach.
+        const string Sentinel = "learnstack-cache-unobserved-probe";
+        var mine = new ConcurrentBag<Exception>();
+
+        void Handler(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            if (e.Exception.Flatten().InnerExceptions
+                .Any(inner => inner.Message == Sentinel))
+            {
+                mine.Add(e.Exception);
+                e.SetObserved();
+            }
+        }
+
+        TaskScheduler.UnobservedTaskException += Handler;
+        try
+        {
+            for (var round = 0; round < 10; round++)
+            {
+                var (cache, _) = New();
+                using var fail = new SemaphoreSlim(0);
+                using var abandoning = new CancellationTokenSource();
+                var entered = new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+
+                var abandoned = cache.GetOrSetAsync<string>(Key(), async _ =>
+                {
+                    entered.TrySetResult();
+                    await fail.WaitAsync(TestTimeout, CancellationToken.None);
+                    throw new InvalidOperationException(Sentinel);
+                }, null, abandoning.Token);
+
+                await entered.Task.WaitAsync(TestTimeout);
+                await abandoning.CancelAsync();
+                await ((Func<Task>)(() => abandoned))
+                    .Should().ThrowAsync<OperationCanceledException>();
+
+                fail.Release();
+                await Task.Delay(TimeSpan.FromMilliseconds(50));
+            }
+
+            for (var collection = 0; collection < 4; collection++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            mine.Should().BeEmpty("the flight observes its own fault");
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= Handler;
+        }
     }
 
     [Fact]

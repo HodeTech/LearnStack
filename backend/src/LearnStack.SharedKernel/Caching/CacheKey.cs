@@ -40,8 +40,8 @@ public static class CacheKey
     /// strings. With all three factories naming their scope, choosing one is a
     /// decision rather than a habit.
     /// </remarks>
-    public static string ForTenant(Guid tenantId, string module, string logicalName) =>
-        For(Canonical(tenantId, nameof(tenantId)), module, logicalName);
+    public static string ForTenant(Guid tenantId, string module, params string[] logicalName) =>
+        Compose(Canonical(tenantId, nameof(tenantId)), module, logicalName);
 
     /// <summary>
     /// Composes a key for a value scoped to one organization within a tenant:
@@ -58,16 +58,30 @@ public static class CacheKey
     /// rather than being left to each call site to spell.
     /// </remarks>
     public static string ForOrganization(
-        Guid tenantId, Guid organizationId, string module, string logicalName) =>
-        For(
+        Guid tenantId, Guid organizationId, string module, params string[] logicalName) =>
+        Compose(
             Canonical(tenantId, nameof(tenantId)),
             Canonical(organizationId, nameof(organizationId)),
             module,
             logicalName);
 
     /// <summary>Composes a key for a platform-wide value.</summary>
-    public static string ForPlatform(string module, string logicalName) =>
-        For(PlatformTenant, module, logicalName);
+    /// <remarks>
+    /// The logical name may be several parts, and that is not a convenience.
+    /// Standards 20 mandates key families whose logical name has internal
+    /// structure — <c>platform:hub:host-map:{host}</c> and
+    /// <c>{tenant_id}:identity:permissions:{session_id}</c> — and a single-string
+    /// factory could not produce either of them, because a caller joining the
+    /// parts itself would put a separator inside one segment and
+    /// <see cref="Compose"/> rejects exactly that. The guard would then have
+    /// admitted a shape no factory could emit, so the two families Standards 20
+    /// singles out — including the host lookup, which sits on the anonymous
+    /// page-load path — would have been hand-built past the only place
+    /// <see cref="Guid.Empty"/>, non-canonical rendering and separator injection
+    /// are checked.
+    /// </remarks>
+    public static string ForPlatform(string module, params string[] logicalName) =>
+        Compose(PlatformTenant, module, logicalName);
 
     /// <summary>
     /// Throws when a key does not carry three non-empty segments.
@@ -85,7 +99,10 @@ public static class CacheKey
         var segments = key.Split(Separator);
         var wellFormed = segments.Length >= 3
             && !segments.Any(string.IsNullOrWhiteSpace)
-            && IsTenantSegment(segments[0]);
+            && IsTenantSegment(segments[0])
+            && segments.All(IsCanonicalIfIdentifier)
+            && !(segments[0].Equals(PlatformTenant, StringComparison.Ordinal)
+                && LooksLikeIdentifier(segments[1]));
 
         if (!wellFormed)
         {
@@ -109,6 +126,25 @@ public static class CacheKey
     /// tenant segment is mandatory. A guard that admits the shape it exists to
     /// reject is worse than none — it makes the rule look enforced.
     /// </remarks>
+    /// <summary>
+    /// Whether a segment that looks like an identifier is a well-formed one.
+    /// </summary>
+    /// <remarks>
+    /// The tenant segment is not the only one that carries an id. An
+    /// organization-scoped key puts one in position 1, and a logical name may
+    /// carry a session or entity id anywhere after that — and only segment 0 used
+    /// to be checked, so <see cref="Guid.Empty"/>, an uppercase rendering and a
+    /// padded one all passed in the organization slot while the factory door
+    /// rejected every one of them. A rule that holds at one of two doors is the
+    /// asymmetry the all-zero-tenant test exists to forbid, one scope down.
+    /// </remarks>
+    private static bool IsCanonicalIfIdentifier(string segment) =>
+        !Guid.TryParse(segment, out var id)
+        || (id != Guid.Empty && segment.Equals(id.ToString(), StringComparison.Ordinal));
+
+    /// <summary>Whether a segment parses as an identifier at all.</summary>
+    private static bool LooksLikeIdentifier(string segment) => Guid.TryParse(segment, out _);
+
     private static bool IsTenantSegment(string segment) =>
         segment.Equals(PlatformTenant, StringComparison.Ordinal)
         || (Guid.TryParse(segment, out var id)
@@ -152,11 +188,31 @@ public static class CacheKey
         return id.ToString();
     }
 
-    private static string For(string tenant, string module, string logicalName) =>
-        Compose([tenant, module, logicalName]);
+    private static string Compose(string tenant, string module, string[] logicalName)
+    {
+        ArgumentNullException.ThrowIfNull(logicalName);
 
-    private static string For(string tenant, string org, string module, string logicalName) =>
-        Compose([tenant, org, module, logicalName]);
+        if (logicalName.Length == 0)
+        {
+            throw new ArgumentException(
+                "A cache key needs a logical name.", nameof(logicalName));
+        }
+
+        return Compose([tenant, module, .. logicalName]);
+    }
+
+    private static string Compose(string tenant, string org, string module, string[] logicalName)
+    {
+        ArgumentNullException.ThrowIfNull(logicalName);
+
+        if (logicalName.Length == 0)
+        {
+            throw new ArgumentException(
+                "A cache key needs a logical name.", nameof(logicalName));
+        }
+
+        return Compose([tenant, org, module, .. logicalName]);
+    }
 
     private static string Compose(string[] segments)
     {
