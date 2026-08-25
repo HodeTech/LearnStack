@@ -41,6 +41,23 @@ public sealed class IntegrationEventContractTests
     }
 
     [Fact]
+    public void The_Envelope_Carries_The_Events_Own_Channel_And_Ordering_Domain()
+    {
+        // By VALUE, not merely structurally. Asserting only that the getters are
+        // read-only left the forwarding unchecked: returning `Event.Topic + "-x"`
+        // — or reading a stale captured field instead of the event — passed
+        // every test in the suite. That is the exact bug class these properties
+        // exist to prevent, where the transport reads one source and the event
+        // declares another.
+        var @event = NewSample();
+        var envelope = new IntegrationEventEnvelope(@event, "trace-1");
+
+        envelope.Topic.Should().Be(@event.Topic);
+        envelope.PartitionKey.Should().Be(@event.PartitionKey);
+        envelope.Event.Should().BeSameAs(@event);
+    }
+
+    [Fact]
     public void PartitionKey_Is_Abstract_So_No_Event_Can_Inherit_A_Default()
     {
         // A default would have to be the tenant id, which silently serialises a

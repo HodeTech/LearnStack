@@ -192,6 +192,34 @@ public sealed class PartitionSerializerTests
     }
 
     [Fact]
+    public async Task A_Cycle_Through_Another_Key_Is_Refused_Too()
+    {
+        // A -> B -> A. The guard originally compared only the INNERMOST key on
+        // the flow, which catches A -> A and misses this — the same cycle one
+        // hop longer. Measured on that version: five out of five attempts hung,
+        // silently and permanently, no exception and no log. Tracking only the
+        // innermost key survived every other test in this file, so the fix had
+        // no guard of its own until now.
+        var serializer = new PartitionSerializer();
+        Exception? refused = null;
+
+        await serializer.RunSequentiallyFor("A", async () =>
+            await serializer.RunSequentiallyFor("B", async () =>
+            {
+                try
+                {
+                    await serializer.RunSequentiallyFor("A", () => Task.CompletedTask);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    refused = ex;
+                }
+            })).WaitAsync(Timeout);
+
+        refused.Should().NotBeNull("a cycle through any number of keys is still a cycle");
+    }
+
+    [Fact]
     public async Task Nesting_A_Different_Key_Is_Fine()
     {
         var serializer = new PartitionSerializer();
@@ -344,12 +372,36 @@ public sealed class PartitionSerializerTests
     public async Task A_Failing_Unit_Nobody_Awaits_Leaves_No_Unobserved_Exception()
     {
         // A publisher is free not to await what RunSequentiallyFor returns.
+        //
+        // The event fires on FINALIZATION, which makes one sighting weak
+        // evidence in both directions — measured, this failed three times
+        // running and then passed six, on identical code. So the scenario is run
+        // twice and only a repeat counts: a broken fault-observation produces
+        // sightings on every attempt, while a straggling finalizer produces them
+        // on one. Clearing and re-measuring without re-running the scenario
+        // would have been worse than useless — with the mechanism broken, the
+        // exceptions have already fired and the second look would be clean.
         const string Sentinel = "learnstack-partition-unobserved-probe";
+
+        (await MeasureUnobserved(Sentinel) && await MeasureUnobserved(Sentinel))
+            .Should().BeFalse("the chain observes the fault it swallows");
+    }
+
+    /// <summary>
+    /// Runs the abandoned-failing-unit scenario once and reports whether any
+    /// unobserved exception carrying <paramref name="sentinel"/> was raised.
+    /// </summary>
+    /// <remarks>
+    /// The event is process-global and xUnit runs classes in parallel, so only
+    /// this test's own sentinel is counted.
+    /// </remarks>
+    private static async Task<bool> MeasureUnobserved(string sentinel)
+    {
         var mine = new ConcurrentBag<Exception>();
 
         void Handler(object? sender, UnobservedTaskExceptionEventArgs e)
         {
-            if (e.Exception.Flatten().InnerExceptions.Any(inner => inner.Message == Sentinel))
+            if (e.Exception.Flatten().InnerExceptions.Any(inner => inner.Message == sentinel))
             {
                 mine.Add(e.Exception);
                 e.SetObserved();
@@ -363,7 +415,7 @@ public sealed class PartitionSerializerTests
             {
                 var serializer = new PartitionSerializer();
                 _ = serializer.RunSequentiallyFor("k", () =>
-                    Task.FromException(new InvalidOperationException(Sentinel)));
+                    Task.FromException(new InvalidOperationException(sentinel)));
                 await Task.Delay(TimeSpan.FromMilliseconds(20));
             }
 
@@ -378,7 +430,7 @@ public sealed class PartitionSerializerTests
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            mine.Should().BeEmpty("the chain observes the fault it swallows");
+            return !mine.IsEmpty;
         }
         finally
         {

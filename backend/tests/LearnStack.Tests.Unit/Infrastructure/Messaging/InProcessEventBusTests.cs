@@ -363,7 +363,51 @@ public sealed class InProcessEventBusTests
         await cancelled.CancelAsync();
         await publish;
 
-        recorder.SawCancellableToken.Should().BeTrue();
+        // The token ITSELF, not merely "a cancellable token" — asserting
+        // CanBeCanceled was true of any token at all, so threading a freshly
+        // minted CancellationTokenSource through instead would have passed while
+        // a shutdown never reached a consumer, which is the failure this test
+        // names.
+        recorder.HandlerToken.Should().Be(cancelled.Token);
+    }
+
+    [Fact]
+    public async Task A_Handler_That_Cannot_Be_Built_Is_Reported_As_Such()
+    {
+        // Handler construction happens before the per-handler loop that provides
+        // isolation — the container materialises the whole array before
+        // returning any element — so a constructor that throws takes every
+        // sibling with it and nothing here can contain it. Without the explicit
+        // report the exception was swallowed, the count came back zero, and a
+        // broken registration looked exactly like "nobody subscribed".
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThingHandler>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, UnconstructableHandler>();
+        });
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
+
+        var thrown = await act.Should().ThrowAsync<InvalidOperationException>();
+        thrown.Which.Message.Should().Contain("failed to construct");
+        thrown.Which.InnerException!.Message.Should().Be("this handler cannot be built");
+        recorder.Handled.Should().BeEmpty("no handler for that event could run");
+    }
+
+    [Fact]
+    public async Task A_Handler_Returning_No_Task_Is_Named()
+    {
+        // Otherwise the caller gets a bare NullReferenceException from inside a
+        // transport it did not know it was in.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, NullTaskHandler>());
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .Which.Message.Should().Contain(nameof(NullTaskHandler));
     }
 
     [Fact]
@@ -535,7 +579,7 @@ public sealed class InProcessEventBusTests
 
         public ConcurrentQueue<DisposalProbe> Probes { get; } = new();
 
-        public bool SawCancellableToken { get; set; }
+        public CancellationToken HandlerToken { get; set; }
 
         public int Rendezvoused => _rendezvoused;
 
@@ -691,9 +735,24 @@ public sealed class InProcessEventBusTests
     {
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
-            recorder.SawCancellableToken = cancellationToken.CanBeCanceled;
+            recorder.HandlerToken = cancellationToken;
             return Task.CompletedTask;
         }
+    }
+
+    public sealed class NullTaskHandler : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default) =>
+            null!;
+    }
+
+    public sealed class UnconstructableHandler : IIntegrationEventHandler<Thing>
+    {
+        public UnconstructableHandler() =>
+            throw new InvalidOperationException("this handler cannot be built");
+
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     public sealed class DisposalProbe : IDisposable
