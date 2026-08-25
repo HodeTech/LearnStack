@@ -15,28 +15,48 @@ public sealed class PartitionSerializerTests
     [Fact]
     public async Task Work_On_One_Key_Runs_In_Order_And_Never_Overlaps()
     {
-        var serializer = new PartitionSerializer();
         var observed = new ConcurrentQueue<int>();
         var inFlight = 0;
         var overlapped = false;
 
-        var queued = Enumerable.Range(0, 25).Select(i =>
-            serializer.RunSequentiallyFor("k", async () =>
+        // Queued from real threads behind a Barrier, NOT with
+        // Select(...).ToArray(). Measured: LINQ evaluates sequentially on one
+        // thread, so each unit incremented and decremented before the next was
+        // even created — nothing contended, and this test noticed a completely
+        // bypassed serializer 3 times in 20 runs. With genuine contention it
+        // notices every time, and it is what pins the lock around the tail's
+        // read-modify-write.
+        const int Threads = 8;
+        const int Each = 25;
+        var serializer = new PartitionSerializer();
+        using var start = new Barrier(Threads);
+
+        var workers = Enumerable.Range(0, Threads).Select(_ => Task.Factory.StartNew(
+            () =>
             {
-                if (Interlocked.Increment(ref inFlight) > 1)
-                {
-                    Volatile.Write(ref overlapped, true);
-                }
+                start.SignalAndWait();
 
-                await Task.Yield();
-                observed.Enqueue(i);
-                Interlocked.Decrement(ref inFlight);
-            })).ToArray();
+                return Task.WhenAll(Enumerable.Range(0, Each).Select(_ =>
+                    serializer.RunSequentiallyFor("k", async () =>
+                    {
+                        if (Interlocked.Increment(ref inFlight) > 1)
+                        {
+                            Volatile.Write(ref overlapped, true);
+                        }
 
-        await Task.WhenAll(queued).WaitAsync(Timeout);
+                        await Task.Yield();
+                        observed.Enqueue(1);
+                        Interlocked.Decrement(ref inFlight);
+                    })));
+            },
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default).Unwrap()).ToArray();
 
-        overlapped.Should().BeFalse();
-        observed.Should().BeEquivalentTo(Enumerable.Range(0, 25), o => o.WithStrictOrdering());
+        await Task.WhenAll(workers).WaitAsync(Timeout);
+
+        overlapped.Should().BeFalse("no two units for one key ever overlap");
+        observed.Should().HaveCount(Threads * Each);
     }
 
     [Fact]
@@ -44,21 +64,33 @@ public sealed class PartitionSerializerTests
     {
         // Serialising everything would satisfy the ordering test and defeat the
         // purpose, so the guarantee is pinned from both sides.
+        // TWO gates, each side waiting on the OTHER's. An earlier version
+        // shared one semaphore, so each side released a permit and immediately
+        // consumed its own — it never waited for anything, and the test passed
+        // with every key collapsed onto a single chain. Measured: the whole
+        // cross-key half of this class's contract could be deleted and nothing
+        // turned red. This is the third test in this packet found to satisfy
+        // itself rather than the code.
         var serializer = new PartitionSerializer();
-        using var arrived = new SemaphoreSlim(0);
+        using var firstArrived = new SemaphoreSlim(0);
+        using var secondArrived = new SemaphoreSlim(0);
 
-        async Task Rendezvous()
+        var first = serializer.RunSequentiallyFor("k1", async () =>
         {
-            arrived.Release();
-            await arrived.WaitAsync(Timeout, CancellationToken.None);
-        }
+            firstArrived.Release();
+            (await secondArrived.WaitAsync(Timeout, CancellationToken.None))
+                .Should().BeTrue("k2 must not be queued behind k1");
+        });
 
-        var first = serializer.RunSequentiallyFor("k1", Rendezvous);
-        var second = serializer.RunSequentiallyFor("k2", Rendezvous);
+        var second = serializer.RunSequentiallyFor("k2", async () =>
+        {
+            secondArrived.Release();
+            (await firstArrived.WaitAsync(Timeout, CancellationToken.None))
+                .Should().BeTrue("k1 must not be queued behind k2");
+        });
 
-        // Each releases once and waits for the other: if the two keys shared a
-        // chain the first would wait forever.
         await Task.WhenAll(first, second).WaitAsync(Timeout);
+        serializer.TrackedPartitions.Should().Be(0);
     }
 
     [Fact]

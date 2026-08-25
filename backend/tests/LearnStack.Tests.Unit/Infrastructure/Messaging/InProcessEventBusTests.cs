@@ -314,6 +314,75 @@ public sealed class InProcessEventBusTests
         publish.IsCanceled.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task A_Handler_That_Faults_After_An_Await_Still_Faults_The_Publish()
+    {
+        // Every throwing handler in this suite threw SYNCHRONOUSLY, which comes
+        // out of MethodInfo.Invoke and is rethrown before `await delivery` is
+        // ever reached. So the path every real async handler takes — the one
+        // that hits a database — had no coverage for faults at all: wrapping the
+        // await in a swallowing catch survived the whole suite.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, AsyncThrowingHandler>());
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .Which.Message.Should().Be("async handler failed");
+    }
+
+    [Fact]
+    public async Task The_Tenant_Is_Still_Set_After_A_Handler_Awaits()
+    {
+        // Every tenant-reading handler read it synchronously, so the suite
+        // proved the context was set when a handler STARTED — not that it was
+        // still set when its continuation resumed, which is when the query RLS
+        // evaluates actually runs. Restoring the publisher's context just before
+        // the await survived every test.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, LateTenantReadingHandler>());
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.Tenants.Should().ContainSingle().Which.Should().Be(Tenant);
+    }
+
+    [Fact]
+    public async Task The_Publish_Token_Reaches_The_Handler()
+    {
+        // The token was threaded through but never asserted to arrive: passing
+        // CancellationToken.None instead survived, so a shutdown or a timeout
+        // would never reach a consumer.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, TokenReadingHandler>());
+        using var cancelled = new CancellationTokenSource();
+
+        var publish = bus.PublishAsync(Envelope(NewThing("a")), cancelled.Token);
+        await cancelled.CancelAsync();
+        await publish;
+
+        recorder.SawCancellableToken.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task The_Dispatch_Scope_Is_Disposed()
+    {
+        // An undisposed scope leaks a DbContext per publish, and nothing noticed.
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<DisposalProbe>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, DisposalProbingHandler>();
+        });
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.Probes.Should().ContainSingle().Which.Disposed.Should().BeTrue();
+    }
+
     // ---- obligation: ordering per partition key ------------------------------
 
     [Fact]
@@ -340,18 +409,21 @@ public sealed class InProcessEventBusTests
         // The other half of the guarantee: serialising everything would be
         // correct and useless, so the test that proves ordering must be paired
         // with one that proves it is not global.
+        // TWO gates, each side waiting on the OTHER's. Sharing one semaphore
+        // let each side consume its own release, so it never waited for
+        // anything and passed with both keys on a single chain.
         var recorder = new Recorder();
-        using var bothArrived = new SemaphoreSlim(0);
+        using var firstArrived = new SemaphoreSlim(0);
+        using var secondArrived = new SemaphoreSlim(0);
         var (bus, _) = Build(recorder, services =>
-            services.AddScoped<IIntegrationEventHandler<Thing>>(
-                _ => new RendezvousHandler(bothArrived)));
+            services.AddScoped<IIntegrationEventHandler<Thing>>(_ =>
+                new RendezvousHandler(recorder, firstArrived, secondArrived)));
 
         var first = bus.PublishAsync(Envelope(NewThing("a", "key-1")));
         var second = bus.PublishAsync(Envelope(NewThing("b", "key-2")));
 
-        // Each handler releases once and waits for the other. If the two keys
-        // were serialised, the first would wait forever and this would time out.
         await Task.WhenAll(first, second).WaitAsync(Timeout);
+        recorder.Rendezvoused.Should().Be(2, "neither key waited for the other");
     }
 
     [Fact]
@@ -461,6 +533,16 @@ public sealed class InProcessEventBusTests
         public ConcurrentQueue<Guid> Organizations { get; } = new();
 
         public ConcurrentQueue<Guid> Scopes { get; } = new();
+
+        public ConcurrentQueue<DisposalProbe> Probes { get; } = new();
+
+        public bool SawCancellableToken { get; set; }
+
+        public int Rendezvoused => _rendezvoused;
+
+        private int _rendezvoused;
+
+        public void Rendezvous() => Interlocked.Increment(ref _rendezvoused);
 
         /// <summary>Whether two handlers were ever inside the dispatch at once.</summary>
         public bool Overlapped { get; private set; }
@@ -585,6 +667,51 @@ public sealed class InProcessEventBusTests
         }
     }
 
+    public sealed class AsyncThrowingHandler : IIntegrationEventHandler<Thing>
+    {
+        public async Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("async handler failed");
+        }
+    }
+
+    public sealed class LateTenantReadingHandler(Recorder recorder, ITenantContextAccessor accessor)
+        : IIntegrationEventHandler<Thing>
+    {
+        public async Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), CancellationToken.None);
+            recorder.Tenants.Enqueue(accessor.Current!.TenantId);
+        }
+    }
+
+    public sealed class TokenReadingHandler(Recorder recorder) : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.SawCancellableToken = cancellationToken.CanBeCanceled;
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class DisposalProbe : IDisposable
+    {
+        public bool Disposed { get; private set; }
+
+        public void Dispose() => Disposed = true;
+    }
+
+    public sealed class DisposalProbingHandler(Recorder recorder, DisposalProbe probe)
+        : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.Probes.Enqueue(probe);
+            return Task.CompletedTask;
+        }
+    }
+
     public sealed class ThrowingHandler : IIntegrationEventHandler<Thing>
     {
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default) =>
@@ -616,12 +743,23 @@ public sealed class InProcessEventBusTests
         }
     }
 
-    public sealed class RendezvousHandler(SemaphoreSlim gate) : IIntegrationEventHandler<Thing>
+    public sealed class RendezvousHandler(
+        Recorder recorder, SemaphoreSlim first, SemaphoreSlim second)
+        : IIntegrationEventHandler<Thing>
     {
         public async Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
-            gate.Release();
-            await gate.WaitAsync(Timeout, CancellationToken.None);
+            // The key decides which gate is this side's, so the two invocations
+            // never pick the same one — a shared counter would be shared across
+            // tests running in parallel.
+            var mine = @event.PartitionKey == "key-1" ? first : second;
+            var theirs = ReferenceEquals(mine, first) ? second : first;
+
+            mine.Release();
+            (await theirs.WaitAsync(Timeout, CancellationToken.None)).Should().BeTrue(
+                "the other key's handler must be running at the same time");
+
+            recorder.Rendezvous();
         }
     }
 }
