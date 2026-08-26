@@ -40,10 +40,10 @@ public static class CrossCuttingFoundationExtensions
     public static WebApplicationBuilder AddLearnStackCrossCuttingFoundation(
         this WebApplicationBuilder builder,
         DeploymentMode deploymentMode,
-        params System.Reflection.Assembly[] mediatorHandlerAssemblies)
+        params System.Reflection.Assembly[] handlerAssemblies)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(mediatorHandlerAssemblies);
+        ArgumentNullException.ThrowIfNull(handlerAssemblies);
 
         // The Serilog OTLP sink + the OTel pipeline both need
         // ITenantContextAccessor (via enrichers / processor). Register the
@@ -81,7 +81,7 @@ public static class CrossCuttingFoundationExtensions
         // business logic ran, so the obligation the transport advertises was
         // half-delivered. Packet 7's TenantResolverMiddleware writes the same
         // accessor.
-        builder.Services.TryAddScoped<ITenantContext>(sp =>
+        builder.Services.TryAddTransient<ITenantContext>(sp =>
             sp.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
 
@@ -111,12 +111,25 @@ public static class CrossCuttingFoundationExtensions
         builder.Services
             .TryAddSingleton<LearnStack.SharedKernel.Messaging.IPartitionSerializer,
                 LearnStack.Infrastructure.Messaging.PartitionSerializer>();
+
+        var integrationEventHandlers =
+            LearnStack.Infrastructure.Messaging.IntegrationEventHandlerRegistry
+                .Discover(handlerAssemblies);
+        foreach (var subscription in integrationEventHandlers.All)
+        {
+            builder.Services.TryAdd(new ServiceDescriptor(
+                subscription.HandlerType,
+                subscription.HandlerType,
+                ServiceLifetime.Scoped));
+        }
+
+        builder.Services.TryAddSingleton(integrationEventHandlers);
         builder.Services.TryAddSingleton(SelectEventBus);
 
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<LearnStackExceptionHandler>();
 
-        builder.Services.AddLearnStackMediatRPipeline(mediatorHandlerAssemblies);
+        builder.Services.AddLearnStackMediatRPipeline(handlerAssemblies);
 
         return builder;
     }
@@ -247,7 +260,8 @@ public static class CrossCuttingFoundationExtensions
         // process and costs hit rate rather than correctness for two, which is
         // why the trigger is a replica count and not a date.
         return new LearnStack.Infrastructure.Caching.InMemoryCacheService(
-            services.GetRequiredService<LearnStack.SharedKernel.Time.IClock>());
+            services.GetRequiredService<LearnStack.SharedKernel.Time.IClock>(),
+            services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>());
     }
 
     /// <summary>
@@ -277,6 +291,8 @@ public static class CrossCuttingFoundationExtensions
             services.GetRequiredService<IServiceScopeFactory>(),
             services.GetRequiredService<LearnStack.SharedKernel.Tenancy.ITenantContextAccessor>(),
             services.GetRequiredService<LearnStack.SharedKernel.Messaging.IPartitionSerializer>(),
+            services.GetRequiredService<
+                LearnStack.Infrastructure.Messaging.IntegrationEventHandlerRegistry>(),
             services.GetRequiredService<
                 Microsoft.Extensions.Logging.ILogger<
                     LearnStack.Infrastructure.Messaging.InProcessEventBus>>());

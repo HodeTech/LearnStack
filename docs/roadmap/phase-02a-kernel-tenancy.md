@@ -355,7 +355,8 @@ projection), `platform_entitlement_cache`, `platform_host_to_tenant`, `idempoten
 port and an in-memory default that is correct for one instance and wrong for
 two), and `outbox_messages`. Default-organization seeding at tenant creation.
 
-**Seed the system actor.** `UserId.SystemActor` — a fixed, non-empty id in
+**Seed the system actor.** `UserId.SystemActor` — the fixed id
+`00000000-0000-7000-8000-000000000001` in
 `LearnStack.SharedKernel.Identifiers` — is what an integration-event consumer, a
 background job, or any other non-request execution writes state as, per
 [Audit Coverage](../standards/18-audit-coverage.md)'s actor-of-type-`system` rule.

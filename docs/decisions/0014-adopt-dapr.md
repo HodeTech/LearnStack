@@ -2,9 +2,10 @@
 
 ## Status
 
-Accepted (Amendment 1: 2026-08-08 — schedule moved to Phase 11; **Amendment 2:
-2026-08-24 — corrects the published `IEventBus` and `ICacheService` signatures**;
-see bottom of document)
+Superseded by [ADR-0038](0038-cross-cutting-port-and-event-contracts.md) on
+2026-08-26. ADR-0038 retains the Dapr technology choice and demand gate while
+replacing the cross-cutting port and event-delivery contracts. The dated schedule
+amendment below remains as historical context.
 
 ## Date
 
@@ -146,14 +147,6 @@ Adopt **Option A**: Dapr for pub/sub + state + secrets.
 
 ### Application access pattern
 
-**The `IEventBus` and `ICacheService` signatures below are superseded by**
-[Amendment 2](#2026-08-24--amendment-2-two-port-signatures-corrected-before-first-use)
-and refined again by
-[Amendment 3](#2026-08-25--amendment-3-the-publish-envelope-decided-before-the-first-call-site).
-They are left as written because an Accepted ADR's Decision section is not rewritten;
-what Packet 5 ships is the amended shape. `ISecretProvider` is unchanged and shipped in
-Packet 3.
-
 Every module's domain and application code uses:
 
 ```csharp
@@ -281,154 +274,6 @@ The default secret provider that shipped in Phase 02a Packet 3 is named
 `ConfigurationSecretProvider`, not `EnvironmentSecretProvider`, and reads
 `IConfiguration` — which already merges environment variables, user secrets and
 `appsettings.{env}.json` — rather than process environment variables alone.
-
-### 2026-08-24 — Amendment 2: two port signatures, corrected before first use
-
-The Decision stands. Dapr remains the cross-process choice for pub/sub, state and
-secrets, and application code still reaches all three only through `IEventBus` /
-`ICacheService` / `ISecretProvider`. What this amendment corrects is the **published
-shape** of two of those interfaces, which Phase 02a Packet 5 is about to ship as code
-and can only ship one way.
-
-**1. `ICacheService.RemoveByPrefixAsync` is removed.**
-
-The port becomes `GetAsync` / `GetOrSetAsync` / `SetAsync` / `RemoveAsync` and nothing
-else. The reference implementation iterates a process-local key set, so keys written by
-another instance are never evicted — a contract no candidate backend can honour, and one
-whose name promises a global effect while delivering a local one.
-
-The roadmap offered "removed **or** redesigned to a generation-key pattern". That is not
-a fork at the port: the corpus's own definition of the pattern puts the counter in
-**durable domain state** — a `customization_generation` column bumped inside the
-business transaction and embedded in the key template ([architecture/32 §
-8.2](../architecture/32-tenant-customization-model.md)) — which adds no member to this
-interface. It also cannot live in the cache: an evicted counter would make previously
-abandoned keys addressable again and resurrect stale values. Both branches therefore
-remove the method, and the generation-key pattern is recorded as a **caller-side
-convention** owned by the consumers that specify it.
-
-Nothing is lost by the removal: the corpus contains no call site for the method.
-
-**2. `IEventBus.PublishAsync` takes a partition key, and is not generic.**
-
-Published here as:
-
-```csharp
-Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default)
-    where TEvent : IIntegrationEvent;
-```
-
-It becomes:
-
-```csharp
-Task PublishAsync(IIntegrationEvent @event, string partitionKey, CancellationToken ct = default);
-```
-
-Two corrections in one signature.
-
-*The partition key* is what
-[architecture/15 § The bus](../architecture/15-event-and-outbox.md) and [Phase
-02b](../roadmap/phase-02b-events-auth.md) already publish, and it is what lets the
-durable transport map onto a Kafka message key and preserve per-aggregate ordering.
-Adding a required parameter after the first consumer exists breaks every call site, so
-the two shapes cannot be left to be reconciled later.
-
-*The generic parameter* is removed because the outbox dispatcher deserializes to
-`object` and calls through the base interface —
-`eventBus.PublishAsync((IIntegrationEvent)eventInstance!, msg.PartitionKey, ct)` at
-[architecture/15](../architecture/15-event-and-outbox.md). With a generic port, `TEvent`
-binds to `IIntegrationEvent` at that call, so a transport resolving
-`IIntegrationEventHandler<TEvent>` looks for
-`IIntegrationEventHandler<IIntegrationEvent>` — which no concrete handler implements.
-The result is a publish that dispatches to **zero handlers** and reports success. A
-non-generic port makes the runtime-type resolution the transport has to do anyway
-explicit, rather than hiding it behind a type parameter that is always erased to the
-base interface at the only call site that matters.
-
-Every other document publishing either signature is corrected in the same change:
-`architecture/15`'s three sketches (the interface, `DaprEventBus` and `InProcessEventBus`,
-the last of which must resolve handlers by runtime type rather than through a type
-parameter), `architecture/32 § 8.2` and the Packet 5 scope paragraph, both of which stop
-saying "removed **or** redesigned" now that it is removed.
-
-### 2026-08-25 — Amendment 3: the publish envelope, decided before the first call site
-
-The Decision stands, and so does Amendment 2's central correction — `PublishAsync` is
-not generic, and it never becomes generic. What Amendment 3 changes is the **shape of
-its argument**, which Amendment 2 published as `(IIntegrationEvent @event, string
-partitionKey, CancellationToken ct)` and which Packet 5 has now built against.
-
-**`IEventBus.PublishAsync` takes an envelope.**
-
-```csharp
-Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct = default);
-
-public sealed record IntegrationEventEnvelope(
-    IIntegrationEvent Event,
-    string CorrelationId,
-    Guid? OrganizationId = null,
-    Guid? CausationId = null,
-    UserId? ActorUserId = null)
-{
-    public string PartitionKey => Event.PartitionKey;
-    public string Topic => Event.Topic;
-}
-```
-
-> **Refined the same day.** `Topic` was first a parameter on this record, and it should
-> not have been. It is a property of the event *type* — two events of one type always go
-> to the same channel, and the name is derivable from the type — so a per-delivery
-> parameter is the same second-source hazard `PartitionKey` had. It also made the
-> catalogued `Integration_Event_TopicNames_FollowConvention` unwritable: that rule reads
-> the event declarations, and nothing declared a topic. `Topic` is abstract on
-> `IntegrationEventBase`; the envelope reads it.
-
-Three things forced it, and all three were measured rather than argued.
-
-**The dispatch metadata had nowhere to travel.** The canonical `outbox_messages` row
-([Database Standards](../standards/05-database.md)) requires `topic` and
-`correlation_id` as `NOT NULL` and carries `organization_id`, `causation_id` and
-`actor_user_id`. None of them belong on the event — they describe the delivery, not the
-fact — and the two-parameter signature had no room for them. The transport therefore
-read correlation from whatever context happened to be ambient at dispatch, which is
-`null` inside the background service the outbox processor is, so the trace chain broke
-at exactly the boundary [Observability Standards](../standards/10-observability.md)
-requires it to cross.
-
-**The partition key had two sources and the transport read the wrong one.** Amendment 2
-put it in the signature; `IntegrationEventBase` also declares it. Measured: the shipped
-bus never read the event's copy, and every test published an event declaring one key
-with a different one passed alongside — green. Ordering is guaranteed per partition key,
-so a key that can differ from itself is a guarantee that cannot be stated. The envelope
-reads it off the event and cannot disagree with it.
-
-**A consumer could not write state at all.** `AuditableEntity.MarkCreated` refuses
-`default(UserId)` and `Guid.Empty`, and the consumer context supplied neither an actor
-nor an organization — so every state-writing handler threw from inside the kernel, and
-every organization-scoped read came back empty under the canonical Row Level Security
-policy, which fails closed when `app.organization_id` is unset. The envelope carries
-both; an absent actor resolves to `UserId.SystemActor`, which is what
-[Audit Coverage](../standards/18-audit-coverage.md) means by auditing such work as an
-actor of type `system`.
-
-**Why now.** Amendment 2 wrote the rule this amendment obeys: *adding a required
-parameter after the first consumer exists breaks every call site, so the two shapes
-cannot be left to be reconciled later.* There is still not one consumer. The envelope is
-one type, it maps onto the outbox row Packet 6 creates, and it is the last moment it
-costs nothing.
-
-> The signature published under Amendment 2 above is superseded by this one. It is left
-> as written because an Accepted ADR is not rewritten; the non-generic decision it makes
-> is unchanged and is the reason the envelope carries the event as `IIntegrationEvent`.
-
-**One consequence worth stating, because it is a trap the non-generic port creates.**
-With `IIntegrationEvent` as the declared type at every dispatch boundary,
-`JsonSerializer.Serialize(@event)` emits only the four interface members and silently
-drops everything the concrete event added — valid JSON, no exception, and the loss
-commits inside the business transaction that reported success. `IntegrationEventBase`
-therefore ships `ToPayloadJson()`, which serialises by runtime type, and a named
-`PayloadJsonOptions` — because a writer and a reader that disagree on casing
-dead-letter every message.
 
 ## References
 

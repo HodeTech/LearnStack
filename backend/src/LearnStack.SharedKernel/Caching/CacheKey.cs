@@ -17,9 +17,9 @@ namespace LearnStack.SharedKernel.Caching;
 /// call site to remember.
 /// </para>
 /// <para>
-/// A platform-wide value uses the <see cref="PlatformTenant"/> sentinel rather
-/// than omitting the segment. "No tenant" and "every tenant" then look different
-/// in a key dump, and the rule stays one rule.
+/// The only platform-wide family is the Hub host map, composed by
+/// <see cref="ForHostMapping"/>. A generic platform factory would let an ordinary
+/// tenant-owned family accidentally collapse every tenant into one cache bucket.
 /// </para>
 /// </remarks>
 public static class CacheKey
@@ -65,23 +65,19 @@ public static class CacheKey
             module,
             logicalName);
 
-    /// <summary>Composes a key for a platform-wide value.</summary>
+    /// <summary>
+    /// Composes the one platform-wide key family: a normalized host to tenant mapping.
+    /// </summary>
     /// <remarks>
-    /// The logical name may be several parts, and that is not a convenience.
-    /// Standards 20 mandates key families whose logical name has internal
-    /// structure — <c>platform:hub:host-map:{host}</c> and
-    /// <c>{tenant_id}:identity:permissions:{session_id}</c> — and a single-string
-    /// factory could not produce either of them, because a caller joining the
-    /// parts itself would put a separator inside one segment and
-    /// <see cref="Compose"/> rejects exactly that. The guard would then have
-    /// admitted a shape no factory could emit, so the two families Standards 20
-    /// singles out — including the host lookup, which sits on the anonymous
-    /// page-load path — would have been hand-built past the only place
-    /// <see cref="Guid.Empty"/>, non-canonical rendering and separator injection
-    /// are checked.
+    /// The host has already passed the trusted-input normalization described by
+    /// ADR-0036. This second check prevents an unnormalized spelling from creating
+    /// a parallel cache entry and keeps IP literals out of the custom-domain map.
     /// </remarks>
-    public static string ForPlatform(string module, params string[] logicalName) =>
-        Compose(PlatformTenant, module, logicalName);
+    public static string ForHostMapping(string normalizedHost)
+    {
+        EnsureNormalizedHost(normalizedHost, nameof(normalizedHost));
+        return Compose([PlatformTenant, "hub", "host-map", normalizedHost]);
+    }
 
     /// <summary>
     /// Throws when a key does not carry three non-empty segments.
@@ -101,8 +97,7 @@ public static class CacheKey
             && !segments.Any(string.IsNullOrWhiteSpace)
             && IsTenantSegment(segments[0])
             && segments.All(IsCanonicalIfIdentifier)
-            && !(segments[0].Equals(PlatformTenant, StringComparison.Ordinal)
-                && LooksLikeIdentifier(segments[1]));
+            && IsAllowedPlatformFamily(segments);
 
         if (!wellFormed)
         {
@@ -110,11 +105,47 @@ public static class CacheKey
                 $"'{key}' is not a cache key. Standards 20 fixes the shape as "
                 + $"'{{tenant_id}}{Separator}{{module}}{Separator}{{logical-name}}', and the "
                 + $"tenant segment is mandatory even for a platform-wide value — use the "
-                + $"'{PlatformTenant}' sentinel rather than omitting it. A key without a "
-                + "tenant is a key two tenants can both compute.",
+                + $"'{PlatformTenant}' sentinel rather than omitting it. The sentinel is "
+                + "reserved for 'platform:hub:host-map:{normalized-host}'; every other "
+                + "family must carry a real tenant id.",
                 nameof(key));
         }
     }
+
+    private static bool IsAllowedPlatformFamily(string[] segments)
+    {
+        if (!segments[0].Equals(PlatformTenant, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (segments.Length != 4
+            || !segments[1].Equals("hub", StringComparison.Ordinal)
+            || !segments[2].Equals("host-map", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return IsNormalizedHost(segments[3]);
+    }
+
+    private static void EnsureNormalizedHost(string normalizedHost, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(normalizedHost);
+
+        if (!IsNormalizedHost(normalizedHost))
+        {
+            throw new ArgumentException(
+                "A host-map cache key requires a lower-case, port-free normalized DNS host.",
+                parameterName);
+        }
+    }
+
+    private static bool IsNormalizedHost(string host) =>
+        host.Equals(host.Trim(), StringComparison.Ordinal)
+        && host.Equals(host.ToLowerInvariant(), StringComparison.Ordinal)
+        && !host.EndsWith('.')
+        && Uri.CheckHostName(host) == UriHostNameType.Dns;
 
     /// <summary>
     /// Whether a segment that looks like an identifier is a well-formed one.
@@ -131,9 +162,6 @@ public static class CacheKey
     private static bool IsCanonicalIfIdentifier(string segment) =>
         !Guid.TryParse(segment, out var id)
         || (id != Guid.Empty && segment.Equals(id.ToString(), StringComparison.Ordinal));
-
-    /// <summary>Whether a segment parses as an identifier at all.</summary>
-    private static bool LooksLikeIdentifier(string segment) => Guid.TryParse(segment, out _);
 
     /// <summary>
     /// Whether the first segment is a tenant identifier or the platform sentinel.

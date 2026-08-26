@@ -18,12 +18,18 @@ using LearnStack.SharedKernel.Messaging;
 public sealed class EventTenantContext : ITenantContext
 {
     private EventTenantContext(
-        Guid tenantId, Guid? organizationId, UserId userId, string? correlationId)
+        Guid tenantId,
+        Guid? organizationId,
+        UserId? causalActorUserId,
+        string? correlationId,
+        string? moduleName)
     {
         TenantId = tenantId;
         OrganizationId = organizationId;
-        UserId = userId;
+        UserId = Identifiers.UserId.SystemActor;
+        CausalActorUserId = causalActorUserId;
         CorrelationId = correlationId;
+        ModuleName = moduleName;
     }
 
     /// <inheritdoc />
@@ -55,20 +61,25 @@ public sealed class EventTenantContext : ITenantContext
     /// Never <c>null</c>. <c>AuditableEntity.MarkCreated</c> refuses
     /// <c>default(UserId)</c> and <c>Guid.Empty</c>, so a null actor left every
     /// state-writing consumer with no value it could legally pass — it could not
-    /// create an aggregate at all. Absent an actor on the envelope this is
-    /// <see cref="UserId.SystemActor"/>, which is what Standards 18 means by
-    /// auditing such work as an actor of type <c>system</c>.
+    /// create an aggregate at all. This is always
+    /// <see cref="UserId.SystemActor"/>; an envelope user remains separate as
+    /// <see cref="CausalActorUserId"/> so the consumer does not impersonate the
+    /// human who initiated asynchronous work.
     /// </remarks>
     public UserId? UserId { get; }
+
+    /// <inheritdoc />
+    public UserId? CausalActorUserId { get; }
 
     /// <inheritdoc />
     public string? CorrelationId { get; }
 
     /// <inheritdoc />
-    public string? ModuleName => null;
+    public string? ModuleName { get; }
 
     /// <summary>Builds the context a handler for <paramref name="envelope"/> runs under.</summary>
-    public static EventTenantContext FromEnvelope(IntegrationEventEnvelope envelope)
+    public static EventTenantContext FromEnvelope(
+        IntegrationEventEnvelope envelope, string? moduleName = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -88,7 +99,8 @@ public sealed class EventTenantContext : ITenantContext
         return new EventTenantContext(
             envelope.Event.TenantId,
             envelope.OrganizationId,
-            envelope.ActorUserId ?? Identifiers.UserId.SystemActor,
-            envelope.CorrelationId);
+            envelope.ActorUserId,
+            envelope.CorrelationId,
+            moduleName);
     }
 }

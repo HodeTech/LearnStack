@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace LearnStack.SharedKernel.Messaging;
 
@@ -45,8 +46,8 @@ public abstract record IntegrationEventBase : IIntegrationEvent
     /// <b>Not a convenience — the one way to write a payload that does not lose
     /// data.</b> Measured: <c>JsonSerializer.Serialize(@event)</c> where the
     /// declared type is <see cref="IIntegrationEvent"/> — which it is at every
-    /// dispatch boundary, because ADR-0014 Amendment 2 made the port non-generic
-    /// precisely so it would be — emits only the four members declared on the
+    /// dispatch boundary, because ADR-0038 makes the port non-generic
+    /// precisely so it would be — emits only the five members declared on the
     /// interface and silently drops every field the concrete event added. No
     /// exception, valid JSON. The row commits inside the business transaction
     /// that reported success, and the loss surfaces later as a
@@ -58,8 +59,8 @@ public abstract record IntegrationEventBase : IIntegrationEvent
     /// reintroduce exactly the bug it exists to prevent.
     /// </para>
     /// </remarks>
-    public string ToPayloadJson(JsonSerializerOptions? options = null) =>
-        JsonSerializer.Serialize(this, GetType(), options ?? PayloadJsonOptions);
+    public string ToPayloadJson() =>
+        JsonSerializer.Serialize(this, GetType(), PayloadJsonOptions);
 
     /// <summary>
     /// The serializer options the payload is written and read with.
@@ -71,9 +72,17 @@ public abstract record IntegrationEventBase : IIntegrationEvent
     /// options fails on every member, since one camel-cases and the other does
     /// not. A writer and a reader that disagree here dead-letter everything.
     /// </remarks>
-    public static JsonSerializerOptions PayloadJsonOptions { get; } = new()
+    public static JsonSerializerOptions PayloadJsonOptions { get; } = CreatePayloadJsonOptions();
+
+    private static JsonSerializerOptions CreatePayloadJsonOptions()
     {
-        PropertyNamingPolicy = null,
-        WriteIndented = false,
-    };
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = null,
+            WriteIndented = false,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+        };
+        options.MakeReadOnly();
+        return options;
+    }
 }

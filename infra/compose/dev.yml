@@ -4,7 +4,7 @@
 # (PostgreSQL 18 / Valkey / SeaweedFS / Mailpit / Meilisearch), the self-hosted Keycloak
 # identity provider (two realms), the live-media stack (LiveKit OSS + Coturn),
 # Kafka (KRaft) + kafka-ui, HashiCorp Vault (-dev mode), the Dapr sidecar +
-# placement (pub/sub + state + secrets building blocks per ADR-0014), and the
+# placement (pub/sub + state + secrets building blocks per ADR-0038), and the
 # APISIX gateway in file-driven standalone mode per ADR-0015. The DX
 # orchestrator (`make` targets) and CI workflow arrive in Phase-01 packets 7-8.
 #
@@ -309,7 +309,7 @@ services:
       retries: 5
 
   # ---- Eventing (Phase 01 packet 6) ----------------------------------------
-  # Kafka in KRaft mode (no ZooKeeper). Backs Dapr pub/sub per ADR-0014.
+  # Kafka in KRaft mode (no ZooKeeper). Backs Dapr pub/sub per ADR-0038.
   # Module code never imports `Confluent.Kafka` — only `IEventBus` via Dapr.
   #
   # Listener note: only the in-cluster PLAINTEXT://kafka:9092 listener is
@@ -418,7 +418,7 @@ services:
 
   # ---- Dapr sidecar (Phase 01 packet 6) ------------------------------------
   # Placement service required by daprd even though actors are out of scope
-  # per ADR-0014 non-goals (daprd will not boot without it).
+  # per ADR-0038 non-goals (daprd will not boot without it).
   dapr-placement:
     profiles: ["gated"]
     image: daprio/placement:1.17.7

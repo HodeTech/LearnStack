@@ -304,7 +304,7 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
   rotate without a redeploy, or more than one operator needs access to production
   secrets — at which point
   `DaprSecretProvider` → Vault takes over per
-  [ADR-0014](../decisions/0014-adopt-dapr.md) and
+  [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) and
   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). Call sites are identical
   either way. `.env.example` is checked in; `.env` is gitignored.
 - Secret namespace: `learnstack/{deployment}/{module}/{key}`. The deployment segment is

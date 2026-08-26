@@ -6,6 +6,7 @@ using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Observability;
 using LearnStack.SharedKernel.Secrets;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -79,6 +80,34 @@ public sealed class DeploymentModeCompositionTests
         inSaaS.GetType().Name.Should().Be("SentryErrorTracker");
     }
 
+    [Fact]
+    public void Tenant_Context_Resolution_Forwards_Each_Access_To_The_Accessor()
+    {
+        using var factory = For(nameof(DeploymentMode.Development));
+        using var scope = factory.Services.CreateScope();
+        var accessor = factory.Services.GetRequiredService<ITenantContextAccessor>();
+        var previous = accessor.Current;
+
+        try
+        {
+            var first = new ResolvedContext(
+                Guid.Parse("018f4d40-0000-7000-8000-000000000001"));
+            var second = new ResolvedContext(
+                Guid.Parse("018f4d40-0000-7000-8000-000000000002"));
+
+            accessor.Current = first;
+            scope.ServiceProvider.GetRequiredService<ITenantContext>().Should().BeSameAs(first);
+
+            accessor.Current = second;
+            scope.ServiceProvider.GetRequiredService<ITenantContext>().Should().BeSameAs(second,
+                "a scoped factory would cache the first value for the rest of the scope");
+        }
+        finally
+        {
+            accessor.Current = previous;
+        }
+    }
+
     /// <summary>
     /// Boots the host in one mode, overriding what
     /// <c>appsettings.Development.json</c> sets.
@@ -100,4 +129,14 @@ public sealed class DeploymentModeCompositionTests
             builder.UseSetting("Deployment:Mode", mode);
             builder.UseSetting("ErrorTracking:Sentry:Dsn", DevelopmentShapedDsn);
         });
+
+    private sealed class ResolvedContext(Guid tenantId) : ITenantContext
+    {
+        public bool IsResolved => true;
+        public Guid TenantId { get; } = tenantId;
+        public Guid? OrganizationId => null;
+        public LearnStack.SharedKernel.Identifiers.UserId? UserId => null;
+        public string? CorrelationId => null;
+        public string? ModuleName => "integration-test";
+    }
 }

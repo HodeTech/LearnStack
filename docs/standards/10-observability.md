@@ -219,8 +219,19 @@ backend treat business rejections as system failures.
 | `learnstack_classroom_participants_active` | gauge | tenant |
 | `learnstack_classroom_recording_minutes_total` | counter | tenant |
 | `learnstack_search_query_duration_seconds` | histogram | tenant |
-| `learnstack_cache_hit_total` | counter | cache_name |
-| `learnstack_cache_miss_total` | counter | cache_name |
+| `learnstack_cache_hit_total` | counter | `cache.name` |
+| `learnstack_cache_miss_total` | counter | `cache.name` |
+| `learnstack_cache_store_total` | counter | `cache.name` |
+| `learnstack_cache_coalesced_total` | counter | `cache.name` |
+| `learnstack_cache_eviction_total` | counter | `cache.name`, `reason` |
+| `learnstack_cache_factory_duration_seconds` | histogram | `cache.name`, `outcome` |
+
+Cache `cache.name` is a governed, low-cardinality family from the Standards 20
+inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
+`tenancy:feature-flags`, or `tenancy:settings`). An unregistered family is reported as
+`other`; adapters never derive a label from a full cache key, tenant or organization id,
+host, session id, or entity id. `reason` is one of `explicit`, `expired`, or `capacity`;
+`outcome` is one of `success`, `faulted`, or `cancelled`.
 
 ### Business Metrics
 

@@ -35,9 +35,10 @@ public readonly partial record struct UserId : IStronglyTypedId<Guid>
     /// could legally pass and nothing to write at all.
     /// </para>
     /// <para>
-    /// The value is fixed rather than generated, because it is a foreign key:
-    /// the Tenancy migration seeds the matching <c>users</c> row so
-    /// <c>created_by</c> resolves. Version 7 shape with an all-zero random
+    /// The value is fixed rather than generated, because it is a foreign key.
+    /// Phase 02a Packet 6 owns the matching Tenancy seed and must create the
+    /// <c>users</c> row before the first outbox consumer can write audit columns.
+    /// No Tenancy schema exists before that packet. Version 7 shape with an all-zero random
     /// section, so it reads as deliberate in a database dump rather than as a
     /// stray identifier somebody forgot to replace.
     /// </para>

@@ -55,10 +55,11 @@ test pass.
 ## In Scope
 
 ### Platform Kernel
-- Dapr building blocks wired through `IEventBus` (pub/sub → Kafka), `ICacheService`
-  (state → Valkey), `ISecretProvider` (secrets → Vault). See
+- Cross-cutting ports wired to `InProcessEventBus`, `InMemoryCacheService`, and
+  `ConfigurationSecretProvider`; their Dapr → Kafka/Valkey/Vault adapters are
+  demand-gated to Phase 11. See
   [29-dapr-integration.md](29-dapr-integration.md) and
-  [ADR-0014](../decisions/0014-adopt-dapr.md).
+  [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md).
 - APISIX gateway in standalone mode (YAML hot-reload) — JWT verification, CORS,
   rate-limit, custom-host routing. See [30-api-gateway.md](30-api-gateway.md) and
   [ADR-0015](../decisions/0015-api-gateway-apisix.md).

@@ -37,10 +37,10 @@ The Dapr pub/sub and Kafka adapters are **not in this phase**. They are demand-g
 process needs to consume an integration event". Until that is true, a cross-process
 broker moves an event from one thread to another thread in the same process, through two
 network hops and a serialization boundary, for a service the daily loop no longer
-starts — Packet 5 moved Kafka, Valkey, Vault, APISIX and the two Dapr containers
+starts — Packet 5 moved Kafka, kafka-ui, Valkey, Vault, APISIX and the two Dapr containers
 behind the `gated` compose profile, taking `make dev` from fourteen services to
 seven. [ADR-0006 Amendment 1](../decisions/0006-events-and-outbox.md) and
-[ADR-0014](../decisions/0014-adopt-dapr.md) remain the decision about **which** transport
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) remain the decisions about **which** transport
 LearnStack uses when it needs one; ADR-0035 decides **when**, and the answer is not this
 phase.
 
@@ -84,8 +84,10 @@ What lands in this phase is the consumer side.
   rows that Row Level Security rejects, or worse, does not.
 - **Versioned integration event types** in `<Module>.Application.Contracts`, inheriting
   `IntegrationEventBase`, carrying `EventId`, `TenantId`, `OccurredAt` and
-  `CorrelationId`. The `correlation_id` column holds the **full W3C `traceparent`
-  string**, not a bare UUID, so a consumer rehydrates the trace with
+  declaring `Topic` and `PartitionKey`. `CorrelationId`, organization, causation and
+  causal actor are delivery metadata on `IntegrationEventEnvelope`, copied from the
+  outbox row. The `correlation_id` column holds the **full W3C `traceparent` string**,
+  not a bare UUID, so a consumer rehydrates the trace with
   `ActivityContext.TryParse(row.CorrelationId, traceState: null, out var parentCtx)` and
   starts its activity from `parentCtx`
   ([ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)).
@@ -136,14 +138,15 @@ none, and no publish path sets one. The promise is unenforceable, and a consumer
 depends on seeing `Created` before `Updated` gets whichever order the transport happens
 to produce.
 
-This phase specifies it:
+Packet 5 has already fixed the port seam; this phase persists and dispatches it:
 
-- `IntegrationEventBase` exposes a **`PartitionKey`** derived from the aggregate
-  identifier, defaulting to `TenantId` when an event is not aggregate-scoped. A tenant's
-  events therefore never interleave with another tenant's on a shared partition.
-- `IEventBus.PublishAsync` passes the key to the transport. `InProcessEventBus` uses it
-  to serialize handler invocation per key; the Phase 11 Kafka adapter maps it to the
-  message key.
+- `IntegrationEventBase` declares **`PartitionKey` abstract**. Each event chooses the
+  aggregate identifier, or explicitly chooses `TenantId` for a tenant-wide fact; there
+  is no inherited default that serializes a tenant's whole stream by accident.
+- `IOutbox.EnqueueAsync` copies that key to the row. `IEventBus.PublishAsync` accepts an
+  `IntegrationEventEnvelope`, whose key forwards `Event.PartitionKey` rather than
+  carrying a second value. `InProcessEventBus` serializes handler invocation per key;
+  the Phase 11 Kafka adapter maps it to the message key.
 - An architecture test asserts every `IIntegrationEvent` resolves a non-null partition
   key, so a new event cannot silently opt out of ordering.
 
@@ -177,9 +180,9 @@ The subscriber-side contract lands here:
 - The dispatcher runs as a recurring job with its pending count and lag surfaced as
   metrics, so a stalled dispatcher is visible without reading the table.
 
-Cross-instance L1 cache invalidation (`learnstack.cache.invalidation`) is **declared as a
-topic and consumed in-process** here, but it has no cross-instance effect until more than
-one application instance runs — which is precisely
+Cross-instance L1 cache invalidation (`learnstack.cache.invalidation`) lands with the
+distributed adapter in Phase 11. Declaring or consuming it in this single-instance phase
+would provide no cross-instance effect — which is precisely
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s trigger for the
 distributed `ICacheService` adapter in [Phase 11](phase-11-production-hardening.md).
 Wiring the subscription now means the Phase 11 adapter has a consumer waiting rather than
@@ -318,10 +321,10 @@ New rules this phase introduces, in addition to the Phase 02a set:
   `Domain` or `Application`.
 - Outbox writes happen inside the same transaction as the originating domain change.
 
-`Dapr_PubSub_TopicNames_FollowConvention` applies in this phase to the topic-name
-resolver that `IEventBus` uses; its `[Topic]`-attribute scan activates with the Dapr
-adapter in [Phase 11](phase-11-production-hardening.md). The topic naming convention
-`learnstack.{module}.{aggregate}` is transport-independent and is enforced from here.
+`Integration_Event_TopicNames_FollowConvention` already enforces each event's declared
+topic independently of transport, including the Hub-only four-segment form.
+`Dapr_PubSub_TopicNames_FollowConvention` narrows to component bindings and activates
+with the Dapr adapter in [Phase 11](phase-11-production-hardening.md).
 
 The catalogue in
 [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md) is the

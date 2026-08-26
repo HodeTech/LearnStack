@@ -347,10 +347,18 @@ public sealed class CrossCuttingFoundationTests
         // not a guard.
         FollowsTopicConvention("learnstack.enrollment.enrollment").Should().BeTrue();
         FollowsTopicConvention("learnstack.hub.entitlement").Should().BeTrue();
+        FollowsTopicConvention("learnstack.hub.custom-domain.activated").Should().BeTrue();
         FollowsTopicConvention("EnrollmentCreated").Should().BeFalse("no namespace");
         FollowsTopicConvention("learnstack.enrollment").Should().BeFalse("no aggregate");
         FollowsTopicConvention("Learnstack.Enrollment.Enrollment").Should().BeFalse("not lower-case");
         FollowsTopicConvention("acme.enrollment.enrollment").Should().BeFalse("wrong prefix");
+        FollowsTopicConvention("learnstack.-hub.event").Should().BeFalse("leading hyphen");
+        FollowsTopicConvention("learnstack.hub-.event").Should().BeFalse("trailing hyphen");
+        FollowsTopicConvention("learnstack.1hub.event").Should().BeFalse("leading digit");
+        FollowsTopicConvention("learnstack.education.course.activated").Should().BeFalse(
+            "only Hub owns a four-segment topic");
+        FollowsTopicConvention("learnstack.hub.custom-domain.activated.extra").Should().BeFalse(
+            "five segments");
 
         foreach (var name in ModuleAssemblyShapes)
         {
@@ -374,12 +382,20 @@ public sealed class CrossCuttingFoundationTests
         }
     }
 
-    private static bool FollowsTopicConvention(string topic) =>
-        System.Text.RegularExpressions.Regex.IsMatch(
-            topic,
-            @"^learnstack\.[a-z0-9-]+\.[a-z0-9-]+$",
-            System.Text.RegularExpressions.RegexOptions.None,
-            TimeSpan.FromSeconds(1));
+    private static bool FollowsTopicConvention(string topic)
+    {
+        const string segment = "[a-z][a-z0-9-]*[a-z0-9]|[a-z]";
+        return System.Text.RegularExpressions.Regex.IsMatch(
+                   topic,
+                   $@"^learnstack\.({segment})\.({segment})$",
+                   System.Text.RegularExpressions.RegexOptions.None,
+                   TimeSpan.FromSeconds(1))
+               || System.Text.RegularExpressions.Regex.IsMatch(
+                   topic,
+                   $@"^learnstack\.hub\.({segment})\.({segment})$",
+                   System.Text.RegularExpressions.RegexOptions.None,
+                   TimeSpan.FromSeconds(1));
+    }
 
     [Fact]
     public void Modules_Do_Not_Inject_IEventBus_Directly()
@@ -398,17 +414,24 @@ public sealed class CrossCuttingFoundationTests
         // The module assemblies carry no types yet, so this would be vacuous —
         // which is why the checker is pointed at a deliberate offender in this
         // assembly first. A guard that cannot be shown to fire is not a guard.
-        InjectsEventBus(typeof(DeliberateEventBusInjector)).Should().BeTrue(
+        UsesForbiddenEventBusAccess(typeof(DeliberateEventBusInjector)).Should().BeTrue(
             "the checker must catch a type that does inject the bus, or it "
             + "proves nothing about the modules it is aimed at");
-        InjectsEventBus(typeof(CrossCuttingFoundationTests)).Should().BeFalse();
+        UsesForbiddenEventBusAccess(typeof(DeliberateEventBusServiceLocator)).Should().BeTrue(
+            "IServiceProvider is a service-locator escape hatch");
+        UsesForbiddenEventBusAccess(typeof(DeliberateMethodPublisher)).Should().BeTrue(
+            "method injection is still direct event-bus access");
+        UsesForbiddenEventBusAccess(typeof(CrossCuttingFoundationTests)).Should().BeFalse();
 
         foreach (var name in ModuleAssemblyShapes)
         {
             var assembly = TryLoadAssembly(name);
             if (assembly is null) continue;
 
-            var offenders = assembly.GetTypes().Where(InjectsEventBus).Select(t => t.FullName).ToList();
+            var offenders = assembly.GetTypes()
+                .Where(UsesForbiddenEventBusAccess)
+                .Select(t => t.FullName)
+                .ToList();
 
             offenders.Should().BeEmpty(
                 $"{name} injects IEventBus. Modules write to the outbox; the "
@@ -416,23 +439,48 @@ public sealed class CrossCuttingFoundationTests
         }
     }
 
-    private static bool InjectsEventBus(Type type)
+    private static bool UsesForbiddenEventBusAccess(Type type)
     {
         var bus = typeof(LearnStack.SharedKernel.Messaging.IEventBus);
+        var serviceProvider = typeof(IServiceProvider);
+        var forbidden = new[] { bus, serviceProvider };
+        const BindingFlags members = BindingFlags.Instance
+                                     | BindingFlags.Static
+                                     | BindingFlags.Public
+                                     | BindingFlags.NonPublic;
 
-        return type.GetConstructors().Any(constructor =>
-                   constructor.GetParameters().Any(p => bus.IsAssignableFrom(p.ParameterType)))
-               || type.GetFields(
-                       System.Reflection.BindingFlags.Instance
-                       | System.Reflection.BindingFlags.NonPublic
-                       | System.Reflection.BindingFlags.Public)
-                   .Any(field => bus.IsAssignableFrom(field.FieldType));
+        return type.GetConstructors(members).Any(constructor =>
+                   constructor.GetParameters().Any(parameter =>
+                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+               || type.GetMethods(members).Any(method =>
+                   forbidden.Any(candidate => candidate.IsAssignableFrom(method.ReturnType))
+                   || method.GetParameters().Any(parameter =>
+                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+               || type.GetFields(members).Any(field =>
+                   forbidden.Any(candidate => candidate.IsAssignableFrom(field.FieldType)))
+               || type.GetProperties(members).Any(property =>
+                   forbidden.Any(candidate => candidate.IsAssignableFrom(property.PropertyType)));
     }
 
     /// <summary>A type that breaks the rule, so the checker can be shown to catch it.</summary>
     private sealed class DeliberateEventBusInjector(LearnStack.SharedKernel.Messaging.IEventBus bus)
     {
         public LearnStack.SharedKernel.Messaging.IEventBus Bus { get; } = bus;
+    }
+
+    /// <summary>A service-locator-shaped deliberate offender.</summary>
+    private sealed class DeliberateEventBusServiceLocator(IServiceProvider services)
+    {
+        public IServiceProvider Services { get; } = services;
+    }
+
+    /// <summary>A method-injection-shaped deliberate offender.</summary>
+    private sealed class DeliberateMethodPublisher
+    {
+        public static Task Publish(
+            LearnStack.SharedKernel.Messaging.IEventBus bus,
+            LearnStack.SharedKernel.Messaging.IntegrationEventEnvelope envelope) =>
+            bus.PublishAsync(envelope);
     }
 
     [Fact]

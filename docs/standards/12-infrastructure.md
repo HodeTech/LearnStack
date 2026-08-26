@@ -3,7 +3,7 @@
 **Status:** Active
 **Derives from:** [ADR-0002 Initial Architecture](../decisions/0002-initial-architecture.md),
 [ADR-0005 Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md),
-[ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
+[ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
@@ -231,9 +231,11 @@ See [10-observability.md](10-observability.md).
 
 ## Secrets Management
 
-- All non-development modes use **HashiCorp Vault** accessed via Dapr's secret store
-  building block ([ADR-0014](../decisions/0014-adopt-dapr.md)). Application code uses
-  `ISecretProvider`; direct `VaultClient` usage is forbidden.
+- The target for non-development modes is **HashiCorp Vault** through Dapr's secret
+  store building block ([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)).
+  Today every mode resolves `ConfigurationSecretProvider`; the Vault adapter is
+  demand-gated to Phase 11 by ADR-0035. Application code uses `ISecretProvider` in
+  either case; direct `VaultClient` usage is forbidden.
 - Local: `.env` (not committed) — sufficient for `Development` mode.
 - **Development-only defaults in `infra/compose/*.yml` are not committed secrets.** A
   `${VAR:-literal}` fallback that only ever reaches a container in `Development` mode is

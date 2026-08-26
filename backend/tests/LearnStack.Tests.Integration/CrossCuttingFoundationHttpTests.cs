@@ -138,7 +138,6 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
 }
 
 /// <summary>
-/// <summary>
 /// The foundation sockets resolve from the real composition root.
 /// </summary>
 /// <remarks>
@@ -183,6 +182,16 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
 
         scope.ServiceProvider.GetRequiredService<ICacheService>()
             .Should().BeOfType<InMemoryCacheService>();
+    }
+
+    [Fact]
+    public void The_Process_Local_Cache_Is_A_Singleton_Across_Request_Scopes()
+    {
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<ICacheService>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<ICacheService>());
     }
 }
 

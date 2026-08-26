@@ -176,7 +176,7 @@ Two things this boundary does **not** change:
   get more expensive every week — isolation, schema ownership, typed identifiers — from
   decisions a port makes reversible. `IEventBus` ships in Phase 02a; its Dapr/Kafka
   adapter ships in Phase 11 when a second process needs to consume an integration event
-  (ADR-0014 decides *what*, ADR-0035 decides *when*).
+  (ADR-0038 decides *what*, ADR-0035 decides *when*).
 - **Versioned publish workflows** for content and courses that affect learners.
 - **Hub-separated control plane.** Tenant lifecycle, billing, licensing, custom domains,
   compliance run in a separate codebase (`learnstack-hub`, ADR-0019). LearnStack core
@@ -251,7 +251,8 @@ When the foundation is in place, LearnStack should be able to:
 
 - ADR-0003 Amendment 1 (Organization scope) + Amendment 3 (corrected RLS template and
   database role model) — Tenant Isolation.
-- ADR-0014 — Adopt Dapr (what), with ADR-0035 deciding when.
+- ADR-0038 — Cross-Cutting Port and Event Contracts (including the retained Dapr
+  choice), with ADR-0035 deciding when.
 - ADR-0015 — APISIX gateway (what), with ADR-0035 deciding when.
 - ADR-0017 — Tenant + Organization hierarchy.
 - ADR-0018 — Tenant-driven customization (supersedes ADR-0011 vertical packs); the

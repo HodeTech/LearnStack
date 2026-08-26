@@ -139,20 +139,32 @@ restage() { git add -- "$@"; }
 # is `.leakwatchignore`. One `git init` per commit, all paths checked in a
 # single batch. If anything about that fails the set comes back empty, which
 # means everything is scanned — the safe direction, never a silent skip.
-leakwatch_ignored_paths=""
+leakwatch_ignored_paths=()
 if [[ -f .leakwatchignore && ${#all_staged[@]} -gt 0 ]]; then
     lw_isolated="$(mktemp -d)"
     if git init -q "$lw_isolated" >/dev/null 2>&1 \
-        && cp .leakwatchignore "$lw_isolated/.gitignore"; then
-        leakwatch_ignored_paths="$(printf '%s\n' "${all_staged[@]}" \
-            | git -C "$lw_isolated" check-ignore --no-index --stdin 2>/dev/null || true)"
+        && cp .leakwatchignore "$lw_isolated/.gitignore" \
+        && git -C "$lw_isolated" config core.excludesFile /dev/null; then
+        # `git init` creates this file empty, but clear it explicitly: neither a
+        # global excludes file nor repository-local info/exclude may influence
+        # a decision that is meant to reflect .leakwatchignore alone.
+        : > "$lw_isolated/.git/info/exclude"
+
+        while IFS= read -r -d '' ignored_path; do
+            leakwatch_ignored_paths+=("$ignored_path")
+        done < <(printf '%s\0' "${all_staged[@]}" \
+            | git -C "$lw_isolated" check-ignore -z --no-index --stdin 2>/dev/null \
+            || true)
     fi
     rm -rf "$lw_isolated"
 fi
 
 leakwatch_path_ignored() {
-    [[ -n "$leakwatch_ignored_paths" ]] || return 1
-    printf '%s\n' "$leakwatch_ignored_paths" | grep -Fxq -- "$1"
+    local ignored_path
+    for ignored_path in ${leakwatch_ignored_paths[@]+"${leakwatch_ignored_paths[@]}"}; do
+        [[ "$ignored_path" == "$1" ]] && return 0
+    done
+    return 1
 }
 
 # Older builds only accept a DIRECTORY target. CI pins v1.5.0, which rejects a

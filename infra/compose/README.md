@@ -143,17 +143,21 @@ docker compose --env-file .env --profile '*' -f infra/compose/dev.yml down -v
 
 ## `e2e.yml` — end-to-end overlay
 
-Layered on top of `dev.yml` to swap durable named volumes for tmpfs, so
-every run starts from a clean Postgres / Valkey / SeaweedFS / Meilisearch / Kafka.
-Images, ports, and credentials are identical to dev — only the
-*operational posture* (data persistence + Mailpit retention) changes.
+Layered on top of `dev.yml` to swap durable named volumes for tmpfs. By default,
+`make e2e-up` starts the same seven services as `make dev`, so Postgres, SeaweedFS and
+Meilisearch start clean; the Valkey and Kafka overrides are conditional because those
+services remain behind `COMPOSE_PROFILES=gated`. Images, ports, and credentials are
+identical to dev — only the *operational posture* (data persistence + Mailpit retention)
+changes.
 
 ```bash
 make e2e-up                                         # tmpfs-backed stack up
+COMPOSE_PROFILES=gated make e2e-up                  # include clean Valkey + Kafka
 make e2e-down                                       # stop; tmpfs evaporates
 
 # Raw equivalent:
 docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
+COMPOSE_PROFILES=gated docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
 ```
 
 Phase 06 Playwright + Phase 07 SDK contract tests run against this overlay

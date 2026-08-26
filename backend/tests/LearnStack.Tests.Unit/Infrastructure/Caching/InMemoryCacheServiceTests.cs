@@ -1,16 +1,17 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Time;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Caching;
 
 /// <summary>
 /// The default <see cref="ICacheService"/>, per
-/// <see href="../../../../../docs/decisions/0014-adopt-dapr.md">ADR-0014</see>
-/// and its Amendment 2.
+/// <see href="../../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038</see>.
 /// </summary>
 /// <remarks>
 /// Every expiry case moves a <see cref="FixedClock"/> rather than sleeping, so
@@ -19,6 +20,13 @@ namespace LearnStack.Tests.Unit.Infrastructure.Caching;
 /// </remarks>
 public sealed class InMemoryCacheServiceTests
 {
+    private static readonly ServiceProvider MeterServices = new ServiceCollection()
+        .AddMetrics()
+        .BuildServiceProvider();
+
+    private static IMeterFactory MeterFactory =>
+        MeterServices.GetRequiredService<IMeterFactory>();
+
     private static readonly DateTimeOffset Origin = new(2026, 8, 24, 9, 0, 0, TimeSpan.Zero);
     private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
     private static readonly Guid OtherTenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000b");
@@ -147,6 +155,40 @@ public sealed class InMemoryCacheServiceTests
         (await cache.GetAsync<string>(Key())).Should().BeNull();
     }
 
+    [Fact]
+    public async Task Invalid_Ttls_Are_Rejected_Before_The_Factory_Runs()
+    {
+        var (cache, _) = New();
+        var calls = 0;
+        var invalid = new[] { TimeSpan.Zero, TimeSpan.FromTicks(-1), TimeSpan.MaxValue };
+
+        foreach (var ttl in invalid)
+        {
+            var act = () => cache.GetOrSetAsync(
+                Key(),
+                _ =>
+                {
+                    calls++;
+                    return Task.FromResult("value");
+                },
+                new CacheOptions(L1Ttl: ttl));
+
+            await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        }
+
+        var invalidL2 = () => cache.GetOrSetAsync(
+            Key(),
+            _ =>
+            {
+                calls++;
+                return Task.FromResult("value");
+            },
+            new CacheOptions(L2Ttl: TimeSpan.Zero));
+
+        await invalidL2.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        calls.Should().Be(0);
+    }
+
     // ---- GetOrSet ----------------------------------------------------------
 
     [Fact]
@@ -216,6 +258,95 @@ public sealed class InMemoryCacheServiceTests
 
         calls.Should().Be(1, "one flight per key, however many callers miss at once");
         results.Should().AllBe("made");
+    }
+
+    [Fact]
+    public async Task The_Flight_Owners_Ttl_Is_The_One_Stored()
+    {
+        var (cache, clock) = New();
+        using var release = new SemaphoreSlim(0);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var owner = cache.GetOrSetAsync(
+            Key(),
+            async cancellationToken =>
+            {
+                entered.TrySetResult();
+                await release.WaitAsync(TestTimeout, cancellationToken);
+                return "made";
+            },
+            new CacheOptions(L1Ttl: TimeSpan.FromSeconds(2)));
+
+        await entered.Task.WaitAsync(TestTimeout);
+        var joiner = cache.GetOrSetAsync(
+            Key(),
+            _ => Task.FromResult("unused"),
+            new CacheOptions(L1Ttl: TimeSpan.FromHours(1)));
+
+        release.Release();
+        await Task.WhenAll(owner, joiner);
+        clock.Advance(TimeSpan.FromSeconds(2));
+
+        (await cache.GetAsync<string>(Key())).Should().BeNull(
+            "the first caller owns the one shared factory and its cache policy");
+    }
+
+    [Fact]
+    public async Task Cache_Metrics_Use_Stable_Low_Cardinality_Names()
+    {
+        var measurements = new ConcurrentBag<(string Instrument, string CacheName)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, currentListener) =>
+        {
+            if (instrument.Meter.Name == InMemoryCacheService.MeterName)
+            {
+                currentListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+        {
+            var cacheName = tags.ToArray()
+                .Single(tag => tag.Key == "cache.name")
+                .Value
+                ?.ToString();
+            measurements.Add((instrument.Name, cacheName!));
+        });
+        listener.Start();
+
+        var (cache, _) = New();
+        await cache.GetAsync<string>(Key());
+        await cache.SetAsync(Key(), "value");
+        await cache.GetAsync<string>(Key());
+        await cache.RemoveAsync(Key());
+        await cache.GetAsync<string>(
+            CacheKey.ForTenant(Tenant, "tenancy", OtherTenant.ToString()));
+
+        using var release = new SemaphoreSlim(0);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var owner = cache.GetOrSetAsync(Key(), async cancellationToken =>
+        {
+            entered.TrySetResult();
+            await release.WaitAsync(TestTimeout, cancellationToken);
+            return "coalesced";
+        });
+        await entered.Task.WaitAsync(TestTimeout);
+        var joiner = cache.GetOrSetAsync(Key(), _ => Task.FromResult("unused"));
+        release.Release();
+        await Task.WhenAll(owner, joiner);
+
+        measurements.Select(measurement => measurement.Instrument).Should().Contain(
+            [
+                InMemoryCacheService.MissCounterName,
+                InMemoryCacheService.StoreCounterName,
+                InMemoryCacheService.HitCounterName,
+                InMemoryCacheService.CoalescedCounterName,
+            ]);
+        measurements.Should().OnlyContain(measurement =>
+            measurement.CacheName == "tenancy:settings"
+            || measurement.CacheName == "other");
+        measurements.Should().OnlyContain(measurement =>
+            !measurement.CacheName.Contains(Tenant.ToString(), StringComparison.Ordinal)
+            && !measurement.CacheName.Contains(OtherTenant.ToString(), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -454,39 +585,50 @@ public sealed class InMemoryCacheServiceTests
     }
 
     [Fact]
-    public async Task A_Flight_Everyone_Abandons_Does_Not_Poison_Its_Key()
+    public async Task An_Abandoned_Factory_Must_Terminate_Before_Its_Replacement_Starts()
     {
-        // Retiring used to require the factory to have COMPLETED. Nothing can
-        // impose a deadline on it — the flight deliberately runs on
-        // CancellationToken.None so one caller cannot cancel it for the rest —
-        // so a factory that never finishes left its registration in place for
-        // the life of the process. `_inFlight` has no ceiling, and worse, every
-        // later caller JOINED that dead flight and waited on a task that would
-        // never complete. The key never ran a factory again.
         var (cache, _) = New();
-        using var never = new SemaphoreSlim(0);
+        using var release = new SemaphoreSlim(0);
         using var abandoning = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var running = 0;
+        var maximumRunning = 0;
 
         var abandoned = cache.GetOrSetAsync(Key(), async _ =>
         {
+            Interlocked.Increment(ref calls);
+            var current = Interlocked.Increment(ref running);
+            Interlocked.Exchange(ref maximumRunning, Math.Max(maximumRunning, current));
             entered.TrySetResult();
-            await never.WaitAsync(TestTimeout, CancellationToken.None);
-            return "never-arrives";
+            await release.WaitAsync(TestTimeout, CancellationToken.None);
+            Interlocked.Decrement(ref running);
+            return "abandoned";
         }, null, abandoning.Token);
 
         await entered.Task.WaitAsync(TestTimeout);
         await abandoning.CancelAsync();
         await ((Func<Task>)(() => abandoned)).Should().ThrowAsync<OperationCanceledException>();
 
-        cache.InFlightCount.Should().Be(0, "no caller is left, so nothing is in flight");
+        cache.InFlightCount.Should().Be(1,
+            "abandonment cancels the factory but cannot pretend ignored cancellation has ended it");
 
-        // The key must still work. Without the fix this call joins the dead
-        // flight and hangs until its own token fires.
-        var next = cache.GetOrSetAsync(Key(), _ => Task.FromResult("fresh"));
+        var next = cache.GetOrSetAsync(Key(), _ =>
+        {
+            Interlocked.Increment(ref calls);
+            var current = Interlocked.Increment(ref running);
+            Interlocked.Exchange(ref maximumRunning, Math.Max(maximumRunning, current));
+            Interlocked.Decrement(ref running);
+            return Task.FromResult("fresh");
+        });
 
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        calls.Should().Be(1, "the replacement waits for actual terminality");
+
+        release.Release();
         (await next.WaitAsync(TestTimeout)).Should().Be("fresh");
-        never.Release();
+        calls.Should().Be(2);
+        maximumRunning.Should().Be(1, "same-key factories never overlap");
     }
 
     [Fact]
@@ -513,14 +655,18 @@ public sealed class InMemoryCacheServiceTests
         await entered.Task.WaitAsync(TestTimeout);
         await cache.RemoveAsync(Key());
 
-        var afterwards = await cache.GetOrSetAsync(Key(), _ => Task.FromResult("after-the-remove"));
+        var afterwards = cache.GetOrSetAsync(
+            Key(), _ => Task.FromResult("after-the-remove"));
 
-        afterwards.Should().Be("after-the-remove",
-            "it started after the invalidation, so it reads the source of truth");
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        afterwards.IsCompleted.Should().BeFalse(
+            "the replacement must not overlap the superseded factory");
 
         release.Release();
         (await inFlight).Should().Be("before-the-remove",
             "the caller already in flight still gets what it asked for");
+        (await afterwards).Should().Be("after-the-remove",
+            "it started after the invalidation, so it reads the source of truth");
     }
 
     [Fact]
@@ -909,32 +1055,24 @@ public sealed class InMemoryCacheServiceTests
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
-    public async Task A_Write_Landing_Between_The_Check_And_The_Store_Is_Not_Overwritten()
+    public async Task A_Write_During_The_Atomic_Miss_Check_Is_Observed()
     {
-        // The supersede check and the store are two steps, not one, so a write
-        // landing between them would be overwritten by the very stale result
-        // the check exists to reject. Real thread scheduling cannot be aimed at
-        // a window that narrow, so the write is aimed at it through the seam
-        // this class already takes for determinism: an IClock whose UtcNow runs
-        // the write, on the read that sits between the two steps.
-        //
-        // The safe resolution is a miss, not the newer value: this caller has
-        // already overwritten the entry by the time it notices, so it evicts.
-        // The next reader goes to the source of truth, and a miss is never an
-        // error — whereas a stale value presented as fresh is the one thing a
-        // cache must not do quietly.
         InMemoryCacheService? cache = null;
         var clock = new WritingClock(Origin, onNthRead: 2, write: () =>
             cache!.SetAsync(Key(), "landed-in-the-window").GetAwaiter().GetResult());
-        cache = new InMemoryCacheService(clock);
+        cache = new InMemoryCacheService(clock, MeterFactory);
+        var calls = 0;
 
-        var produced = await cache.GetOrSetAsync(Key(), _ => Task.FromResult("from-factory"));
+        var produced = await cache.GetOrSetAsync(Key(), _ =>
+        {
+            calls++;
+            return Task.FromResult("from-factory");
+        });
 
-        produced.Should().Be("from-factory", "the caller still gets what it asked for");
+        produced.Should().Be("landed-in-the-window");
+        calls.Should().Be(0, "the write landed before a flight could be published");
         clock.Fired.Should().BeTrue("the window was actually hit — otherwise this proves nothing");
-        (await cache.GetAsync<string>(Key())).Should().BeNull(
-            "but the entry this caller had already overwritten is evicted rather "
-            + "than left holding a value a concurrent write had superseded");
+        (await cache.GetAsync<string>(Key())).Should().Be("landed-in-the-window");
     }
 
     /// <summary>
@@ -965,6 +1103,6 @@ public sealed class InMemoryCacheServiceTests
     private static (InMemoryCacheService Cache, FixedClock Clock) New()
     {
         var clock = new FixedClock(Origin);
-        return (new InMemoryCacheService(clock), clock);
+        return (new InMemoryCacheService(clock, MeterFactory), clock);
     }
 }

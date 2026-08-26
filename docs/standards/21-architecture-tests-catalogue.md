@@ -1113,7 +1113,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   omits it; the residual assertion is that the value is non-null and non-blank at
   runtime. `IntegrationEventEnvelope` reads it off the event — it is deliberately **not**
   threaded through `IEventBus` as a second parameter, which is the source of drift
-  [ADR-0014 Amendment 3](../decisions/0014-adopt-dapr.md) removed. `InProcessEventBus`
+  [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) removes. `InProcessEventBus`
   serialises dispatch per key: concurrent across keys, sequential within one.
 - **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
@@ -1168,9 +1168,10 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
 
 #### `Modules_Do_Not_Inject_IEventBus_Directly`
 
-- **Asserts:** no type in a module assembly takes `IEventBus` as a constructor parameter
-  or holds one in a field. The only sanctioned publisher is the `OutboxProcessor`;
-  modules write to the outbox.
+- **Asserts:** no type in a module assembly takes, returns or stores `IEventBus`, and no
+  module takes or stores `IServiceProvider` as a service-locator escape hatch. Constructor
+  and method parameters, return types, fields and properties are checked. The only
+  sanctioned publisher is the `OutboxProcessor`; modules write to the outbox.
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0010](../decisions/0010-cross-module-communication.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
@@ -1181,13 +1182,16 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
   inline. A namespace ban cannot express it: modules legitimately depend on
   `LearnStack.SharedKernel.Messaging` for `IIntegrationEvent` and
   `IIntegrationEventHandler<T>`. The module sweep is vacuous until a module ships code,
-  so the checker is pointed at a deliberate offender in the test assembly first.
+  so the checker is pointed at direct-injection, method-injection and service-locator
+  deliberate offenders in the test assembly first.
 - **Phase:** 02a Packet 5.
 
 #### `Integration_Event_TopicNames_FollowConvention`
 
 - **Asserts:** every declared integration-event type resolves a topic matching
-  `learnstack.{module}.{aggregate}` (and `learnstack.hub.*` for Hub-side topics). Reads
+  `learnstack.{module}.{aggregate}`, plus the Hub-only four-segment form
+  `learnstack.hub.{domain}.{event}`. Segments start with a lower-case letter, may contain
+  internal hyphens, and never end in a hyphen. Reads
   the event declarations, not a broker, so it holds for whichever `IEventBus`
   implementation is registered.
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);

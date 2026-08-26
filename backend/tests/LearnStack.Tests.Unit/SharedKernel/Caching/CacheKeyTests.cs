@@ -29,12 +29,10 @@ public sealed class CacheKeyTests
     }
 
     [Fact]
-    public void A_Platform_Key_Uses_The_Sentinel_Rather_Than_Omitting_The_Segment()
+    public void The_Host_Map_Key_Uses_The_Platform_Sentinel()
     {
-        // "No tenant" and "every tenant" must look different in a key dump, and
-        // the rule stays one rule.
-        CacheKey.ForPlatform("hub", "host-map")
-            .Should().Be("platform:hub:host-map");
+        CacheKey.ForHostMapping("school.example.com")
+            .Should().Be("platform:hub:host-map:school.example.com");
     }
 
     [Fact]
@@ -109,9 +107,33 @@ public sealed class CacheKeyTests
     [Fact]
     public void The_Platform_Sentinel_Is_A_Tenant_Segment()
     {
-        var act = () => CacheKey.EnsureValid("platform:hub:host-map");
+        var act = () => CacheKey.EnsureValid("platform:hub:host-map:school.example.com");
 
         act.Should().NotThrow("'every tenant' is spelled, not omitted");
+    }
+
+    [Theory]
+    [InlineData("platform:tenancy:settings")]
+    [InlineData("platform:identity:permissions:session")]
+    [InlineData("platform:hub:host-map")]
+    [InlineData("platform:hub:host-map:127.0.0.1")]
+    public void The_Platform_Sentinel_Is_Reserved_For_Normalized_Host_Mappings(string key)
+    {
+        var act = () => CacheKey.EnsureValid(key);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData("School.example.com")]
+    [InlineData("school.example.com.")]
+    [InlineData("school.example.com:443")]
+    [InlineData("127.0.0.1")]
+    public void A_Host_Mapping_Requires_A_Normalized_Dns_Host(string host)
+    {
+        var act = () => CacheKey.ForHostMapping(host);
+
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -143,7 +165,7 @@ public sealed class CacheKeyTests
 
         var families = new[]
         {
-            CacheKey.ForPlatform("hub", "host-map", "school.example.com"),
+            CacheKey.ForHostMapping("school.example.com"),
             CacheKey.ForTenant(Tenant, "hub", "entitlement"),
             CacheKey.ForTenant(Tenant, "tenancy", "feature-flags"),
             CacheKey.ForTenant(Tenant, "identity", "permissions", session.ToString()),

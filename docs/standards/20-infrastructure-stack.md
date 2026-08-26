@@ -1,7 +1,7 @@
 # 20 — Infrastructure Stack Standards
 
 **Status:** Active
-**Derives from:** [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
+**Derives from:** [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
@@ -115,7 +115,7 @@ Rules:
 
 | Concern | `Development` | `SaaS` | `Dedicated` | `SelfHostedOnline` | `SelfHostedAirGapped` |
 |---|---|---|---|---|---|
-| Event bus | `InProcessEventBus` (MediatR) | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka (single-broker OK) | `DaprEventBus` → Kafka (single-broker OK) |
+| Event bus | `InProcessEventBus` | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka | `DaprEventBus` → Kafka (single-broker OK) | `DaprEventBus` → Kafka (single-broker OK) |
 | Cache | `InMemoryCacheService` | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey |
 | Secrets | `ConfigurationSecretProvider` | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault or file |
 | Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` (phone-home) | `SignedLicenseKeyEntitlementProvider` |
@@ -134,9 +134,16 @@ right-hand implementations arrive with their adapters.
 
 LearnStack uses three Dapr building blocks: **pub/sub**, **state**, **secrets**. Other
 building blocks (service invocation, workflow, bindings, actors) are **out of scope** per
-ADR-0014 non-goals; do not introduce them without a new ADR.
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md); do not
+introduce them without a new ADR.
 
 ### `IEventBus` (pub/sub)
+
+**Decision authority:**
+[ADR-0038 § Event contract](../decisions/0038-cross-cutting-port-and-event-contracts.md#event-contract)
+governs the envelope, topic, handler and transport rules below;
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) governs when the Dapr
+adapter replaces `InProcessEventBus`.
 
 - The **only** sanctioned way to publish an integration event is `IEventBus.PublishAsync`
   from inside the `OutboxProcessor`. Modules never call `IEventBus` directly — they
@@ -157,13 +164,20 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
 - Hub-side topics use the same `learnstack.hub.*` prefix
   (`learnstack.hub.entitlement`, `learnstack.hub.custom-domain.activated`).
 - Consumers implement `IIntegrationEventHandler<TEvent>` and **must** invoke
-  `IInboxGuard.IsAlreadyProcessedAsync` before any business logic. The architecture
-  test `Integration_Event_Handlers_Use_InboxGuard` enforces this.
+  `IInboxGuard.IsAlreadyProcessedAsync` before any business logic. Phase 02b adds the
+  architecture test `Integration_Event_Handlers_Use_InboxGuard` with the first real
+  consumers; it is registered in the catalogue today.
 - Cross-instance L1-cache invalidation rides on `learnstack.cache.invalidation` (a
   small payload of `(tenant_id, cache_key)`). Modules that maintain L1 caches subscribe
   here.
 
 ### `ICacheService` (state)
+
+**Decision authority:**
+[ADR-0038 § Cache contract](../decisions/0038-cross-cutting-port-and-event-contracts.md#cache-contract)
+governs key isolation, the four-method port and single-flight behavior;
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) governs the Valkey/Dapr
+adapter trigger.
 
 - All Valkey access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
   `IDistributedCache` injections are forbidden by the architecture test
@@ -171,9 +185,10 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
 - Cache keys are `{tenant_id}:{module}:{logical-name}`, or
   `{tenant_id}:{organization_id}:{module}:{logical-name}` when the value is scoped to
   one organization. The `tenant_id` segment comes **first** and is mandatory even when
-  a value is platform-wide — use the sentinel `"platform"` tenant id rather than
-  omitting it. Compose with `CacheKey.ForTenant` / `CacheKey.ForOrganization` /
-  `CacheKey.ForPlatform`; every `ICacheService` implementation calls
+  a value is platform-wide. The only platform-wide family is the normalized Hub host
+  map, which uses the sentinel `"platform"`; every other family requires a tenant id.
+  Compose with `CacheKey.ForTenant` / `CacheKey.ForOrganization` /
+  `CacheKey.ForHostMapping`; every `ICacheService` implementation calls
   `CacheKey.EnsureValid`, and none re-prefixes. There is no query filter and no RLS
   policy in front of a dictionary, so the key is the entire isolation boundary —
   which is why the shape is validated rather than left to each call site to remember.
@@ -207,11 +222,17 @@ drifts:
 
 | Family | Composed by |
 |---|---|
-| `platform:hub:host-map:{host}` | `CacheKey.ForPlatform("hub", "host-map", host)` |
+| `platform:hub:host-map:{host}` | `CacheKey.ForHostMapping(host)` |
 | `{tenant_id}:hub:entitlement` | `CacheKey.ForTenant(tenantId, "hub", "entitlement")` |
 | `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |
 | `{tenant_id}:tenancy:settings` | `CacheKey.ForTenant(tenantId, "tenancy", "settings")` |
+
+This table is also the allowlist for the low-cardinality `cache.name` metric label.
+An unregistered family is emitted as `other`; full keys and tenant, organization, host,
+session, or entity identifiers are never metric labels. Add a new stable family here and
+to the adapter's metric-name mapping together. The instrument catalogue is in
+[Standards 10 § Metrics](10-observability.md#metrics).
 
 The last-but-one takes a **multi-part** logical name, and so does the host
 lookup. That is why the factories take one: a caller joining the parts itself
@@ -227,8 +248,8 @@ The host lookup is the **one** family that legitimately carries the `platform`
 sentinel, and it is worth saying why: it answers "which tenant is this?", so by
 construction there is no tenant to key it by. Every other family knows its tenant,
 so a `platform` sentinel there would be a bug wearing the sentinel's clothes —
-and `CacheKey.EnsureValid` now refuses that shape outright, rejecting any key
-whose sentinel is followed by an identifier segment.
+and `CacheKey.EnsureValid` now refuses every platform family except the exact normalized
+host-map shape.
 
 > An earlier version of this table listed these as `hub:host:{host}`,
 > `hub:entitlement:{tenant_id}` and `tenant_feature_flags:{tenant_id}` — module
@@ -240,7 +261,7 @@ Rules:
 - **There is no prefix invalidation.** `ICacheService` has no
   `RemoveByPrefixAsync` — it was removed in
   [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) per
-  [ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md), because the only
+  [ADR-0038 § Cache contract](../decisions/0038-cross-cutting-port-and-event-contracts.md#cache-contract), because the only
   implementable form iterated a process-local key set and never evicted what
   another instance wrote. A key family that needs to invalidate a set it cannot
   enumerate uses the **generation-key** pattern instead: a durable counter bumped
@@ -507,7 +528,7 @@ are the Hub's public API, governed by the Hub repository.
 
 ## References
 
-- [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md)
+- [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md)
 - [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md)
 - [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)

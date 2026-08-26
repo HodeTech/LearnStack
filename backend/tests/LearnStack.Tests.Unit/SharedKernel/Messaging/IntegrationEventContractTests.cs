@@ -23,6 +23,7 @@ namespace LearnStack.Tests.Unit.SharedKernel.Messaging;
 public sealed class IntegrationEventContractTests
 {
     private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
+    private const string Trace = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
     [Theory]
     [InlineData(nameof(IIntegrationEvent.Topic))]
@@ -50,7 +51,7 @@ public sealed class IntegrationEventContractTests
         // exist to prevent, where the transport reads one source and the event
         // declares another.
         var @event = NewSample();
-        var envelope = new IntegrationEventEnvelope(@event, "trace-1");
+        var envelope = new IntegrationEventEnvelope(@event, Trace);
 
         envelope.Topic.Should().Be(@event.Topic);
         envelope.PartitionKey.Should().Be(@event.PartitionKey);
@@ -73,7 +74,7 @@ public sealed class IntegrationEventContractTests
     [InlineData(nameof(IIntegrationEvent.EventId))]
     [InlineData(nameof(IIntegrationEvent.TenantId))]
     [InlineData(nameof(IIntegrationEvent.OccurredAt))]
-    public void The_Envelope_Fields_Are_Required(string member)
+    public void IntegrationEventBase_Identity_Fields_Are_Required_Members(string member)
     {
         // `required` is what makes a half-populated event a compile error at the
         // producer and a loud JsonException at the reader, rather than an event
@@ -88,7 +89,7 @@ public sealed class IntegrationEventContractTests
     {
         // The trap the non-generic port creates. Serializing with
         // IIntegrationEvent as the declared type — which it is at every dispatch
-        // boundary — emits the four interface members and silently drops
+        // boundary — emits the five interface members and silently drops
         // everything the concrete event added: valid JSON, no exception, and the
         // loss commits inside the transaction that reported success.
         var @event = NewSample();
@@ -96,7 +97,7 @@ public sealed class IntegrationEventContractTests
 
         var naive = JsonSerializer.Serialize(asBase);
         naive.Should().NotContain(nameof(Sample.LearnerName),
-            "the declared type is the interface, so only its four members survive");
+            "the declared type is the interface, so only its five members survive");
 
         var written = @event.ToPayloadJson();
 
@@ -133,6 +134,77 @@ public sealed class IntegrationEventContractTests
         IntegrationEventBase.PayloadJsonOptions.PropertyNamingPolicy.Should().BeNull();
     }
 
+    [Fact]
+    public void The_Payload_Options_Are_Frozen_Before_Their_First_Use()
+    {
+        IntegrationEventBase.PayloadJsonOptions.IsReadOnly.Should().BeTrue();
+
+        var act = () => IntegrationEventBase.PayloadJsonOptions.WriteIndented = true;
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void The_Envelope_Rejects_A_Null_Event_And_A_Blank_Correlation()
+    {
+        var nullEvent = () => new IntegrationEventEnvelope(null!, Trace);
+        var nullCorrelation = () => new IntegrationEventEnvelope(NewSample(), null!);
+        var blankCorrelation = () => new IntegrationEventEnvelope(NewSample(), " ");
+
+        nullEvent.Should().Throw<ArgumentNullException>();
+        nullCorrelation.Should().Throw<ArgumentNullException>();
+        blankCorrelation.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void The_Envelope_Rejects_Malformed_Event_Identity_And_Trace_Metadata()
+    {
+        var invalid = new Action[]
+        {
+            () => _ = new IntegrationEventEnvelope(
+                NewSample() with { EventId = Guid.Empty }, Trace),
+            () => _ = new IntegrationEventEnvelope(
+                NewSample() with { TenantId = Guid.Empty }, Trace),
+            () => _ = new IntegrationEventEnvelope(
+                NewSample() with { OccurredAt = default }, Trace),
+            () => _ = new IntegrationEventEnvelope(NewSample(), "not-a-traceparent"),
+            () => _ = new IntegrationEventEnvelope(
+                NewSample(), Trace, OrganizationId: Guid.Empty),
+            () => _ = new IntegrationEventEnvelope(
+                NewSample(), Trace, CausationId: Guid.Empty),
+            () => _ = new IntegrationEventEnvelope(
+                NewInvalidMetadataSample(topic: "", partitionKey: "valid"), Trace),
+            () => _ = new IntegrationEventEnvelope(
+                NewInvalidMetadataSample(topic: "learnstack.test.invalid", partitionKey: ""), Trace),
+        };
+
+        invalid.Should().AllSatisfy(action => action.Should().Throw<ArgumentException>());
+    }
+
+    [Fact]
+    public void An_Organization_Scoped_Event_Requires_A_Non_Empty_Organization()
+    {
+        var missing = () => new IntegrationEventEnvelope(NewOrganizationSample(), Trace);
+        var valid = () => new IntegrationEventEnvelope(
+            NewOrganizationSample(),
+            Trace,
+            OrganizationId: Guid.Parse("018f4d40-0000-7000-8000-0000000000c1"));
+
+        missing.Should().Throw<ArgumentException>();
+        valid.Should().NotThrow();
+    }
+
+    [Fact]
+    public void The_Envelope_Rejects_An_Uninitialized_Causal_Actor()
+    {
+        var fixture = new UnassignedActorFixture();
+
+        var act = () => new IntegrationEventEnvelope(
+            NewSample(), Trace, ActorUserId: fixture.ActorUserId);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
     // ---- the consumer's context ---------------------------------------------
 
     [Fact]
@@ -142,7 +214,7 @@ public sealed class IntegrationEventContractTests
         var organization = Guid.Parse("018f4d40-0000-7000-8000-0000000000c1");
 
         var context = EventTenantContext.FromEnvelope(new IntegrationEventEnvelope(
-            NewSample(), "trace-1", OrganizationId: organization, ActorUserId: actor));
+            NewSample(), Trace, OrganizationId: organization, ActorUserId: actor));
 
         // IsResolved false would make TenantContextBehavior short-circuit every
         // consumer that sends a MediatR command — silently, before its business
@@ -150,8 +222,9 @@ public sealed class IntegrationEventContractTests
         context.IsResolved.Should().BeTrue();
         context.TenantId.Should().Be(Tenant);
         context.OrganizationId.Should().Be(organization);
-        context.UserId.Should().Be(actor);
-        context.CorrelationId.Should().Be("trace-1");
+        context.UserId.Should().Be(UserId.SystemActor);
+        context.CausalActorUserId.Should().Be(actor);
+        context.CorrelationId.Should().Be(Trace);
         context.ModuleName.Should().BeNull();
     }
 
@@ -171,6 +244,24 @@ public sealed class IntegrationEventContractTests
         LearnerName = "Ada",
     };
 
+    private static InvalidMetadataSample NewInvalidMetadataSample(
+        string topic,
+        string partitionKey) => new()
+        {
+            EventId = Guid.Parse("018f4d40-0000-7000-8000-0000000000e2"),
+            TenantId = Tenant,
+            OccurredAt = DateTimeOffset.UnixEpoch,
+            DeclaredTopic = topic,
+            DeclaredPartitionKey = partitionKey,
+        };
+
+    private static OrganizationSample NewOrganizationSample() => new()
+    {
+        EventId = Guid.Parse("018f4d40-0000-7000-8000-0000000000e3"),
+        TenantId = Tenant,
+        OccurredAt = DateTimeOffset.UnixEpoch,
+    };
+
     public sealed record Sample : IntegrationEventBase
     {
         public required string LearnerName { get; init; }
@@ -181,5 +272,25 @@ public sealed class IntegrationEventContractTests
         // member the interface does not carry rather than on a value that
         // happens to appear through PartitionKey.
         public override string PartitionKey => "ordering-domain";
+    }
+
+    private sealed record InvalidMetadataSample : IntegrationEventBase
+    {
+        public required string DeclaredTopic { get; init; }
+        public required string DeclaredPartitionKey { get; init; }
+        public override string Topic => DeclaredTopic;
+        public override string PartitionKey => DeclaredPartitionKey;
+    }
+
+    private sealed record OrganizationSample
+        : IntegrationEventBase, IOrganizationScopedIntegrationEvent
+    {
+        public override string Topic => "learnstack.test.organization-sample";
+        public override string PartitionKey => "organization";
+    }
+
+    private sealed record UnassignedActorFixture
+    {
+        public UserId ActorUserId { get; init; }
     }
 }

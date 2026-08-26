@@ -2,15 +2,15 @@ namespace LearnStack.SharedKernel.Caching;
 
 /// <summary>
 /// The one cache abstraction, per
-/// <see href="../../../../docs/decisions/0014-adopt-dapr.md">ADR-0014</see> and
-/// its Amendment 2. Modules never inject a cache client — no
+/// <see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038</see>.
+/// Modules never inject a cache client — no
 /// <c>IConnectionMultiplexer</c>, no <c>IDistributedCache</c>, no
 /// <c>IMemoryCache</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>There is no <c>RemoveByPrefixAsync</c>.</b> It was removed by ADR-0014
-/// Amendment 2: the only implementable form iterated a process-local key set, so
+/// <b>There is no <c>RemoveByPrefixAsync</c>.</b> ADR-0038 excludes it: the only
+/// implementable form iterated a process-local key set, so
 /// keys written by another instance were never evicted — a name promising a
 /// global effect while delivering a local one. A key family that must invalidate
 /// a set it cannot enumerate uses the **generation-key** pattern instead, which

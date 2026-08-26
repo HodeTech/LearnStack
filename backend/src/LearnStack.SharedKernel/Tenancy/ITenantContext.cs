@@ -42,10 +42,18 @@ public interface ITenantContext
     Guid? OrganizationId { get; }
 
     /// <summary>
-    /// The acting user, when authenticated. <c>null</c> for anonymous /
-    /// system-issued requests (background jobs, outbox handlers).
+    /// The effective actor. Authenticated requests carry their user, anonymous
+    /// requests may carry <c>null</c>, and asynchronous consumers use the fixed
+    /// <see cref="UserId.SystemActor"/> principal.
     /// </summary>
     UserId? UserId { get; }
+
+    /// <summary>
+    /// The human actor that causally initiated asynchronous work, when known.
+    /// The effective <see cref="UserId"/> remains the system actor for an
+    /// integration-event consumer.
+    /// </summary>
+    UserId? CausalActorUserId => null;
 
     /// <summary>
     /// W3C <c>traceparent</c> string ("00-&lt;trace&gt;-&lt;span&gt;-&lt;flags&gt;")

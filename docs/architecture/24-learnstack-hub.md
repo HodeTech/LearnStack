@@ -326,16 +326,19 @@ Entitlement is recomputed (and `generation` incremented) on:
 - `CompliancePolicy` change (any cap added / removed / modified).
 - `LicenseKey` re-issuance (Self-Hosted).
 
-After recompute, Hub publishes `learnstack.hub.entitlement` integration event via Dapr
-pub/sub carrying `{ tenant_id, generation, expires_at }`. LearnStack runtime receives the
-event, invalidates `platform_entitlement_cache` for that tenant, re-fetches on next read.
+After recompute, Hub pushes the new projection through
+`PUT /api/internal/tenants/{id}/entitlements`; LearnStack updates
+`platform_entitlement_cache` in that request. When ADR-0035's cross-process trigger fires
+in Phase 11, Hub additionally publishes `learnstack.hub.entitlement` via Dapr pub/sub
+carrying `{ tenant_id, generation, expires_at }` for eager cross-instance invalidation.
 
 ### Cache TTL
 
-LearnStack runtime caches the `Entitlement` for **15 minutes** via `ICacheService` (key
+LearnStack runtime caches the `Entitlement` via `ICacheService` (key
 `{tenant_id}:hub:entitlement` — tenant segment first, per
-[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md)). Beyond 15 minutes it re-fetches lazily. Eager invalidation
-via Dapr pub/sub event (above) makes the cache TTL a worst-case bound, not a typical one.
+[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md)). The current
+L1 TTL is 60 seconds. Phase 11 adds a 15-minute Valkey L2 upper bound and Dapr eager
+invalidation; neither is an application path today.
 
 ## 5. Sequence diagrams
 
@@ -382,7 +385,7 @@ sequenceDiagram
     HubAPI->>HubAPI: Recompute Entitlement (gen++)
     HubAPI->>LSApi: PUT /api/internal/tenants/{id}/entitlements<br/>(new projection)
     LSApi->>LSApi: Update platform_entitlement_cache; emit cache invalidation
-    HubAPI->>HubAPI: Publish learnstack.hub.entitlement event via Dapr
+    HubAPI->>HubAPI: Phase 11+: publish learnstack.hub.entitlement via Dapr
     HubAPI-->>HubUI: Plan upgraded
     HubUI-->>Customer: "Plan upgraded; new features active"
 ```

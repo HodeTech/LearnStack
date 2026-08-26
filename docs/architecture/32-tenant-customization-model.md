@@ -464,7 +464,7 @@ Two rules make this safe:
   `ICacheService.RemoveByPrefixAsync` contract cannot be honoured across instances by any
   candidate backend, and it is **removed** in
   [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md)
-  ([ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md)). This pattern replaces it,
+  ([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)). This pattern replaces it,
   and it is a convention here rather than a member of that interface — the counter is
   durable domain state, not a cache entry.
 - **Compiled validators are cached separately from definitions**, keyed by an immutable

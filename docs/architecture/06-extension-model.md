@@ -34,9 +34,9 @@ The core platform talks to external systems through **interfaces** in
 | Live classroom transport | `ILiveClassProvider` |
 | Recording egress | `IRecordingEgressProvider` |
 | Identity provider | (covered by Keycloak baseline; ADR-0004) |
-| Pub/Sub | `IEventBus` → Dapr → Kafka (ADR-0014) |
-| Cache | `ICacheService` → Dapr → Valkey (ADR-0014) |
-| Secret store | `ISecretProvider` → Dapr → Vault (ADR-0014) |
+| Pub/Sub | `IEventBus` → in-process now; Dapr → Kafka target (ADR-0038) |
+| Cache | `ICacheService` → in-memory now; Dapr → Valkey target (ADR-0038) |
+| Secret store | `ISecretProvider` → configuration now; Dapr → Vault target (ADR-0038) |
 
 Implementations live in `LearnStack.Infrastructure.<Concern>.<Provider>` projects.
 Modules never import provider SDK types. Architecture tests enforce this — same pattern
@@ -242,7 +242,8 @@ LearnStack's own modules (`LearnStack.Modules.Identity`, `LearnStack.Modules.Ten
 - ADR-0011 — Vertical Extension Points (superseded; retained in `docs/decisions/` with
   Superseded status banner).
 - ADR-0013 — Page Block Schema Versioning.
-- ADR-0014 — Adopt Dapr (provider adapters for cross-cutting infrastructure).
+- ADR-0038 — Cross-Cutting Port and Event Contracts (including the retained Dapr
+  provider-adapter choice).
 - ADR-0021 — Feature-Based Entitlement (plan-gated features that go beyond customization).
 - [32-tenant-customization-model.md](32-tenant-customization-model.md) — deep dive with
   schema, worked examples, sandbox engine, Admin Studio surface.

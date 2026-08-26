@@ -1,7 +1,7 @@
 # Cross-Cutting Concerns — Errors, Logs, Traces, Metrics
 
 **Derives from:** [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md),
-[ADR-0014](../decisions/0014-adopt-dapr.md), [ADR-0016](../decisions/0016-audit-log-subsystem.md),
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md), [ADR-0016](../decisions/0016-audit-log-subsystem.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -459,7 +459,7 @@ Two integration points
 ## References
 
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
-- [ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md)
+- [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md)
 - [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
 - [09-error-handling.md](../standards/09-error-handling.md)

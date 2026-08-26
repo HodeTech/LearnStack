@@ -160,9 +160,9 @@ Rules:
   ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). See
   [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
   [29-dapr-integration.md](29-dapr-integration.md).
-- A short-TTL Valkey cache (60 s) fronts both tables for hot-path reads. Eager
-  invalidation flows from `learnstack.cache.invalidation` (cross-instance) and from
-  `learnstack.hub.entitlement` (cross-deployment).
+- `ICacheService` fronts both tables for hot-path reads. Today that is the process-local
+  `InMemoryCacheService`; Phase 11 adds Valkey-backed L2 and cross-instance invalidation
+  when ADR-0035's replica trigger fires.
 
 ## Evaluation
 
@@ -181,11 +181,11 @@ Resolution precedence for `IsEnabledAsync(FeatureKey key, ct)`:
    genuinely need to read cross-tenant go through a separate
    `IEntitlementAdminQuery` interface.
 2. **If the key's catalog descriptor says `Source = PlanProjected`:** read from
-   `platform_entitlement_cache.features` (via Valkey cache → Postgres). A missing entry
+   `platform_entitlement_cache.features` (via `ICacheService` → Postgres). A missing entry
    resolves to the catalog default. Per-tenant `tenant_feature_flags` are **never**
    consulted for plan-projected keys.
 3. **If the key's catalog descriptor says `Source = TenantFlag`:** read from
-   `tenant_feature_flags` (via Valkey cache → Postgres). Missing entry → catalog
+   `tenant_feature_flags` (via `ICacheService` → Postgres). Missing entry → catalog
    default.
 4. **Killswitch overlay** (last word): if the corresponding killswitch is flipped
    `false` platform-wide, the answer becomes `false` regardless of the per-tenant
@@ -282,28 +282,30 @@ Both surfaces are MUST-audit security-events (see
   not migrated in the DB silently returns the default for every tenant. Renaming is a
   deprecation cycle, not a refactor.
 - **Stale entitlement projection.** A tenant upgraded on Hub but whose projection
-  hasn't refreshed sees the old feature set. Eager invalidation via the Dapr event
-  keeps the typical refresh within seconds; the 15-min TTL is the upper bound.
+  hasn't refreshed sees the old feature set. The Phase 02c projection push refreshes
+  LearnStack directly; Phase 11's Dapr event becomes an additional eager-invalidation
+  path when its trigger fires. The 15-min L2 TTL is the future upper bound.
 - **Performance.** Hot paths that read flags per call become DB-bound without the
-  Valkey cache; the 60s TTL is the default trade-off.
+  cache; the 60s L1 TTL is the default trade-off.
 
 ## Roadmap Touchpoints
 
 - **Phase 02a** — `tenant_feature_flags` table created in the Tenancy module; the
   `FeatureKeys` / `LimitKeys` / `KillswitchKeys` catalogs land here. `IFeatureFlags`,
-  the Valkey cache, and the architecture tests ship here.
+  the `ICacheService`-backed L1 cache, and the architecture tests ship here.
 - **Phase 02c** (parallel Hub Foundation) —
   `platform_entitlement_cache`, `IEntitlementProvider` with `NullEntitlementProvider`
   default + `HubEntitlementProvider` + `SignedLicenseKeyEntitlementProvider`
-  implementations. The Dapr-event-driven projection refresh ships here.
+  implementations. The HTTPS projection push is the refresh path here.
 - **Phase 06** — Admin Studio surface for editing per-tenant flag overrides and
   viewing the entitlement projection. The Studio screen for `platform_entitlement_cache`
   is **read-only** — actual plan edits happen in the operator portal
   (`operator-portal`).
 - **Phase 09** — Audit + observability hooks for both flag writes and entitlement
   refreshes plug into the audit + analytics pipeline.
-- **Phase 11** — Quarterly hygiene review and CI surfacing of stale flags become
-  operational.
+- **Phase 11** — Valkey/Dapr adapters and event-driven cross-instance invalidation land
+  on ADR-0035's triggers; quarterly hygiene review and CI surfacing of stale flags
+  become operational.
 
 ## References
 

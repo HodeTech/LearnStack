@@ -105,7 +105,7 @@ Run the change through the **hard rules** in [CLAUDE.md § Hard rules](../../../
 - Does it add a 5th Hub HTTPS endpoint? → requires a new ADR (ADR-0019).
 - Does it inject `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` directly? → forbidden; use `ICacheService` / `IEventBus` /
-  `ISecretProvider` (ADR-0014, standards/20).
+  `ISecretProvider` (ADR-0038, standards/20).
 - Does it write `audit_log` / `outbox_messages` / `platform_entitlement_cache`
   directly? → forbidden; use `IAuditStore` / `IOutbox` /
   `IEntitlementProvider.RefreshAsync`.

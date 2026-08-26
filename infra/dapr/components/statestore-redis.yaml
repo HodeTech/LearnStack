@@ -12,7 +12,7 @@
 # provider-type convention; renaming it would just hide the wire
 # protocol the component speaks.
 #
-# `actorStateStore: "false"` is INTENTIONAL — per ADR-0014 non-goals,
+# `actorStateStore: "false"` is INTENTIONAL — per ADR-0038 non-goals,
 # Dapr actors are NOT adopted. Flipping this to "true" requires a new
 # ADR + an architecture-test update. The Dapr docs are explicit that the
 # flag must be "true" only when the application code consumes the actors

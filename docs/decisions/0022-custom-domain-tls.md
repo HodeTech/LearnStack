@@ -4,8 +4,7 @@
 
 Accepted — **the certificate-delivery mechanism in Amendment 1 (steps 3 and 4) and in
 the 2026-05-19 Option B amendment is superseded by
-[ADR-0034](0034-hub-contract-surface-invariant.md) (2026-08-08)**, and **the host
-cache key's spelling is superseded by the 2026-08-26 amendment below**
+[ADR-0034](0034-hub-contract-surface-invariant.md) (2026-08-08)**
 
 > **What ADR-0034 changed.** The lifecycle decided here is unchanged: Hub owns
 > custom-domain administration, DNS-01 and HTTP-01 challenges, Let's Encrypt issuance
@@ -381,9 +380,6 @@ public sealed class TenantMiddleware
 `_hostToTenantResolver` is backed by `ICacheService` (Dapr State / Valkey); cache key
 `hub:host:{host}` invalidated on `CustomDomainActivatedEvent` / `CustomDomainRevokedEvent`.
 
-> Key spelling superseded — see
-> [Amendment: the host cache key](#2026-08-26--amendment-the-host-cache-key-spelling).
-
 ### Public suffix list validation
 
 A tenant cannot register `com`, `co.uk`, `gov`, or other public suffix domains. The
@@ -450,23 +446,6 @@ runbook live in [27-custom-domain-tls.md](../architecture/27-custom-domain-tls.m
 
 ## Amendments
 
-### 2026-08-26 — Amendment: the host cache key spelling
-
-The decision is unchanged. Only the **spelling** of the cache key in the resolver sketch
-above is superseded: it shipped as `platform:hub:host-map:{host}`.
-
-`CacheKey.EnsureValid` requires the tenant segment first and mandatory, so
-`hub:host:{host}` is refused outright. A host lookup is the one key family that
-legitimately carries the `platform` sentinel, and it is worth saying why: it answers
-"which tenant is this?", so by construction there is no tenant to key it by. Every other
-family knows its tenant, and a `platform` sentinel there would be a bug wearing the
-sentinel's clothes.
-
-The canonical shape lives in
-[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), which is the
-one document that owns it. Nothing else in this decision depends on the spelling.
-
-
 ### 2026-05-19 — Cert-and-route propagation is event-driven; Hub does not write LearnStack's K8s state
 
 The Decision and the worked example show Hub "writing to
@@ -521,6 +500,23 @@ the path is:
 
 Architecture test `Cert_PrivateKey_NeverLeavesVault_To_Logs` continues to apply
 across all modes.
+
+### 2026-08-26 — Amendment: the host cache key spelling
+
+The decision is unchanged. Only the **spelling** in the resolver sketch above is
+clarified: the sketch says `hub:host:{host}`, while the shipped contract is
+`platform:hub:host-map:{host}`.
+
+`CacheKey.EnsureValid` requires the tenant segment first and mandatory, so
+`hub:host:{host}` is refused outright. A host lookup is the one key family that
+legitimately carries the `platform` sentinel, and it is worth saying why: it answers
+"which tenant is this?", so by construction there is no tenant to key it by. Every other
+family knows its tenant, and a `platform` sentinel there would be a bug wearing the
+sentinel's clothes.
+
+The canonical shape lives in
+[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), which is the
+one document that owns it. Nothing else in this decision depends on the spelling.
 
 ## References
 

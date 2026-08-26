@@ -2,8 +2,8 @@ namespace LearnStack.SharedKernel.Messaging;
 
 /// <summary>
 /// Publishes an integration event to whichever transport is registered, per
-/// <see href="../../../../docs/decisions/0014-adopt-dapr.md">ADR-0014</see> and
-/// its Amendment 2. Modules never inject a broker client.
+/// <see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038</see>.
+/// Modules never inject a broker client.
 /// </summary>
 /// <remarks>
 /// <para>

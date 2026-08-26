@@ -4,7 +4,7 @@ Events allow modules to collaborate without cross-module database coupling. This
 defines the event types, the outbox pattern, the claim protocol that makes concurrent
 dispatch safe, and how dispatch reaches subscribers — in process today, through Dapr
 pub/sub to Kafka when the trigger for that adapter fires (ADR-0010 Amendment 1 +
-ADR-0014 + ADR-0035).
+ADR-0038 + ADR-0035).
 
 ## Decision
 
@@ -37,7 +37,8 @@ every consumer to carry two implementations, one of which is never tested agains
 other. Everything in this document about consumer obligations applies identically to both
 transports; the only difference is what carries the bytes between publish and handle.
 
-[ADR-0014](../decisions/0014-adopt-dapr.md) stands as the decision that Dapr is the
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
+decision that Dapr is the
 cross-process transport LearnStack uses. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
 decides when it arrives, and the answer is "when a second process exists".
 
@@ -389,11 +390,11 @@ left to each reader of this document.
 - **Horizontal scalability.** `SKIP LOCKED` plus the lease predicate lets N processors
   across N pods drain the same table without coordination.
 
-## `IEventBus` and the partition key
+## `IEventBus` and `IntegrationEventEnvelope`
 
-The port takes the partition key explicitly. It is not derived inside the transport,
-because the transport is the one component that does not know what the event's ordering
-domain is:
+The port accepts the envelope stored by the outbox. The concrete event declares its
+topic and ordering domain; the envelope forwards both and carries the delivery metadata
+the event does not own:
 
 ```csharp
 public interface IEventBus
@@ -402,14 +403,11 @@ public interface IEventBus
 }
 ```
 
-**Not generic**, per
-[ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md). The outbox processor
-deserializes to `object` and publishes through the base interface, so a generic parameter
-would bind to `IIntegrationEvent` at the only call site that matters — and a transport
-resolving `IIntegrationEventHandler<TEvent>` would then look for
-`IIntegrationEventHandler<IIntegrationEvent>`, which no concrete handler implements. The
-publish would reach zero handlers and report success. Both transports resolve handlers by
-the event's **runtime** type instead.
+The partition key is read from `envelope.PartitionKey`; there is no separate publish
+parameter that can disagree with the event. `CorrelationId`, `OrganizationId`,
+`CausationId` and `ActorUserId` remain delivery metadata on the envelope. This is the
+binding contract in
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md).
 
 The durable implementation forwards it as Dapr's `partitionKey` metadata, which the Kafka
 pub/sub component maps onto the Kafka message key:
@@ -418,24 +416,20 @@ pub/sub component maps onto the Kafka message key:
 public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
 {
     public Task PublishAsync(
-        IIntegrationEvent @event, string partitionKey, CancellationToken ct = default)
+        IntegrationEventEnvelope envelope, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(partitionKey);
+        ArgumentNullException.ThrowIfNull(envelope);
 
-        // Published as the runtime type, not as IIntegrationEvent: the serializer
-        // writes the members of the type it is given, and handing it the base
-        // interface produces a payload with none of the event's own fields.
         return daprClient.PublishEventAsync(
             "pubsub",
-            ConventionTopicName(@event),             // "learnstack.{module}.{aggregate}"
-            @event.GetType(),
-            @event,
-            new Dictionary<string, string> { ["partitionKey"] = partitionKey },
+            envelope.Topic,
+            envelope.Event,
+            new Dictionary<string, string>
+            {
+                ["partitionKey"] = envelope.PartitionKey,
+            },
             ct);
     }
-
-    private static string ConventionTopicName(IIntegrationEvent @event)
-        => $"learnstack.{ExtractModule(@event.GetType())}.{ExtractAggregate(@event.GetType())}";
 }
 ```
 
@@ -451,6 +445,7 @@ Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 - `learnstack.enrollment.enrollment`
 - `learnstack.classroom.session`
 - `learnstack.hub.entitlement` (Hub-side)
+- `learnstack.hub.custom-domain.activated` (Hub-side four-segment form)
 - `learnstack.cache.invalidation` (cross-instance L1 cache)
 
 ## `InProcessEventBus`
@@ -471,6 +466,7 @@ public sealed partial class InProcessEventBus(
     IServiceScopeFactory scopeFactory,
     ITenantContextAccessor tenantAccessor,
     IPartitionSerializer partitions,
+    IntegrationEventHandlerRegistry handlers,
     ILogger<InProcessEventBus> logger) : IEventBus
 {
     public Task PublishAsync(
@@ -488,60 +484,47 @@ public sealed partial class InProcessEventBus(
 
     private async Task DispatchAsync(IntegrationEventEnvelope envelope, CancellationToken ct)
     {
-        // By RUNTIME type. The event is declared as the base interface here, so a
-        // closed generic over its static type would resolve
-        // IIntegrationEventHandler<IIntegrationEvent> — which no concrete
-        // consumer implements — and the publish would reach zero handlers and
-        // report success.
-        var contract = typeof(IIntegrationEventHandler<>).MakeGenericType(envelope.Event.GetType());
-        var handle = contract.GetMethod(nameof(IIntegrationEventHandler<IIntegrationEvent>.HandleAsync))!;
-        var context = EventTenantContext.FromEnvelope(envelope);
+        // The outer save/restore covers the FULL dispatch. Context is set before
+        // subscription lookup and therefore before any handler can be resolved;
+        // constructors observe the event tenant rather than the publisher tenant.
+        var previous = tenantAccessor.Current;
+        tenantAccessor.Current = EventTenantContext.FromEnvelope(envelope);
 
-        List<Exception>? failures = null;
-
-        for (var index = 0; index < HandlerCount(contract); index++)
+        try
         {
-            // ONE SCOPE PER HANDLER. Under a broker each subscription gets its
-            // own; sharing one hands two modules' consumers the same DbContext
-            // and unit of work, across a boundary the architecture otherwise
-            // enforces hard. Selected by index because a handler is registered
-            // against the CONTRACT — its own type is not a service.
-            await using var scope = scopeFactory.CreateAsyncScope();
+            var subscriptions = handlers.For(envelope.Event.GetType());
+            List<Exception>? failures = null;
 
-            // Restored into the handler's flow AND into the scope it resolves
-            // ITenantContext from — the composition root binds the scoped
-            // context to this accessor. Put back in the finally, or a
-            // synchronous dispatch leaks a tenant into the caller's flow.
-            var previous = tenantAccessor.Current;
-            tenantAccessor.Current = context;
-            try
+            foreach (var subscription in subscriptions)
             {
-                var handler = scope.ServiceProvider.GetServices(contract).ElementAt(index)!;
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    // DeliverAsync creates ONE ASYNC SCOPE and resolves exactly
+                    // this subscription's concrete handler. A constructor or
+                    // disposal failure cannot deny a healthy sibling. It also
+                    // starts the subscription's consumer activity and supplies
+                    // its module name through EventTenantContext.
+                    await DeliverAsync(subscription, envelope, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw; // shutdown: do not start later subscriptions
+                }
+                catch (Exception ex)
+                {
+                    // Poison-message containment remains per subscription.
+                    (failures ??= []).Add(ex);
+                }
+            }
 
-                // Through the interface's MethodInfo, NOT `dynamic`: the dynamic
-                // binder honours accessibility, so an `internal` handler — the
-                // normal shape for a module's own consumer — fails to bind at
-                // runtime. Invoke wraps a synchronous throw, so the inner
-                // exception is rethrown with ExceptionDispatchInfo; a
-                // TargetInvocationException would tell the error pipeline the
-                // transport failed when the handler did.
-                await (Task)handle.Invoke(handler, [envelope.Event, ct])!;
-            }
-            catch (Exception ex)
-            {
-                // Collected, not rethrown here. Poison-message containment is
-                // per subscription: letting the first fault escape the loop lets
-                // one module's broken handler deny every other module the event.
-                (failures ??= []).Add(ex);
-            }
-            finally
-            {
-                tenantAccessor.Current = previous;
-            }
+            // One failure rethrown as itself; several as an AggregateException.
         }
-
-        // One failure rethrown as itself; several as an AggregateException.
-    }                                        // the handler calls IInboxGuard itself
+        finally
+        {
+            tenantAccessor.Current = previous;
+        }
+    }                                      // the handler calls IInboxGuard itself
 }
 ```
 
@@ -590,6 +573,13 @@ the choice.
   are `NOT NULL` there. Correlation therefore travels from the row to the consumer
   rather than from whatever context happens to be ambient at dispatch, which is `null`
   inside the background service the processor is.
+- An event that implements `IOrganizationScopedIntegrationEvent` cannot be enveloped
+  without a non-empty `OrganizationId`; a tenant-wide event deliberately omits the
+  marker. This keeps an accidentally omitted organization from becoming a resolved
+  tenant-wide consumer scope.
+- A consumer's effective identity is always `UserId.SystemActor`. `ActorUserId` is the
+  causal human and is preserved separately as `CausalActorUserId`; it never authorizes
+  or attributes asynchronous writes as that human.
 - **Tenant context** restored on the consumer side before any business logic runs. The
   transport delivers the event payload; the consumer scope sets the ambient context from
   `@event.TenantId` before invoking the handler, so the handler's queries carry the same
@@ -700,17 +690,17 @@ separate service later:
 
 ## Architecture tests
 
+- `Integration_Event_TopicNames_FollowConvention` — the transport-independent
+  Packet 5 rule checks every event's declared topic against the strict three-segment
+  core grammar and Hub-only four-segment form.
 - `Integration_Events_Inherit_From_IntegrationEventBase` — every type implementing
   `IIntegrationEvent` extends `IntegrationEventBase` (which carries `EventId`,
-  `OccurredAt`, `TenantId`).
+  `OccurredAt`, `TenantId` and declares `Topic` / `PartitionKey`).
 - `Integration_Event_Handlers_Use_InboxGuard` — every `IIntegrationEventHandler<T>`
   implementation invokes `IInboxGuard.IsAlreadyProcessedAsync` before processing.
-- `Dapr_PubSub_TopicNames_FollowConvention` — string scan ensures every `[Topic]`
-  attribute argument matches
-  `^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$`. The
-  optional fourth segment is reserved for **Hub-side event-name suffixes**
-  (`learnstack.hub.custom-domain.activated`, `.deactivated`, `.revoked`).
-  LearnStack-core topics remain 3-segment (`learnstack.{module}.{aggregate}`).
+- `Dapr_PubSub_TopicNames_FollowConvention` — Phase 11 checks that Dapr component
+  bindings agree with the already-validated topics declared by events. It is not a
+  current `[Topic]`-attribute scan; no such attribute exists.
 - `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — integration test asserts one
   poisoned message doesn't prevent others in the batch from processing.
 - `Integration_Event_Handler_Restores_Tenant_Context` — catalogued in
@@ -746,7 +736,8 @@ alongside Dapr's own `dapr_component_pubsub_*` metrics.
 
 - ADR-0006 (Amendment 1) — Events and Outbox; dispatch transport.
 - ADR-0010 (Amendment 1) — Cross-Module Communication; outbox dispatch target.
-- ADR-0014 — Adopt Dapr (what LearnStack uses for cross-process pub/sub).
+- [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) — Dapr choice,
+  event envelope, subscription isolation and cache/event port contracts.
 - [ADR-0033](../decisions/0033-audit-durability-model.md) — Audit durability model;
   audit fan-out to external sinks rides this outbox, MUST-class audit does not.
 - [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — Demand-gated

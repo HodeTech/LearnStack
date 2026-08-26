@@ -8,7 +8,7 @@
 database role model**),
 [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md)
 (Amendment 1: Dapr pub/sub dispatch transport),
-[ADR-0014 Adopt Dapr](../decisions/0014-adopt-dapr.md),
+[ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
 

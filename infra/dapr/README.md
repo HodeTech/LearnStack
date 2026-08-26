@@ -1,8 +1,8 @@
 # Dapr Sidecar (Dev)
 
 Cross-cutting infrastructure runtime per
-[ADR-0014 (Adopt Dapr)](../../docs/decisions/0014-adopt-dapr.md). Three
-building blocks are adopted; everything else is **out of scope** per ADR-0014
+[ADR-0038](../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md). Three
+building blocks are adopted; everything else is **out of scope** per ADR-0038
 non-goals.
 
 | Building block | Backend (dev) | Component file | Application interface |
@@ -17,9 +17,8 @@ Phase ownership (per [phase-02a](../../docs/roadmap/phase-02a-kernel-tenancy.md)
 
 - **Phase 02a** declares all three interfaces in `LearnStack.SharedKernel`
   with default in-process implementations — `InProcessEventBus`,
-  `InMemoryCacheService`, and `ConfigurationSecretProvider`. Only the third
-  exists today (`SharedKernel/Secrets/ConfigurationSecretProvider.cs`, Packet 3);
-  the other two land with their interfaces in Packet 5. Those defaults are the
+  `InMemoryCacheService`, and `ConfigurationSecretProvider`. All three exist
+  today and are wired at the composition root. Those defaults are the
   **only** implementations registered, in every `DeploymentMode`.
 - **Phase 11** ships the Dapr-backed implementations (`DaprEventBus`,
   `DaprCacheService`, `DaprSecretProvider`) in `LearnStack.Infrastructure`, on
@@ -80,18 +79,18 @@ out of scope — `daprd` won't start without it.
 
 ## Application access pattern
 
-Per ADR-0014 + Standards 20, modules **never** import `Dapr.Client`. They
+Per ADR-0038 + Standards 20, modules **never** import `Dapr.Client`. They
 consume:
 
 ```csharp
-public interface IEventBus { Task PublishAsync<T>(T @event, CancellationToken ct) where T : IIntegrationEvent; }
+public interface IEventBus { Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct); }
 public interface ICacheService { Task<T?> GetAsync<T>(string key, CancellationToken ct); /* … */ }
 public interface ISecretProvider { Task<string> GetSecretAsync(string key, CancellationToken ct); /* … */ }
 ```
 
 `DaprEventBus`, `DaprCacheService`, `DaprSecretProvider` are the **only**
 Dapr-aware types in the codebase; they live in `LearnStack.Infrastructure`
-and ship in Phase 02a (composition-root selected per `DeploymentMode`).
+and ship in Phase 11 on ADR-0035's triggers.
 Architecture tests
 `Dapr_SDK_Types_NotImportedOutsideInfrastructure`,
 `Modules_DoNotReference_DaprPackage`, and
@@ -136,9 +135,8 @@ YAML metadata field.
 ## What does NOT live here
 
 - The `IEventBus` / `ICacheService` / `ISecretProvider` implementations —
-  the **interfaces + Dapr-backed adapters** both ship in **Phase 02a**
-  (see § Phase ownership above); only the *outbox dispatch path* that
-  becomes the sanctioned caller of `IEventBus.PublishAsync` is Phase 02b.
+  the interfaces and default adapters shipped in Phase 02a; Dapr-backed
+  adapters belong to Phase 11 (see § Phase ownership above).
 - Outbox dispatcher (`OutboxProcessor` polling + dispatch) — Phase 02b.
 - Per-module `inbox_messages` table + `IInboxGuard` — Phase 02b.
 - Production Vault setup (HA mode, auto-unseal, AppRole policies) — Phase 11.

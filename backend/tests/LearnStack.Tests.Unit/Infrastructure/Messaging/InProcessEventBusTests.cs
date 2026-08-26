@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Identifiers;
@@ -188,7 +189,7 @@ public sealed class InProcessEventBusTests
     }
 
     [Fact]
-    public async Task The_Envelopes_Actor_And_Organization_Reach_The_Handler()
+    public async Task The_Consumer_Uses_The_System_Actor_And_Preserves_The_Causal_Actor()
     {
         var recorder = new Recorder();
         var (bus, _) = Build(recorder, services =>
@@ -200,7 +201,8 @@ public sealed class InProcessEventBusTests
         await bus.PublishAsync(new IntegrationEventEnvelope(
             NewThing("a"), Trace, OrganizationId: organization, ActorUserId: actor));
 
-        recorder.Actors.Should().ContainSingle().Which.Should().Be(actor);
+        recorder.Actors.Should().ContainSingle().Which.Should().Be(UserId.SystemActor);
+        recorder.CausalActors.Should().ContainSingle().Which.Should().Be(actor);
         recorder.Organizations.Should().ContainSingle().Which.Should().Be(organization);
     }
 
@@ -305,7 +307,7 @@ public sealed class InProcessEventBusTests
         // task — and its shutdown path swallows the former.
         var recorder = new Recorder();
         var (bus, _) = Build(recorder, services =>
-            services.AddScoped<IIntegrationEventHandler<Thing>>(_ => new ForeignCancelHandler()));
+            services.AddScoped<IIntegrationEventHandler<Thing>, ForeignCancelHandler>());
 
         var publish = bus.PublishAsync(Envelope(NewThing("a")));
 
@@ -360,9 +362,7 @@ public sealed class InProcessEventBusTests
             services.AddScoped<IIntegrationEventHandler<Thing>, TokenReadingHandler>());
         using var cancelled = new CancellationTokenSource();
 
-        var publish = bus.PublishAsync(Envelope(NewThing("a")), cancelled.Token);
-        await cancelled.CancelAsync();
-        await publish;
+        await bus.PublishAsync(Envelope(NewThing("a")), cancelled.Token);
 
         // The token ITSELF, not merely "a cancellable token" — asserting
         // CanBeCanceled was true of any token at all, so threading a freshly
@@ -370,6 +370,27 @@ public sealed class InProcessEventBusTests
         // a shutdown never reached a consumer, which is the failure this test
         // names.
         recorder.HandlerToken.Should().Be(cancelled.Token);
+    }
+
+    [Fact]
+    public async Task Publish_Cancellation_Stops_Later_Subscriptions()
+    {
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<IIntegrationEventHandler<Thing>, CancellationWaitingHandler>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, SecondThingHandler>();
+        });
+        using var cancellation = new CancellationTokenSource();
+
+        var publish = bus.PublishAsync(Envelope(NewThing("a")), cancellation.Token);
+        await recorder.HandlerEntered.Task.WaitAsync(Timeout);
+        await cancellation.CancelAsync();
+
+        await ((Func<Task>)(() => publish)).Should().ThrowAsync<OperationCanceledException>();
+        publish.IsCanceled.Should().BeTrue();
+        recorder.Handled.Should().BeEmpty(
+            "the later subscription must not start after publish cancellation");
     }
 
     [Fact]
@@ -397,12 +418,8 @@ public sealed class InProcessEventBusTests
     [Fact]
     public async Task A_Handler_That_Cannot_Be_Built_Is_Reported_As_Such()
     {
-        // Handler construction happens before the per-handler loop that provides
-        // isolation — the container materialises the whole array before
-        // returning any element — so a constructor that throws takes every
-        // sibling with it and nothing here can contain it. Without the explicit
-        // report the exception was swallowed, the count came back zero, and a
-        // broken registration looked exactly like "nobody subscribed".
+        // Subscription metadata is construction-free. A broken graph therefore
+        // belongs only to that subscription and cannot deny a healthy sibling.
         var recorder = new Recorder();
         var (bus, _) = Build(recorder, services =>
         {
@@ -415,7 +432,8 @@ public sealed class InProcessEventBusTests
         var thrown = await act.Should().ThrowAsync<InvalidOperationException>();
         thrown.Which.Message.Should().Contain("failed to construct");
         thrown.Which.InnerException!.Message.Should().Be("this handler cannot be built");
-        recorder.Handled.Should().BeEmpty("no handler for that event could run");
+        recorder.Handled.Should().ContainSingle().Which.Should().Be("a",
+            "the healthy subscription is constructed and invoked independently");
     }
 
     [Fact]
@@ -447,6 +465,49 @@ public sealed class InProcessEventBusTests
         await bus.PublishAsync(Envelope(NewThing("a")));
 
         recorder.Probes.Should().ContainSingle().Which.Disposed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task An_Async_Only_Disposable_Dependency_Is_Disposed_Exactly_Once()
+    {
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+        {
+            services.AddScoped<AsyncDisposalProbe>();
+            services.AddScoped<IIntegrationEventHandler<Thing>, AsyncDisposalProbingHandler>();
+        });
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.AsyncProbes.Should().ContainSingle();
+        recorder.AsyncProbes.Single().DisposeCalls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Each_Subscription_Continues_The_Producer_Trace()
+    {
+        var stopped = new ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == InProcessEventBus.ActivitySourceName,
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = stopped.Add,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ActivityReadingHandler>());
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        stopped.Should().ContainSingle();
+        var activity = stopped.Single();
+        activity.Kind.Should().Be(ActivityKind.Consumer);
+        activity.TraceId.ToString().Should().Be("0af7651916cd43dd8448eb211c80319c");
+        activity.ParentSpanId.ToString().Should().Be("b7ad6b7169203331");
+        recorder.Modules.Should().ContainSingle().Which.Should().Be("unknown");
     }
 
     // ---- obligation: ordering per partition key ------------------------------
@@ -482,8 +543,10 @@ public sealed class InProcessEventBusTests
         using var firstArrived = new SemaphoreSlim(0);
         using var secondArrived = new SemaphoreSlim(0);
         var (bus, _) = Build(recorder, services =>
-            services.AddScoped<IIntegrationEventHandler<Thing>>(_ =>
-                new RendezvousHandler(recorder, firstArrived, secondArrived)));
+        {
+            services.AddSingleton(new RendezvousGates(firstArrived, secondArrived));
+            services.AddScoped<IIntegrationEventHandler<Thing>, RendezvousHandler>();
+        });
 
         var first = bus.PublishAsync(Envelope(NewThing("a", "key-1")));
         var second = bus.PublishAsync(Envelope(NewThing("b", "key-2")));
@@ -550,13 +613,22 @@ public sealed class InProcessEventBusTests
         services.AddSingleton<ITenantContextAccessor>(accessor);
 
         // The production binding, verbatim (CrossCuttingFoundationExtensions):
-        // the scoped context resolves FROM the accessor. Registering anything
+        // the transient context forwards to the accessor on every resolution. Registering anything
         // else here would test a container this application never builds.
-        services.AddScoped<ITenantContext>(sp =>
+        services.AddTransient<ITenantContext>(sp =>
             sp.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
 
         register(services);
+
+        var handlers = IntegrationEventHandlerRegistry.FromServiceDescriptors(services);
+        foreach (var subscription in handlers.All)
+        {
+            if (services.All(descriptor => descriptor.ServiceType != subscription.HandlerType))
+            {
+                services.AddScoped(subscription.HandlerType, subscription.HandlerType);
+            }
+        }
 
         var provider = services.BuildServiceProvider();
 
@@ -565,6 +637,7 @@ public sealed class InProcessEventBusTests
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 accessor,
                 new PartitionSerializer(),
+                handlers,
                 NullLogger<InProcessEventBus>.Instance),
             accessor);
     }
@@ -596,11 +669,20 @@ public sealed class InProcessEventBusTests
 
         public ConcurrentQueue<UserId> Actors { get; } = new();
 
+        public ConcurrentQueue<UserId> CausalActors { get; } = new();
+
         public ConcurrentQueue<Guid> Organizations { get; } = new();
 
         public ConcurrentQueue<Guid> Scopes { get; } = new();
 
         public ConcurrentQueue<DisposalProbe> Probes { get; } = new();
+
+        public ConcurrentQueue<AsyncDisposalProbe> AsyncProbes { get; } = new();
+
+        public ConcurrentQueue<string> Modules { get; } = new();
+
+        public TaskCompletionSource HandlerEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public CancellationToken HandlerToken { get; set; }
 
@@ -690,6 +772,11 @@ public sealed class InProcessEventBusTests
         {
             recorder.Actors.Enqueue(context.UserId!.Value);
 
+            if (context.CausalActorUserId is { } causalActor)
+            {
+                recorder.CausalActors.Enqueue(causalActor);
+            }
+
             if (context.OrganizationId is { } organization)
             {
                 recorder.Organizations.Enqueue(organization);
@@ -763,6 +850,29 @@ public sealed class InProcessEventBusTests
         }
     }
 
+    public sealed class CancellationWaitingHandler(Recorder recorder)
+        : IIntegrationEventHandler<Thing>
+    {
+        public async Task HandleAsync(
+            Thing @event,
+            CancellationToken cancellationToken = default)
+        {
+            recorder.HandlerEntered.TrySetResult();
+            await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+    }
+
+    public sealed class ActivityReadingHandler(Recorder recorder, ITenantContext context)
+        : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.Modules.Enqueue(context.ModuleName!);
+            Activity.Current.Should().NotBeNull();
+            return Task.CompletedTask;
+        }
+    }
+
     public sealed class TenantCapturingHandler : IIntegrationEventHandler<Thing>
     {
         private readonly Recorder _recorder;
@@ -814,6 +924,28 @@ public sealed class InProcessEventBusTests
         }
     }
 
+    public sealed class AsyncDisposalProbe : IAsyncDisposable
+    {
+        public int DisposeCalls { get; private set; }
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCalls++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    public sealed class AsyncDisposalProbingHandler(
+        Recorder recorder,
+        AsyncDisposalProbe probe) : IIntegrationEventHandler<Thing>
+    {
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            recorder.AsyncProbes.Enqueue(probe);
+            return Task.CompletedTask;
+        }
+    }
+
     public sealed class ThrowingHandler : IIntegrationEventHandler<Thing>
     {
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default) =>
@@ -845,8 +977,9 @@ public sealed class InProcessEventBusTests
         }
     }
 
-    public sealed class RendezvousHandler(
-        Recorder recorder, SemaphoreSlim first, SemaphoreSlim second)
+    public sealed record RendezvousGates(SemaphoreSlim First, SemaphoreSlim Second);
+
+    public sealed class RendezvousHandler(Recorder recorder, RendezvousGates gates)
         : IIntegrationEventHandler<Thing>
     {
         public async Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
@@ -854,8 +987,8 @@ public sealed class InProcessEventBusTests
             // The key decides which gate is this side's, so the two invocations
             // never pick the same one — a shared counter would be shared across
             // tests running in parallel.
-            var mine = @event.PartitionKey == "key-1" ? first : second;
-            var theirs = ReferenceEquals(mine, first) ? second : first;
+            var mine = @event.PartitionKey == "key-1" ? gates.First : gates.Second;
+            var theirs = ReferenceEquals(mine, gates.First) ? gates.Second : gates.First;
 
             mine.Release();
             (await theirs.WaitAsync(Timeout, CancellationToken.None)).Should().BeTrue(

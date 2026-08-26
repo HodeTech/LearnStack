@@ -262,7 +262,8 @@ LogContext.PushProperty("CorrelationId", correlationId);
 
 - ADR-0003 — Tenant Isolation Defense in Depth (Amendment 1 for organization scope).
 - ADR-0017 — Tenant + Organization Hierarchy.
-- ADR-0014 — Adopt Dapr (cache + state store carry the org-prefixed keys).
+- ADR-0038 — Cross-Cutting Port and Event Contracts (all cache adapters validate
+  tenant- and organization-qualified keys).
 - ADR-0016 — Audit Log Subsystem (audit rows carry tenant + organization).
 - [28-platform-tenant-organization.md](28-platform-tenant-organization.md) — conceptual
   model.

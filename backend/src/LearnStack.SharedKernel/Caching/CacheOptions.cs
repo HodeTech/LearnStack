@@ -21,7 +21,7 @@ namespace LearnStack.SharedKernel.Caching;
 /// <b>No <c>Tags</c>.</b> An earlier sketch carried a <c>string[]? Tags</c>
 /// third parameter that no document ever specified and nothing ever read.
 /// Tag-based invalidation has the same defect as the prefix-based invalidation
-/// <see href="../../../../docs/decisions/0014-adopt-dapr.md">ADR-0014 Amendment 2</see>
+/// <see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038</see>
 /// removed: it requires an index from tag to keys that no candidate backend
 /// maintains across instances, so the method would evict what one process
 /// happens to know about and silently miss the rest. A key family that must

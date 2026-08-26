@@ -68,10 +68,10 @@ help: ## Show this help, listing every target and its one-line description.
 dev: .env ## Bring the local dev stack up (Postgres, Keycloak, SeaweedFS, …).
 	$(COMPOSE_DEV) up -d
 	@printf "\n$(CYAN)Stack up.$(RESET) Tail logs with: make logs\n"
-	@printf "Kafka, Valkey, Vault, APISIX and Dapr are behind the '$(GATED_PROFILE)' profile — $(CYAN)make dev-gated$(RESET).\n"
+	@printf "Kafka, kafka-ui, Valkey, Vault, APISIX and Dapr are behind the '$(GATED_PROFILE)' profile — $(CYAN)make dev-gated$(RESET).\n"
 
 .PHONY: dev-gated
-dev-gated: .env ## Bring the dev stack up INCLUDING the demand-gated services (Kafka, Valkey, Vault, APISIX, Dapr).
+dev-gated: .env ## Bring the dev stack up INCLUDING the demand-gated services (Kafka, kafka-ui, Valkey, Vault, APISIX, Dapr).
 	COMPOSE_PROFILES=$(GATED_PROFILE) $(COMPOSE_DEV) up -d
 	@printf "\n$(CYAN)Full stack up.$(RESET) Nothing the backend runs today calls these — see ADR-0035.\n"
 
@@ -92,7 +92,7 @@ ps: ## Show service health summary, gated services included.
 	$(COMPOSE_ALL) ps
 
 .PHONY: e2e-up
-e2e-up: .env ## Bring the dev stack up with the e2e overlay (tmpfs volumes — ephemeral).
+e2e-up: .env ## Bring the default dev services up with the e2e overlay (set COMPOSE_PROFILES=gated for all 14).
 	$(COMPOSE_E2E) up -d
 	@printf "\n$(CYAN)E2E stack up.$(RESET) Data is ephemeral — every restart wipes state.\n"
 

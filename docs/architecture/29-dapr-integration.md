@@ -1,16 +1,15 @@
 # Dapr Integration
 
-**Derives from:** [ADR-0014](../decisions/0014-adopt-dapr.md),
+**Derives from:** [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0006](../decisions/0006-events-and-outbox.md),
 [ADR-0010](../decisions/0010-cross-module-communication.md).
 
 > **Read this first.** This document describes Dapr in the present tense as the **target
 > design**. Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) no Dapr
-> component is wired today. Of the three ports, only `ISecretProvider` has shipped —
-> `ConfigurationSecretProvider`, in Packet 3. `IEventBus` and `ICacheService` land with
-> their in-process defaults (`InProcessEventBus`, `InMemoryCacheService`) in
-> [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md); from then on those
-> defaults are the only registrations in every deployment mode. The three Dapr adapters
+> component is wired into application code today. All three ports have shipped:
+> `IEventBus` and `ICacheService` use the Packet 5 defaults `InProcessEventBus` and
+> `InMemoryCacheService`; `ISecretProvider` uses `ConfigurationSecretProvider`.
+> Those are the only registrations in every deployment mode. The three Dapr adapters
 > land in
 > [Phase 11](../roadmap/phase-11-production-hardening.md) against written triggers — a
 > second process consuming an integration event, a second application instance, and
@@ -51,38 +50,25 @@ flowchart LR
     Kafka --> OtherDaprd --> OtherApp
 ```
 
-The sidecar shares the network namespace of the app pod (Docker compose
-`network_mode: "service:learnstack-api"`; Kubernetes via `dapr.io/enabled` annotation).
-The app talks to the sidecar via `localhost`, never directly to Kafka / Valkey / Vault.
+The diagram is the production pod target: the sidecar shares the app pod's network
+namespace via the Kubernetes Dapr annotation. Local development deliberately runs the
+.NET host on the workstation and the sidecar in Compose; the exact topology and service
+inventory live in [`infra/dapr/README.md`](../../infra/dapr/README.md) and
+[`infra/compose/README.md`](../../infra/compose/README.md). Do not duplicate the Compose
+service graph here.
 
 ## 2. Components
 
-Component YAML files live in `dapr/components/`. They are tracked in git as deployment
-artifacts.
+Component YAML files live in `infra/dapr/components/` and are tracked deployment
+artifacts. The files themselves are the operational source of truth; the summaries
+below deliberately do not duplicate their complete metadata.
 
-### `pubsub.yaml` — Kafka pub/sub
+### `pubsub-kafka.yaml` — Kafka pub/sub
 
-```yaml
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: pubsub
-  namespace: default
-spec:
-  type: pubsub.kafka
-  version: v1
-  metadata:
-    - name: brokers
-      value: kafka:29092
-    - name: authType
-      value: none                # production: SASL_SSL with TLS + SCRAM creds via Vault
-    - name: consumeRetryInterval
-      value: "200ms"
-    - name: maxMessageBytes
-      value: "1048576"           # 1MB
-    - name: consumerID
-      value: "learnstack-api"    # one per app id; isolates consumer groups
-```
+The committed [`pubsub-kafka.yaml`](../../infra/dapr/components/pubsub-kafka.yaml)
+uses component name `pubsub`, the Compose-network broker `kafka:9092`, and consumer
+group `learnstack-api`. Production authentication and broker endpoints are deployment
+overrides, not a second checked-in copy here.
 
 Topics follow the convention `learnstack.{module}.{aggregate}`. Examples:
 - `learnstack.identity.user`
@@ -93,7 +79,7 @@ Topics follow the convention `learnstack.{module}.{aggregate}`. Examples:
 - `learnstack.hub.entitlement`        (Hub-side)
 - `learnstack.cache.invalidation`     (cross-instance L1 cache invalidation)
 
-### `statestore.yaml` — Valkey state store
+### `statestore-redis.yaml` — Valkey state store
 
 > The component below uses `spec.type: state.redis` and `redisHost` metadata —
 > these are **Dapr provider-type / RESP-protocol identifiers**, NOT vendor
@@ -104,62 +90,30 @@ Topics follow the convention `learnstack.{module}.{aggregate}`. Examples:
 > reach the RESP-compatible store"; in dev compose the value points at the
 > `valkey` service (`infra/dapr/components/statestore-redis.yaml`).
 
-```yaml
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: statestore
-  namespace: default
-spec:
-  type: state.redis
-  version: v1
-  metadata:
-    - name: redisHost
-      value: redis:6379
-    - name: redisPassword
-      secretKeyRef:
-        name: redis-password
-        key: redis-password
-    - name: actorStateStore
-      value: "false"             # we don't use actors
-auth:
-  secretStore: secretstore-vault
-```
+The committed
+[`statestore-redis.yaml`](../../infra/dapr/components/statestore-redis.yaml) uses
+component name `statestore`, points `redisHost` at `valkey:6379`, and explicitly
+sets `actorStateStore` to `false`. Its empty development password is replaced by
+deployment configuration when the Phase 11 adapter lands.
 
 Used as L2 cache. Modules call `ICacheService.GetOrSetAsync(...)`; the implementation
 wraps state-store calls plus an L1 in-memory cache plus tenant-aware key prefixing.
 
 ### `secretstore-vault.yaml` — Vault secret store
 
-```yaml
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: secretstore-vault
-  namespace: default
-spec:
-  type: secretstores.hashicorp.vault
-  version: v1
-  metadata:
-    - name: vaultAddr
-      value: "https://vault:8200"
-    - name: vaultToken
-      value: "${VAULT_TOKEN}"   # dev only; production uses AppRole or Kubernetes auth
-    - name: vaultKVPrefix
-      value: "learnstack"
-    - name: vaultKVUsePrefix
-      value: "true"
-    - name: enginePath
-      value: "secret"
-```
+The committed
+[`secretstore-vault.yaml`](../../infra/dapr/components/secretstore-vault.yaml) uses
+component name `secretstore`, the development endpoint `http://vault:8200`, and a
+`secretKeyRef` resolved through `envvar-secrets`. It contains no literal token;
+production replaces the development token flow with AppRole or Kubernetes auth.
 
 Secret path schema:
 
 ```
 secret/learnstack/postgres            connection-string, ssl-cert
-secret/learnstack/redis               password
+secret/learnstack/valkey              password
 secret/learnstack/keycloak            base-url, admin-username, admin-password
-secret/learnstack/seaweedfs               endpoint, access-key, secret-key
+secret/learnstack/seaweedfs           endpoint, access-key, secret-key
 secret/learnstack/meilisearch         master-key, public-key
 secret/learnstack/livekit             api-key, api-secret, ws-url
 secret/learnstack/coturn              shared-secret
@@ -171,34 +125,25 @@ In `Development` the **primary** `ISecretProvider` implementation is
 `ConfigurationSecretProvider` (reads `IConfiguration`, which already merges environment
 variables, user secrets and `appsettings.{env}.json`; matches the composition-root table in
 [20-infrastructure-stack.md § Composition Root and Deployment Mode](../standards/20-infrastructure-stack.md)).
-For dev workflows that prefer Dapr-shaped secrets (e.g. exercising the
-`DaprSecretProvider` code path locally), an optional
-`secretstore-local-file.yaml` reading from `dapr/components/secrets.json` is
-**available** but not the default; the composition root picks one based on
-`Deployment:Secrets:Provider` config (`env` | `dapr-file`). Both paths produce
-the same observable behaviour through `ISecretProvider`.
+The committed `secretstore-envvar.yaml` is bootstrap support for the Dapr Vault
+component; it does not replace `ISecretProvider` and does not select an application
+adapter.
 
-### `secretstore-local-file.yaml` — optional dev variant
+### `secretstore-envvar.yaml` — Vault bootstrap support
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: secretstore
-  namespace: default
-scopes:
-  - environment: Development
+  name: envvar-secrets
 spec:
-  type: secretstores.local.file
+  type: secretstores.local.env
   version: v1
-  metadata:
-    - name: secretsFile
-      value: /components/secrets.json
-    - name: nestedSeparator
-      value: "/"
 ```
 
-`secrets.json` is git-ignored; a `secrets.json.template` is committed.
+It supplies the development Vault token to `secretstore-vault.yaml` through
+`secretKeyRef`. `ConfigurationSecretProvider` remains the only application registration
+until ADR-0035's Vault trigger fires.
 
 ## 3. SharedKernel abstractions
 
@@ -234,8 +179,8 @@ public interface ISecretProvider
 ```
 
 `IEventBus.PublishAsync` is **not generic** and `ICacheService` has **no
-`RemoveByPrefixAsync`**; `CacheOptions` carries **no `Tags`**. All three were settled by
-[ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md) — see
+`RemoveByPrefixAsync`**; `CacheOptions` carries **no `Tags`**. All three are governed by
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) — see
 [15-event-and-outbox.md](15-event-and-outbox.md) for why a generic publish reaches zero
 handlers at the only call site that matters, and § 4 below for why a prefix removal
 cannot be honoured across instances.
@@ -246,19 +191,21 @@ its shape, so an adapter that also prefixed would emit `{tenant}:{tenant}:{modul
 [Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md) fixes the
 shape; every implementation validates, none rewrites.
 
-Concrete implementations (`DaprEventBus`, `DaprCacheService`, `DaprSecretProvider`) live
-in `LearnStack.Infrastructure.{Messaging, Caching, Secrets}`. They are the **only**
-Dapr-aware code in the codebase.
+The target concrete implementations (`DaprEventBus`, `DaprCacheService`,
+`DaprSecretProvider`) will live in
+`LearnStack.Infrastructure.{Messaging, Caching, Secrets}`. Once added, they are the
+only application code permitted to know Dapr types.
 
-### Development fallback: `InProcessEventBus`
+### Current default: `InProcessEventBus`
 
-When the Dapr sidecar is not running, the composition root registers
-`InProcessEventBus : IEventBus`. It is a **transport, not a stub**: it resolves
-`IIntegrationEventHandler<T>` by the event's runtime type, restores tenant context from
-`@event.TenantId` into the handler's scope and puts the publisher's own back afterwards,
-leaves `IInboxGuard` deduplication to the handler exactly as the durable path does, and
-preserves per-partition-key ordering. A dev path that skipped those is a dev path where
-the isolation code is never exercised — see
+Every deployment mode currently registers `InProcessEventBus : IEventBus`, even when a
+developer starts the gated sidecar for inspection. It is a **transport, not a stub**: it reads
+construction-free subscription metadata, gives each subscription one consumer activity
+and one async DI scope, restores tenant and module context before resolving exactly one
+concrete `IIntegrationEventHandler<T>`, and restores the publisher's context after the
+full dispatch. It leaves `IInboxGuard` deduplication to the handler exactly as the
+durable path does and preserves per-partition-key ordering. A default path that skipped
+those is a path where the isolation code is never exercised — see
 [15-event-and-outbox.md](15-event-and-outbox.md), which owns the implementation, and
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), which makes the four
 obligations a condition of the gating.
@@ -312,12 +259,18 @@ internal sealed class DaprCacheService : ICacheService
 }
 ```
 
+**Required parity:** concurrent misses for the same key and requested type are
+single-flight. The factory executes once, the first caller owns the TTL, and an
+abandoned factory must terminate before a replacement starts. The Dapr adapter must
+coalesce misses across its L1 path just as `InMemoryCacheService` does; adding L2 must
+not reintroduce a stampede.
+
 ### Why there is no prefix removal, and no invalidation topic
 
 An earlier version of this document carried a `RemoveByPrefixAsync` backed by an
 instance-local `_trackedKeys` dictionary, whose subscriber cleared *prefix-matching* L1
 entries on every other pod. That is superseded by
-[ADR-0014 Amendment 2](../decisions/0014-adopt-dapr.md).
+[ADR-0038 § Cache contract](../decisions/0038-cross-cutting-port-and-event-contracts.md#cache-contract).
 
 The `learnstack.cache.invalidation` topic itself survives, and it is worth being precise
 about what changed: the topic carries a `(tenant_id, cache_key)` payload and evicts **one
@@ -343,39 +296,13 @@ topic on the write path. It is a caller-side convention rather than a member of
 
 ### Docker Compose (development)
 
-```yaml
-services:
-  learnstack-api:
-    build: .
-    ports: ["5100:5000"]
-    depends_on:
-      postgres:  { condition: service_healthy }
-      redis:     { condition: service_healthy }
-      kafka:     { condition: service_healthy }
-      vault:     { condition: service_healthy }
-
-  learnstack-api-dapr:
-    image: daprio/daprd:1.14
-    network_mode: "service:learnstack-api"
-    command:
-      - "./daprd"
-      - "--app-id=learnstack-api"
-      - "--app-port=5000"
-      - "--dapr-http-port=3500"
-      - "--dapr-grpc-port=50001"
-      - "--resources-path=/components"
-      - "--placement-host-address=dapr-placement:50006"
-      - "--log-level=info"
-    volumes:
-      - ./dapr/components:/components:ro
-    depends_on:
-      - learnstack-api
-
-  dapr-placement:
-    image: daprio/placement:1.14
-    command: ["./placement", "-port", "50006"]
-    ports: ["50006:50006"]
-```
+The authoritative local topology is the `gated` profile in
+[`infra/compose/dev.yml`](../../infra/compose/dev.yml), explained once in
+[`infra/compose/README.md`](../../infra/compose/README.md) and
+[`infra/dapr/README.md`](../../infra/dapr/README.md). The workstation-hosted API,
+`dapr-sidecar-api`, `host.docker.internal:5080`, placement port and pinned images must
+not be duplicated here; those operational values change independently of this target
+architecture.
 
 ### Kubernetes (production)
 
@@ -397,8 +324,9 @@ hot-loads them.
 
 ## 6. Resilience policies
 
-`config/resiliency.yaml` (Dapr Resiliency CR) defines retry / circuit-breaker / timeout
-policies referenced by component metadata:
+Phase 11 will add `infra/dapr/config/resiliency.yaml` as a Dapr Resiliency CR defining
+retry / circuit-breaker / timeout policies referenced by component metadata. No such
+file is wired today; the following is the target shape:
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -457,7 +385,7 @@ Metrics (Prometheus):
 
 ## 8. Architecture tests
 
-Three blocker-level tests (added in Phase 02):
+Three blocker-level tests land with the Dapr adapters in Phase 11:
 
 1. `Dapr_SDK_Types_NotImportedOutsideInfrastructure` — `Dapr.Client.*` types appear only
    in `LearnStack.Infrastructure.{Caching, Messaging, Secrets}` namespaces. Roslyn-based
@@ -496,7 +424,7 @@ If any of these become needed, a new ADR scopes the change.
 
 ## References
 
-- ADR-0014 — Adopt Dapr.
+- ADR-0038 — Cross-Cutting Port and Event Contracts.
 - ADR-0006 Amendment 1 — Dapr pub/sub dispatch transport.
 - ADR-0010 Amendment 1 — Outbox dispatch via Dapr.
 - [20-infrastructure-stack.md](../standards/20-infrastructure-stack.md) — usage rules.
