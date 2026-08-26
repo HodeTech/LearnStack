@@ -25,6 +25,7 @@ namespace LearnStack.Tests.Unit.Infrastructure.Messaging;
 public sealed class InProcessEventBusTests
 {
     private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
+    private static readonly Guid OtherTenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000b");
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
     private const string Trace = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
@@ -369,6 +370,28 @@ public sealed class InProcessEventBusTests
         // a shutdown never reached a consumer, which is the failure this test
         // names.
         recorder.HandlerToken.Should().Be(cancelled.Token);
+    }
+
+    [Fact]
+    public async Task A_Handler_Constructor_Sees_The_Events_Tenant()
+    {
+        // Counting the handlers resolves them — the container materialises the
+        // array to count it — and that happened before the tenant context was
+        // set, so every handler CONSTRUCTOR ran under the publisher's tenant
+        // instead of the event's. A constructor that injects ITenantContext
+        // captured the wrong one and used it for the rest of the handler's life.
+        var recorder = new Recorder();
+        var (bus, accessor) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, TenantCapturingHandler>());
+
+        accessor.Current = EventTenantContext.FromEnvelope(
+            Envelope(NewThing("publisher") with { TenantId = OtherTenant }));
+
+        await bus.PublishAsync(Envelope(NewThing("a")));
+
+        recorder.Tenants.Should().NotBeEmpty();
+        recorder.Tenants.Should().OnlyContain(t => t == Tenant,
+            "every construction and every handle runs under the event's tenant");
     }
 
     [Fact]
@@ -736,6 +759,25 @@ public sealed class InProcessEventBusTests
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
             recorder.HandlerToken = cancellationToken;
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class TenantCapturingHandler : IIntegrationEventHandler<Thing>
+    {
+        private readonly Recorder _recorder;
+
+        public TenantCapturingHandler(Recorder recorder, ITenantContext context)
+        {
+            _recorder = recorder;
+
+            // Captured at CONSTRUCTION, which is the point.
+            recorder.Tenants.Enqueue(context.TenantId);
+        }
+
+        public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
+        {
+            _recorder.Tenants.Enqueue(@event.TenantId);
             return Task.CompletedTask;
         }
     }

@@ -70,7 +70,7 @@ dev: .env ## Bring the local dev stack up (Postgres, Keycloak, SeaweedFS, …).
 	@printf "\n$(CYAN)Stack up.$(RESET) Tail logs with: make logs\n"
 	@printf "Kafka, Valkey, Vault, APISIX and Dapr are behind the '$(GATED_PROFILE)' profile — $(CYAN)make dev-gated$(RESET).\n"
 
-.PHONY: down
+.PHONY: dev-gated
 dev-gated: .env ## Bring the dev stack up INCLUDING the demand-gated services (Kafka, Valkey, Vault, APISIX, Dapr).
 	COMPOSE_PROFILES=$(GATED_PROFILE) $(COMPOSE_DEV) up -d
 	@printf "\n$(CYAN)Full stack up.$(RESET) Nothing the backend runs today calls these — see ADR-0035.\n"

@@ -209,7 +209,7 @@ Application code interacts with Dapr exclusively through three interfaces in
 // LearnStack.SharedKernel.Messaging
 public interface IEventBus
 {
-    Task PublishAsync(IIntegrationEvent @event, string partitionKey, CancellationToken ct = default);
+    Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct = default);
 }
 
 // LearnStack.SharedKernel.Caching
@@ -240,8 +240,8 @@ public interface ISecretProvider
 handlers at the only call site that matters, and § 4 below for why a prefix removal
 cannot be honoured across instances.
 
-**Keys are composed by the caller, not by the adapter.** `CacheKey.For(tenantId, module,
-name)` — or `ForOrganization(...)` — produces the key and `CacheKey.EnsureValid` guards
+**Keys are composed by the caller, not by the adapter.** `CacheKey.ForTenant(tenantId,
+module, name)` — or `ForOrganization(...)` — produces the key and `CacheKey.EnsureValid` guards
 its shape, so an adapter that also prefixed would emit `{tenant}:{tenant}:{module}:{name}`.
 [Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md) fixes the
 shape; every implementation validates, none rewrites.

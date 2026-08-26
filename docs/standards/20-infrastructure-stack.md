@@ -172,7 +172,7 @@ ADR-0014 non-goals; do not introduce them without a new ADR.
   `{tenant_id}:{organization_id}:{module}:{logical-name}` when the value is scoped to
   one organization. The `tenant_id` segment comes **first** and is mandatory even when
   a value is platform-wide — use the sentinel `"platform"` tenant id rather than
-  omitting it. Compose with `CacheKey.For` / `CacheKey.ForOrganization` /
+  omitting it. Compose with `CacheKey.ForTenant` / `CacheKey.ForOrganization` /
   `CacheKey.ForPlatform`; every `ICacheService` implementation calls
   `CacheKey.EnsureValid`, and none re-prefixes. There is no query filter and no RLS
   policy in front of a dictionary, so the key is the entire isolation boundary —

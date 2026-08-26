@@ -117,16 +117,6 @@ public static class CacheKey
     }
 
     /// <summary>
-    /// Whether the first segment is a tenant identifier or the platform sentinel.
-    /// </summary>
-    /// <remarks>
-    /// Counting segments is not enough, and the first version of this guard did
-    /// only that: <c>hub:entitlement:{tenant_id}</c> has three segments and puts
-    /// the module first, so it passed a check whose own error message says the
-    /// tenant segment is mandatory. A guard that admits the shape it exists to
-    /// reject is worse than none — it makes the rule look enforced.
-    /// </remarks>
-    /// <summary>
     /// Whether a segment that looks like an identifier is a well-formed one.
     /// </summary>
     /// <remarks>
@@ -145,6 +135,16 @@ public static class CacheKey
     /// <summary>Whether a segment parses as an identifier at all.</summary>
     private static bool LooksLikeIdentifier(string segment) => Guid.TryParse(segment, out _);
 
+    /// <summary>
+    /// Whether the first segment is a tenant identifier or the platform sentinel.
+    /// </summary>
+    /// <remarks>
+    /// Counting segments is not enough, and the first version of this guard did
+    /// only that: <c>hub:entitlement:{tenant_id}</c> has three segments and puts
+    /// the module first, so it passed a check whose own error message says the
+    /// tenant segment is mandatory. A guard that admits the shape it exists to
+    /// reject is worse than none — it makes the rule look enforced.
+    /// </remarks>
     private static bool IsTenantSegment(string segment) =>
         segment.Equals(PlatformTenant, StringComparison.Ordinal)
         || (Guid.TryParse(segment, out var id)

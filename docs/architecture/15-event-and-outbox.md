@@ -69,7 +69,7 @@ sequenceDiagram
 
     loop Polling (every 200ms; configurable)
         Processor->>Outbox: CLAIM — UPDATE SET locked_by, locked_until<br/>WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)<br/>RETURNING *; the claim survives the COMMIT
-        Processor->>Bus: PublishAsync(event, partitionKey)<br/>topic learnstack.{module}.{aggregate}
+        Processor->>Bus: PublishAsync(envelope)<br/>topic + correlation from the row
         Bus->>Transport: deliver
         Processor->>Outbox: UPDATE processed_at = now()<br/>WHERE id = @id AND locked_by = @me
     end
@@ -325,7 +325,14 @@ public sealed class OutboxProcessor : BackgroundService
             try
             {
                 var eventInstance = JsonSerializer.Deserialize(msg.Payload, Type.GetType(msg.Type)!);
-                await eventBus.PublishAsync((IIntegrationEvent)eventInstance!, msg.PartitionKey, ct);
+                await eventBus.PublishAsync(
+                    new IntegrationEventEnvelope(
+                        (IIntegrationEvent)eventInstance!,
+                        msg.CorrelationId,
+                        msg.OrganizationId,
+                        msg.CausationId,
+                        msg.ActorUserId is { } actor ? UserId.From(actor) : null),
+                    ct);
                 msg.MarkProcessed(_clock.UtcNow, _processorId);   // no-op if the lease was lost
             }
             catch (Exception ex)
@@ -391,7 +398,7 @@ domain is:
 ```csharp
 public interface IEventBus
 {
-    Task PublishAsync(IIntegrationEvent @event, string partitionKey, CancellationToken ct = default);
+    Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct = default);
 }
 ```
 

@@ -26,27 +26,46 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 public sealed class CrossCuttingFoundationTests
 {
+    /// <summary>
+    /// Every module assembly a rule in this class sweeps.
+    /// </summary>
+    /// <remarks>
+    /// <c>Application.Contracts</c> is in the list because that is where
+    /// integration events are declared — <c>add-integration-event</c> puts them
+    /// in <c>&lt;Producer&gt;.Application.Contracts/IntegrationEvents/</c>. Without
+    /// it, <c>Integration_Event_TopicNames_FollowConvention</c> would sweep only
+    /// assemblies that by convention never hold an event, so it would be vacuous
+    /// permanently rather than until the first module ships one — and the same
+    /// omission narrowed three older rules alongside it.
+    /// </remarks>
     private static readonly string[] ModuleAssemblyShapes =
     [
         "LearnStack.Modules.Tenancy.Application",
+        "LearnStack.Modules.Tenancy.Application.Contracts",
         "LearnStack.Modules.Tenancy.Domain",
         "LearnStack.Modules.Tenancy.Infrastructure",
         "LearnStack.Modules.Identity.Application",
+        "LearnStack.Modules.Identity.Application.Contracts",
         "LearnStack.Modules.Identity.Domain",
         "LearnStack.Modules.Identity.Infrastructure",
         "LearnStack.Modules.Customization.Application",
+        "LearnStack.Modules.Customization.Application.Contracts",
         "LearnStack.Modules.Customization.Domain",
         "LearnStack.Modules.Customization.Infrastructure",
         "LearnStack.Modules.Audit.Application",
+        "LearnStack.Modules.Audit.Application.Contracts",
         "LearnStack.Modules.Audit.Domain",
         "LearnStack.Modules.Audit.Infrastructure",
         "LearnStack.Modules.Content.Application",
+        "LearnStack.Modules.Content.Application.Contracts",
         "LearnStack.Modules.Content.Domain",
         "LearnStack.Modules.Content.Infrastructure",
         "LearnStack.Modules.Media.Application",
+        "LearnStack.Modules.Media.Application.Contracts",
         "LearnStack.Modules.Media.Domain",
         "LearnStack.Modules.Media.Infrastructure",
         "LearnStack.Modules.Education.Application",
+        "LearnStack.Modules.Education.Application.Contracts",
         "LearnStack.Modules.Education.Domain",
         "LearnStack.Modules.Education.Infrastructure",
     ];

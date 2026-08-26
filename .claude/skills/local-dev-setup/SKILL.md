@@ -1,8 +1,9 @@
 ---
 name: local-dev-setup
 description: >
-  Bring up the LearnStack local stack — Postgres, Valkey, Vault, Kafka, Dapr
-  sidecar, APISIX, Keycloak (two realms), SeaweedFS, LiveKit OSS, Meilisearch — via
+  Bring up the LearnStack local stack — Postgres, Keycloak (two realms),
+  SeaweedFS, LiveKit OSS, Meilisearch, Mailpit, Coturn by default, and Valkey,
+  Kafka, Vault, APISIX and the two Dapr services behind the `gated` profile — via
   `docker-compose` plus the project's `make dev` orchestrator. USE FOR: first-time
   workstation setup, restoring a broken local environment, switching between
   `DeploymentMode` for testing. DO NOT USE FOR: production deployment (separate
@@ -15,8 +16,12 @@ description: >
 ## Purpose
 
 Stand up a full LearnStack stack on a developer workstation so backend + frontend
-can run against real Postgres / Valkey / Kafka / Vault / Keycloak / SeaweedFS /
-LiveKit / Meilisearch / APISIX — the same components production uses
+can run against real Postgres / Keycloak / SeaweedFS / LiveKit / Meilisearch —
+the same components production uses. Valkey, Kafka, Vault, APISIX and Dapr sit
+behind the `gated` profile per
+[ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md): nothing
+the backend runs today calls them, so `make dev` starts 7 services and
+`make dev-gated` starts all 14
 ([12-infrastructure.md § Local Infrastructure](../../../docs/standards/12-infrastructure.md),
 [20-infrastructure-stack.md](../../../docs/standards/20-infrastructure-stack.md)).
 
@@ -82,7 +87,8 @@ pnpm install --frozen-lockfile
 ### Step 3: Bring up the stack
 
 ```bash
-make dev      # brings the containers up — and only the containers
+make dev        # the daily loop: 7 services, the ones the backend can call
+make dev-gated  # all 14, including Valkey, Kafka, Vault, APISIX and Dapr
 ```
 
 `make dev` is `docker compose up -d` plus a status line. It does **not** start
@@ -118,6 +124,14 @@ Three properties of that inventory matter while you are setting up:
   [Infrastructure Standards § Published ports](../../../docs/standards/12-infrastructure.md).
 - **Kafka and the Dapr placement service publish nothing.** They are reached
   over the compose network only; nothing on the host speaks to them directly.
+- **Seven of the fourteen do not start by default.** Valkey, Kafka, kafka-ui,
+  Vault, APISIX and the two Dapr services sit behind the `gated` compose
+  profile: nothing the backend runs today calls any of them, and their adapters
+  land in Phase 11 against written triggers
+  ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)).
+  `make down` and `make clean` stop the gated ones too — a profile-less teardown
+  silently leaves them running, which is why every teardown target carries
+  `--profile '*'`.
 - **Neither application host is a compose service.** `LearnStack.Api` runs on
   the workstation via `dotnet run` on the `ASPNETCORE_URLS` port in
   `.env.example` (5080), and `apps/web` runs via `pnpm dev` on 3000.

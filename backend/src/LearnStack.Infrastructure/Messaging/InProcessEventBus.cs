@@ -84,8 +84,32 @@ public sealed partial class InProcessEventBus(
         // report success.
         var contract = typeof(IIntegrationEventHandler<>)
             .MakeGenericType(envelope.Event.GetType());
-        var handle = contract.GetMethod(HandleMethodName)!;
         var context = EventTenantContext.FromEnvelope(envelope);
+
+        // Set for the WHOLE dispatch, before anything resolves a handler.
+        // Counting resolves them too — the container materialises the array to
+        // count it — so with the context set only inside the delivery loop, every
+        // handler constructor ran under the publisher's tenant instead of the
+        // event's. A constructor that injects ITenantContext would have captured
+        // the wrong one and used it for the rest of the handler's life.
+        var previous = tenantAccessor.Current;
+        tenantAccessor.Current = context;
+
+        try
+        {
+            await DispatchUnderContextAsync(contract, envelope, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            tenantAccessor.Current = previous;
+        }
+    }
+
+    private async Task DispatchUnderContextAsync(
+        Type contract, IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var handle = contract.GetMethod(HandleMethodName)!;
         var count = HandlerCount(contract, envelope, out var constructionFailure);
 
         if (constructionFailure is not null)
@@ -120,7 +144,7 @@ public sealed partial class InProcessEventBus(
         {
             try
             {
-                await DeliverAsync(contract, handle, index, envelope, context, cancellationToken)
+                await DeliverAsync(contract, handle, index, envelope, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -160,7 +184,6 @@ public sealed partial class InProcessEventBus(
         MethodInfo handle,
         int index,
         IntegrationEventEnvelope envelope,
-        ITenantContext context,
         CancellationToken cancellationToken)
     {
         // One scope per HANDLER, not one per event. Under a broker each
@@ -184,15 +207,12 @@ public sealed partial class InProcessEventBus(
         // metric or writes a log line will do it N+1 times per delivery.
         await using var scope = scopeFactory.CreateAsyncScope();
 
-        // Restored into the flow the handler runs in AND into the scope it
-        // resolves ITenantContext from — the composition root binds the scoped
-        // context to this accessor. Setting only the ambient one left the scoped
-        // ITenantContext unresolved, so a handler injecting it threw and a
-        // handler sending a MediatR command was short-circuited by
-        // TenantContextBehavior before its business logic ran.
-        var previous = tenantAccessor.Current;
-        tenantAccessor.Current = context;
-
+        // The context is already set for the whole dispatch, and the scope
+        // resolves ITenantContext from that same accessor — the composition root
+        // binds it that way. Setting only the ambient accessor and not binding
+        // the scoped one left a handler injecting ITenantContext unresolved, and
+        // one sending a MediatR command short-circuited by TenantContextBehavior
+        // before its business logic ran.
         try
         {
             var handler = scope.ServiceProvider.GetServices(contract).ElementAt(index)!;
@@ -231,10 +251,6 @@ public sealed partial class InProcessEventBus(
             throw new InvalidOperationException(
                 "An integration-event handler was cancelled by a token other than the publish token.",
                 ex);
-        }
-        finally
-        {
-            tenantAccessor.Current = previous;
         }
     }
 

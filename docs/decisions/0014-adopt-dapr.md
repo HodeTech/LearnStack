@@ -147,7 +147,9 @@ Adopt **Option A**: Dapr for pub/sub + state + secrets.
 ### Application access pattern
 
 **The `IEventBus` and `ICacheService` signatures below are superseded by**
-[Amendment 2](#2026-08-24--amendment-2-two-port-signatures-corrected-before-first-use).
+[Amendment 2](#2026-08-24--amendment-2-two-port-signatures-corrected-before-first-use)
+and refined again by
+[Amendment 3](#2026-08-25--amendment-3-the-publish-envelope-decided-before-the-first-call-site).
 They are left as written because an Accepted ADR's Decision section is not rewritten;
 what Packet 5 ships is the amended shape. `ISecretProvider` is unchanged and shipped in
 Packet 3.

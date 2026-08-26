@@ -63,21 +63,27 @@ public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
     public Guid? CohortId { get; init; }
     public required string Source { get; init; }  // "manual" | "billing" | "invitation"
 
-    // Not optional: IntegrationEventBase declares PartitionKey abstract, so this
-    // record does not compile without it. Ordering is guaranteed per partition
-    // key and nowhere else, and the aggregate this event is about is the
-    // ordering domain. Keying on TenantId instead would serialise the tenant's
-    // whole stream onto one partition — a real throughput cost, and one worth
-    // taking deliberately rather than by inheriting a default.
+    // Both abstract on IntegrationEventBase, so this record does not compile
+    // without them — deliberately, because each is a property of the event TYPE
+    // and a value with two sources is a value that can disagree with itself.
+    public override string Topic => "learnstack.enrollment.enrollment";
+
+    // Ordering is guaranteed per partition key and nowhere else, and the
+    // aggregate this event is about is the ordering domain. Keying on TenantId
+    // instead would serialise the tenant's whole stream onto one partition — a
+    // real throughput cost, and one worth taking deliberately rather than by
+    // inheriting a default.
     public override string PartitionKey => EnrollmentId.ToString();
 }
 ```
 
 `IntegrationEventBase` (`LearnStack.SharedKernel.Messaging`) supplies exactly
-four members, and every one of them is mandatory:
+five members, and every one of them is mandatory:
 - `EventId` — `required`; identity for consumer-side deduplication
 - `OccurredAt` — `required`; from `IClock`, never `DateTime.UtcNow`
 - `TenantId` — `required`; what the transport restores before your handler runs
+- `Topic` — `abstract`; the channel, `learnstack.{module}.{aggregate}`, checked by
+  `Integration_Event_TopicNames_FollowConvention`
 - `PartitionKey` — `abstract`; the ordering domain, declared by each event
 
 It supplies **no** `OrganizationId`, `CorrelationId`, `CausationId` or
@@ -99,7 +105,7 @@ In the producer's command handler (see
 ```csharp
 await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
 {
-    EventId = guidFactory.NewGuid(),          // IGuidFactory, not Guid.NewGuid
+    EventId = guidFactory.NewUuidV7(),        // IGuidFactory, not Guid.NewGuid
     OccurredAt = clock.UtcNow,                // IClock per Standards 02 § Time
     TenantId = tenantContext.TenantId,
     EnrollmentId = enrollment.Id.Value,
@@ -134,7 +140,7 @@ learnstack.{module}.{aggregate}
 - `learnstack.classroom.session`
 - `learnstack.hub.entitlement` (Hub side)
 
-The architecture test `Dapr_PubSub_TopicNames_FollowConvention` enforces the
+The architecture test `Integration_Event_TopicNames_FollowConvention` enforces the
 pattern; deviation fails the build.
 
 ### Step 4: Consumer — handler + inbox guard
@@ -178,12 +184,23 @@ Rules:
   `@event.TenantId` before your handler runs, and puts the publisher's own back
   afterwards. Read it through `ITenantContext` as usual; don't read it from
   anywhere else.
-- **Organization is deliberately not restored.** A fact crossing a module
-  boundary is a tenant-level fact, and inventing an organization scope for the
-  consumer would narrow queries the producer never narrowed — the failure would
-  be silently missing rows rather than an error. If your consumer is genuinely
-  organization-scoped, carry the id as a field on your own event record and
-  filter on it explicitly.
+- **Organization comes from the envelope, and it has to.** An earlier version of
+  this skill said it was deliberately not restored, reasoning that inventing an
+  organization scope would narrow queries the producer never narrowed. Under the
+  canonical Row Level Security policy the reasoning inverts: with
+  `app.organization_id` unset, an organization-scoped row evaluates
+  `false OR NULL OR NULL`, and a NULL policy result is false — so an absent
+  organization *hides* every organization-scoped row and `WITH CHECK` rejects
+  writing one. Widening is the `app.scope = 'tenant'` hatch, not an absent value.
+- **The actor is `UserId.SystemActor`** unless the envelope names one.
+  `AuditableEntity.MarkCreated` refuses `default(UserId)`, so without it your
+  consumer cannot create an aggregate at all.
+- **Your handler's constructor must do nothing but assign fields.** Each handler
+  gets its own DI scope and the container materialises the whole handler array
+  per scope, so a constructor runs several times per delivery. A constructor that
+  opens a connection, emits a metric or writes a log line will do it more than
+  once. A constructor that *throws* denies the event to every other module's
+  handler — construction happens before per-handler isolation can start.
 
 ### Step 5: Subscription registration
 
@@ -214,7 +231,7 @@ Two tests minimum:
 - `LearnStack.Tests.Architecture` is green; specifically
   `Integration_Events_Inherit_From_IntegrationEventBase`,
   `Integration_Event_Handlers_Use_InboxGuard`,
-  `Dapr_PubSub_TopicNames_FollowConvention`.
+  `Integration_Event_TopicNames_FollowConvention`.
 - An integration test confirms the round-trip: handler publishes → outbox row
   created → outbox processor dispatches → consumer handles + writes business
   state + inbox row.

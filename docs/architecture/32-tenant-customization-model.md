@@ -443,7 +443,7 @@ per tenant per month. That ratio is the whole design.
 | `TenantPageBlock` set | L1 + L2 | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 | Compiled JSON Schema validator | L1 only, per pod | `(tenant_id, content_type_key, schema_version)` | Process lifetime, bounded LRU | Immutable — a schema version never changes |
 
-These are composed with `CacheKey.For(tenantId, "customization", logicalName)`, and the
+These are composed with `CacheKey.ForTenant(tenantId, "customization", logicalName)`, and the
 shape is not cosmetic: the tenant segment comes **first**, per
 [Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), and
 `CacheKey.EnsureValid` throws on anything else. An earlier version of this table led
