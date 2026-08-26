@@ -28,7 +28,8 @@
 > [`## Delivery Record (Packets 0–3)`](#delivery-record-packets-03) and are not
 > rewritten. Packet 3b has its own record in
 > [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), and Packet 4 in
-> [`## Delivery Record (Packet 4)`](#delivery-record-packet-4) — each kept separate
+> [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), and Packet 5 in
+> [`## Delivery Record (Packet 5)`](#delivery-record-packet-5) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -304,7 +305,7 @@ no audit trail; the ADR's staging table says what each packet owes.
 SDK generation ships as a wired-but-empty scaffold — there are no endpoints to
 generate from until [Phase 02d](phase-02d-walking-skeleton.md).
 
-**Packet 5 — Foundation ports and default implementations ⏳**
+**Packet 5 — Foundation ports and default implementations ✅** ([delivery record](#delivery-record-packet-5))
 `IEventBus` / `ICacheService` / `ISecretProvider` in
 `LearnStack.SharedKernel`, with `InProcessEventBus` / `InMemoryCacheService` in
 `LearnStack.Infrastructure` — `ISecretProvider` and `ConfigurationSecretProvider`
@@ -1840,3 +1841,154 @@ only reason they are in a record rather than in production.
 > the multipart and file-upload rows need an endpoint and wait for
 > [Phase 04](phase-04-cms-media-pages.md). Each is written down where the limit is
 > published, with the phase that owns it.
+
+## Delivery Record (Packet 5)
+
+Kept separate from the records above for the reason they are separate from each
+other: each is scoped to its own packets and is not rewritten. This one records
+what Packet 5 shipped, and — like Packet 4's — what its own plan had wrong. Most
+of the entries below are defects the packet introduced and then found in its own
+review rounds, which is the only reason they are in a record rather than in
+production. Several of them are defects introduced by the *fix* for an earlier
+one.
+
+> **Packet 5 — Foundation ports and default implementations ✅**
+>
+> **The ports.** `ICacheService` with `InMemoryCacheService`, `IEventBus` with
+> `InProcessEventBus`, and — from Packet 3 — `ISecretProvider` with
+> `ConfigurationSecretProvider`, as the only registered implementations. Each is
+> selected at a single composition-root site so Phase 11's adapter is one line
+> rather than a search. `IHostToTenantResolver` and `IEntitlementProvider` are
+> **not** here: they need tenancy schema, and belong to Packets 7 and 9. Two
+> sections of this document disagreed about that, because one is phase scope and
+> one is packet scope.
+>
+> **The cache key is the isolation boundary, and that is not a figure of speech.**
+> There is no query filter and no RLS policy in front of a dictionary, so
+> `CacheKey` composes and `EnsureValid` guards: the tenant segment first and
+> mandatory, `platform` for a platform-wide value, `ForOrganization` for a scope
+> ADR-0017 makes real, and every segment that parses as an identifier required to
+> be the canonical rendering of a non-empty one.
+>
+> The guard shipped **validating arity rather than tenancy** —
+> `hub:entitlement:{id}` has three non-empty segments and puts the module first,
+> so it passed a check whose own error message says the tenant segment is
+> mandatory. A guard that admits the shape it exists to reject is worse than
+> none, because it makes the rule look enforced. Standards 20's cheat sheet
+> listed five key families and every one of them led with the module,
+> contradicting the rule stated a few lines above it; two of the five could not
+> be built by any factory at all, so the two the standard singles out — including
+> the host lookup, on the anonymous page-load path — would have been hand-built
+> past the only place `Guid.Empty`, non-canonical rendering and separator
+> injection are checked.
+>
+> **The bound was not a bound, and then it crashed the writers it protects.**
+> Trimming lived inside the sweep, the sweep is throttled by clock time, and a
+> burst does not advance the clock: measured, 60,000 entries against a ceiling of
+> 10,000. Moving it to every write that adds a key fixed the count and introduced
+> something worse — `OrderBy` over a live `ConcurrentDictionary` buffers it
+> through `CopyTo` after reading `Count`, and those two steps are not atomic. Two
+> concurrent writers failed 4.1% of ordinary writes; four failed 15.5%. A
+> component whose contract is that it may no-op at any time was instead failing
+> the caller's request, and in `GetOrSetAsync` the throw lands after the factory
+> has already run. An atomic snapshot plus a low-water mark fixed both, and took
+> the steady-state cost from 0.26 ms and 281 KB per write to 0.0072 ms and 1.2 KB.
+>
+> **The single-flight cleanup was bound to the wrong event twice.** Unregistering
+> when a *caller* exits meant a joiner that cancelled removed the shared
+> registration while the factory still ran, so the next arrival started a second
+> concurrent run — the stampede the method exists to prevent, reintroduced by its
+> own cleanup. Unregistering on the *factory's* completion instead meant the
+> flight was gone by the time the caller stored, so nothing could mark it
+> superseded. It retires when its last caller is done. A per-key version counter
+> written along the way lived in a dictionary nothing swept: 50,000 entries
+> against the cache's own ceiling of 10,000, an unbounded structure behind a
+> bounded one.
+>
+> **The event bus carries four obligations, and each has a test that fails when
+> the code implementing it is removed.** The same `IIntegrationEventHandler<T>`
+> contract, the same `IInboxGuard` seam, the same tenant-context restoration, the
+> same per-partition ordering. `PublishAsync` is not generic and handlers resolve
+> by runtime type, because the outbox publishes through the base interface and a
+> generic parameter would resolve `IIntegrationEventHandler<IIntegrationEvent>`,
+> which nothing implements — the publish would reach zero handlers and report
+> success.
+>
+> **The reentrancy fix broke the guarantee it protected.** A handler publishing
+> about its own aggregate deadlocked and wedged the partition permanently. Running
+> the reentrant call inline was worse: an `AsyncLocal` flows into every task
+> started inside a unit, so a fire-and-forget spawn inherited the marker and ran
+> *concurrently* with the unit it should have queued behind. The detection is the
+> same either way; only the action differs, and that asymmetry is the point — a
+> false positive that throws is diagnosable, one that runs inline is a silent
+> concurrency violation. Comparing against the innermost key alone then still
+> missed `A → B → A`, the same cycle one hop longer, five times out of five.
+>
+> **The envelope, decided before the first call site.** The outbox row requires
+> `topic` and `correlation_id` as `NOT NULL` and carries organization, causation
+> and actor; none of them belong on the event, and the two-parameter signature had
+> nowhere to put them, so correlation was read from whatever context was ambient
+> at dispatch — `null` inside the background service the processor is. The
+> partition key had two sources and the transport read the one the event did not
+> declare, while every test published an event whose declared key disagreed with
+> the one passed. And no consumer could write state at all:
+> `AuditableEntity.MarkCreated` refuses `default(UserId)`, and the consumer
+> context supplied neither an actor nor an organization — under the canonical RLS
+> policy an absent organization *hides* every organization-scoped row rather than
+> widening to all of them, which is the opposite of what the code claimed. See
+> [ADR-0014 Amendment 3](../decisions/0014-adopt-dapr.md).
+>
+> **A trap the non-generic port creates, closed with it.** With `IIntegrationEvent`
+> as the declared type at every dispatch boundary,
+> `JsonSerializer.Serialize(@event)` emits four members and silently drops
+> everything the concrete event added — valid JSON, no exception, committed inside
+> the transaction that reported success, and failing to deserialize on every retry
+> until it dead-letters. `ToPayloadJson()` serialises by runtime type.
+>
+> **Seven services left the daily loop.** Kafka, Valkey, Vault, APISIX and the two
+> Dapr containers sit behind a compose profile per ADR-0035; `make dev` starts 7
+> instead of 14. Two failure modes decided the shape and both were measured: a
+> profile-less `down` silently leaves profiled containers running, and
+> `--remove-orphans` does not help; and a default service depending on a gated one
+> is not a warning but a whole-project error, so `config`, `up`, `down` and `ps`
+> all refuse. Nothing was checking the second — CI did not validate the compose
+> files at all. It does now, across both profile projections and both overlays.
+>
+> **`DeploymentMode` branching is booted, not described.** Existing coverage
+> stopped at reading the mode. The first version of the new test passed while
+> proving nothing: it set `Deployment:Mode` through `ConfigureAppConfiguration`,
+> which under minimal hosting runs *after* the composition root has read
+> `builder.Configuration`, so `appsettings.Development.json` won and the SaaS case
+> silently exercised the Development branch.
+>
+> **Three tests were found agreeing with the code instead of constraining it,**
+> and that is the packet's most repeated lesson. A bound test that advanced the
+> clock one second per write — the one schedule under which the broken bound held.
+> A stampede test built with `Select(...).ToArray()`, which LINQ evaluates
+> sequentially, so eight "concurrent" callers never raced and
+> `LazyThreadSafetyMode.None` survived it. A cross-key rendezvous sharing one
+> semaphore, where each side consumed its own release and waited for nothing, so
+> collapsing every partition onto a single chain passed. A fourth kind appeared in
+> the mutation harness itself: a mutant that failed to compile looked like a
+> passing suite, because the check grepped only for test failures.
+>
+> **What is enforced, and where.** `Integration_Event_TopicNames_FollowConvention`
+> is implemented — which required making `Topic` a property of the event type
+> rather than a producer-supplied string, since the rule reads the declarations.
+> `Modules_Do_Not_Inject_IEventBus_Directly` closes the door on a fifth
+> cross-module mechanism. `Assertion_Budget_Does_Not_Depend_On_ICacheService`
+> became the dependency check the catalogue promised once the type existed. Both
+> new rules sweep `.Application.Contracts` as well, because that is where
+> integration events are declared and the existing sweep omitted it — which would
+> have made them vacuous permanently rather than until the first module ships one.
+>
+> **Outside the packet's own scope, found by working in it.** The pre-commit hook
+> never applied `.leakwatchignore`: leakwatch resolves it relative to the scan
+> target, and the hook scans file by file, so seven paths were unscannable locally
+> while CI was green — and the hook's own remediation text told the developer to
+> extend a file that could not have helped. The first fix layered the ignore file
+> onto the repository's own stack, which broke it in both directions: a
+> `.gitignore` negation outranks `core.excludesFile`, so two of the fourteen paths
+> were still blocked, and patterns from `.gitignore` and a developer's
+> `.git/info/exclude` were honoured as leakwatch's. It is evaluated in isolation
+> now.
