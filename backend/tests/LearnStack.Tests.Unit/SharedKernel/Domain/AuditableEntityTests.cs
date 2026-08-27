@@ -138,6 +138,35 @@ public sealed class AuditableEntityTests
     }
 
     [Fact]
+    public void MarkUpdated_BeforeMarkCreated_Throws()
+    {
+        // Measured before the guard existed: this succeeded and left CreatedAt at
+        // 0001-01-01 — the programmer-error sentinel EnsureValidAuditInput refuses
+        // as an argument — and a later MarkCreated then succeeded too, because its
+        // own guard reads `CreatedAt != default` and the sentinel satisfied it.
+        // The row that reached the database had updated_at preceding created_at.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        var act = () => aggregate.MarkUpdated(T0, Actor);
+
+        act.Should().Throw<InvalidOperationException>();
+        aggregate.UpdatedAt.Should().BeNull("a refused call changes nothing");
+        aggregate.Version.Should().Be(0);
+    }
+
+    [Fact]
+    public void SoftDelete_BeforeMarkCreated_Throws()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        var act = () => aggregate.SoftDelete(T0, Actor);
+
+        act.Should().Throw<InvalidOperationException>();
+        aggregate.DeletedAt.Should().BeNull();
+        aggregate.IsDeleted.Should().BeFalse();
+    }
+
+    [Fact]
     public void SoftDelete_CalledTwice_Throws()
     {
         // Same reason MarkCreated refuses a second call: the second delete would

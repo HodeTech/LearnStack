@@ -651,9 +651,10 @@ rules that need a second `DbContext` are owed by Phase 03.
 #### `SoftDelete_Advances_The_Row_Version`
 
 - **Asserts:** `AuditableEntity.SoftDelete` leaves `Version` strictly greater than it
-  was. Behavioural, because the structural rule cannot see it: `SoftDelete` stamps
-  `UpdatedAt` / `UpdatedBy` itself, so an increment placed only in `MarkUpdated` would
-  leave a soft delete un-versioned and a client's pre-delete ETag would keep
+  was. Behavioural, because the structural rule cannot see it: before Packet 6 step 2
+  `SoftDelete` stamped `UpdatedAt` / `UpdatedBy` directly rather than through the
+  shared `Touch` primitive, so an increment placed only in `MarkUpdated` would have
+  left a soft delete un-versioned and a client's pre-delete ETag would have kept
   satisfying `If-Match` on the row it deleted.
 - **Source:** ADR-0039 § Why `MarkUpdated` and not an interceptor.
 - **Type:** xUnit (`LearnStack.Tests.Unit`, `AuditableEntityTests`). **Kind:** behavioural.

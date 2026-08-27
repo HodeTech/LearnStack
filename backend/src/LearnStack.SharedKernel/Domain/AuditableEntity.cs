@@ -90,6 +90,7 @@ public abstract class AuditableEntity<TId>
     public void MarkUpdated(DateTimeOffset at, UserId by)
     {
         EnsureValidAuditInput(at, by);
+        EnsureCreated();
         Touch(at, by);
     }
 
@@ -110,6 +111,8 @@ public abstract class AuditableEntity<TId>
     public void SoftDelete(DateTimeOffset at, UserId by)
     {
         EnsureValidAuditInput(at, by);
+
+        EnsureCreated();
 
         if (DeletedAt is not null)
         {
@@ -142,7 +145,44 @@ public abstract class AuditableEntity<TId>
     {
         UpdatedAt = at;
         UpdatedBy = by;
-        Version++;
+
+        // `checked` so the wrap is an exception rather than a sign flip. 2^63
+        // updates to one row is not a reachable bound, but an unchecked ++ that
+        // silently produces a negative token would make every subsequent ETag
+        // comparison meaningless, and the cost of ruling it out is one keyword.
+        checked
+        {
+            Version++;
+        }
+    }
+
+    /// <summary>
+    /// Refuses an update on an aggregate that was never created.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Measured before this guard existed: <c>MarkUpdated</c> on a fresh
+    /// aggregate succeeded and left <see cref="CreatedAt"/> at
+    /// <c>0001-01-01T00:00:00Z</c> — the exact programmer-error sentinel
+    /// <see cref="EnsureValidAuditInput"/> refuses as an *argument* and which
+    /// its own comment says must never be persisted. Worse, a later
+    /// <c>MarkCreated</c> then succeeded, because its guard reads
+    /// <c>CreatedAt != default</c> and the sentinel still satisfied it — leaving
+    /// a row whose <c>updated_at</c> precedes its <c>created_at</c>.
+    /// </para>
+    /// <para>
+    /// The ordering is not something callers can be relied on to keep: it is one
+    /// missing <c>Create()</c> factory call away, and nothing downstream would
+    /// notice, because both columns are populated and neither is null.
+    /// </para>
+    /// </remarks>
+    private void EnsureCreated()
+    {
+        if (CreatedAt == default)
+        {
+            throw new InvalidOperationException(
+                "MarkCreated has not been called on this aggregate; an update cannot precede creation. Construct it through its aggregate factory.");
+        }
     }
 
     // Audit metadata must always be meaningful: the default timestamp

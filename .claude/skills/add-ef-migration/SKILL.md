@@ -86,10 +86,17 @@ migrationBuilder.Sql("""
         tenant_id        uuid NOT NULL,
         organization_id  uuid NULL,                  -- only for [OrganizationScoped]
         -- ... domain columns ...
+        -- The six-column set from Database Standards § Audit Columns, verbatim.
+        -- updated_* are NULLABLE: MarkCreated stamps created_* only, so NOT NULL
+        -- here rejects every INSERT. deleted_* are UNCONDITIONAL: AuditableEntity<TId>
+        -- implements ISoftDelete for every aggregate, so EF maps them either way and
+        -- a table without them cannot materialize its own entity.
         created_at       timestamptz NOT NULL DEFAULT now(),
         created_by       uuid NOT NULL,
-        updated_at       timestamptz NOT NULL DEFAULT now(),
-        updated_by       uuid NOT NULL,
+        updated_at       timestamptz NULL,
+        updated_by       uuid NULL,
+        deleted_at       timestamptz NULL,
+        deleted_by       uuid NULL,
         row_version      bigint NOT NULL DEFAULT 0,
         -- Exists solely so child tables can carry a composite FK into this one.
         CONSTRAINT ux_<name_plural>_tenant_id_id UNIQUE (tenant_id, id)
