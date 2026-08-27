@@ -41,7 +41,9 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3 and 3b shipped; packets 4–10 re-scoped on 2026-08-08.**
+packets 0–3, 3b, 4 and 5 shipped; packets 4–10 re-scoped on 2026-08-08.
+[Packet 6](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the tenancy
+schema and the corrected RLS template — is next.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the
@@ -57,6 +59,19 @@ management — whose *timing* later moved to Phase 11), the shared kernel core, 
 [ADR-0032](docs/decisions/0032-exception-handling-logging-and-observability.md)
 cross-cutting foundation. [Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b)
 then repaired what a corpus audit found — before any consumer existed.
+
+[Packet 4](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-4) shipped the
+API conventions: `/api/v{N}` routing, one RFC 7807 shape on every error, cursor
+pagination and the sort grammar, the
+[ADR-0036](docs/decisions/0036-tenant-resolution-trusted-inputs.md) tenancy edge,
+idempotency keys and ETag concurrency, and the first working SDK generation.
+[Packet 5](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5) shipped the
+foundation ports with the implementations that actually run today — `ICacheService` /
+`InMemoryCacheService`, `IEventBus` / `InProcessEventBus`, `ISecretProvider` /
+`ConfigurationSecretProvider` — each selected at one composition-root site, and moved
+the seven demand-gated services out of the daily `make dev` loop. Both records list the
+defects the packet introduced and caught in its own review rounds alongside what it
+built.
 
 The 2026-08-08 restructure moved correctness earlier (the corrected RLS template in
 [ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md), durable

@@ -1,6 +1,6 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-20).** Phase 02a in progress. Packets 0–3, 3b and 4 shipped; the
+> **Status (2026-08-27).** Phase 02a in progress. Packets 0–3, 3b, 4 and 5 shipped; the
 > 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -14,7 +14,7 @@
 > | 3 | Cross-cutting foundation | ✅ [record](#delivery-record-packets-03) |
 > | 3b | Decision repair | ✅ [record](#delivery-record-packet-3b) |
 > | 4 | API conventions | ✅ [record](#delivery-record-packet-4) |
-> | 5 | Foundation ports and default implementations | ⏳ [scope](#packet-sequence) |
+> | 5 | Foundation ports and default implementations | ✅ [record](#delivery-record-packet-5) |
 > | 6 | Tenancy schema and the corrected RLS template | ⏳ [scope](#packet-sequence) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ⏳ [scope](#packet-sequence) |
 > | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
@@ -1941,7 +1941,7 @@ one.
 >
 > **A trap the non-generic port creates, closed with it.** With `IIntegrationEvent`
 > as the declared type at every dispatch boundary,
-> `JsonSerializer.Serialize(@event)` emits four members and silently drops
+> `JsonSerializer.Serialize(@event)` emits five members and silently drops
 > everything the concrete event added — valid JSON, no exception, committed inside
 > the transaction that reported success, and failing to deserialize on every retry
 > until it dead-letters. `ToPayloadJson()` serialises by runtime type.
@@ -1993,3 +1993,73 @@ one.
 > were still blocked, and patterns from `.gitignore` and a developer's
 > `.git/info/exclude` were honoured as leakwatch's. It is evaluated in isolation
 > now.
+>
+> **Five more review rounds ran after this record was first written**, and they
+> are part of the packet rather than a sequel to it — the packet closed when PR
+> #13 merged on 2026-08-27, not when the record was drafted. What they found
+> divides cleanly in two, and both halves are the same lesson the packet keeps
+> teaching: a guarantee is worth what its evidence is worth.
+>
+> **A budget that was not a budget, in three successive shapes.** The factory
+> timeout ended the flight with `TrySetCanceled`, so every waiter — including one
+> whose own token was healthy — was told *it* had cancelled; ASP.NET reads a
+> cancellation as a client hang-up, so the timeout an operator needs to see would
+> have produced no body, no captured error and no span. Faulting with a
+> `TimeoutException` exposed the next layer: `CancelAfter` cancels a *token*, and
+> a factory that never observes one — the ordinary shape of any dependency call
+> that does not thread it — ran to completion regardless. Measured against a
+> 150 ms budget, the caller waited 3,002 ms and was handed the late value, which
+> means the timeout branch just added was unreachable on exactly the path that
+> most needs it. Racing the deadline fixed it and required `Flight.Overrunning`:
+> waiting on the completion instead would have spun the retry loop hot, because a
+> terminal flight satisfies it instantly. Then the value itself: `factoryTimeout`
+> reached `Flight` unvalidated, and `CancelAfter` answers the three bad values
+> three different ways — negative throws, but from inside the first cache miss
+> rather than at the wiring that was wrong; zero is accepted and cancels
+> immediately, making the cache a permanent `TimeoutException` generator; and
+> `Timeout.InfiniteTimeSpan` is accepted and never fires, which is the deadline
+> silently not existing, reached through configuration this time instead of
+> through an uncooperative factory. One `<= TimeSpan.Zero` check at construction
+> covers all three.
+>
+> **A span that reported success for a delivery that failed.** The in-process
+> transport logged handler failures at `Error` and let the consumer activity end
+> `Unset`, so an operator filtering the trace backend for errors found a green
+> span beside the error log describing the same delivery. The activity now covers
+> construction, invocation and the await. Publish-token cancellation stays
+> `Unset` deliberately — shutdown is not a failure, and marking it would put one
+> `Error` span per in-flight subscription into the 100%-sampled error traces
+> every time the host stops.
+>
+> **Three test-side defects of the kind this packet names as its main lesson.** A
+> concurrency test whose whole point was detecting overlapping factories used
+> `Interlocked.Exchange(ref max, Math.Max(max, current))` — read, compute, write
+> as three steps, so the lower result can land last and the overlap disappears. A
+> mutation harness reported a mutant that failed to *compile* as SURVIVED, twice,
+> because it grepped only for test failures; the second time the mutant was
+> genuinely invalid — CA2208 refuses a `paramName` that names no parameter, which
+> is a stronger guard than any test. And a mutant aimed at the consumer span's
+> cancellation branch initially hit the wrong method's `catch`, so it survived
+> for a reason that had nothing to do with the code under test.
+>
+> **Documentation defects that were each a contradiction inside one file.**
+> `architecture/15` and the `wire-dapr-pubsub` skill both handed `envelope.Event`
+> to a generic Dapr publish overload — its declared type is `IIntegrationEvent`
+> by ADR-0038's design, so `TData` infers to the interface and the publish drops
+> every concrete field, the exact loss `ToPayloadJson()` documents as measured
+> two paragraphs above the snippet reintroducing it. `architecture/29` claimed
+> the cache implementation prefixes keys while its own § 3 explains why prefixing
+> would emit `{tenant}:{tenant}:{module}:{name}`. `standards/12` stated Vault
+> storage and a Vault watcher as current behaviour four lines under the bullet
+> calling Vault a Phase 11 target. `architecture/05` invalidated the entitlement
+> cache on a "Dapr pub/sub event" in the list whose first bullet gates Dapr to
+> Phase 11. Earlier rounds found the same shape in `architecture/09`,
+> `architecture/24`, `10-cross-module-contracts`, `phase-02b`, the glossary and
+> `local-dev-setup`. A skill that had its drifted copy of the topic regex removed
+> kept the sentence telling authors to keep that copy aligned.
+>
+> **What was deliberately not done.** ADR-0006 and ADR-0010 carry the same stale
+> publish sketch in ASCII flow diagrams, and ADR-0022's Decision outcome still
+> names the superseded `hub:host:{host}` key. Accepted ADR bodies are immutable,
+> the superseding records already govern both points, and a dated Amendment for a
+> diagram would cost more than the drift does.

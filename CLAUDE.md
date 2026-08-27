@@ -37,7 +37,10 @@ repository holds only LearnStack's side of the boundary, in
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
 packets 0–3, 3b, 4 and 5 shipped; packets 4–10 were re-scoped on 2026-08-08
-after a four-report audit of the corpus.**
+after a four-report audit of the corpus.
+[Packet 6](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the
+tenancy schema and the first migration written against the corrected RLS
+template — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -87,6 +90,24 @@ rounds alongside what it built, because most of them answered a **success** the
 client had no way to question — and the two that did not were worse: one handed
 back a truncated body under a `200`, the other a `500` per request that an
 anonymous caller could trigger at will.
+
+**Packet 5** shipped the foundation ports with the implementations that
+actually run today — `ICacheService` / `InMemoryCacheService`, `IEventBus` /
+`InProcessEventBus`, and Packet 3's `ISecretProvider` /
+`ConfigurationSecretProvider` — each selected at a single composition-root site
+so Phase 11's adapter is one line rather than a search. With them: `CacheKey`
+and `EnsureValid`, because there is no query filter and no RLS policy in front
+of a dictionary, so the key *is* the isolation boundary; the
+[ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md) port
+and event contracts, including `IntegrationEventEnvelope` and the non-generic
+`PublishAsync`; and the compose `gated` profile that took Kafka, Valkey, Vault,
+APISIX and the two Dapr containers out of `make dev`. `IHostToTenantResolver`
+and `IEntitlementProvider` are **not** here — they need the tenancy schema and
+belong to Packets 7 and 9. Its record,
+[Delivery Record (Packet 5)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5),
+is long because several of its defects were introduced by the *fix* for an
+earlier one, and because three tests were caught agreeing with the code instead
+of constraining it — the packet's most repeated lesson.
 
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
