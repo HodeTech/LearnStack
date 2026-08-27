@@ -201,8 +201,8 @@ recorded rather than silent:
 
 | Carrier | Occurrences |
 |---|---|
-| This ADR — § Decision Drivers, § Considered Options, § Implementation Notes, § References | 5 |
-| [ADR-0023](0023-strongly-typed-id-source-generator.md) — § Decision Drivers, § Decision, § Implementation Notes | 6 |
+| This ADR — § Decision Drivers, § Context, § Implementation Notes, § References | 5 |
+| [ADR-0023](0023-strongly-typed-id-source-generator.md) — § Decision Drivers, § Decision, § Context, § Implementation Notes | 6 |
 | [ADR-0002](0002-initial-architecture.md) — the PostgreSQL row | 1 |
 | [Backend Coding Standards § Identifiers](../standards/02-backend-coding.md) | 1 |
 | [decisions/README.md](README.md) — this ADR's summary row | 1 |

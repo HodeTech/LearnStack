@@ -60,8 +60,9 @@ docker info >/dev/null && echo "docker OK"
 backend/tests/
   LearnStack.Tests.Unit/           # No DB, no Docker. Pure unit tests.
   LearnStack.Tests.Architecture/   # Reflection + Roslyn + migration-scan rules.
-  LearnStack.Tests.Integration/    # Testcontainers (Postgres, Valkey, optional Dapr).
-  LearnStack.Tests.EndToEnd/       # Real HTTP API + frontend smoke.
+  LearnStack.Tests.Integration/    # WebApplicationFactory HTTP tests today; Testcontainers
+                                   # Postgres (as learnstack_app) from Phase 02a Packet 6.
+  LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Vitest + axe-core + Playwright (E2E).
 ```
@@ -103,8 +104,9 @@ Common failure messages and fixes:
 
 ### Step 5: Run integration tests
 
-Testcontainers spin Postgres + Valkey per class fixture; runtime depends on Docker
-performance.
+Today these are `WebApplicationFactory` HTTP tests and need no Docker at all. From
+Phase 02a Packet 6 a Testcontainers **Postgres** fixture joins them — no Valkey and
+no Kafka, because nothing the backend runs calls either ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)).
 
 ```bash
 dotnet test backend/tests/LearnStack.Tests.Integration \

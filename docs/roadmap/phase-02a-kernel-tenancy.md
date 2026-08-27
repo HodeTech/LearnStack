@@ -754,6 +754,19 @@ have to retrofit:
   transport swappable later
   ([ADR-0006](../decisions/0006-events-and-outbox.md)).
 
+**Six of the ten have no published column list, and this packet authors them.**
+Only `outbox_messages` and `idempotency_keys` have canonical DDL
+([Database Standards](../standards/05-database.md)), and `tenant_locales` has a
+sketch in [12-localization.md](../architecture/12-localization.md). The columns of
+`tenants`, `organizations`, `tenant_domains`, `tenant_settings`,
+`tenant_feature_flags`, `platform_entitlement_cache` and `platform_host_to_tenant`
+are designed here, against the constraints the corpus does fix — the audit-column
+set, the table classes, the composite-foreign-key rule, ADR-0017's organization
+model and ADR-0008's locale model — and recorded in this packet's delivery record.
+Standards 05 keeps the template and the two cross-cutting infrastructure tables;
+the tenancy schema lives in its migration, so there is one source rather than two
+that can disagree.
+
 All ten tables ship with `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and an explicit
 `WITH CHECK`. They do **not** all take the same policy, and saying they do produces a
 migration that cannot run: the corrected template's predicate names a `tenant_id`

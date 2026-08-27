@@ -144,9 +144,18 @@ When the rule is about migration content (RLS, partition):
 [Fact]
 public void Every_TenantOwned_Table_HasRls_With_AppTenantId()
 {
+    // RepositoryPaths.BackendSrc() — the shipped helper. A relative "backend/src"
+    // is resolved against the TEST HOST's working directory (bin/Debug/net10.0),
+    // where it does not exist, so the query silently yields nothing and the
+    // foreach below asserts over an empty set: a green test that checks nothing.
     var migrationFiles = Directory
-        .GetFiles("backend/src", "*.cs", SearchOption.AllDirectories)
-        .Where(f => f.Contains("/Migrations/"));
+        .GetFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+        .Where(f => f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"))
+        .ToList();
+
+    // The guard that makes the emptiness observable. Without it this test passes
+    // before a single migration exists and keeps passing if the path ever breaks.
+    Assert.NotEmpty(migrationFiles);
 
     foreach (var file in migrationFiles)
     {

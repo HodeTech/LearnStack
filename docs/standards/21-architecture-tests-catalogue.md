@@ -635,9 +635,15 @@ rules that need a second `DbContext` are owed by Phase 03.
 #### `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`
 
 - **Asserts:** every entity implementing `IOptimisticConcurrency` has its `Version`
-  configured as the concurrency token against a `row_version` column, and **no**
-  configuration calls `IsRowVersion()` — which maps to a provider-generated `bytea`
-  rather than the explicit counter ADR-0039 chose.
+  configured as the concurrency token against a `row_version` column, **and** that
+  the property's `ValueGenerated` is `Never` with both save behaviours at `Save`.
+  Neither `ValueGeneratedOnAddOrUpdate()` nor `IsRowVersion()` may appear: on a
+  `long` property the two produce byte-identical metadata, and EF then omits the
+  column from the `UPDATE` entirely, so the token stays `0` and every lost update
+  succeeds ([ADR-0039 Amendment 1](../decisions/0039-optimistic-concurrency-token.md),
+  measured). A structural test can see the metadata; it cannot see a silently
+  inert token, which is why the assertion is on `ValueGenerated` and not on the
+  call site.
 - **Source:** ADR-0039; [05-database.md § Concurrency](05-database.md).
 - **Type:** xUnit + EF model inspection. **Kind:** structural.
 - **Status:** **Registered.** **Phase:** 02a Packet 6.

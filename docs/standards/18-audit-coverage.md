@@ -138,7 +138,8 @@ Rules:
 ## Storage
 
 - One global `audit_log` table. Phase 02a Packet 9 ships it **plain and
-  unpartitioned**; monthly partitioning by `occurred_at`, the retention job and the
+  unpartitioned**; monthly partitioning by `timestamp` — the column's name in
+  ADR-0033's DDL — the retention job and the
   lifecycle policy of [ADR-0028](../decisions/0028-audit-log-partition-management.md)
   arrive in [Phase 11](../roadmap/phase-11-production-hardening.md). "Monthly from day
   one" was the earlier plan and [ADR-0033](../decisions/0033-audit-durability-model.md)

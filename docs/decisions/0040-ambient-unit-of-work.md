@@ -319,8 +319,10 @@ a property it cannot exercise.
 
 ## Architecture Tests
 
-None of these exist yet. All are **Phase 02a Packet 6 deliverables**, and
-registering them in
+None of these exist yet. The first two are **Phase 02a Packet 6 deliverables**;
+the third is registered in Packet 6 and **backfilled in Phase 03**, because no
+module code exists for it to scan until the second module does. Registering all
+three in
 [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
 is part of shipping them.
 
@@ -334,7 +336,37 @@ is part of shipping them.
 
 ## Amendments
 
-None.
+### Amendment 1 — `SetTenantContextAsync`, and the member names (2026-08-27)
+
+§ Decision's interface sketch was edited after this ADR was accepted, in the
+commit that propagated it into the corpus. Recording it rather than leaving the
+edit silent, because an Accepted ADR whose Decision changes without a note is the
+thing amendments exist to prevent:
+
+- **`SetTenantContextAsync(ITenantContext, CancellationToken)` was added.** The
+  reference body in
+  [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) already called
+  it, and it belongs on the seam rather than in `TransactionBehavior`: the
+  statement it issues is SQL, and
+  [Backend Coding Standards](../standards/02-backend-coding.md) keeps SQL out of
+  the Application layer. The original sketch left the behavior issuing raw SQL,
+  which contradicted a standard this ADR cites.
+- **`BeginAsync` was renamed `BeginTransactionAsync`**, matching the same
+  reference body. A seam with two spellings is a seam an implementer has to
+  choose between.
+
+Neither changes what the ADR decides — one connection per scope, owned by
+`IUnitOfWork`, with every context and cross-cutting writer enlisted on it.
+
+**`app.scope` is not settable from `ITenantContext` as shipped.** The interface
+(`LearnStack.SharedKernel/Tenancy/ITenantContext.cs`) carries `TenantId`,
+`OrganizationId`, `UserId`, `CausalActorUserId`, `CorrelationId` and `ModuleName`
+— no scope member. `SetTenantContextAsync` therefore issues `app.tenant_id` and
+`app.organization_id` from it today. Whether `app.scope` becomes a context member
+or arrives another way is
+[Packet 7](../roadmap/phase-02a-kernel-tenancy.md)'s to decide, with
+`TenantResolverMiddleware`; until then no caller sets it and the tenant-scope read
+hatch is simply unused, which is the correct default.
 
 ## References
 

@@ -10,9 +10,22 @@ namespace LearnStack.SharedKernel.Persistence;
 public interface IOptimisticConcurrency
 {
     /// <summary>
-    /// Monotonically-increasing version counter. EF Core bumps this on
-    /// every <c>SaveChangesAsync</c>; aggregate code does not mutate it
-    /// directly.
+    /// Monotonically-increasing version counter, mapped to the
+    /// <c>row_version bigint</c> column.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>EF Core does not bump this.</b> It is incremented in
+    /// <c>AuditableEntity</c>, by the same primitive that stamps the audit
+    /// columns, so an audited mutation is a versioned mutation
+    /// (<see href="../../../../docs/decisions/0039-optimistic-concurrency-token.md">ADR-0039</see>).
+    /// The property is configured with <c>IsConcurrencyToken()</c> and nothing
+    /// else: adding <c>ValueGeneratedOnAddOrUpdate()</c> — or the equivalent
+    /// <c>IsRowVersion()</c> — tells EF the database generates the value, and
+    /// EF then omits the column from the <c>UPDATE</c> entirely. Measured: the
+    /// persisted value stays <c>0</c> for the life of the row and every lost
+    /// update succeeds.
+    /// </para>
+    /// </remarks>
     uint Version { get; }
 }

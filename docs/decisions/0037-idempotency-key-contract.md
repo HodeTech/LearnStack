@@ -442,7 +442,46 @@ The canonical DDL is
 [Database Standards § Idempotency](../standards/05-database.md), derived column
 by column from the shipped port rather than restated here.
 
-None yet.
+### Amendment 2 — The claim statement, corrected (2026-08-27)
+
+§ The durable store said "**The claim is one statement.** `INSERT … ON CONFLICT
+(tenant_id, key) DO UPDATE … WHERE <the existing row has expired> RETURNING …`
+decides acquire versus in-flight versus replay in a single round trip." Measured
+against the canonical DDL as `learnstack_app`: **it does not.** When the `DO
+UPDATE`'s `WHERE` is false PostgreSQL performs no update and `RETURNING` emits
+nothing, so *blocked by a live claim* and *blocked by a completed row* are both
+`(0 rows)` and indistinguishable — and neither surfaces the stored `fingerprint`
+that `Mismatched` needs or the four response columns a replay needs.
+
+The decision the statement realises is unchanged. The statement is:
+
+```sql
+INSERT INTO idempotency_keys
+    (tenant_id, key, fingerprint, claim_token, state, expires_at)
+VALUES (@tenant, @key, @fingerprint, @token, 'in_flight', now() + interval '5 minutes')
+ON CONFLICT (tenant_id, key) DO UPDATE SET
+    -- Fires unconditionally so RETURNING always has a row; the expiry test moves
+    -- into the SET expressions.
+    fingerprint  = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.fingerprint  ELSE idempotency_keys.fingerprint  END,
+    claim_token  = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.claim_token  ELSE idempotency_keys.claim_token  END,
+    state        = CASE WHEN idempotency_keys.expires_at <= now() THEN 'in_flight'           ELSE idempotency_keys.state        END,
+    expires_at   = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.expires_at   ELSE idempotency_keys.expires_at   END,
+    -- The re-acquire branch MUST clear the previous outcome. Measured: without
+    -- these four the new claim inherits the expired row's status_code and a later
+    -- replay answers with a response this request never produced.
+    status_code  = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.status_code  END,
+    content_type = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.content_type END,
+    headers      = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.headers      END,
+    body         = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.body         END
+RETURNING (xmax = 0) AS inserted, state, fingerprint, claim_token,
+          status_code, content_type, headers, body;
+```
+
+`xmax = 0` distinguishes a fresh insert from a conflict resolution, and the
+returned `state` and `fingerprint` decide the rest: `Acquired`, `InFlight`,
+`Completed`, `Unreplayable`, or `Mismatched` when the returned fingerprint differs
+from the one presented. Measured across all four sequential cases on the canonical
+DDL, every outcome is decidable in one round trip.
 
 ## References
 

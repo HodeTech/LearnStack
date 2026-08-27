@@ -144,16 +144,37 @@ public sealed class <Name>Configuration : IEntityTypeConfiguration<<Name>>
 }
 ```
 
-The EF global query filter is applied **by convention**, not in this configuration:
-There is no `TenantQueryFilterConvention` and never has been — do not look for it
-and do not import it. The filter is applied per entity in `OnModelCreating`, and
-`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` is what makes forgetting one fail.
-The paragraph below describes a convention type that would scan for `[TenantOwned]`
-and add
-`x => x.TenantId == _tenantContext.TenantId`. `OrganizationQueryFilterConvention`
-adds `(x.OrganizationId == null || x.OrganizationId == _tenantContext.OrganizationId)`
-when `[OrganizationScoped]` is present. **Do not write filters manually** — the
-convention is the only legal source.
+**Write the query filter here, in this configuration.** There is no
+`TenantQueryFilterConvention` and no `OrganizationQueryFilterConvention` — neither
+type has ever existed in this repository, and an earlier version of this file
+described both as the only legal source, which sent implementers looking for
+something to import:
+
+```csharp
+// Tenant-owned: the filter mirrors the RLS predicate. Both layers, always —
+// the filter is what makes an ordinary LINQ query safe, the policy is what
+// makes it safe when the filter is bypassed.
+builder.HasQueryFilter(x => x.TenantId == tenantContext.TenantId);
+
+// Org-scoped ADD the organization term to the SAME filter — a second
+// HasQueryFilter call REPLACES the first rather than combining with it:
+builder.HasQueryFilter(x =>
+    x.TenantId == tenantContext.TenantId
+    && (x.OrganizationId == null
+        || x.OrganizationId == tenantContext.OrganizationId));
+
+// Soft-deletable aggregates AND the deleted term into the same expression too,
+// and gate on DeletedAt rather than the computed IsDeleted property, which EF
+// cannot translate.
+```
+
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` is what will make a forgotten
+filter fail, and `Every_OrgScoped_Entity_HasOrgIdAndFilter` covers the
+organization term. Both are **registered and not yet implemented** — Phase 02a
+Packet 7 introduces them, so until then a forgotten filter is caught by review
+only. Check the
+[catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) rather
+than assuming a net is under you.
 
 ### Step 3: Migration — schema + RLS
 

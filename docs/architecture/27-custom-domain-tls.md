@@ -242,11 +242,23 @@ public sealed class CachedHostToTenantResolver(
                 // survive on a pooled connection into the next request.
                 await using var tx = await db.Database.BeginTransactionAsync(token);
 
+                // set_config(..., true) is SET LOCAL's function form and is
+                // transaction-local for the same reason. It has to be this form:
+                // `SET LOCAL app.resolving_host = $1` is a syntax error —
+                // PostgreSQL's SET takes no bind parameter — so the parameterised
+                // spelling every other query uses is unavailable here, and string
+                // interpolation into SET would be an injection site on the
+                // anonymous page-load path.
                 await db.Database.ExecuteSqlAsync(
-                    $"SET LOCAL app.resolving_host = {host}", token);
+                    $"SELECT set_config('app.resolving_host', {host}, true)", token);
 
                 var resolution = await db.HostMappings
                     .AsNoTracking()
+                    // is_publicly_live, per ADR-0036 § HostOnly — NOT the
+                    // Hub-side `is_active` in the payload sample below. A
+                    // domain can be active (owned, verified) and not yet
+                    // publicly live, and only the latter may answer an
+                    // anonymous page load.
                     .Where(m => m.Host == host && m.IsPubliclyLive)
                     .Select(m => new HostResolution(m.TenantId, m.OrganizationId))
                     .SingleOrDefaultAsync(token);

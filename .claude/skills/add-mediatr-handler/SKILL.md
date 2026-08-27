@@ -143,17 +143,21 @@ public sealed class CreateEnrollmentCommandHandler(
 
         db.Enrollments.Add(enrollment);
 
+        // EventId and OccurredAt are `required` on IntegrationEventBase and
+        // nothing populates them for you — the initializer does not compile
+        // without both. They are injected rather than ambient so a test can pin
+        // them (02-backend-coding.md § Time). OrganizationId is NOT on the event:
+        // it is delivery metadata and lives on IntegrationEventEnvelope, which
+        // the OutboxProcessor builds (ADR-0038).
         await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
         {
+            EventId = guidFactory.NewUuidV7(),
+            OccurredAt = clock.UtcNow,
             TenantId = tenantContext.TenantId,
-            OrganizationId = tenantContext.OrganizationId,
             EnrollmentId = enrollment.Id.Value,
             LearnerId = request.LearnerId.Value,
             CourseVersionId = request.CourseVersionId.Value,
             CohortId = request.CohortId?.Value,
-            // OccurredAt is auto-populated by IntegrationEventBase — do not set
-            // it manually. If you need it explicitly, inject IClock and use
-            // clock.UtcNow per 02-backend-coding.md § Time.
         }, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);   // atomic: aggregate + outbox row

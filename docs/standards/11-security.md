@@ -255,14 +255,18 @@ consequences follow, and both are load-bearing:
 
 ### The out-of-band setters
 
-`TransactionBehavior` is the general case, not the only one. Four callers run where
-no ambient transaction exists yet, so each owns a **short transaction of its own**
-whose first statement is the `SET LOCAL`. The set is closed
-([ADR-0040](../decisions/0040-ambient-unit-of-work.md)):
+`TransactionBehavior` is the general case, not the only one. Six setters exist in
+total and the set is closed
+([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md)
+is the authority; it is reproduced here because this section is the placement
+authority). Two set it on the **ambient** transaction; four own a **short
+transaction of their own**, because they run where no ambient transaction exists
+yet:
 
-| Setter | Why it cannot be `TransactionBehavior` |
-|---|---|
-| The integration-event transport, per delivery | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the transaction itself, from the delivery's `EventTenantContext` |
+| Setter | Transaction | Why it is not `TransactionBehavior` |
+|---|---|---|
+| `TransactionBehavior` | ambient | — the general case |
+| The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
 | `IIdempotencyStore` (durable) | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | Same shape, SHOULD/MAY class; failures are logged and dropped |
@@ -277,8 +281,12 @@ Because every `current_setting` read is called with its missing-OK argument (`tr
 **and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
 the policy predicate filters the row out. The failure mode is an empty result set, not a
 leak — but an empty result set arriving from production is an outage, so a
-`DbCommandInterceptor` additionally asserts that `TransactionBehavior` has already issued
-the `SET LOCAL` pair before any command against a `[TenantOwned]` table runs, and throws
+`DbCommandInterceptor` additionally asserts that **a sanctioned setter** has already
+issued the `SET LOCAL` pair on this transaction before any command against a
+`[TenantOwned]` table runs — `TransactionBehavior` in the general case, or any of the
+out-of-band setters above, each of which stamps the same marker on the transaction it
+opens. Naming `TransactionBehavior` alone would make the guard reject every write the
+idempotency store and the audit store legitimately make. It throws
 `TenantContextMissingException` when it has not. It cannot be a connection-checkout
 interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
 values: checkout precedes the transaction, so the transaction-local value is not there to

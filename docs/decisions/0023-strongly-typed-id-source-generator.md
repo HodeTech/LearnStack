@@ -234,7 +234,9 @@ Three things outweighed the appeal:
   when the first ID lands.
 - **UUIDv7 minting:**
   - DB-side (`uuidv7()` per ADR-0031) for `audit_log`, `outbox_messages`,
-    `inbox_messages`, `idempotency_keys` — high-volume append-only tables.
+    `inbox_messages` — high-volume append-only tables. (`idempotency_keys` was
+    listed here and is not one: it is addressed by the natural key
+    `(tenant_id, key)` and has no surrogate id to generate. See Amendment 1.)
   - App-side (`Guid.CreateVersion7()`) for aggregates that need the ID before
     `SaveChangesAsync()` to emit domain events / outbox writes referencing the
     new aggregate ID.
@@ -349,3 +351,23 @@ This is a clarification; the Decision is unchanged.
   — establishes the `backend/analyzers/` Roslyn analyzer location; future ID-shape
   analyzers live alongside.
 - [Vogen on GitHub](https://github.com/SteveDunn/Vogen) — upstream project (MIT).
+
+---
+
+## Amendment 1 — `idempotency_keys` mints no id (2026-08-27)
+
+§ Implementation Notes listed `idempotency_keys` among the tables whose ids are
+minted DB-side with `uuidv7()`. It has no id to mint. The shipped port
+(`LearnStack.SharedKernel/Idempotency/IIdempotencyStore.cs`) addresses a record by
+`(tenantId, key)` at every one of its three methods, so the canonical DDL in
+[Database Standards § Idempotency](../standards/05-database.md) declares
+`PRIMARY KEY (tenant_id, key)` and no surrogate column. A generated id would be a
+column nothing reads.
+
+The Decision is unchanged: UUIDv7 for `uuid` primary keys, minted app-side through
+`IGuidFactory` for aggregates and DB-side for the high-volume append-only tables.
+`idempotency_keys` is neither — it is mutable and naturally keyed — so it was never
+in scope for either path. The list is corrected in place, per the precedent in
+[ADR-0031 Amendment 1](0031-postgresql-major-version.md).
+
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) creates the table.

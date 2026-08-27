@@ -72,7 +72,7 @@ AddColumn) but does not know about:
 
 - RLS enable + policies (you add them manually).
 - Partition declarations (you add them manually).
-- Postgres-specific defaults (`gen_random_uuid()`, `now()`).
+- Postgres-specific defaults (`uuidv7()`, `now()`). `gen_random_uuid()` in a generated migration is a **defect**: it produces a v4 UUID with none of the index locality UUIDv7 was adopted for ([Database Standards § Identifiers](../../../docs/standards/05-database.md)).
 - Strongly-typed id column types — confirm they map to `uuid`.
 
 ### Step 3: New table — add the four mandatory pieces
@@ -297,8 +297,13 @@ dotnet ef migrations script \
 dotnet ef database update \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
   --startup-project backend/src/LearnStack.Api \
-  --connection "$LEARNSTACK_MIGRATION_CONNECTION"
+  --connection "$ConnectionStrings__Migration"
 ```
+
+`ConnectionStrings__Migration` is the environment spelling of
+`ConnectionStrings:Migration`. Packet 6 adds it to `.env.example` and exports it
+from the repo-root `make migrate` target, which Standards 05 names as its only
+sanctioned carrier.
 
 Then run the architecture + integration test suite. The Testcontainers integration
 tests automatically apply migrations on a fresh Postgres; a green run means the
@@ -322,8 +327,11 @@ migration is consistent.
   fixing late is painful because production may already have leakable rows.
 - **Wrong session variable name.** `current_setting('app.current_tenant_id')` is
   silently wrong — RLS returns zero rows because the variable is never set.
-- **Editing an applied migration.** EF stores a checksum in `__EFMigrationsHistory`;
-  editing in place breaks the chain. Add a new migration to fix instead.
+- **Editing an applied migration.** `__EFMigrationsHistory` holds only
+  `MigrationId` and `ProductVersion` — there is no checksum and **nothing detects
+  the edit**. On a database that already applied the migration your change is a
+  silent no-op; on a fresh one it runs. The two diverge permanently. Add a new
+  migration instead.
 - **Mixing destructive change with non-destructive in one migration.** Split into
   separate migrations so rollback is granular.
 - **One migration spanning multiple modules.** Each module owns its own migrations;

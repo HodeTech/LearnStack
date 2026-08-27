@@ -148,8 +148,12 @@ CREATE INDEX ix_courses_tenant_id_organization_id ON courses (tenant_id, organiz
 
 **Every foreign key between two tenant-owned tables is composite on `tenant_id`.**
 
-PostgreSQL evaluates referential integrity as a security-restricted operation on behalf
-of the table owner, and RI checks are **not subject to Row Level Security**. A
+PostgreSQL evaluates referential integrity at **runtime** as a security-restricted
+operation on behalf of the table owner, and those RI triggers are **not subject to Row
+Level Security**. (The DDL path is the opposite and matters in migrations: the scan
+`ALTER TABLE … ADD CONSTRAINT` / `VALIDATE CONSTRAINT` performs runs as the issuing role
+under its policies, so a constraint added to a populated tenant-owned table validates
+against the rows that role can see. § Data Migrations carries the consequence.) A
 single-column `lessons.course_id → courses.id` therefore lets a row in tenant A
 reference a row in tenant B: the child's own `WITH CHECK` passes because its
 `tenant_id` is A's, and the FK check passes because it can see B's row. The result is a
@@ -183,18 +187,43 @@ elsewhere would be pointing at a different tenant by definition, which the
 child's own `WITH CHECK` already refuses. The exception is exactly one table
 wide; a second one is a decision, not a convenience.
 
-**`ON DELETE RESTRICT`, everywhere, until a phase owns deprovisioning.** A
-cascade from `tenants` downward would be a tenant-deletion path nobody has
-designed — see the note in § GRANT matrix that tenant hard-deprovisioning has no
-owning phase. `RESTRICT` makes the absence loud.
+**`ON DELETE RESTRICT` on every foreign key whose parent is an aggregate root,
+until a phase owns deprovisioning.** A cascade from `tenants` or `organizations`
+downward would be a tenant-deletion path nobody has designed — see the note in
+§ GRANT matrix that tenant hard-deprovisioning has no owning phase. `RESTRICT`
+makes the absence loud.
 
-**The circular reference.** `tenants.default_organization_id` points at
-`organizations`, which points back at `tenants`. The column is **nullable**, and
-the provisioning transaction inserts the tenant, inserts its default
-organization, then `UPDATE`s the tenant — three statements in one transaction
-rather than a `DEFERRABLE INITIALLY DEFERRED` constraint, because a deferred
-constraint moves the failure to `COMMIT`, where the error names the constraint
-and not the statement that broke it.
+The one standing exception is a **translation satellite**, which cascades from
+its own parent (`ON DELETE CASCADE` in the `course_translations` fence above): a
+translation is not an independent row and outliving its parent would leave a
+title with nothing to title. That is deletion *within* an aggregate, not deletion
+*of* one, and it is why the two fences differ.
+
+**The circular reference, and why it is still composite.**
+`tenants.default_organization_id` points at `organizations`, which points back at
+`tenants`. This direction is **not** covered by the self-keyed exception above —
+that exception exists only because `tenants` has no `tenant_id` column to pair
+with, and here the *child* side does: `tenants.id` **is** the tenant id, and
+`organizations` already carries `UNIQUE (tenant_id, id)`. So the composite form is
+expressible and is required:
+
+```sql
+CONSTRAINT fk_tenants_default_organization
+    FOREIGN KEY (id, default_organization_id) REFERENCES organizations (tenant_id, id)
+    ON DELETE RESTRICT
+```
+
+Single-column here would be the exact hole the rule closes: referential-integrity
+checks run with row security bypassed, so tenant A could commit a permanent
+pointer at tenant B's organization — a row A cannot even see. Under `MATCH SIMPLE`
+the check is skipped entirely while `default_organization_id` is null, which is
+what makes the nullable column safe before the `UPDATE` lands.
+
+The column is **nullable**, and the provisioning transaction inserts the tenant,
+inserts its default organization, then `UPDATE`s the tenant — three statements in
+one transaction rather than a `DEFERRABLE INITIALLY DEFERRED` constraint, because
+a deferred constraint moves the failure to `COMMIT`, where the error names the
+constraint and not the statement that broke it.
 
 This block is the **single canonical RLS template**.
 [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md),
@@ -236,7 +265,32 @@ Rules:
   discarded before the query they are meant to protect ever runs. See
   [Security Standards § Tenant Context](11-security.md).
 - `organization_id` on a tenant-owned row is **immutable after insert**, enforced by a
-  `BEFORE UPDATE` trigger (`tg_<table>_organization_id_immutable`). A row does not move
+  `BEFORE UPDATE` trigger. The function is declared once and the trigger once per
+  org-scoped table, in the migration that creates it:
+
+  ```sql
+  CREATE FUNCTION fn_organization_id_immutable() RETURNS trigger AS $$
+  BEGIN
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+          RAISE EXCEPTION
+              'organization_id is immutable after insert (table %, row %)',
+              TG_TABLE_NAME, OLD.id
+              USING ERRCODE = '23514';
+      END IF;
+      RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  CREATE TRIGGER tg_courses_organization_id_immutable
+      BEFORE UPDATE ON courses
+      FOR EACH ROW EXECUTE FUNCTION fn_organization_id_immutable();
+  ```
+
+  `IS DISTINCT FROM` rather than `<>`, so a move to or from `NULL` — tenant-wide to
+  org-scoped, or back — is caught too; `<>` is `NULL` when either side is null and the
+  trigger would pass. The restrictive `UPDATE` guard does not cover this: it admits the
+  row when the *new* `organization_id` is the caller's own, which is exactly the
+  re-parenting move. A row does not move
   between organizations: its audit rows
   ([ADR-0016](../decisions/0016-audit-log-subsystem.md)), its storage prefix
   `tenants/{tenant_id}/organizations/{organization_id}/…` and its cache-key prefix are
@@ -350,6 +404,28 @@ tenant can ever resolve. The answer is not to drop row security — a table with
 give the read an explicitly declared key of its own. The resolver announces the host it
 is about to resolve, and the policy admits exactly that row.
 
+`host` also carries the **normalization backstop**
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) assigns to this
+packet. It constrains the *output* of `EffectiveHost.Normalize`, not the
+algorithm: the seven-step normalization — IDN mapping, port stripping, trailing-dot
+handling, IP-literal rejection — is imperative and PostgreSQL cannot evaluate it in
+a `CHECK`. What the database can guarantee is that nothing un-normalized was
+inserted by a path that skipped the normalizer:
+
+```sql
+CONSTRAINT ck_platform_host_to_tenant_host_normalized CHECK (
+    host = lower(host)
+    AND host !~ '[^a-z0-9.-]'      -- ASCII only: IDN already punycoded
+    AND host NOT LIKE '%.'          -- trailing dot already stripped
+    AND host NOT LIKE '%:%'         -- port already stripped
+    AND length(host) BETWEEN 1 AND 253
+)
+```
+
+`EffectiveHost.Normalize` remains the **sole** normalizer; this constraint never
+normalizes anything, it only refuses. A row that violates it is a bug in a writer,
+not a host to be fixed up.
+
 ```sql
 ALTER TABLE platform_host_to_tenant ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_host_to_tenant FORCE  ROW LEVEL SECURITY;
@@ -432,10 +508,13 @@ closed; a fifth role requires an ADR.
 `:'name'` placeholders below are **psql client variables**, and the
 `docker-entrypoint-initdb.d` runner binds none of them: measured, the script as
 it stood failed on its first statement with `syntax error at or near ":"`.
-`\getenv` reads each one from the container environment, which
-[Infrastructure Standards § Local Infrastructure](12-infrastructure.md) already
-requires to be `${VAR:-fallback}` in compose with a matching row in
-`.env.example`. Measured, it works under the entrypoint's `ON_ERROR_STOP=1`, and
+`\getenv` reads each one from the container environment.
+[Infrastructure Standards § Local Infrastructure](12-infrastructure.md) requires
+every credential to be `${VAR:-fallback}` in compose with a matching row in
+`.env.example`; **the four rows and the four compose entries do not exist yet**
+and land in the same Packet 6 change as the script itself, in `.env.example` and
+in the `postgres` service's `environment:` block of both `dev.yml` and
+`e2e.yml`. Measured, it works under the entrypoint's `ON_ERROR_STOP=1`, and
 an **unset** variable leaves the placeholder unbound and aborts init rather than
 creating a passwordless superuser-adjacent role — failing loud is the point.
 
@@ -605,9 +684,28 @@ writing on a path that ADR deliberately keeps read-only.
 ## Concurrency
 
 `row_version bigint`, CLR `long`, on every entity implementing
-`IOptimisticConcurrency`. Configure it with
-`IsConcurrencyToken().ValueGeneratedOnAddOrUpdate()` — **not** `IsRowVersion()`,
-which maps to a provider-generated `bytea` this design does not use.
+`IOptimisticConcurrency`. Configure it with **`IsConcurrencyToken()` and nothing
+else**.
+
+Neither `.ValueGeneratedOnAddOrUpdate()` nor `IsRowVersion()` may be added, and
+they are the same mistake: on a `long` property they produce byte-identical
+property metadata — `ValueGenerated.OnAddOrUpdate` with
+`BeforeSave`/`AfterSave` = `Ignore` — and EF then **omits the column from the
+`UPDATE` statement entirely**. Measured on EF Core 10 + Npgsql 10 against
+PostgreSQL 18.4, on a table declared exactly as the template declares it:
+
+| Configuration | Emitted SQL | Persisted `row_version` |
+|---|---|---|
+| `IsConcurrencyToken().ValueGeneratedOnAddOrUpdate()` | `UPDATE widgets SET name = @p0` | `0` |
+| `IsRowVersion()` | `UPDATE widgets SET name = @p0` | `0` |
+| `IsConcurrencyToken()` | `UPDATE widgets SET name = @p0, row_version = @p1` | `1` |
+
+Those two forms tell EF the **database** generates the value. Nothing here does:
+the column's only `DEFAULT` is `0`, there is no trigger and no
+`GENERATED ALWAYS`. So the token never leaves `0`, every `If-Match` compares
+equal, and optimistic concurrency silently never fires — a lost update succeeds
+and reports success. `IsConcurrencyToken()` alone leaves the write behaviours at
+`Save`, which is what puts the incremented value in the `SET` list.
 
 The value is incremented inside `AuditableEntity`, by the same primitive that
 stamps `UpdatedAt` / `UpdatedBy`, so an audited mutation is a versioned
@@ -628,17 +726,20 @@ changes `xmin` while leaving `row_version` intact.
   - **App-side** for aggregates — `IGuidFactory.NewUuidV7()`, so a test can pin
     the value and the id exists before the row does.
   - **DB-side** `DEFAULT uuidv7()` for the high-volume append-only tables whose
-    rows are written by infrastructure rather than by an aggregate:
-    `audit_log`, `outbox_messages`, `inbox_messages`.
+    surrogate key is written by infrastructure rather than by an aggregate:
+    `audit_log` and `outbox_messages`. Both canonical fences carry the clause;
+    a fence and this rule disagreeing is a defect in one of them.
+    - `inbox_messages` is **not** one of them despite being append-only: its key
+      is the producing envelope's `EventId`, which the producer minted app-side.
+      Generating a second id there would defeat the deduplication the table is.
+    - `idempotency_keys` is not one either: it is addressed by `(tenant_id, key)`
+      and has no surrogate id at all.
 - **Never `gen_random_uuid()`.** It is a real function and produces a **v4**
   UUID — random, with none of the index locality UUIDv7 was adopted for. The
   built-in is `uuidv7()`; `gen_uuid_v7()` does not exist
   ([ADR-0031 Amendment 1](../decisions/0031-postgresql-major-version.md)).
 - Strongly-typed ids in code via value converters.
 - No surrogate `int` keys for domain entities.
-- A table addressed by a natural key gets **no surrogate id at all** —
-  `idempotency_keys` is keyed `(tenant_id, key)` and generates nothing. ADR-0023's
-  DB-side list covers the append-only tables that do carry a surrogate id.
 - `bigint GENERATED BY DEFAULT AS IDENTITY` where a generated integer key is
   genuinely wanted — never `bigserial`, whose sequence needs a `GRANT USAGE` of
   its own that an identity column does not.
@@ -729,7 +830,7 @@ Public read models consumed by other modules:
 
 ```sql
 CREATE TABLE outbox_messages (
-    id              uuid PRIMARY KEY,
+    id              uuid PRIMARY KEY DEFAULT uuidv7(),
     occurred_at     timestamptz NOT NULL DEFAULT now(),
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,             -- null = tenant-wide event; see note below
@@ -849,8 +950,10 @@ CREATE TABLE idempotency_keys (
     CONSTRAINT pk_idempotency_keys PRIMARY KEY (tenant_id, key),
     CONSTRAINT ck_idempotency_keys_state
         CHECK (state IN ('in_flight', 'completed', 'unreplayable')),
-    -- The 256 KiB replay cap becomes something the database enforces rather than
-    -- something every caller remembers.
+    -- ADR-0037's replay cap is 256 KiB "headers included", so this is a floor
+    -- under it rather than the cap itself — the database can bound the body
+    -- cheaply and the store enforces the headers-inclusive total, which is where
+    -- the serialized size actually lives.
     CONSTRAINT ck_idempotency_keys_body_size
         CHECK (body IS NULL OR octet_length(body) <= 262144),
     -- Matches [Idempotent]'s header bounds, so a key the API accepted always fits.
@@ -958,8 +1061,10 @@ Forbidden: string interpolation with non-constant values.
   transaction, leaving a window in which one has committed and the other has
   not. This line previously read "Multiple `DbContext` instances within one
   logical transaction", which also forbade the safe shape.
-- Reading a tenant-owned table outside the ambient transaction. `SET LOCAL` is
+- Reading a tenant-owned table from a transaction that has not issued its own
+  `SET LOCAL` — the ambient one, or one of the closed set of out-of-band setters
+  in [ADR-0040](../decisions/0040-ambient-unit-of-work.md). `SET LOCAL` is
   connection- and transaction-local, so such a read returns **zero rows** under
-  the corrected policy — silently, because a policy that filters everything
-  looks exactly like a table with no matching data.
+  the corrected policy — silently, because a policy that filters everything looks
+  exactly like a table with no matching data.
 - Tenant tables without RLS in production migrations (CI rejects).

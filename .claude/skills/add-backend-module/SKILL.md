@@ -102,9 +102,14 @@ public sealed class <Name>Module : ILearnStackModule
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<<Name>DbContext>(opt => opt
-            .UseNpgsql(configuration.GetConnectionString("Default"))
-            .UseSnakeCaseNamingConvention());
+        // NOT AddDbContext(... UseNpgsql(connectionString) ...). A context that
+        // opens its own connection never saw the SET LOCAL that TransactionBehavior
+        // issues on the ambient one, so every read through it returns ZERO ROWS
+        // under the corrected RLS policy — silently. Per ADR-0040 every module
+        // context is built on the connection IUnitOfWork owns, through the shared
+        // helper, and Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork fails the
+        // build if you reach for the EF default instead.
+        services.AddLearnStackDbContext<<Name>DbContext>();
 
         services.AddMediatRFromModule(typeof(<Name>Module).Assembly);
         services.AddValidatorsFromAssembly(typeof(<Name>Module).Assembly);
@@ -147,7 +152,8 @@ public sealed class <Name>DbContext(
         // Tenant + Organization query filters are applied PER ENTITY in its
         // IEntityTypeConfiguration. There is no TenantQueryFilterConvention —
         // that type has never existed. Every_TenantOwned_Entity_HasFilterAndRlsPolicy
-        // is what makes a forgotten filter fail.
+        // is what WILL make a forgotten filter fail — it is registered in the
+        // catalogue and implemented in Phase 02a Packet 7, not before.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(<Name>DbContext).Assembly);
     }
 }

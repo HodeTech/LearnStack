@@ -310,14 +310,19 @@ place, so behaviors and instrumentation are already wired before
 module-specific code lights up:
 
 ```csharp
-services
-    .AddCrossCuttingFoundation(builder.Configuration, deploymentMode)
-    .AddModuleAudit()
-    .AddModuleTenancy()
-    .AddModuleCustomization()
-    // ... more modules
-    .AddModuleApi();    // controllers wire last
+// The shipped entry point, and the only one: AddLearnStackCrossCuttingFoundation
+// on the WebApplicationBuilder, taking the deployment mode and the assemblies whose
+// integration-event handlers should be discovered.
+builder.AddLearnStackCrossCuttingFoundation(
+    deploymentMode,
+    typeof(SomeConsumer).Assembly);
 ```
+
+`AddCrossCuttingFoundation`, `AddModuleAudit`, `AddModuleTenancy`,
+`AddModuleCustomization` and `AddModuleApi` do **not** exist — an earlier version of
+this file named all five. Per-module registration arrives with the first module that
+has something to register (Phase 02a Packet 6 for Tenancy); until then there is one
+call.
 
 ## Validation
 

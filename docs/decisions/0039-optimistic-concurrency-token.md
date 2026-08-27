@@ -179,9 +179,8 @@ routing `SoftDelete` through the same stamp-and-increment primitive.
   `AuditableEntity.Version` to `long`; route `SoftDelete` through the same
   stamp-and-increment primitive as `MarkUpdated`; declare
   `row_version bigint NOT NULL DEFAULT 0` on every mutable tenancy table and
-  configure it as the EF concurrency token with
-  `IsConcurrencyToken().ValueGeneratedOnAddOrUpdate()` — **not** `IsRowVersion()`,
-  which maps to a provider-generated `bytea`/`rowversion` this design does not use.
+  configure it as the EF concurrency token with **`IsConcurrencyToken()` and
+  nothing else** — see Amendment 1, which measured what the other two forms do.
 - **Phase 02a Packet 6, step 1 — the propagation this ADR is not, on its own.**
   Until these land the corpus answers the question twice, and an implementer
   reading a standard rather than this ADR gets the withdrawn answer:
@@ -222,7 +221,48 @@ is part of shipping them. Naming them here is a commitment, not a description.
 
 ## Amendments
 
-None.
+### Amendment 1 — `IsConcurrencyToken()` alone; the `bytea` rationale was false (2026-08-27)
+
+§ Implementation Notes prescribed
+`IsConcurrencyToken().ValueGeneratedOnAddOrUpdate()` and rejected `IsRowVersion()`
+on the grounds that it "maps to a provider-generated `bytea`". **Both halves were
+wrong**, and the prescribed form would have made this ADR's decision a no-op.
+
+Measured on EF Core 10 + Npgsql 10 against `postgres:18.4-alpine`, three contexts
+over one table declared exactly as the canonical template declares it
+(`row_version bigint NOT NULL DEFAULT 0`), each inserting a row and then setting
+`Name` and `RowVersion += 1`:
+
+| Configuration | Property metadata | Emitted `UPDATE` | Persisted |
+|---|---|---|---|
+| `IsConcurrencyToken().ValueGeneratedOnAddOrUpdate()` | `vg=OnAddOrUpdate before=Ignore after=Ignore store=bigint` | `SET name = @p0` | `0` |
+| `IsRowVersion()` | **identical on all five** | `SET name = @p0` | `0` |
+| `IsConcurrencyToken()` | `vg=Never before=Save after=Save store=bigint` | `SET name = @p0, row_version = @p1` | `1` |
+
+Two corrections follow:
+
+- **`.ValueGeneratedOnAddOrUpdate()` is removed.** It tells EF the *database*
+  generates the value. Nothing here does — the column's only `DEFAULT` is `0`,
+  there is no trigger and no `GENERATED ALWAYS` — so EF omits the column from the
+  `UPDATE`, the token never leaves `0`, every `If-Match` compares equal, and a
+  lost update succeeds while reporting success. That is strictly worse than having
+  no concurrency control, because the mechanism is present and inert.
+- **The `bytea` rationale is withdrawn.** On a `long` property `IsRowVersion()`
+  produces byte-identical metadata to the pair above and maps to store type
+  `bigint`. `bytea` comes from a `byte[]` CLR type, not from the API call. The
+  real reason to reject `IsRowVersion()` is that it is a **synonym for the broken
+  pairing**, not a different mapping.
+
+The **Decision is unchanged**: `row_version bigint`, CLR `long`, incremented in
+`AuditableEntity` by the primitive that stamps the audit columns. Only the EF call
+that realises it was wrong. § Implementation Notes and
+[Database Standards § Concurrency](../standards/05-database.md) are corrected in
+place, per the [ADR-0031 Amendment 1](0031-postgresql-major-version.md) precedent.
+
+`Aggregates_With_Optimistic_Concurrency_Map_RowVersion` gains a clause: no
+configuration may call `ValueGeneratedOnAddOrUpdate()` or `IsRowVersion()` on a
+concurrency token. A structural test can see that; it cannot see a silently
+inert token.
 
 ## References
 

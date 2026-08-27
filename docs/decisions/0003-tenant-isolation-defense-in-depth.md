@@ -165,6 +165,14 @@ Its binding properties:
 
 ### Which tables the template applies to
 
+> **Amendment note (2026-08-27).** The enumeration below was written before
+> `idempotency_keys` existed and before the tenant-owned class was split into
+> org-scoped and tenant-wide. **[Database Standards § Table classes](../standards/05-database.md)
+> is the single authority for the assignment**; this section keeps the *rule* —
+> which class a table belongs to and why — and no longer keeps the list, for the
+> same reason the template itself lives in one file: a list copied into three
+> documents drifts in three directions, and this copy already had.
+
 The corrected template governs **tenant-owned** tables. Two classes sit outside it, and
 both are enumerated rather than left to judgement:
 
