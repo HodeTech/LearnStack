@@ -82,8 +82,9 @@ The fourth segment exists for **Hub-side event-name suffixes**
 (`learnstack.hub.custom-domain.activated`, `learnstack.hub.custom-domain.deactivated`,
 `learnstack.hub.custom-domain.revoked`). LearnStack-core topics stay 3-segment
 (`learnstack.{module}.{aggregate}`); the 4-segment shape is reserved for the Hub-side
-naming exception. Treat the architecture test as the source of truth; keep this
-skill's regex aligned with it.
+naming exception. Do not restate the pattern here or anywhere else: the architecture
+test is the source of truth, and the copy that used to live in this file is what drifted
+away from it.
 
 ### Step 2: Dapr component YAML
 

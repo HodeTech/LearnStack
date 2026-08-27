@@ -260,10 +260,50 @@ public sealed class InMemoryCacheService : ICacheService
     {
         var started = Stopwatch.GetTimestamp();
         var outcome = "success";
+        Task<T>? overrunning = null;
 
         try
         {
-            var produced = await factory(flight.FactoryToken).ConfigureAwait(false);
+            // Raced against the deadline rather than simply handed the token.
+            // CancelAfter cancels a TOKEN; it does not stop a factory, and a
+            // factory that never observes its token — the ordinary shape for any
+            // dependency call that does not thread one — runs to completion
+            // regardless. Measured against a 150 ms budget: the caller waited
+            // 3,002 ms and was handed the late value. The budget was not a
+            // timeout at all for the case that most needs one.
+            var running = factory(flight.FactoryToken);
+            var deadline = Task.Delay(Timeout.Infinite, flight.FactoryToken);
+
+            if (await Task.WhenAny(running, deadline).ConfigureAwait(false) != running)
+            {
+                var timedOut = !flight.Abandoned;
+
+                outcome = timedOut ? "timeout" : "cancelled";
+
+                // Marked abandoned and left REGISTERED: a later caller must not
+                // start a second factory for this key while this one is still
+                // running, and it cannot join this flight either, because the
+                // answer it would get is the timeout. It waits on the factory
+                // itself and then retries from scratch.
+                flight.Abandoned = true;
+                flight.Overrunning = running;
+                overrunning = running;
+
+                if (timedOut)
+                {
+                    flight.TrySetException(new TimeoutException(
+                        $"The cache factory for '{key}' did not complete within "
+                        + $"{_factoryTimeout.TotalSeconds:0.###}s."));
+                }
+                else
+                {
+                    flight.TrySetCanceled();
+                }
+
+                return;
+            }
+
+            var produced = await running.ConfigureAwait(false);
 
             lock (KeyGate(key))
             {
@@ -317,6 +357,36 @@ public sealed class InMemoryCacheService : ICacheService
             _factoryDuration.Record(
                 Stopwatch.GetElapsedTime(started).TotalSeconds,
                 CacheNameAndOutcomeTags(key, outcome));
+
+            if (overrunning is null)
+            {
+                flight.Dispose();
+            }
+            else
+            {
+                // Retirement waits for the real end of the factory. Its result is
+                // never stored — it answers a question whose caller has already
+                // been told the answer did not arrive.
+                _ = RetireWhenFactoryEndsAsync(registration, flight, key, overrunning);
+            }
+        }
+    }
+
+    private async Task RetireWhenFactoryEndsAsync(
+        (string Key, Type Type) registration, Flight flight, string key, Task overrunning)
+    {
+        try
+        {
+            await overrunning.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Observed so it never surfaces as an uncorrelated process-wide
+            // event. Every caller has already been answered.
+        }
+        finally
+        {
+            RetireTerminalFlight(registration, flight, key);
             flight.Dispose();
         }
     }
@@ -349,7 +419,12 @@ public sealed class InMemoryCacheService : ICacheService
     {
         try
         {
-            await flight.Completion.WaitAsync(cancellationToken).ConfigureAwait(false);
+            // The FACTORY, when one is still running past its deadline — not the
+            // completion, which is already terminal and would spin this retry
+            // loop hot. Waiting for the factory is what keeps a replacement from
+            // overlapping it.
+            await (flight.Overrunning ?? flight.Completion)
+                .WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -558,6 +633,13 @@ public sealed class InMemoryCacheService : ICacheService
         public CancellationToken FactoryToken => _factoryCancellation.Token;
         public int Waiters { get; set; }
         public bool Abandoned { get; set; }
+
+        /// <summary>
+        /// The factory still running after this flight became terminal, if any.
+        /// A replacement for the same key waits on this rather than on
+        /// <see cref="Completion"/>, which is already settled.
+        /// </summary>
+        public Task? Overrunning { get; set; }
         public bool Superseded { get; set; }
 
         public void CancelFactory() => _factoryCancellation.Cancel();

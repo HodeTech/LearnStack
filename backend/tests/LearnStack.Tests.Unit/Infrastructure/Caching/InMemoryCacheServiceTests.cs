@@ -1063,6 +1063,39 @@ public sealed class InMemoryCacheServiceTests
         await act.Should().ThrowAsync<TimeoutException>();
     }
 
+    [Fact]
+    public async Task A_Factory_That_Ignores_Its_Token_Is_Still_Bounded()
+    {
+        // The budget used to be a token and nothing else, so it only worked on
+        // factories that observed it — and a dependency call that does not
+        // thread one is the ordinary case, not the exotic one. Measured against
+        // a 150 ms budget: the caller waited 3,002 ms and was handed the late
+        // value. The deadline is raced now.
+        var cache = new InMemoryCacheService(
+            new FixedClock(Origin), MeterFactory, factoryTimeout: TimeSpan.FromMilliseconds(80));
+        var runs = 0;
+
+        var overrunning = cache.GetOrSetAsync<string>(Key(), async _ =>
+        {
+            Interlocked.Increment(ref runs);
+            await Task.Delay(TimeSpan.FromMilliseconds(600), CancellationToken.None);
+            return "late";
+        });
+
+        await ((Func<Task>)(() => overrunning)).Should().ThrowAsync<TimeoutException>();
+
+        // The replacement waits for the overrunning factory rather than starting
+        // a second one beside it, and is not answered with the first caller's
+        // timeout for ever.
+        var replacement = await cache.GetOrSetAsync(Key(), _ => Task.FromResult("fresh"))
+            .WaitAsync(TestTimeout);
+
+        replacement.Should().Be("fresh");
+        runs.Should().Be(1, "no second factory ran alongside the first");
+        (await cache.GetAsync<string>(Key())).Should().Be("fresh",
+            "a result that arrived after its deadline is not cached");
+    }
+
     // ---- the TTL boundary ---------------------------------------------------
 
     [Fact]
