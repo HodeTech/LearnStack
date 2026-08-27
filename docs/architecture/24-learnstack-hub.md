@@ -402,7 +402,7 @@ sequenceDiagram
     User->>LSApi: "Start recording" command
     LSApi->>LSApi: IFeatureFlags.IsEnabledAsync(FeatureKeys.ClassroomRecording)
     LSApi->>Cache: SELECT WHERE tenant_id = X
-    alt Cache fresh (<15m)
+    alt Cache fresh (<60s L1)
         Cache-->>LSApi: Entitlement (gen=42)
     else Cache stale or miss
         LSApi->>HubAPI: POST /api/v1/internal/license/verify<br/>(mTLS + JWT + HMAC; tenant_id, feature_key)

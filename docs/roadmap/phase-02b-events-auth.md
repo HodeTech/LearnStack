@@ -185,8 +185,8 @@ distributed adapter in Phase 11. Declaring or consuming it in this single-instan
 would provide no cross-instance effect — which is precisely
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s trigger for the
 distributed `ICacheService` adapter in [Phase 11](phase-11-production-hardening.md).
-Wiring the subscription now means the Phase 11 adapter has a consumer waiting rather than
-a code path to invent.
+This phase therefore neither declares the topic nor consumes it; the adapter that gives
+it an effect brings its own subscription.
 
 ### Background jobs
 

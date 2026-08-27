@@ -50,6 +50,11 @@ flowchart LR
     Kafka --> OtherDaprd --> OtherApp
 ```
 
+**Production pod topology, in text:** the API process and its Dapr sidecar share one
+pod. The API talks to the sidecar over localhost; the sidecar talks to Kafka, Valkey and
+Vault; and it delivers subscribed events back to the API over HTTP. Nothing in a module
+speaks to a broker directly — the ports do.
+
 The diagram is the production pod target: the sidecar shares the app pod's network
 namespace via the Kubernetes Dapr annotation. Local development deliberately runs the
 .NET host on the workstation and the sidecar in Compose; the exact topology and service
@@ -240,9 +245,33 @@ internal sealed class DaprCacheService : ICacheService
             return state;
         }
 
+        // Abridged: the shipped `InMemoryCacheService` coalesces concurrent
+        // misses per (key, requested type) so one factory runs however many
+        // callers arrive, the first caller owns the TTL, and a replacement waits
+        // for an abandoned factory to terminate. This adapter owes the same
+        // contract — the factory is the expensive side, and a cache that lets N
+        // simultaneous misses each run it turns a cold key into a stampede
+        // against the dependency it exists to spare.
         var value = await factory(ct);
         await SetAsync(key, value, options, ct);
         return value;
+    }
+
+    public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
+    {
+        CacheKey.EnsureValid(key);
+
+        if (_memoryCache.TryGetValue(key, out T? cached) && cached is not null) return cached;
+
+        var (state, etag) = await _dapr.GetStateAndETagAsync<T?>(StateStoreName, key, cancellationToken: ct);
+        return string.IsNullOrEmpty(etag) ? default : state;
+    }
+
+    public async Task RemoveAsync(string key, CancellationToken ct = default)
+    {
+        CacheKey.EnsureValid(key);
+        _memoryCache.Remove(key);
+        await _dapr.DeleteStateAsync(StateStoreName, key, cancellationToken: ct);
     }
 
     public Task SetAsync<T>(string key, T value, CacheOptions? options = null, CancellationToken ct = default)

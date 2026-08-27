@@ -93,8 +93,9 @@ make seed      # verify health + print demo credentials
   lives in exactly one file:
   [Database Standards](docs/standards/05-database.md).
 - **Foundation ports:** `IEventBus`, `ICacheService`, `ISecretProvider`,
-  `IEntitlementProvider`, `IHostToTenantResolver` in `LearnStack.SharedKernel`, each
-  with a working default implementation. Vendor adapters — Dapr
+  in `LearnStack.SharedKernel`, each with a working default implementation.
+  `IEntitlementProvider` and `IHostToTenantResolver` are **not** among them — both need
+  tenancy schema and land with Packets 9 and 7. Vendor adapters — Dapr
   ([ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md)), Kafka, Valkey
   ([ADR-0030](docs/decisions/0030-redis-compatible-store-valkey.md)), Vault, APISIX
   ([ADR-0015](docs/decisions/0015-api-gateway-apisix.md)) — are **demand-gated**: each

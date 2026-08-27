@@ -163,7 +163,7 @@ public sealed partial class InProcessEventBus(
                     exception);
             }
 
-            var handle = subscription.ContractType.GetMethod(HandleMethodName)!;
+            var handle = subscription.Handle;
             Task delivery;
 
             try

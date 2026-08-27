@@ -232,8 +232,13 @@ tenants/{tenant_id}/brand/...                                        ← tenant-
 platform:{module}:{entity}:{id}                 ← platform-admin operation
 ```
 
-`DaprCacheService.PrefixKey` auto-prefixes; modules write keys in the unprefixed form
-(`{module}:{entity}:{id}`).
+**The caller composes the key; an adapter only validates it.** `CacheKey.ForTenant`,
+`CacheKey.ForOrganization` and `CacheKey.ForPlatform` produce the shapes above, and
+every `ICacheService` implementation calls `CacheKey.EnsureValid` and rewrites nothing
+([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)). An adapter
+that prefixed as well would emit `{tenant}:{tenant}:{module}:{entity}` — and a module
+writing an unprefixed key would be writing one two tenants can both compute, which is
+the whole reason the tenant segment is mandatory.
 
 ### Search (Meilisearch — ADR-0012)
 

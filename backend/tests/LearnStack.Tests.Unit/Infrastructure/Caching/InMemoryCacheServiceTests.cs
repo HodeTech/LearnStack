@@ -599,7 +599,7 @@ public sealed class InMemoryCacheServiceTests
         {
             Interlocked.Increment(ref calls);
             var current = Interlocked.Increment(ref running);
-            Interlocked.Exchange(ref maximumRunning, Math.Max(maximumRunning, current));
+            RecordMaximum(ref maximumRunning, current);
             entered.TrySetResult();
             await release.WaitAsync(TestTimeout, CancellationToken.None);
             Interlocked.Decrement(ref running);
@@ -617,7 +617,7 @@ public sealed class InMemoryCacheServiceTests
         {
             Interlocked.Increment(ref calls);
             var current = Interlocked.Increment(ref running);
-            Interlocked.Exchange(ref maximumRunning, Math.Max(maximumRunning, current));
+            RecordMaximum(ref maximumRunning, current);
             Interlocked.Decrement(ref running);
             return Task.FromResult("fresh");
         });
@@ -1035,6 +1035,34 @@ public sealed class InMemoryCacheServiceTests
         cache.Count.Should().Be(1, "it does occupy a slot, whatever a reader sees");
     }
 
+    [Fact]
+    public async Task A_Factory_That_Outlives_Its_Budget_Times_Out_Rather_Than_Cancels()
+    {
+        // The service owns a 30s factory budget, and it used to end the flight by
+        // CANCELLING it — so every waiter, including ones whose own token was
+        // perfectly healthy, was told "you asked for this" when they had not.
+        // A caller could not tell its own cancellation from the cache's budget
+        // expiring, and ASP.NET reads a cancellation as "the client hung up":
+        // no body, no captured error, no span, so a timeout an operator needs to
+        // see would vanish.
+        var cache = new InMemoryCacheService(
+            new FixedClock(Origin), MeterFactory, factoryTimeout: TimeSpan.FromMilliseconds(80));
+        using var never = new SemaphoreSlim(0);
+
+        var act = () => cache.GetOrSetAsync(
+            Key(),
+            async token =>
+            {
+                await never.WaitAsync(TimeSpan.FromMinutes(5), token);
+                return "never";
+            });
+
+        // A TimeoutException, not an OperationCanceledException: the caller's own
+        // token was never cancelled, so a cancellation would be a lie about who
+        // gave up.
+        await act.Should().ThrowAsync<TimeoutException>();
+    }
+
     // ---- the TTL boundary ---------------------------------------------------
 
     [Fact]
@@ -1073,6 +1101,33 @@ public sealed class InMemoryCacheServiceTests
         calls.Should().Be(0, "the write landed before a flight could be published");
         clock.Fired.Should().BeTrue("the window was actually hit — otherwise this proves nothing");
         (await cache.GetAsync<string>(Key())).Should().Be("landed-in-the-window");
+    }
+
+    /// <summary>
+    /// Raises <paramref name="maximum"/> to <paramref name="candidate"/> if it is
+    /// higher, atomically.
+    /// </summary>
+    /// <remarks>
+    /// <c>Interlocked.Exchange(ref max, Math.Max(max, current))</c> reads, computes
+    /// and writes as three separate steps: two threads can both read the same
+    /// value and the lower result can land last, losing a genuine overlap. In a
+    /// test whose whole point is detecting overlap, that is a guard that passes
+    /// on broken code.
+    /// </remarks>
+    private static void RecordMaximum(ref int maximum, int candidate)
+    {
+        var observed = Volatile.Read(ref maximum);
+
+        while (candidate > observed)
+        {
+            var previous = Interlocked.CompareExchange(ref maximum, candidate, observed);
+            if (previous == observed)
+            {
+                return;
+            }
+
+            observed = previous;
+        }
     }
 
     /// <summary>

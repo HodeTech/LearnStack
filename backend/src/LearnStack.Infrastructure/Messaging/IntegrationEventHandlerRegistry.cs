@@ -15,6 +15,9 @@ namespace LearnStack.Infrastructure.Messaging;
 /// </remarks>
 public sealed class IntegrationEventHandlerRegistry
 {
+    private const string HandleMethodName =
+        nameof(IIntegrationEventHandler<IIntegrationEvent>.HandleAsync);
+
     private readonly IReadOnlyDictionary<Type, IntegrationEventSubscription[]> _subscriptions;
 
     private IntegrationEventHandlerRegistry(IEnumerable<IntegrationEventSubscription> subscriptions)
@@ -91,11 +94,17 @@ public sealed class IntegrationEventHandlerRegistry
         Type handlerType, Type contract)
     {
         var eventType = contract.GetGenericArguments()[0];
+        var handle = contract.GetMethod(HandleMethodName)
+            ?? throw new InvalidOperationException(
+                $"{contract.FullName} declares no {HandleMethodName}; the "
+                + "integration-event handler contract has drifted.");
+
         return new IntegrationEventSubscription(
             eventType,
             handlerType,
             contract,
-            ModuleName(handlerType, eventType));
+            ModuleName(handlerType, eventType),
+            handle);
     }
 
     private static string ModuleName(Type handlerType, Type eventType)

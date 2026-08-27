@@ -68,13 +68,17 @@ Format: `learnstack.{module}.{aggregate}`. Examples:
 | `learnstack.hub.custom-domain.activated` | Hub → core host mapping update |
 | `learnstack.cache.invalidation` | Cross-instance L1 cache invalidation |
 
-Architecture test `Integration_Event_TopicNames_FollowConvention` (defined in
-[15-event-and-outbox.md § Architecture tests](../../../docs/architecture/15-event-and-outbox.md))
-rejects anything that doesn't match
-`^learnstack\.(?:[a-z]|[a-z][a-z0-9-]*[a-z0-9])\.(?:[a-z]|[a-z][a-z0-9-]*[a-z0-9])(?:\.(?:[a-z]|[a-z][a-z0-9-]*[a-z0-9]))?$`,
-with the four-segment form accepted only when segment two is `hub`.
+Architecture test `Integration_Event_TopicNames_FollowConvention`
+(`CrossCuttingFoundationTests`) is the source of truth for the pattern, and this skill
+deliberately does **not** restate it. A copy of the regex lived here and had already
+drifted: it collapsed the two shapes into one optional trailing group, so it accepted
+`learnstack.identity.user.created` — a four-segment core topic the test rejects. Two
+things to know, and the test for the rest:
 
-The optional fourth segment exists for **Hub-side event-name suffixes**
+- LearnStack-core topics are **three** segments: `learnstack.{module}.{aggregate}`.
+- A **fourth** segment is accepted only when the second is `hub`.
+
+The fourth segment exists for **Hub-side event-name suffixes**
 (`learnstack.hub.custom-domain.activated`, `learnstack.hub.custom-domain.deactivated`,
 `learnstack.hub.custom-domain.revoked`). LearnStack-core topics stay 3-segment
 (`learnstack.{module}.{aggregate}`); the 4-segment shape is reserved for the Hub-side
@@ -147,7 +151,10 @@ registry supplies the current subscription metadata.
 
 The future Phase 11 subscription pipeline must preserve this behavior:
 
-1. Dapr sidecar delivers HTTP POST to `/dapr/subscribe-endpoint`.
+1. The sidecar **discovers** subscriptions with `GET /dapr/subscribe`, which returns
+   the topic-to-route table; it then **delivers** each event with an HTTP `POST` to the
+   route that table named. They are two different calls, and there is no endpoint
+   called `/dapr/subscribe-endpoint`.
 2. LearnStack's Phase 11 Dapr adapter deserialises the envelope, restores
    `TenantContext` from the event and envelope, and resolves the matching
    `IIntegrationEventHandler<T>` directly from DI.

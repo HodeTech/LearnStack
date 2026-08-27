@@ -6,7 +6,9 @@ Modules collaborate only through explicit contracts. This keeps the modular mono
 > integration events (Mechanism #3 in this document) dispatch through `IEventBus`:
 > `InProcessEventBus` today and Dapr pub/sub → Kafka only after its Phase 11 trigger.
 > The outbox table remains the durable producer-side buffer. Topic naming convention:
-> `learnstack.{module}.{aggregate}`. Consumer-side idempotency via per-module inbox guard
+> `learnstack.{module}.{aggregate}`, with `learnstack.hub.{domain}.{event}` as the one
+> exception — a fourth segment is accepted only when the second is `hub`, which is what
+> `Integration_Event_TopicNames_FollowConvention` enforces. Consumer-side idempotency via per-module inbox guard
 > (`IInboxGuard`). Application contracts (Mechanism #1), intra-module domain events
 > (Mechanism #2), and read-model projections (Mechanism #4) are unchanged. See
 > [15-event-and-outbox.md](15-event-and-outbox.md) for the full producer/consumer flow.

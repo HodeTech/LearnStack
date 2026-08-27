@@ -50,7 +50,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 |-------|----------|-------------|
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
-| Node 20+ + pnpm | Yes | For the frontend. |
+| Node >=20.11.0 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `20.11.0`. |
 | Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
 
@@ -60,7 +60,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 
 ```bash
 dotnet --version       # 10.0.x
-node --version         # v20+
+node --version         # >=20.11.0
 pnpm --version
 docker info >/dev/null && echo "docker OK"
 ```

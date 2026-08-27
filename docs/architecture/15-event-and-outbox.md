@@ -420,15 +420,35 @@ public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
+        // Every envelope field crosses the wire, not just the partition key.
+        // Publishing `envelope.Event` with only `partitionKey` metadata drops
+        // CorrelationId, OrganizationId, CausationId and ActorUserId — which is
+        // exactly what ADR-0014 Amendment 3 added the envelope to carry, and
+        // exactly what the consumer needs to restore its tenant context. The
+        // trace chain would break at the broker instead of at the outbox.
+        var metadata = new Dictionary<string, string>
+        {
+            ["partitionKey"] = envelope.PartitionKey,
+            ["cloudevent.traceparent"] = envelope.CorrelationId,
+        };
+
+        if (envelope.OrganizationId is { } organization)
+        {
+            metadata["organizationId"] = organization.ToString();
+        }
+
+        if (envelope.CausationId is { } causation)
+        {
+            metadata["causationId"] = causation.ToString();
+        }
+
+        if (envelope.ActorUserId is { } actor)
+        {
+            metadata["actorUserId"] = actor.Value.ToString();
+        }
+
         return daprClient.PublishEventAsync(
-            "pubsub",
-            envelope.Topic,
-            envelope.Event,
-            new Dictionary<string, string>
-            {
-                ["partitionKey"] = envelope.PartitionKey,
-            },
-            ct);
+            "pubsub", envelope.Topic, envelope.Event, metadata, ct);
     }
 }
 ```

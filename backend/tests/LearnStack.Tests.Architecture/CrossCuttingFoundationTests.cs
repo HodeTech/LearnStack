@@ -434,8 +434,10 @@ public sealed class CrossCuttingFoundationTests
                 .ToList();
 
             offenders.Should().BeEmpty(
-                $"{name} injects IEventBus. Modules write to the outbox; the "
-                + "OutboxProcessor publishes (Standards 20 § IEventBus).");
+                $"{name} reaches IEventBus directly — by injecting it, or through "
+                + "IServiceProvider, which is the same access with an extra step. "
+                + "Modules write to the outbox; the OutboxProcessor publishes "
+                + "(Standards 20 § IEventBus).");
         }
     }
 

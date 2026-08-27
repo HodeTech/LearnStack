@@ -54,6 +54,7 @@ public sealed class InMemoryCacheService : ICacheService
 
     private const int KeyGateCount = 256;
 
+    private readonly TimeSpan _factoryTimeout;
     private readonly IClock _clock;
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<(string Key, Type Type), Flight> _inFlight = new();
@@ -71,11 +72,18 @@ public sealed class InMemoryCacheService : ICacheService
     private long _lastSweepTicks;
     private long _sequence;
 
-    public InMemoryCacheService(IClock clock, IMeterFactory meterFactory)
+    /// <param name="factoryTimeout">
+    /// How long a single factory may run before the service gives up on it.
+    /// Defaults to <see cref="FactoryTimeout"/>; overridable so the timeout path
+    /// can be exercised without a test waiting out the production budget.
+    /// </param>
+    public InMemoryCacheService(
+        IClock clock, IMeterFactory meterFactory, TimeSpan? factoryTimeout = null)
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(meterFactory);
 
+        _factoryTimeout = factoryTimeout ?? FactoryTimeout;
         _clock = clock;
         var meter = meterFactory.Create(new MeterOptions(MeterName));
         _hits = meter.CreateCounter<long>(HitCounterName);
@@ -174,7 +182,7 @@ public sealed class InMemoryCacheService : ICacheService
                 }
                 else
                 {
-                    flight = new Flight(FactoryTimeout) { Waiters = 1 };
+                    flight = new Flight(_factoryTimeout) { Waiters = 1 };
                     _inFlight[registration] = flight;
                     owner = true;
                 }
@@ -272,9 +280,31 @@ public sealed class InMemoryCacheService : ICacheService
         }
         catch (OperationCanceledException) when (flight.FactoryToken.IsCancellationRequested)
         {
-            outcome = "cancelled";
+            // Two different things cancel the factory token, and only one of them
+            // has anyone left to tell. ReleaseWaiter cancels it when the LAST
+            // waiter leaves — there is no observer by construction, so cancelled
+            // is the honest terminal state. FactoryTimeout cancels it because the
+            // service's own budget ran out, and the waiters still holding on have
+            // healthy tokens of their own: handing them a cancellation says "you
+            // asked for this" when they did not, and a caller cannot tell the two
+            // apart. Worse, ASP.NET treats a cancellation as "the client hung up"
+            // — no body, no captured error, no span — so a timeout the operator
+            // needs to see would disappear.
+            var abandoned = flight.Abandoned;
+
+            outcome = abandoned ? "cancelled" : "timeout";
             RetireTerminalFlight(registration, flight, key);
-            flight.TrySetCanceled();
+
+            if (abandoned)
+            {
+                flight.TrySetCanceled();
+            }
+            else
+            {
+                flight.TrySetException(new TimeoutException(
+                    $"The cache factory for '{key}' did not complete within "
+                    + $"{_factoryTimeout.TotalSeconds:0.###}s."));
+            }
         }
         catch (Exception exception)
         {

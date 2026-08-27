@@ -159,8 +159,10 @@ expression of the secret port rather than a parallel mechanism.
 ## Configuration
 
 - Strongly-typed `IOptions<T>` bound in code.
-- Sources, in order: `ISecretProvider` (Vault via Dapr) → env vars →
-  `appsettings.{env}.json` → `appsettings.json`. Vault wins.
+- Sources, in order: `ISecretProvider` → env vars → `appsettings.{env}.json` →
+  `appsettings.json`; the provider wins. `ISecretProvider` resolves
+  `ConfigurationSecretProvider` in every mode today, so it reads that same chain —
+  Vault behind it is the Phase 11 target, not the current path (§ Secrets Management).
 - No secrets in git.
 - Secrets stored in Vault for `SaaS` / `Dedicated`; in Vault or a sealed file for
   `SelfHosted`; in env files (gitignored) for `Development`.

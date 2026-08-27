@@ -505,7 +505,12 @@ across all modes.
 
 The decision is unchanged. Only the **spelling** in the resolver sketch above is
 clarified: the sketch says `hub:host:{host}`, while the shipped contract is
-`platform:hub:host-map:{host}`.
+`platform:hub:host-map:{normalized-host}` — one canonical form, and the host segment is
+the **normalized** host per
+[ADR-0036](0036-tenant-resolution-trusted-inputs.md), which has already lowercased it,
+punycoded it and stripped the port. A raw `Host` header would produce several keys for
+one site, and one carrying `:8443` would be refused outright rather than split into two
+segments.
 
 `CacheKey.EnsureValid` requires the tenant segment first and mandatory, so
 `hub:host:{host}` is refused outright. A host lookup is the one key family that
