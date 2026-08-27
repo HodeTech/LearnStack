@@ -60,7 +60,9 @@ belongs to is decided by what it needs, not by what it is about:
 - **Data tests** — real Postgres + Valkey + SeaweedFS via Testcontainers, one
   database per test class (or Respawn between tests). Everything that is a
   property of the schema lives here, and **every tenant-isolation invariant**
-  does. These arrive with the schema in Packet 7 and run in the separate
+  does. The schema itself lands in Packet 6; these arrive with the **isolation suite**
+  in Packet 7 — connected as `learnstack_app`, because a test run as the owner or as a
+  `BYPASSRLS` role passes against inert policies — and run in the separate
   `backend-integration` job.
 
 Both: real module configuration, no mocked repositories, and coverage of the

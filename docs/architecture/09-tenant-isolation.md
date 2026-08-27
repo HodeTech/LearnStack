@@ -112,8 +112,13 @@ Three properties of that template matter to the isolation model described on thi
 - **An explicit `WITH CHECK`.** `USING` decides what is readable; `WITH CHECK` decides
   what is writable.
 
-The `app.scope = 'tenant'` setting is set by middleware when the request comes from a
-tenant-admin role with a tenant-wide operation flag (e.g. cross-org reporting). It
+The `app.scope = 'tenant'` setting is issued by `TransactionBehavior`, alongside
+`app.tenant_id` and `app.organization_id` and for the same reason — all three are
+transaction-local, so middleware setting them would discard them before the guarded
+query ran ([Security Standards § Tenant Context](../standards/11-security.md) is the
+single authority). What middleware contributes is the *input*: the request comes from a
+tenant-admin role carrying a tenant-wide operation flag (e.g. cross-org reporting), and
+the behavior turns that into the session variable. It
 widens **reads** across organizations within the caller's tenant; it never widens
 writes, and it never crosses a tenant boundary. The default scope (`null` or
 `'organization'`) restricts reads to the caller's organization plus tenant-wide rows.

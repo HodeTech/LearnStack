@@ -64,7 +64,7 @@ Construction:
   `Guid.NewGuid()` directly in `Domain` / `Application` code** — Standards 02
   § Time bans the symmetric `DateTime.UtcNow` for the same reason (deterministic
   tests). High-volume append-only tables (`audit_log`, `outbox_messages`) prefer
-  DB-side `gen_uuid_v7()` (per [ADR-0031](../decisions/0031-postgresql-major-version.md)).
+  DB-side `uuidv7()` (per [ADR-0031](../decisions/0031-postgresql-major-version.md)).
 - ID types do **not** expose a `New()` static — explicit `From(guidFactory.NewUuidV7())`
   at the call site keeps the dependency surface honest.
 

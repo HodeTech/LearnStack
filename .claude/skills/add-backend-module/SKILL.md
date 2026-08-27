@@ -144,9 +144,10 @@ public sealed class <Name>DbContext(
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Tenant + Organization query filters applied via convention to
-        // [TenantOwned] and [OrganizationScoped] entities — see
-        // SharedKernel/Conventions/TenantQueryFilterConvention.cs.
+        // Tenant + Organization query filters are applied PER ENTITY in its
+        // IEntityTypeConfiguration. There is no TenantQueryFilterConvention —
+        // that type has never existed. Every_TenantOwned_Entity_HasFilterAndRlsPolicy
+        // is what makes a forgotten filter fail.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(<Name>DbContext).Assembly);
     }
 }
@@ -185,7 +186,9 @@ create the spec files under `docs/modules/<name>/`:
 Module migrations live with the module:
 
 ```bash
-dotnet ef migrations add Initial_<Name>_Schema \
+# INTENT ONLY, snake_case: EF prepends the UTC timestamp, producing the
+# <UTC_yyyyMMddHHmmss>_<intent> filename Standards 05 specifies.
+dotnet ef migrations add create_<name>_schema \
   --project backend/src/Modules/<Name>/LearnStack.Modules.<Name>.Infrastructure \
   --startup-project backend/src/LearnStack.Api \
   --output-dir Persistence/Migrations

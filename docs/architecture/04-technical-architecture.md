@@ -146,7 +146,7 @@ Future options (deferred): schema-per-tenant for enterprise tenants, read replic
 - **Problem Details (RFC 7807)** for all error responses.
 - **Cursor pagination** for list endpoints. Offset pagination is allowed only for admin-bounded lists.
 - **Idempotency keys** for `POST` operations that have external side effects (payments, webhooks, send-notification).
-- **Optimistic concurrency** for any mutable entity using `xmin` or `row_version` column.
+- **Optimistic concurrency** for any mutable entity, on an explicit `row_version bigint` column ([ADR-0039](../decisions/0039-optimistic-concurrency-token.md)). `xmin` is not used as a concurrency token.
 - **API versioning** via URL prefix: `/api/v1/...`. Breaking changes bump to `/api/v2/...`; non-breaking additions stay on the existing version. See [ADR-0024](../decisions/0024-api-versioning-policy.md), which fixed exactly this `/v1/` vs `/api/v1/` inconsistency.
 - **Authentication** via OIDC bearer tokens issued by Keycloak. Frontends use Auth.js to bridge.
 - **Authorization** layered: tenant scope → role/permission → resource ownership where applicable.
@@ -161,7 +161,7 @@ GraphQL is not in scope for the MVP. Revisit only when a frontend surface (e.g. 
 | Primary keys | Strongly-typed ids backed by `uuid`. |
 | Tenant column | `tenant_id uuid not null` on every tenant-owned table; RLS policy enforces it. |
 | Audit columns | `created_at`, `created_by`, `updated_at`, `updated_by`, optional `deleted_at`, `deleted_by`. |
-| Concurrency | `row_version` (`xmin` or explicit `bigint` column) on mutable entities. |
+| Concurrency | `row_version bigint` (CLR `long`) on mutable entities, per [ADR-0039](../decisions/0039-optimistic-concurrency-token.md). Not `xmin`. |
 | Migrations | EF Core migrations; every PR includes a paired migration if the schema changes. |
 | Soft delete | Opt-in per aggregate; not a global default. |
 

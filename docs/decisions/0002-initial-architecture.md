@@ -75,7 +75,7 @@ pre-implementation, so the migration drag is zero):
    change — it is the RESP-provider identifier, not a vendor brand.
 2. **PostgreSQL major pinned to 18.x** per
    [ADR-0031](0031-postgresql-major-version.md). 18 is the longest-
-   runway LTS available (EOL 2030-11), brings native `gen_uuid_v7()`
+   runway LTS available (EOL 2030-11), brings native `uuidv7()`
    that [ADR-0023](0023-strongly-typed-id-source-generator.md) adopts
    without an extension, and async I/O for sequential scans helps the
    partitioned `audit_log`

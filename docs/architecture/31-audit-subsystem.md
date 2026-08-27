@@ -427,8 +427,11 @@ through the pipeline; the commit outcome travels back out.
 public async Task<TResponse> Handle(TRequest request,
     RequestHandlerDelegate<TResponse> next, CancellationToken ct)
 {
-    if (!RequiresTransaction(request)) return await next();
-
+    // No gate. Every request that reaches step 6 needs a transaction: the only
+    // two exemptions Standards 02 recognises — a forbidden request and a
+    // validation-failed one — short-circuit at steps 4 and 5 and never arrive
+    // here. An earlier draft called a RequiresTransaction(request) predicate
+    // that is defined nowhere and would be a third exemption if it were.
     await unitOfWork.BeginTransactionAsync(ct);
     // First statement inside the transaction, per ADR-0003 Amendment 3.
     await unitOfWork.SetTenantContextAsync(tenantContext, ct);

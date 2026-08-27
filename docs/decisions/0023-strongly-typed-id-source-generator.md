@@ -33,8 +33,8 @@ Accepted
   behind an interface — so the chosen library has to be one we are comfortable depending
   on for the platform's lifetime, or removable with a one-shot find-and-replace if it
   goes unmaintained.
-- **PostgreSQL 18 native `gen_uuid_v7()` is available** ([ADR-0031](0031-postgresql-major-version.md)).
-  The emitter has to play well with DB-side `DEFAULT gen_uuid_v7()` as well as
+- **PostgreSQL 18 native `uuidv7()` is available** ([ADR-0031](0031-postgresql-major-version.md)).
+  The emitter has to play well with DB-side `DEFAULT uuidv7()` as well as
   app-side `Guid.CreateVersion7()` (.NET 9+) — both code paths exist in the codebase
   (DB-side for high-volume audit / outbox tables; app-side for aggregates that need
   the ID before flush).
@@ -89,7 +89,7 @@ value objects.
 
 The choice covers the four-artefact emission requirement, the value-object case, the
 PostgreSQL 18 DB-side UUIDv7 path (Vogen can wrap any `Guid`, including those minted
-by `gen_uuid_v7()`), and a `[Description]`/`[ReadOnly]` annotation surface Roslyn
+by `uuidv7()`), and a `[Description]`/`[ReadOnly]` annotation surface Roslyn
 analyzers can read for additional compile-time rules.
 
 ## Context
@@ -151,7 +151,7 @@ Three things outweighed the appeal:
 
 ### What we explicitly punted on
 
-- **UUIDv7 source.** Both DB-side (`gen_uuid_v7()`) and app-side
+- **UUIDv7 source.** Both DB-side (`uuidv7()`) and app-side
   (`Guid.CreateVersion7()`) are valid; the choice between them is per-aggregate (high-
   volume insert paths like `audit_log` / `outbox_messages` prefer DB-side, aggregates
   that need the ID before flush prefer app-side). This stays a Standards 05 (database)
@@ -233,13 +233,13 @@ Three things outweighed the appeal:
   [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
   when the first ID lands.
 - **UUIDv7 minting:**
-  - DB-side (`gen_uuid_v7()` per ADR-0031) for `audit_log`, `outbox_messages`,
+  - DB-side (`uuidv7()` per ADR-0031) for `audit_log`, `outbox_messages`,
     `inbox_messages`, `idempotency_keys` — high-volume append-only tables.
   - App-side (`Guid.CreateVersion7()`) for aggregates that need the ID before
     `SaveChangesAsync()` to emit domain events / outbox writes referencing the
     new aggregate ID.
 - **PostgreSQL 18 alignment:** Vogen-emitted `Guid` wrapper types are wire-compatible
-  with `uuid` columns; the `gen_uuid_v7()` `DEFAULT` is a server-side concern,
+  with `uuid` columns; the `uuidv7()` `DEFAULT` is a server-side concern,
   invisible to Vogen.
 
 ## Amendments

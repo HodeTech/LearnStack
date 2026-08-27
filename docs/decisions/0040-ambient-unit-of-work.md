@@ -18,7 +18,7 @@ Accepted
   says step 6 "opens the ambient transaction through `IUnitOfWork`". The
   roadmap says the Packet 3 shell "lights up here once the per-module
   `DbContext` exists". No document says what the seam owns, how a second
-  `DbContext` relates to it, or what a nested `BeginAsync` does. The
+  `DbContext` relates to it, or what a nested begin does. The
   architecture-test catalogue registers nothing.
 - **`SET LOCAL` is connection- *and* transaction-local, which makes the
   connection count a correctness property rather than a performance one.**
@@ -59,6 +59,10 @@ Accepted
 LearnStack's unit of work is **one database connection per scope**, and
 `IUnitOfWork` owns it.
 
+The member names below match the reference body in
+[31-audit-subsystem.md](../architecture/31-audit-subsystem.md), which was written
+against this seam before it was specified.
+
 `IUnitOfWork` is a scoped service holding one `DbConnection` from the
 application `NpgsqlDataSource` and, once opened, one `DbTransaction` on it.
 Every module `DbContext` resolved in that scope is constructed against that same
@@ -72,15 +76,21 @@ public interface IUnitOfWork : IAsyncDisposable
     /// The ambient connection. Opened on first access, never before.
     DbConnection Connection { get; }
 
-    /// The ambient transaction; null before BeginAsync and after the terminal call.
+    /// The ambient transaction; null before the first begin and after the terminal call.
     DbTransaction? Transaction { get; }
 
-    /// True once BeginAsync has been called and not yet resolved.
+    /// True once a transaction has been opened and not yet resolved.
     bool HasActiveTransaction { get; }
 
     /// Joins the ambient transaction if one is active; otherwise opens it.
     /// Returns a handle whose Complete() is a no-op for a joiner — see § Nesting.
-    Task<IUnitOfWorkScope> BeginAsync(CancellationToken ct = default);
+    Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken ct = default);
+
+    /// Issues SET LOCAL app.tenant_id / app.organization_id / app.scope as the
+    /// first statement inside the transaction. It lives here, not in the
+    /// behavior, because it is SQL and Standards 02 keeps SQL out of the
+    /// Application layer. A no-op for a joiner — see § Nesting.
+    Task SetTenantContextAsync(ITenantContext context, CancellationToken ct = default);
 
     /// Commits. Throws if the transaction is marked rollback-only.
     Task CommitAsync(CancellationToken ct = default);
@@ -139,13 +149,16 @@ entities.
 ### Nesting
 
 An application contract may reach a second handler through `ISender`, so a
-second `BeginAsync` on a live transaction is reachable and must be defined:
+second `BeginTransactionAsync` on a live transaction is reachable and must be
+defined:
 
-- **The outermost `BeginAsync` owns the transaction.** It opens it and is the
-  only caller whose `CommitAsync` commits.
-- **A nested `BeginAsync` joins.** It returns a handle whose completion is a
-  no-op; it never commits, never rolls back, and never issues `SET LOCAL` a
-  second time.
+- **The outermost `BeginTransactionAsync` owns the transaction.** It opens it
+  and is the only caller whose `CommitAsync` commits.
+- **A nested `BeginTransactionAsync` joins.** It returns a handle whose
+  completion is a no-op; it never commits, never rolls back, and its paired
+  `SetTenantContextAsync` does nothing — re-issuing `SET LOCAL` inside the same
+  transaction would let an inner frame silently retarget the outer frame's
+  tenant.
 - **A nested failure marks the transaction rollback-only.** `CommitAsync` on a
   rollback-only transaction throws rather than committing a partial unit; the
   outermost frame rolls back. An inner `Result.Fail` that the outer handler
@@ -166,8 +179,9 @@ inbox check, the business write and the inbox marker to be atomic, and all
 three touch tenant-owned tables that need `app.tenant_id`.
 
 **The transport wraps each delivery in the same shape the behavior uses**:
-`BeginAsync` → `SET LOCAL` from the scope's `EventTenantContext` → handler →
-`CommitAsync`, with a handler exception rolling back. It is the same
+`BeginTransactionAsync` → `SetTenantContextAsync` from the scope's
+`EventTenantContext` → handler → `CommitAsync`, with a handler exception rolling
+back. It is the same
 `IUnitOfWork`, the same three statements and the same commit boundary; only the
 entry point differs, because there are exactly two entry points into the
 application — a MediatR request and an event delivery — and a transaction model

@@ -2,9 +2,11 @@
 name: add-integration-test
 description: >
   Write a Testcontainers-backed integration test in
-  `backend/tests/LearnStack.Tests.Integration` that exercises a real Postgres +
-  Valkey + (optionally) Dapr stack and asserts behaviour under tenant + organization
-  context. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
+  `backend/tests/LearnStack.Tests.Integration` that exercises a real Postgres —
+  connected as `learnstack_app`, never as the owner — and asserts behaviour under
+  tenant + organization context. No Valkey and no Kafka: nothing the backend runs
+  calls them. The fixture arrives in Phase 02a Packet 6; the isolation suite and
+  CI's `backend-integration` job activate in Packet 7. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
   new `[TenantOwned]` / `[OrganizationScoped]` entity), outbox → consumer round
   trips, audit-pipeline assertions, RLS-effective-isolation tests. DO NOT USE FOR:
   pure unit tests (use `LearnStack.Tests.Unit`), architecture tests (use
@@ -52,10 +54,23 @@ architecture test) plus any other invariant the change touches. See
 
 ### Step 1: Reuse the fixture
 
-The project ships `TestFixture` that:
+> **There is no `TestFixture` yet.** `LearnStack.Tests.Integration` today holds
+> HTTP tests over `WebApplicationFactory` and touches no container; the
+> Testcontainers packages are referenced and unused. Phase 02a **Packet 6**
+> introduces the Postgres fixture and **Packet 7** the isolation suite, which is
+> also when CI's `backend-integration` job activates. Until then, treat the shape
+> below as the target and write HTTP-only tests against the existing factory.
 
-- Spins Postgres + Valkey (+ optional Kafka via Dapr) via Testcontainers.
-- Applies all migrations (per module).
+The fixture Packet 6 introduces:
+
+- Spins **Postgres only** via Testcontainers. Not Valkey, not Kafka — nothing the
+  backend runs today calls either, and both sit behind the `gated` compose profile
+  per [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
+- Provisions the **four database roles** before the first migration, then applies
+  migrations **as `learnstack_migration`** — which owns every table — and exposes
+  a connection as **`learnstack_app`** for the tests themselves. A test that
+  connects as the owner or as a `BYPASSRLS` role passes even when every policy is
+  inert, so it proves nothing.
 - Seeds a baseline platform admin, two tenants, two orgs per tenant.
 - Exposes `fixture.AsTenant(tenantId, organizationId?)` to scope a block.
 

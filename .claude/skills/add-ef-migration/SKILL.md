@@ -51,7 +51,10 @@ and survive forward-only deploy rules
 ### Step 1: Generate the migration
 
 ```bash
-dotnet ef migrations add <UTC_yyyyMMddHHmmss>_<intent> \
+# Pass the INTENT only, in snake_case. EF prepends the UTC timestamp itself, so
+# the file lands as <UTC_yyyyMMddHHmmss>_<intent>.cs — the format Standards 05
+# specifies. Typing the timestamp as well produces it twice.
+dotnet ef migrations add <intent> \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
   --startup-project backend/src/LearnStack.Api \
   --output-dir Persistence/Migrations
@@ -283,10 +286,18 @@ dotnet ef migrations script \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
   --startup-project backend/src/LearnStack.Api
 
-# Apply against a local test DB
+# Apply against a local test DB. NOTE THE CONNECTION STRING: migrations connect as
+# learnstack_migration, which OWNS every table. Running this through the API's
+# runtime configuration would connect as learnstack_app and either fail with
+# "permission denied for schema public" or — worse, if someone "fixes" that with a
+# grant — make the runtime role the table owner, which is the arrangement
+# FORCE ROW LEVEL SECURITY exists to defeat. ConnectionStrings:Migration must never
+# appear in API or worker runtime configuration
+# (docs/standards/05-database.md § Database roles).
 dotnet ef database update \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
-  --startup-project backend/src/LearnStack.Api
+  --startup-project backend/src/LearnStack.Api \
+  --connection "$LEARNSTACK_MIGRATION_CONNECTION"
 ```
 
 Then run the architecture + integration test suite. The Testcontainers integration

@@ -228,21 +228,46 @@ public sealed class CachedHostToTenantResolver(
 {
     public Task<HostResolution?> ResolveAsync(string host, CancellationToken ct = default)
         => cache.GetOrSetAsync(
-            $"host:{host}",
-            async token => await db.HostMappings
-                .AsNoTracking()
-                .Where(m => m.Host == host && m.IsActive)
-                .Select(m => new HostResolution(m.TenantId, m.OrganizationId))
-                .SingleOrDefaultAsync(token),
+            // Composed by the factory, never interpolated: CacheKey.EnsureValid is
+            // what stops an unnormalized spelling creating a parallel entry.
+            CacheKey.ForHostMapping(host),
+            async token =>
+            {
+                // The policy on this table admits exactly the row the resolver
+                // ANNOUNCES. Without the SET LOCAL the predicate is NULL and the
+                // query returns nothing, so the miss path opens its own
+                // transaction: SET LOCAL outside a transaction block emits
+                // "WARNING: SET LOCAL can only be used in transaction blocks" and
+                // has no effect, and a session-level set_config(..., false) would
+                // survive on a pooled connection into the next request.
+                await using var tx = await db.Database.BeginTransactionAsync(token);
+
+                await db.Database.ExecuteSqlAsync(
+                    $"SET LOCAL app.resolving_host = {host}", token);
+
+                var resolution = await db.HostMappings
+                    .AsNoTracking()
+                    .Where(m => m.Host == host && m.IsPubliclyLive)
+                    .Select(m => new HostResolution(m.TenantId, m.OrganizationId))
+                    .SingleOrDefaultAsync(token);
+
+                await tx.CommitAsync(token);
+                return resolution;
+            },
             new CacheOptions(L1Ttl: TimeSpan.FromMinutes(2), L2Ttl: TimeSpan.FromMinutes(15)),
             ct);
 }
 ```
 
-`platform_host_to_tenant` is a **platform-level table**, not tenant-owned — the row is
-what *determines* the tenant, so it cannot be filtered by a tenant context that does not
-exist yet. It is read before `ITenantContext` is populated, and the read is the only
-database access in the request that legitimately runs unscoped.
+`platform_host_to_tenant` is the one **platform-scoped** table — the row is what
+*determines* the tenant, so it cannot be filtered by a tenant context that does not
+exist yet. That does **not** make the read unscoped: row security is enabled and forced
+here as everywhere else, and the read is keyed on `app.resolving_host`, which the
+resolver declares for exactly the host it is about to resolve
+([Database Standards § Table classes](../standards/05-database.md)). The failure mode of
+forgetting the `SET LOCAL` is an empty result and a 404 — never a wider read. Writes stay
+tenant-keyed, so a session that can see another tenant's host through
+`app.resolving_host` still cannot repoint it.
 
 Consequences of the change:
 

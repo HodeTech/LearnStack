@@ -6,8 +6,10 @@ description: >
   `[OrganizationScoped]` markers, EF global query filter, PostgreSQL RLS policy,
   and an architecture test. USE FOR: any new domain entity that holds tenant data
   (Course, Enrollment, Cohort, LiveSession, content rows, audit-like rows). DO NOT
-  USE FOR: global tables (`Tenant`, `User`, `Plan`), Hub-mirrored projection rows,
-  or pure value objects.
+  USE FOR: the two tables with their own RLS class — `tenants` (tenant-owned,
+  self-keyed) and `platform_host_to_tenant` (platform-scoped), both governed by
+  Database Standards § Table classes — or pure value objects. Note that
+  `platform_entitlement_cache` IS an ordinary tenant-owned table despite its name.
 ---
 
 # Adding a tenant-owned / org-scoped entity
@@ -29,13 +31,25 @@ cross-tenant leak; this skill is the prevention.
 
 ## When not to use
 
-- Global tables: `Tenant`, `User`, `Plan`, `Permission` (their isolation is
-  conceptual, not row-based).
+- `tenants` — **not** because its isolation is conceptual. ADR-0003 Amendment 3
+  gives it a policy like every other table; it is the **tenant-owned, self-keyed**
+  class, whose predicate keys on `id` because the primary key *is* the tenant id.
+  Use [Database Standards § Table classes](../../../docs/standards/05-database.md),
+  not this skill.
+- `platform_host_to_tenant` — the one **platform-scoped** table, with role-qualified
+  per-command policies, because it is read *in order to determine* the tenant.
+  Standards 05 again.
+- `users`, `plans`, `permissions` — owned by phases that have not written their
+  schema yet. Nothing here says they are exempt from row security.
 - The audit aggregate (`AuditEntry`) — it inherits `Entity<TId>`, not
   `AuditableEntity<T>`, and has its own RLS rule.
-- Hub-mirrored read-only projections (`platform_entitlement_cache`,
-  `platform_host_to_tenant`) — they're tenant-id-keyed but written only by
-  `IEntitlementProvider.RefreshAsync` and `IHostToTenantResolver`.
+
+`platform_entitlement_cache` is **not** on this list. Its name suggests
+platform-scoped and it is not: every read resolves the tenant from `ITenantContext`
+first and every write arrives on `PUT /api/internal/tenants/{id}/entitlements`, so
+both directions have a tenant and it keeps the ordinary tenant-owned template. An
+earlier version of this file exempted it, which would have handed the application
+role a table-wide read of every tenant's plan.
 - Pure value objects with no own table.
 
 ## Inputs
@@ -114,7 +128,9 @@ public sealed class <Name>Configuration : IEntityTypeConfiguration<<Name>>
         builder.ToTable("<name_plural>");
 
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id).HasConversion(id => id.Value, v => new <Name>Id(v));
+        // Vogen generates a private constructor: `new <Name>Id(v)` does not compile.
+        // `From` is the factory, and it is what runs the validation.
+        builder.Property(x => x.Id).HasConversion(id => id.Value, v => <Name>Id.From(v));
 
         builder.Property(x => x.TenantId).HasConversion(...).IsRequired();
         builder.Property(x => x.OrganizationId).HasConversion(...);   // omit if not org-scoped
@@ -129,7 +145,11 @@ public sealed class <Name>Configuration : IEntityTypeConfiguration<<Name>>
 ```
 
 The EF global query filter is applied **by convention**, not in this configuration:
-`TenantQueryFilterConvention` (in SharedKernel) scans for `[TenantOwned]` and adds
+There is no `TenantQueryFilterConvention` and never has been — do not look for it
+and do not import it. The filter is applied per entity in `OnModelCreating`, and
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` is what makes forgetting one fail.
+The paragraph below describes a convention type that would scan for `[TenantOwned]`
+and add
 `x => x.TenantId == _tenantContext.TenantId`. `OrganizationQueryFilterConvention`
 adds `(x.OrganizationId == null || x.OrganizationId == _tenantContext.OrganizationId)`
 when `[OrganizationScoped]` is present. **Do not write filters manually** — the
@@ -140,7 +160,9 @@ convention is the only legal source.
 Generate the migration:
 
 ```bash
-dotnet ef migrations add Add_<Name> \
+# EF prepends its own UTC timestamp, so pass the INTENT only. Passing a timestamp
+# too produces 20260827120000_20260827120000_add_<name>.cs.
+dotnet ef migrations add add_<name> \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
   --startup-project backend/src/LearnStack.Api
 ```

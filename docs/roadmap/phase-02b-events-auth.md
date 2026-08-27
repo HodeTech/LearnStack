@@ -77,7 +77,11 @@ What lands in this phase is the consumer side.
   `available_after`, with `attempts` and `last_error` recorded on the row.
 - **Per-module `inbox_messages` table and `IInboxGuard`.** Every
   `IIntegrationEventHandler<T>` calls `IsAlreadyProcessedAsync` before business logic and
-  `MarkAsProcessed` inside the same `SaveChanges` as the business write. Dispatch is
+  `MarkAsProcessed` inside the same **transaction** as the business write — the
+  ambient one the transport opens per delivery through `IUnitOfWork`
+  ([ADR-0040](../decisions/0040-ambient-unit-of-work.md)), not a shared
+  `SaveChanges`, a formulation [ADR-0033](../decisions/0033-audit-durability-model.md)
+  withdrew. Dispatch is
   at-least-once; the inbox is what makes consumption effectively once.
 - **Tenant and organization context restored from the envelope** in every handler scope,
   before the inner pipeline runs. A consumer that runs without tenant context writes

@@ -18,11 +18,11 @@ major-version choice only; the rest of ADR-0002 stands)
 - **Postgres 18 is the longest-runway LTS available.** EOL 2030-11
   versus 16 LTS at 2028-11. Starting on 18 buys an extra two years of
   upstream patches before any forced major upgrade.
-- **`gen_uuid_v7()` is native in 18.** LearnStack's
+- **`uuidv7()` is native in 18.** LearnStack's
   [ADR-0023 (Strongly-typed ID source generator)](0023-strongly-typed-id-source-generator.md)
   adopts UUIDv7 as the canonical id format
   (time-ordered, index-friendly). Postgres 18 ships a built-in
-  `gen_uuid_v7()` SQL function — DB-side DEFAULT values become trivial,
+  `uuidv7()` SQL function — DB-side DEFAULT values become trivial,
   the app side keeps the strongly-typed wrapping, no extension is
   required. Postgres 16 / 17 force a choice between an extension
   (`pg_uuidv7`) and app-side generation; Postgres 18 closes that gap
@@ -97,7 +97,7 @@ extension we picked early diverges from the 18 native function.
 
 | 18 feature | LearnStack benefit |
 |------------|--------------------|
-| `gen_uuid_v7()` built-in | ADR-0023 uses DB-side `DEFAULT gen_uuid_v7()` for high-volume append-only tables without committing to an extension |
+| `uuidv7()` built-in | ADR-0023 uses DB-side `DEFAULT uuidv7()` for high-volume append-only tables without committing to an extension |
 | Async I/O for sequential scans | `audit_log` partition scans (ADR-0016) — operator query latency |
 | OAuth authentication | Optional shortcut for Phase 11 break-glass paths (not adopted today) |
 | Virtual generated columns | Computed columns for `LocalizedMessage`-like derived data (Phase 02a+) |
@@ -168,17 +168,58 @@ preview, that preview already runs on 18 — no major upgrade needed.
   ADR-0002 Amendment 2 references this decision; doc sweep across
   Standards 12 / Architecture / Standards 20.
 - **Phase 02a** (Platform kernel): first EF migration targets Postgres
-  18; ADR-0023 adopts UUIDv7 with DB-side `gen_uuid_v7()` as the
+  18; ADR-0023 adopts UUIDv7 with DB-side `uuidv7()` as the
   default-value generator for high-volume append-only tables.
 - **Phase 11** (production hardening): production sizing, backup
   cadence, replication topology — all written for 18.
+
+## Amendments
+
+### Amendment 1 — The built-in is `uuidv7()`, not `gen_uuid_v7()` (2026-08-27)
+
+This ADR, and five documents repeating it, named PostgreSQL 18's native UUIDv7
+generator **`gen_uuid_v7()`**. No such function exists. Measured against
+`postgres:18.4-alpine`:
+
+```
+SELECT gen_uuid_v7();  -->  ERROR:  function gen_uuid_v7() does not exist
+SELECT uuidv7();       -->  01a04366-8141-753d-a6a4-161239372fd0
+```
+
+The **Decision is unchanged** — PostgreSQL 18 is pinned, and one of its reasons
+is that it generates UUIDv7 natively without an extension. Only the spelling was
+wrong, and it was wrong in the one place a spelling matters: a `DEFAULT` clause
+in a migration. [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)
+writes the first such clause, which is why this surfaced now.
+
+Following the precedent of
+[ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) — where wrong
+content inside an Accepted ADR was corrected in place and the correction
+recorded as an amendment rather than left to propagate — the name is corrected
+at every carrier rather than annotated at each one. The carriers, so the edit is
+recorded rather than silent:
+
+| Carrier | Occurrences |
+|---|---|
+| This ADR — § Decision Drivers, § Considered Options, § Implementation Notes, § References | 5 |
+| [ADR-0023](0023-strongly-typed-id-source-generator.md) — § Decision Drivers, § Decision, § Implementation Notes | 6 |
+| [ADR-0002](0002-initial-architecture.md) — the PostgreSQL row | 1 |
+| [Backend Coding Standards § Identifiers](../standards/02-backend-coding.md) | 1 |
+| [decisions/README.md](README.md) — this ADR's summary row | 1 |
+| `LearnStack.SharedKernel/Identifiers/IGuidFactory.cs` — XML remarks | 1 |
+
+`gen_random_uuid()` is a real function and remains correct where it appears; it
+produces a **v4** UUID, which is what [ADR-0023](0023-strongly-typed-id-source-generator.md)
+adopted UUIDv7 to avoid for index locality. A `uuid` primary key on a
+LearnStack table therefore defaults to `uuidv7()` or is minted app-side through
+`IGuidFactory.NewUuidV7()` — never `gen_random_uuid()`.
 
 ## References
 
 - [ADR-0002 Initial Architecture](0002-initial-architecture.md) — original PostgreSQL major-version row, now partially superseded.
 - [ADR-0003 Tenant Isolation Defense in Depth](0003-tenant-isolation-defense-in-depth.md) — RLS pattern unchanged across 16/17/18.
 - [ADR-0016 Audit Log Subsystem](0016-audit-log-subsystem.md) — partitioned `audit_log` benefits from async I/O.
-- [ADR-0023 Strongly-typed ID source generator](0023-strongly-typed-id-source-generator.md) — adopts UUIDv7; PostgreSQL 18's native `gen_uuid_v7()` powers the DB-side default path.
+- [ADR-0023 Strongly-typed ID source generator](0023-strongly-typed-id-source-generator.md) — adopts UUIDv7; PostgreSQL 18's native `uuidv7()` powers the DB-side default path.
 - [Standards 05 — Database](../standards/05-database.md)
 - [Standards 12 § Database Operations](../standards/12-infrastructure.md)
 - PostgreSQL 18 release notes: <https://www.postgresql.org/docs/18/release-18.html>.

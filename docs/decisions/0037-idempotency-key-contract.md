@@ -28,9 +28,9 @@ Accepted
   implementation.
 - **The durable store is a schema change, so its contract has to be right
   first.** The in-memory default is instance-local and dies with the process.
-  The Postgres-backed implementation lands with the tenancy schema in Packet 6,
-  and its columns, its transaction boundary and its RLS policy are this ADR's
-  decisions in DDL form. Getting the port shape wrong now means a migration
+  The **table** lands with the tenancy schema in Packet 6, and its columns, its
+  transaction boundary and its RLS policy are this ADR's decisions in DDL form
+  (see Amendment 1 for why the *implementation* does not land with it). Getting the port shape wrong now means a migration
   later against rows that already exist.
 
 ## Considered Options
@@ -241,10 +241,10 @@ in a process and do not survive into a table.
 
 ### The durable store
 
-The Postgres-backed implementation lands in
-[Packet 6](../roadmap/phase-02a-kernel-tenancy.md) as a **tenant-owned,
-tenant-wide table**, and three things about it are decided here because the
-port shape depends on them:
+The table lands in [Packet 6](../roadmap/phase-02a-kernel-tenancy.md) as a
+**tenant-owned, tenant-wide table**; `PostgresIdempotencyStore` itself lands when
+that table's ADR-0035 trigger fires (Amendment 1). Three things about it are
+decided here because the port shape depends on them:
 
 - **Its own transaction, and its own tenant setting.** A claim is taken before
   the action runs, so it is outside the MediatR
@@ -418,6 +418,29 @@ will replay is worth a log line rather than silence.
   type.
 
 ## Amendments
+
+### Amendment 1 — Packet 6 ships the table; the store ships on its trigger (2026-08-27)
+
+§ Decision Drivers and § The durable store said the Postgres-backed
+implementation "lands with the tenancy schema in Packet 6". § Implementation
+Notes, in the same document, gives the ADR-0035 four-part gating precisely:
+owning phase Packet 6, "**which ships the table**", trigger "the first endpoint
+carrying `[Idempotent]` … or the first deployment running more than one instance".
+[Standards 20 § Demand-gated building blocks](../standards/20-infrastructure-stack.md)
+carries the same row. **The gating row is right**; the two prose sentences were
+loose, and are corrected above.
+
+The distinction is the one ADR-0035 exists to draw. The **table** is one-way-door
+schema: adding it later means a migration against a system that has already been
+answering `[Idempotent]` requests out of an instance-local dictionary. The
+**implementation** is additive: it replaces a registration at the composition
+root and touches nothing already written. So the table ships now and
+`InMemoryIdempotencyStore` stays registered — correct for one instance, wrong for
+two, and saying so on its own type — until the trigger fires.
+
+The canonical DDL is
+[Database Standards § Idempotency](../standards/05-database.md), derived column
+by column from the shipped port rather than restated here.
 
 None yet.
 

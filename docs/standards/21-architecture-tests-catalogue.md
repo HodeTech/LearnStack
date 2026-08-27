@@ -92,7 +92,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Twenty-two test methods exist in
+Twenty-three test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md) and Packet 4.
@@ -625,6 +625,64 @@ otherwise).
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
 
+### Persistence: concurrency and the unit of work
+
+Source: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md),
+[ADR-0040](../decisions/0040-ambient-unit-of-work.md). Introduced by
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md); the two behavioural
+rules that need a second `DbContext` are owed by Phase 03.
+
+#### `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`
+
+- **Asserts:** every entity implementing `IOptimisticConcurrency` has its `Version`
+  configured as the concurrency token against a `row_version` column, and **no**
+  configuration calls `IsRowVersion()` — which maps to a provider-generated `bytea`
+  rather than the explicit counter ADR-0039 chose.
+- **Source:** ADR-0039; [05-database.md § Concurrency](05-database.md).
+- **Type:** xUnit + EF model inspection. **Kind:** structural.
+- **Status:** **Registered.** **Phase:** 02a Packet 6.
+
+#### `SoftDelete_Advances_The_Row_Version`
+
+- **Asserts:** `AuditableEntity.SoftDelete` leaves `Version` strictly greater than it
+  was. Behavioural, because the structural rule cannot see it: `SoftDelete` stamps
+  `UpdatedAt` / `UpdatedBy` itself, so an increment placed only in `MarkUpdated` would
+  leave a soft delete un-versioned and a client's pre-delete ETag would keep
+  satisfying `If-Match` on the row it deleted.
+- **Source:** ADR-0039 § Why `MarkUpdated` and not an interceptor.
+- **Type:** xUnit. **Kind:** behavioural.
+- **Status:** **Registered.** **Phase:** 02a Packet 6.
+
+#### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
+
+- **Asserts:** no `DbContext` registration configures its own connection string or
+  calls `UseNpgsql(string)`; every one is built through the shared registration
+  helper against the connection `IUnitOfWork` owns. A context on its own connection
+  never saw `SET LOCAL`, so every read through it returns zero rows under the
+  corrected policy — silently.
+- **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
+- **Type:** xUnit + DI registration inspection. **Kind:** structural.
+- **Status:** **Registered.** **Phase:** 02a Packet 6.
+
+#### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
+
+- **Asserts:** `TransactionBehavior` names `IUnitOfWork` and no `DbContext`, and
+  `LearnStack.Application` takes no build-time reference to any module assembly.
+- **Source:** ADR-0040; ADR-0033.
+- **Type:** NetArchTest. **Kind:** structural.
+- **Status:** **Registered.** **Phase:** 02a Packet 6.
+
+#### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
+
+- **Asserts:** no module code passes two `DbContext`-bound operations to
+  `Task.WhenAll` / `Task.WhenAny`. One connection means one command at a time; a
+  handler that fans out corrupts the protocol.
+- **Source:** ADR-0040 § Nesting.
+- **Type:** Roslyn/NetArchTest. **Kind:** structural.
+- **Status:** **Awaiting backfill** — the rule is decided; no module code exists to
+  violate it yet. **Phase:** 02a Packet 6 registers it; Phase 03 implements it with
+  the first module that could.
+
 ### Tenancy and isolation
 
 Source: [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendments
@@ -633,6 +691,27 @@ Source: [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amen
 
 Read § What a structural test proves before relying on any row in this section. The
 first two rows are coverage checks; the last three are the proof.
+
+#### `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor`
+
+- **Asserts:** `ConnectionStrings:OutboxDispatcher` is resolved by `OutboxProcessor`
+  and nothing else. A `GRANT` names a role, not a code path — every handler in the
+  API process runs as the same role — so code-path confinement of a `BYPASSRLS`
+  credential is carried here or nowhere.
+- **Source:** [05-database.md § GRANT matrix](05-database.md); ADR-0003 Amendment 3.
+- **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
+- **Status:** **Awaiting backfill** — cited by the standard, no dispatcher yet.
+  **Phase:** 02b.
+
+#### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
+
+- **Asserts:** the keyed `NpgsqlDataSource` built from `ConnectionStrings:PlatformAdmin`
+  is resolvable only by `PlatformAdminScope`. Module code cannot reach the
+  `BYPASSRLS` credential.
+- **Source:** [05-database.md § How `EnterPlatformAdminScope(reason)` reaches
+  `learnstack_platform`](05-database.md).
+- **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
+- **Status:** **Awaiting backfill.** **Phase:** 02a Packet 7.
 
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 

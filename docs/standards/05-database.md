@@ -10,7 +10,11 @@ database role model**),
 (Amendment 1: Dapr pub/sub dispatch transport),
 [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
-[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md)
+(Amendment 1: the built-in is `uuidv7()`),
+[ADR-0037 Idempotency Key Contract](../decisions/0037-idempotency-key-contract.md),
+[ADR-0039 The Optimistic Concurrency Token](../decisions/0039-optimistic-concurrency-token.md),
+[ADR-0040 The Ambient Unit of Work](../decisions/0040-ambient-unit-of-work.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -167,6 +171,31 @@ The parent therefore carries `UNIQUE (tenant_id, id)` purely to be referenceable
 way. The cost is one redundant-looking unique index per parent table; the alternative is
 a class of cross-tenant corruption that no RLS policy can catch.
 
+**One written exception: the self-keyed parent.** `tenants` has no `tenant_id`
+column — its `id` *is* the tenant id — so it can carry no `UNIQUE (tenant_id, id)`
+and the composite form is not expressible for the one foreign key every other
+tenancy table needs. `organizations.tenant_id` and its peers therefore reference
+`tenants (id)` with a **single column**, and that is safe on this rule's own
+reasoning: the composite form exists because a referential-integrity check runs
+with row security bypassed and a single-column child FK could point at another
+tenant's row. Here the referencing column *is* `tenant_id`, so pointing
+elsewhere would be pointing at a different tenant by definition, which the
+child's own `WITH CHECK` already refuses. The exception is exactly one table
+wide; a second one is a decision, not a convenience.
+
+**`ON DELETE RESTRICT`, everywhere, until a phase owns deprovisioning.** A
+cascade from `tenants` downward would be a tenant-deletion path nobody has
+designed — see the note in § GRANT matrix that tenant hard-deprovisioning has no
+owning phase. `RESTRICT` makes the absence loud.
+
+**The circular reference.** `tenants.default_organization_id` points at
+`organizations`, which points back at `tenants`. The column is **nullable**, and
+the provisioning transaction inserts the tenant, inserts its default
+organization, then `UPDATE`s the tenant — three statements in one transaction
+rather than a `DEFERRABLE INITIALLY DEFERRED` constraint, because a deferred
+constraint moves the failure to `COMMIT`, where the error names the constraint
+and not the statement that broke it.
+
 This block is the **single canonical RLS template**.
 [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md),
 [Tenant Isolation](../architecture/09-tenant-isolation.md) and
@@ -263,7 +292,8 @@ migration states which one its table is.
 
 | Class | Rule | Tables |
 |---|---|---|
-| **Tenant-owned** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, restrictive `UPDATE` / `DELETE` guards when org-scoped | every domain table, plus `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings` (org-scoped), `tenant_feature_flags`, `platform_entitlement_cache`, `outbox_messages` |
+| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
 
@@ -398,15 +428,35 @@ closed; a fifth role requires an ADR.
 | `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | API host, worker host | `EnterPlatformAdminScope(reason)` and nothing else | `BYPASSRLS` |
 | `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | the worker host that runs `OutboxProcessor` | `OutboxProcessor` and nothing else | `BYPASSRLS` |
 
+**Passwords arrive from the environment, through `\getenv`.** The four
+`:'name'` placeholders below are **psql client variables**, and the
+`docker-entrypoint-initdb.d` runner binds none of them: measured, the script as
+it stood failed on its first statement with `syntax error at or near ":"`.
+`\getenv` reads each one from the container environment, which
+[Infrastructure Standards § Local Infrastructure](12-infrastructure.md) already
+requires to be `${VAR:-fallback}` in compose with a matching row in
+`.env.example`. Measured, it works under the entrypoint's `ON_ERROR_STOP=1`, and
+an **unset** variable leaves the placeholder unbound and aborts init rather than
+creating a passwordless superuser-adjacent role — failing loud is the point.
+
 ```sql
 -- One-time provisioning, run once per database before the first migration. Ships as
 -- infra/compose/postgres-init/02-create-roles.sql in Phase 02a Packet 6.
+\getenv migration_pw LEARNSTACK_MIGRATION_PW
+\getenv app_pw       LEARNSTACK_APP_PW
+\getenv platform_pw  LEARNSTACK_PLATFORM_PW
+\getenv outbox_pw    LEARNSTACK_OUTBOX_PW
+
 CREATE ROLE learnstack_migration    LOGIN PASSWORD :'migration_pw' NOBYPASSRLS;
 CREATE ROLE learnstack_app          LOGIN PASSWORD :'app_pw'       NOBYPASSRLS;
 CREATE ROLE learnstack_platform     LOGIN PASSWORD :'platform_pw'  BYPASSRLS;
 CREATE ROLE learnstack_outbox_admin LOGIN PASSWORD :'outbox_pw'    BYPASSRLS;
 
-GRANT CONNECT ON DATABASE learnstack
+-- :"db" quotes as an identifier, not a literal: the database name is POSTGRES_DB,
+-- which .env.example may override, so hardcoding `learnstack` grants CONNECT on a
+-- database that need not exist.
+\getenv db POSTGRES_DB
+GRANT CONNECT ON DATABASE :"db"
     TO learnstack_migration, learnstack_app, learnstack_platform, learnstack_outbox_admin;
 
 -- Since PostgreSQL 15 the public schema no longer grants CREATE to PUBLIC, and the
@@ -420,8 +470,11 @@ GRANT USAGE         ON SCHEMA public
     TO learnstack_app, learnstack_platform, learnstack_outbox_admin;
 
 -- Per-table grants are written in the migration that creates the table; see the matrix
--- below. There is deliberately no ALTER DEFAULT PRIVILEGES.
-GRANT SELECT, INSERT, UPDATE, DELETE ON courses TO learnstack_app;
+-- below. There is deliberately no ALTER DEFAULT PRIVILEGES. No grant on a specific
+-- table belongs in THIS script: it runs at initdb time, before any table exists, and
+-- under ON_ERROR_STOP=1 one `relation "…" does not exist` aborts the whole init and
+-- the container never becomes healthy. This fence previously ended with a grant on
+-- `courses`, a Phase 05 table; measured, it does exactly that.
 ```
 
 Migrations connect **as** `learnstack_migration`, so every table it creates is already
@@ -452,6 +505,7 @@ privileges implicitly.
 | `tenant_feature_flags` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `platform_entitlement_cache` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `platform_host_to_tenant` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
+| `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after)` |
 
 Four things the matrix cannot express, and one it must not be asked to:
@@ -540,18 +594,54 @@ Soft-deletable aggregates also include:
 - `deleted_at timestamptz NULL`
 - `deleted_by uuid NULL`
 
-A shared EF interceptor populates these on `SaveChanges`.
+These are populated by `AuditableEntity.MarkCreated` / `MarkUpdated` /
+`SoftDelete`, which aggregate methods call with the `IClock` they already
+inject. **Not by an EF interceptor.** The only sanctioned `SaveChanges`
+interceptor is `AuditChangeTrackerInterceptor`, and per
+[ADR-0033](../decisions/0033-audit-durability-model.md) it captures a snapshot
+and writes nothing — an interceptor that also stamped audit columns would be
+writing on a path that ADR deliberately keeps read-only.
 
 ## Concurrency
 
-`row_version bigint` (incremented by an EF interceptor) for optimistic concurrency. `xmin`-based tokens are an alternative; pick one project-wide.
+`row_version bigint`, CLR `long`, on every entity implementing
+`IOptimisticConcurrency`. Configure it with
+`IsConcurrencyToken().ValueGeneratedOnAddOrUpdate()` — **not** `IsRowVersion()`,
+which maps to a provider-generated `bytea` this design does not use.
+
+The value is incremented inside `AuditableEntity`, by the same primitive that
+stamps `UpdatedAt` / `UpdatedBy`, so an audited mutation is a versioned
+mutation. `SoftDelete` routes through that primitive too; stamping the fields
+itself would leave a soft delete un-versioned, and a client holding the
+pre-delete ETag would still satisfy `If-Match` on the row it deleted.
+
+**`xmin` is not used as a concurrency token anywhere**, and is no longer an
+alternative. [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)
+closed the fork this line used to leave open: the token is client-visible
+through ETag / `If-Match`, and a dump-restore or logical-replication cutover
+changes `xmin` while leaving `row_version` intact.
 
 ## Identifiers
 
-- `uuid` PKs (`gen_random_uuid()`).
+- `uuid` PKs, **UUIDv7**, by one of exactly two paths per
+  [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md):
+  - **App-side** for aggregates — `IGuidFactory.NewUuidV7()`, so a test can pin
+    the value and the id exists before the row does.
+  - **DB-side** `DEFAULT uuidv7()` for the high-volume append-only tables whose
+    rows are written by infrastructure rather than by an aggregate:
+    `audit_log`, `outbox_messages`, `inbox_messages`.
+- **Never `gen_random_uuid()`.** It is a real function and produces a **v4**
+  UUID — random, with none of the index locality UUIDv7 was adopted for. The
+  built-in is `uuidv7()`; `gen_uuid_v7()` does not exist
+  ([ADR-0031 Amendment 1](../decisions/0031-postgresql-major-version.md)).
 - Strongly-typed ids in code via value converters.
 - No surrogate `int` keys for domain entities.
-- Sequence-based ids only for high-write append-only logs (outbox, audit log).
+- A table addressed by a natural key gets **no surrogate id at all** —
+  `idempotency_keys` is keyed `(tenant_id, key)` and generates nothing. ADR-0023's
+  DB-side list covers the append-only tables that do carry a surrogate id.
+- `bigint GENERATED BY DEFAULT AS IDENTITY` where a generated integer key is
+  genuinely wanted — never `bigserial`, whose sequence needs a `GRANT USAGE` of
+  its own that an identity column does not.
 
 ## Indexes
 
@@ -725,6 +815,94 @@ on developer discipline. The earlier justification for nullability — that APIS
 so its contract cannot rest on a component that is not there yet. The architecture deep dive
 lives in [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 
+## Idempotency
+
+`idempotency_keys` is the durable `IIdempotencyStore`
+([ADR-0037](../decisions/0037-idempotency-key-contract.md)). Every column below
+is forced by the shipped port
+(`LearnStack.SharedKernel/Idempotency/IIdempotencyStore.cs`) rather than chosen:
+`fingerprint` by `TryClaimAsync`'s third parameter and the `Mismatched`
+outcome, `claim_token` by the fence on `Complete` and `Abandon`, `state` by the
+tombstone ADR-0037 says is explicitly **not** a release, and the four response
+columns by `IdempotentResponse`.
+
+```sql
+-- Tenant-owned, tenant-wide. Addressed by its natural key, so it generates no id.
+CREATE TABLE idempotency_keys (
+    tenant_id    uuid        NOT NULL,
+    key          text        NOT NULL,      -- client-chosen nonce inside the tenant's key space
+    fingerprint  text        NOT NULL,      -- opaque digest; compared ordinally, never interpreted
+    claim_token  uuid        NOT NULL,      -- the fence Complete/Abandon must present
+    state        text        NOT NULL,      -- in_flight | completed | unreplayable
+    status_code  int         NULL,          -- IdempotentResponse, set only when state = 'completed'
+    content_type text        NULL,
+    headers      jsonb       NULL,
+    body         bytea       NULL,
+    claimed_at   timestamptz NOT NULL DEFAULT now(),
+    -- ONE expiry column, deliberately. It is the 5-minute claim lease while in_flight
+    -- and the 24-hour retention window once the outcome is recorded, so the claim
+    -- statement's "the existing row has expired" predicate is one comparison at every
+    -- stage. AbandonAsync sets it to now(), which makes the released row satisfy that
+    -- same predicate — a release needs no second code path, and learnstack_app never
+    -- needs DELETE.
+    expires_at   timestamptz NOT NULL,
+    CONSTRAINT pk_idempotency_keys PRIMARY KEY (tenant_id, key),
+    CONSTRAINT ck_idempotency_keys_state
+        CHECK (state IN ('in_flight', 'completed', 'unreplayable')),
+    -- The 256 KiB replay cap becomes something the database enforces rather than
+    -- something every caller remembers.
+    CONSTRAINT ck_idempotency_keys_body_size
+        CHECK (body IS NULL OR octet_length(body) <= 262144),
+    -- Matches [Idempotent]'s header bounds, so a key the API accepted always fits.
+    CONSTRAINT ck_idempotency_keys_key_length
+        CHECK (length(key) BETWEEN 8 AND 128)
+);
+
+-- Serves both the retention sweep and the per-tenant admission count, tenant first
+-- per the composite-index rule.
+CREATE INDEX ix_idempotency_keys_tenant_id_expires_at
+    ON idempotency_keys (tenant_id, expires_at);
+
+ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE idempotency_keys FORCE  ROW LEVEL SECURITY;
+
+CREATE POLICY idempotency_keys_isolation ON idempotency_keys
+    USING      (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+-- No DELETE for learnstack_app: a release is an UPDATE that backdates expires_at, and
+-- withholding DELETE from the request-path role mirrors outbox_messages. Purging is the
+-- audited platform scope's job.
+GRANT SELECT, INSERT, UPDATE ON idempotency_keys TO learnstack_app;
+GRANT SELECT, DELETE         ON idempotency_keys TO learnstack_platform;
+```
+
+Two properties are contract rather than implementation:
+
+- **The store runs as `learnstack_app` and sets its own `app.tenant_id`.** A
+  claim is taken *before* the MediatR pipeline reaches `TransactionBehavior`, so
+  there is no ambient transaction yet. Each of `TryClaim`, `Complete` and
+  `Abandon` opens a short transaction whose first statement is the `SET LOCAL`
+  — one of the sanctioned out-of-band setters in
+  [ADR-0040](../decisions/0040-ambient-unit-of-work.md). A store reaching for
+  `learnstack_platform` would be invisible to the isolation suite.
+- **Capacity is admission, not eviction.** When a tenant's unexpired-record
+  count is at its ceiling the store answers `CapacityExhausted`; it never drops
+  a live record to make room.
+
+**Packet 6 ships the table; `PostgresIdempotencyStore` ships on its trigger** —
+the first endpoint carrying `[Idempotent]`, or the first deployment running more
+than one instance, whichever comes first
+([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). The table is
+one-way-door schema; the implementation is not, and `InMemoryIdempotencyStore`
+remains the registered default until then.
+
+The retention sweep that deletes rows past `expires_at` is owned by
+[Phase 11](../roadmap/phase-11-production-hardening.md), alongside the other
+recurring maintenance jobs. Until it runs, rows accumulate and the admission
+ceiling is what bounds the table — which is the correct failure, not a silent
+one.
+
 ## Raw SQL
 
 Allowed when:
@@ -772,5 +950,16 @@ Forbidden: string interpolation with non-constant values.
 - Cross-tenant queries outside platform-admin scope.
 - `IgnoreQueryFilters()` in non-platform code.
 - Lazy loading.
-- Multiple `DbContext` instances within one logical transaction.
+- More than one **connection**, or more than one **transaction**, within one
+  logical transaction. Several module `DbContext`s enlisted on the *one*
+  connection `IUnitOfWork` owns are fine and are the house pattern
+  ([ADR-0040](../decisions/0040-ambient-unit-of-work.md)) — the failure this
+  rule exists to prevent is two independent contexts each opening their own
+  transaction, leaving a window in which one has committed and the other has
+  not. This line previously read "Multiple `DbContext` instances within one
+  logical transaction", which also forbade the safe shape.
+- Reading a tenant-owned table outside the ambient transaction. `SET LOCAL` is
+  connection- and transaction-local, so such a read returns **zero rows** under
+  the corrected policy — silently, because a policy that filters everything
+  looks exactly like a table with no matching data.
 - Tenant tables without RLS in production migrations (CI rejects).

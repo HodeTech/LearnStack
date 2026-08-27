@@ -355,14 +355,27 @@ projection), `platform_entitlement_cache`, `platform_host_to_tenant`, `idempoten
 port and an in-memory default that is correct for one instance and wrong for
 two), and `outbox_messages`. Default-organization seeding at tenant creation.
 
-**Seed the system actor.** `UserId.SystemActor` — the fixed id
-`00000000-0000-7000-8000-000000000001` in
+**The system actor needs no seed, and this packet creates no `users` table.**
+`UserId.SystemActor` — the fixed id `00000000-0000-7000-8000-000000000001` in
 `LearnStack.SharedKernel.Identifiers` — is what an integration-event consumer, a
 background job, or any other non-request execution writes state as, per
 [Audit Coverage](../standards/18-audit-coverage.md)'s actor-of-type-`system` rule.
 `AuditableEntity.MarkCreated` refuses `default(UserId)` and `Guid.Empty` alike, so
-without it no consumer can create an aggregate at all. It is a foreign key: this
-packet's migration seeds the matching `users` row so `created_by` resolves.
+the constant is what lets a consumer create an aggregate at all — and a CLR
+constant is all it needs to be.
+
+This packet entry previously called it a foreign key and ordered the migration to
+seed a matching `users` row. **There is no such foreign key.** `REFERENCES users`
+appears in no document and no source file; the canonical template writes
+`created_by uuid NOT NULL` with no referential clause, and `audit_log` declares
+`actor_user_id uuid NULL` with none either. The absence is deliberate:
+[31-audit-subsystem.md](../architecture/31-audit-subsystem.md) depends on the
+erased actor becoming an orphan surrogate key, which any `ON DELETE` action would
+make unreachable. See
+[ADR-0038 Amendment 1](../decisions/0038-cross-cutting-port-and-event-contracts.md).
+`users` is created by the first Identity migration in
+[Phase 03](phase-03-identity-admin.md), which owns the table. This packet ships
+exactly the ten tables listed above.
 
 The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, with
 its EF configuration and its migration on `TenancyDbContext`, per [ADR-0017 Amendment 2
@@ -751,7 +764,8 @@ reads `platform_host_to_tenant` in order to *determine* the tenant. Three classe
 
 | Class | Tables | Policy |
 |---|---|---|
-| Tenant-owned | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings` (the one org-scoped table — it also takes the two `AS RESTRICTIVE` write guards), `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` | the corrected template verbatim |
+| Tenant-owned, **org-scoped** | `tenant_settings` — the only one in this set | the corrected template in full, including the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards |
+| Tenant-owned, **tenant-wide** | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` | the same shape with the organization half of the predicate omitted, and therefore no restrictive guards — these tables have no `organization_id` column to guard |
 | Tenant-owned, self-keyed | `tenants` | the corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id |
 | Platform-scoped | `platform_host_to_tenant` | `ENABLE` + `FORCE` with role-qualified per-command policies: reads keyed on the declared `app.resolving_host` (pre-context, single row) or on `app.tenant_id` (a tenant listing its own hosts); writes keyed on `app.tenant_id` only |
 
@@ -1205,6 +1219,8 @@ Six further decisions were taken during the phase and are Accepted:
 | [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) | Demand-gated infrastructure | **Accepted** (2026-08-08) | The one-way-door test; ports ship now, adapters ship on a named trigger |
 | [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) | Trusted inputs for tenant + organization resolution | **Accepted** (2026-08-18, Amendment 1 2026-08-20) | Resolution by **agreement, not priority**; no request header names a tenant, one header names a **host** over an authenticated hop; Amendment 1 corrects the normalization order |
 | [ADR-0037](../decisions/0037-idempotency-key-contract.md) | What an idempotency key identifies, owns and replays | **Accepted** (2026-08-20) | A key is a **nonce inside a tenant's key space**, not an identity; a fingerprint decides whether a replay answers the question asked; a fencing token owns the claim; capacity is admission, not eviction |
+| [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) | The optimistic concurrency token | **Accepted** (2026-08-27) | An explicit `row_version bigint` (CLR `long`) project-wide, incremented by the primitive that stamps the audit columns; `xmin` rejected because the token is client-visible through ETag and a restore or replication cutover changes it |
+| [ADR-0040](../decisions/0040-ambient-unit-of-work.md) | The ambient unit of work | **Accepted** (2026-08-27) | One `DbConnection` per scope owned by `IUnitOfWork`; every module `DbContext`, `IAuditStore` and `IOutbox` enlists on it, because `SET LOCAL` is connection-local. Defines nesting, disposal, and the event-consumer entry point that never reaches MediatR |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
 `learnstack_app`, the durable audit pipeline, customization runtime read paths, API
