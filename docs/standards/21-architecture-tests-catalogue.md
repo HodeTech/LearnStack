@@ -656,8 +656,10 @@ rules that need a second `DbContext` are owed by Phase 03.
   leave a soft delete un-versioned and a client's pre-delete ETag would keep
   satisfying `If-Match` on the row it deleted.
 - **Source:** ADR-0039 § Why `MarkUpdated` and not an interceptor.
-- **Type:** xUnit. **Kind:** behavioural.
-- **Status:** **Registered.** **Phase:** 02a Packet 6.
+- **Type:** xUnit (`LearnStack.Tests.Unit`, `AuditableEntityTests`). **Kind:** behavioural.
+- **Status:** **Implemented** (Packet 6 step 2). Mutation-checked: routing
+  `SoftDelete` back to stamping the fields itself fails this case and only this
+  case.
 
 #### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
 

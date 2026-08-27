@@ -27,5 +27,5 @@ public interface IOptimisticConcurrency
     /// update succeeds.
     /// </para>
     /// </remarks>
-    uint Version { get; }
+    long Version { get; }
 }

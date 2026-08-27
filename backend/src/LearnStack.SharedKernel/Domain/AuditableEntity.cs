@@ -40,7 +40,16 @@ public abstract class AuditableEntity<TId>
 
     public UserId? DeletedBy { get; protected set; }
 
-    public uint Version { get; protected set; }
+    /// <summary>
+    /// The optimistic-concurrency token, mapped to <c>row_version bigint</c>
+    /// (<see href="../../../../docs/decisions/0039-optimistic-concurrency-token.md">ADR-0039</see>).
+    /// </summary>
+    /// <remarks>
+    /// Advanced by <see cref="Touch"/>, which every update path routes through,
+    /// so an audited mutation is a versioned mutation. It starts at <c>0</c> and
+    /// the column's <c>DEFAULT 0</c> agrees, so an insert needs no special case.
+    /// </remarks>
+    public long Version { get; protected set; }
 
     /// <summary>
     /// Convenience projection of <see cref="DeletedAt"/> for in-process
@@ -81,9 +90,7 @@ public abstract class AuditableEntity<TId>
     public void MarkUpdated(DateTimeOffset at, UserId by)
     {
         EnsureValidAuditInput(at, by);
-
-        UpdatedAt = at;
-        UpdatedBy = by;
+        Touch(at, by);
     }
 
     /// <summary>
@@ -100,8 +107,30 @@ public abstract class AuditableEntity<TId>
 
         DeletedAt = at;
         DeletedBy = by;
+        Touch(at, by);
+    }
+
+    /// <summary>
+    /// The one update primitive: stamps <see cref="UpdatedAt"/> /
+    /// <see cref="UpdatedBy"/> and advances <see cref="Version"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every path that stamps an update goes through here</b>, and that is the
+    /// whole point rather than tidiness. <see cref="SoftDelete"/> used to assign
+    /// the two fields itself; with the version counter living in
+    /// <see cref="MarkUpdated"/> alone, a soft delete would have left the token
+    /// where it was, and a client holding the pre-delete ETag would still satisfy
+    /// <c>If-Match</c> on the row it had just deleted. The guarantee ADR-0039
+    /// wants — an audited mutation is a versioned mutation — is a property of
+    /// this method existing, not of the two callers remembering.
+    /// </para>
+    /// </remarks>
+    private void Touch(DateTimeOffset at, UserId by)
+    {
         UpdatedAt = at;
         UpdatedBy = by;
+        Version++;
     }
 
     // Audit metadata must always be meaningful: the default timestamp

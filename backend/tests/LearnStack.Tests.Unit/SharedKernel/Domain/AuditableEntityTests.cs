@@ -69,6 +69,63 @@ public sealed class AuditableEntityTests
         aggregate.UpdatedBy.Should().Be(Actor);
     }
 
+    // ---- the concurrency token (ADR-0039) --------------------------------
+
+    [Fact]
+    public void MarkCreated_LeavesTheVersionAtZero()
+    {
+        // The column's DEFAULT 0 and the CLR default have to agree, or an insert
+        // needs a special case that nothing would remember to write.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        aggregate.MarkCreated(T0, Actor);
+
+        aggregate.Version.Should().Be(0);
+    }
+
+    [Fact]
+    public void MarkUpdated_AdvancesTheRowVersion()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+
+        aggregate.MarkUpdated(T0.AddHours(1), Actor);
+        aggregate.MarkUpdated(T0.AddHours(2), Actor);
+
+        aggregate.Version.Should().Be(2, "every audited mutation is a versioned mutation");
+    }
+
+    [Fact]
+    public void SoftDelete_Advances_The_Row_Version()
+    {
+        // The case that fails when the increment lives in MarkUpdated alone.
+        // SoftDelete stamps UpdatedAt/UpdatedBy itself, so a delete would leave
+        // the token where it was — and a client holding the pre-delete ETag would
+        // still satisfy If-Match on the row it had just deleted. Route both paths
+        // through one primitive and this cannot happen; delete the routing and
+        // this test is what notices.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+        aggregate.MarkUpdated(T0.AddHours(1), Actor);
+        var beforeDelete = aggregate.Version;
+
+        aggregate.SoftDelete(T0.AddDays(3), Actor);
+
+        aggregate.Version.Should().BeGreaterThan(beforeDelete);
+    }
+
+    [Fact]
+    public void TheVersionIsWideEnoughForTheColumnItMapsTo()
+    {
+        // row_version is bigint, so the CLR side is long. It was uint — the
+        // Npgsql convention for an xmin token, which ADR-0039 rejected — and a
+        // uint property against a bigint column round-trips wrong at the top of
+        // the range rather than failing loudly.
+        typeof(IOptimisticConcurrency)
+            .GetProperty(nameof(IOptimisticConcurrency.Version))!
+            .PropertyType.Should().Be<long>();
+    }
+
     [Fact]
     public void ISoftDelete_DeletedBy_IsStronglyTypedUserId()
     {

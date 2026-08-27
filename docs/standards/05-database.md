@@ -74,8 +74,17 @@ CREATE TABLE courses (
     -- ... domain columns ...
     created_at      timestamptz NOT NULL DEFAULT now(),
     created_by      uuid NOT NULL,
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    updated_by      uuid NOT NULL,
+    -- NULL until the first update. MarkCreated stamps only created_*; a row that
+    -- has never been changed has no updater, and NOT NULL here would fail every
+    -- INSERT. Order by `coalesce(updated_at, created_at)` when you want
+    -- last-touched.
+    updated_at      timestamptz NULL,
+    updated_by      uuid NULL,
+    -- Unconditional, not opt-in: AuditableEntity<TId> implements ISoftDelete for
+    -- every aggregate, so EF maps these on every table that derives from it. A
+    -- table that omitted them would fail to materialize its own entity.
+    deleted_at      timestamptz NULL,
+    deleted_by      uuid NULL,
     row_version     bigint NOT NULL DEFAULT 0,
     CONSTRAINT ux_courses_tenant_id_slug_key UNIQUE (tenant_id, slug_key),
     -- Composite unique on (tenant_id, id) exists solely so child tables can
@@ -677,13 +686,22 @@ Mutable tenant-owned aggregates include:
 
 - `created_at timestamptz NOT NULL`
 - `created_by uuid NOT NULL`
-- `updated_at timestamptz NOT NULL`
-- `updated_by uuid NOT NULL`
-
-Soft-deletable aggregates also include:
-
+- `updated_at timestamptz NULL` — null until the first update
+- `updated_by uuid NULL`
 - `deleted_at timestamptz NULL`
 - `deleted_by uuid NULL`
+
+All six, on every table whose entity derives from `AuditableEntity<TId>`. The
+`deleted_*` pair used to be listed as a soft-delete opt-in and is not one:
+`AuditableEntity<TId>` implements `ISoftDelete` unconditionally, so EF maps both
+columns on every such table whether the aggregate is ever soft-deleted or not.
+What is opt-in is the **query filter** — see § Soft Delete.
+
+The `updated_*` pair used to be `NOT NULL`, which no insert could satisfy:
+`MarkCreated` stamps `created_*` only, so a freshly created row has no updater and
+the constraint would reject it. A row that has never been changed genuinely has
+none; order by `coalesce(updated_at, created_at)` where "last touched" is
+wanted.
 
 These are populated by `AuditableEntity.MarkCreated` / `MarkUpdated` /
 `SoftDelete`, which aggregate methods call with the `IClock` they already
@@ -804,7 +822,7 @@ changes `xmin` while leaving `row_version` intact.
 
 ## Soft Delete
 
-- Opt-in per aggregate; not a global default.
+- The **columns** are not opt-in — `AuditableEntity<TId>` carries `DeletedAt` / `DeletedBy` for every aggregate, so every such table has them (§ Audit Columns). What is opt-in is whether an aggregate is ever soft-deleted and whether its query filter excludes deleted rows.
 - Soft-deleted rows excluded via global EF query filter where applicable.
 - Scheduled purge job removes rows past retention.
 
