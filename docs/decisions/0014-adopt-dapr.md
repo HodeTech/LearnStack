@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0038](0038-cross-cutting-port-and-event-contracts.md) on
+2026-08-26. ADR-0038 retains the Dapr technology choice and demand gate while
+replacing the cross-cutting port and event-delivery contracts. The dated schedule
+amendment below remains as historical context.
 
 ## Date
 

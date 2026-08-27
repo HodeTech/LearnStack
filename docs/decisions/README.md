@@ -28,7 +28,7 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0011 | _Superseded — see below_ | Was: Vertical Extension Points |
 | 0012 | [Search Strategy](0012-search-strategy.md) | Meilisearch; one instance per env; index-per-(kind, locale); tenant_id as query filter |
 | 0013 | [Page Block Schema Versioning](0013-page-block-schema-versioning.md) | `(key, schemaVersion)` tuple; immutable schemas; lazy + bulk migration; placeholder on unknown version |
-| 0014 | [Adopt Dapr](0014-adopt-dapr.md) | Dapr building blocks for pub/sub (Kafka), state (Valkey), secrets (Vault); abstracted behind SharedKernel interfaces |
+| 0014 | _Superseded — see below_ | Was: Adopt Dapr for Cross-Cutting Infrastructure |
 | 0015 | [API Gateway with APISIX](0015-api-gateway-apisix.md) | APISIX standalone mode; JWT + rate limit + CORS + correlation-id at the edge; defense-in-depth |
 | 0016 | [Audit Log Subsystem](0016-audit-log-subsystem.md) | **Superseded by [ADR-0033](0033-audit-durability-model.md).** `LearnStack.Modules.Audit`; EF interceptor + `IAuditStateCapture` + `AuditLogBehavior`; partitioned `audit_log` table; retention. Read for context; ADR-0033 carries the binding durability rules |
 | 0017 | [Tenant + Organization Hierarchy](0017-tenant-organization-hierarchy.md) | Two-level: Tenant → Organization; permission scope Platform / Tenant / Organization (Amendment 1: identity row terminology, 2026-05-19; **Amendment 2: the `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, 2026-08-10**) |
@@ -49,9 +49,15 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0035 | [Demand-Gated Infrastructure](0035-demand-gated-infrastructure.md) | The one-way-door test; ports + default implementations ship now, vendor adapters ship on a named trigger in a named phase; uncontracted deployment modes may not decide technical choices |
 | 0036 | [Trusted Inputs for Tenant and Organization Resolution](0036-tenant-resolution-trusted-inputs.md) | Resolution by **agreement, not priority** — every authoritative signal present is resolved independently and the request proceeds only on their intersection; no request header names a tenant or an organization, one header names a **host** over an authenticated hop and LearnStack still resolves it itself; `TenantContextOrigin` caps a host-only context to the `[PublicSurface]` read set; the platform-admin override leaves the resolution model |
 | 0037 | [What an Idempotency Key Identifies, Owns, and Replays](0037-idempotency-key-contract.md) | A client-chosen key is a **nonce inside a tenant's key space**, not an identity: `(tenant, key)` addresses the record and a fingerprint over organization, principal, method, path, query and body decides whether replaying it answers the question asked; a fencing token owns the claim; capacity is **admission, not eviction**, so nothing unexpired is ever displaced; the guarantee is at-most-once while a claim is live and at-least-once across process death |
+| 0038 | [Cross-Cutting Port and Event Contracts](0038-cross-cutting-port-and-event-contracts.md) | **Supersedes ADR-0014.** Retains Dapr behind demand gates; fixes the event envelope, handler isolation, trace/audit scope and cache contracts |
 
 ## Superseded ADRs
 
+- **ADR-0014 — Adopt Dapr for Cross-Cutting Infrastructure** — superseded by
+  [ADR-0038: Cross-Cutting Port and Event Contracts](0038-cross-cutting-port-and-event-contracts.md)
+  on 2026-08-26. The Dapr choice and ADR-0035 demand gate survive; ADR-0038 restates
+  them with the binding event and cache contracts that had incorrectly been changed by
+  amendments.
 - **ADR-0011 — Vertical Extension Points** — superseded by [ADR-0018: Tenant-Driven
   Customization Model](0018-tenant-driven-customization-model.md) on 2026-05-18. The
   original file is retained in place (`0011-extension-points.md`) with a Superseded

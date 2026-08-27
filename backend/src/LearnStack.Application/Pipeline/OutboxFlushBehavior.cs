@@ -29,9 +29,12 @@ public sealed class OutboxFlushBehavior<TRequest, TResponse>
         ArgumentNullException.ThrowIfNull(next);
 
         // TODO(2026-05-21, @platform): Phase 02b — on a success-Result, flush
-        // IOutbox messages collected during the handler into outbox_messages
-        // via the unit-of-work seam so Dapr pub/sub dispatches them after
-        // commit. Per ADR-0006 + ADR-0014 + ADR-0032 § Sub-decision 12.
+        // IOutbox messages collected during the handler into outbox_messages via
+        // the unit-of-work seam, so the OutboxProcessor dispatches them through
+        // IEventBus after commit. The port is the contract; which transport is
+        // behind it — InProcessEventBus today, the Dapr adapter on its ADR-0035
+        // trigger — is a composition-root decision this behavior never sees.
+        // Per ADR-0006 + ADR-0038 + ADR-0032 § Sub-decision 12.
 
         return next();
     }

@@ -8,10 +8,10 @@
 | Language | C# |
 | ORM | Entity Framework Core |
 | Database | PostgreSQL 18.x (major pinned per [ADR-0031](../decisions/0031-postgresql-major-version.md); shared schema + RLS isolation; ADR-0003) |
-| Cache & coordination | **Valkey 8.x via Dapr State Store** (Linux-Foundation BSD-3 fork of Redis 7.2.4 per [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md); [29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) |
-| Pub/Sub | **Apache Kafka via Dapr Pub/Sub** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0014](../decisions/0014-adopt-dapr.md)) — outbox dispatch target |
-| Secrets | **HashiCorp Vault via Dapr Secret Store** (or env-var fallback in Dev) |
-| Distributed runtime | **Dapr 1.14+** sidecar pattern (pub/sub, state, secrets) |
+| Cache & coordination | **`InMemoryCacheService` now; Valkey 8.x via Dapr State Store after its trigger** (Linux-Foundation BSD-3 fork per [ADR-0030](../decisions/0030-redis-compatible-store-valkey.md); [29-dapr-integration.md](29-dapr-integration.md), [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)) |
+| Pub/Sub | **`InProcessEventBus` now; Apache Kafka via Dapr Pub/Sub after its trigger** ([29-dapr-integration.md](29-dapr-integration.md), [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)) |
+| Secrets | **`ConfigurationSecretProvider` now; HashiCorp Vault via Dapr Secret Store after its trigger** ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md); every mode resolves the configuration-backed default today) |
+| Distributed runtime | **Dapr 1.17.7** in the gated local stack; sidecar target for pub/sub, state, and secrets |
 | Object storage | SeaweedFS (local), S3-compatible (production) |
 | Background jobs | Hangfire (Postgres storage) |
 | Search | Meilisearch (initial), OpenSearch (later, if needed). See [ADR 0012](../decisions/0012-search-strategy.md) |

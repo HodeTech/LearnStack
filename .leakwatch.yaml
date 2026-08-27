@@ -46,7 +46,11 @@ verification:
 filter:
   exclude-paths:
     # Build / generated artifacts (do not commit, but defense-in-depth):
-    - "node_modules/**"
+    # `**/` prefixed on purpose: a bare `node_modules/**` anchors at the repo
+    # root and does not match `frontend/node_modules/…`, which is where this
+    # repo's actually are. Measured: eight CRITICAL findings from a dependency's
+    # README survived the exclusion until the prefix was added.
+    - "**/node_modules/**"
     - "**/dist/**"
     - "**/build/**"
     - "**/.next/**"

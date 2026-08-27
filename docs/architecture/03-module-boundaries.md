@@ -125,7 +125,9 @@ flowchart TB
   identity -. "mTLS + JWT + HMAC<br/>POST /api/v1/internal/license/verify" .-> hubapi
 ```
 
-The dashed arrows are **integration events** (via Dapr pub/sub → Kafka, ADR-0014), **read-model projections**, or **Hub HTTPS contracts** — not direct calls or shared tables.
+The dashed arrows are **integration events** (through `IEventBus`; in-process today,
+Dapr pub/sub → Kafka after the Phase 11 trigger per ADR-0038), **read-model
+projections**, or **Hub HTTPS contracts** — not direct calls or shared tables.
 
 ## Backend Modules
 

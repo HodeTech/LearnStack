@@ -438,10 +438,22 @@ per tenant per month. That ratio is the whole design.
 
 | What | Layer | Key | TTL | Invalidated by |
 |---|---|---|---|---|
-| `TenantContentType` set for a tenant | L1 + L2 | `cust:{tenant_id}:content-types:{generation}` | L1 60s, L2 15 min | Generation bump |
-| `TenantLevelTaxonomy` by key | L1 + L2 | `cust:{tenant_id}:taxonomy:{key}:{generation}` | same | Generation bump |
-| `TenantPageBlock` set | L1 + L2 | `cust:{tenant_id}:blocks:{generation}` | same | Generation bump |
+| `TenantContentType` set for a tenant | L1 + L2 | `{tenant_id}:customization:content-types-v{generation}` | L1 60s, L2 15 min | Generation bump |
+| `TenantLevelTaxonomy` by key | L1 + L2 | `{tenant_id}:customization:taxonomy-{key}-v{generation}` | same | Generation bump |
+| `TenantPageBlock` set | L1 + L2 | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 | Compiled JSON Schema validator | L1 only, per pod | `(tenant_id, content_type_key, schema_version)` | Process lifetime, bounded LRU | Immutable — a schema version never changes |
+
+These are composed with `CacheKey.ForTenant(tenantId, "customization", logicalName)`, and the
+shape is not cosmetic: the tenant segment comes **first**, per
+[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), and
+`CacheKey.EnsureValid` throws on anything else. An earlier version of this table led
+each key with `cust:` — module first — which would have thrown at the first call.
+
+The generation is folded into the *logical-name* segment rather than added as a fourth
+one, because `CacheKey` forbids a `:` inside any single component: a separator that can
+appear inside a component makes two different key tuples collide. The same rule applies
+to `{key}`, which is tenant-supplied — the caller validates or encodes it before
+composing, and a `:` in it is rejected rather than silently widening the key space.
 
 Two rules make this safe:
 
@@ -450,8 +462,11 @@ Two rules make this safe:
   write. Cache keys embed it, so a write makes every stale key unreachable at once,
   across every pod, without enumerating keys. This is deliberate: the published
   `ICacheService.RemoveByPrefixAsync` contract cannot be honoured across instances by any
-  candidate backend, and it is removed or redesigned to exactly this pattern before
-  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) ships.
+  candidate backend, and it is **removed** in
+  [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md)
+  ([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)). This pattern replaces it,
+  and it is a convention here rather than a member of that interface — the counter is
+  durable domain state, not a cache entry.
 - **Compiled validators are cached separately from definitions**, keyed by an immutable
   `(key, schema_version)` tuple. Compiling a JSON Schema is the expensive part; because a
   published schema version is immutable ([§ 4](#4-schema-versioning)), the compiled form

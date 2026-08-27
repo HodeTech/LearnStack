@@ -215,7 +215,7 @@ this phase implements and measures it.
   immutable body aggressively; keep the pointer on a short TTL behind a per-tenant
   generation key that publish bumps.
 - Invalidation uses that generation key, not a prefix scan.
-  `ICacheService.RemoveByPrefixAsync` was removed or redesigned in
+  `ICacheService.RemoveByPrefixAsync` was removed in
   [Phase 02a Packet 5](phase-02a-kernel-tenancy.md) precisely because prefix eviction
   cannot be honoured across instances; this phase must not reintroduce the assumption.
 - Compiled artefacts — the compiled JSON Schema validator and the compiled rule — live

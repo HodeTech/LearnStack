@@ -1,6 +1,6 @@
 # Dapr pub/sub component — Kafka backend.
-# Per ADR-0014, application code talks to `IEventBus` exclusively; the
-# `DaprEventBus` implementation (lands Phase 02b) publishes through this
+# Per ADR-0038, application code talks to `IEventBus` exclusively; the
+# `DaprEventBus` implementation (lands Phase 11 after ADR-0035's trigger) publishes through this
 # component. Topic naming follows the `learnstack.{module}.{aggregate}`
 # convention enforced by `Dapr_PubSub_TopicNames_FollowConvention`
 # architecture test.

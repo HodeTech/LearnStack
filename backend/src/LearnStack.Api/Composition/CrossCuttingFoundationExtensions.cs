@@ -40,10 +40,10 @@ public static class CrossCuttingFoundationExtensions
     public static WebApplicationBuilder AddLearnStackCrossCuttingFoundation(
         this WebApplicationBuilder builder,
         DeploymentMode deploymentMode,
-        params System.Reflection.Assembly[] mediatorHandlerAssemblies)
+        params System.Reflection.Assembly[] handlerAssemblies)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(mediatorHandlerAssemblies);
+        ArgumentNullException.ThrowIfNull(handlerAssemblies);
 
         // The Serilog OTLP sink + the OTel pipeline both need
         // ITenantContextAccessor (via enrichers / processor). Register the
@@ -71,7 +71,19 @@ public static class CrossCuttingFoundationExtensions
         // resolved instance produced by TenantResolverMiddleware. The
         // singleton ITenantContextAccessor is set in
         // AddLearnStackObservabilityServices above.
-        builder.Services.TryAddScoped<ITenantContext>(_ => UnresolvedTenantContext.Instance);
+        // Resolved FROM the accessor rather than hard-wired to the unresolved
+        // singleton. Nothing wrote the accessor before the event bus, so this is
+        // behaviour-preserving for every HTTP path — and it is what makes the
+        // bus's tenant restoration reach the scope a handler actually resolves
+        // from. Setting only the ambient accessor left the scoped ITenantContext
+        // unresolved: a handler injecting it threw, and one sending a MediatR
+        // command was short-circuited by TenantContextBehavior before its
+        // business logic ran, so the obligation the transport advertises was
+        // half-delivered. Packet 7's TenantResolverMiddleware writes the same
+        // accessor.
+        builder.Services.TryAddTransient<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
 
         // IClock and IGuidFactory have existed in the kernel since Packet 2 and
         // were never registered, because nothing consumed them. Packet 4's
@@ -86,10 +98,38 @@ public static class CrossCuttingFoundationExtensions
         builder.Services.TryAddSingleton<LearnStack.SharedKernel.Identifiers.IGuidFactory,
             LearnStack.SharedKernel.Identifiers.SystemGuidFactory>();
 
+        // The cache socket. SelectCacheService is the SINGLE site that picks the
+        // implementation per DeploymentMode, so Phase 11's Valkey adapter is one
+        // line here rather than a search for every registration.
+        builder.Services.TryAddSingleton(SelectCacheService);
+
+        // The event-bus socket, same shape and the same single site.
+        // IPartitionSerializer is a singleton because the ordering guarantee is
+        // process-wide: one instance per scope would give each publisher its own
+        // chains, and two events on one partition key would run concurrently
+        // while every test still passed.
+        builder.Services
+            .TryAddSingleton<LearnStack.SharedKernel.Messaging.IPartitionSerializer,
+                LearnStack.Infrastructure.Messaging.PartitionSerializer>();
+
+        var integrationEventHandlers =
+            LearnStack.Infrastructure.Messaging.IntegrationEventHandlerRegistry
+                .Discover(handlerAssemblies);
+        foreach (var subscription in integrationEventHandlers.All)
+        {
+            builder.Services.TryAdd(new ServiceDescriptor(
+                subscription.HandlerType,
+                subscription.HandlerType,
+                ServiceLifetime.Scoped));
+        }
+
+        builder.Services.TryAddSingleton(integrationEventHandlers);
+        builder.Services.TryAddSingleton(SelectEventBus);
+
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<LearnStackExceptionHandler>();
 
-        builder.Services.AddLearnStackMediatRPipeline(mediatorHandlerAssemblies);
+        builder.Services.AddLearnStackMediatRPipeline(handlerAssemblies);
 
         return builder;
     }
@@ -192,6 +232,70 @@ public static class CrossCuttingFoundationExtensions
             });
 
         _ = otel;
+    }
+
+    /// <summary>
+    /// Single composition-root site that picks the
+    /// <see cref="LearnStack.SharedKernel.Caching.ICacheService"/> implementation
+    /// per <see cref="DeploymentMode"/>.
+    /// </summary>
+    /// <remarks>
+    /// Every mode resolves <c>InMemoryCacheService</c> today, and the method
+    /// exists anyway: it is the seam ADR-0035 asks for, and a seam that is one
+    /// method is a seam Phase 11 can widen without hunting for call sites. It
+    /// takes the provider rather than the mode because the mode is not what it
+    /// branches on yet — a five-arm switch returning the same instance would be
+    /// a branch whose test could only assert something vacuous.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible for improved performance",
+        Justification = "Return type is intentionally ICacheService so Phase 11 can swap implementations per DeploymentMode.")]
+    private static LearnStack.SharedKernel.Caching.ICacheService SelectCacheService(
+        IServiceProvider services)
+    {
+        // TODO(2026-08-24, @platform): Phase 11 — light up the Valkey-backed
+        // branch. Demand-gated per ADR-0035; trigger: more than one application
+        // instance runs concurrently. InMemoryCacheService is correct for one
+        // process and costs hit rate rather than correctness for two, which is
+        // why the trigger is a replica count and not a date.
+        return new LearnStack.Infrastructure.Caching.InMemoryCacheService(
+            services.GetRequiredService<LearnStack.SharedKernel.Time.IClock>(),
+            services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>());
+    }
+
+    /// <summary>
+    /// Single composition-root site that picks the <c>IEventBus</c>
+    /// implementation per <see cref="DeploymentMode"/>.
+    /// </summary>
+    /// <remarks>
+    /// CA1859 is suppressed for the same reason as the cache socket: the
+    /// interface return is the point.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible for improved performance",
+        Justification = "Return type is intentionally IEventBus so Phase 11 can swap implementations per DeploymentMode.")]
+    private static LearnStack.SharedKernel.Messaging.IEventBus SelectEventBus(
+        IServiceProvider services)
+    {
+        // TODO(2026-08-25, @platform): Phase 11 — light up the Dapr-backed
+        // branch. Demand-gated per ADR-0035; trigger: a second process needs to
+        // consume an integration event, or event volume, replay or ordering
+        // across processes is required. InProcessEventBus is a first-class
+        // transport rather than a stub — same IIntegrationEventHandler<T>
+        // contract, same IInboxGuard seam, same tenant-context restoration, same
+        // per-partition ordering — so a consumer written today does not change
+        // when the durable adapter lands.
+        return new LearnStack.Infrastructure.Messaging.InProcessEventBus(
+            services.GetRequiredService<IServiceScopeFactory>(),
+            services.GetRequiredService<LearnStack.SharedKernel.Tenancy.ITenantContextAccessor>(),
+            services.GetRequiredService<LearnStack.SharedKernel.Messaging.IPartitionSerializer>(),
+            services.GetRequiredService<
+                LearnStack.Infrastructure.Messaging.IntegrationEventHandlerRegistry>(),
+            services.GetRequiredService<
+                Microsoft.Extensions.Logging.ILogger<
+                    LearnStack.Infrastructure.Messaging.InProcessEventBus>>());
     }
 
     /// <summary>

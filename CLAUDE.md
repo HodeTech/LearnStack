@@ -36,8 +36,8 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b and 4 shipped; packets 4–10 were re-scoped on 2026-08-08 after
-a four-report audit of the corpus.**
+packets 0–3, 3b, 4 and 5 shipped; packets 4–10 were re-scoped on 2026-08-08
+after a four-report audit of the corpus.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

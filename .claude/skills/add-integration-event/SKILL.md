@@ -2,7 +2,8 @@
 name: add-integration-event
 description: >
   Publish or consume an integration event across modules using the outbox pattern,
-  `IEventBus` (Dapr pub/sub → Kafka in non-dev), and per-module inbox idempotency.
+  `IEventBus` (`InProcessEventBus` today; Dapr pub/sub → Kafka on the Phase 11
+  trigger), and per-module inbox idempotency.
   USE FOR: declaring a new versioned `<Something>IntegrationEventVN`, wiring a
   module to publish it via `IOutbox.EnqueueAsync`, and wiring another module to
   consume it via `IIntegrationEventHandler<T>` + `IInboxGuard`. DO NOT USE FOR:
@@ -21,14 +22,14 @@ consumers, per
 Amendment 1 (Dapr pub/sub dispatch),
 [ADR-0010 Cross-Module Communication](../../../docs/decisions/0010-cross-module-communication.md),
 and [15-event-and-outbox.md](../../../docs/architecture/15-event-and-outbox.md).
+The binding port and envelope contract is
+[ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md).
 
 ## When to use
 
 - Module A's state change must influence module B (Billing → Enrollment,
   Classroom → Analytics, Identity → Audit).
 - A read-model projection elsewhere needs to refresh.
-- The Hub publishes a `learnstack.hub.entitlement` (or similar) event that
-  LearnStack core needs to react to.
 
 ## When not to use
 
@@ -45,8 +46,8 @@ and [15-event-and-outbox.md](../../../docs/architecture/15-event-and-outbox.md).
 | Event name | Yes | `<Verb><Aggregate>IntegrationEventV<N>`, PascalCase + version suffix. |
 | Producing module | Yes | Owns the aggregate the event describes. |
 | Consuming module(s) | Yes | At least one; can be many. |
-| Topic | Derived | `learnstack.{module}.{aggregate}` (e.g. `learnstack.enrollment.enrollment`). |
-| Schema fields | Yes | At minimum: `EventId`, `OccurredAt`, `TenantId`. Optional: `OrganizationId`, `CorrelationId`, `CausationId`, `ActorUserId`. |
+| Topic | Declared | The event's `Topic` override, normally `learnstack.{module}.{aggregate}`. |
+| Schema fields | Yes | `IntegrationEventBase` supplies `EventId`, `OccurredAt`, `TenantId` (all `required`) and demands `Topic` and `PartitionKey` overrides. Everything else is yours to declare. |
 
 ## Workflow
 
@@ -57,19 +58,41 @@ In `<Producer>.Application.Contracts/IntegrationEvents/<EventName>.cs`:
 ```csharp
 public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
 {
-    public Guid EnrollmentId { get; init; }
-    public Guid LearnerId { get; init; }
-    public Guid CourseVersionId { get; init; }
+    public required Guid EnrollmentId { get; init; }
+    public required Guid LearnerId { get; init; }
+    public required Guid CourseVersionId { get; init; }
     public Guid? CohortId { get; init; }
-    public string Source { get; init; } = default!;  // "manual" | "billing" | "invitation"
+    public required string Source { get; init; }  // "manual" | "billing" | "invitation"
+
+    // Both abstract on IntegrationEventBase, so this record does not compile
+    // without them — deliberately, because each is a property of the event TYPE
+    // and a value with two sources is a value that can disagree with itself.
+    public override string Topic => "learnstack.enrollment.enrollment";
+
+    // Ordering is guaranteed per partition key and nowhere else, and the
+    // aggregate this event is about is the ordering domain. Keying on TenantId
+    // instead would serialise the tenant's whole stream onto one partition — a
+    // real throughput cost, and one worth taking deliberately rather than by
+    // inheriting a default.
+    public override string PartitionKey => EnrollmentId.ToString();
 }
 ```
 
-`IntegrationEventBase` (shared kernel) provides:
-- `EventId` (uuid v7)
-- `OccurredAt` (UTC)
-- `TenantId`
-- Optional `OrganizationId`, `CorrelationId`, `CausationId`, `ActorUserId`
+`IntegrationEventBase` (`LearnStack.SharedKernel.Messaging`) supplies exactly
+five members, and every one of them is mandatory:
+- `EventId` — `required`; identity for consumer-side deduplication
+- `OccurredAt` — `required`; from `IClock`, never `DateTime.UtcNow`
+- `TenantId` — `required`; what the transport restores before your handler runs
+- `Topic` — `abstract`; the channel, `learnstack.{module}.{aggregate}`, checked by
+  `Integration_Event_TopicNames_FollowConvention`
+- `PartitionKey` — `abstract`; the ordering domain, declared by each event
+
+It supplies **no** `OrganizationId`, `CorrelationId`, `CausationId` or
+`ActorUserId`: those describe the delivery and travel on
+`IntegrationEventEnvelope`, copied from the outbox row. An organization-owned
+event implements `IOrganizationScopedIntegrationEvent`; envelope construction
+then rejects a missing or empty organization id. Do not duplicate delivery
+metadata on the event payload.
 
 Versioning: a breaking change ships a **new** record (`V2`). The `V1` stays
 supported during the migration window.
@@ -82,8 +105,9 @@ In the producer's command handler (see
 ```csharp
 await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
 {
+    EventId = guidFactory.NewUuidV7(),        // IGuidFactory, not Guid.NewGuid
+    OccurredAt = clock.UtcNow,                // IClock per Standards 02 § Time
     TenantId = tenantContext.TenantId,
-    OrganizationId = tenantContext.OrganizationId,
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
     CourseVersionId = request.CourseVersionId.Value,
@@ -100,9 +124,9 @@ Rules:
   transaction.
 - `SaveChangesAsync` commits the aggregate change and the outbox row together.
 
-### Step 3: Topic mapping
+### Step 3: Topic declaration
 
-The outbox processor derives the topic from the event type using:
+The concrete event declares the topic once using:
 
 ```text
 learnstack.{module}.{aggregate}
@@ -116,8 +140,10 @@ learnstack.{module}.{aggregate}
 - `learnstack.classroom.session`
 - `learnstack.hub.entitlement` (Hub side)
 
-The architecture test `Dapr_PubSub_TopicNames_FollowConvention` enforces the
-pattern; deviation fails the build.
+The outbox copies that declared value to persistence and the envelope forwards it;
+neither derives a second answer. The architecture test
+`Integration_Event_TopicNames_FollowConvention` enforces the pattern; deviation
+fails the build.
 
 ### Step 4: Consumer — handler + inbox guard
 
@@ -156,22 +182,43 @@ Rules:
   `Integration_Event_Handlers_Use_InboxGuard` enforces this.
 - `MarkAsProcessed` enrolls in the same `DbContext`; the inbox marker and the
   business write commit atomically.
-- Tenant + organization context is restored from the event envelope by middleware
-  before the handler runs. Don't read it from anywhere else.
+- The **transport** — not middleware — restores tenant context from
+  `@event.TenantId` before your handler runs, and puts the publisher's own back
+  afterwards. Read it through `ITenantContext` as usual; don't read it from
+  anywhere else.
+- **Organization comes from the envelope, and it has to.** An earlier version of
+  this skill said it was deliberately not restored, reasoning that inventing an
+  organization scope would narrow queries the producer never narrowed. Under the
+  canonical Row Level Security policy the reasoning inverts: with
+  `app.organization_id` unset, an organization-scoped row evaluates
+  `false OR NULL OR NULL`, and a NULL policy result is false — so an absent
+  organization *hides* every organization-scoped row and `WITH CHECK` rejects
+  writing one. Widening is the `app.scope = 'tenant'` hatch, not an absent value.
+- **The effective actor is always `UserId.SystemActor`.** A human named by the
+  envelope remains separate causal audit metadata (`CausalActorUserId`); an
+  asynchronous consumer never impersonates that human.
+- **Your handler's constructor must do nothing but assign fields.** Each
+  subscription gets its own async DI scope and exactly one handler construction.
+  Constructor, handler and disposal failures are contained to that subscription,
+  so healthy siblings still run.
 
 ### Step 5: Subscription registration
 
-The Dapr subscription is declared in the consumer module's startup:
+Today, expose the consumer assembly to the composition root so the
+construction-free registry discovers and registers its concrete handlers:
 
 ```csharp
-services.AddDaprSubscription<EnrollmentCreatedIntegrationEventV1>(
-    topic: "learnstack.enrollment.enrollment",
-    pubsubName: "pubsub");
+builder.AddLearnStackCrossCuttingFoundation(
+    deploymentMode,
+    typeof(CreateAuditEntryOnEnrollmentCreated).Assembly);
 ```
 
-In Development mode (`DeploymentMode = Development`) the `InProcessEventBus`
-replaces Dapr; the same `IIntegrationEventHandler<T>` is invoked by MediatR
-in-process. The handler code is **the same** across modes.
+Today `InProcessEventBus` resolves the concrete
+`IIntegrationEventHandler<T>` directly from DI in that subscription's async
+scope. MediatR is not involved. There is no shipped
+`AddDaprSubscription<T>` helper; do not invent one. Phase 11's Dapr adapter
+invokes the same event-declared topic and handler contract, so the handler code
+remains identical across transports.
 
 ### Step 6: Tests
 
@@ -188,8 +235,8 @@ Two tests minimum:
 - `LearnStack.Tests.Architecture` is green; specifically
   `Integration_Events_Inherit_From_IntegrationEventBase`,
   `Integration_Event_Handlers_Use_InboxGuard`,
-  `Dapr_PubSub_TopicNames_FollowConvention`.
-- An integration test confirms the round-trip: handler publishes → outbox row
+  `Integration_Event_TopicNames_FollowConvention`.
+- An integration test confirms the round-trip: handler enqueues → outbox row
   created → outbox processor dispatches → consumer handles + writes business
   state + inbox row.
 - Sending the same event twice writes the consumer's business state exactly once.
@@ -203,10 +250,11 @@ Two tests minimum:
   in production (Kafka redelivery → duplicate work) is silent until then.
 - **Writing the outbox row in a separate transaction.** Use `IOutbox.EnqueueAsync`
   inside the ambient `DbContext`; never `new TransactionScope`.
-- **Hand-rolling the topic name.** The convention is mechanical; never invent.
+- **Supplying a second topic at enqueue or subscription time.** The concrete
+  event's `Topic` override is the one source; persistence, envelope and transport
+  forward it unchanged.
 - **Bumping the schema without versioning.** A breaking change ships a `V2` record;
-  `V1` stays supported. Architecture test `Integration_Events_Are_Versioned`
-  rejects inline edits to a published event shape.
-- **Tenant context missing on the consumer side.** The Dapr-side middleware sets
-  it from `@event.TenantId`; if you build a custom subscriber, you must replicate
-  that or you'll write rows with no tenant.
+  `V1` stays supported during its compatibility window.
+- **Tenant context missing on the consumer side.** The registered transport sets
+  it from the event and envelope before handler lookup; a future adapter must
+  preserve that timing or handlers can resolve the publisher/unresolved tenant.

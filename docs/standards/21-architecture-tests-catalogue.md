@@ -1096,7 +1096,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 #### `Integration_Events_Inherit_From_IntegrationEventBase`
 
 - **Asserts:** every type implementing `IIntegrationEvent` extends `IntegrationEventBase`,
-  which carries `EventId`, `OccurredAt` and `TenantId`, and is a JSON-serialisable record.
+  which carries `EventId`, `OccurredAt` and `TenantId` as `required` members and declares
+  `Topic` and `PartitionKey` abstract, and is a JSON-serialisable record. The payload is
+  written by `ToPayloadJson()`, which serialises by runtime type — serializing through the
+  interface silently drops every member the concrete event adds.
 - **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
@@ -1106,9 +1109,12 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 #### `Integration_Event_Declares_PartitionKey`
 
 - **Asserts:** every `IIntegrationEvent` resolves a non-null partition key. `PartitionKey`
-  on `IntegrationEventBase` is threaded through `IEventBus` and honoured by
-  `InProcessEventBus`, which serialises dispatch per key — concurrent across keys,
-  sequential within one.
+  is abstract on `IntegrationEventBase`, so the compiler already refuses an event that
+  omits it; the residual assertion is that the value is non-null and non-blank at
+  runtime. `IntegrationEventEnvelope` reads it off the event — it is deliberately **not**
+  threaded through `IEventBus` as a second parameter, which is the source of drift
+  [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) removes. `InProcessEventBus`
+  serialises dispatch per key: concurrent across keys, sequential within one.
 - **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
@@ -1160,17 +1166,48 @@ Deferring it left the convention unasserted against the transport that is actual
 registered, which is the shape of gap this catalogue exists to close. It is therefore
 **split in two**, and the transport-independent half is not deferred:
 
+#### `Modules_Do_Not_Inject_IEventBus_Directly`
+
+- **Asserts:** no type in a module assembly takes, returns or stores `IEventBus`, and no
+  module takes or stores `IServiceProvider` as a service-locator escape hatch. Constructor
+  and method parameters, return types, fields and properties are checked. The only
+  sanctioned publisher is the `OutboxProcessor`; modules write to the outbox.
+- **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
+  [ADR-0010](../decisions/0010-cross-module-communication.md).
+- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Status:** **Implemented** (`CrossCuttingFoundationTests`). A module holding the bus
+  gets a synchronous cross-module call with no durability and no transactional
+  atomicity — a fifth cross-module mechanism in everything but name, and one that looks
+  like it works in every development test because the in-process transport delivers
+  inline. A namespace ban cannot express it: modules legitimately depend on
+  `LearnStack.SharedKernel.Messaging` for `IIntegrationEvent` and
+  `IIntegrationEventHandler<T>`. The module sweep is vacuous until a module ships code,
+  so the checker is pointed at direct-injection, method-injection and service-locator
+  deliberate offenders in the test assembly first.
+- **Phase:** 02a Packet 5.
+
 #### `Integration_Event_TopicNames_FollowConvention`
 
 - **Asserts:** every declared integration-event type resolves a topic matching
-  `learnstack.{module}.{aggregate}` (and `learnstack.hub.*` for Hub-side topics). Reads
+  `learnstack.{module}.{aggregate}`, plus the Hub-only four-segment form
+  `learnstack.hub.{domain}.{event}`. Segments start with a lower-case letter, may contain
+  internal hyphens, and never end in a hyphen. Reads
   the event declarations, not a broker, so it holds for whichever `IEventBus`
   implementation is registered.
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`CrossCuttingFoundationTests`). No module declares an
+  event yet, so the module sweep is vacuous today; the convention checker is pointed at
+  deliberate offenders first, so the rule can be shown to fire.
 - **Phase:** 02a (Packet 5) — lands with `InProcessEventBus`, the first transport.
+
+Writing it required a contract change. The rule reads the event **declarations**, and
+while the topic was a producer-supplied string on the envelope nothing declared one —
+the rule could not be written at all. `Topic` is now abstract on `IntegrationEventBase`,
+alongside `PartitionKey` and for the same reason: it is a property of the event type,
+not of one delivery, so a per-delivery parameter is a second source that can disagree
+with the first.
 
 `Dapr_PubSub_TopicNames_FollowConvention` keeps its Phase 11 slot and narrows to what
 only it can check: that the Dapr component bindings agree with the topics the events
@@ -1677,8 +1714,8 @@ structural test proves — and what it does not.
 
 - **Asserts:** the anonymous-burst counters resolve no `ICacheService`. A cache outage must not decide whether a MUST-class security event is recorded.
 - **Source:** ADR-0036 § Recording a rejected assertion.
-- **Type:** xUnit source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`) as a **tripwire**: `ICacheService` does not exist until Packet 5, so this cannot yet be a dependency check. It holds the line from now, because a shared burst counter is exactly what someone reaches a cache for.
+- **Type:** xUnit reflection check over the `LearnStack.Api.Tenancy` namespace **and** a source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
+- **Status:** **Implemented** (`TenancyConventionTests`). It shipped in Packet 4 as a **tripwire**, because `ICacheService` did not exist yet; Packet 5 ships the port, so the rule now carries the dependency check it was always meant to be. Both forms are kept: reflection catches an injected dependency, the scan catches a service-locator resolve, and neither sees the other's case.
 - **Phase:** 02a Packet 4.
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`

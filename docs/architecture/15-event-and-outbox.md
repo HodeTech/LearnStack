@@ -4,7 +4,7 @@ Events allow modules to collaborate without cross-module database coupling. This
 defines the event types, the outbox pattern, the claim protocol that makes concurrent
 dispatch safe, and how dispatch reaches subscribers — in process today, through Dapr
 pub/sub to Kafka when the trigger for that adapter fires (ADR-0010 Amendment 1 +
-ADR-0014 + ADR-0035).
+ADR-0038 + ADR-0035).
 
 ## Decision
 
@@ -37,7 +37,8 @@ every consumer to carry two implementations, one of which is never tested agains
 other. Everything in this document about consumer obligations applies identically to both
 transports; the only difference is what carries the bytes between publish and handle.
 
-[ADR-0014](../decisions/0014-adopt-dapr.md) stands as the decision that Dapr is the
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
+decision that Dapr is the
 cross-process transport LearnStack uses. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
 decides when it arrives, and the answer is "when a second process exists".
 
@@ -69,7 +70,7 @@ sequenceDiagram
 
     loop Polling (every 200ms; configurable)
         Processor->>Outbox: CLAIM — UPDATE SET locked_by, locked_until<br/>WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)<br/>RETURNING *; the claim survives the COMMIT
-        Processor->>Bus: PublishAsync(event, partitionKey)<br/>topic learnstack.{module}.{aggregate}
+        Processor->>Bus: PublishAsync(envelope)<br/>topic + correlation from the row
         Bus->>Transport: deliver
         Processor->>Outbox: UPDATE processed_at = now()<br/>WHERE id = @id AND locked_by = @me
     end
@@ -108,7 +109,7 @@ guarantees below (ordering, single-claimant dispatch) cannot be honoured without
 
 | Column | Why it exists | Lands with |
 |---|---|---|
-| `partition_key text NOT NULL` | The ordering guarantee below is expressed entirely through this value. Defaults to the aggregate id; falls back to `tenant_id` when the event names no aggregate. Set at enqueue time by `IOutbox.EnqueueAsync`, never by the transport. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
+| `partition_key text NOT NULL` | The ordering guarantee below is expressed entirely through this value. **The event declares it** — `PartitionKey` is abstract on `IntegrationEventBase`, so no event inherits a default — and `IOutbox.EnqueueAsync` copies it onto the row. Nothing resolves or re-derives it. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
 | `locked_by text NULL` + `locked_until timestamptz NULL` | The dispatch **lease**. A processor stamps them to claim a row, and the claim survives the claiming transaction's commit. See the claim protocol below. | The dispatcher, in [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | `available_after timestamptz NOT NULL` | Retry backoff. A failed dispatch pushes this forward instead of blocking the batch. | Already in the canonical DDL |
 
@@ -190,11 +191,12 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
 
     await _outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
     {
+        EventId = _guidFactory.NewUuidV7(),   // IGuidFactory, not Guid.NewGuid
         TenantId = _tenantContext.TenantId,   // ITenantContext, not the accessor
+        OccurredAt = _clock.UtcNow,           // IClock per Standards 02 § Time
         EnrollmentId = enrollment.Id.Value,
         LearnerId = cmd.LearnerId,
         CourseId = cmd.CourseId,
-        OccurredAt = _clock.UtcNow,   // IClock per Standards 02 § Time
     }, ct);
 
     await _dbContext.SaveChangesAsync(ct);    // aggregate + outbox row, atomic
@@ -204,9 +206,20 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
 ```
 
 `IOutbox.EnqueueAsync` writes to the same `DbContext` (no separate transaction); commit
-is atomic with the aggregate write. It also resolves and stores the row's
-`partition_key` — here `EnrollmentId`, the aggregate this event is about. See
-[Ordering](#ordering).
+is atomic with the aggregate write. It copies the event's `PartitionKey` onto the row —
+here `EnrollmentId`, the aggregate this event is about — along with the correlation id
+and organization from the ambient `ITenantContext`, which is the last point at which
+they are available. See [Ordering](#ordering).
+
+**The payload is written by `event.ToPayloadJson()`, never by
+`JsonSerializer.Serialize(@event)`.** `EnqueueAsync` takes `IIntegrationEvent`, so the
+declared type at that call is the interface — and serializing through it emits the five
+interface members and silently drops everything the concrete event added. Valid JSON, no
+exception, and the truncated row commits inside the transaction that reported success;
+the loss surfaces later as a `JsonException` on every dispatch attempt until the message
+dead-letters. `ToPayloadJson` serialises by runtime type, and `PayloadJsonOptions` is
+named and fixed because a writer and a reader that disagree on casing dead-letter
+everything.
 
 ## Consumer pattern
 
@@ -313,7 +326,14 @@ public sealed class OutboxProcessor : BackgroundService
             try
             {
                 var eventInstance = JsonSerializer.Deserialize(msg.Payload, Type.GetType(msg.Type)!);
-                await eventBus.PublishAsync((IIntegrationEvent)eventInstance!, msg.PartitionKey, ct);
+                await eventBus.PublishAsync(
+                    new IntegrationEventEnvelope(
+                        (IIntegrationEvent)eventInstance!,
+                        msg.CorrelationId,
+                        msg.OrganizationId,
+                        msg.CausationId,
+                        msg.ActorUserId is { } actor ? UserId.From(actor) : null),
+                    ct);
                 msg.MarkProcessed(_clock.UtcNow, _processorId);   // no-op if the lease was lost
             }
             catch (Exception ex)
@@ -370,19 +390,24 @@ left to each reader of this document.
 - **Horizontal scalability.** `SKIP LOCKED` plus the lease predicate lets N processors
   across N pods drain the same table without coordination.
 
-## `IEventBus` and the partition key
+## `IEventBus` and `IntegrationEventEnvelope`
 
-The port takes the partition key explicitly. It is not derived inside the transport,
-because the transport is the one component that does not know what the event's ordering
-domain is:
+The port accepts the envelope stored by the outbox. The concrete event declares its
+topic and ordering domain; the envelope forwards both and carries the delivery metadata
+the event does not own:
 
 ```csharp
 public interface IEventBus
 {
-    Task PublishAsync<TEvent>(TEvent @event, string partitionKey, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent;
+    Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct = default);
 }
 ```
+
+The partition key is read from `envelope.PartitionKey`; there is no separate publish
+parameter that can disagree with the event. `CorrelationId`, `OrganizationId`,
+`CausationId` and `ActorUserId` remain delivery metadata on the envelope. This is the
+binding contract in
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md).
 
 The durable implementation forwards it as Dapr's `partitionKey` metadata, which the Kafka
 pub/sub component maps onto the Kafka message key:
@@ -390,17 +415,56 @@ pub/sub component maps onto the Kafka message key:
 ```csharp
 public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
 {
-    public Task PublishAsync<TEvent>(TEvent @event, string partitionKey, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent
-        => daprClient.PublishEventAsync(
-               "pubsub",
-               ConventionTopicName(@event),          // "learnstack.{module}.{aggregate}"
-               @event,
-               new Dictionary<string, string> { ["partitionKey"] = partitionKey },
-               ct);
+    public Task PublishAsync(
+        IntegrationEventEnvelope envelope, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
 
-    private static string ConventionTopicName(IIntegrationEvent @event)
-        => $"learnstack.{ExtractModule(@event.GetType())}.{ExtractAggregate(@event.GetType())}";
+        // Every envelope field crosses the wire, not just the partition key.
+        // Publishing `envelope.Event` with only `partitionKey` metadata drops
+        // CorrelationId, OrganizationId, CausationId and ActorUserId — which is
+        // exactly what ADR-0014 Amendment 3 added the envelope to carry, and
+        // exactly what the consumer needs to restore its tenant context. The
+        // trace chain would break at the broker instead of at the outbox.
+        var metadata = new Dictionary<string, string>
+        {
+            ["partitionKey"] = envelope.PartitionKey,
+            ["cloudevent.traceparent"] = envelope.CorrelationId,
+        };
+
+        if (envelope.OrganizationId is { } organization)
+        {
+            metadata["organizationId"] = organization.ToString();
+        }
+
+        if (envelope.CausationId is { } causation)
+        {
+            metadata["causationId"] = causation.ToString();
+        }
+
+        if (envelope.ActorUserId is { } actor)
+        {
+            metadata["actorUserId"] = actor.Value.ToString();
+        }
+
+        // The payload is written by ToPayloadJson() here for the same reason it is
+        // at the outbox row: `envelope.Event` is declared IIntegrationEvent —
+        // ADR-0038 made the port non-generic on purpose — so a generic
+        // PublishEventAsync would infer TData from that declared type and publish
+        // the five interface members with every concrete field silently dropped.
+        // The cast is safe because Integration_Events_Inherit_From_IntegrationEventBase
+        // makes it an architecture-test invariant, and it fails loudly if that ever
+        // stops being true. Publishing the bytes the outbox row already holds also
+        // means the wire and the row cannot disagree.
+        var payload = Encoding.UTF8.GetBytes(
+            ((IntegrationEventBase)envelope.Event).ToPayloadJson());
+
+        // Confirm the exact byte-publishing overload against the Dapr SDK when the
+        // adapter lands; what is not negotiable is that it takes pre-serialized
+        // bytes rather than the interface-typed reference.
+        return daprClient.PublishByteEventAsync(
+            "pubsub", envelope.Topic, payload, "application/json", metadata, ct);
+    }
 }
 ```
 
@@ -416,6 +480,7 @@ Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 - `learnstack.enrollment.enrollment`
 - `learnstack.classroom.session`
 - `learnstack.hub.entitlement` (Hub-side)
+- `learnstack.hub.custom-domain.activated` (Hub-side four-segment form)
 - `learnstack.cache.invalidation` (cross-instance L1 cache)
 
 ## `InProcessEventBus`
@@ -432,22 +497,89 @@ obligations as the durable path:
 | Same per-partition-key ordering | Ordering assumptions that hold only in process are discovered in production |
 
 ```csharp
-public sealed class InProcessEventBus(
+public sealed partial class InProcessEventBus(
     IServiceScopeFactory scopeFactory,
     ITenantContextAccessor tenantAccessor,
-    IPartitionSerializer partitions) : IEventBus
+    IPartitionSerializer partitions,
+    IntegrationEventHandlerRegistry handlers,
+    ILogger<InProcessEventBus> logger) : IEventBus
 {
-    public Task PublishAsync<TEvent>(TEvent @event, string partitionKey, CancellationToken ct = default)
-        where TEvent : IIntegrationEvent
-        => partitions.RunSequentiallyFor(partitionKey, async () =>
+    public Task PublishAsync(
+        IntegrationEventEnvelope envelope, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        // Returned as a cancelled task rather than thrown inline: a
+        // fire-and-forget call site must not crash its caller synchronously.
+        if (ct.IsCancellationRequested) return Task.FromCanceled(ct);
+
+        return partitions.RunSequentiallyFor(
+            envelope.PartitionKey, () => DispatchAsync(envelope, ct));
+    }
+
+    private async Task DispatchAsync(IntegrationEventEnvelope envelope, CancellationToken ct)
+    {
+        // The outer save/restore covers the FULL dispatch. Context is set before
+        // subscription lookup and therefore before any handler can be resolved;
+        // constructors observe the event tenant rather than the publisher tenant.
+        var previous = tenantAccessor.Current;
+        tenantAccessor.Current = EventTenantContext.FromEnvelope(envelope);
+
+        try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            tenantAccessor.Set(TenantContext.FromEvent(@event));    // same restore as the durable path
-            foreach (var handler in scope.ServiceProvider.GetServices<IIntegrationEventHandler<TEvent>>())
-                await handler.HandleAsync(@event, ct);              // handler calls IInboxGuard itself
-        });
+            var subscriptions = handlers.For(envelope.Event.GetType());
+            List<Exception>? failures = null;
+
+            foreach (var subscription in subscriptions)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    // DeliverAsync creates ONE ASYNC SCOPE and resolves exactly
+                    // this subscription's concrete handler. A constructor or
+                    // disposal failure cannot deny a healthy sibling. It also
+                    // starts the subscription's consumer activity and supplies
+                    // its module name through EventTenantContext.
+                    await DeliverAsync(subscription, envelope, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw; // shutdown: do not start later subscriptions
+                }
+                catch (Exception ex)
+                {
+                    // Poison-message containment remains per subscription.
+                    (failures ??= []).Add(ex);
+                }
+            }
+
+            // One failure rethrown as itself; several as an AggregateException.
+        }
+        finally
+        {
+            tenantAccessor.Current = previous;
+        }
+    }                                      // the handler calls IInboxGuard itself
 }
 ```
+
+The listing is abridged — the shipped class also logs each failure with event, tenant
+and partition key, refuses a `null` Task from a handler by name, and wraps an
+`OperationCanceledException` raised by a token other than the publish token, so an
+outbox processor cannot read "the handler gave up" as "we are shutting down". See
+`backend/src/LearnStack.Infrastructure/Messaging/InProcessEventBus.cs`.
+
+**`PartitionSerializer` refuses reentrant work for the key it is already inside.**
+Queuing work for a key from within that key's own work is a deadlock by construction:
+the new unit chains behind a tail that cannot complete until the current one returns.
+An earlier attempt ran such a call inline, reasoning the caller *is* the sequence — which
+is unsound, because an `AsyncLocal` marker flows into every task started inside a unit,
+so a fire-and-forget spawn inherited it and ran concurrently with the unit it should have
+queued behind. Detection is the same either way; only the action differs. A false
+positive that throws is loud and diagnosable; one that runs inline is a silent
+concurrency violation. The caller that hits it is publishing from inside a handler,
+which [Standards 20](../standards/20-infrastructure-stack.md) already forbids — a
+handler writes to the outbox.
 
 What the in-process transport genuinely does **not** provide, and what therefore
 constitutes the trigger for the Dapr adapter: delivery to a second process, broker-side
@@ -465,8 +597,24 @@ the choice.
   (`UserCreatedIntegrationEventV2`); old version remains supported during a migration
   window.
 - Consumers are **idempotent** via `IInboxGuard` (per-module inbox table).
-- Mandatory metadata on every integration event: `EventId`, `TenantId`, `OccurredAt`,
-  `CorrelationId`. Optional but recommended: `CausationId`, `ActorUserId`.
+- Mandatory on every integration event: `EventId`, `TenantId`, `OccurredAt`,
+  `PartitionKey`. The first three are `required`; the fourth is abstract.
+- Declared by the event and read by the envelope: `Topic`, the channel
+  `learnstack.{module}.{aggregate}` — a property of the event type, checked by
+  `Integration_Event_TopicNames_FollowConvention`.
+- Carried on the **envelope**, not the event: `CorrelationId`,
+  `OrganizationId`, `CausationId`, `ActorUserId`. They describe the delivery rather
+  than the fact, and they are what the outbox row holds — `correlation_id` and `topic`
+  are `NOT NULL` there. Correlation therefore travels from the row to the consumer
+  rather than from whatever context happens to be ambient at dispatch, which is `null`
+  inside the background service the processor is.
+- An event that implements `IOrganizationScopedIntegrationEvent` cannot be enveloped
+  without a non-empty `OrganizationId`; a tenant-wide event deliberately omits the
+  marker. This keeps an accidentally omitted organization from becoming a resolved
+  tenant-wide consumer scope.
+- A consumer's effective identity is always `UserId.SystemActor`. `ActorUserId` is the
+  causal human and is preserved separately as `CausalActorUserId`; it never authorizes
+  or attributes asynchronous writes as that human.
 - **Tenant context** restored on the consumer side before any business logic runs. The
   transport delivers the event payload; the consumer scope sets the ambient context from
   `@event.TenantId` before invoking the handler, so the handler's queries carry the same
@@ -480,16 +628,26 @@ guarantee nobody has.
 
 The rule, therefore, is that **every outbox row carries a non-null `partition_key`**:
 
+Every event overrides `PartitionKey`; the table below is how to choose its value, not
+a list of mechanisms:
+
 | Event shape | Partition key |
 |---|---|
 | Event about one aggregate instance (the normal case) | The aggregate id — `EnrollmentCreatedIntegrationEvent` keys on `EnrollmentId` |
-| Event about the tenant as a whole (`TenantSuspended`, `EntitlementUpdated`) | `TenantId` |
-| Event with an explicit ordering domain that is neither (rare) | Declared by the event type through `IPartitionedIntegrationEvent.PartitionKey` |
+| Event about the tenant as a whole (`TenantSuspended`, `EntitlementUpdated`) | `TenantId`, deliberately — it serialises that tenant's whole stream onto one partition |
 
-`IOutbox.EnqueueAsync` resolves the key at enqueue time and writes it to the row; the
-processor reads it from the row and passes it to `IEventBus.PublishAsync`. Nothing
-downstream re-derives it, so the ordering domain is decided once, by the producer that
-knows it.
+The member is **abstract rather than defaulted**, and that is the decision: a default
+would have to be the tenant id, which takes the throughput cost above by accident
+instead of on purpose.
+
+`IOutbox.EnqueueAsync` copies the event's key onto the row; the processor reads it back
+and builds the envelope from it. `IntegrationEventEnvelope.PartitionKey` is
+`Event.PartitionKey` — it cannot hold a second answer. An earlier shape passed the key
+alongside the event as a separate parameter, which meant two sources with nothing
+reconciling them: measured, the transport read the parameter and never the event, and
+every test published an event whose declared key disagreed with the one passed, green.
+Ordering is guaranteed per partition key, so a key that can differ from itself is a
+guarantee that cannot be stated.
 
 Consequences worth stating plainly:
 
@@ -567,17 +725,17 @@ separate service later:
 
 ## Architecture tests
 
+- `Integration_Event_TopicNames_FollowConvention` — the transport-independent
+  Packet 5 rule checks every event's declared topic against the strict three-segment
+  core grammar and Hub-only four-segment form.
 - `Integration_Events_Inherit_From_IntegrationEventBase` — every type implementing
   `IIntegrationEvent` extends `IntegrationEventBase` (which carries `EventId`,
-  `OccurredAt`, `TenantId`).
+  `OccurredAt`, `TenantId` and declares `Topic` / `PartitionKey`).
 - `Integration_Event_Handlers_Use_InboxGuard` — every `IIntegrationEventHandler<T>`
   implementation invokes `IInboxGuard.IsAlreadyProcessedAsync` before processing.
-- `Dapr_PubSub_TopicNames_FollowConvention` — string scan ensures every `[Topic]`
-  attribute argument matches
-  `^learnstack\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$`. The
-  optional fourth segment is reserved for **Hub-side event-name suffixes**
-  (`learnstack.hub.custom-domain.activated`, `.deactivated`, `.revoked`).
-  LearnStack-core topics remain 3-segment (`learnstack.{module}.{aggregate}`).
+- `Dapr_PubSub_TopicNames_FollowConvention` — Phase 11 checks that Dapr component
+  bindings agree with the already-validated topics declared by events. It is not a
+  current `[Topic]`-attribute scan; no such attribute exists.
 - `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — integration test asserts one
   poisoned message doesn't prevent others in the batch from processing.
 - `Integration_Event_Handler_Restores_Tenant_Context` — catalogued in
@@ -613,7 +771,8 @@ alongside Dapr's own `dapr_component_pubsub_*` metrics.
 
 - ADR-0006 (Amendment 1) — Events and Outbox; dispatch transport.
 - ADR-0010 (Amendment 1) — Cross-Module Communication; outbox dispatch target.
-- ADR-0014 — Adopt Dapr (what LearnStack uses for cross-process pub/sub).
+- [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) — Dapr choice,
+  event envelope, subscription isolation and cache/event port contracts.
 - [ADR-0033](../decisions/0033-audit-durability-model.md) — Audit durability model;
   audit fan-out to external sinks rides this outbox, MUST-class audit does not.
 - [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — Demand-gated

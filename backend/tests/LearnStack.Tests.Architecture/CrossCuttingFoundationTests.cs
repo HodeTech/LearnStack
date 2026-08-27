@@ -26,27 +26,46 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 public sealed class CrossCuttingFoundationTests
 {
+    /// <summary>
+    /// Every module assembly a rule in this class sweeps.
+    /// </summary>
+    /// <remarks>
+    /// <c>Application.Contracts</c> is in the list because that is where
+    /// integration events are declared — <c>add-integration-event</c> puts them
+    /// in <c>&lt;Producer&gt;.Application.Contracts/IntegrationEvents/</c>. Without
+    /// it, <c>Integration_Event_TopicNames_FollowConvention</c> would sweep only
+    /// assemblies that by convention never hold an event, so it would be vacuous
+    /// permanently rather than until the first module ships one — and the same
+    /// omission narrowed three older rules alongside it.
+    /// </remarks>
     private static readonly string[] ModuleAssemblyShapes =
     [
         "LearnStack.Modules.Tenancy.Application",
+        "LearnStack.Modules.Tenancy.Application.Contracts",
         "LearnStack.Modules.Tenancy.Domain",
         "LearnStack.Modules.Tenancy.Infrastructure",
         "LearnStack.Modules.Identity.Application",
+        "LearnStack.Modules.Identity.Application.Contracts",
         "LearnStack.Modules.Identity.Domain",
         "LearnStack.Modules.Identity.Infrastructure",
         "LearnStack.Modules.Customization.Application",
+        "LearnStack.Modules.Customization.Application.Contracts",
         "LearnStack.Modules.Customization.Domain",
         "LearnStack.Modules.Customization.Infrastructure",
         "LearnStack.Modules.Audit.Application",
+        "LearnStack.Modules.Audit.Application.Contracts",
         "LearnStack.Modules.Audit.Domain",
         "LearnStack.Modules.Audit.Infrastructure",
         "LearnStack.Modules.Content.Application",
+        "LearnStack.Modules.Content.Application.Contracts",
         "LearnStack.Modules.Content.Domain",
         "LearnStack.Modules.Content.Infrastructure",
         "LearnStack.Modules.Media.Application",
+        "LearnStack.Modules.Media.Application.Contracts",
         "LearnStack.Modules.Media.Domain",
         "LearnStack.Modules.Media.Infrastructure",
         "LearnStack.Modules.Education.Application",
+        "LearnStack.Modules.Education.Application.Contracts",
         "LearnStack.Modules.Education.Domain",
         "LearnStack.Modules.Education.Infrastructure",
     ];
@@ -310,6 +329,160 @@ public sealed class CrossCuttingFoundationTests
                 + "namespace). Composition-root branching is the only sanctioned read site "
                 + "(Standards 20 § Composition Root).");
         }
+    }
+
+    [Fact]
+    public void Integration_Event_TopicNames_FollowConvention()
+    {
+        // Standards 20 § IEventBus and ADR-0006: `learnstack.{module}.{aggregate}`,
+        // with `learnstack.hub.*` reserved for Hub-side topics. Asserted over the
+        // declared event TYPES, so it holds for whichever IEventBus
+        // implementation is registered — which is only possible because the topic
+        // is declared by the event. While it was a producer-supplied string on
+        // the envelope there was nothing to read, and this catalogued rule could
+        // not be written at all.
+        //
+        // No module declares an event yet, so this would be vacuous — hence the
+        // deliberate offenders below. A guard that cannot be shown to fire is
+        // not a guard.
+        FollowsTopicConvention("learnstack.enrollment.enrollment").Should().BeTrue();
+        FollowsTopicConvention("learnstack.hub.entitlement").Should().BeTrue();
+        FollowsTopicConvention("learnstack.hub.custom-domain.activated").Should().BeTrue();
+        FollowsTopicConvention("EnrollmentCreated").Should().BeFalse("no namespace");
+        FollowsTopicConvention("learnstack.enrollment").Should().BeFalse("no aggregate");
+        FollowsTopicConvention("Learnstack.Enrollment.Enrollment").Should().BeFalse("not lower-case");
+        FollowsTopicConvention("acme.enrollment.enrollment").Should().BeFalse("wrong prefix");
+        FollowsTopicConvention("learnstack.-hub.event").Should().BeFalse("leading hyphen");
+        FollowsTopicConvention("learnstack.hub-.event").Should().BeFalse("trailing hyphen");
+        FollowsTopicConvention("learnstack.1hub.event").Should().BeFalse("leading digit");
+        FollowsTopicConvention("learnstack.education.course.activated").Should().BeFalse(
+            "only Hub owns a four-segment topic");
+        FollowsTopicConvention("learnstack.hub.custom-domain.activated.extra").Should().BeFalse(
+            "five segments");
+
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var assembly = TryLoadAssembly(name);
+            if (assembly is null) continue;
+
+            var events = assembly.GetTypes()
+                .Where(t => !t.IsAbstract
+                            && typeof(LearnStack.SharedKernel.Messaging.IIntegrationEvent)
+                                .IsAssignableFrom(t));
+
+            foreach (var type in events)
+            {
+                var topic = ((LearnStack.SharedKernel.Messaging.IIntegrationEvent)
+                    System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type)).Topic;
+
+                FollowsTopicConvention(topic).Should().BeTrue(
+                    $"{type.FullName} declares topic '{topic}', which is not "
+                    + "learnstack.{module}.{aggregate} (Standards 20 § IEventBus)");
+            }
+        }
+    }
+
+    private static bool FollowsTopicConvention(string topic)
+    {
+        const string segment = "[a-z][a-z0-9-]*[a-z0-9]|[a-z]";
+        return System.Text.RegularExpressions.Regex.IsMatch(
+                   topic,
+                   $@"^learnstack\.({segment})\.({segment})$",
+                   System.Text.RegularExpressions.RegexOptions.None,
+                   TimeSpan.FromSeconds(1))
+               || System.Text.RegularExpressions.Regex.IsMatch(
+                   topic,
+                   $@"^learnstack\.hub\.({segment})\.({segment})$",
+                   System.Text.RegularExpressions.RegexOptions.None,
+                   TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public void Modules_Do_Not_Inject_IEventBus_Directly()
+    {
+        // Standards 20 § IEventBus: the only sanctioned publisher is the
+        // OutboxProcessor. A module that injects IEventBus gets a synchronous
+        // cross-module call with no durability and no transactional atomicity —
+        // a fifth cross-module mechanism in everything but name
+        // (ADR-0010 admits four), and one that looks like it works in every
+        // development test because the in-process transport delivers inline.
+        //
+        // A namespace ban cannot express this: modules legitimately depend on
+        // LearnStack.SharedKernel.Messaging for IIntegrationEvent and
+        // IIntegrationEventHandler<T>. Only the bus itself is off limits.
+        //
+        // The module assemblies carry no types yet, so this would be vacuous —
+        // which is why the checker is pointed at a deliberate offender in this
+        // assembly first. A guard that cannot be shown to fire is not a guard.
+        UsesForbiddenEventBusAccess(typeof(DeliberateEventBusInjector)).Should().BeTrue(
+            "the checker must catch a type that does inject the bus, or it "
+            + "proves nothing about the modules it is aimed at");
+        UsesForbiddenEventBusAccess(typeof(DeliberateEventBusServiceLocator)).Should().BeTrue(
+            "IServiceProvider is a service-locator escape hatch");
+        UsesForbiddenEventBusAccess(typeof(DeliberateMethodPublisher)).Should().BeTrue(
+            "method injection is still direct event-bus access");
+        UsesForbiddenEventBusAccess(typeof(CrossCuttingFoundationTests)).Should().BeFalse();
+
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var assembly = TryLoadAssembly(name);
+            if (assembly is null) continue;
+
+            var offenders = assembly.GetTypes()
+                .Where(UsesForbiddenEventBusAccess)
+                .Select(t => t.FullName)
+                .ToList();
+
+            offenders.Should().BeEmpty(
+                $"{name} reaches IEventBus directly — by injecting it, or through "
+                + "IServiceProvider, which is the same access with an extra step. "
+                + "Modules write to the outbox; the OutboxProcessor publishes "
+                + "(Standards 20 § IEventBus).");
+        }
+    }
+
+    private static bool UsesForbiddenEventBusAccess(Type type)
+    {
+        var bus = typeof(LearnStack.SharedKernel.Messaging.IEventBus);
+        var serviceProvider = typeof(IServiceProvider);
+        var forbidden = new[] { bus, serviceProvider };
+        const BindingFlags members = BindingFlags.Instance
+                                     | BindingFlags.Static
+                                     | BindingFlags.Public
+                                     | BindingFlags.NonPublic;
+
+        return type.GetConstructors(members).Any(constructor =>
+                   constructor.GetParameters().Any(parameter =>
+                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+               || type.GetMethods(members).Any(method =>
+                   forbidden.Any(candidate => candidate.IsAssignableFrom(method.ReturnType))
+                   || method.GetParameters().Any(parameter =>
+                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+               || type.GetFields(members).Any(field =>
+                   forbidden.Any(candidate => candidate.IsAssignableFrom(field.FieldType)))
+               || type.GetProperties(members).Any(property =>
+                   forbidden.Any(candidate => candidate.IsAssignableFrom(property.PropertyType)));
+    }
+
+    /// <summary>A type that breaks the rule, so the checker can be shown to catch it.</summary>
+    private sealed class DeliberateEventBusInjector(LearnStack.SharedKernel.Messaging.IEventBus bus)
+    {
+        public LearnStack.SharedKernel.Messaging.IEventBus Bus { get; } = bus;
+    }
+
+    /// <summary>A service-locator-shaped deliberate offender.</summary>
+    private sealed class DeliberateEventBusServiceLocator(IServiceProvider services)
+    {
+        public IServiceProvider Services { get; } = services;
+    }
+
+    /// <summary>A method-injection-shaped deliberate offender.</summary>
+    private sealed class DeliberateMethodPublisher
+    {
+        public static Task Publish(
+            LearnStack.SharedKernel.Messaging.IEventBus bus,
+            LearnStack.SharedKernel.Messaging.IntegrationEventEnvelope envelope) =>
+            bus.PublishAsync(envelope);
     }
 
     [Fact]

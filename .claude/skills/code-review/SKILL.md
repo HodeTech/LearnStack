@@ -270,7 +270,7 @@ Author intent: <one-paragraph restatement>
   [20-infrastructure-stack.md § Forbidden](../../../docs/standards/20-infrastructure-stack.md)).
   Use `ICacheService` / `IEventBus` / `ISecretProvider`.
 - **No `Dapr.Client.*` imports outside `LearnStack.Infrastructure.{Caching,Messaging,Secrets}`**
-  — a separate rule per [ADR-0014 § Architecture tests](../../../docs/decisions/0014-adopt-dapr.md)
+  — a separate rule per [ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md)
   and [29-dapr-integration.md § 8](../../../docs/architecture/29-dapr-integration.md);
   architecture test `Dapr_SDK_Types_NotImportedOutsideInfrastructure`.
 - **No direct write to `audit_log` / `outbox_messages` /
