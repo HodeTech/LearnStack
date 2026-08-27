@@ -210,7 +210,7 @@ different decisions:
 
 | Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Valkey) | Eager invalidation event |
 |---|---|---|---|
-| `platform:hub:host-map:{host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
+| `platform:hub:host-map:{normalized-host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | generation key — see the rule below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
@@ -222,7 +222,7 @@ drifts:
 
 | Family | Composed by |
 |---|---|
-| `platform:hub:host-map:{host}` | `CacheKey.ForHostMapping(host)` |
+| `platform:hub:host-map:{normalized-host}` | `CacheKey.ForHostMapping(normalizedHost)` |
 | `{tenant_id}:hub:entitlement` | `CacheKey.ForTenant(tenantId, "hub", "entitlement")` |
 | `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |

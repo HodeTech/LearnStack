@@ -213,7 +213,7 @@ they are available. See [Ordering](#ordering).
 
 **The payload is written by `event.ToPayloadJson()`, never by
 `JsonSerializer.Serialize(@event)`.** `EnqueueAsync` takes `IIntegrationEvent`, so the
-declared type at that call is the interface — and serializing through it emits the four
+declared type at that call is the interface — and serializing through it emits the five
 interface members and silently drops everything the concrete event added. Valid JSON, no
 exception, and the truncated row commits inside the transaction that reported success;
 the loss surfaces later as a `JsonException` on every dispatch attempt until the message
@@ -447,8 +447,23 @@ public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
             metadata["actorUserId"] = actor.Value.ToString();
         }
 
-        return daprClient.PublishEventAsync(
-            "pubsub", envelope.Topic, envelope.Event, metadata, ct);
+        // The payload is written by ToPayloadJson() here for the same reason it is
+        // at the outbox row: `envelope.Event` is declared IIntegrationEvent —
+        // ADR-0038 made the port non-generic on purpose — so a generic
+        // PublishEventAsync would infer TData from that declared type and publish
+        // the five interface members with every concrete field silently dropped.
+        // The cast is safe because Integration_Events_Inherit_From_IntegrationEventBase
+        // makes it an architecture-test invariant, and it fails loudly if that ever
+        // stops being true. Publishing the bytes the outbox row already holds also
+        // means the wire and the row cannot disagree.
+        var payload = Encoding.UTF8.GetBytes(
+            ((IntegrationEventBase)envelope.Event).ToPayloadJson());
+
+        // Confirm the exact byte-publishing overload against the Dapr SDK when the
+        // adapter lands; what is not negotiable is that it takes pre-serialized
+        // bytes rather than the interface-typed reference.
+        return daprClient.PublishByteEventAsync(
+            "pubsub", envelope.Topic, payload, "application/json", metadata, ct);
     }
 }
 ```

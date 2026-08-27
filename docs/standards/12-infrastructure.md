@@ -164,11 +164,13 @@ expression of the secret port rather than a parallel mechanism.
   `ConfigurationSecretProvider` in every mode today, so it reads that same chain —
   Vault behind it is the Phase 11 target, not the current path (§ Secrets Management).
 - No secrets in git.
-- Secrets stored in Vault for `SaaS` / `Dedicated`; in Vault or a sealed file for
-  `SelfHosted`; in env files (gitignored) for `Development`.
+- **Phase 11 target state**, once the Vault trigger fires: secrets stored in Vault for
+  `SaaS` / `Dedicated`; in Vault or a sealed file for `SelfHosted`; in env files
+  (gitignored) for `Development`. Today every mode reads the configuration chain above.
 - Production secrets rotated at least every 90 days where rotation is feasible.
 - `IOptionsMonitor<T>` is used where dynamic refresh is required (e.g. Hub URL, HMAC
-  secret); a Vault watcher pushes updates.
+  secret). What pushes an update into it is the **Phase 11** Vault watcher; until then
+  the monitor refreshes from the configuration chain's own change tokens.
 
 ## CI/CD
 

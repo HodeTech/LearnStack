@@ -128,8 +128,17 @@ await db.SaveChangesAsync(ct);
 
 The `OutboxProcessor` (BackgroundService) polls `outbox_messages`, constructs an
 `IntegrationEventEnvelope`, and calls `IEventBus.PublishAsync(envelope)`.
-`DaprEventBus.PublishAsync` invokes `DaprClient.PublishEventAsync` with
-`envelope.Topic`, `envelope.Event`, and `envelope.PartitionKey` metadata.
+`DaprEventBus.PublishAsync` publishes to `envelope.Topic` with the envelope's
+delivery fields as metadata — see
+[15-event-and-outbox.md § Ordering](../../../docs/architecture/15-event-and-outbox.md)
+for the full metadata set, which is more than the partition key.
+
+**Never hand `envelope.Event` to a generic publish overload.** It is declared
+`IIntegrationEvent`, so `TData` is inferred as the interface and the publish emits
+its five members with every concrete field silently dropped — valid JSON, no
+exception, a fact that arrives empty. The payload is
+`((IntegrationEventBase)envelope.Event).ToPayloadJson()`, the same bytes the outbox
+row holds.
 
 The topic is declared by the event's `Topic` override and checked by the
 architecture test; the transport never re-derives or renames it.
@@ -207,9 +216,13 @@ metadata (`partitionKey`) on the `PublishEventAsync` call:
 
 ```csharp
 // LearnStack.Infrastructure.Messaging.DaprEventBus (Infrastructure only — never
-// call DaprClient from a module).
-await daprClient.PublishEventAsync(
-    "pubsub", envelope.Topic, envelope.Event,
+// call DaprClient from a module). Abridged: the full metadata set is in
+// 15-event-and-outbox.md, and dropping the rest of it breaks the trace chain.
+var payload = Encoding.UTF8.GetBytes(
+    ((IntegrationEventBase)envelope.Event).ToPayloadJson());
+
+await daprClient.PublishByteEventAsync(
+    "pubsub", envelope.Topic, payload, "application/json",
     metadata: new Dictionary<string, string>
     {
         ["partitionKey"] = envelope.PartitionKey,
@@ -254,6 +267,9 @@ dashboard when the adapter lands.
   Phase 11's Dapr binding test checks the component copy too.
 - **Direct `DaprClient` / `KafkaProducer` injection.** Both forbidden. Use
   `IEventBus`.
+- **Publishing `envelope.Event` through a generic overload.** The declared type is
+  the interface, so the concrete event's fields are dropped without an error. Publish
+  `ToPayloadJson()`'s bytes — Step 3.
 - **Subscribing in the wrong module.** A subscription declared in the producer
   module's startup runs *on the producer side*, which is almost always wrong.
 - **Switching on deployment mode before the trigger.** All modes use

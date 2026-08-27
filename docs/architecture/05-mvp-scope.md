@@ -67,8 +67,10 @@ test pass.
   development; Hub-backed and signed-license-key implementations land in Phase 02c.
 - `IHostToTenantResolver` + `platform_host_to_tenant` projection (host → tenant_id),
   populated by Hub for SaaS / by config for Self-Hosted.
-- `platform_entitlement_cache` projection (15-min TTL, eager-invalidated on
-  `learnstack.hub.entitlement` Dapr pub/sub event).
+- `platform_entitlement_cache` projection (15-min TTL, eager-invalidated on the
+  `learnstack.hub.entitlement` integration event — carried by `InProcessEventBus`
+  today, by Dapr pub/sub once Phase 11's trigger fires; the event and its handler are
+  the same either way).
 - Architecture tests run **from Day 1** of Phase 02 (not added later as cleanup).
 
 ### Tenancy & Organization

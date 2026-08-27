@@ -487,14 +487,7 @@ public sealed class InProcessEventBusTests
     public async Task Each_Subscription_Continues_The_Producer_Trace()
     {
         var stopped = new ConcurrentBag<Activity>();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == InProcessEventBus.ActivitySourceName,
-            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
-                ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = stopped.Add,
-        };
-        ActivitySource.AddActivityListener(listener);
+        using var listener = Listen(stopped);
 
         var recorder = new Recorder();
         var (bus, _) = Build(recorder, services =>
@@ -508,6 +501,70 @@ public sealed class InProcessEventBusTests
         activity.TraceId.ToString().Should().Be("0af7651916cd43dd8448eb211c80319c");
         activity.ParentSpanId.ToString().Should().Be("b7ad6b7169203331");
         recorder.Modules.Should().ContainSingle().Which.Should().Be("unknown");
+    }
+
+    [Fact]
+    public async Task A_Failed_Delivery_Marks_Its_Consumer_Span()
+    {
+        // The span and the log line describe the same delivery, so a span left
+        // Unset when the handler threw is worse than no span: an operator
+        // filtering a trace backend for errors finds a green consumer next to
+        // the error log, and concludes the failure happened somewhere else.
+        var stopped = new ConcurrentBag<Activity>();
+        using var listener = Listen(stopped);
+
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, ThrowingHandler>());
+
+        var act = () => bus.PublishAsync(Envelope(NewThing("a")));
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        var activity = stopped.Should().ContainSingle().Which;
+        activity.Status.Should().Be(ActivityStatusCode.Error);
+        activity.StatusDescription.Should().Be(nameof(InvalidOperationException));
+        activity.Events.Should().ContainSingle()
+            .Which.Tags.Should().Contain(
+                tag => tag.Key == "exception.type"
+                    && (string?)tag.Value == typeof(InvalidOperationException).FullName);
+    }
+
+    [Fact]
+    public async Task Publish_Cancellation_Leaves_Its_Consumer_Span_Unset()
+    {
+        // The other half: shutdown is not a failure. Marking it Error would put
+        // one Error span per in-flight subscription into the 100%-sampled error
+        // traces every time the host stops, which is the same reason Standards
+        // 10 leaves a client disconnect Unset.
+        var stopped = new ConcurrentBag<Activity>();
+        using var listener = Listen(stopped);
+
+        var recorder = new Recorder();
+        var (bus, _) = Build(recorder, services =>
+            services.AddScoped<IIntegrationEventHandler<Thing>, CancellationWaitingHandler>());
+        using var cancellation = new CancellationTokenSource();
+
+        var publish = bus.PublishAsync(Envelope(NewThing("a")), cancellation.Token);
+        await recorder.HandlerEntered.Task.WaitAsync(Timeout);
+        await cancellation.CancelAsync();
+
+        await ((Func<Task>)(() => publish)).Should().ThrowAsync<OperationCanceledException>();
+        var activity = stopped.Should().ContainSingle().Which;
+        activity.Status.Should().Be(ActivityStatusCode.Unset);
+        activity.Events.Should().BeEmpty();
+    }
+
+    private static ActivityListener Listen(ConcurrentBag<Activity> stopped)
+    {
+        var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == InProcessEventBus.ActivitySourceName,
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = stopped.Add,
+        };
+        ActivitySource.AddActivityListener(listener);
+        return listener;
     }
 
     // ---- obligation: ordering per partition key ------------------------------

@@ -102,7 +102,9 @@ sets `actorStateStore` to `false`. Its empty development password is replaced by
 deployment configuration when the Phase 11 adapter lands.
 
 Used as L2 cache. Modules call `ICacheService.GetOrSetAsync(...)`; the implementation
-wraps state-store calls plus an L1 in-memory cache plus tenant-aware key prefixing.
+wraps state-store calls plus an L1 in-memory cache. It does **not** prefix the key —
+callers compose complete keys with `CacheKey`, and every implementation validates what
+it is handed rather than rewriting it (§ 3).
 
 ### `secretstore-vault.yaml` — Vault secret store
 

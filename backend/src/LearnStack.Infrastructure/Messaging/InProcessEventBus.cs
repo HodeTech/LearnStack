@@ -148,65 +148,96 @@ public sealed partial class InProcessEventBus(
                     new("learnstack.module", subscription.ModuleName),
                 ]);
 
-            await using var scope = scopeFactory.CreateAsyncScope();
-
-            object handler;
+            // The activity has to cover construction, invocation AND the await:
+            // a span that only wraps the happy path ends Unset on every failure,
+            // so a trace backend shows a green consumer span next to the error
+            // log that describes the same delivery.
             try
             {
-                handler = scope.ServiceProvider.GetRequiredService(subscription.HandlerType);
+                await DeliverToHandlerAsync(subscription, envelope, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Publish-token cancellation is shutdown, not a failed delivery.
+                // Left Unset for the reason Standards 10 leaves a client
+                // disconnect Unset: nothing failed that anyone should be paged
+                // about, and marking it Error would put shutdown noise into the
+                // 100%-sampled error traces.
+                throw;
             }
             catch (Exception exception)
             {
-                throw new InvalidOperationException(
-                    $"Integration-event handler {subscription.HandlerType.FullName} "
-                    + "failed to construct.",
-                    exception);
-            }
-
-            var handle = subscription.Handle;
-            Task delivery;
-
-            try
-            {
-                delivery = (Task)handle.Invoke(handler, [envelope.Event, cancellationToken])!;
-            }
-            catch (TargetInvocationException wrapped)
-                when (wrapped.InnerException is OperationCanceledException cancellation
-                      && !cancellationToken.IsCancellationRequested)
-            {
-                throw new InvalidOperationException(
-                    "An integration-event handler was cancelled by a token other than "
-                    + "the publish token.",
-                    cancellation);
-            }
-            catch (TargetInvocationException wrapped) when (wrapped.InnerException is not null)
-            {
-                ExceptionDispatchInfo.Capture(wrapped.InnerException).Throw();
+                activity?.AddException(exception);
+                activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
                 throw;
-            }
-
-            if (delivery is null)
-            {
-                throw new InvalidOperationException(
-                    $"{handler.GetType().FullName} returned a null Task from {HandleMethodName}.");
-            }
-
-            try
-            {
-                await delivery.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException exception)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new InvalidOperationException(
-                    "An integration-event handler was cancelled by a token other than "
-                    + "the publish token.",
-                    exception);
             }
         }
         finally
         {
             tenantAccessor.Current = previous;
+        }
+    }
+
+    private async Task DeliverToHandlerAsync(
+        IntegrationEventSubscription subscription,
+        IntegrationEventEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+
+        object handler;
+        try
+        {
+            handler = scope.ServiceProvider.GetRequiredService(subscription.HandlerType);
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException(
+                $"Integration-event handler {subscription.HandlerType.FullName} "
+                + "failed to construct.",
+                exception);
+        }
+
+        var handle = subscription.Handle;
+        Task delivery;
+
+        try
+        {
+            delivery = (Task)handle.Invoke(handler, [envelope.Event, cancellationToken])!;
+        }
+        catch (TargetInvocationException wrapped)
+            when (wrapped.InnerException is OperationCanceledException cancellation
+                  && !cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(
+                "An integration-event handler was cancelled by a token other than "
+                + "the publish token.",
+                cancellation);
+        }
+        catch (TargetInvocationException wrapped) when (wrapped.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(wrapped.InnerException).Throw();
+            throw;
+        }
+
+        if (delivery is null)
+        {
+            throw new InvalidOperationException(
+                $"{handler.GetType().FullName} returned a null Task from {HandleMethodName}.");
+        }
+
+        try
+        {
+            await delivery.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(
+                "An integration-event handler was cancelled by a token other than "
+                + "the publish token.",
+                exception);
         }
     }
 
