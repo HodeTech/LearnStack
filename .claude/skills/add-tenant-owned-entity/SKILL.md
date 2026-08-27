@@ -59,7 +59,7 @@ role a table-wide read of every tenant's plan.
 | Entity name | Yes | PascalCase. The aggregate root or owned entity. |
 | Owning module | Yes | Determines DbContext, namespace, migration project. |
 | Org-scoped? | Yes | `false` = tenant-wide; `true` = needs `OrganizationId` + org RLS. |
-| Soft-deletable? | Yes | Adds `deleted_at` / `deleted_by` and an EF filter. |
+| Soft-deletable? | Yes | Decides the **query filter**, not the columns: `AuditableEntity<TId>` implements `ISoftDelete` unconditionally, so `deleted_at` / `deleted_by` are on every derived table either way ([Database Standards § Audit Columns](../../../docs/standards/05-database.md)). |
 | Strongly-typed id | Yes | Even simple entities use `<Name>Id : strongly-typed Guid` per [02-backend-coding.md](../../../docs/standards/02-backend-coding.md). |
 
 ## Workflow

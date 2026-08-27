@@ -52,8 +52,7 @@ public sealed class TenancyIdentifierTests
         // API payload, TypeConverter for route binding and IConfiguration. Worth
         // pinning because a future declaration could narrow the mask rather than
         // drop it.
-        var id = Activator.CreateInstance(idType);
-        id = idType.GetMethod("From", [typeof(Guid)])!.Invoke(null, [Sample]);
+        var id = idType.GetMethod("From", [typeof(Guid)])!.Invoke(null, [Sample]);
 
         var json = JsonSerializer.Serialize(id, idType);
         JsonSerializer.Deserialize(json, idType).Should().Be(id);
@@ -63,16 +62,27 @@ public sealed class TenancyIdentifierTests
             .Should().Be(id);
     }
 
-    [Fact]
-    public void TheTwoIdentifiersAreNotInterchangeable()
+    [Theory]
+    [InlineData(typeof(TenantId))]
+    [InlineData(typeof(OrganizationId))]
+    public void NeitherIdentifierConvertsImplicitlyToOrFromItsPrimitive(Type idType)
     {
-        // The entire reason they are types rather than Guids. A handler that
-        // passed an organization where a tenant belongs is the bug the isolation
-        // layers cannot catch, because both are uuid at the database.
-        typeof(TenantId).Should().NotBe<OrganizationId>();
+        // The reason they are types rather than Guids: a handler that passed an
+        // organization where a tenant belongs is the bug no isolation layer can
+        // catch, because both are `uuid` at the database. `typeof(A) != typeof(B)`
+        // would look like the assertion for that and is not — it holds for any two
+        // distinct types and no mutation of these declarations can falsify it.
+        //
+        // What CAN be acquired is an implicit conversion: Vogen emits one on
+        // request, and a single `op_Implicit` against Guid would make both ids
+        // silently interchangeable through it, restoring the primitive obsession
+        // ADR-0023 removed. That is falsifiable, so it is what is asserted.
+        idType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Select(m => m.Name)
+            .Should().NotContain("op_Implicit");
 
         TenantId.From(Sample).Value.Should().Be(OrganizationId.From(Sample).Value,
-            "they wrap the same primitive — which is exactly why the wrapper has to differ");
+            "they wrap the same primitive — which is exactly why the wrappers must differ");
     }
 
     [Theory]
@@ -95,12 +105,16 @@ public sealed class TenancyIdentifierTests
     [InlineData(typeof(OrganizationId))]
     public void TheseIdentifiersMintNothingOnTheirOwn(Type idType)
     {
-        // No New() / NewId() factory, deliberately. A tenant id is assigned by the
-        // registry that owns the Tenant aggregate — a handler that generated one
-        // could not satisfy the self-keyed policy's WITH CHECK. An organization id
-        // comes from the injected IGuidFactory so a test can pin it (Standards 02
-        // § Time). Either way, `Guid.NewGuid()` inside an aggregate is the thing
-        // this absence prevents.
+        // No New() / NewId() / Create() factory, deliberately. A tenant id is
+        // assigned by the registry that owns the Tenant aggregate — a handler that
+        // generated one could not satisfy the self-keyed policy's WITH CHECK. An
+        // organization id comes from the injected IGuidFactory so a test can pin
+        // it (Standards 02 § Time).
+        //
+        // This asserts the absence of a convenience factory and nothing more.
+        // `X.From(Guid.NewGuid())` still compiles — nothing here can prevent that,
+        // and claiming otherwise would be a comment the assertion does not
+        // support. What stops it is review plus the IClock/IGuidFactory rule.
         idType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
             .Select(m => m.Name)
             .Should().NotContain(["New", "NewId", "Create"]);

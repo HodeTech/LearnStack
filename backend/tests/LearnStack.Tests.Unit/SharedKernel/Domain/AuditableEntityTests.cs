@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using Xunit;
@@ -121,9 +122,38 @@ public sealed class AuditableEntityTests
         // Npgsql convention for an xmin token, which ADR-0039 rejected — and a
         // uint property against a bigint column round-trips wrong at the top of
         // the range rather than failing loudly.
+        // BOTH, and the second is the one that matters. Measured: narrowing only
+        // the class property to uint and adding an explicit `long
+        // IOptimisticConcurrency.Version => Version;` compiles and passes all 577
+        // tests — while silently making the token 32-bit against a bigint column.
+        // The interface assertion alone agreed with the code rather than
+        // constraining it.
         typeof(IOptimisticConcurrency)
             .GetProperty(nameof(IOptimisticConcurrency.Version))!
             .PropertyType.Should().Be<long>();
+
+        typeof(AuditableEntity<TestId>)
+            .GetProperty(nameof(AuditableEntity<TestId>.Version))!
+            .PropertyType.Should().Be<long>("this is the property EF maps to row_version");
+    }
+
+    [Fact]
+    public void SoftDelete_CalledTwice_Throws()
+    {
+        // Same reason MarkCreated refuses a second call: the second delete would
+        // overwrite who deleted the row and when.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+        aggregate.SoftDelete(T0.AddDays(1), Actor);
+        var firstDeleter = aggregate.DeletedBy;
+        var versionAfterFirst = aggregate.Version;
+
+        var act = () => aggregate.SoftDelete(T0.AddDays(2), UserId.From(Guid.CreateVersion7()));
+
+        act.Should().Throw<InvalidOperationException>();
+        aggregate.DeletedBy.Should().Be(firstDeleter, "the first deleter is who deleted it");
+        aggregate.DeletedAt.Should().Be(T0.AddDays(1));
+        aggregate.Version.Should().Be(versionAfterFirst, "a refused call changes nothing");
     }
 
     [Fact]

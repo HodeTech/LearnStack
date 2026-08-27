@@ -160,10 +160,10 @@ GraphQL is not in scope for the MVP. Revisit only when a frontend surface (e.g. 
 | Naming | `snake_case` for tables/columns; plural table names (`users`, `course_versions`). |
 | Primary keys | Strongly-typed ids backed by `uuid`. |
 | Tenant column | `tenant_id uuid not null` on every tenant-owned table; RLS policy enforces it. |
-| Audit columns | `created_at`, `created_by`, `updated_at`, `updated_by`, optional `deleted_at`, `deleted_by`. |
+| Audit columns | All six on every `AuditableEntity<TId>` table: `created_at`, `created_by`, `updated_at` (null until the first update), `updated_by` (null), `deleted_at`, `deleted_by`. See [Database Standards § Audit Columns](../standards/05-database.md). |
 | Concurrency | `row_version bigint` (CLR `long`) on mutable entities, per [ADR-0039](../decisions/0039-optimistic-concurrency-token.md). Not `xmin`. |
 | Migrations | EF Core migrations; every PR includes a paired migration if the schema changes. |
-| Soft delete | Opt-in per aggregate; not a global default. |
+| Soft delete | The **columns** are unconditional (see above); what is opt-in per aggregate is whether it is ever soft-deleted and whether its query filter excludes deleted rows. |
 
 See [Database Standards](../standards/05-database.md).
 

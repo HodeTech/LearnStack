@@ -94,16 +94,28 @@ public abstract class AuditableEntity<TId>
     }
 
     /// <summary>
-    /// Marks the entity as soft-deleted. Also bumps
-    /// <see cref="UpdatedAt"/> / <see cref="UpdatedBy"/> so the
-    /// "last touched at" timestamp is monotonic — replication / sync /
-    /// reporting jobs that scan on <c>UpdatedAt</c> see soft-deletes
-    /// without keying off <c>DeletedAt</c> separately. The audit row still
-    /// classifies the action as a delete via its own operation type.
+    /// Marks the entity as soft-deleted, and stamps the update columns with the
+    /// same instant so a job scanning <c>UpdatedAt</c> sees the delete without
+    /// keying off <c>DeletedAt</c> separately. The audit row still classifies the
+    /// action as a delete via its own operation type.
     /// </summary>
+    /// <remarks>
+    /// Throws when the entity is already soft-deleted, for the reason
+    /// <see cref="MarkCreated"/> throws on a second call: the second delete would
+    /// overwrite who deleted the row and when, and audit-trail integrity rules out
+    /// silent overwrites. A handler that has loaded an already-deleted aggregate
+    /// should refuse with <c>Result.Fail(business_rule_violation, …)</c> before
+    /// reaching this method — arriving here means the check was not made.
+    /// </remarks>
     public void SoftDelete(DateTimeOffset at, UserId by)
     {
         EnsureValidAuditInput(at, by);
+
+        if (DeletedAt is not null)
+        {
+            throw new InvalidOperationException(
+                "This aggregate is already soft-deleted; the deleted-at / deleted-by columns are immutable after the first delete.");
+        }
 
         DeletedAt = at;
         DeletedBy = by;
