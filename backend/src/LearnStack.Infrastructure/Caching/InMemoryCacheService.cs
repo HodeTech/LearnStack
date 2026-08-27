@@ -83,6 +83,27 @@ public sealed class InMemoryCacheService : ICacheService
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(meterFactory);
 
+        // Checked here rather than left to CancelAfter, which answers the three
+        // bad values three different ways and none of them at the wiring that
+        // was wrong. Measured: a negative span throws — but from inside Flight's
+        // constructor on the FIRST cache miss, so a misconfigured host starts
+        // clean and fails later, per flight, with a stack pointing into the
+        // cache instead of at the registration. Zero is accepted and cancels
+        // immediately, turning the cache into a permanent TimeoutException
+        // generator. And Timeout.InfiniteTimeSpan is accepted and never fires at
+        // all — which is the deadline silently not existing, the exact defect
+        // the raced budget was added to remove, reached through configuration.
+        if (factoryTimeout is { } configured && configured <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(factoryTimeout),
+                configured,
+                "The cache factory timeout must be a positive, finite span. "
+                + "Timeout.InfiniteTimeSpan is refused deliberately: a factory "
+                + "budget that never elapses is not a budget, and a factory that "
+                + "ignores its cancellation token would then run unbounded.");
+        }
+
         _factoryTimeout = factoryTimeout ?? FactoryTimeout;
         _clock = clock;
         var meter = meterFactory.Create(new MeterOptions(MeterName));

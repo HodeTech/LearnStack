@@ -1096,6 +1096,38 @@ public sealed class InMemoryCacheServiceTests
             "a result that arrived after its deadline is not cached");
     }
 
+    [Theory]
+    [InlineData(0, "zero cancels immediately, so every factory times out at once")]
+    [InlineData(-5000, "a negative span throws from Flight on the first miss, not here")]
+    [InlineData(-1, "Timeout.InfiniteTimeSpan never fires — a budget that is not one")]
+    public void A_Timeout_That_Is_Not_A_Timeout_Is_Refused_At_Construction(
+        int milliseconds, string why)
+    {
+        // CancelAfter answers these three differently and none of them at the
+        // wiring that was wrong: zero is accepted and fires instantly, a negative
+        // throws from inside the first flight, and InfiniteTimeSpan is accepted
+        // and never fires at all — the deadline silently not existing, which is
+        // the defect the raced budget removed, reached through configuration.
+        var act = () => new InMemoryCacheService(
+            new FixedClock(Origin),
+            MeterFactory,
+            factoryTimeout: TimeSpan.FromMilliseconds(milliseconds));
+
+        act.Should().Throw<ArgumentOutOfRangeException>(why)
+            .And.ParamName.Should().Be("factoryTimeout");
+    }
+
+    [Fact]
+    public void A_Positive_Timeout_And_The_Default_Are_Both_Accepted()
+    {
+        var explicitly = () => new InMemoryCacheService(
+            new FixedClock(Origin), MeterFactory, factoryTimeout: TimeSpan.FromMilliseconds(1));
+        var byDefault = () => new InMemoryCacheService(new FixedClock(Origin), MeterFactory);
+
+        explicitly.Should().NotThrow();
+        byDefault.Should().NotThrow();
+    }
+
     // ---- the TTL boundary ---------------------------------------------------
 
     [Fact]
