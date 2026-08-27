@@ -267,10 +267,10 @@ yet:
 |---|---|---|
 | `TransactionBehavior` | ambient | — the general case |
 | The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
-| `IIdempotencyStore` (durable) | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
-| `IAuditStore.WriteStandaloneAsync` | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
-| `IAuditStore.WriteBestEffortAsync` | Same shape, SHOULD/MAY class; failures are logged and dropped |
-| The `AuditConfig` override loader | An out-of-band cached projection, never a request-path query |
+| `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
+| `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
+| `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
+| The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
 
 Every one of them connects as `learnstack_app`. A setter that reached for
 `learnstack_platform` would be invisible to the isolation suite, which is the

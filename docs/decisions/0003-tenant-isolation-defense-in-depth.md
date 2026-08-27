@@ -178,7 +178,7 @@ both are enumerated rather than left to judgement:
 
 | Class | Rule | Tables |
 |---|---|---|
-| Tenant-owned | The corrected template | every domain table; of the Phase 02a tenancy set: `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings`, `tenant_feature_flags`, `platform_entitlement_cache`, `outbox_messages` |
+| Tenant-owned | The corrected template, with the organization term present only on tables that carry an `organization_id` | every domain table, plus the Phase 02a tenancy set — enumerated and kept current in [Database Standards § Table classes](../standards/05-database.md), which splits it into org-scoped and tenant-wide |
 | Tenant-owned, self-keyed | The corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id | `tenants` |
 | Platform-scoped | `ENABLE` + `FORCE`, role-qualified per-command policies; the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
 

@@ -754,12 +754,16 @@ have to retrofit:
   transport swappable later
   ([ADR-0006](../decisions/0006-events-and-outbox.md)).
 
-**Six of the ten have no published column list, and this packet authors them.**
-Only `outbox_messages` and `idempotency_keys` have canonical DDL
-([Database Standards](../standards/05-database.md)), and `tenant_locales` has a
-sketch in [12-localization.md](../architecture/12-localization.md). The columns of
-`tenants`, `organizations`, `tenant_domains`, `tenant_settings`,
-`tenant_feature_flags`, `platform_entitlement_cache` and `platform_host_to_tenant`
+**Four of the ten have no published column list at all, and this packet authors
+them.** `outbox_messages` and `idempotency_keys` have canonical DDL
+([Database Standards](../standards/05-database.md)); `tenant_feature_flags` and
+`platform_entitlement_cache` have `CREATE TABLE` blocks in
+[21-feature-flags.md](../architecture/21-feature-flags.md) that `IFeatureFlags`'s
+resolution logic already reads by column name, so the migration **transcribes**
+those and adds the row-security clauses that architecture doc omits;
+`tenant_locales` has a sketch in
+[12-localization.md](../architecture/12-localization.md). The columns of `tenants`,
+`organizations`, `tenant_domains`, `tenant_settings` and `platform_host_to_tenant`
 are designed here, against the constraints the corpus does fix — the audit-column
 set, the table classes, the composite-foreign-key rule, ADR-0017's organization
 model and ADR-0008's locale model — and recorded in this packet's delivery record.

@@ -341,20 +341,7 @@ Both rules are written in
 
 This is a clarification; the Decision is unchanged.
 
-## References
-
-- [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)
-- [ADR-0031 PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) — native
-  UUIDv7 widens the design space; this ADR commits to Vogen-emitted wrappers on
-  that primitive.
-- [ADR-0032 Exception Handling, Logging, and Observability](0032-exception-handling-logging-and-observability.md)
-  — establishes the `backend/analyzers/` Roslyn analyzer location; future ID-shape
-  analyzers live alongside.
-- [Vogen on GitHub](https://github.com/SteveDunn/Vogen) — upstream project (MIT).
-
----
-
-## Amendment 1 — `idempotency_keys` mints no id (2026-08-27)
+### Amendment 4 — `idempotency_keys` mints no id (2026-08-27)
 
 § Implementation Notes listed `idempotency_keys` among the tables whose ids are
 minted DB-side with `uuidv7()`. It has no id to mint. The shipped port
@@ -371,3 +358,14 @@ in scope for either path. The list is corrected in place, per the precedent in
 [ADR-0031 Amendment 1](0031-postgresql-major-version.md).
 
 [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) creates the table.
+
+## References
+
+- [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)
+- [ADR-0031 PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) — native
+  UUIDv7 widens the design space; this ADR commits to Vogen-emitted wrappers on
+  that primitive.
+- [ADR-0032 Exception Handling, Logging, and Observability](0032-exception-handling-logging-and-observability.md)
+  — establishes the `backend/analyzers/` Roslyn analyzer location; future ID-shape
+  analyzers live alongside.
+- [Vogen on GitHub](https://github.com/SteveDunn/Vogen) — upstream project (MIT).

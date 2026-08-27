@@ -414,11 +414,18 @@ inserted by a path that skipped the normalizer:
 
 ```sql
 CONSTRAINT ck_platform_host_to_tenant_host_normalized CHECK (
-    host = lower(host)
-    AND host !~ '[^a-z0-9.-]'      -- ASCII only: IDN already punycoded
-    AND host NOT LIKE '%.'          -- trailing dot already stripped
-    AND host NOT LIKE '%:%'         -- port already stripped
-    AND length(host) BETWEEN 1 AND 253
+    -- The LDH rule, stated positively: every label starts and ends alphanumeric
+    -- and may carry hyphens between, labels joined by single dots. Written this
+    -- way rather than as a list of prohibitions, because the prohibitions kept
+    -- missing cases: measured, a `!~ '[^a-z0-9.-]'` form accepted
+    -- `.example.com`, `a..b.com` and `-example.com`, none of which
+    -- EffectiveHost.Normalize's own IsLdh gate can produce. Lowercase, no
+    -- trailing dot and no embedded port all fall out of the pattern.
+    -- `[a-z0-9]+(` rather than `[a-z0-9](`: the second spells `](`, which the CI
+    -- link audit greps for as a Markdown link — it does not skip fenced code —
+    -- and then fails the meta job on a target named `[a-z0-9-]*[a-z0-9]`.
+    host ~ '^[a-z0-9]+([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]+([a-z0-9-]*[a-z0-9])?)*$'
+    AND length(host) <= 253
 )
 ```
 
@@ -469,8 +476,13 @@ raises `new row violates row-level security policy`.
 a transaction block emits `WARNING: SET LOCAL can only be used in transaction blocks`
 and has no effect, and a session-level `set_config(…, false)` would survive on a pooled
 connection into the next request. `CachedHostToTenantResolver` therefore opens a short
-read-only transaction on a cache miss, issues `SET LOCAL app.resolving_host = @host`,
-runs the single-row `SELECT`, and commits. The failure mode of forgetting it is an empty
+read-only transaction on a cache miss, issues
+`SELECT set_config('app.resolving_host', @host, true)`, runs the single-row `SELECT`,
+and commits. It must be the **function** form: `SET` takes no bind parameter —
+`SET LOCAL app.resolving_host = $1` is a syntax error, measured — and interpolating
+the host into a `SET` on the anonymous page-load path would be an injection site.
+`set_config`'s third argument `true` is what makes it transaction-local, exactly as
+`SET LOCAL` is. The failure mode of forgetting it is an empty
 result and a 404 — never a wider read.
 
 Because these policies are role-qualified `TO learnstack_app`, **no policy applies to
@@ -782,6 +794,12 @@ changes `xmin` while leaving `row_version` intact.
   constraint so they cannot be declared alongside the columns they guard, and they solve
   the same half of the problem `NULLS NOT DISTINCT` solves while leaving the cross-tier
   collision open.
+- **A closed-set status column is `text NOT NULL` with a `CHECK (col IN (…))`** — not
+  a PostgreSQL `enum` type and not an `int`. An `enum` type's values can only be added,
+  never removed or reordered, and every change is a migration on the type rather than
+  on the table; an `int` makes a dump unreadable and a mistyped value
+  indistinguishable from a valid one. `idempotency_keys.state` is the worked example.
+  The CLR side stays a C# `enum` and maps through a value converter.
 - Foreign keys with `ON DELETE` set explicitly.
 
 ## Soft Delete

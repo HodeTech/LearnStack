@@ -477,11 +477,30 @@ RETURNING (xmax = 0) AS inserted, state, fingerprint, claim_token,
           status_code, content_type, headers, body;
 ```
 
-`xmax = 0` distinguishes a fresh insert from a conflict resolution, and the
-returned `state` and `fingerprint` decide the rest: `Acquired`, `InFlight`,
-`Completed`, `Unreplayable`, or `Mismatched` when the returned fingerprint differs
-from the one presented. Measured across all four sequential cases on the canonical
-DDL, every outcome is decidable in one round trip.
+**The deciding column is `claim_token`, not `state`.** `xmax = 0` separates a fresh
+insert from a conflict resolution, but `state` and `fingerprint` alone cannot
+separate the two conflict outcomes that matter most: a claim blocked by a live lease
+and a claim that *reclaimed* an expired one both return `state = 'in_flight'` with
+the same stored fingerprint. Measured — the only difference is whose token came
+back:
+
+| Case | `inserted` | `state` | `claim_token` returned | Outcome |
+|---|---|---|---|---|
+| No row | `t` | `in_flight` | **this call's** | `Acquired` |
+| Live lease held by another | `f` | `in_flight` | the **holder's** | `InFlight` |
+| Expired lease, reclaimed | `f` | `in_flight` | **this call's** | `Acquired` |
+| Completed, unexpired | `f` | `completed` | the completer's | `Completed` (replay the four response columns) |
+| Completed with no response | `f` | `unreplayable` | the completer's | `Unreplayable` |
+| Any of the above, different fingerprint | — | — | — | `Mismatched`, which wins over all of them |
+
+So the store compares the `claim_token` the statement returned against the one it
+generated for this call: **equal means this caller owns the claim** — whether by
+insert or by reclaim — and anything else means someone else does. That is the same
+ownership-by-identity test `InMemoryIdempotencyStore` already performs with
+`ReferenceEquals`; the durable store performs it with a token because it has no
+object to compare. `TryClaimAsync` takes no caller-supplied token precisely so this
+comparison cannot be skipped at a call site: only the store knows the value it
+minted.
 
 ## References
 
