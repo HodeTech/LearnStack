@@ -31,7 +31,7 @@ Out of scope for the initial implementation:
 -- in tenancy module
 CREATE TABLE tenant_locales (
     tenant_id UUID NOT NULL,
-    locale TEXT NOT NULL,
+    locale VARCHAR(35) NOT NULL,   -- BCP-47's maximum well-formed length
     is_default BOOLEAN NOT NULL,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     sort SMALLINT NOT NULL DEFAULT 0,
@@ -40,6 +40,10 @@ CREATE TABLE tenant_locales (
 ```
 
 A tenant with no `tenant_locales` row falls back to the platform default (`en`).
+
+The shipped table is the Tenancy module's migration, which adds the audit-free
+composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
+tenant-wide policy; this fence is the column sketch, not the DDL.
 
 ## Storage Schema: Translatable Fields
 

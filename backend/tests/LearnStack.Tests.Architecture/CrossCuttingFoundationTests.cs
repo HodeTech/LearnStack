@@ -421,7 +421,18 @@ public sealed class CrossCuttingFoundationTests
             "IServiceProvider is a service-locator escape hatch");
         UsesForbiddenEventBusAccess(typeof(DeliberateMethodPublisher)).Should().BeTrue(
             "method injection is still direct event-bus access");
+        UsesForbiddenEventBusAccess(typeof(DeliberateInheritingPublisher)).Should().BeTrue(
+            "inheriting the surface is the same violation with one extra hop");
         UsesForbiddenEventBusAccess(typeof(CrossCuttingFoundationTests)).Should().BeFalse();
+
+        // The other direction, pinned on the one real type that exercises it:
+        // TenancyDbContext inherits IInfrastructure<IServiceProvider> from
+        // DbContext. A rule that read inherited members without asking where they
+        // are declared flags every module context in the repository.
+        UsesForbiddenEventBusAccess(
+            typeof(LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyDbContext))
+            .Should().BeFalse(
+                "what EF Core declares on DbContext is not what a module author wrote");
 
         foreach (var name in ModuleAssemblyShapes)
         {
@@ -454,9 +465,13 @@ public sealed class CrossCuttingFoundationTests
     /// nested inside a hand-written type.
     /// </summary>
     /// <remarks>
-    /// Walks the declaring chain because Vogen's <c>EfCoreValueConverter</c> and
-    /// <c>&lt;Name&gt;TypeConverter</c> are nested inside the value object, and the
-    /// attribute sits on the nested type rather than on the outer one.
+    /// Walks the declaring chain because Vogen stamps <c>[GeneratedCode]</c> on
+    /// the <b>outer</b> value object and on none of the converters nested inside
+    /// it — so a nested <c>EfCoreValueConverter</c> or
+    /// <c>&lt;Name&gt;TypeConverter</c> is only reachable as generated through its
+    /// declaring type. The side effect is that the outer <c>[ValueObject]</c>
+    /// partial, which a developer co-writes, is excluded too; that is accepted
+    /// because a strongly-typed id has no constructor a bus could arrive through.
     /// </remarks>
     private static bool IsGenerated(Type type)
     {
@@ -477,29 +492,40 @@ public sealed class CrossCuttingFoundationTests
         var bus = typeof(LearnStack.SharedKernel.Messaging.IEventBus);
         var serviceProvider = typeof(IServiceProvider);
         var forbidden = new[] { bus, serviceProvider };
-        // DeclaredOnly, and it is load-bearing rather than an optimisation. Without
-        // it the check reads INHERITED members too, and DbContext implements
-        // IInfrastructure<IServiceProvider> — so every module's DbContext was
-        // flagged the moment the first one existed, for something EF declares and
-        // the module author never wrote. The question this rule asks is what THIS
-        // type does; what a base type exposes is the base type's business, and
-        // DbContext is not a module type.
+
+        // Inherited members ARE read, and then filtered by where they are
+        // DECLARED. The obvious form — BindingFlags.DeclaredOnly — excludes them
+        // wholesale, and that is both necessary and too much: necessary because
+        // DbContext implements IInfrastructure<IServiceProvider>, so every
+        // module's DbContext was flagged the moment the first one existed, for
+        // something EF declares and no module author wrote; too much because it
+        // also stops seeing a module type that inherits a bus-shaped surface from
+        // a module base, which is the same violation with one extra hop.
+        //
+        // The declaring assembly separates the two. A member declared in the
+        // type's own assembly, or in any other module assembly, is the module's
+        // business; one declared in EF Core or the SharedKernel is not.
         const BindingFlags members = BindingFlags.Instance
                                      | BindingFlags.Static
                                      | BindingFlags.Public
-                                     | BindingFlags.NonPublic
-                                     | BindingFlags.DeclaredOnly;
+                                     | BindingFlags.NonPublic;
 
-        return type.GetConstructors(members).Any(constructor =>
+        bool InScope(MemberInfo member) =>
+            member.DeclaringType is null
+            || member.DeclaringType.Assembly == type.Assembly
+            || ModuleAssemblyShapes.Contains(
+                member.DeclaringType.Assembly.GetName().Name, StringComparer.Ordinal);
+
+        return type.GetConstructors(members).Where(InScope).Any(constructor =>
                    constructor.GetParameters().Any(parameter =>
                        forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
-               || type.GetMethods(members).Any(method =>
+               || type.GetMethods(members).Where(InScope).Any(method =>
                    forbidden.Any(candidate => candidate.IsAssignableFrom(method.ReturnType))
                    || method.GetParameters().Any(parameter =>
                        forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
-               || type.GetFields(members).Any(field =>
+               || type.GetFields(members).Where(InScope).Any(field =>
                    forbidden.Any(candidate => candidate.IsAssignableFrom(field.FieldType)))
-               || type.GetProperties(members).Any(property =>
+               || type.GetProperties(members).Where(InScope).Any(property =>
                    forbidden.Any(candidate => candidate.IsAssignableFrom(property.PropertyType)));
     }
 
@@ -514,6 +540,20 @@ public sealed class CrossCuttingFoundationTests
     {
         public IServiceProvider Services { get; } = services;
     }
+
+    /// <summary>A base whose bus-shaped surface a derived type inherits.</summary>
+    private class DeliberateEventBusBase
+    {
+        protected LearnStack.SharedKernel.Messaging.IEventBus Bus =>
+            throw new NotSupportedException("shape only");
+    }
+
+    /// <summary>
+    /// A deliberate offender that declares nothing at all and inherits the
+    /// violation, so the declaring-assembly filter cannot quietly widen back into
+    /// BindingFlags.DeclaredOnly.
+    /// </summary>
+    private sealed class DeliberateInheritingPublisher : DeliberateEventBusBase;
 
     /// <summary>A method-injection-shaped deliberate offender.</summary>
     private sealed class DeliberateMethodPublisher

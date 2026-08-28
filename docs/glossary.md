@@ -117,8 +117,12 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **Tenant-owned table** | A database table that holds rows scoped to a single tenant. Has a `tenant_id` column and is protected by a global query filter and (later) RLS policy. |
-| **Global table** | A database table that lives above tenants (e.g. `tenants`, `users`, `plans`). |
+| **Tenant-owned table** | A database table whose every row belongs to one tenant, protected by an EF global query filter **and** a Row Level Security policy from the migration that creates it. Three sub-classes, per [Database Standards § Table classes](standards/05-database.md). |
+| **Tenant-owned, tenant-wide** | The ordinary sub-class: a `tenant_id` column, one `AND`-ed policy keyed on it. |
+| **Tenant-owned, organization-scoped** | Adds a nullable `organization_id`, the `app.scope` read hatch, and two `AS RESTRICTIVE` write guards. |
+| **Tenant-owned, self-keyed** | `tenants` itself. It has **no** `tenant_id` column — its `id` *is* the tenant id, so its policy keys on `id`. |
+| **Platform-scoped table** | A table read *before* a tenant is known, so the tenant-owned template would return zero rows forever. `platform_host_to_tenant` is the only one; its policies are qualified `TO learnstack_app` and admit the announced host. Adding a second is a decision, not a convenience. |
+| **Global table** | A table with no tenant dimension at all — a person, not a person-in-a-tenant. `users` is the case ([Phase 03](roadmap/phase-03-identity-admin.md)); tenancy arrives through the membership row beside it. `tenants` is **not** one: it is tenant-owned, self-keyed. |
 | **Tenant context** | The ambient resolved tenant for a request, job, or background task. |
 | **Query filter** | EF Core global query filter that injects `WHERE tenant_id = @current_tenant_id` automatically. |
 

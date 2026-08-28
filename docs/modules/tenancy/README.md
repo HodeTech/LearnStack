@@ -1,7 +1,8 @@
 # Module Spec — Tenancy
 
 **Status:** Design stable, partially implemented (Phase 02a Packet 6 shipped the
-schema; commands, resolution and the isolation suite are Packet 7).
+schema and its schema-level isolation suite; commands, host resolution and the
+request-level isolation suite are Packet 7).
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -258,6 +259,15 @@ request and are the only Tenancy work an anonymous visitor pays for.
   rows with `is_default = true` for one tenant. A partial unique index would fix
   it; whether the invariant belongs in the database or in the aggregate is
   Packet 7's call, with the first code that reads it.
+- **Nothing stops a tenant claiming a hostname it does not own.**
+  `ux_tenant_domains_host` is globally unique — it has to be, or a host would
+  resolve to two tenants — so the *first* tenant to insert a `Requested` row for
+  `school.example.com` blocks every other tenant from claiming it, verified or
+  not. The index is partial on `deleted_at IS NULL`, so releasing a claim frees
+  the name; what has no owner yet is the policy that decides how long an
+  unverified claim may hold one. The custom-domain lifecycle is
+  [Phase 02c](../../roadmap/phase-02c-hub-foundation.md), and this is one of the
+  rules it has to write.
 - **`tenant_domains.host` and `platform_host_to_tenant.host` can disagree.** They
   are separate tables on purpose — one is read under tenant context, the other
   before any context exists — but nothing enforces that a verified domain has a

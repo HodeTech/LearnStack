@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -124,14 +125,18 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
             throw new ArgumentException("A domain belongs to a tenant.", nameof(tenantId));
         }
 
-        // The database carries the same rule as a CHECK; this is the loud half, so
-        // a caller that skipped EffectiveHost.Normalize learns it here rather than
-        // as a constraint violation three layers down.
-        // `host.Any(char.IsUpper)`, not `host != host.ToLowerInvariant()`: the
-        // question is whether the string IS lowercase, not whether two strings
-        // match case-insensitively — and the analyzer's suggested fix for the
-        // latter (OrdinalIgnoreCase) would make this check always pass.
-        if (host.Any(char.IsUpper))
+        // The database carries the same rule as ck_tenant_domains_host_normalized;
+        // this is the loud half, so a caller that skipped EffectiveHost.Normalize
+        // learns it here rather than as a constraint violation three layers down.
+        //
+        // Asked by running the normalizer, not by testing one of its four
+        // properties. An earlier version checked case alone while its message
+        // named all four — lowercase, punycoded, no port, no trailing dot — so a
+        // host carrying a port or an IDN label passed the aggregate and failed at
+        // the CHECK. Normalize returns null for a host it cannot normalize at all,
+        // and the input unchanged for one that is already normalized, so
+        // inequality is the whole question.
+        if (!string.Equals(EffectiveHost.Normalize(host), host, StringComparison.Ordinal))
         {
             throw new ArgumentException(
                 "Host must be normalized before it reaches the aggregate: lowercase, punycoded, no port, no trailing dot. Use EffectiveHost.Normalize.",

@@ -19,8 +19,10 @@ public interface IOptimisticConcurrency
     /// <c>AuditableEntity</c>, by the same primitive that stamps the audit
     /// columns, so an audited mutation is a versioned mutation
     /// (<see href="../../../../docs/decisions/0039-optimistic-concurrency-token.md">ADR-0039</see>).
-    /// The property is configured with <c>IsConcurrencyToken()</c> and nothing
-    /// else: adding <c>ValueGeneratedOnAddOrUpdate()</c> — or the equivalent
+    /// The property is configured with
+    /// <c>HasDefaultValue(0L).IsConcurrencyToken().ValueGeneratedNever()</c> and
+    /// nothing else (ADR-0039 Amendment 2). Adding
+    /// <c>ValueGeneratedOnAddOrUpdate()</c> — or the equivalent
     /// <c>IsRowVersion()</c> — tells EF the database generates the value, and
     /// EF then omits the column from the <c>UPDATE</c> entirely. Measured: the
     /// persisted value stays <c>0</c> for the life of the row and every lost

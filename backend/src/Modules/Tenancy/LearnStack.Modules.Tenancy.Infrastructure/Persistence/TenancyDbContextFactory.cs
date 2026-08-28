@@ -24,8 +24,16 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// else. No <c>appsettings</c>, no user secrets, no fallback to
 /// <c>ConnectionStrings__Default</c>: a fallback is how the wrong role gets used
 /// by accident, and the whole point of the four-role split is that using the
-/// wrong one is loud. <c>make migrate</c> is the sanctioned carrier and supplies
+/// wrong one is loud. <c>make migrate</c> is the sanctioned carrier and exports
 /// the value.
+/// </para>
+/// <para>
+/// <b><c>dotnet ef --connection</c> does not reach this method.</b> The tool
+/// consumes that option in its own parser and applies it to the context after the
+/// factory has returned, so <c>args</c> never carries it and a factory that waited
+/// for it would throw first — measured, on a workstation whose value lives only in
+/// <c>.env</c>. The environment variable is what lets the context be constructed;
+/// the flag is what EF then applies to it.
 /// </para>
 /// <para>
 /// Design-time only. Nothing at runtime constructs a context this way — ADR-0040
@@ -38,22 +46,18 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
 
     public TenancyDbContext CreateDbContext(string[] args)
     {
-        // `dotnet ef --connection` arrives as an argument rather than an
-        // environment variable, and it must win: `make migrate` passes it, and a
-        // developer overriding one run should not have to edit their .env.
-        var connectionString =
-            ReadConnectionArgument(args)
-            ?? Environment.GetEnvironmentVariable(ConnectionStringVariable);
+        var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                $"{ConnectionStringVariable} is not set and no --connection was passed. "
+                $"{ConnectionStringVariable} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; the value "
                 + "is in .env.example and `make migrate` is its sanctioned carrier. "
-                + "Do not point this at ConnectionStrings__Default — that role cannot CREATE "
-                + "in schema public, and granting it that is the ownership mistake the "
-                + "four-role split exists to prevent.");
+                + "`dotnet ef --connection` does not help here — EF applies it after this "
+                + "factory returns. Do not point this at ConnectionStrings__Default — that "
+                + "role cannot CREATE in schema public, and granting it that is the ownership "
+                + "mistake the four-role split exists to prevent.");
         }
 
         var options = new DbContextOptionsBuilder<TenancyDbContext>()
@@ -62,23 +66,5 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
             .Options;
 
         return new TenancyDbContext(options);
-    }
-
-    private static string? ReadConnectionArgument(string[] args)
-    {
-        if (args is null)
-        {
-            return null;
-        }
-
-        for (var index = 0; index < args.Length - 1; index++)
-        {
-            if (string.Equals(args[index], "--connection", StringComparison.Ordinal))
-            {
-                return args[index + 1];
-            }
-        }
-
-        return null;
     }
 }

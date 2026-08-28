@@ -67,8 +67,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasColumnType("text")
                         .HasColumnName("status");
 
                     b.Property<Guid>("TenantId")
@@ -85,7 +84,6 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L)
                         .HasColumnName("row_version");
@@ -96,6 +94,9 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "Id")
                         .IsUnique()
                         .HasDatabaseName("ux_organizations_tenant_id_id");
+
+                    b.HasIndex("TenantId", "ReportingParentId")
+                        .HasDatabaseName("ix_organizations_tenant_id_reporting_parent_id");
 
                     b.HasIndex("TenantId", "Slug")
                         .IsUnique()
@@ -142,13 +143,14 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                         .HasColumnName("plan_code");
 
                     b.Property<DateTimeOffset>("RefreshedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("refreshed_at");
+                        .HasColumnName("refreshed_at")
+                        .HasDefaultValueSql("now()");
 
                     b.Property<string>("Source")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("text")
                         .HasColumnName("source");
 
                     b.Property<DateTimeOffset>("ValidUntil")
@@ -233,8 +235,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasColumnType("text")
                         .HasColumnName("status");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -247,7 +248,6 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L)
                         .HasColumnName("row_version");
@@ -292,8 +292,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Kind")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasColumnType("text")
                         .HasColumnName("kind");
 
                     b.Property<string>("LastVerificationError")
@@ -303,8 +302,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasColumnType("text")
                         .HasColumnName("status");
 
                     b.Property<Guid>("TenantId")
@@ -331,7 +329,6 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L)
                         .HasColumnName("row_version");
@@ -341,7 +338,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Host")
                         .IsUnique()
-                        .HasDatabaseName("ux_tenant_domains_host");
+                        .HasDatabaseName("ux_tenant_domains_host")
+                        .HasFilter("deleted_at IS NULL");
 
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_tenant_domains_tenant_id");
@@ -361,8 +359,10 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                         .HasColumnName("key");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
 
                     b.Property<Guid>("UpdatedBy")
                         .HasColumnType("uuid")
@@ -463,7 +463,6 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L)
                         .HasColumnName("row_version");
@@ -477,6 +476,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "OrganizationId", "Key")
                         .IsUnique()
                         .HasDatabaseName("ux_tenant_settings_tenant_id_organization_id_key");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "OrganizationId", "Key"), false);
 
                     b.ToTable("tenant_settings", (string)null);
                 });

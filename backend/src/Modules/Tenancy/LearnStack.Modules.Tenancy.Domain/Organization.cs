@@ -14,7 +14,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// <c>LearnStack.Modules.Identity.Domain.Entities</c>; Amendment 2 (2026-08-10)
 /// moved it to Tenancy, and Identity holds <see cref="OrganizationId"/> by value
 /// and reads organization data through an application contract. The architecture
-/// rule <c>Organization_Aggregate_Declared_In_Tenancy_Domain</c> is what keeps a
+/// rule <c>Organization_Aggregate_Declared_In_Tenancy_Domain</c> —
+/// <c>TenancyConventionTests</c>, introduced with this aggregate — is what keeps a
 /// second declaration from appearing.
 /// </para>
 /// <para>

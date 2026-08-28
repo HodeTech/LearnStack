@@ -490,6 +490,15 @@ suite includes at minimum:
 - `Unsetting_tenant_context_returns_zero_rows_through_RLS`
 - `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
 
+**All five shipped in Packet 6** (`TenancySchemaTests`), against the two-tenant
+seed that packet's own coverage needed anyway: every case is a statement about
+the migration, and holding them back would have left the schema's own assertions
+tautological — the first version of the owner-denial case passed with every
+policy dropped, because nothing had put a row in the table. What Packet 7 owns is
+what a *request* does: the same five re-run through `TenantResolverMiddleware`
+and the EF query filters rather than through `set_config` in a test, plus
+whatever the two seed tenants add.
+
 Carries two Packet 3 follow-ups: converting `ITenantContext` **and**
 `CapturedContext` from raw `Guid` / `Guid?` to the strongly-typed `TenantId` /
 `OrganizationId` value objects created in Packet 6, in a single pass to avoid a
@@ -758,7 +767,7 @@ have to retrofit:
   transport swappable later
   ([ADR-0006](../decisions/0006-events-and-outbox.md)).
 
-**Four of the ten have no published column list at all, and this packet authors
+**Five of the ten have no published column list at all, and this packet authors
 them.** `outbox_messages` and `idempotency_keys` have canonical DDL
 ([Database Standards](../standards/05-database.md)); `tenant_feature_flags` and
 `platform_entitlement_cache` have `CREATE TABLE` blocks in
@@ -766,7 +775,14 @@ them.** `outbox_messages` and `idempotency_keys` have canonical DDL
 resolution logic already reads by column name, so the migration **transcribes**
 those and adds the row-security clauses that architecture doc omits;
 `tenant_locales` has a sketch in
-[12-localization.md](../architecture/12-localization.md). The columns of `tenants`,
+[12-localization.md](../architecture/12-localization.md). Where a transcription and
+the shipped migration disagreed, the disagreement was closed in one direction and
+the architecture doc amended to the shipped shape — length caps on `key`,
+`plan_code` and `locale`, which the fences left as bare `text` — while the
+migration took the two `DEFAULT now()` clauses it had dropped, because a raw
+insert that omits the column relies on them. `source` stayed `text`: it is a
+closed set, and Database Standards § Column types fixes `text` + `CHECK` as the
+form for those. The columns of `tenants`,
 `organizations`, `tenant_domains`, `tenant_settings` and `platform_host_to_tenant`
 are designed here, against the constraints the corpus does fix — the audit-column
 set, the table classes, the composite-foreign-key rule, ADR-0017's organization

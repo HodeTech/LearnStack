@@ -109,7 +109,7 @@ Two tables, both in the Tenancy module schema:
 -- Tenant-level flag overrides (experimental, rollout, opt-in).
 CREATE TABLE tenant_feature_flags (
     tenant_id   uuid NOT NULL,
-    key         text NOT NULL,
+    key         varchar(200) NOT NULL,
     value       jsonb NOT NULL,
     updated_at  timestamptz NOT NULL DEFAULT now(),
     updated_by  uuid NOT NULL,
@@ -124,7 +124,7 @@ CREATE TABLE tenant_feature_flags (
 -- INVALIDATION signal for the L1/L2 caches in front of it, not the write path.
 CREATE TABLE platform_entitlement_cache (
     tenant_id        uuid PRIMARY KEY,
-    plan_code        text NOT NULL,         -- wire field `tier`
+    plan_code        varchar(100) NOT NULL, -- wire field `tier`
     features         jsonb NOT NULL,        -- Dictionary<string, bool>
     limits           jsonb NOT NULL,        -- Dictionary<string, long>
     compliance       jsonb NOT NULL,        -- caps, regions, retention overrides
@@ -136,6 +136,14 @@ CREATE TABLE platform_entitlement_cache (
     source           text NOT NULL          -- 'hub' | 'signed-license-key' | 'null-provider'
 );
 ```
+
+The migration in `LearnStack.Modules.Tenancy.Infrastructure` is the source for these
+two tables; the fences above are kept in step with it. The length caps on `key` and
+`plan_code` are the migration's, and are a bound the bare `text` this document first
+declared did not carry. `source` stays `text` because it is a closed set, and
+[Database Standards § Column types](../standards/05-database.md) fixes `text` with a
+`CHECK` as the form for those. Row-security clauses are in the migration and
+deliberately not restated here.
 
 The wire shape and the column names differ in two places, and the mapping is normative:
 the projection field `tier` persists to `plan_code`, and `expires_at` persists to

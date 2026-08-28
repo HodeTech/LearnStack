@@ -621,8 +621,14 @@ otherwise).
   out of scope here.
 - **Source:** [ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md);
   [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md).
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection over the enumerated module `Domain` assemblies.
+  **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Architecture`, `TenancyConventionTests`). `Organization`
+  exists and is asserted; `OrganizationBranding` does not yet, and "exactly one,
+  in Tenancy" is satisfied by none — which is what stops the first one landing in
+  the wrong module. Closes in Packet 10 when the remaining module `Domain`
+  assemblies carry types.
 - **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
 
 ### Persistence: concurrency and the unit of work
@@ -644,9 +650,28 @@ rules that need a second `DbContext` are owed by Phase 03.
   measured). A structural test can see the metadata; it cannot see a silently
   inert token, which is why the assertion is on `ValueGenerated` and not on the
   call site.
-- **Source:** ADR-0039; [05-database.md § Concurrency](05-database.md).
+- **Source:** ADR-0039 (Amendments 1 and 2);
+  [05-database.md § Concurrency](05-database.md).
 - **Type:** xUnit + EF model inspection. **Kind:** structural.
-- **Status:** **Registered.** **Phase:** 02a Packet 6.
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Mutation-checked: dropping `.ValueGeneratedNever()` from `MapAuditColumns`
+  fails this case and only this case.
+
+#### `Migration_Startup_Project_References_EntityFrameworkCore_Design`
+
+- **Asserts:** `backend/src/LearnStack.Api/LearnStack.Api.csproj` carries a
+  `PackageReference` to `Microsoft.EntityFrameworkCore.Design`. `dotnet ef` resolves
+  the design-time package from the **startup** project, and
+  [`make migrate`](../standards/05-database.md) names that one; without the reference
+  the tool refuses before it opens a connection. The failure is invisible to the test
+  suite, which calls `Database.MigrateAsync()` directly — Packet 6 shipped a migration
+  in exactly that state, green under Testcontainers and inapplicable by the only path
+  the corpus documents.
+- **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
+- **Type:** xUnit + project-file inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 
 #### `SoftDelete_Advances_The_Row_Version`
 
@@ -786,8 +811,13 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
   test. **Kind:** runtime.
-- **Status:** **Registered.**
-- **Phase:** 02a (Packet 7).
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Integration`, `TenancySchemaTests`). It moved forward because
+  the schema's own assertions needed the two-tenant seed anyway: without rows for
+  both tenants, every count assertion in that class passed against dropped
+  policies. Packet 7 re-runs it through `TenantResolverMiddleware` and the EF
+  query filters rather than through `set_config`.
+- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
 
 #### `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
 
@@ -799,14 +829,18 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
-- **Phase:** 02a (Packet 7).
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Integration`, `TenancySchemaTests`) — as a `[Theory]` over
+  both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a rule
+  covering one leaves the other open.
+- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
 
-The Packet 7 suite additionally carries `Tenant_A_cannot_read_Tenant_B_data`,
-`Org_X_cannot_read_Org_Y_within_TenantA`, and
-`Unsetting_tenant_context_returns_zero_rows_through_RLS`. Those are ordinary integration
-tests named in the phase document rather than catalogue-governed rules; they are listed
-in [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md).
+`Tenant_A_cannot_read_Tenant_B_data`, `Org_X_cannot_read_Org_Y_within_TenantA` and
+`Unsetting_tenant_context_returns_zero_rows_through_RLS` are ordinary integration tests
+named in the phase document rather than catalogue-governed rules; all three shipped
+alongside the two rules above in Packet 6 step 4 and are listed in
+[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), which re-runs them through
+the request path.
 
 #### `Db_Connection_String_Is_TransactionPooled`
 

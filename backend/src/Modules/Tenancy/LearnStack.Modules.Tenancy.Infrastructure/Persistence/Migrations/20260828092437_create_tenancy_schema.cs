@@ -20,7 +20,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     slug = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     display_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     custom_subdomain = table.Column<string>(type: "character varying(253)", maxLength: 253, nullable: true),
-                    status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    status = table.Column<string>(type: "text", nullable: false),
                     reporting_parent_id = table.Column<Guid>(type: "uuid", nullable: true),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     created_by = table.Column<Guid>(type: "uuid", nullable: false),
@@ -47,8 +47,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     valid_until = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     grace_until = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     generation = table.Column<long>(type: "bigint", nullable: false, defaultValue: 1L),
-                    refreshed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false)
+                    refreshed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
+                    source = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -77,8 +77,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     tenant_id = table.Column<Guid>(type: "uuid", nullable: false),
                     host = table.Column<string>(type: "character varying(253)", maxLength: 253, nullable: false),
-                    kind = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    kind = table.Column<string>(type: "text", nullable: false),
+                    status = table.Column<string>(type: "text", nullable: false),
                     verified_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     verification_attempts = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     last_verification_error = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
@@ -102,7 +102,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     tenant_id = table.Column<Guid>(type: "uuid", nullable: false),
                     key = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     value = table.Column<string>(type: "jsonb", nullable: false),
-                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
                     updated_by = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
@@ -154,7 +154,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     slug = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     display_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    status = table.Column<string>(type: "text", nullable: false),
                     default_organization_id = table.Column<Guid>(type: "uuid", nullable: true),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     created_by = table.Column<Guid>(type: "uuid", nullable: false),
@@ -168,6 +168,11 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 {
                     table.PrimaryKey("pk_tenants", x => x.id);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_organizations_tenant_id_reporting_parent_id",
+                table: "organizations",
+                columns: new[] { "tenant_id", "reporting_parent_id" });
 
             migrationBuilder.CreateIndex(
                 name: "ux_organizations_tenant_id_id",
@@ -195,7 +200,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 name: "ux_tenant_domains_host",
                 table: "tenant_domains",
                 column: "host",
-                unique: true);
+                unique: true,
+                filter: "deleted_at IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "ix_tenant_settings_tenant_id_organization_id",
@@ -206,7 +212,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 name: "ux_tenant_settings_tenant_id_organization_id_key",
                 table: "tenant_settings",
                 columns: new[] { "tenant_id", "organization_id", "key" },
-                unique: true);
+                unique: true)
+                .Annotation("Npgsql:NullsDistinct", false);
 
             migrationBuilder.CreateIndex(
                 name: "ux_tenants_slug",
@@ -325,21 +332,6 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     ADD CONSTRAINT ck_tenant_domains_host_normalized CHECK (
                         host ~ '^[a-z0-9]+([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]+([a-z0-9-]*[a-z0-9])?)*$'
                         AND length(host) <= 253);
-                """);
-
-            // ── tenant_settings uniqueness: NULLS NOT DISTINCT ───────────────
-            // EF cannot express it, so the index it generated is dropped and
-            // replaced. Load-bearing: organization_id is null on every tenant-wide
-            // row, and a standard UNIQUE treats nulls as distinct — so without this
-            // a tenant could hold unlimited duplicate tenant-wide rows for one key,
-            // which is precisely the set a single-organization tenant creates
-            // exclusively, and resolution would pick one arbitrarily.
-            migrationBuilder.Sql("""
-                DROP INDEX ux_tenant_settings_tenant_id_organization_id_key;
-
-                ALTER TABLE tenant_settings
-                    ADD CONSTRAINT ux_tenant_settings_tenant_id_organization_id_key
-                    UNIQUE NULLS NOT DISTINCT (tenant_id, organization_id, key);
                 """);
 
             // ── organization_id is immutable after insert ────────────────────
@@ -563,33 +555,52 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // The tables go with DropTable below; what needs explicit removal is
-            // the one object that is not owned by a table.
-            migrationBuilder.Sql("DROP FUNCTION IF EXISTS fn_organization_id_immutable();");
+            // Ordered, and the order is the whole of it. DropTable emits a bare
+            // DROP TABLE with no CASCADE, so a reversal that runs in the
+            // alphabetical order EF scaffolds aborts on its first statement and
+            // reverses nothing — measured, twice: DROP FUNCTION first fails
+            // because the trigger on tenant_settings depends on it, and
+            // DROP TABLE organizations fails because three foreign keys
+            // reference it.
+            //
+            // Reversal is expected here because this migration is
+            // non-destructive: it only creates (Database Standards § Migrations).
+            // MigrationRollbackTests runs this path against a real database
+            // rather than trusting the reasoning in this comment.
 
-            migrationBuilder.DropTable(
-                name: "organizations");
+            // The cycle first: tenants -> organizations -> tenants. Nothing can be
+            // dropped while it stands.
+            migrationBuilder.Sql(
+                "ALTER TABLE tenants DROP CONSTRAINT fk_tenants_default_organization;");
 
+            // Children of organizations.
             migrationBuilder.DropTable(
-                name: "platform_entitlement_cache");
+                name: "tenant_settings");
 
             migrationBuilder.DropTable(
                 name: "platform_host_to_tenant");
 
+            // Children of tenants.
             migrationBuilder.DropTable(
                 name: "tenant_domains");
-
-            migrationBuilder.DropTable(
-                name: "tenant_feature_flags");
 
             migrationBuilder.DropTable(
                 name: "tenant_locales");
 
             migrationBuilder.DropTable(
-                name: "tenant_settings");
+                name: "tenant_feature_flags");
+
+            migrationBuilder.DropTable(
+                name: "platform_entitlement_cache");
+
+            migrationBuilder.DropTable(
+                name: "organizations");
 
             migrationBuilder.DropTable(
                 name: "tenants");
+
+            // Last: the trigger that depended on it went with tenant_settings.
+            migrationBuilder.Sql("DROP FUNCTION fn_organization_id_immutable();");
         }
     }
 }

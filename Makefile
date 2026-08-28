@@ -118,7 +118,7 @@ build-frontend: ## `pnpm -r build` the frontend monorepo.
 	(cd frontend && pnpm -r build)
 
 .PHONY: migrate
-migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ONLY sanctioned carrier of that credential).
+migrate: ## Apply every EF migration chain (platform + each module) as `learnstack_migration` (the ONLY sanctioned carrier of that credential).
 	@# Standards 05 § Database roles: ConnectionStrings:Migration must never appear
 	@# in API or worker runtime configuration. The role OWNS every table it creates,
 	@# and a runtime that is the owner is precisely the arrangement FORCE ROW LEVEL
@@ -130,6 +130,13 @@ migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ON
 	@# learnstack_app role, which holds USAGE but not CREATE on schema public and
 	@# fails with `permission denied for schema public`. The tempting fix for that
 	@# error (granting it CREATE) is the ownership mistake above.
+	@#
+	@# `--connection` alone is NOT enough, which is why the value is also exported.
+	@# `dotnet ef` consumes `--connection` in its own parser and applies it to the
+	@# context AFTER the design-time factory has returned, so the factory never
+	@# sees it in `args` and throws first on a workstation whose value lives only
+	@# in `.env`. Measured. The export is what lets the factory construct; the
+	@# flag is what EF then applies.
 	@# Four things this recipe does that a naive version does not, each because the
 	@# naive version was measured doing the wrong thing:
 	@#
@@ -150,6 +157,10 @@ migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ON
 	@#    a for-loop body that is part of a compound list: both iterations ran
 	@#    after `false` and the recipe still exited 0, so a migration target
 	@#    reported success after every migration failed.
+	@# 5. The loop covers `LearnStack.Infrastructure` as well as the modules. The
+	@#    platform chain (outbox_messages, idempotency_keys) lives outside
+	@#    `src/Modules`, and a glob that only walked the modules left the two
+	@#    tables no module owns unmigrated on every documented path.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
 	if [ -z "$$migration_cs" ] && [ -f .env ]; then \
 		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
@@ -174,10 +185,11 @@ migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ON
 		echo "If the value looks truncated at the first ';', quote it in .env."; \
 		exit 1; \
 	fi; \
+	export ConnectionStrings__Migration="$$migration_cs"; \
 	dotnet tool restore >/dev/null; \
 	found=0; \
 	failed=0; \
-	for proj in backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
+	for proj in backend/src/LearnStack.Infrastructure backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
 		test -d "$$proj/Persistence/Migrations" || continue; \
 		found=1; \
 		echo "==> $$(basename $$proj)"; \
@@ -187,7 +199,7 @@ migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ON
 			--connection "$$migration_cs" || failed=1; \
 	done; \
 	if [ "$$found" = "0" ]; then \
-		echo "No module carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
+		echo "No project carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
 	fi; \
 	exit "$$failed"
 

@@ -98,6 +98,50 @@ public sealed class TenancyConventionTests
                 + "(ADR-0036 § Recording a rejected assertion)");
     }
 
+    [Theory]
+    [InlineData("Organization")]
+    [InlineData("OrganizationBranding")]
+    public void Organization_Aggregate_Declared_In_Tenancy_Domain(string typeName)
+    {
+        // ADR-0017's original sample put Organization in Identity; Amendment 2
+        // moved it to Tenancy, and Identity now holds OrganizationId by value and
+        // reads organization data through an application contract. A second
+        // declaration is how the two drift back apart.
+        //
+        // The assembly set is ENUMERATED rather than discovered. A rule that
+        // scanned loaded assemblies would silently skip the module nobody
+        // referenced, and pass vacuously — the failure
+        // Meta_NetArchTest_DetectsAPlantedViolation guards against generally.
+        //
+        // OrganizationBranding does not exist yet (Phase 06 ships it with the
+        // token merge). The rule still runs: "exactly one, in Tenancy" is
+        // satisfied by none as well as by one, and stating it now is what stops
+        // the first one landing in the wrong module.
+        var declarations = ModuleDomainAssemblies()
+            .SelectMany(assembly => assembly.GetTypes()
+                .Where(type => type.Name == typeName)
+                .Select(type => $"{type.FullName} in {assembly.GetName().Name}"))
+            .ToList();
+
+        declarations.Should().HaveCountLessThanOrEqualTo(1,
+            $"{typeName} is declared once across every module Domain assembly (ADR-0017 Amendment 2)");
+
+        declarations
+            .Where(d => !d.EndsWith("LearnStack.Modules.Tenancy.Domain", StringComparison.Ordinal))
+            .Should().BeEmpty($"and Tenancy is where {typeName} is declared");
+    }
+
+    /// <summary>
+    /// The <c>Domain</c> assembly of every module, by name.
+    /// </summary>
+    private static IEnumerable<Assembly> ModuleDomainAssemblies() =>
+        ModuleNames.Select(module => Assembly.Load($"LearnStack.Modules.{module}.Domain"));
+
+    private static readonly string[] ModuleNames =
+    [
+        "Tenancy", "Identity", "Customization", "Audit", "Content", "Media", "Education",
+    ];
+
     /// <summary>
     /// Types in the <c>LearnStack.Api.Tenancy</c> namespace that take an
     /// <see cref="LearnStack.SharedKernel.Caching.ICacheService"/> as a

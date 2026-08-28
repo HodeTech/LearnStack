@@ -23,8 +23,10 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// <see href="../../../../../../docs/standards/05-database.md">Database Standards</see>
 /// is written against snake_case identifiers. Naming sixty columns by hand means a
 /// forgotten one is silently <c>PascalCase</c> — a column the policy does not
-/// mention and the grant does not cover. <c>Every_Mapped_Identifier_Is_Snake_Case</c>
-/// is what makes the omission impossible rather than unlikely.
+/// mention and the grant does not cover.
+/// <c>TenancySchemaTests.EveryMappedIdentifierIsSnakeCase</c> sweeps the applied
+/// catalogue for the survivors; the convention is what makes the omission
+/// impossible rather than unlikely.
 /// </para>
 /// </remarks>
 internal static class SnakeCaseNaming

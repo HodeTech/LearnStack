@@ -179,8 +179,10 @@ routing `SoftDelete` through the same stamp-and-increment primitive.
   `AuditableEntity.Version` to `long`; route `SoftDelete` through the same
   stamp-and-increment primitive as `MarkUpdated`; declare
   `row_version bigint NOT NULL DEFAULT 0` on every mutable tenancy table and
-  configure it as the EF concurrency token with **`IsConcurrencyToken()` and
-  nothing else** — see Amendment 1, which measured what the other two forms do.
+  configure it as the EF concurrency token with
+  **`HasDefaultValue(0L).IsConcurrencyToken().ValueGeneratedNever()`** — see
+  Amendment 1 for what the two forbidden forms do, and Amendment 2 for why the
+  chain is three calls rather than one.
 - **Phase 02a Packet 6, step 1 — the propagation this ADR is not, on its own.**
   Until these land the corpus answers the question twice, and an implementer
   reading a standard rather than this ADR gets the withdrawn answer:
@@ -263,6 +265,52 @@ place, per the [ADR-0031 Amendment 1](0031-postgresql-major-version.md) preceden
 configuration may call `ValueGeneratedOnAddOrUpdate()` or `IsRowVersion()` on a
 concurrency token. A structural test can see that; it cannot see a silently
 inert token.
+
+### Amendment 2 — the three calls, in full (2026-08-28)
+
+Amendment 1 fixed which call is wrong and left "`IsConcurrencyToken()` and
+nothing else" as the prescription. Applied literally against the canonical DDL
+template it is incomplete, and the first configuration written to it shipped a
+model that the packet's own registered rule rejects.
+
+Measured against `TenancyDbContext` — four `AuditableEntity` aggregates, EF Core
+10 + Npgsql 10, model inspection only:
+
+| Configuration | `ValueGenerated` | `DEFAULT 0` in the DDL |
+|---|---|---|
+| `IsConcurrencyToken()` | `Never` | **absent** |
+| `HasDefaultValue(0L).IsConcurrencyToken()` | **`OnAdd`** | present |
+| `HasDefaultValue(0L).IsConcurrencyToken().ValueGeneratedNever()` | `Never` | present |
+
+`HasDefaultValue` sets `ValueGenerated = OnAdd` as a side effect, and
+[Database Standards § Audit Columns](../standards/05-database.md)'s template
+declares `row_version bigint NOT NULL DEFAULT 0` — a default a raw-SQL insert
+that omits the column relies on. So the two requirements are only satisfiable
+together by the third row.
+
+**The configuration is three calls:**
+
+```csharp
+builder.Property(x => x.Version)
+    .HasColumnName("row_version")
+    .HasDefaultValue(0L)        // the template's DEFAULT 0
+    .IsConcurrencyToken()       // the token
+    .ValueGeneratedNever();     // undo HasDefaultValue's OnAdd side effect
+```
+
+`OnAdd` is benign in isolation — the sentinel is `0`, `MarkCreated` does not
+increment, so the insert matches and the `UPDATE` still carries the column. It is
+rejected anyway: it is a *store-generated* declaration on a column the aggregate
+increments, one keyword away from the `OnAddOrUpdate` that Amendment 1 measured
+losing updates silently, and a reader cannot tell from the model which of the two
+they are looking at.
+
+`Aggregates_With_Optimistic_Concurrency_Map_RowVersion` therefore asserts
+`ValueGenerated == Never` alongside both save behaviours, and is **implemented**
+as of Phase 02a Packet 6 (`PersistenceConventionTests`). The prescription in
+§ Implementation Notes and in
+[Database Standards § Concurrency](../standards/05-database.md) is corrected in
+place; the **Decision is unchanged**.
 
 ## References
 

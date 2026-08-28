@@ -24,9 +24,13 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// § Table classes</see>).
 /// </para>
 /// <para>
-/// Written only through <c>IEntitlementProvider.RefreshAsync</c>. Modules never
-/// write it directly, which <c>Modules_Do_Not_Read_Entitlement_Cache_Directly</c>
-/// enforces.
+/// Written only through <c>IEntitlementProvider.RefreshAsync</c>, and read only
+/// through <c>IEntitlementProvider</c>. The read half is
+/// <c>Modules_Do_Not_Read_Entitlement_Cache_Directly</c>, catalogued and owed by
+/// <see href="../../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 10</see>
+/// — it is not in force yet, and the write half has no rule at all until
+/// <see href="../../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase 02c</see>
+/// ships <c>RefreshAsync</c> for it to guard.
 /// </para>
 /// </remarks>
 public sealed class PlatformEntitlement

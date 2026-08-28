@@ -16,14 +16,21 @@ internal static class TenancyMapping
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>IsConcurrencyToken()</c> and <b>nothing else</b>. Adding
-    /// <c>ValueGeneratedOnAddOrUpdate()</c> — or the equivalent
-    /// <c>IsRowVersion()</c> — tells EF the database generates the value, and EF
-    /// then omits the column from the <c>UPDATE</c> entirely: measured, the
-    /// persisted value stays <c>0</c> for the life of the row, every
-    /// <c>If-Match</c> compares equal, and a lost update succeeds while reporting
-    /// success (<see href="../../../../../../docs/decisions/0039-optimistic-concurrency-token.md">ADR-0039
-    /// Amendment 1</see>).
+    /// The concurrency token takes exactly three calls, and
+    /// <see href="../../../../../../docs/decisions/0039-optimistic-concurrency-token.md">ADR-0039
+    /// Amendment 2</see> fixes them: <c>HasDefaultValue(0L)</c> for the DDL
+    /// template's <c>DEFAULT 0</c>, <c>IsConcurrencyToken()</c> for the token
+    /// itself, and <c>ValueGeneratedNever()</c> because the first call otherwise
+    /// leaves <c>ValueGenerated</c> at <c>OnAdd</c> — which is what
+    /// <c>Aggregates_With_Optimistic_Concurrency_Map_RowVersion</c> rejects.
+    /// </para>
+    /// <para>
+    /// <c>ValueGeneratedOnAddOrUpdate()</c> — and the equivalent
+    /// <c>IsRowVersion()</c> — are the two calls that may never appear. They tell
+    /// EF the database generates the value, and EF then omits the column from the
+    /// <c>UPDATE</c> entirely: measured, the persisted value stays <c>0</c> for the
+    /// life of the row, every <c>If-Match</c> compares equal, and a lost update
+    /// succeeds while reporting success (ADR-0039 Amendment 1).
     /// </para>
     /// <para>
     /// <c>updated_at</c> / <c>updated_by</c> are nullable because
@@ -53,7 +60,8 @@ internal static class TenancyMapping
         builder.Property(x => x.Version)
             .HasColumnName("row_version")
             .HasDefaultValue(0L)
-            .IsConcurrencyToken();
+            .IsConcurrencyToken()
+            .ValueGeneratedNever();
     }
 
     /// <summary>
@@ -64,13 +72,18 @@ internal static class TenancyMapping
     /// removed or reordered, and not an <c>int</c>, which makes a dump unreadable
     /// and a mistyped value indistinguishable from a valid one. The migration adds
     /// the matching <c>CHECK</c>, which is what actually bounds the column —
-    /// this only decides how it is written.
+    /// this only decides how it is written. The store type is <c>text</c>, not
+    /// <c>varchar(n)</c>: Database Standards § Column types fixes the canonical
+    /// form for a closed set as "<c>text NOT NULL</c> with a
+    /// <c>CHECK (col IN (…))</c>", and a length cap beside an enumerating CHECK
+    /// is a second, weaker bound that can only disagree with the first.
     /// </remarks>
     public static PropertyBuilder<TEnum> HasEnumAsText<TEnum>(this PropertyBuilder<TEnum> builder)
         where TEnum : struct, Enum
         => builder.HasConversion(
-            value => value.ToString(),
-            text => Enum.Parse<TEnum>(text, ignoreCase: false));
+                value => value.ToString(),
+                text => Enum.Parse<TEnum>(text, ignoreCase: false))
+            .HasColumnType("text");
 
 }
 
@@ -87,7 +100,7 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 
         builder.Property(x => x.Slug).HasMaxLength(63).IsRequired();
         builder.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.Status).HasEnumAsText().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Status).HasEnumAsText().IsRequired();
 
         builder.Property(x => x.DefaultOrganizationId)
             .HasConversion<OrganizationId.EfCoreValueConverter, OrganizationId.EfCoreValueComparer>();
@@ -120,7 +133,7 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
         builder.Property(x => x.Slug).HasMaxLength(63).IsRequired();
         builder.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.CustomSubdomain).HasMaxLength(253);
-        builder.Property(x => x.Status).HasEnumAsText().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Status).HasEnumAsText().IsRequired();
 
         builder.Property(x => x.ReportingParentId)
             .HasConversion<OrganizationId.EfCoreValueConverter, OrganizationId.EfCoreValueComparer>();
@@ -137,6 +150,13 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
         builder.HasIndex(x => new { x.TenantId, x.Id })
             .IsUnique()
             .HasDatabaseName("ux_organizations_tenant_id_id");
+
+        // fk_organizations_reporting_parent's own columns. Standards 05 § Indexes
+        // says index every foreign key, and the two indexes above only lead with
+        // tenant_id — neither can serve the ON DELETE RESTRICT scan that looks for
+        // children of the organization being deleted.
+        builder.HasIndex(x => new { x.TenantId, x.ReportingParentId })
+            .HasDatabaseName("ix_organizations_tenant_id_reporting_parent_id");
 
         builder.MapAuditColumns<Organization, OrganizationId>();
     }
@@ -158,15 +178,27 @@ internal sealed class TenantDomainConfiguration : IEntityTypeConfiguration<Tenan
             .IsRequired();
 
         builder.Property(x => x.Host).HasMaxLength(253).IsRequired();
-        builder.Property(x => x.Kind).HasEnumAsText().HasMaxLength(20).IsRequired();
-        builder.Property(x => x.Status).HasEnumAsText().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Kind).HasEnumAsText().IsRequired();
+        builder.Property(x => x.Status).HasEnumAsText().IsRequired();
         builder.Property(x => x.VerifiedAt);
         builder.Property(x => x.VerificationAttempts).HasDefaultValue(0).IsRequired();
         builder.Property(x => x.LastVerificationError).HasMaxLength(1000);
 
-        // Globally unique: a host resolving to two tenants is unresolvable
-        // regardless of who owns it.
-        builder.HasIndex(x => x.Host).IsUnique().HasDatabaseName("ux_tenant_domains_host");
+        // Globally unique, and the second — with `tenants.slug` — of the two
+        // cases Database Standards § Table classes sanctions on a tenant-owned
+        // table: a host resolving to two tenants is unresolvable regardless of who
+        // owns it. It costs the same leak the slug costs, because PostgreSQL
+        // enforces unique indexes with row security bypassed, so a duplicate
+        // insert reveals that *some* tenant already claims the host.
+        //
+        // Partial on `deleted_at IS NULL`, which is not decoration: without the
+        // predicate a soft-deleted claim keeps the name forever, and ADR-0036
+        // § Custom domains contemplates a released-then-re-registered domain —
+        // a lifecycle a table-wide unique makes unimplementable.
+        builder.HasIndex(x => x.Host)
+            .IsUnique()
+            .HasFilter("deleted_at IS NULL")
+            .HasDatabaseName("ux_tenant_domains_host");
         builder.HasIndex(x => x.TenantId).HasDatabaseName("ix_tenant_domains_tenant_id");
 
         builder.MapAuditColumns<TenantDomain, TenantDomainId>();
@@ -216,11 +248,15 @@ internal sealed class TenantSettingConfiguration : IEntityTypeConfiguration<Tena
         builder.Property(x => x.Key).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Value).HasColumnType("jsonb").IsRequired();
 
-        // The uniqueness is NULLS NOT DISTINCT, which EF cannot express — the
-        // migration replaces this index with the correct form. Declared here so
-        // the model still knows the shape; see the migration for why.
+        // NULLS NOT DISTINCT, expressed in the model rather than patched into the
+        // migration afterwards: organization_id is null on every tenant-wide row,
+        // and a standard UNIQUE treats nulls as distinct — so without this a tenant
+        // could hold unlimited duplicate tenant-wide rows for one key, which is
+        // precisely the set a single-organization tenant creates exclusively, and
+        // resolution would pick one arbitrarily.
         builder.HasIndex(x => new { x.TenantId, x.OrganizationId, x.Key })
             .IsUnique()
+            .AreNullsDistinct(false)
             .HasDatabaseName("ux_tenant_settings_tenant_id_organization_id_key");
 
         builder.HasIndex(x => new { x.TenantId, x.OrganizationId })
@@ -243,7 +279,10 @@ internal sealed class TenantFeatureFlagConfiguration : IEntityTypeConfiguration<
 
         builder.Property(x => x.Key).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Value).HasColumnType("jsonb").IsRequired();
-        builder.Property(x => x.UpdatedAt).IsRequired();
+
+        // DEFAULT now(), as 21-feature-flags.md declares it. A flag row written by
+        // raw SQL that omits the column would otherwise violate NOT NULL.
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()").IsRequired();
 
         builder.Property(x => x.UpdatedBy)
             .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>()
@@ -271,8 +310,13 @@ internal sealed class PlatformEntitlementConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.ValidUntil).IsRequired();
         builder.Property(x => x.GraceUntil);
         builder.Property(x => x.Generation).HasDefaultValue(1L).IsRequired();
-        builder.Property(x => x.RefreshedAt).IsRequired();
-        builder.Property(x => x.Source).HasMaxLength(50).IsRequired();
+
+        // DEFAULT now(), as 21-feature-flags.md declares it — the same reason as
+        // tenant_feature_flags.updated_at, and the same provisioning insert.
+        builder.Property(x => x.RefreshedAt).HasDefaultValueSql("now()").IsRequired();
+
+        // Closed set, so text + CHECK rather than a length cap.
+        builder.Property(x => x.Source).HasColumnType("text").IsRequired();
     }
 }
 

@@ -8,10 +8,12 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// Same contract, and same reason, as Tenancy's: it reads
-/// <c>ConnectionStrings__Migration</c> and nothing else, with no fallback to
-/// <c>ConnectionStrings__Default</c>. A fallback is how the runtime role becomes
-/// the table owner by accident, which is the arrangement
-/// <c>FORCE ROW LEVEL SECURITY</c> exists to defeat.
+/// <c>ConnectionStrings__Migration</c> from the environment and nothing else, with
+/// no fallback to <c>ConnectionStrings__Default</c>. A fallback is how the runtime
+/// role becomes the table owner by accident, which is the arrangement
+/// <c>FORCE ROW LEVEL SECURITY</c> exists to defeat. <c>dotnet ef --connection</c>
+/// never reaches <c>args</c> — EF applies it after the factory returns — so the
+/// exported variable is the only thing that lets this construct.
 /// </remarks>
 public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<PlatformDbContext>
 {
@@ -19,14 +21,12 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
 
     public PlatformDbContext CreateDbContext(string[] args)
     {
-        var connectionString =
-            ReadConnectionArgument(args)
-            ?? Environment.GetEnvironmentVariable(ConnectionStringVariable);
+        var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                $"{ConnectionStringVariable} is not set and no --connection was passed. "
+                $"{ConnectionStringVariable} is not set in the environment. "
                 + "Migrations run as learnstack_migration, which owns every table; "
                 + "`make migrate` is its sanctioned carrier.");
         }
@@ -40,23 +40,5 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
             .Options;
 
         return new PlatformDbContext(options);
-    }
-
-    private static string? ReadConnectionArgument(string[] args)
-    {
-        if (args is null)
-        {
-            return null;
-        }
-
-        for (var index = 0; index < args.Length - 1; index++)
-        {
-            if (string.Equals(args[index], "--connection", StringComparison.Ordinal))
-            {
-                return args[index + 1];
-            }
-        }
-
-        return null;
     }
 }

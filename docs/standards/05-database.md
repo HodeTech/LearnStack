@@ -401,8 +401,19 @@ Two consequences are binding:
 `tenants.slug` is globally unique, and PostgreSQL enforces unique indexes with row
 security bypassed, so a duplicate-slug insert reveals that *some* tenant already holds
 the slug. That is accepted here because slugs appear in hostnames and are public by
-construction. It is not accepted anywhere else, which is why tenant-owned natural keys
-are `UNIQUE (tenant_id, …)`.
+construction.
+
+**Exactly two columns carry that cost.** The second is `tenant_domains.host`, and for
+the same reason stated the other way round: a host resolving to two tenants is
+unresolvable no matter who owns it, so global uniqueness is not a convenience but the
+constraint the resolver depends on. Its index is **partial** —
+`UNIQUE (host) WHERE deleted_at IS NULL` — because a table-wide unique would let a
+soft-deleted claim hold a hostname forever, and
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) contemplates a
+released-then-re-registered domain.
+
+Adding a third is a decision, not a convenience. Every other tenant-owned natural key
+is `UNIQUE (tenant_id, …)`.
 
 #### `platform_host_to_tenant` — platform-scoped
 
@@ -724,8 +735,22 @@ writing on a path that ADR deliberately keeps read-only.
 ## Concurrency
 
 `row_version bigint`, CLR `long`, on every entity implementing
-`IOptimisticConcurrency`. Configure it with **`IsConcurrencyToken()` and nothing
-else**.
+`IOptimisticConcurrency`. Configure it with exactly these three calls
+([ADR-0039 Amendment 2](../decisions/0039-optimistic-concurrency-token.md)):
+
+```csharp
+builder.Property(x => x.Version)
+    .HasColumnName("row_version")
+    .HasDefaultValue(0L)        // the DEFAULT 0 this template declares
+    .IsConcurrencyToken()       // the token
+    .ValueGeneratedNever();     // undo HasDefaultValue's OnAdd side effect
+```
+
+`HasDefaultValue` sets `ValueGenerated = OnAdd` as a side effect, so
+`IsConcurrencyToken()` on its own is only correct on a column with no default —
+which is not the column this standard declares.
+`Aggregates_With_Optimistic_Concurrency_Map_RowVersion` asserts
+`ValueGenerated == Never`, so the two-call form fails it.
 
 Neither `.ValueGeneratedOnAddOrUpdate()` nor `IsRowVersion()` may be added, and
 they are the same mistake: on a `long` property they produce byte-identical
