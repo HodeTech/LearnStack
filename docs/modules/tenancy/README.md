@@ -100,8 +100,14 @@ stateDiagram-v2
     Archived --> [*] : retained for audit, never served
 ```
 
-Tenant: `Trial → Active → Suspended ⇄ Active → Archived`. `Archived` is terminal
-for serving; rows are retained for audit and retention obligations.
+Text fallback — **Tenant lifecycle**:
+
+- `Trial` on provisioning; `Active` on first payment, or immediately for a plan
+  needing none.
+- `Active ⇄ Suspended` — billing failure or policy breach suspends; resolution
+  restores.
+- `Archived` from either, and it is terminal **for serving**: rows are retained
+  for audit and retention obligations, never served.
 
 ```mermaid
 stateDiagram-v2
@@ -114,10 +120,15 @@ stateDiagram-v2
     Failed --> Verifying : retried
 ```
 
-TenantDomain: a `Subdomain` is created already `Verified` because the platform
-controls the zone; only a `Custom` domain travels the whole path. **A verified
-row does not serve traffic on its own** — a corresponding
-`platform_host_to_tenant` row with `is_publicly_live` does.
+Text fallback — **TenantDomain lifecycle**:
+
+- A `Subdomain` is created already `Verified`: the platform controls the zone, so
+  there is nothing to prove. The aggregate refuses `MarkVerified` /
+  `MarkVerificationFailed` on one.
+- A `Custom` domain travels the whole path — `Requested → Verifying → Verified`,
+  or `Verifying → Failed → Verifying` on retry.
+- **A verified row does not serve traffic on its own.** A corresponding
+  `platform_host_to_tenant` row with `is_publicly_live` does.
 
 ## Sequence diagrams
 
@@ -144,6 +155,13 @@ sequenceDiagram
     U->>P: COMMIT
 ```
 
+Text fallback — **provisioning a tenant**: the registry (Hub, config or fixture)
+supplies the tenant id, slug and display name; the handler opens the ambient
+transaction through `IUnitOfWork`, sets `app.tenant_id` to that id as the first
+statement inside it, inserts `tenants`, inserts the default `organizations` row,
+updates `tenants.default_organization_id`, and commits. One transaction, one
+connection, one commit point.
+
 Three statements, one transaction. The tenant id is **never minted in the
 handler**: the registry assigns it and the transaction sets `app.tenant_id` to
 that value *before* the insert, so the self-keyed policy's `WITH CHECK` passes. A
@@ -168,6 +186,12 @@ sequenceDiagram
     Note over O,C: same transaction — the outbox IS the boundary
     O-->>C: invalidate the resolver cache entry
 ```
+
+Text fallback — **host mapping changed**: the Hub `PUT`s host mappings to
+`/api/internal/tenants/{id}/host-mappings`; the endpoint upserts
+`platform_host_to_tenant` and enqueues `learnstack.hub.custom-domain.activated`
+into `outbox_messages` **on the same transaction** — the outbox row is the
+boundary — and the dispatched event invalidates the resolver's cache entry.
 
 `IHostToTenantResolver` **never calls the Hub**: an anonymous page load must not
 depend on a control plane being reachable
@@ -195,6 +219,13 @@ flowchart LR
     HUB -.-> APP
     OTHER -.->|application contract only| APP
 ```
+
+Text fallback — **components**: Tenancy is three assemblies — `Domain` (the
+`Tenant` and `Organization` aggregates), `Application`, and `Infrastructure`
+(`TenancyDbContext`). `Domain` depends on `SharedKernel` for `TenantId`,
+`OrganizationId` and `IUnitOfWork`; `Application` on `Domain`; `Infrastructure`
+on `Application` and on PostgreSQL. The Hub adapters (`IEntitlementProvider`,
+`IHubTenantSync`) and every other module reach `Application` and nothing deeper.
 
 Other modules reach Tenancy **only** through an application contract in
 `LearnStack.Modules.Tenancy.Application.Contracts` — never a navigation property,

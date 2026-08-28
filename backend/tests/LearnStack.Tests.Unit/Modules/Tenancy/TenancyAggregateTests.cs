@@ -153,6 +153,79 @@ public sealed class TenancyAggregateTests
         domain.Should().Throw<ArgumentException>();
     }
 
+    [Theory]
+    // The column is jsonb, so PostgreSQL rejects malformed JSON with 22P02 three
+    // layers from the call that produced it, naming neither the property nor the
+    // aggregate. Parsing at the factory turns that into an ArgumentException at
+    // the call site — the same reason TenantDomain runs its host through
+    // EffectiveHost.Normalize rather than waiting for the CHECK.
+    [InlineData("\"Europe/Istanbul\"", true)]
+    [InlineData("{\"a\":1}", true)]
+    [InlineData("true", true)]
+    [InlineData("Europe/Istanbul", false)]
+    [InlineData("{\"a\":}", false)]
+    [InlineData("{", false)]
+    public void A_setting_value_must_be_well_formed_json(string value, bool accepted)
+    {
+        var settingId = TenantSettingId.From(Guid.Parse("55555555-1111-7111-8111-111111111111"));
+
+        var create = () => TenantSetting.Create(
+            settingId, Tenant, null, "tz", value, Clock, Actor);
+
+        if (accepted)
+        {
+            create.Should().NotThrow();
+        }
+        else
+        {
+            create.Should().Throw<ArgumentException>().WithMessage("*jsonb*");
+        }
+    }
+
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("yes", false)]
+    public void A_feature_flag_value_must_be_well_formed_json(string value, bool accepted)
+    {
+        var create = () => TenantFeatureFlag.Create(Tenant, "live-classroom", value, Clock.UtcNow, Actor);
+
+        if (accepted)
+        {
+            create.Should().NotThrow();
+        }
+        else
+        {
+            create.Should().Throw<ArgumentException>().WithMessage("*jsonb*");
+        }
+    }
+
+    [Theory]
+    // The two bounds OrganizationConfiguration maps. The database rejects a longer
+    // value with 22001 and no property name.
+    [InlineData(63, 200, true)]
+    [InlineData(64, 200, false)]
+    [InlineData(63, 201, false)]
+    public void An_organization_is_bounded_by_the_lengths_its_columns_hold(
+        int slugLength, int displayNameLength, bool accepted)
+    {
+        var create = () => Organization.Create(
+            OrganizationId.From(Guid.Parse("aaaaaaaa-1111-7111-8111-111111111111")),
+            Tenant,
+            new string('s', slugLength),
+            new string('d', displayNameLength),
+            Clock,
+            Actor);
+
+        if (accepted)
+        {
+            create.Should().NotThrow();
+        }
+        else
+        {
+            create.Should().Throw<ArgumentException>();
+        }
+    }
+
     /// <summary>
     /// An identifier nobody assigned, obtained the only way that compiles.
     /// </summary>

@@ -305,8 +305,13 @@ public sealed class UnitOfWorkTests
         unitOfWork.HasActiveTransaction.Should().BeFalse(
             "the outer frame ended unresolved, so the whole unit is done");
 
-        // And the abandoned inner frame cannot revive it.
-        await inner.CompleteAsync();
+        // And the abandoned inner frame cannot revive it — nor quietly report
+        // success. Its frame is gone because the collapse failed it, not because
+        // it committed, and the unit is marked; completing says so.
+        var completeAbandoned = async () => await inner.CompleteAsync();
+
+        (await completeAbandoned.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*already resolved by a rollback*");
         unitOfWork.HasActiveTransaction.Should().BeFalse();
 
         var begin = async () => await unitOfWork.BeginTransactionAsync();
@@ -573,6 +578,10 @@ public sealed class UnitOfWorkTests
     /// <summary>A request type for driving the real behavior.</summary>
     public sealed record Probe : MediatR.IRequest<Result<string>>;
 
+    /// <summary>
+    /// A resolved context, standing in for what Packet 7's
+    /// <c>TenantResolverMiddleware</c> will populate.
+    /// </summary>
     private sealed class StubTenantContext(Guid tenant, Guid organization) : ITenantContext
     {
         public bool IsResolved => true;

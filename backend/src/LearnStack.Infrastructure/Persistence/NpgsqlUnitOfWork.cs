@@ -325,6 +325,17 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
         {
             if (AlreadyResolved())
             {
+                if (unitOfWork._rollbackOnly)
+                {
+                    // The frame is gone because something failed it — a direct
+                    // RollbackAsync, or a collapse — not because it committed.
+                    // Returning quietly here would report success for a unit that
+                    // wrote nothing, which is the one outcome worse than throwing.
+                    throw new InvalidOperationException(
+                        "This frame was already resolved by a rollback; it cannot complete. "
+                        + "The unit is marked rollback-only and nothing it wrote was committed.");
+                }
+
                 return Task.CompletedTask;
             }
 

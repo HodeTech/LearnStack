@@ -36,7 +36,7 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5 and 6 shipped; packets 4–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5 and 6 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
 [Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — host and
 tenant resolution, the EF query filters, the request-level isolation suite and

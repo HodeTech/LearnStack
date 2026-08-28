@@ -67,7 +67,7 @@ public sealed class TenantSetting : AuditableEntity<TenantSettingId>
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        JsonValue.EnsureWellFormed(value, nameof(value));
 
         if (!id.IsInitialized())
         {
@@ -107,7 +107,7 @@ public sealed class TenantSetting : AuditableEntity<TenantSettingId>
     public void SetValue(string value, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        JsonValue.EnsureWellFormed(value, nameof(value));
 
         Value = value;
         MarkUpdated(clock.UtcNow, updatedBy);

@@ -184,7 +184,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 name: "ux_organizations_tenant_id_slug",
                 table: "organizations",
                 columns: new[] { "tenant_id", "slug" },
-                unique: true);
+                unique: true,
+                filter: "deleted_at IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "ix_platform_host_to_tenant_tenant_id_organization_id",
@@ -212,7 +213,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 name: "ux_tenant_settings_tenant_id_organization_id_key",
                 table: "tenant_settings",
                 columns: new[] { "tenant_id", "organization_id", "key" },
-                unique: true)
+                unique: true,
+                filter: "deleted_at IS NULL")
                 .Annotation("Npgsql:NullsDistinct", false);
 
             migrationBuilder.CreateIndex(

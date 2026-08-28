@@ -100,7 +100,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "Slug")
                         .IsUnique()
-                        .HasDatabaseName("ux_organizations_tenant_id_slug");
+                        .HasDatabaseName("ux_organizations_tenant_id_slug")
+                        .HasFilter("deleted_at IS NULL");
 
                     b.ToTable("organizations", (string)null);
                 });
@@ -475,7 +476,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "OrganizationId", "Key")
                         .IsUnique()
-                        .HasDatabaseName("ux_tenant_settings_tenant_id_organization_id_key");
+                        .HasDatabaseName("ux_tenant_settings_tenant_id_organization_id_key")
+                        .HasFilter("deleted_at IS NULL");
 
                     NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "OrganizationId", "Key"), false);
 

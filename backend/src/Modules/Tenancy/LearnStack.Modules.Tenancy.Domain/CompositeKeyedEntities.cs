@@ -104,7 +104,7 @@ public sealed class TenantFeatureFlag
         TenantId tenantId, string key, string value, DateTimeOffset at, UserId by)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        JsonValue.EnsureWellFormed(value, nameof(value));
 
         if (!tenantId.IsInitialized())
         {
@@ -123,10 +123,41 @@ public sealed class TenantFeatureFlag
 
     public void SetValue(string value, DateTimeOffset at, UserId by)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        JsonValue.EnsureWellFormed(value, nameof(value));
 
         Value = value;
         UpdatedAt = at;
         UpdatedBy = by;
+    }
+}
+
+/// <summary>
+/// Guards a value on its way into a <c>jsonb</c> column.
+/// </summary>
+/// <remarks>
+/// PostgreSQL rejects malformed JSON on the insert with <c>22P02</c>, three
+/// layers from the call that produced it and naming neither the property nor the
+/// aggregate. Parsing here is one pass over a value the caller already holds, and
+/// it turns that into an <c>ArgumentException</c> at the call site — the same
+/// reason <c>TenantDomain</c> runs the host through <c>EffectiveHost.Normalize</c>
+/// rather than waiting for its CHECK.
+/// </remarks>
+internal static class JsonValue
+{
+    public static void EnsureWellFormed(string value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+
+        try
+        {
+            using var _ = System.Text.Json.JsonDocument.Parse(value);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            throw new ArgumentException(
+                $"The value is not well-formed JSON and the column is jsonb: {exception.Message}",
+                parameterName,
+                exception);
+        }
     }
 }

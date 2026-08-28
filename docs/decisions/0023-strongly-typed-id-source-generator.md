@@ -236,7 +236,7 @@ Three things outweighed the appeal:
   - DB-side (`uuidv7()` per ADR-0031) for `audit_log`, `outbox_messages`,
     `inbox_messages` — high-volume append-only tables. (`idempotency_keys` was
     listed here and is not one: it is addressed by the natural key
-    `(tenant_id, key)` and has no surrogate id to generate. See Amendment 1.)
+    `(tenant_id, key)` and has no surrogate id to generate. See Amendment 4.)
   - App-side (`Guid.CreateVersion7()`) for aggregates that need the ID before
     `SaveChangesAsync()` to emit domain events / outbox writes referencing the
     new aggregate ID.

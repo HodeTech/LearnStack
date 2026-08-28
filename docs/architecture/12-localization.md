@@ -31,7 +31,7 @@ Out of scope for the initial implementation:
 -- in tenancy module
 CREATE TABLE tenant_locales (
     tenant_id UUID NOT NULL,
-    locale VARCHAR(35) NOT NULL,   -- BCP-47's maximum well-formed length
+    locale VARCHAR(35) NOT NULL,   -- an application bound, not a BCP-47 one
     is_default BOOLEAN NOT NULL,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     sort SMALLINT NOT NULL DEFAULT 0,
@@ -44,6 +44,12 @@ A tenant with no `tenant_locales` row falls back to the platform default (`en`).
 The shipped table is the Tenancy module's migration, which adds the audit-free
 composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
 tenant-wide policy; this fence is the column sketch, not the DDL.
+
+`varchar(35)` is an **application** bound, not a BCP-47 one — the tag grammar sets no
+maximum, and a well-formed tag longer than 35 characters exists and would be rejected
+here. The number is the practical ceiling for the language-script-region-variant shapes
+a tenant publishes in; well-formedness itself is validated in application code, not by
+this column.
 
 ## Storage Schema: Translatable Fields
 

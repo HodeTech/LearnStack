@@ -70,6 +70,10 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     /// Advisory here: what actually resolves a request is a
     /// <c>platform_host_to_tenant</c> row, which is read before any tenant context
     /// exists. This column records intent; the mapping table records resolution.
+    /// <b>No write path yet</b> — <see cref="Create"/> does not take it and no
+    /// mutator sets it. It arrives with the host lifecycle in
+    /// <see href="../../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase
+    /// 02c</see>, which is what decides when a subdomain is claimed.
     /// </remarks>
     public string? CustomSubdomain { get; private set; }
 
@@ -83,6 +87,12 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     /// Not enforced as a hierarchy: no cycle check, no depth limit, and nothing
     /// resolves through it. ADR-0017 keeps the isolation model flat precisely so
     /// that a policy never has to walk a tree.
+    /// <b>No write path yet</b>, for the same reason as
+    /// <see cref="CustomSubdomain"/>: reporting roll-up is an admin operation and
+    /// arrives with the organization admin surface in
+    /// <see href="../../../../../docs/roadmap/phase-03-identity-admin.md">Phase
+    /// 03</see>. The composite foreign key and its index ship now because both are
+    /// one-way doors; the mutator is additive.
     /// </remarks>
     public OrganizationId? ReportingParentId { get; private set; }
 
@@ -105,6 +115,7 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        EnsureWithinMappedLengths(slug, displayName);
 
         if (!id.IsInitialized())
         {
@@ -137,9 +148,37 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        EnsureWithinMappedLengths(Slug, displayName);
 
         DisplayName = displayName;
         MarkUpdated(clock.UtcNow, updatedBy);
+    }
+
+    /// <summary>
+    /// The two bounds the EF configuration maps, asserted where the value is set.
+    /// </summary>
+    /// <remarks>
+    /// The database rejects a longer value with <c>22001</c>, three layers from
+    /// the call that produced it and with no property name. These are the same
+    /// numbers <c>OrganizationConfiguration</c> declares — 63 for the slug, which
+    /// is a DNS label, and 200 for the display name — and they are asserted here
+    /// so the failure names what is wrong.
+    /// </remarks>
+    private static void EnsureWithinMappedLengths(string slug, string displayName)
+    {
+        if (slug.Length > 63)
+        {
+            throw new ArgumentException(
+                $"Slug is {slug.Length} characters; the column holds 63, the DNS label limit.",
+                nameof(slug));
+        }
+
+        if (displayName.Length > 200)
+        {
+            throw new ArgumentException(
+                $"DisplayName is {displayName.Length} characters; the column holds 200.",
+                nameof(displayName));
+        }
     }
 
     /// <summary>Moves the organization to a new lifecycle state.</summary>

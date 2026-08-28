@@ -60,8 +60,9 @@ docker info >/dev/null && echo "docker OK"
 backend/tests/
   LearnStack.Tests.Unit/           # No DB, no Docker. Pure unit tests.
   LearnStack.Tests.Architecture/   # Reflection + Roslyn + migration-scan rules.
-  LearnStack.Tests.Integration/    # WebApplicationFactory HTTP tests today; Testcontainers
-                                   # Postgres (as learnstack_app) from Phase 02a Packet 6.
+  LearnStack.Tests.Integration/    # WebApplicationFactory HTTP tests (no Docker) AND the
+                                   # Testcontainers Postgres suite under Database/ (as
+                                   # learnstack_app), split by [Trait("Requires","Docker")].
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Vitest + axe-core + Playwright (E2E).
@@ -104,9 +105,13 @@ Common failure messages and fixes:
 
 ### Step 5: Run integration tests
 
-Today these are `WebApplicationFactory` HTTP tests and need no Docker at all. From
-Phase 02a Packet 6 a Testcontainers **Postgres** fixture joins them — no Valkey and
-no Kafka, because nothing the backend runs calls either ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)).
+The assembly holds two kinds. The `WebApplicationFactory` HTTP tests need no
+Docker; everything under `Database/` does, and **a running Docker daemon is
+required** for it — Postgres only, no Valkey and no Kafka, because nothing the
+backend runs calls either
+([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)). The two
+are split by `[Trait("Requires","Docker")]`, and CI runs them as two jobs; locally
+`--filter "Requires!=Docker"` gives you the Docker-free half.
 
 ```bash
 dotnet test backend/tests/LearnStack.Tests.Integration \
@@ -122,8 +127,7 @@ Common failure shapes:
 | Symptom | Likely cause |
 |---------|--------------|
 | Test passes locally, fails in CI | Race condition; check `await` chains. |
-| `TenantContextMissingException` | Test forgot `using fixture.AsTenant(...)`. |
-| Empty result where rows should exist | Wrong tenant context — RLS works as designed. |
+| Empty result where rows should exist | No `app.tenant_id` on this transaction, or the wrong one — RLS working as designed. Set it with `SchemaQueries.SetTenantAsync` as the transaction's first statement. |
 | `relation "<table>" does not exist` | Migration didn't apply; check the module's `Persistence/Migrations`. |
 | Docker container fails to start | Port collision (5432, 6379) — stop local Postgres / Valkey. |
 | Test hangs | A handler awaiting Dapr in the dev fallback path; check `IEventBus` registration. |

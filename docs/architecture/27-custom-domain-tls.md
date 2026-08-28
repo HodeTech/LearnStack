@@ -217,6 +217,12 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 
 public interface IHostToTenantResolver
 {
+    // `host` is the EFFECTIVE host, already normalized by EffectiveHostAccessor —
+    // lowercase, punycoded, no port, no trailing dot. It is not re-normalized
+    // here: ADR-0036 puts that computation in exactly one place, and
+    // Effective_Host_Computed_In_One_Place fails a second one. A caller that
+    // passes a raw Host header gets a cache key and a policy predicate that do
+    // not match the stored row, which is a 404 rather than a wider read.
     Task<HostResolution?> ResolveAsync(string host, CancellationToken ct = default);
 }
 

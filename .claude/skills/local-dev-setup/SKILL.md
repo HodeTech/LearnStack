@@ -121,9 +121,13 @@ export ConnectionStrings__Default=$(sed -n "s/^ConnectionStrings__Default=//p" .
 
 # Or once, into the user-secrets store the API project already declares
 # (UserSecretsId learnstack-api-dev) — kept outside the repository, so it cannot
-# be committed:
+# be committed. Reads .env itself rather than the variable above, so it works in
+# a shell that never ran the export, and refuses to store an empty value.
+default_cs=$(sed -n "s/^ConnectionStrings__Default=//p" .env \
+  | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
+[ -n "$default_cs" ] || { echo "ConnectionStrings__Default missing from .env"; exit 1; }
 dotnet user-secrets --project backend/src/LearnStack.Api \
-  set "ConnectionStrings:Default" "$ConnectionStrings__Default"
+  set "ConnectionStrings:Default" "$default_cs"
 ```
 
 The value names **`learnstack_app`** and the composition root refuses anything

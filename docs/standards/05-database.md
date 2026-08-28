@@ -989,8 +989,11 @@ lives in [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 
 ## Idempotency
 
-`idempotency_keys` is the durable `IIdempotencyStore`
-([ADR-0037](../decisions/0037-idempotency-key-contract.md)). Every column below
+`idempotency_keys` is the schema the durable `IIdempotencyStore` will read and
+write ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). The table and
+the store ship apart, per Amendment 1: the schema is a one-way door and shipped
+in Packet 6; the store is additive and ships on its ADR-0035 trigger, with
+`InMemoryIdempotencyStore` registered until then. Every column below
 is forced by the shipped port
 (`LearnStack.SharedKernel/Idempotency/IIdempotencyStore.cs`) rather than chosen:
 `fingerprint` by `TryClaimAsync`'s third parameter and the `Mismatched`

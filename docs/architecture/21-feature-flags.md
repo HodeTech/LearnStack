@@ -133,7 +133,9 @@ CREATE TABLE platform_entitlement_cache (
     generation       bigint NOT NULL DEFAULT 1,  -- monotonic; a push is accepted only
                                             -- when received.generation >= stored
     refreshed_at     timestamptz NOT NULL DEFAULT now(),
-    source           text NOT NULL          -- 'hub' | 'signed-license-key' | 'null-provider'
+    source           text NOT NULL,         -- closed set, bounded by the CHECK below
+    CONSTRAINT ck_platform_entitlement_cache_source
+        CHECK (source IN ('hub', 'signed-license-key', 'null-provider'))
 );
 ```
 

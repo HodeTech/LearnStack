@@ -92,26 +92,36 @@ first statement, which is what the shipped suite does and what
 `IUnitOfWork.SetTenantContextAsync` does in production.
 
 ```csharp
-public sealed class EnrollmentCreateTests : IClassFixture<TestFixture>
+[Trait(RequiresDocker.Key, RequiresDocker.Value)]
+[Collection(SharedSchema.Name)]
+public sealed class EnrollmentIsolationTests
 {
-    private readonly TestFixture _fx;
-    public EnrollmentCreateTests(TestFixture fx) => _fx = fx;
+    private readonly SchemaFixture _schema;
+
+    public EnrollmentIsolationTests(SchemaFixture schema) => _schema = schema;
 
     [Fact]
-    public async Task Create_succeeds_for_member_of_target_tenant()
+    public async Task A_tenant_sees_only_its_own_enrollments()
     {
-        var courseVersionId = await _fx.SeedCourseVersionAsync(_fx.TenantA);
+        // learnstack_app, never the owner: a test that connects as the owner — or
+        // as either BYPASSRLS role — passes against inert policies.
+        await using var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
 
-        using (_fx.AsTenant(_fx.TenantA, _fx.OrgA1))
-        {
-            var result = await _fx.Mediator.Send(new CreateEnrollmentCommand(
-                LearnerId: _fx.LearnerInTenantA,
-                CourseVersionId: courseVersionId,
-                CohortId: null,
-                Source: EnrollmentSource.Manual));
+        // First statement inside the transaction, which is what
+        // IUnitOfWork.SetTenantContextAsync does in production. Outside a
+        // transaction the setting is discarded and every later assertion is
+        // measuring nothing.
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
 
-            Assert.True(result.IsSuccess);
-        }
+        await using var read = new NpgsqlCommand(
+            "SELECT count(*) FROM enrollments", (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+
+        (await read.ExecuteScalarAsync()).Should().Be(1L);
+
+        // No commit: the transaction rolls back on dispose, so the fixture's
+        // seeded row counts stay what the other cases assert.
     }
 }
 ```
@@ -120,61 +130,82 @@ public sealed class EnrollmentCreateTests : IClassFixture<TestFixture>
 
 Every `[TenantOwned]` entity ships with these two tests **at minimum**:
 
+The fixture seeds a row for **both** tenants — that is what makes the assertion
+mean anything. A count of zero against a table nothing populated passes whatever
+the policy says; that shipped once, in Packet 6.
+
 ```csharp
 [Fact]
-public async Task Entity_TenantA_cannot_read_TenantB_data()
+public async Task Tenant_A_cannot_read_Tenant_B_data()
 {
-    using (_fx.AsTenant(_fx.TenantA)) {
-        await _fx.CreateEntityAsync();   // commits a row tagged tenant_a
-    }
+    await using var connection = await PostgresFixture.OpenAsync(
+        _schema.Postgres.AppConnectionString);
+    await using var transaction = await connection.BeginTransactionAsync();
+    await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
 
-    using (_fx.AsTenant(_fx.TenantB)) {
-        var rows = await _fx.Db.Entities.ToListAsync();
-        Assert.Empty(rows);   // RLS + filter both enforce
-    }
+    await using var read = new NpgsqlCommand(
+        "SELECT count(*) FROM entities WHERE tenant_id = @other",
+        (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+    read.Parameters.AddWithValue("other", SchemaFixture.TenantB);
+
+    (await read.ExecuteScalarAsync()).Should().Be(0L);
 }
 
 [Fact]
-public async Task Entity_query_with_no_tenant_context_returns_zero_rows()
+public async Task Unsetting_tenant_context_returns_zero_rows_through_RLS()
 {
-    using (_fx.AsTenant(_fx.TenantA)) {
-        await _fx.CreateEntityAsync();
-    }
+    // No transaction and no set_config: app.tenant_id is unset, the policy
+    // predicate is NULL, and NULL is false for USING and WITH CHECK alike.
+    await using var connection = await PostgresFixture.OpenAsync(
+        _schema.Postgres.AppConnectionString);
+    await using var read = new NpgsqlCommand(
+        "SELECT count(*) FROM entities", (NpgsqlConnection)connection);
 
-    using (_fx.AsNoTenant())   // app.tenant_id unset
-    {
-        // Either: the interceptor throws TenantContextMissingException
-        // Or:     RLS returns zero rows (no `app.tenant_id`).
-        var act = async () => await _fx.Db.Entities.ToListAsync();
-        await Assert.ThrowsAsync<TenantContextMissingException>(act);
-    }
+    (await read.ExecuteScalarAsync()).Should().Be(0L);
 }
 ```
+
+There is no `TenantContextMissingException` today: the `DbCommandInterceptor` that
+would throw it is described in Standards 05 and 11 and owned by Packet 7. Until it
+exists, the fail-closed behaviour is the empty result, which is what to assert.
 
 For `[OrganizationScoped]` entities, add the cross-org pair:
 
 ```csharp
 [Fact]
-public async Task OrgScopedEntity_OrgX_cannot_read_OrgY_within_TenantA()
+public async Task Org_X_cannot_read_Org_Y_within_TenantA()
 {
-    using (_fx.AsTenant(_fx.TenantA, _fx.OrgA1)) {
-        await _fx.CreateEntityAsync();
-    }
+    await using var connection = await PostgresFixture.OpenAsync(
+        _schema.Postgres.AppConnectionString);
+    await using var transaction = await connection.BeginTransactionAsync();
+    await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+    await SchemaQueries.SetSettingAsync(
+        connection, transaction, "app.organization_id", SchemaFixture.OrgA1.ToString());
 
-    using (_fx.AsTenant(_fx.TenantA, _fx.OrgA2)) {
-        var rows = await _fx.Db.Entities.ToListAsync();
-        Assert.Empty(rows);
-    }
+    await using var read = new NpgsqlCommand(
+        "SELECT count(*) FROM entities WHERE organization_id = @other",
+        (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+    read.Parameters.AddWithValue("other", SchemaFixture.OrgA2);
 
-    // Tenant-wide membership (no org) still sees the row by design:
-    using (_fx.AsTenant(_fx.TenantA, organizationId: null)) {
-        var rows = await _fx.Db.Entities.ToListAsync();
-        Assert.NotEmpty(rows);
-    }
+    (await read.ExecuteScalarAsync()).Should().Be(0L);
 }
 ```
 
+And one more, which the org-scoped template needs and an ordinary session cannot
+reach: with `app.scope = 'tenant'` set, the **read** widens across organizations
+and neither write does. Without that case both `AS RESTRICTIVE` guards can be
+deleted with the suite green — measured, in Packet 6. See
+`TenancySchemaTests.TheTenantScopeHatchWidensReadsAndNeitherWrite`.
+
 ### Step 3: Outbox round-trip
+
+> **Steps 3 to 5 are the shape, not today's API.** `IOutbox`, the outbox
+> dispatcher and `audit_log` do not exist yet — Phase 02b owns the first two,
+> Packet 9 the third — and the durable `IIdempotencyStore` ships on its ADR-0035
+> trigger. The `_fx.*` members below are illustrative of what those phases will
+> provide; today the only fixtures are `PostgresFixture` and `SchemaFixture`, and
+> the only session-context helper is `SchemaQueries`. Write against Step 1 and
+> Step 2's shapes until the owning phase lands.
 
 For a handler that publishes an integration event:
 

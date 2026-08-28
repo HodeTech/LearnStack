@@ -84,6 +84,8 @@ public interface IUnitOfWork : IAsyncDisposable
 
     /// Joins the ambient transaction if one is active; otherwise opens it.
     /// Returns a handle whose Complete() is a no-op for a joiner — see § Nesting.
+    /// (The handle shipped as CompleteAsync / FailAsync / IsOwner; this sketch is
+    /// the accepted shape, and Amendment 2 records what changed and why.)
     Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken ct = default);
 
     /// Issues SET LOCAL app.tenant_id / app.organization_id / app.scope as the

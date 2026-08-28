@@ -181,7 +181,7 @@ This ADR, and five documents repeating it, named PostgreSQL 18's native UUIDv7
 generator **`gen_uuid_v7()`**. No such function exists. Measured against
 `postgres:18.4-alpine`:
 
-```
+```sql
 SELECT gen_uuid_v7();  -->  ERROR:  function gen_uuid_v7() does not exist
 SELECT uuidv7();       -->  01a04366-8141-753d-a6a4-161239372fd0
 ```

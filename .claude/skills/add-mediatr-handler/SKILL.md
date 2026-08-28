@@ -115,7 +115,12 @@ In `<Module>.Application/<Aggregate>/<Verb><Aggregate>CommandHandler.cs`:
 public sealed class CreateEnrollmentCommandHandler(
     EnrollmentDbContext db,
     ITenantContext tenantContext,
-    IOutbox outbox)
+    IOutbox outbox,
+    // EventId and OccurredAt are `required` on IntegrationEventBase and the
+    // initializer below does not compile without both. They are injected rather
+    // than ambient so a test can pin them (02-backend-coding.md § Time).
+    IGuidFactory guidFactory,
+    IClock clock)
     : IRequestHandler<CreateEnrollmentCommand, Result<EnrollmentDto>>
 {
     // Parameter names match IRequestHandler<,>.Handle exactly. CA1725 is an error

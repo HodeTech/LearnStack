@@ -68,6 +68,17 @@ public static class ModuleDbContextRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Both or neither. TryAddScoped is a no-op when something already
+        // registered TContext, and recording it anyway would make
+        // Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork report a context this
+        // helper did not build — which is precisely the case the rule exists to
+        // catch: an AddDbContext registration that got there first, still holding
+        // its own connection, with the marker set vouching for it.
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(TContext)))
+        {
+            return services;
+        }
+
         lock (Registered)
         {
             Registered.Add(typeof(TContext));

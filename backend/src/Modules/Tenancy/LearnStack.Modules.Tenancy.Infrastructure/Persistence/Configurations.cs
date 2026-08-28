@@ -138,8 +138,12 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
         builder.Property(x => x.ReportingParentId)
             .HasConversion<OrganizationId.EfCoreValueConverter, OrganizationId.EfCoreValueComparer>();
 
+        // Partial on `deleted_at IS NULL`, for the reason ux_tenant_domains_host is:
+        // a soft-deleted row that keeps its natural key holds that name against the
+        // tenant forever, and nothing frees it.
         builder.HasIndex(x => new { x.TenantId, x.Slug })
             .IsUnique()
+            .HasFilter("deleted_at IS NULL")
             .HasDatabaseName("ux_organizations_tenant_id_slug");
 
         // Exists solely so tenants.default_organization_id — and every future
@@ -257,6 +261,7 @@ internal sealed class TenantSettingConfiguration : IEntityTypeConfiguration<Tena
         builder.HasIndex(x => new { x.TenantId, x.OrganizationId, x.Key })
             .IsUnique()
             .AreNullsDistinct(false)
+            .HasFilter("deleted_at IS NULL")
             .HasDatabaseName("ux_tenant_settings_tenant_id_organization_id_key");
 
         builder.HasIndex(x => new { x.TenantId, x.OrganizationId })

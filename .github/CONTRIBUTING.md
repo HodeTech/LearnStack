@@ -135,7 +135,7 @@ directory target. The hook detects that and skips the local scan with an
 upgrade hint rather than failing your commit; CI scans the whole tree either
 way.
 
-The secret scanner is [Leakwatch](https://github.com/cemililik/Leakwatch)
+The secret scanner is [Leakwatch](https://github.com/HodeTech/leakwatch)
 — MIT licensed, verifier-equipped, hybrid Aho-Corasick + regex + entropy
 detection engine. Config lives at `.leakwatch.yaml` + `.leakwatchignore`
 at the repo root. Install once for the local pre-commit scan (CI runs it

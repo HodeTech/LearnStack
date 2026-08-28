@@ -79,19 +79,21 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
         // its own depth, so a nested frame nobody resolved is an exception here
         // rather than a commit that quietly resolves the wrong frame, writes
         // nothing, and returns success.
-        var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
-
-        // First statement inside the transaction, per ADR-0003 Amendment 3. Until
-        // Packet 7's TenantResolverMiddleware populates ITenantContext this writes
-        // the empty string, and that is correct: the policies read
-        // NULLIF(current_setting(...), '')::uuid, so an unresolved context is a
-        // NULL predicate and every tenant-owned table returns zero rows.
-        await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
+        await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         var committing = false;
 
         try
         {
+            // First statement inside the transaction, per ADR-0003 Amendment 3, and
+            // inside the try so a failure to issue it fails the frame rather than
+            // leaving it open for the scope to clean up later. Until Packet 7's
+            // TenantResolverMiddleware populates ITenantContext this writes the
+            // empty string, and that is correct: the policies read
+            // NULLIF(current_setting(...), '')::uuid, so an unresolved context is a
+            // NULL predicate and every tenant-owned table returns zero rows.
+            await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
+
             var response = await next();
 
             if (response.IsFailure)

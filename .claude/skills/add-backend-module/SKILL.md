@@ -102,15 +102,8 @@ public sealed class <Name>Module : ILearnStackModule
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
-        // NOT AddDbContext(... UseNpgsql(connectionString) ...). A context that
-        // opens its own connection never saw the SET LOCAL that TransactionBehavior
-        // issues on the ambient one, so every read through it returns ZERO ROWS
-        // under the corrected RLS policy — silently. Per ADR-0040 every module
-        // context is built on the connection IUnitOfWork owns, through the shared
-        // helper, and Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork fails the
-        // build if you reach for the EF default instead.
-        services.AddLearnStackDbContext<<Name>DbContext>();
-
+        // The DbContext is NOT registered here — see below. Application may not
+        // reference Infrastructure, and the registration helper lives there.
         services.AddMediatRFromModule(typeof(<Name>Module).Assembly);
         services.AddValidatorsFromAssembly(typeof(<Name>Module).Assembly);
 
@@ -135,6 +128,25 @@ Call this from the composition root (`LearnStack.Api/Program.cs`):
 ```csharp
 modules.Add(new <Name>Module());
 ```
+
+**The `DbContext` registration is a composition-root concern, not a module one.**
+`AddModuleDbContext<T>` lives in `LearnStack.Infrastructure.Persistence`, and
+`Application` may not reference `Infrastructure` — so the call belongs beside the
+others in `AddLearnStackPersistence`
+(`LearnStack.Api/Composition/PersistenceCompositionExtensions.cs`):
+
+```csharp
+services.AddModuleDbContext<<Name>DbContext>();
+```
+
+Not `AddDbContext(o => o.UseNpgsql(connectionString))`. A context that opens its
+own connection never saw the `SET LOCAL` the ambient transaction carries, so every
+read through it returns **zero rows** under the corrected RLS policy — silently.
+Per [ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md) every module
+context is built on the connection `IUnitOfWork` owns, and
+`Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` fails the build if you reach
+for the EF default instead — from both sides: the registration, and the fact that
+only three files under `backend/src` may mention `UseNpgsql` at all.
 
 ### Step 4: Module DbContext
 

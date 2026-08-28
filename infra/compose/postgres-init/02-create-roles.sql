@@ -50,6 +50,23 @@ SELECT format('CREATE ROLE learnstack_outbox_admin LOGIN PASSWORD %L BYPASSRLS',
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_outbox_admin')
 \gexec
 
+-- Then CONVERGE, unconditionally. The creates above fire only when the role is
+-- absent, so on a cluster that already has them — the documented recovery path
+-- is "apply this file by hand, it is idempotent" — a changed password in `.env`
+-- would have had no effect at all, and `make migrate` would keep failing with
+-- `password authentication failed` while the script reported success.
+--
+-- The bypass attribute is re-asserted for the same reason and a sharper one: it
+-- is the security-critical half. A role that acquired BYPASSRLS out of band makes
+-- every policy in the database inert, and re-running this file is the cheapest
+-- way to put it back. (The runtime refuses to start against such a role anyway —
+-- the composition root asks the server `rolbypassrls OR rolsuper` on every
+-- physical connection — but this is what fixes it rather than reporting it.)
+ALTER ROLE learnstack_migration    WITH LOGIN PASSWORD :'migration_pw' NOBYPASSRLS;
+ALTER ROLE learnstack_app          WITH LOGIN PASSWORD :'app_pw'       NOBYPASSRLS;
+ALTER ROLE learnstack_platform     WITH LOGIN PASSWORD :'platform_pw'  BYPASSRLS;
+ALTER ROLE learnstack_outbox_admin WITH LOGIN PASSWORD :'outbox_pw'    BYPASSRLS;
+
 -- No `GRANT learnstack_platform TO learnstack_app`, ever. Membership would make
 -- BYPASSRLS a standing capability of the application role, reachable from any
 -- code path that can execute `SET ROLE` — and a plain SET ROLE survives COMMIT on

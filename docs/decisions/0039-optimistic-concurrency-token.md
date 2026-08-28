@@ -195,6 +195,7 @@ routing `SoftDelete` through the same stamp-and-increment primitive.
   | Database Standards / API Standards `**Derives from:**` headers | neither cites this ADR |
   | [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md) | carries no entry for the rule below |
   | [Phase 02a § ADR commitments](../roadmap/phase-02a-kernel-tenancy.md) | does not list this ADR |
+
 - **Phase 02a Packet 6** — the two infrastructure tables that carry no
   aggregate (`outbox_messages`, `idempotency_keys`) are not
   `IOptimisticConcurrency` entities and carry no `row_version`. Their write
