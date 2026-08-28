@@ -36,11 +36,11 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4 and 5 shipped; packets 4–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5 and 6 shipped; packets 4–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
-[Packet 6](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the
-tenancy schema and the first migration written against the corrected RLS
-template — is next.**
+[Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — host and
+tenant resolution, the EF query filters, the request-level isolation suite and
+the two seed tenants — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -109,6 +109,24 @@ is long because several of its defects were introduced by the *fix* for an
 earlier one, and because three tests were caught agreeing with the code instead
 of constraining it — the packet's most repeated lesson.
 
+**Packet 6** shipped the tenancy schema: the four database roles, ten tables in
+two independent migration chains, and every one of them under `ENABLE` **and**
+`FORCE ROW LEVEL SECURITY` with the corrected
+[ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md)
+template — one `AND`-ed policy per table, in the four table classes. With them:
+`TenantId` / `OrganizationId` as Vogen value objects, the `Tenant` and
+`Organization` aggregates, the repository's first module spec at
+[docs/modules/tenancy/](docs/modules/tenancy/README.md), and
+[ADR-0040](docs/decisions/0040-ambient-unit-of-work.md)'s ambient unit of work —
+one connection per scope, every module `DbContext` enlisted on it, and
+`TransactionBehavior`'s body replacing the Packet 3 shell. Its record,
+[Delivery Record (Packet 6)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-6),
+is long for the reason Packet 5's was: the packet's own review rounds found that
+`make migrate` could not apply the migration the packet exists to ship, that a
+structural sweep is only as wide as the schema it runs on — a second permissive
+policy on `outbox_messages` passed the whole suite — and that the transaction
+boundary was wrong in the two places it is hardest to see.
+
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
 
@@ -135,11 +153,14 @@ is the next user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
-Every module assembly is still empty of domain code. Module-level
-references in the docs (e.g. `LearnStack.Modules.Education.Application`,
-`ILiveClassProvider`, `ITenantSearch`) describe **intended** shape that
-the corpus anchors against; Phase 02a packets 6–9 and Phase 02d are
-where the first of those types actually land.
+**Tenancy is the only module holding domain code**, as of Packet 6: the
+`Tenant` and `Organization` aggregates, their entities, and
+`TenancyDbContext`. The other six module assemblies are still empty, and
+module-level references in the docs (e.g.
+`LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
+`ITenantSearch`) describe **intended** shape that the corpus anchors
+against; Phase 02a packets 7–9 and Phase 02d are where the first of those
+types actually land.
 
 ## Where to start
 
