@@ -226,6 +226,63 @@ public sealed class TenancyAggregateTests
         }
     }
 
+    [Theory]
+    // Every mapped text bound, asserted where the value is set. The database
+    // reports 22001 with no property name, three layers from the call.
+    [InlineData(35, true)]
+    [InlineData(36, false)]
+    public void A_locale_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
+    {
+        var create = () => TenantLocale.Create(Tenant, new string('l', length), isDefault: true);
+
+        if (accepted)
+        {
+            create.Should().NotThrow();
+        }
+        else
+        {
+            create.Should().Throw<ArgumentException>().WithMessage("*the column holds 35*");
+        }
+    }
+
+    [Theory]
+    [InlineData(200, true)]
+    [InlineData(201, false)]
+    public void A_setting_key_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
+    {
+        var settingId = TenantSettingId.From(Guid.Parse("55555555-2222-7222-8222-222222222222"));
+
+        var create = () => TenantSetting.Create(
+            settingId, Tenant, null, new string('k', length), "true", Clock, Actor);
+
+        if (accepted)
+        {
+            create.Should().NotThrow();
+        }
+        else
+        {
+            create.Should().Throw<ArgumentException>().WithMessage("*the column holds 200*");
+        }
+    }
+
+    [Theory]
+    [InlineData(200, true)]
+    [InlineData(201, false)]
+    public void A_feature_flag_key_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
+    {
+        var create = () => TenantFeatureFlag.Create(
+            Tenant, new string('k', length), "true", Clock.UtcNow, Actor);
+
+        if (accepted)
+        {
+            create.Should().NotThrow();
+        }
+        else
+        {
+            create.Should().Throw<ArgumentException>().WithMessage("*the column holds 200*");
+        }
+    }
+
     /// <summary>
     /// An identifier nobody assigned, obtained the only way that compiles.
     /// </summary>

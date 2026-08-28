@@ -155,30 +155,13 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     }
 
     /// <summary>
-    /// The two bounds the EF configuration maps, asserted where the value is set.
+    /// The two bounds <c>OrganizationConfiguration</c> maps: 63 for the slug,
+    /// which is a DNS label, and 200 for the display name.
     /// </summary>
-    /// <remarks>
-    /// The database rejects a longer value with <c>22001</c>, three layers from
-    /// the call that produced it and with no property name. These are the same
-    /// numbers <c>OrganizationConfiguration</c> declares — 63 for the slug, which
-    /// is a DNS label, and 200 for the display name — and they are asserted here
-    /// so the failure names what is wrong.
-    /// </remarks>
     private static void EnsureWithinMappedLengths(string slug, string displayName)
     {
-        if (slug.Length > 63)
-        {
-            throw new ArgumentException(
-                $"Slug is {slug.Length} characters; the column holds 63, the DNS label limit.",
-                nameof(slug));
-        }
-
-        if (displayName.Length > 200)
-        {
-            throw new ArgumentException(
-                $"DisplayName is {displayName.Length} characters; the column holds 200.",
-                nameof(displayName));
-        }
+        MappedLength.EnsureAtMost(slug, 63, nameof(slug));
+        MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
     }
 
     /// <summary>Moves the organization to a new lifecycle state.</summary>

@@ -201,8 +201,10 @@ deleted with the suite green — measured, in Packet 6. See
 
 > **Steps 3 to 5 are the shape, not today's API.** `IOutbox`, the outbox
 > dispatcher and `audit_log` do not exist yet — Phase 02b owns the first two,
-> Packet 9 the third — and the durable `IIdempotencyStore` ships on its ADR-0035
-> trigger. The `_fx.*` members below are illustrative of what those phases will
+> Packet 9 the third — and the durable `IIdempotencyStore` ships on the trigger
+> [ADR-0037 Amendment 1](../../../docs/decisions/0037-idempotency-key-contract.md)
+> names: the first `[Idempotent]` endpoint, or the first deployment running more
+> than one instance. Packet 6 shipped the `idempotency_keys` table, not the store. The `_fx.*` members below are illustrative of what those phases will
 > provide; today the only fixtures are `PostgresFixture` and `SchemaFixture`, and
 > the only session-context helper is `SchemaQueries`. Write against Step 1 and
 > Step 2's shapes until the owning phase lands.

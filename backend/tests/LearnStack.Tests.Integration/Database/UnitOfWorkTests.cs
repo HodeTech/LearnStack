@@ -571,10 +571,6 @@ public sealed class UnitOfWorkTests
     private static StubTenantContext Resolved(Guid tenant, Guid organization) =>
         new(tenant, organization);
 
-    /// <summary>
-    /// A resolved context, standing in for what Packet 7's
-    /// <c>TenantResolverMiddleware</c> will populate.
-    /// </summary>
     /// <summary>A request type for driving the real behavior.</summary>
     public sealed record Probe : MediatR.IRequest<Result<string>>;
 

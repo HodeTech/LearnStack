@@ -45,6 +45,7 @@ public sealed class TenantLocale
         TenantId tenantId, string locale, bool isDefault, bool isEnabled = true, short sort = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+        MappedLength.EnsureAtMost(locale, 35, nameof(locale));
 
         if (!tenantId.IsInitialized())
         {
@@ -104,6 +105,7 @@ public sealed class TenantFeatureFlag
         TenantId tenantId, string key, string value, DateTimeOffset at, UserId by)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        MappedLength.EnsureAtMost(key, 200, nameof(key));
         JsonValue.EnsureWellFormed(value, nameof(value));
 
         if (!tenantId.IsInitialized())
@@ -128,6 +130,28 @@ public sealed class TenantFeatureFlag
         Value = value;
         UpdatedAt = at;
         UpdatedBy = by;
+    }
+}
+
+/// <summary>
+/// Guards a value against the length its column holds.
+/// </summary>
+/// <remarks>
+/// The database rejects a longer value with <c>22001</c>, which names neither the
+/// property nor the aggregate and arrives three layers from the call that produced
+/// it. The numbers here are the ones the EF configurations map; asserting them at
+/// the factory is what makes the failure say which field is wrong.
+/// </remarks>
+internal static class MappedLength
+{
+    public static void EnsureAtMost(string value, int maximum, string parameterName)
+    {
+        if (value.Length > maximum)
+        {
+            throw new ArgumentException(
+                $"The value is {value.Length} characters; the column holds {maximum}.",
+                parameterName);
+        }
     }
 }
 

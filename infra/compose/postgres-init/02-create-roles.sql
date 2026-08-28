@@ -62,10 +62,21 @@ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_outbox_admin'
 -- way to put it back. (The runtime refuses to start against such a role anyway —
 -- the composition root asks the server `rolbypassrls OR rolsuper` on every
 -- physical connection — but this is what fixes it rather than reporting it.)
-ALTER ROLE learnstack_migration    WITH LOGIN PASSWORD :'migration_pw' NOBYPASSRLS;
-ALTER ROLE learnstack_app          WITH LOGIN PASSWORD :'app_pw'       NOBYPASSRLS;
-ALTER ROLE learnstack_platform     WITH LOGIN PASSWORD :'platform_pw'  BYPASSRLS;
-ALTER ROLE learnstack_outbox_admin WITH LOGIN PASSWORD :'outbox_pw'    BYPASSRLS;
+-- NOSUPERUSER on all four, and it is not decoration: a SUPERUSER bypasses row
+-- security whatever `rolbypassrls` says — measured — so a superuser
+-- learnstack_app makes every policy in the database inert while the attribute
+-- this script converges still reads `f`. NOCREATEDB / NOCREATEROLE /
+-- NOREPLICATION for the same reason in miniature: none of the four needs any of
+-- them, learnstack_migration owns tables rather than databases or roles, and an
+-- attribute nothing needs is one an escalation can use.
+ALTER ROLE learnstack_migration    WITH LOGIN PASSWORD :'migration_pw'
+    NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER ROLE learnstack_app          WITH LOGIN PASSWORD :'app_pw'
+    NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER ROLE learnstack_platform     WITH LOGIN PASSWORD :'platform_pw'
+    BYPASSRLS   NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER ROLE learnstack_outbox_admin WITH LOGIN PASSWORD :'outbox_pw'
+    BYPASSRLS   NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 
 -- No `GRANT learnstack_platform TO learnstack_app`, ever. Membership would make
 -- BYPASSRLS a standing capability of the application role, reachable from any

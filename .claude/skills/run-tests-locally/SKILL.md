@@ -34,7 +34,7 @@ flags, and a triage map for the most common failure shapes.
 |-------|----------|-------------|
 | Suite | Yes | `unit` / `integration` / `architecture` / `e2e`. |
 | Filter | No | `--filter <expr>` to run a subset. |
-| Docker available? | Integration / E2E | Required for Testcontainers + LiveKit. |
+| Docker available? | Integration (`Requires=Docker`) / E2E | A running daemon. Postgres only — no Valkey, no Kafka. |
 
 ## Workflow
 
@@ -129,8 +129,8 @@ Common failure shapes:
 | Test passes locally, fails in CI | Race condition; check `await` chains. |
 | Empty result where rows should exist | No `app.tenant_id` on this transaction, or the wrong one — RLS working as designed. Set it with `SchemaQueries.SetTenantAsync` as the transaction's first statement. |
 | `relation "<table>" does not exist` | Migration didn't apply; check the module's `Persistence/Migrations`. |
-| Docker container fails to start | Port collision (5432, 6379) — stop local Postgres / Valkey. |
-| Test hangs | A handler awaiting Dapr in the dev fallback path; check `IEventBus` registration. |
+| Docker container fails to start | Port collision on 5432 — stop a local Postgres. Testcontainers maps a random host port, so this only bites when something else already holds the container port. |
+| `password authentication failed` | The four roles are provisioned by the fixture from `infra/compose/postgres-init/02-create-roles.sql`; a failure there fails the fixture, not one test. |
 
 ### Step 6: Run frontend tests
 
@@ -219,8 +219,7 @@ dotnet test --blame-hang --blame-hang-timeout 5min
 
 - The relevant suite passes locally with the same `dotnet --version` and
   `pnpm --version` CI uses.
-- For integration suites, Docker is running; no port collisions on 5432 / 6379 /
-  9092 / 8200.
+- For integration suites, Docker is running and nothing else holds 5432.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test:a11y` is clean — `axe-core` violations fail
   the test by design.
@@ -232,8 +231,9 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   change — the lockfile must match.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
   it as a bug.
-- **Port collisions.** Local Postgres / Valkey on default ports collides with
-  Testcontainers. Stop them.
+- **Port collisions.** A local Postgres on 5432 collides with the fixture's
+  container. Stop it, or let Testcontainers pick the host port (it does) and stop
+  publishing 5432 from `make dev`.
 - **`--no-build` after a source change.** Drop the flag — the test would run
   against stale binaries.
 - **Ignoring `axe-core` failures.** Accessibility violations are blocking per

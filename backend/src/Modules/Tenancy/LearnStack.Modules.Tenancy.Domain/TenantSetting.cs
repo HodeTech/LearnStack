@@ -67,6 +67,7 @@ public sealed class TenantSetting : AuditableEntity<TenantSettingId>
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        MappedLength.EnsureAtMost(key, 200, nameof(key));
         JsonValue.EnsureWellFormed(value, nameof(value));
 
         if (!id.IsInitialized())

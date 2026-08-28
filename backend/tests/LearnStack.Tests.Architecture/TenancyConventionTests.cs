@@ -99,9 +99,15 @@ public sealed class TenancyConventionTests
     }
 
     [Theory]
-    [InlineData("Organization")]
-    [InlineData("OrganizationBranding")]
-    public void Organization_Aggregate_Declared_In_Tenancy_Domain(string typeName)
+    // `required: true` for the type that exists — a rule accepting zero
+    // declarations of `Organization` would stay green if the aggregate were
+    // deleted, which is the vacuity this catalogue calls out generally.
+    // `OrganizationBranding` is genuinely zero-or-one: it ships with the token
+    // merge in Phase 06, and stating the rule now is what stops the first one
+    // landing in the wrong module.
+    [InlineData("Organization", true)]
+    [InlineData("OrganizationBranding", false)]
+    public void Organization_Aggregate_Declared_In_Tenancy_Domain(string typeName, bool required)
     {
         // ADR-0017's original sample put Organization in Identity; Amendment 2
         // moved it to Tenancy, and Identity now holds OrganizationId by value and
@@ -123,8 +129,18 @@ public sealed class TenancyConventionTests
                 .Select(type => $"{type.FullName} in {assembly.GetName().Name}"))
             .ToList();
 
-        declarations.Should().HaveCountLessThanOrEqualTo(1,
-            $"{typeName} is declared once across every module Domain assembly (ADR-0017 Amendment 2)");
+        if (required)
+        {
+            declarations.Should().ContainSingle(
+                $"{typeName} is declared exactly once across every module Domain "
+                + "assembly (ADR-0017 Amendment 2)");
+        }
+        else
+        {
+            declarations.Should().HaveCountLessThanOrEqualTo(1,
+                $"{typeName} does not exist yet; when it does it is declared once, "
+                + "in Tenancy (ADR-0017 Amendment 2)");
+        }
 
         declarations
             .Where(d => !d.EndsWith("LearnStack.Modules.Tenancy.Domain", StringComparison.Ordinal))

@@ -311,10 +311,24 @@ jobs:
         run: |
           set -euo pipefail
           fail=0
+
+          # Materialized to a file FIRST, so the exit status is checked. Inside
+          # `< <(...)` a failing `git log` cannot fail the step — `pipefail` does
+          # not reach a process substitution — so an unresolvable BASE_SHA would
+          # feed the loop nothing and the check would report success on a range it
+          # never read. A file rather than a variable because the records are
+          # NUL-separated and command substitution drops NUL bytes.
+          #
           # `-z` with `%s`: the subject alone, NUL-TERMINATED, because a subject
           # can contain anything and because `%s%x00` leaves the record's trailing
           # newline attached to the NEXT subject — measured, every length came back
           # one too high and the two real violations reported 78 and 82.
+          if ! git log -z --no-merges --format='%s' \
+                  "${BASE_SHA}..${HEAD_SHA}" > "${RUNNER_TEMP}/subjects"; then
+              echo "::error::could not read ${BASE_SHA}..${HEAD_SHA}"
+              exit 1
+          fi
+
           while IFS= read -r -d '' subject; do
               length=${#subject}
               if [ "$length" -gt 72 ]; then
@@ -326,7 +340,7 @@ jobs:
                   echo "::error::subject is not Conventional Commits: ${subject}"
                   fail=1
               fi
-          done < <(git log -z --no-merges --format='%s' "${BASE_SHA}..${HEAD_SHA}")
+          done < "${RUNNER_TEMP}/subjects"
           if [ "$fail" -ne 0 ]; then
               echo "Standards 14 § Commit messages: type(scope): subject, imperative, <= 72 chars."
               exit 1

@@ -265,6 +265,47 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
     }
 
     [Fact]
+    public async Task TheRolesScriptTakesBackAnEscalatedAttribute()
+    {
+        // Idempotent is not the same as convergent, and the script was only the
+        // first. `CREATE ROLE` fires when the role is absent, so on an existing
+        // cluster — where "apply this file by hand" is the documented recovery
+        // path — nothing was re-asserted: a changed password had no effect, and a
+        // role that had acquired SUPERUSER out of band kept it.
+        //
+        // SUPERUSER specifically, because it is the one that cannot be seen in the
+        // attribute this model is built on: a superuser bypasses row security with
+        // `rolbypassrls = false`, so every policy in the database is inert while
+        // the column the isolation suite reads still says the right thing.
+        try
+        {
+            await _postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_app SUPERUSER");
+
+            (await ReadIsSuperuserAsync()).Should().BeTrue("the escalation must be real for the test to mean anything");
+
+            var result = await _postgres.RunRolesScriptAgainAsync();
+            result.ExitCode.Should().Be(0, "{0}", result.Stderr);
+
+            (await ReadIsSuperuserAsync()).Should().BeFalse(
+                "re-running the script converges the role back to what it declares");
+        }
+        finally
+        {
+            await _postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_app NOSUPERUSER");
+        }
+    }
+
+    private async Task<bool> ReadIsSuperuserAsync()
+    {
+        await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT rolsuper FROM pg_roles WHERE rolname = 'learnstack_app'",
+            (NpgsqlConnection)connection);
+
+        return (bool)(await command.ExecuteScalarAsync())!;
+    }
+
+    [Fact]
     public async Task NoDefaultPrivilegesExist_SoAnUngrantedTableIsAlwaysLoud()
     {
         // The effect of there being no ALTER DEFAULT PRIVILEGES anywhere.

@@ -179,15 +179,23 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
         // would commit work nobody claimed was finished.
         var swallowedCommit = _commitRequested && _transaction is not null;
 
-        if (_transaction is not null)
+        try
         {
-            await RollbackCoreAsync();
+            if (_transaction is not null)
+            {
+                await RollbackCoreAsync();
+            }
         }
-
-        if (_connection is not null)
+        finally
         {
-            await _connection.DisposeAsync();
-            _connection = null;
+            // In a finally: a rollback that throws — a connection already broken
+            // by the failure being cleaned up after is the ordinary way — must not
+            // strand the connection outside the pool for the rest of the process.
+            if (_connection is not null)
+            {
+                await _connection.DisposeAsync();
+                _connection = null;
+            }
         }
 
         if (swallowedCommit)
