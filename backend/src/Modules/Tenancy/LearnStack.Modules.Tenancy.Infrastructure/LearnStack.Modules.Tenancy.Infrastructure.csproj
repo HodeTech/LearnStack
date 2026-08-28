@@ -13,6 +13,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- IDesignTimeDbContextFactory lives here, not in the API: `dotnet ef`
+         resolving the API's service provider would take ConnectionStrings:Default,
+         the runtime role, which cannot CREATE in schema public. PrivateAssets so
+         the design-time surface does not flow to anything referencing this module. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

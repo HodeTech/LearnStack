@@ -23,3 +23,31 @@ dotnet_diagnostic.CS8601.severity = error
 dotnet_diagnostic.CS8602.severity = error
 dotnet_diagnostic.CS8603.severity = error
 dotnet_diagnostic.CS8604.severity = error
+
+# ─── EF Core migrations ──────────────────────────────────────────────────
+# Migration files are TOOL OUTPUT: `dotnet ef migrations add` regenerates the
+# CreateTable/CreateIndex calls, so a hand-edit to satisfy an analyzer is an
+# edit the next regeneration discards. The hand-written half of a migration is
+# the raw SQL appended to Up/Down, which these rules do not touch.
+#
+# CA1861 (prefer static readonly over constant array arguments) fires on every
+# `columns: new[] { … }` EF emits. The rule is about repeated calls in hot
+# paths; a migration's Up runs once, ever.
+[**/Persistence/Migrations/*.cs]
+dotnet_diagnostic.CA1861.severity = none
+
+# IDE0161: EF emits a block-scoped namespace. The repo requires file-scoped
+# everywhere a human writes.
+dotnet_diagnostic.IDE0161.severity = none
+
+# CA1707: the migration class takes its name from the file, and Database
+# Standards § Migrations fixes that format as
+# `<UTC_yyyyMMddHHmmss>_<intent>` with the intent in snake_case — so the
+# underscores are the convention, not a lapse from it.
+dotnet_diagnostic.CA1707.severity = none
+
+# EF writes migration files with a UTF-8 BOM. `dotnet format` fails them against
+# the repo-wide `charset = utf-8`, and stripping it by hand is an edit the next
+# `dotnet ef migrations add` undoes.
+charset = utf-8-bom
+

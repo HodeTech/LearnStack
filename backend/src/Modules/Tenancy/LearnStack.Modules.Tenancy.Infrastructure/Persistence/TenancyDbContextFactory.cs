@@ -1,0 +1,84 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
+
+namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+
+/// <summary>
+/// Builds a <see cref="TenancyDbContext"/> for <c>dotnet ef</c> at design time.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>This exists so the tooling never resolves the runtime connection string.</b>
+/// Without it, <c>dotnet ef --startup-project backend/src/LearnStack.Api</c> builds
+/// the API's service provider and takes <c>ConnectionStrings:Default</c> — the
+/// <c>learnstack_app</c> role, which holds <c>USAGE</c> but not <c>CREATE</c> on
+/// schema <c>public</c>. The migration then fails with
+/// <c>permission denied for schema public</c>, and the obvious local fix for that
+/// error — granting the runtime role <c>CREATE</c>, or making it the owner — is
+/// exactly the arrangement <c>FORCE ROW LEVEL SECURITY</c> exists to defeat
+/// (<see href="../../../../../../docs/standards/05-database.md">Database Standards
+/// § Database roles</see>).
+/// </para>
+/// <para>
+/// It reads <c>ConnectionStrings__Migration</c> from the environment and nothing
+/// else. No <c>appsettings</c>, no user secrets, no fallback to
+/// <c>ConnectionStrings__Default</c>: a fallback is how the wrong role gets used
+/// by accident, and the whole point of the four-role split is that using the
+/// wrong one is loud. <c>make migrate</c> is the sanctioned carrier and supplies
+/// the value.
+/// </para>
+/// <para>
+/// Design-time only. Nothing at runtime constructs a context this way — ADR-0040
+/// has every module context built on the connection <c>IUnitOfWork</c> owns.
+/// </para>
+/// </remarks>
+public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<TenancyDbContext>
+{
+    private const string ConnectionStringVariable = "ConnectionStrings__Migration";
+
+    public TenancyDbContext CreateDbContext(string[] args)
+    {
+        // `dotnet ef --connection` arrives as an argument rather than an
+        // environment variable, and it must win: `make migrate` passes it, and a
+        // developer overriding one run should not have to edit their .env.
+        var connectionString =
+            ReadConnectionArgument(args)
+            ?? Environment.GetEnvironmentVariable(ConnectionStringVariable);
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"{ConnectionStringVariable} is not set and no --connection was passed. "
+                + "Migrations run as learnstack_migration, which owns every table; the value "
+                + "is in .env.example and `make migrate` is its sanctioned carrier. "
+                + "Do not point this at ConnectionStrings__Default — that role cannot CREATE "
+                + "in schema public, and granting it that is the ownership mistake the "
+                + "four-role split exists to prevent.");
+        }
+
+        var options = new DbContextOptionsBuilder<TenancyDbContext>()
+            .UseNpgsql(connectionString, npgsql =>
+                npgsql.MigrationsHistoryTable("__ef_migrations_history_tenancy"))
+            .Options;
+
+        return new TenancyDbContext(options);
+    }
+
+    private static string? ReadConnectionArgument(string[] args)
+    {
+        if (args is null)
+        {
+            return null;
+        }
+
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (string.Equals(args[index], "--connection", StringComparison.Ordinal))
+            {
+                return args[index + 1];
+            }
+        }
+
+        return null;
+    }
+}

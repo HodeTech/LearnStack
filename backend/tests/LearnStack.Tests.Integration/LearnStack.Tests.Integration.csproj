@@ -15,6 +15,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <!-- The tenancy schema tests apply the module's own migration and assert its
+         policies. They reference Infrastructure directly rather than through the
+         API, because the API does not register TenancyDbContext: ADR-0040 has
+         every module context built on the connection IUnitOfWork owns, and that
+         seam lands in step 6. -->
+    <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

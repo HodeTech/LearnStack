@@ -428,7 +428,15 @@ public sealed class CrossCuttingFoundationTests
             var assembly = TryLoadAssembly(name);
             if (assembly is null) continue;
 
+            // Compiler- and generator-emitted types are excluded, and the reason
+            // is specific rather than hygienic: Vogen emits a nested TypeConverter
+            // per value object, and TypeConverter's ConvertFrom takes an
+            // ITypeDescriptorContext — which implements IServiceProvider. The
+            // service-locator clause caught every strongly-typed id the moment the
+            // first module declared one. A generated type cannot inject anything
+            // the author chose, so it is not what this rule is aimed at.
             var offenders = assembly.GetTypes()
+                .Where(t => !IsGenerated(t))
                 .Where(UsesForbiddenEventBusAccess)
                 .Select(t => t.FullName)
                 .ToList();
@@ -441,15 +449,46 @@ public sealed class CrossCuttingFoundationTests
         }
     }
 
+    /// <summary>
+    /// True for a type the compiler or a source generator emitted, including one
+    /// nested inside a hand-written type.
+    /// </summary>
+    /// <remarks>
+    /// Walks the declaring chain because Vogen's <c>EfCoreValueConverter</c> and
+    /// <c>&lt;Name&gt;TypeConverter</c> are nested inside the value object, and the
+    /// attribute sits on the nested type rather than on the outer one.
+    /// </remarks>
+    private static bool IsGenerated(Type type)
+    {
+        for (var current = type; current is not null; current = current.DeclaringType)
+        {
+            if (current.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false)
+                || current.IsDefined(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute), inherit: false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool UsesForbiddenEventBusAccess(Type type)
     {
         var bus = typeof(LearnStack.SharedKernel.Messaging.IEventBus);
         var serviceProvider = typeof(IServiceProvider);
         var forbidden = new[] { bus, serviceProvider };
+        // DeclaredOnly, and it is load-bearing rather than an optimisation. Without
+        // it the check reads INHERITED members too, and DbContext implements
+        // IInfrastructure<IServiceProvider> — so every module's DbContext was
+        // flagged the moment the first one existed, for something EF declares and
+        // the module author never wrote. The question this rule asks is what THIS
+        // type does; what a base type exposes is the base type's business, and
+        // DbContext is not a module type.
         const BindingFlags members = BindingFlags.Instance
                                      | BindingFlags.Static
                                      | BindingFlags.Public
-                                     | BindingFlags.NonPublic;
+                                     | BindingFlags.NonPublic
+                                     | BindingFlags.DeclaredOnly;
 
         return type.GetConstructors(members).Any(constructor =>
                    constructor.GetParameters().Any(parameter =>
