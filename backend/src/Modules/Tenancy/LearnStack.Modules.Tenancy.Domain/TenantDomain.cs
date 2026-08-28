@@ -85,11 +85,39 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
         TenantDomainId id, TenantId tenantId, string host, IClock clock, UserId createdBy)
         => CreateCore(id, tenantId, host, TenantDomainKind.Custom, clock, createdBy);
 
+    /// <summary>
+    /// Starts a verification attempt, moving the domain into
+    /// <see cref="TenantDomainStatus.Verifying"/>.
+    /// </summary>
+    /// <remarks>
+    /// The state the enum defined, the CHECK accepted, the module spec drew — and
+    /// no code could produce. Without it a custom domain went
+    /// <c>Requested → Verified</c> in one call, a transition no diagram in the
+    /// corpus draws, and <c>Verifying</c> was an unreachable value in a closed
+    /// set. Who calls it is
+    /// <see href="../../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase
+    /// 02c</see>'s custom-domain lifecycle; the state machine is this aggregate's
+    /// either way.
+    /// </remarks>
+    public void MarkVerificationStarted(IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        EnsureVerifiable();
+        EnsureStatusIs(
+            "start verification",
+            TenantDomainStatus.Requested,
+            TenantDomainStatus.Failed);
+
+        Status = TenantDomainStatus.Verifying;
+        MarkUpdated(clock.UtcNow, updatedBy);
+    }
+
     /// <summary>Records a verification attempt that succeeded.</summary>
     public void MarkVerified(IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
         EnsureVerifiable();
+        EnsureStatusIs("record a verification result", TenantDomainStatus.Verifying);
 
         Status = TenantDomainStatus.Verified;
         VerifiedAt = clock.UtcNow;
@@ -103,7 +131,12 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        // The column holds 1000; an unbounded provider message otherwise arrives
+        // as 22001 from three layers down, naming neither the property nor the
+        // aggregate.
+        MappedLength.EnsureAtMost(error, 1000, nameof(error));
         EnsureVerifiable();
+        EnsureStatusIs("record a verification result", TenantDomainStatus.Verifying);
 
         Status = TenantDomainStatus.Failed;
         VerificationAttempts++;
@@ -133,6 +166,20 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
         }
     }
 
+    /// <summary>
+    /// Refuses a transition the module spec's state diagram does not draw.
+    /// </summary>
+    private void EnsureStatusIs(string operation, params TenantDomainStatus[] allowed)
+    {
+        if (!allowed.Contains(Status))
+        {
+            throw new InvalidOperationException(
+                $"A domain in {Status} cannot {operation}; expected "
+                + $"{string.Join(" or ", allowed)}. The lifecycle is "
+                + "Requested → Verifying → Verified | Failed, and Failed may start over.");
+        }
+    }
+
     private static TenantDomain CreateCore(
         TenantDomainId id,
         TenantId tenantId,
@@ -144,17 +191,15 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
 
-        if (!id.IsInitialized())
+        if (!id.IsInitialized() || id.Value == Guid.Empty)
         {
             throw new ArgumentException(
                 "The identifier was never assigned; construct it through its factory.",
                 nameof(id));
         }
 
-        if (!tenantId.IsInitialized())
-        {
-            throw new ArgumentException("A domain belongs to a tenant.", nameof(tenantId));
-        }
+        TenantOwned.EnsureRealTenant(
+            tenantId, "A domain belongs to a tenant.", nameof(tenantId));
 
         // The database carries the same rule as ck_tenant_domains_host_normalized;
         // this is the loud half, so a caller that skipped EffectiveHost.Normalize

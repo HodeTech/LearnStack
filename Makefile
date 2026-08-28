@@ -166,9 +166,8 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
 			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
 	fi; \
-	role=$$(printf '%s' "$$migration_cs" | tr ';' '\n' \
-		| sed -n 's/^[[:space:]]*[Uu][Ss][Ee][Rr][Nn][Aa][Mm][Ee][[:space:]]*=[[:space:]]*//p' | head -1); \
-	redacted=$$(printf '%s' "$$migration_cs" | sed "s/[Pp]assword[[:space:]]*=[^;]*/Password=***/g"); \
+	role=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=user); \
+	redacted=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=redacted); \
 	if [ -z "$$migration_cs" ]; then \
 		echo "ConnectionStrings__Migration is not set."; \
 		echo "It arrives with the four-role model in Phase 02a Packet 6: copy the"; \
@@ -182,7 +181,9 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		echo "  $$redacted"; \
 		echo "Migrations must run as the role that OWNS every table. Running them as"; \
 		echo "the runtime role is the arrangement FORCE ROW LEVEL SECURITY defeats."; \
-		echo "If the value looks truncated at the first ';', quote it in .env."; \
+		echo "If the value looks truncated at the first ';', quote it in .env. A"; \
+		echo "URI-style DSN (postgres://...) is not a form Npgsql parses at all; the"; \
+		echo "expected shape is the key/value list in .env.example."; \
 		exit 1; \
 	fi; \
 	export ConnectionStrings__Migration="$$migration_cs"; \

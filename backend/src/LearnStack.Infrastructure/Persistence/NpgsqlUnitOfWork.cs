@@ -46,6 +46,25 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
     private NpgsqlConnection? _connection;
     private DbTransaction? _transaction;
     private int _depth;
+
+    /// <summary>
+    /// Incremented every time a physical transaction is opened, so a frame can
+    /// tell "my transaction" from "a later one that happens to sit at my depth".
+    /// </summary>
+    /// <remarks>
+    /// Depth alone is not an identity. The frame-blind <c>CommitAsync</c> — which
+    /// ADR-0040 § Amendment keeps deliberately, for a caller with no handle to
+    /// hand — resolves the unit without touching the handle that opened it, and
+    /// because the unit ended on a *commit* it is not marked rollback-only, so the
+    /// next <c>BeginTransactionAsync</c> succeeds and hands out depth 1 again.
+    /// The first frame is then aimed at the second transaction: measured, its
+    /// <c>CompleteAsync</c> committed the second frame's uncommitted work and
+    /// returned success, and its <c>DisposeAsync</c> rolled that work back. Every
+    /// route back to depth 0 through a *rollback* sets the sticky mark and is
+    /// therefore already shut; this is the one that is not.
+    /// </remarks>
+    private int _generation;
+
     private bool _rollbackOnly;
     private bool _commitRequested;
     private bool _disposed;
@@ -96,9 +115,10 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
             }
 
             _transaction = await _connection.BeginTransactionAsync(cancellationToken);
+            _generation++;
         }
 
-        return new Frame(this, ++_depth);
+        return new Frame(this, ++_depth, _generation);
     }
 
     public async Task SetTenantContextAsync(
@@ -323,7 +343,8 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
     /// opened after this one is still open would commit nothing and report
     /// success.
     /// </remarks>
-    private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth) : IUnitOfWorkScope
+    private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth, int generation)
+        : IUnitOfWorkScope
     {
         private bool _resolved;
 
@@ -331,6 +352,13 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
         public Task CompleteAsync(CancellationToken cancellationToken = default)
         {
+            if (IsStale())
+            {
+                // Not an error: this frame's transaction ended, and whatever
+                // marked the unit afterwards belongs to a different one.
+                return Task.CompletedTask;
+            }
+
             if (AlreadyResolved())
             {
                 if (unitOfWork._rollbackOnly)
@@ -354,7 +382,7 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
         public Task FailAsync(CancellationToken cancellationToken = default)
         {
-            if (AlreadyResolved())
+            if (IsStale() || AlreadyResolved())
             {
                 return Task.CompletedTask;
             }
@@ -387,6 +415,9 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
         private bool AlreadyResolved() =>
             _resolved || unitOfWork._disposed || unitOfWork._depth < depth;
+
+        /// <summary>The transaction this frame belongs to is over.</summary>
+        private bool IsStale() => unitOfWork._generation != generation;
 
         private void EnsureInnermost()
         {

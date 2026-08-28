@@ -21,8 +21,9 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </para>
 /// <para>
 /// <c>Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork</c> is the guard, and it
-/// reads <see cref="RegisteredContexts"/>: a context registered any other way is
-/// absent from that set, which is what the rule asserts against.
+/// reads <see cref="RegisteredContexts"/> off the <see cref="IServiceCollection"/>
+/// it just built: a context registered any other way is absent from that set,
+/// which is what the rule asserts against.
 /// </para>
 /// <para>
 /// <b>EF issues its own savepoints, and that is left on.</b> A context enlisted in
@@ -35,28 +36,50 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </remarks>
 public static class ModuleDbContextRegistration
 {
-    private static readonly HashSet<Type> Registered = [];
-
     /// <summary>
-    /// Every context type registered through <see cref="AddModuleDbContext{TContext}"/>.
+    /// The context types registered through
+    /// <see cref="AddModuleDbContext{TContext}"/> <b>on this collection</b>.
     /// </summary>
     /// <remarks>
-    /// Process-wide rather than per-container, because the rule that reads it is
-    /// a structural assertion about the composition root, and a test that built
-    /// its own container would otherwise assert about that container instead.
+    /// Per-collection, not process-wide. A static set is an assertion about the
+    /// whole process rather than about the container the caller just built, so
+    /// once anything anywhere had registered a context correctly, the rule
+    /// vouched for the same type registered any other way in any later container
+    /// — and the shape it vouched for is exactly the ADR-0040 failure: a scoped
+    /// <c>ImplementationFactory</c> building the context on its own connection
+    /// string, which the rule's independent lifetime leg cannot tell apart from
+    /// this helper's.
     /// </remarks>
-    public static IReadOnlyCollection<Type> RegisteredContexts
+    public static IReadOnlyCollection<Type> RegisteredContexts(this IServiceCollection services)
     {
-        get
+        ArgumentNullException.ThrowIfNull(services);
+
+        return new ReadOnlyCollection<Type>([.. Marker(services).Contexts]);
+    }
+
+    /// <summary>
+    /// The per-collection record of what this helper registered, carried in the
+    /// collection itself so it travels with the container rather than the process.
+    /// </summary>
+    private sealed class RegistrationMarker
+    {
+        public HashSet<Type> Contexts { get; } = [];
+    }
+
+    private static RegistrationMarker Marker(IServiceCollection services)
+    {
+        var existing = services.FirstOrDefault(
+            descriptor => descriptor.ServiceType == typeof(RegistrationMarker));
+
+        if (existing?.ImplementationInstance is RegistrationMarker marker)
         {
-            // Inside the lock. HashSet is not safe to enumerate while another
-            // thread adds, and composition roots do run in parallel — the test
-            // host builds one per fixture.
-            lock (Registered)
-            {
-                return new ReadOnlyCollection<Type>([.. Registered]);
-            }
+            return marker;
         }
+
+        marker = new RegistrationMarker();
+        services.AddSingleton(marker);
+
+        return marker;
     }
 
     /// <summary>
@@ -79,10 +102,7 @@ public static class ModuleDbContextRegistration
             return services;
         }
 
-        lock (Registered)
-        {
-            Registered.Add(typeof(TContext));
-        }
+        Marker(services).Contexts.Add(typeof(TContext));
 
         services.TryAddScoped(provider =>
         {

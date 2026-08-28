@@ -185,11 +185,30 @@ public abstract class AuditableEntity<TId>
         }
     }
 
-    // Audit metadata must always be meaningful: the default timestamp
-    // (0001-01-01) and the default UserId (Guid.Empty) are programmer-error
-    // sentinels rather than legitimate audit values. Fail loud at the call
-    // site rather than persisting them.
-    private static void EnsureValidAuditInput(DateTimeOffset at, UserId by)
+    private static void EnsureValidAuditInput(DateTimeOffset at, UserId by) =>
+        AuditInput.EnsureValid(at, by);
+}
+
+/// <summary>
+/// The pair every audit stamp is made of: a meaningful instant and a real actor.
+/// </summary>
+/// <remarks>
+/// Lifted out of <see cref="AuditableEntity{TId}"/> because the rule is the pair,
+/// not the base class. An entity that carries <c>updated_at</c> / <c>updated_by</c>
+/// without deriving — a composite-keyed row with no surrogate id, which cannot
+/// derive — needs the same guard, and the one that skipped it accepted
+/// <c>default(DateTimeOffset)</c> and an uninitialized actor and threw
+/// <c>ValueObjectValidationException</c> from inside the Vogen EF converter at
+/// persist time instead: three layers from the call, and naming neither the
+/// property nor the aggregate.
+/// </remarks>
+public static class AuditInput
+{
+    /// <summary>
+    /// Refuses the two programmer-error sentinels: the default timestamp
+    /// (0001-01-01) and the default / empty <see cref="UserId"/>.
+    /// </summary>
+    public static void EnsureValid(DateTimeOffset at, UserId by)
     {
         if (at == default)
         {

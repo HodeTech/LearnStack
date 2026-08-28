@@ -2,6 +2,7 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Application.Pipeline;
 
@@ -63,7 +64,8 @@ namespace LearnStack.Application.Pipeline;
 /// </remarks>
 public sealed class TransactionBehavior<TRequest, TResponse>(
     IUnitOfWork unitOfWork,
-    ITenantContext tenantContext)
+    ITenantContext tenantContext,
+    ILogger<TransactionBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
     where TResponse : IResultBase
@@ -124,7 +126,26 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             // CancellationToken.None: the rollback is the cleanup path, and a
             // cancelled rollback leaves the transaction open on a connection
             // about to go back to the pool.
-            await scope.FailAsync(CancellationToken.None);
+            //
+            // Best-effort, for the same reason the commit sits outside this catch:
+            // the cleanup must never outrank what it is cleaning up after. A
+            // broken connection disposes the NpgsqlTransaction with it, so
+            // FailAsync throws ObjectDisposedException — measured, by terminating
+            // the backend mid-handler — and an unguarded await would hand the
+            // caller, the audit intent and the error tracker that bookkeeping
+            // exception with the handler's own nowhere in sight. During a database
+            // failover that is every in-flight request at once. Nothing is
+            // stranded by swallowing it: RollbackCoreAsync clears the transaction
+            // and the depth before it throws, and DisposeAsync still closes the
+            // connection in its finally.
+            try
+            {
+                await scope.FailAsync(CancellationToken.None);
+            }
+            catch (Exception rollbackFailure)
+            {
+                LogRollbackFailure(logger, typeof(TRequest).Name, rollbackFailure);
+            }
 
             // Rethrown, not swallowed: AuditLogBehavior — three behaviors out,
             // at step 3 — catches it, audits the failure and rethrows through
@@ -133,4 +154,12 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             throw;
         }
     }
+
+    // LoggerMessage source-generated delegate (CA1848), matching the house style
+    // in AuditLogBehavior and LoggingBehavior.
+    private static readonly Action<ILogger, string, Exception?> LogRollbackFailure =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1, nameof(LogRollbackFailure)),
+            "Rolling back the ambient transaction for {RequestName} failed. The original exception is rethrown; this one is recorded here only.");
 }

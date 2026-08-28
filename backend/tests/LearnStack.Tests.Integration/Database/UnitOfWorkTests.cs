@@ -10,6 +10,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -209,9 +210,13 @@ public sealed class UnitOfWorkTests
             {
                 var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 var outer = new TransactionBehavior<Probe, Result<string>>(
-                    unitOfWork, Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                    unitOfWork,
+                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+                    NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
                 var inner = new TransactionBehavior<Probe, Result<string>>(
-                    unitOfWork, Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                    unitOfWork,
+                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+                    NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
 
                 var result = await outer.Handle(
                     new Probe(),
@@ -401,6 +406,40 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task The_data_source_refuses_a_runtime_role_that_can_reach_one()
+    {
+        // The escalation a check on the role's own attributes cannot see:
+        // `GRANT learnstack_platform TO learnstack_app` leaves learnstack_app's
+        // rolbypassrls false and lets it SET ROLE into a BYPASSRLS role. Through a
+        // bridge role, because a guard keyed on the four names would catch the
+        // direct grant and miss this one.
+        try
+        {
+            await _schema.Postgres.ExecuteAsSuperuserAsync(
+                "CREATE ROLE uow_bridge NOLOGIN; "
+                + "GRANT learnstack_platform TO uow_bridge; "
+                + "GRANT uow_bridge TO learnstack_app");
+
+            await using var dataSource = PersistenceCompositionExtensions.BuildApplicationDataSource(
+                _schema.Postgres.AppConnectionString);
+
+            var open = async () =>
+            {
+                await using var connection = await dataSource.OpenConnectionAsync();
+            };
+
+            (await open.Should().ThrowAsync<InvalidOperationException>())
+                .WithMessage("*reach one which bypasses Row Level Security*");
+        }
+        finally
+        {
+            await _schema.Postgres.ExecuteAsSuperuserAsync(
+                "REVOKE uow_bridge FROM learnstack_app");
+            await _schema.Postgres.ExecuteAsSuperuserAsync("DROP ROLE IF EXISTS uow_bridge");
+        }
+    }
+
+    [Fact]
     public async Task A_nested_failure_makes_the_outer_commit_impossible()
     {
         // ADR-0040 § Nesting: an EXCEPTION in an inner frame marks the unit, and
@@ -505,6 +544,68 @@ public sealed class UnitOfWorkTests
         }
     }
 
+    [Theory]
+    // Both terminal calls on the stale handle. Measured before the fix:
+    // CompleteAsync committed the SECOND frame's uncommitted work and returned
+    // success; DisposeAsync rolled it back and then made the second frame's own
+    // CompleteAsync throw "already resolved by a rollback".
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_frame_left_over_from_a_committed_unit_does_not_touch_the_next_one(
+        bool completeTheStaleFrame)
+    {
+        // The one door back to depth 1 with a live handle: the frame-blind
+        // CommitAsync that ADR-0040 § Amendment keeps for a caller with no handle
+        // to hand. Every route back through a ROLLBACK sets the sticky mark and
+        // BeginTransactionAsync refuses — measured — so this is the only one.
+        await using var provider = BuildProvider();
+        var first = $"00-uow-{Guid.CreateVersion7():N}";
+        var second = $"00-uow-{Guid.CreateVersion7():N}";
+
+        try
+        {
+            await using (var scope = provider.CreateAsyncScope())
+            {
+                var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+                var stale = await unitOfWork.BeginTransactionAsync();
+                await unitOfWork.SetTenantContextAsync(
+                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                await InsertOutboxAsync(unitOfWork, first);
+                await unitOfWork.CommitAsync();
+
+                var current = await unitOfWork.BeginTransactionAsync();
+                await unitOfWork.SetTenantContextAsync(
+                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                await InsertOutboxAsync(unitOfWork, second);
+
+                if (completeTheStaleFrame)
+                {
+                    await stale.CompleteAsync();
+                }
+                else
+                {
+                    await stale.DisposeAsync();
+                }
+
+                unitOfWork.HasActiveTransaction.Should().BeTrue(
+                    "the stale frame belongs to a transaction that is already over");
+
+                await current.CompleteAsync();
+            }
+
+            (await CountOutboxAsync(first)).Should().Be(1L, "the first unit committed");
+            (await CountOutboxAsync(second)).Should().Be(1L,
+                "the second unit committed on its own frame, and the stale one neither "
+                + "committed it early nor rolled it back");
+        }
+        finally
+        {
+            await DeleteOutboxAsync(first);
+            await DeleteOutboxAsync(second);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private ServiceProvider BuildProvider()
@@ -530,6 +631,26 @@ public sealed class UnitOfWorkTests
         command.Parameters.AddWithValue("slug", slug);
 
         return (long)(await command.ExecuteScalarAsync())!;
+    }
+
+    private static Task InsertOutboxAsync(IUnitOfWork unitOfWork, string correlation) =>
+        ExecuteAsync(unitOfWork,
+            """
+            INSERT INTO outbox_messages
+                (tenant_id, correlation_id, type, topic, partition_key, payload)
+            VALUES (@tenant, @correlation, 'T', 'learnstack.tenancy.tenant', 'k', '{}')
+            """,
+            ("tenant", SchemaFixture.TenantA), ("correlation", correlation));
+
+    private async Task DeleteOutboxAsync(string correlation)
+    {
+        await using var platform = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var cleanup = new NpgsqlCommand(
+            "DELETE FROM outbox_messages WHERE correlation_id = @correlation",
+            (NpgsqlConnection)platform);
+        cleanup.Parameters.AddWithValue("correlation", correlation);
+        await cleanup.ExecuteNonQueryAsync();
     }
 
     private async Task<long> CountOutboxAsync(string correlation)

@@ -6,6 +6,7 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Application.Pipeline;
@@ -223,8 +224,55 @@ public sealed class TransactionBehaviorTests
         unitOfWork.TenantContext.Should().BeSameAs(UnresolvedTenantContext.Instance);
     }
 
+    [Fact]
+    public async Task A_failing_rollback_does_not_replace_the_exception_it_is_cleaning_up_after()
+    {
+        // The measured shape: an exception breaks the connection, Npgsql disposes
+        // the NpgsqlTransaction with it, and the rollback then throws
+        // ObjectDisposedException. Unguarded, that is what the caller,
+        // AuditLogBehavior and IErrorTrackingProvider all see — the handler's own
+        // exception simply gone, not even as an inner.
+        var unitOfWork = new RecordingUnitOfWork
+        {
+            RollbackFailure = new ObjectDisposedException("NpgsqlTransaction"),
+        };
+
+        var behavior = Build(unitOfWork);
+        var original = new DbTestException("the handler's own");
+
+        var act = async () => await behavior.Handle(
+            new DummyCommand(),
+            () => throw original,
+            default);
+
+        (await act.Should().ThrowAsync<DbTestException>()).Which.Should().BeSameAs(original);
+        unitOfWork.Calls.Should().Contain("rollback", "the cleanup was still attempted");
+        unitOfWork.Committed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_failing_rollback_does_not_turn_a_cancellation_into_a_failure()
+    {
+        // Three ADR-0032 behaviours hang off the exception TYPE: AuditLogBehavior
+        // does not audit an OperationCanceledException, LearnStackExceptionHandler
+        // does not capture one, and HttpStatusMap answers 499 rather than 500. A
+        // rollback that replaced it inverted all three at once.
+        var unitOfWork = new RecordingUnitOfWork
+        {
+            RollbackFailure = new ObjectDisposedException("NpgsqlTransaction"),
+        };
+
+        var act = async () => await Build(unitOfWork).Handle(
+            new DummyCommand(),
+            () => throw new OperationCanceledException("Query was cancelled"),
+            default);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
     private static TransactionBehavior<DummyCommand, Result<string>> Build(IUnitOfWork unitOfWork) =>
-        new(unitOfWork, UnresolvedTenantContext.Instance);
+        new(unitOfWork, UnresolvedTenantContext.Instance,
+            NullLogger<TransactionBehavior<DummyCommand, Result<string>>>.Instance);
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)
     {
@@ -251,6 +299,12 @@ public sealed class TransactionBehaviorTests
 
         /// <summary>Thrown by the outermost commit, to model a faulted COMMIT.</summary>
         public Exception? CommitFailure { get; init; }
+
+        /// <summary>
+        /// Thrown by the rollback, to model the cleanup path failing on a
+        /// connection the original exception already broke.
+        /// </summary>
+        public Exception? RollbackFailure { get; init; }
 
         public bool Committed { get; private set; }
 
@@ -315,7 +369,10 @@ public sealed class TransactionBehaviorTests
 
             Calls.Add("rollback");
             --_depth;
-            return Task.CompletedTask;
+
+            return RollbackFailure is null
+                ? Task.CompletedTask
+                : Task.FromException(RollbackFailure);
         }
 
         public void MarkRollbackOnly()

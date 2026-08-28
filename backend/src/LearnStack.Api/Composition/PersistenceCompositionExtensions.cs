@@ -151,8 +151,21 @@ public static class PersistenceCompositionExtensions
     private static async Task RefuseBypassRole(NpgsqlConnection connection, bool async)
     {
         await using var command = connection.CreateCommand();
+
+        // Reachability, not the role's own two attributes. `GRANT
+        // learnstack_platform TO learnstack_app` leaves `rolbypassrls` and
+        // `rolsuper` false on learnstack_app and still lets it `SET ROLE` into a
+        // BYPASSRLS role — measured, directly and through a bridge role that holds
+        // the membership on its behalf. `pg_has_role(..., 'MEMBER')` follows the
+        // whole chain and includes the role itself, so this subsumes the attribute
+        // check rather than sitting beside it.
         command.CommandText =
-            "SELECT rolbypassrls OR rolsuper FROM pg_roles WHERE rolname = current_user";
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_roles r
+                WHERE (r.rolbypassrls OR r.rolsuper)
+                  AND pg_has_role(current_user, r.oid, 'MEMBER'))
+            """;
 
         var bypasses = async
             ? await command.ExecuteScalarAsync()
@@ -161,11 +174,13 @@ public static class PersistenceCompositionExtensions
         if (bypasses is true)
         {
             throw new InvalidOperationException(
-                $"The runtime connected as a role that bypasses Row Level Security "
-                + $"(rolbypassrls or rolsuper). Every policy in the database is then inert and "
-                + "every query crosses every tenant boundary. Check ConnectionStrings:Default "
-                + "and the grants on the role it names; EnterPlatformAdminScope is the only "
-                + "sanctioned path to a bypass credential.");
+                "The runtime connected as a role that can reach one which bypasses Row Level "
+                + "Security — by holding rolbypassrls or rolsuper itself, or by being a member "
+                + "of a role that does, directly or through another. Every policy in the "
+                + "database is then one SET ROLE away from inert. Check "
+                + "ConnectionStrings:Default and the role memberships granted to the role it "
+                + "names; EnterPlatformAdminScope is the only sanctioned path to a bypass "
+                + "credential.");
         }
     }
 
@@ -196,14 +211,35 @@ public static class PersistenceCompositionExtensions
     /// clear a field on.
     /// </summary>
     /// <remarks>
-    /// A regex is the only tool left here, so it covers every alias Npgsql accepts
-    /// rather than the canonical spelling alone, and it does not have to be
-    /// exhaustive to be safe: the value it is redacting is one Npgsql rejected, so
-    /// nothing downstream will treat it as a credential.
+    /// <para>
+    /// A regex is the only tool left here, so it covers both forms a rejected value
+    /// arrives in. The keyword pass knows every alias Npgsql accepts —
+    /// <c>Password</c>, <c>PSW</c>, <c>PWD</c>, measured, not the canonical
+    /// spelling alone.
+    /// </para>
+    /// <para>
+    /// The second pass is the one this branch exists for. Npgsql <b>rejects</b> a
+    /// URI-style DSN outright — measured — so <c>postgres://user:secret@host/db</c>
+    /// is not some exotic input here, it is the input, and it carries its password
+    /// in the userinfo where no <c>password=</c> appears. The first version of this
+    /// method echoed it whole into an exception message that a startup failure puts
+    /// in the log.
+    /// </para>
     /// </remarks>
-    private static string RedactUnparsed(string connectionString) =>
-        System.Text.RegularExpressions.Regex.Replace(
+    private static string RedactUnparsed(string connectionString)
+    {
+        var byKeyword = System.Text.RegularExpressions.Regex.Replace(
             connectionString,
             "(?i)\\b(password|pwd|psw)(\\s*=)[^;]*",
             "$1$2***");
+
+        // The whole userinfo, not the password half: a value shaped like a URI
+        // failed to parse, so there is no field to be confident about, and the
+        // username is not what the operator needs from this message anyway — the
+        // message tells them the form is wrong, not which role they named.
+        return System.Text.RegularExpressions.Regex.Replace(
+            byKeyword,
+            "(?i)(://)[^/@\\s]*@",
+            "$1***@");
+    }
 }

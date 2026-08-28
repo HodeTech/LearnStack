@@ -93,13 +93,14 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        MappedLength.EnsureAtMost(slug, 63, nameof(slug));
+        MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
+        UrlSlug.EnsureUrlSafe(slug, nameof(slug));
 
-        if (!id.IsInitialized())
-        {
-            throw new ArgumentException(
-                "A tenant id is assigned by the registry that owns the tenant, never minted here.",
-                nameof(id));
-        }
+        TenantOwned.EnsureRealTenant(
+            id,
+            "A tenant id is assigned by the registry that owns the tenant, never minted here.",
+            nameof(id));
 
         var tenant = new Tenant(id)
         {
@@ -125,7 +126,7 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     {
         ArgumentNullException.ThrowIfNull(clock);
 
-        if (!organizationId.IsInitialized())
+        if (!organizationId.IsInitialized() || organizationId.Value == Guid.Empty)
         {
             throw new ArgumentException(
                 "The default organization must be a real organization.", nameof(organizationId));
@@ -136,11 +137,49 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     }
 
     /// <summary>Moves the tenant to a new lifecycle state.</summary>
+    /// <remarks>
+    /// The transitions the module spec's state diagram draws, and no others.
+    /// A bare assignment took <c>Archived → Active</c>, <c>Active → Trial</c> and
+    /// <c>(TenantStatus)999</c>; the column's CHECK stops only the third, because
+    /// it can see the value and not where the row came from. This is the same
+    /// argument <c>TenantDomain.EnsureVerifiable</c> makes for the sibling
+    /// aggregate — "the schema would not object, so the aggregate is where the
+    /// invariant lives".
+    /// </remarks>
     public void ChangeStatus(TenantStatus status, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
+        EnsureTransitionAllowed(status);
 
         Status = status;
         MarkUpdated(clock.UtcNow, updatedBy);
+    }
+
+    private void EnsureTransitionAllowed(TenantStatus target)
+    {
+        if (!Enum.IsDefined(target))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(target), target, "Not a defined TenantStatus.");
+        }
+
+        // Archived is terminal for serving: a tenant is retained for audit and
+        // retention obligations and never served again, so nothing leaves it.
+        var allowed = Status switch
+        {
+            TenantStatus.Trial => target is TenantStatus.Active or TenantStatus.Suspended
+                or TenantStatus.Archived,
+            TenantStatus.Active => target is TenantStatus.Suspended or TenantStatus.Archived,
+            TenantStatus.Suspended => target is TenantStatus.Active or TenantStatus.Archived,
+            _ => false,
+        };
+
+        if (!allowed && target != Status)
+        {
+            throw new InvalidOperationException(
+                $"A tenant cannot move from {Status} to {target}. "
+                + "Trial goes to Active, Suspended or Archived; Active and Suspended swap and "
+                + "both archive; Archived is terminal.");
+        }
     }
 }

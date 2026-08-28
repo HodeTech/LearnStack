@@ -78,6 +78,24 @@ ALTER ROLE learnstack_platform     WITH LOGIN PASSWORD :'platform_pw'
 ALTER ROLE learnstack_outbox_admin WITH LOGIN PASSWORD :'outbox_pw'
     BYPASSRLS   NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 
+-- And revoke every role MEMBERSHIP the four hold. Attributes were only half of
+-- it: `GRANT learnstack_platform TO learnstack_app` leaves learnstack_app's own
+-- rolbypassrls false and still lets it `SET ROLE learnstack_platform` — measured,
+-- directly and through a bridge role holding the membership on its behalf. None
+-- of the four needs to be a member of anything; every privilege they hold is
+-- granted to them directly, in the migration that creates each table.
+--
+-- Generated per membership rather than written as four REVOKEs, because the
+-- grantor is not knowable in advance and a bridge role has no fixed name. No
+-- rows means no statements, so a clean cluster is a no-op.
+SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
+FROM pg_auth_members am
+JOIN pg_roles granted ON granted.oid = am.roleid
+JOIN pg_roles member  ON member.oid  = am.member
+WHERE member.rolname IN ('learnstack_migration', 'learnstack_app',
+                         'learnstack_platform', 'learnstack_outbox_admin')
+\gexec
+
 -- No `GRANT learnstack_platform TO learnstack_app`, ever. Membership would make
 -- BYPASSRLS a standing capability of the application role, reachable from any
 -- code path that can execute `SET ROLE` — and a plain SET ROLE survives COMMIT on

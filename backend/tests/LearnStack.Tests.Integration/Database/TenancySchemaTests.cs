@@ -169,32 +169,146 @@ public sealed class TenancySchemaTests
             "tenant B's tenant-wide setting must not be visible to tenant A");
     }
 
-    [Theory]
-    [InlineData(
-        """
-        INSERT INTO organizations (id, tenant_id, slug, display_name, status, created_at, created_by, row_version)
-        VALUES (uuidv7(), @foreign, 'sneak', 'Sneak', 'Active', now(), @actor, 0)
-        """)]
-    [InlineData("UPDATE organizations SET tenant_id = @foreign WHERE tenant_id <> @foreign")]
-    [InlineData(
-        """
-        INSERT INTO outbox_messages (tenant_id, correlation_id, type, topic, partition_key, payload)
-        VALUES (@foreign, '00-sneak-span-01', 'Sneak', 'learnstack.tenancy.tenant', 'k', '{}')
-        """)]
-    [InlineData(
-        """
-        INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
-        VALUES (@foreign, 'sneak-key-01', 'fp', uuidv7(), 'in_flight', now() + interval '5 minutes')
-        """)]
-    public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string statement)
+    /// <summary>
+    /// One foreign-tenant write per table whose policy carries a
+    /// <c>WITH CHECK</c>, keyed by table name.
+    /// </summary>
+    /// <remarks>
+    /// Hand-written because each table needs its own column list, and audited
+    /// against the database by
+    /// <see cref="Every_WithCheck_Policy_Has_A_Foreign_Write_Case"/> — which reads
+    /// `pg_policies` and fails when a table has a `WITH CHECK` and no case here.
+    /// The version this replaced named three tables and claimed in a comment to
+    /// cover "every table whose policy carries a WITH CHECK". It covered three of
+    /// nine: `WITH CHECK (true)` on `tenant_locales` passed the entire suite.
+    /// </remarks>
+    public static readonly Dictionary<string, string> ForeignTenantWrites = new(StringComparer.Ordinal)
     {
-        // Every table whose policy carries a WITH CHECK, including the two the
-        // platform chain owns. `outbox_messages` is where the consequence is
-        // loudest: a handler that could enqueue into another tenant's stream would
-        // have its event delivered under that tenant's context by the dispatcher.
-        // The UPDATE case runs under tenant B's context against tenant B's own row
-        // and tries to hand it to tenant A — USING admits the row, WITH CHECK
-        // refuses the new value.
+        // Self-keyed: the tenant term is on `id`, so a new id is already foreign.
+        ["tenants"] =
+            """
+            INSERT INTO tenants (id, slug, display_name, status, created_at, created_by, row_version)
+            VALUES (uuidv7(), 'sneak', 'Sneak', 'Active', now(), @actor, 0)
+            """,
+        ["organizations"] =
+            """
+            INSERT INTO organizations (id, tenant_id, slug, display_name, status, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak', 'Sneak', 'Active', now(), @actor, 0)
+            """,
+        ["tenant_domains"] =
+            """
+            INSERT INTO tenant_domains (id, tenant_id, host, kind, status, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak.example.test', 'Custom', 'Requested', now(), @actor, 0)
+            """,
+        ["tenant_locales"] =
+            """
+            INSERT INTO tenant_locales (tenant_id, locale, is_default)
+            VALUES (@foreign, 'zz-Sneak', false)
+            """,
+        ["tenant_feature_flags"] =
+            """
+            INSERT INTO tenant_feature_flags (tenant_id, key, value, updated_by)
+            VALUES (@foreign, 'sneak', '{}', @actor)
+            """,
+        ["tenant_settings"] =
+            """
+            INSERT INTO tenant_settings (id, tenant_id, key, value, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak', '{}', now(), @actor, 0)
+            """,
+        ["platform_entitlement_cache"] =
+            """
+            INSERT INTO platform_entitlement_cache
+                (tenant_id, plan_code, features, limits, compliance, valid_until, source)
+            VALUES (@foreign, 'sneak', '{}', '{}', '{}', now() + interval '1 day', 'null-provider')
+            """,
+        // Platform-scoped: the read is widened by app.resolving_host, the write is
+        // not. This is the statement that proves the widening did not leak.
+        ["platform_host_to_tenant"] =
+            """
+            INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, is_publicly_live)
+            VALUES ('sneak.example.test', @foreign, true, true)
+            """,
+        // Where the consequence is loudest: an event enqueued into another
+        // tenant's stream is delivered under that tenant's context by the
+        // dispatcher.
+        ["outbox_messages"] =
+            """
+            INSERT INTO outbox_messages (tenant_id, correlation_id, type, topic, partition_key, payload)
+            VALUES (@foreign, '00-sneak-span-01', 'Sneak', 'learnstack.tenancy.tenant', 'k', '{}')
+            """,
+        ["idempotency_keys"] =
+            """
+            INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
+            VALUES (@foreign, 'sneak-key-01', 'fp', uuidv7(), 'in_flight', now() + interval '5 minutes')
+            """,
+    };
+
+    public static TheoryData<string> TablesWithAWithCheck()
+    {
+        var data = new TheoryData<string>();
+
+        foreach (var table in ForeignTenantWrites.Keys)
+        {
+            data.Add(table);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(TablesWithAWithCheck))]
+    public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
+    {
+        await ExpectForeignWriteRefusedAsync(ForeignTenantWrites[table]);
+    }
+
+    [Theory]
+    // The other half of WITH CHECK: not inserting a foreign row, but handing an
+    // owned one away. USING admits the row; WITH CHECK refuses the new value.
+    [InlineData("UPDATE organizations SET tenant_id = @foreign WHERE tenant_id <> @foreign")]
+    [InlineData("UPDATE tenant_settings SET tenant_id = @foreign WHERE tenant_id <> @foreign")]
+    public async Task Reassigning_An_Owned_Row_To_Another_Tenant_Is_Rejected(string statement)
+    {
+        await ExpectForeignWriteRefusedAsync(statement);
+    }
+
+    [Fact]
+    public async Task Every_WithCheck_Policy_Has_A_Foreign_Write_Case()
+    {
+        // The catalogue is the authority, not this file. A table that gains a
+        // WITH CHECK and no case above fails here rather than passing silently for
+        // as long as nobody notices — which is exactly how six of the ten came to
+        // be unexercised.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT DISTINCT tablename
+            FROM pg_policies
+            WHERE schemaname = 'public' AND with_check IS NOT NULL
+            """, (NpgsqlConnection)connection);
+
+        var guarded = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                guarded.Add(reader.GetString(0));
+            }
+        }
+
+        guarded.Should().NotBeEmpty("the sweep must be reading the applied schema, not an empty result set");
+        guarded.Should().BeEquivalentTo(
+            ForeignTenantWrites.Keys,
+            "every table whose policy constrains a write has a write that proves it, "
+            + "and every case here names a table that still has one");
+    }
+
+    /// <summary>
+    /// Runs a statement as <c>learnstack_app</c> under tenant B's context, with
+    /// tenant A as <c>@foreign</c>, and asserts the policy refuses it.
+    /// </summary>
+    private async Task ExpectForeignWriteRefusedAsync(string statement)
+    {
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);

@@ -116,20 +116,19 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         EnsureWithinMappedLengths(slug, displayName);
+        UrlSlug.EnsureUrlSafe(slug, nameof(slug));
 
-        if (!id.IsInitialized())
+        if (!id.IsInitialized() || id.Value == Guid.Empty)
         {
             throw new ArgumentException(
                 "The identifier was never assigned; construct it through its factory.",
                 nameof(id));
         }
 
-        if (!tenantId.IsInitialized())
-        {
-            throw new ArgumentException(
-                "An organization belongs to a tenant; the tenant id was never assigned.",
-                nameof(tenantId));
-        }
+        TenantOwned.EnsureRealTenant(
+            tenantId,
+            "An organization belongs to a tenant; the tenant id was never assigned.",
+            nameof(tenantId));
 
         var organization = new Organization(id)
         {
@@ -165,11 +164,38 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     }
 
     /// <summary>Moves the organization to a new lifecycle state.</summary>
+    /// <remarks>See <c>Tenant.ChangeStatus</c>: same argument, one fewer state.</remarks>
     public void ChangeStatus(OrganizationStatus status, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
+        EnsureTransitionAllowed(status);
 
         Status = status;
         MarkUpdated(clock.UtcNow, updatedBy);
+    }
+
+    private void EnsureTransitionAllowed(OrganizationStatus target)
+    {
+        if (!Enum.IsDefined(target))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(target), target, "Not a defined OrganizationStatus.");
+        }
+
+        var allowed = Status switch
+        {
+            OrganizationStatus.Active => target is OrganizationStatus.Suspended
+                or OrganizationStatus.Archived,
+            OrganizationStatus.Suspended => target is OrganizationStatus.Active
+                or OrganizationStatus.Archived,
+            _ => false,
+        };
+
+        if (!allowed && target != Status)
+        {
+            throw new InvalidOperationException(
+                $"An organization cannot move from {Status} to {target}. "
+                + "Active and Suspended swap and both archive; Archived is terminal.");
+        }
     }
 }

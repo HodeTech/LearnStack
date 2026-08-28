@@ -70,16 +70,29 @@ public sealed class TenantSetting : AuditableEntity<TenantSettingId>
         MappedLength.EnsureAtMost(key, 200, nameof(key));
         JsonValue.EnsureWellFormed(value, nameof(value));
 
-        if (!id.IsInitialized())
+        if (!id.IsInitialized() || id.Value == Guid.Empty)
         {
             throw new ArgumentException(
                 "The identifier was never assigned; construct it through its factory.",
                 nameof(id));
         }
 
-        if (!tenantId.IsInitialized())
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
         {
             throw new ArgumentException("A setting belongs to a tenant.", nameof(tenantId));
+        }
+
+        // The nullable says "tenant-wide or organization-scoped". It does not say
+        // "an uninitialized id is fine": an unset Vogen wrapper inside the
+        // nullable persisted as far as the EF converter and surfaced there as
+        // ValueObjectValidationException, three layers from this call.
+        if (organizationId is { } organization
+            && (!organization.IsInitialized() || organization.Value == Guid.Empty))
+        {
+            throw new ArgumentException(
+                "An organization-scoped setting names a real organization; pass null for a "
+                + "tenant-wide one.",
+                nameof(organizationId));
         }
 
         var setting = new TenantSetting(id)

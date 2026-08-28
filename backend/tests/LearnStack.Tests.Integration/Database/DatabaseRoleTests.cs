@@ -295,6 +295,80 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
         }
     }
 
+    [Theory]
+    // Directly, and through a bridge role that holds the membership on the
+    // application role's behalf — because a fix keyed on the four names would
+    // catch the first and not the second.
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheRolesScriptRevokesAnEscalatedMembership(bool throughABridge)
+    {
+        // Converging the ATTRIBUTES was only half of it. `GRANT
+        // learnstack_platform TO learnstack_app` leaves learnstack_app's own
+        // rolbypassrls false — so every attribute the script re-asserts still
+        // reads correctly — and lets it `SET ROLE learnstack_platform`, which
+        // makes every policy in the database one statement away from inert.
+        var bridge = $"bridge_{(throughABridge ? "indirect" : "direct")}";
+
+        try
+        {
+            if (throughABridge)
+            {
+                await _postgres.ExecuteAsSuperuserAsync(
+                    $"CREATE ROLE {bridge} NOLOGIN; "
+                    + $"GRANT learnstack_platform TO {bridge}; "
+                    + $"GRANT {bridge} TO learnstack_app");
+            }
+            else
+            {
+                await _postgres.ExecuteAsSuperuserAsync("GRANT learnstack_platform TO learnstack_app");
+            }
+
+            (await ReachesABypassRoleAsync()).Should().BeTrue(
+                "the escalation must be real for the test to mean anything");
+
+            var result = await _postgres.RunRolesScriptAgainAsync();
+            result.ExitCode.Should().Be(0, "{0}", result.Stderr);
+
+            (await ReachesABypassRoleAsync()).Should().BeFalse(
+                "re-running the script revokes every membership the four roles hold");
+        }
+        finally
+        {
+            await _postgres.ExecuteAsSuperuserAsync(
+                "REVOKE learnstack_platform FROM learnstack_app");
+
+            if (throughABridge)
+            {
+                await _postgres.ExecuteAsSuperuserAsync(
+                    $"DROP ROLE IF EXISTS {bridge}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether <c>learnstack_app</c> can reach any role that bypasses row
+    /// security — its own attributes included, and any chain of memberships.
+    /// </summary>
+    /// <remarks>
+    /// The same predicate the composition root asks of every physical connection.
+    /// <c>pg_has_role(..., 'MEMBER')</c> follows the whole chain, which is what a
+    /// check on the role's own <c>rolbypassrls</c> cannot do.
+    /// </remarks>
+    private async Task<bool> ReachesABypassRoleAsync()
+    {
+        await using var connection = await PostgresFixture.OpenAsync(_postgres.AppConnectionString);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_roles r
+                WHERE (r.rolbypassrls OR r.rolsuper)
+                  AND pg_has_role(current_user, r.oid, 'MEMBER'))
+            """, (NpgsqlConnection)connection);
+
+        return (bool)(await command.ExecuteScalarAsync())!;
+    }
+
     private async Task<bool> ReadIsSuperuserAsync()
     {
         await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);

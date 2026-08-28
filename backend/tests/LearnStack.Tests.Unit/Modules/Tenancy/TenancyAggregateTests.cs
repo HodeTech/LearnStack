@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Modules.Tenancy.Domain;
+using TenancyDomain = LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using Xunit;
@@ -78,18 +79,53 @@ public sealed class TenancyAggregateTests
         var domain = TenantDomain.RequestCustomDomain(
             DomainId, Tenant, "learn.acme.com", Clock, Actor);
 
+        domain.MarkVerificationStarted(Clock, Actor);
+        domain.Status.Should().Be(TenantDomainStatus.Verifying);
+
         domain.MarkVerificationFailed("no TXT record", Clock, Actor);
 
         domain.Status.Should().Be(TenantDomainStatus.Failed);
         domain.VerificationAttempts.Should().Be(1);
         domain.LastVerificationError.Should().Be("no TXT record");
 
+        // Failed may start over, which is the edge the module spec's diagram
+        // draws back into Verifying.
+        domain.MarkVerificationStarted(Clock, Actor);
         domain.MarkVerified(Clock, Actor);
 
         domain.Status.Should().Be(TenantDomainStatus.Verified);
         domain.VerificationAttempts.Should().Be(2);
         domain.LastVerificationError.Should().BeNull("a success clears the previous failure");
-        domain.Version.Should().Be(2, "each attempt is an audited, versioned mutation");
+        domain.Version.Should().Be(4, "each transition is an audited, versioned mutation");
+    }
+
+    [Fact]
+    public void A_verification_result_needs_a_verification_in_progress()
+    {
+        // Requested → Verified in one call is a transition no diagram in the
+        // corpus draws, and the status CHECK cannot see where a row came from.
+        var domain = TenantDomain.RequestCustomDomain(
+            DomainId, Tenant, "learn.acme.com", Clock, Actor);
+
+        var verify = () => domain.MarkVerified(Clock, Actor);
+        var fail = () => domain.MarkVerificationFailed("no TXT record", Clock, Actor);
+
+        verify.Should().Throw<InvalidOperationException>().WithMessage("*Requested*Verifying*");
+        fail.Should().Throw<InvalidOperationException>().WithMessage("*Requested*Verifying*");
+        domain.Status.Should().Be(TenantDomainStatus.Requested);
+    }
+
+    [Fact]
+    public void A_verified_domain_does_not_start_verifying_again()
+    {
+        var domain = TenantDomain.RequestCustomDomain(
+            DomainId, Tenant, "learn.acme.com", Clock, Actor);
+        domain.MarkVerificationStarted(Clock, Actor);
+        domain.MarkVerified(Clock, Actor);
+
+        var restart = () => domain.MarkVerificationStarted(Clock, Actor);
+
+        restart.Should().Throw<InvalidOperationException>();
     }
 
     [Theory]
@@ -227,13 +263,163 @@ public sealed class TenancyAggregateTests
     }
 
     [Theory]
+    // The module spec's state diagram, as a table. A bare assignment took every
+    // pair, including Archived → Active and (TenantStatus)999; ck_tenants_status
+    // stops only the third, because a CHECK sees the value and not where the row
+    // came from.
+    [InlineData(TenantStatus.Active, true)]
+    [InlineData(TenantStatus.Suspended, true)]
+    [InlineData(TenantStatus.Archived, true)]
+    public void A_trial_tenant_moves_where_the_diagram_draws(TenantStatus target, bool allowed)
+    {
+        var tenant = NewTenant();
+
+        var change = () => tenant.ChangeStatus(target, Clock, Actor);
+
+        if (allowed)
+        {
+            change.Should().NotThrow();
+            tenant.Status.Should().Be(target);
+        }
+    }
+
+    [Fact]
+    public void An_archived_tenant_is_terminal()
+    {
+        var tenant = NewTenant();
+        tenant.ChangeStatus(TenantStatus.Archived, Clock, Actor);
+
+        var revive = () => tenant.ChangeStatus(TenantStatus.Active, Clock, Actor);
+
+        revive.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Archived*Active*");
+    }
+
+    [Fact]
+    public void An_active_tenant_does_not_go_back_to_trial()
+    {
+        var tenant = NewTenant();
+        tenant.ChangeStatus(TenantStatus.Active, Clock, Actor);
+
+        var back = () => tenant.ChangeStatus(TenantStatus.Trial, Clock, Actor);
+
+        back.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void A_status_the_enum_does_not_define_is_refused()
+    {
+        var tenant = NewTenant();
+
+        var change = () => tenant.ChangeStatus((TenantStatus)999, Clock, Actor);
+
+        change.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void An_archived_organization_is_terminal()
+    {
+        var organization = Organization.Create(
+            OrganizationId.From(Guid.Parse("22222222-2222-7222-8222-222222222222")),
+            Tenant, "branch", "Branch", Clock, Actor);
+        organization.ChangeStatus(OrganizationStatus.Archived, Clock, Actor);
+
+        var revive = () => organization.ChangeStatus(OrganizationStatus.Active, Clock, Actor);
+
+        revive.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    // Tenant.Slug's own documentation says "URL-safe handle. Appears in
+    // hostnames" and Organization's says 63 "which is a DNS label"; neither
+    // factory looked at the characters, and neither column carries a CHECK.
+    [InlineData("Acme")]
+    [InlineData("acme_school")]
+    [InlineData("acme school")]
+    [InlineData("acme/school")]
+    [InlineData("-acme")]
+    [InlineData("acme-")]
+    [InlineData("acme--school")]
+    public void A_slug_that_is_not_url_safe_is_refused(string slug)
+    {
+        var tenant = () => TenancyDomain.Tenant.Create(Tenant, slug, "Acme", Clock, Actor);
+        var organization = () => Organization.Create(
+            OrganizationId.From(Guid.Parse("22222222-2222-7222-8222-222222222222")),
+            Tenant, slug, "Acme", Clock, Actor);
+
+        tenant.Should().Throw<ArgumentException>().WithMessage("*URL-safe*");
+        organization.Should().Throw<ArgumentException>().WithMessage("*URL-safe*");
+    }
+
+    [Fact]
+    public void A_nil_uuid_is_not_a_tenant()
+    {
+        // TenantId.From(Guid.Empty) reports IsInitialized() == true, so the
+        // uninitialized guard passed it straight through and a nil-uuid tenant
+        // inserted — satisfying its own policy for any session whose
+        // app.tenant_id held the same nil. No ADR reserves the value; Packet 9
+        // chooses the platform sentinel.
+        var create = () => TenancyDomain.Tenant.Create(
+            TenantId.From(Guid.Empty), "acme", "Acme", Clock, Actor);
+
+        create.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    // The one type in the module carrying audit columns without deriving from
+    // AuditableEntity, and so the one that skipped its guard. The accepted actor
+    // then threw ValueObjectValidationException out of the Vogen EF converter at
+    // persist time — three layers from this call.
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void A_feature_flag_refuses_the_audit_sentinels(bool sentinelClock, bool emptyActor)
+    {
+        var at = sentinelClock ? default : Clock.UtcNow;
+        var by = emptyActor ? UserId.From(Guid.Empty) : Actor;
+
+        var create = () => TenantFeatureFlag.Create(Tenant, "beta", "true", at, by);
+
+        create.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Setting_a_feature_flag_refuses_them_too()
+    {
+        var flag = TenantFeatureFlag.Create(Tenant, "beta", "true", Clock.UtcNow, Actor);
+
+        var set = () => flag.SetValue("false", default, Actor);
+
+        set.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void A_verification_error_is_bounded_by_the_length_its_column_holds()
+    {
+        var domain = TenantDomain.RequestCustomDomain(
+            DomainId, Tenant, "learn.acme.com", Clock, Actor);
+        domain.MarkVerificationStarted(Clock, Actor);
+
+        var fail = () => domain.MarkVerificationFailed(new string('e', 1001), Clock, Actor);
+
+        fail.Should().Throw<ArgumentException>().WithMessage("*the column holds 1000*");
+    }
+
+    private static TenancyDomain.Tenant NewTenant() =>
+        TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+    [Theory]
     // Every mapped text bound, asserted where the value is set. The database
     // reports 22001 with no property name, three layers from the call.
-    [InlineData(35, true)]
-    [InlineData(36, false)]
-    public void A_locale_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
+    //
+    // The long value is a well-formed tag, not a run of one letter. The earlier
+    // version asserted `new string('l', 35)` was ACCEPTED — pinning the absence of
+    // the BCP-47 check that 12-localization.md says lives in application code as
+    // if it were the rule.
+    [InlineData("en-Latn-US-scouse", true)]
+    [InlineData("en-Latn-US-scouse-scouse-scouse-scouse", false)]
+    public void A_locale_is_bounded_by_the_length_its_column_holds(string locale, bool accepted)
     {
-        var create = () => TenantLocale.Create(Tenant, new string('l', length), isDefault: true);
+        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
 
         if (accepted)
         {
@@ -243,6 +429,36 @@ public sealed class TenancyAggregateTests
         {
             create.Should().Throw<ArgumentException>().WithMessage("*the column holds 35*");
         }
+    }
+
+    [Theory]
+    [InlineData("tr")]
+    [InlineData("tr-TR")]
+    [InlineData("zh-Hans")]
+    [InlineData("zh-Hans-CN")]
+    public void A_well_formed_locale_tag_is_accepted(string locale)
+    {
+        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+
+        create.Should().NotThrow();
+    }
+
+    [Theory]
+    // Well-formedness lives here because
+    // docs/architecture/12-localization.md says the column bounds the length and
+    // nothing else — "validated in application code, not by this column".
+    [InlineData("lllllllllllllllllllllllllllllllllll")] // 35 letters, and not a tag
+    [InlineData("t")]
+    [InlineData("tr_TR")]
+    [InlineData("tr-")]
+    [InlineData("-tr")]
+    [InlineData("tr TR")]
+    [InlineData("123")]
+    public void A_locale_that_is_not_a_bcp47_tag_is_refused(string locale)
+    {
+        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+
+        create.Should().Throw<ArgumentException>().WithMessage("*BCP-47*");
     }
 
     [Theory]

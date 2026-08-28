@@ -116,9 +116,13 @@ public sealed class PersistenceConventionTests
         // The registration half: the composition root's own persistence
         // registration is run, and every DbContext service in it must be one the
         // shared helper registered. A context registered any other way is absent
-        // from ModuleDbContextRegistration.RegisteredContexts.
+        // from this collection's marker — read off the collection, so the answer
+        // is about the container built here and not about anything another test
+        // in this process happened to register first.
         var services = new ServiceCollection();
         services.AddLearnStackPersistence(new ConfigurationBuilder().Build());
+
+        var registered = services.RegisteredContexts();
 
         var contexts = services
             .Where(descriptor => typeof(DbContext).IsAssignableFrom(descriptor.ServiceType))
@@ -127,7 +131,7 @@ public sealed class PersistenceConventionTests
         contexts.Should().NotBeEmpty("TenancyDbContext is registered and is the first consumer");
 
         contexts.Should().OnlyContain(
-            descriptor => ModuleDbContextRegistration.RegisteredContexts.Contains(descriptor.ServiceType),
+            descriptor => registered.Contains(descriptor.ServiceType),
             "every DbContext registration goes through AddModuleDbContext");
 
         contexts.Should().OnlyContain(
@@ -229,14 +233,49 @@ public sealed class PersistenceConventionTests
     /// Source with its comments removed.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Every file the scan above touches argues in prose about the very call it
     /// is forbidden to make, so scanning raw text would fail on the documentation
     /// that explains the rule.
+    /// </para>
+    /// <para>
+    /// Through the literal-aware <see cref="SourceText.WithoutComments"/>, not a
+    /// regex. A regex has no literal state: the <c>//</c> inside
+    /// <c>"https://…"</c> opens a line comment and deletes the rest of that line
+    /// before the scan reads it, and a <c>/*</c> inside a string blanks an
+    /// arbitrary multi-line region up to the next <c>*&#47;</c> anywhere in the
+    /// file. This is the guard for the ADR-0040 seam; a hole in it is a hole in
+    /// that.
+    /// </para>
     /// </remarks>
-    private static string StripComments(string source) =>
-        System.Text.RegularExpressions.Regex.Replace(
-            source, @"//[^\n]*|/\*.*?\*/", string.Empty,
-            System.Text.RegularExpressions.RegexOptions.Singleline);
+    private static string StripComments(string source) => SourceText.WithoutComments(source);
+
+    [Fact]
+    public void The_registration_marker_does_not_vouch_across_containers()
+    {
+        // What a process-wide marker set got wrong. The rule's other leg —
+        // Scoped + ImplementationFactory — cannot tell this helper's registration
+        // from a hand-rolled scoped factory that builds the context on its own
+        // connection string, which is precisely the ADR-0040 failure. So for that
+        // one shape the marker is the whole guard, and a marker that answers for
+        // the process rather than the container answers about a registration that
+        // is not the one in front of it.
+        var correct = new ServiceCollection();
+        correct.AddModuleDbContext<ProbeDbContext>();
+        correct.RegisteredContexts().Should().Contain(typeof(ProbeDbContext));
+
+        var foreign = new ServiceCollection();
+        foreign.AddScoped(_ => new ProbeDbContext(
+            new DbContextOptionsBuilder<ProbeDbContext>().Options));
+
+        foreign.RegisteredContexts().Should().BeEmpty(
+            "the marker answers for the collection it was read from, not for "
+            + "whatever any other container in this process registered first");
+    }
+
+    /// <summary>A context type that exists only to be registered two ways.</summary>
+    private sealed class ProbeDbContext(DbContextOptions<ProbeDbContext> options)
+        : DbContext(options);
 
     [Fact]
     public void Every_Database_Test_Carries_The_Docker_Trait()
@@ -314,6 +353,78 @@ public sealed class PersistenceConventionTests
         uncovered.Should().BeEmpty(
             "`make migrate` applies every chain, or the ones it misses are "
             + "unmigrated on the only path Standards 05 § Database roles documents");
+    }
+
+    [Theory]
+    // Npgsql parses every one of these into Username / Password — measured
+    // against Npgsql 10, not read off a page. The recipe recognised the first
+    // pair only, so the other three read the role as empty and printed the
+    // password unredacted.
+    [InlineData("Username", "Password")]
+    [InlineData("UID", "PWD")]
+    [InlineData("User ID", "PSW")]
+    [InlineData("USERID", "Pwd")]
+    public void Migrate_Target_Refuses_An_Aliased_Runtime_Credential(string userKey, string secretKey)
+    {
+        // Executed, not scanned. A test that asserted the recipe's text contained
+        // "uid" would pass against a recipe that matched the alias and then did
+        // nothing with it — and the defect being fixed here is precisely a keyword
+        // table that existed and was incomplete.
+        var value = $"Host=localhost;Database=learnstack;{userKey}=learnstack_app;{secretKey}=hunter2"; // leakwatch:ignore
+
+        var (exitCode, output) = RunMigrateTarget(value);
+
+        exitCode.Should().NotBe(0, "learnstack_app does not own the tables: {0}", output);
+        output.Should().Contain("learnstack_app", "the operator has to be told which role they named");
+        output.Should().NotContain(
+            "hunter2",
+            "the one target whose purpose is keeping the migration credential in one "
+            + "place must not echo it into a terminal or a CI log");
+    }
+
+    [Fact]
+    public void Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo()
+    {
+        // The form DATABASE_URL carries on several hosts, and the form that has no
+        // `password=` in it for a keyword pass to find.
+        var (exitCode, output) = RunMigrateTarget(
+            "postgres://learnstack_app:hunter2@localhost:5432/learnstack"); // leakwatch:ignore
+
+        exitCode.Should().NotBe(0, "{0}", output);
+        output.Should().NotContain("hunter2");
+        output.Should().Contain("key/value", "the message names the form that would work");
+    }
+
+    /// <summary>
+    /// Runs the repo-root <c>migrate</c> target with a given migration credential
+    /// and returns its exit code and combined output.
+    /// </summary>
+    /// <remarks>
+    /// Every value the callers pass is refused by the role check, which runs before
+    /// the recipe restores a tool or opens a socket — so this touches no database
+    /// and needs no Docker.
+    /// </remarks>
+    private static (int ExitCode, string Output) RunMigrateTarget(string migrationConnectionString)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("make")
+        {
+            WorkingDirectory = RepositoryPaths.RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        startInfo.ArgumentList.Add("migrate");
+        startInfo.Environment["ConnectionStrings__Migration"] = migrationConnectionString;
+
+        using var process = System.Diagnostics.Process.Start(startInfo)
+            ?? throw new InvalidOperationException("`make` did not start.");
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit(milliseconds: 60_000).Should().BeTrue("the role check exits immediately");
+
+        return (process.ExitCode, stdout + stderr);
     }
 
     /// <summary>

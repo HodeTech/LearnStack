@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -46,11 +47,9 @@ public sealed class TenantLocale
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
         MappedLength.EnsureAtMost(locale, 35, nameof(locale));
+        LocaleTag.EnsureWellFormed(locale, nameof(locale));
 
-        if (!tenantId.IsInitialized())
-        {
-            throw new ArgumentException("A locale belongs to a tenant.", nameof(tenantId));
-        }
+        TenantOwned.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));
 
         return new TenantLocale
         {
@@ -108,10 +107,15 @@ public sealed class TenantFeatureFlag
         MappedLength.EnsureAtMost(key, 200, nameof(key));
         JsonValue.EnsureWellFormed(value, nameof(value));
 
-        if (!tenantId.IsInitialized())
-        {
-            throw new ArgumentException("A feature flag belongs to a tenant.", nameof(tenantId));
-        }
+        // The one type in this module that carries audit columns without
+        // deriving from AuditableEntity — a composite natural key cannot — and so
+        // the one that skipped its guard. Without it a sentinel timestamp and an
+        // uninitialized actor both persist, and the actor surfaces as
+        // ValueObjectValidationException out of the Vogen EF converter.
+        AuditInput.EnsureValid(at, by);
+
+        TenantOwned.EnsureRealTenant(
+            tenantId, "A feature flag belongs to a tenant.", nameof(tenantId));
 
         return new TenantFeatureFlag
         {
@@ -126,6 +130,7 @@ public sealed class TenantFeatureFlag
     public void SetValue(string value, DateTimeOffset at, UserId by)
     {
         JsonValue.EnsureWellFormed(value, nameof(value));
+        AuditInput.EnsureValid(at, by);
 
         Value = value;
         UpdatedAt = at;
@@ -184,4 +189,88 @@ internal static class JsonValue
                 exception);
         }
     }
+}
+
+/// <summary>
+/// Guards a tenant-owned row's owning identifier.
+/// </summary>
+/// <remarks>
+/// <c>IsInitialized()</c> alone is not enough: <c>TenantId.From(Guid.Empty)</c>
+/// reports initialized, and a nil-uuid tenant then inserts and satisfies its own
+/// policy whenever <c>app.tenant_id</c> holds the same nil. No ADR reserves the
+/// nil uuid — the platform sentinel is deliberately unfixed until Packet 9 — so
+/// this is refused at the factory rather than left to collide with whatever that
+/// packet chooses.
+/// </remarks>
+internal static class TenantOwned
+{
+    public static void EnsureRealTenant(TenantId tenantId, string message, string parameterName)
+    {
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        {
+            throw new ArgumentException(message, parameterName);
+        }
+    }
+}
+
+/// <summary>
+/// Guards a slug against the shape its column's consumers assume.
+/// </summary>
+/// <remarks>
+/// A tenant slug appears in hostnames and an organization slug is documented as a
+/// DNS label, so both are lowercase alphanumeric with single interior hyphens.
+/// Neither factory looked at the characters, and neither column has a CHECK —
+/// <c>platform_host_to_tenant</c> and <c>tenant_domains</c> carry the host
+/// normalization constraint, the slug tables do not — so a slug with a slash or
+/// an uppercase letter reached a hostname unchallenged.
+/// </remarks>
+internal static partial class UrlSlug
+{
+    public static void EnsureUrlSafe(string value, string parameterName)
+    {
+        if (!Pattern().IsMatch(value))
+        {
+            throw new ArgumentException(
+                $"'{value}' is not a URL-safe slug: lowercase letters, digits and single "
+                + "interior hyphens only.",
+                parameterName);
+        }
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
+    private static partial System.Text.RegularExpressions.Regex Pattern();
+}
+
+/// <summary>
+/// Guards a locale tag against BCP-47 well-formedness.
+/// </summary>
+/// <remarks>
+/// <see href="../../../../../docs/architecture/12-localization.md">12-localization.md</see>
+/// says the column bounds the length and "well-formedness itself is validated in
+/// application code, not by this column". This is that code: without it a
+/// 35-character run of one letter was a locale, and the repository's own test
+/// pinned that as correct.
+/// </remarks>
+internal static partial class LocaleTag
+{
+    public static void EnsureWellFormed(string value, string parameterName)
+    {
+        // Shape first, then the framework. CultureInfo alone is not a check:
+        // .NET treats an unknown but well-formed tag as a valid custom culture,
+        // and on some platforms accepts tags this pattern rejects.
+        if (!Pattern().IsMatch(value))
+        {
+            throw new ArgumentException(
+                $"'{value}' is not a well-formed BCP-47 language tag — expected forms are "
+                + "'tr', 'tr-TR', 'zh-Hans', 'zh-Hans-CN'.",
+                parameterName);
+        }
+    }
+
+    // language[-script][-region][-variant…]: 2-3 letter (or 4-8 for registered
+    // subtags) primary, optional 4-letter script, optional 2-letter or 3-digit
+    // region, then variant subtags.
+    [System.Text.RegularExpressions.GeneratedRegex(
+        "^[a-zA-Z]{2,8}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-([a-zA-Z0-9]{5,8}|[0-9][a-zA-Z0-9]{3}))*$")]
+    private static partial System.Text.RegularExpressions.Regex Pattern();
 }

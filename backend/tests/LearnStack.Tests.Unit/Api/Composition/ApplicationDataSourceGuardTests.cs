@@ -104,6 +104,12 @@ public sealed class ApplicationDataSourceGuardTests
             "Host=localhost;Username=learnstack_platform;PSW=hunter2", // leakwatch:ignore
             "Host=localhost;Port=nope;Username=learnstack_app;Password=hunter2", // leakwatch:ignore
             "Host=localhost;Port=nope;Username=learnstack_app;Pwd=hunter2", // leakwatch:ignore
+            // The URI form carries its password in the userinfo, where no
+            // `password=` appears for a keyword regex to find — and Npgsql rejects
+            // the form outright, so this branch is exactly where it lands. The
+            // first version of the redaction echoed it whole.
+            "postgres://learnstack_app:hunter2@localhost:5432/learnstack", // leakwatch:ignore
+            "postgresql://learnstack_app:hunter2@localhost/learnstack?sslmode=require", // leakwatch:ignore
         })
         {
             try
@@ -116,7 +122,7 @@ public sealed class ApplicationDataSourceGuardTests
             }
         }
 
-        messages.Should().HaveCount(5, "every value is refused");
+        messages.Should().HaveCount(7, "every value is refused");
         messages.Should().OnlyContain(message => !message.Contains("hunter2", StringComparison.Ordinal));
         messages.Should().OnlyContain(message => message.Contains("***", StringComparison.Ordinal));
     }

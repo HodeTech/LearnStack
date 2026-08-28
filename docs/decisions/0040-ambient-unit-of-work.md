@@ -321,20 +321,21 @@ a property it cannot exercise.
 
 ## Architecture Tests
 
-None of these exist yet. The first two are **Phase 02a Packet 6 deliverables**;
-the third is registered in Packet 6 and **backfilled in Phase 03**, because no
-module code exists for it to scan until the second module does. Registering all
-three in
-[21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
-is part of shipping them.
+The first two are **Phase 02a Packet 6 deliverables** and shipped with it; the
+third is registered in Packet 6 and **backfilled in Phase 03**, because no module
+code exists for it to scan until the second module does. All three are registered
+in
+[21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md),
+which carries their status.
 
 - `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` — no `DbContext`
   registration configures its own connection string; every one goes through the
-  shared helper.
+  shared helper. **Shipped**, Packet 6.
 - `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` — the behavior
-  names `IUnitOfWork` and no `DbContext`.
+  names `IUnitOfWork` and no `DbContext`. **Shipped**, Packet 6.
 - `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection` — no module code
   passes two `DbContext`-bound operations to `Task.WhenAll` / `Task.WhenAny`.
+  **Awaiting backfill**, Phase 03.
 
 ## Amendments
 
