@@ -58,15 +58,18 @@ belongs to is decided by what it needs, not by what it is about:
   the error shape, idempotency, limits, the tenancy edge. These run in the
   required `backend` CI job alongside the unit suite.
 - **Data tests** — real **Postgres** via Testcontainers, connected as
-  `learnstack_app`, one database per test class (or Respawn between tests). Not
+  `learnstack_app`, one database per test collection — cases that write either roll
+  back or clean up after themselves, because the fixture's seeded row counts are
+  what the isolation assertions compare against. Not
   Valkey and not SeaweedFS: nothing the backend runs calls either, and both sit
   behind the gated compose profile ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). Everything that is a
   property of the schema lives here, and **every tenant-isolation invariant**
-  does. The fixture and the first of these — the four-role provisioning suite —
-  land in **Packet 6** with the roles themselves; the tenant-isolation suite
-  follows in **Packet 7** with the schema's policies. Both connect as
-  `learnstack_app`, because a test run as the owner or as a `BYPASSRLS` role
-  passes against inert policies. They run in the separate `backend-integration`
+  does. **Packet 6** shipped the fixtures, the four-role provisioning suite, both
+  migration chains, the policies, a two-tenant seed and the schema-level isolation
+  suite; **Packet 7** re-runs those cases through `TenantResolverMiddleware` and
+  the EF query filters, which is the layer a handler actually meets. All of them
+  connect as `learnstack_app`, because a test run as the owner or as a
+  `BYPASSRLS` role passes against inert policies. They run in the separate `backend-integration`
   job, split from the Docker-free tests by `[Trait("Requires","Docker")]`.
 
 Both: real module configuration, no mocked repositories, and coverage of the

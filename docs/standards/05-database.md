@@ -350,7 +350,7 @@ hole the composite key exists to close.
 ### Table classes
 
 Not every table in the tenancy schema is tenant-owned, and applying the template above
-to all of them produces a deadlock rather than isolation. Three classes exist, and every
+to all of them produces a deadlock rather than isolation. Four classes exist, and every
 migration states which one its table is.
 
 | Class | Rule | Tables |
@@ -1108,8 +1108,10 @@ Forbidden: string interpolation with non-constant values.
   enforces this in the deployment config; deviation requires an ADR.
 - `app.tenant_id` (and `app.organization_id` when relevant) set **within the same
   transaction** as the work (`SET LOCAL ...`).
-- A `DbCommandInterceptor` — **not** a connection-checkout interceptor — guards the
-  context. Checkout happens before `TransactionBehavior` opens the transaction that
+- A `DbCommandInterceptor` — **not** a connection-checkout interceptor — is to guard
+  the context. **It does not exist yet**; Packet 6 ships the setter and the policies
+  it backs up, and the first tenant-owned read on a request path is Packet 7's, which
+  is where it belongs. Checkout happens before `TransactionBehavior` opens the transaction that
   carries the `SET LOCAL` values, so a checkout hook would read an unset
   `app.tenant_id` on every request and throw universally; under PgBouncer transaction
   pooling it would sometimes read a *previous* transaction's leftover value, which is

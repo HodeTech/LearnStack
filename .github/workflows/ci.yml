@@ -142,11 +142,15 @@ jobs:
     # Testcontainers manages its own lifecycle and needs the daemon, not a
     # pre-declared service.
     #
-    # The filter is the exact complement of the `backend` job's. Every test in the
-    # solution runs in exactly one of the two; a trait value that is neither would
-    # run in nowhere, which is why the value is a constant
-    # (LearnStack.Tests.Integration.Database.RequiresDocker) rather than a string
-    # repeated at each call site.
+    # The filter is the exact complement of the `backend` job's, so every test in
+    # the solution runs in exactly one of the two — including a test whose trait
+    # value is mistyped, which `Requires!=Docker` matches and which therefore runs
+    # in `backend`. That is NOT a loud failure: this runner and that one both carry
+    # a Docker socket, so the mis-traited test starts its container, passes, and
+    # the Docker suite quietly stops being where the Docker tests live. The value
+    # is a constant (LearnStack.Tests.Integration.Database.RequiresDocker) to make
+    # the typo impossible, and `Every_Database_Test_Carries_The_Docker_Trait`
+    # catches a class that forgets the attribute altogether.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -290,6 +294,45 @@ jobs:
           rm -f .env
           echo "Compose files validate in every profile projection."
 
+      - name: Commit hygiene (Conventional Commits, subject <= 72)
+        # The job has advertised "commit hygiene" in its name since Phase 01 and
+        # ran no such check. Measured on the branch that added this step: two of
+        # its own subjects were over the limit, at 77 and 81 characters, and
+        # nothing had said so — the only hook on disk is `.githooks/pre-commit`,
+        # which cannot see a message.
+        #
+        # Scoped to the pull request's own commits. On a push event there is no
+        # base to diff against, so the step reports and passes rather than
+        # re-judging history that is already merged.
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          fail=0
+          # `-z` with `%s`: the subject alone, NUL-TERMINATED, because a subject
+          # can contain anything and because `%s%x00` leaves the record's trailing
+          # newline attached to the NEXT subject — measured, every length came back
+          # one too high and the two real violations reported 78 and 82.
+          while IFS= read -r -d '' subject; do
+              length=${#subject}
+              if [ "$length" -gt 72 ]; then
+                  echo "::error::subject is ${length} chars (limit 72): ${subject}"
+                  fail=1
+              fi
+              if ! printf '%s' "$subject" \
+                  | grep -qE '^(feat|fix|docs|test|chore|refactor|perf|build|ci|revert)(\([a-z0-9.,: -]+\))?!?: .+'; then
+                  echo "::error::subject is not Conventional Commits: ${subject}"
+                  fail=1
+              fi
+          done < <(git log -z --format='%s' "${BASE_SHA}..${HEAD_SHA}")
+          if [ "$fail" -ne 0 ]; then
+              echo "Standards 14 § Commit messages: type(scope): subject, imperative, <= 72 chars."
+              exit 1
+          fi
+          echo "Every commit subject is Conventional Commits and within 72 characters."
+
       - name: Markdown link audit (changed docs)
         # Template values from `github.event.*` are passed through `env:` so
         # they expand into shell variables AT THE SHELL'S quoting boundary,
@@ -406,7 +449,13 @@ jobs:
           go-version: "1.25"
 
       - name: Install Leakwatch
-        run: go install github.com/cemililik/leakwatch@v1.5.0
+        # HodeTech/, not cemililik/: the module renamed its path at v1.6.0, so the
+        # old path is only installable at v1.5.0 and earlier — and v1.5.0 does not
+        # understand `leakwatch:ignore`. Measured: the pinned v1.5.0 reports seven
+        # CRITICAL findings on a tree the local 1.8.0 scans clean, because every
+        # one of them is an inline-ignored test input. A required check that
+        # disagrees with the pre-commit hook is worse than no check.
+        run: go install github.com/HodeTech/leakwatch@v1.8.0
 
       - name: Scan
         run: |

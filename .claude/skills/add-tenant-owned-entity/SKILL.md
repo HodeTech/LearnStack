@@ -144,41 +144,56 @@ public sealed class <Name>Configuration : IEntityTypeConfiguration<<Name>>
 }
 ```
 
-**Write the query filter here, in this configuration.** There is no
-`TenantQueryFilterConvention` and no `OrganizationQueryFilterConvention` — neither
-type has ever existed in this repository, and an earlier version of this file
-described both as the only legal source, which sent implementers looking for
-something to import:
+**The query filter is not written here, and it is not written by a convention
+either.** There is no `TenantQueryFilterConvention` and no
+`OrganizationQueryFilterConvention` — neither type has ever existed in this
+repository, and an earlier version of this file described both as the only legal
+source, which sent implementers looking for something to import. A later version
+over-corrected and put a snippet in this step; that snippet was **wrong in a way
+that cannot be seen locally**, and the two facts behind it are what you need:
 
-```csharp
-// Tenant-owned: the filter mirrors the RLS predicate. Both layers, always —
-// the filter is what makes an ordinary LINQ query safe, the policy is what
-// makes it safe when the filter is bypassed.
-builder.HasQueryFilter(x => x.TenantId == tenantContext.TenantId);
+- **A query filter's closure root must be a `DbContext` instance member.** EF
+  builds the model once and caches it. Anything else the lambda closes over —
+  an `ITenantContext` injected into the configuration, a local, a field on the
+  configuration — is constant-folded into the cached model as a SQL literal, so
+  every later request answers with whichever tenant happened to build the model
+  first. Measured in this repository: two contexts, two tenants, and request B
+  emitted `WHERE t."TenantId" = '1111…'` — tenant A's id, baked in. Under RLS
+  that is a silent zero-rows outage rather than a leak, which is worse to
+  diagnose, not better.
+- **`ApplyConfigurationsFromAssembly` silently skips a configuration that has
+  constructor arguments.** No exception, no log: the entity is simply mapped by
+  convention, with no filter at all. `TenancyDbContext` uses that call, so a
+  `ThingConfiguration(ITenantContext ctx)` disappears rather than failing.
 
-// Org-scoped ADD the organization term to the SAME filter — a second
-// HasQueryFilter call REPLACES the first rather than combining with it:
-builder.HasQueryFilter(x =>
-    x.TenantId == tenantContext.TenantId
-    && (x.OrganizationId == null
-        || x.OrganizationId == tenantContext.OrganizationId));
-
-// Soft-deletable aggregates AND the deleted term into the same expression too,
-// and gate on DeletedAt rather than the computed IsDeleted property, which EF
-// cannot translate.
-```
+Together those rule out the obvious shape, which is why **Phase 02a Packet 7
+owns the filters** — it lands `TenantResolverMiddleware`, the value the filter
+reads, and the two rules below, together. Do not invent a filter here ahead of
+it; if your entity ships before Packet 7, say so in the PR and rely on RLS,
+which is live from the migration that creates the table.
 
 `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` is what will make a forgotten
 filter fail, and `Every_OrgScoped_Entity_HasOrgIdAndFilter` covers the
-organization term. Both are **registered and not yet implemented** — Phase 02a
-Packet 7 introduces them, so until then a forgotten filter is caught by review
-only. Check the
-[catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) rather
-than assuming a net is under you.
+organization term. Both are **registered and not yet implemented** — Packet 7
+introduces them, so until then a forgotten filter is caught by review only. Check
+the [catalogue](../../../docs/standards/21-architecture-tests-catalogue.md)
+rather than assuming a net is under you.
+
+One thing that is true whenever the filter does land: a second `HasQueryFilter`
+call **replaces** the first rather than combining with it, so the tenant term,
+the organization term and the soft-delete term go into one expression — and the
+soft-delete term gates on `DeletedAt`, not the computed `IsDeleted` property,
+which EF cannot translate.
 
 ### Step 3: Migration — schema + RLS
 
 Generate the migration:
+
+> `dotnet ef migrations add` needs `ConnectionStrings__Migration` exported into
+> the process environment first — the design-time factory reads it and nothing
+> else, and `--connection` does not satisfy it. See
+> [add-ef-migration Step 1](../add-ef-migration/SKILL.md) for the one-line export;
+> `make migrate` does the same thing for applying them.
 
 ```bash
 # EF prepends its own UTC timestamp, so pass the INTENT only. Passing a timestamp
@@ -302,16 +317,30 @@ migrations run as `learnstack_migration`, which owns the table. Integration test
 this entity must connect as `learnstack_app` — a test that connects as the owner passes
 against an inert policy and proves nothing.
 
-### Step 4: Architecture test (already covered by convention)
+### Step 4: Architecture test (registered, not yet implemented)
 
-The conventions tests catch missing pieces automatically:
+**Nothing catches a missing filter automatically today.** An earlier version of
+this step said the opposite and named three rules —
+`Every_TenantOwned_Entity_Has_TenantId`,
+`Every_TenantOwned_Table_HasRls_With_AppTenantId` and
+`Every_OrgScoped_Entity_HasOrgIdAndFilter` — of which the first two exist nowhere
+in the catalogue or the test tree. A developer who reached this step was told the
+work was done.
 
-- `Every_TenantOwned_Entity_Has_TenantId` — the marker + property combo.
-- `Every_TenantOwned_Table_HasRls_With_AppTenantId` — the migration's RLS policy.
-- `Every_OrgScoped_Entity_HasOrgIdAndFilter` — the marker + nullable property + RLS.
+The two rules the catalogue actually registers for this surface are
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
+`Every_OrgScoped_Entity_HasOrgIdAndFilter`, both **Registered** and owned by
+Phase 02a Packet 7. What *is* implemented and will catch part of this today:
+`Every_Foreign_Key_Has_A_Supporting_Index` and the schema sweeps in
+`TenancySchemaTests` — row security enabled *and* forced on every table in the
+catalogue, no second permissive policy for one command, snake_case identifiers,
+and the exact grant matrix. Those run against the applied schema, so they cover
+your migration the moment it lands.
 
-If you're adding a *new* marker attribute or a *new* isolation pattern, write a new
-architecture test (see [add-architecture-test](../add-architecture-test/SKILL.md)).
+Until Packet 7, the isolation test in Step 5 is the net, and it is the only one.
+If you're adding a *new* marker attribute or a *new* isolation pattern, write a
+new architecture test (see
+[add-architecture-test](../add-architecture-test/SKILL.md)).
 
 ### Step 5: Integration test — the isolation pair
 
@@ -360,10 +389,17 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   tenant-wide rows. The default is `nullable + tenant-wide allowed`.
 - **`Entity<TId>` instead of `AuditableEntity<<Name>Id>`.** You lose
   `created_at` / `updated_at` automation. Only the audit aggregate uses `Entity<TId>`.
-- **Manual EF query filter in `Configure(...)`.** The convention adds the filter;
-  doing it twice creates an `AND` of two filters and breaks platform-admin reads.
-- **No isolation test.** The architecture tests catch the RLS *policy* but not the
-  semantic correctness. An explicit `TenantA_cannot_read_TenantB` test is the only
-  safety net for a buggy migration.
+- **A query filter closing over anything but a `DbContext` instance member.**
+  EF caches the model, so the value is baked in as a literal and every later
+  request answers with the first tenant that built it. Under RLS that is a silent
+  zero-rows outage. See Step 2 — and note there is no convention adding a filter
+  for you, in either direction.
+- **No isolation test.** The schema sweeps catch a missing or mis-shaped *policy*;
+  they cannot catch a policy that is well-formed and wrong. An explicit
+  `TenantA_cannot_read_TenantB` test — connecting as `learnstack_app`, against a
+  fixture that seeds **both** tenants — is the only safety net for that. A count
+  assertion against a table the fixture never populated passes whatever the policy
+  says; that shipped once in Packet 6 and is the reason `SchemaFixture` fills
+  every table it asserts on.
 - **Forgetting `using x.AsTenant(...)` in tests.** Without it, the connection has no
   `app.tenant_id` set and queries see nothing — which can mask a missing filter.

@@ -207,6 +207,7 @@ let the entry point pick it.
 | `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments. |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
 | `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
+| `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
 | `docs/glossary.md` | Terminology source of truth. | Editable; new term goes here first, then used. |
 
 > `docs/analysis/` exists locally but is **gitignored** — it is a private scratchpad

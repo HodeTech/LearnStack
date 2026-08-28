@@ -71,6 +71,7 @@ Every row below carries a status:
 |---|---|
 | **Implemented** | The test exists, runs in CI, and can fail. The row names the file. |
 | **Registered** | The name is reserved and the assertion is agreed; no code yet. The row names the owning phase or packet. A registered test is a commitment, not a claim. |
+| **Awaiting backfill** | Decided and reserved like *Registered*, but blocked on something that does not exist yet rather than on someone writing it — usually the first code that could violate it. The row names what it waits for. |
 | **Retired** | Moved to § Retired with the reason and the replacement. |
 
 Each row also carries a **Kind**:
@@ -92,10 +93,13 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Twenty-three test methods exist in
+Twenty-nine test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md) and Packet 4.
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4 and
+Packet 6 — 43 cases once the theories expand. Methods are not rows: a `[Theory]`
+is one row and many cases, and several rows pair a rule with the companion
+assertion that stops it passing vacuously.
 
 **Not every implemented rule lives in that assembly.** Packet 4 added eight
 rules there — four API-convention ones
@@ -141,16 +145,28 @@ against a host serving unversioned endpoints.
 | `Tenant_Headers_Are_Never_A_Resolution_Source` | `TenancyConventionTests.cs` |
 | `Assertion_Recorder_Is_The_Only_Mismatch_Writer` | `TenancyConventionTests.cs` |
 | `Assertion_Budget_Does_Not_Depend_On_ICacheService` | `TenancyConventionTests.cs` |
+| `Organization_Aggregate_Declared_In_Tenancy_Domain` (per-type theory) | `TenancyConventionTests.cs` |
+| `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
+| `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | `PersistenceConventionTests.cs` |
+| `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` | `PersistenceConventionTests.cs` |
+| `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
-Three further rules in this catalogue are **implemented outside** that assembly and are
-no less binding:
+Seven further rules in this catalogue are **implemented outside** that assembly and are
+no less binding. Four of them could not live in it: a policy that is well-formed
+and wrong, or a foreign key with no index, is only visible against an applied
+schema.
 
 | Rule | Where |
 |---|---|
 | `ValidationBehavior_DoesNotThrow_ValidationException` | `LearnStack.Tests.Unit` + `LearnStack.Tests.Integration` |
 | `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` | `LearnStack.Tests.Unit` |
+| `SoftDelete_Advances_The_Row_Version` | `LearnStack.Tests.Unit` (`AuditableEntityTests`) |
+| `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
+| `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
+| `Every_Foreign_Key_Has_A_Supporting_Index` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
 | `LearnStackException-DomainExceptionThrow` (`LS0001`) | `backend/analyzers/LearnStack.Analyzers` + `DomainExceptionThrowAnalyzerTests` |
 
 `Meta_NetArchTest_DetectsAPlantedViolation` deserves its own note: it plants a forbidden
@@ -158,7 +174,10 @@ dependency and asserts NetArchTest **finds** it. If that meta-test ever passes i
 inverted sense — NetArchTest reporting the planted dependency as absent — every other
 NetArchTest-based row in this catalogue is vacuously green. Keep it in perpetuity.
 
-Everything else in this document is **Registered**.
+Every other rule in this document carries its own **Status** line, and that line —
+not this section — is the authority. This index is a reader's orientation and goes
+stale the moment a packet closes a row without updating it; the Status column is
+what a reviewer checks.
 
 ## Canonical names and superseded spellings
 

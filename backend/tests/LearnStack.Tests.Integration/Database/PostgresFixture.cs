@@ -23,12 +23,14 @@ namespace LearnStack.Tests.Integration.Database;
 /// went stale in the same commit that added a test.
 /// </para>
 /// <para>
-/// The value is a constant because a mistyped one lands in the <b>wrong</b> job.
-/// Measured: <c>Requires!=Docker</c> matches every test with no <c>Requires</c>
-/// trait at all, so <c>Requires=Dockerr</c> would satisfy it and run in
-/// <c>backend</c>, where there is no Docker daemon — a loud failure rather than a
-/// silent skip, but a failure in the job that cannot fix it. One constant removes
-/// the class.
+/// The value is a constant because a mistyped one lands in the <b>wrong</b> job,
+/// <b>silently</b>. <c>Requires!=Docker</c> matches every test whose value differs
+/// — including <c>Requires=Dockerr</c> — so a mis-traited Docker test runs in
+/// <c>backend</c>; and both jobs run on <c>ubuntu-latest</c>, which carries a
+/// Docker socket natively, so it starts its container and passes. Nothing goes
+/// red; the Docker suite just stops being where the Docker tests live. One
+/// constant removes the typo, and
+/// <c>Every_Database_Test_Carries_The_Docker_Trait</c> removes the omission.
 /// </para>
 /// </remarks>
 internal static class RequiresDocker

@@ -239,6 +239,50 @@ public sealed class PersistenceConventionTests
             System.Text.RegularExpressions.RegexOptions.Singleline);
 
     [Fact]
+    public void Every_Database_Test_Carries_The_Docker_Trait()
+    {
+        // CI splits the integration assembly by `[Trait("Requires","Docker")]`, and
+        // the two filters are exact complements — so a class that forgets the
+        // attribute does not fail, it runs in the `backend` job. Both jobs are on
+        // ubuntu-latest, which carries a Docker socket natively, so it starts its
+        // container and passes: nothing goes red, and the Docker suite quietly
+        // stops being where the Docker tests live.
+        //
+        // Source-scanned rather than reflected, because this assembly does not
+        // reference LearnStack.Tests.Integration — and should not: a test project
+        // referencing another test project is a dependency nothing else in the
+        // repository has.
+        var directory = Path.Combine(
+            RepositoryPaths.RepoRoot(), "backend", "tests",
+            "LearnStack.Tests.Integration", "Database");
+
+        Directory.Exists(directory).Should().BeTrue(
+            "the Docker-bound suite lives there, and a rule that scans nothing passes");
+
+        var untraited = Directory
+            .EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
+            .Where(file =>
+            {
+                var source = File.ReadAllText(file);
+
+                // A file declaring no test method has nothing to trait — the
+                // fixtures and the shared query helpers are the case.
+                return (source.Contains("[Fact]", StringComparison.Ordinal)
+                        || source.Contains("[Theory]", StringComparison.Ordinal))
+                       && !source.Contains(
+                           "[Trait(RequiresDocker.Key, RequiresDocker.Value)]",
+                           StringComparison.Ordinal);
+            })
+            .Select(Path.GetFileName)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        untraited.Should().BeEmpty(
+            "every test class under Database/ needs a real Docker socket, and the "
+            + "trait is how CI routes it to the job that declares one");
+    }
+
+    [Fact]
     public void Migrate_Target_Covers_Every_Migration_Chain()
     {
         // `make migrate` is the only documented path that applies a migration, and

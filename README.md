@@ -91,7 +91,8 @@ still empty.
 
 ```bash
 make install   # one-time: deps + git hooks
-make dev       # bring local stack up
+make dev       # bring local stack up (containers only — it creates no tables)
+make migrate   # apply the platform + module migration chains
 make seed      # verify health + print demo credentials
 ```
 

@@ -5,9 +5,10 @@ description: >
   `backend/tests/LearnStack.Tests.Integration` that exercises a real Postgres —
   connected as `learnstack_app`, never as the owner — and asserts behaviour under
   tenant + organization context. No Valkey and no Kafka: nothing the backend runs
-  calls them. The Postgres fixture and CI's `backend-integration` job both
-  arrived in Phase 02a Packet 6; the tenant-isolation suite and the seeded
-  tenants follow in Packet 7. Docker-bound cases carry
+  calls them. Phase 02a Packet 6 shipped the Postgres fixture, CI's
+  `backend-integration` job, both migration chains, the RLS policies, a
+  two-tenant seed and the schema-level isolation suite; Packet 7 re-runs those
+  cases through `TenantResolverMiddleware` and the EF query filters. Docker-bound cases carry
   `[Trait("Requires","Docker")]`, which is how CI routes them. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
   new `[TenantOwned]` / `[OrganizationScoped]` entity), outbox → consumer round
   trips, audit-pipeline assertions, RLS-effective-isolation tests. DO NOT USE FOR:
@@ -56,28 +57,39 @@ architecture test) plus any other invariant the change touches. See
 
 ### Step 1: Reuse the fixture
 
-> **The Postgres fixture exists** — `LearnStack.Tests.Integration.Database.PostgresFixture`,
-> shipped by Phase 02a Packet 6 along with CI's `backend-integration` job. What
-> does **not** exist yet is the tenant-isolation suite or any seeded tenant: the
-> fixture provisions the four roles and hands out four connection strings, and
-> Packet 7 adds the schema, the policies and the seed. The `AsTenant(...)` helper
-> below is Packet 7's shape, not today's.
+> **Two fixtures, and picking the wrong one is the common mistake.**
+> `PostgresFixture` is the container plus the four roles and nothing else — use it
+> for a role-level or provisioning question. `SchemaFixture` builds on it and is
+> what almost every test wants: both migration chains applied and **every one of
+> the ten tables seeded for two tenants**, with a second organization under tenant
+> A. Share it with `[Collection(SharedSchema.Name)]` rather than
+> `IClassFixture<>`, so one container serves the whole schema suite.
 >
-> Anything using it carries `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`,
+> Anything touching either carries `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`,
 > which is how CI routes it to `backend-integration` rather than `backend`.
 
-What the fixture does today:
+What the fixtures do today:
 
-- Spins **Postgres only** via Testcontainers. Not Valkey, not Kafka — nothing the
+- Spin **Postgres only** via Testcontainers. Not Valkey, not Kafka — nothing the
   backend runs today calls either, and both sit behind the `gated` compose profile
   per [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
-- Provisions the **four database roles** before the first migration, then applies
-  migrations **as `learnstack_migration`** — which owns every table — and exposes
-  a connection as **`learnstack_app`** for the tests themselves. A test that
-  connects as the owner or as a `BYPASSRLS` role passes even when every policy is
-  inert, so it proves nothing.
-- Seeds a baseline platform admin, two tenants, two orgs per tenant.
-- Exposes `fixture.AsTenant(tenantId, organizationId?)` to scope a block.
+- Provision the **four database roles** by running the same script the compose
+  stack runs, then apply both migration chains **as `learnstack_migration`** —
+  which owns every table — and expose a connection as **`learnstack_app`** for the
+  tests themselves. A test that connects as the owner or as a `BYPASSRLS` role
+  passes even when every policy is inert, so it proves nothing.
+- Seed **every table for both tenants**, deliberately: a count assertion against a
+  table the fixture never populated passes whatever the policy says. That shipped
+  once, in Packet 6, and is why `SchemaFixture` fills all ten.
+- Expose the seeded ids as `SchemaFixture.TenantA` / `TenantB` / `OrgA1` / `OrgA2`,
+  and the session-variable helpers as `SchemaQueries.SetTenantAsync` /
+  `SetSettingAsync` — `set_config(name, value, true)`, not `SET LOCAL`, because
+  PostgreSQL's `SET` takes no bind parameter.
+
+There is no `AsTenant(...)` helper. Scope a block by opening a transaction and
+calling `SchemaQueries.SetTenantAsync(connection, transaction, tenantId)` as its
+first statement, which is what the shipped suite does and what
+`IUnitOfWork.SetTenantContextAsync` does in production.
 
 ```csharp
 public sealed class EnrollmentCreateTests : IClassFixture<TestFixture>

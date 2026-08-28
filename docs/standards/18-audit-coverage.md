@@ -51,7 +51,7 @@ which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
 
 ## Classification Matrix Template
 
-Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it. The `docs/modules/` directory is created with the first module spec and does not exist yet during pre-implementation.
+Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it. The `docs/modules/` directory was created with the first module spec — [Tenancy](../modules/tenancy/README.md), in Phase 02a Packet 6.
 
 | Resource | create | update | delete | read-sensitive | security-event |
 |----------|:------:|:------:|:------:|:--------------:|:--------------:|

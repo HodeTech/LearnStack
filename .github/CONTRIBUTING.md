@@ -35,7 +35,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
   - Required status checks (the job names from `.github/workflows/ci.yml`):
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
-    - `meta (commit hygiene + link audit)`
+    - `meta (compose + commit hygiene + link audit)`
     - `secret scan (leakwatch)`
     - `backend integration (Testcontainers)` — **activated in Phase 02a Packet 6**
       with the four-role provisioning suite, one packet earlier than planned:
@@ -101,8 +101,14 @@ Per CLAUDE.md § Commit conventions:
 make install        # one-time per clone: deps + git hooks
 make lint           # dotnet format --verify + ESLint
 make typecheck      # tsc --noEmit
-make test           # unit + arch + contract + vitest
+make test           # unit + arch + contract + integration + vitest
 ```
+
+`make test` starts Testcontainers since Phase 02a Packet 6, so it needs a Docker
+socket and takes noticeably longer than it did. The Docker-bound cases are split
+out by `[Trait("Requires","Docker")]`; to skip them, run
+`dotnet test backend/LearnStack.slnx --filter "Requires!=Docker"`, which is
+exactly what CI's `backend` job runs.
 
 The pre-commit hook (activated by `make install`) runs, on staged files only:
 `dotnet format` on `*.cs`; prettier on JS / TS / JSON / Markdown **under
@@ -136,10 +142,16 @@ at the repo root. Install once for the local pre-commit scan (CI runs it
 regardless, this is just earlier feedback):
 
 ```bash
-brew install cemililik/tap/leakwatch      # macOS (Homebrew)
+brew install HodeTech/tap/leakwatch        # macOS (Homebrew)
 # or:
-go install github.com/cemililik/leakwatch@latest
+go install github.com/HodeTech/leakwatch@v1.8.0
 ```
+
+The version is pinned, and to the same one CI installs. `@latest` on the old
+`cemililik/` path resolves to v1.5.0 — the module renamed its path at v1.6.0, so
+nothing newer is installable there — and v1.5.0 does not understand
+`leakwatch:ignore`, so a developer following an unpinned instruction would get a
+scanner that disagrees with the one gating their pull request.
 
 If Leakwatch flags an intentional dev credential, prefer:
 

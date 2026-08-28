@@ -42,7 +42,7 @@ not deferred to the showcase phase.
 
 - [Phase 00: Product Strategy and Architecture Definition](phase-00-product-architecture.md) — **complete**
 - [Phase 01: Repository, Tooling, and Local Infrastructure](phase-01-repository-tooling.md) — **complete**
-- [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **in progress** (packets 0–3, 3b, 4 and 5 shipped; packet 6 next)
+- [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **in progress** (packets 0–3, 3b, 4, 5 and 6 shipped; packet 7 next)
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md)
 - [Phase 02b: Identity Integration, Session, and Events](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)

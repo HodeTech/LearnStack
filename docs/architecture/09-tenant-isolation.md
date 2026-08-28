@@ -112,10 +112,15 @@ Three properties of that template matter to the isolation model described on thi
 - **An explicit `WITH CHECK`.** `USING` decides what is readable; `WITH CHECK` decides
   what is writable.
 
-The `app.scope = 'tenant'` setting is issued by `TransactionBehavior`, alongside
-`app.tenant_id` and `app.organization_id` and for the same reason — all three are
-transaction-local, so middleware setting them would discard them before the guarded
-query ran ([Security Standards § Tenant Context](../standards/11-security.md) is the
+The `app.scope = 'tenant'` setting belongs with `app.tenant_id` and
+`app.organization_id`, issued as the transaction's first statement for the same
+reason — all three are transaction-local, so middleware setting them would discard
+them before the guarded query ran. **Two of the three are issued today.** Packet 6
+ships `IUnitOfWork.SetTenantContextAsync`, which writes `app.tenant_id` and
+`app.organization_id`; `ITenantContext` carries no scope member, so nothing sets
+`app.scope` and the hatch below is unreachable at runtime — the correct default,
+and [Packet 7](../roadmap/phase-02a-kernel-tenancy.md)'s to decide
+([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)) ([Security Standards § Tenant Context](../standards/11-security.md) is the
 single authority). What middleware contributes is the *input*: the request comes from a
 tenant-admin role carrying a tenant-wide operation flag (e.g. cross-org reporting), and
 the behavior turns that into the session variable. It

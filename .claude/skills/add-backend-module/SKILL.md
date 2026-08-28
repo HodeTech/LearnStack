@@ -191,6 +191,12 @@ create the spec files under `docs/modules/<name>/`:
 
 Module migrations live with the module:
 
+> `dotnet ef migrations add` needs `ConnectionStrings__Migration` exported into
+> the process environment first — the design-time factory reads it and nothing
+> else, and `--connection` does not satisfy it. See
+> [add-ef-migration Step 1](../add-ef-migration/SKILL.md) for the one-line export;
+> `make migrate` does the same thing for applying them.
+
 ```bash
 # INTENT ONLY, snake_case: EF prepends the UTC timestamp, producing the
 # <UTC_yyyyMMddHHmmss>_<intent> filename Standards 05 specifies.

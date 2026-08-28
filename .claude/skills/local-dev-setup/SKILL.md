@@ -98,11 +98,39 @@ the API or the web app, and it does not run migrations or seeds; those are
 separate commands you run yourself:
 
 ```bash
-make migrate                                       # apply every module's EF migrations
+make migrate                                       # apply both migration chains
 dotnet run --project backend/src/LearnStack.Api    # API on 5080
 pnpm --filter @learnstack/web dev                  # web on 3000
 make seed                                          # health gate + demo credentials
 ```
+
+**`dotnet run` needs `ConnectionStrings:Default`, and nothing hands it over.**
+`.env` reaches Compose (through `--env-file`) and `make migrate` (which reads it
+key by key), but not a host you start yourself: there is no `ConnectionStrings`
+section in `appsettings*.json` and no `.env` loader in `backend/src`. Since Packet
+6 the composition root builds the application data source from that key, so
+without it the first request that touches the database fails with a message
+naming it. Two ways to supply it, and the second survives a new shell:
+
+```bash
+# Per shell. Read one key at a time — a connection string contains semicolons,
+# so `. ./.env` parses them as statement separators, and .env.example quotes the
+# value.
+export ConnectionStrings__Default=$(sed -n "s/^ConnectionStrings__Default=//p" .env \
+  | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
+
+# Or once, into the user-secrets store the API project already declares
+# (UserSecretsId learnstack-api-dev) — kept outside the repository, so it cannot
+# be committed:
+dotnet user-secrets --project backend/src/LearnStack.Api \
+  set "ConnectionStrings:Default" "$ConnectionStrings__Default"
+```
+
+The value names **`learnstack_app`** and the composition root refuses anything
+else — by name, and then by asking the server whether the role it connected as
+bypasses row security. Pointing it at `ConnectionStrings__Migration` or either
+`BYPASSRLS` role makes every policy in the database inert, which is why it is
+checked rather than assumed.
 
 **`make migrate` runs as `learnstack_migration`, not as the API's role.** From
 Phase 02a Packet 6 the stack provisions four database roles on the first boot of

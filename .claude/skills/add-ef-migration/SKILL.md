@@ -51,6 +51,16 @@ and survive forward-only deploy rules
 ### Step 1: Generate the migration
 
 ```bash
+# The design-time factory reads ConnectionStrings__Migration from the ENVIRONMENT
+# and nothing else — `--connection` does not satisfy it, because EF consumes that
+# option in its own parser and applies it only after the factory has returned.
+# Read it out of .env the way the `migrate` target does, one key at a time: a
+# connection string contains semicolons, so `. ./.env` parses them as statement
+# separators, and .env.example single-quotes the value.
+export ConnectionStrings__Migration=$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
+  | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
+
+```bash
 # Pass the INTENT only, in snake_case. EF prepends the UTC timestamp itself, so
 # the file lands as <UTC_yyyyMMddHHmmss>_<intent>.cs — the format Standards 05
 # specifies. Typing the timestamp as well produces it twice.

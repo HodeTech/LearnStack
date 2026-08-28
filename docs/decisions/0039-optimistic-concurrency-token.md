@@ -206,10 +206,12 @@ routing `SoftDelete` through the same stamp-and-increment primitive.
 
 ## Architecture Tests
 
-Two rules. Neither exists yet; both are **Phase 02a Packet 6 deliverables**, and
-registering them in
+Two rules. **Both shipped in Phase 02a Packet 6** — the first as
+`PersistenceConventionTests`, the second as a behavioural case in
+`AuditableEntityTests` — and both are registered in
 [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
-is part of shipping them. Naming them here is a commitment, not a description.
+with the file that carries them. What follows was a commitment when this ADR was
+accepted and is now a description.
 
 - `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` — every entity
   implementing `IOptimisticConcurrency` has its `Version` configured as the

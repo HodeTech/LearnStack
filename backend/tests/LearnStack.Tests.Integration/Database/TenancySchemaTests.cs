@@ -438,7 +438,7 @@ public sealed class TenancySchemaTests
     }
 
     [Fact]
-    public async Task EveryForeignKeyHasASupportingIndex()
+    public async Task Every_Foreign_Key_Has_A_Supporting_Index()
     {
         // Database Standards § Indexes: index every foreign key. Every foreign key
         // in this schema is ON DELETE RESTRICT, so every parent delete pays the

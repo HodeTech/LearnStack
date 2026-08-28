@@ -352,10 +352,10 @@ Migrations and EF configurations for `tenants`, `organizations` (per
 nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
 (tenant-flag level only — plan-level features arrive through the entitlement
 projection), `platform_entitlement_cache`, `platform_host_to_tenant`, `idempotency_keys`
-(the durable `IIdempotencyStore` per
-[ADR-0037](../decisions/0037-idempotency-key-contract.md); Packet 4 shipped the
-port and an in-memory default that is correct for one instance and wrong for
-two), and `outbox_messages`. Default-organization seeding at tenant creation.
+(**the table only** — [ADR-0037](../decisions/0037-idempotency-key-contract.md)
+Amendment 1 separates the one-way-door schema from the additive store, so
+`InMemoryIdempotencyStore` stays the only registered `IIdempotencyStore` until
+the store's ADR-0035 trigger fires), and `outbox_messages`. Default-organization seeding at tenant creation.
 
 **The system actor needs no seed, and this packet creates no `users` table.**
 `UserId.SystemActor` — the fixed id `00000000-0000-7000-8000-000000000001` in
@@ -757,12 +757,16 @@ have to retrofit:
 - `platform_host_to_tenant` — host → `(tenant_id, organization_id?)` mapping
   (Hub-populated for SaaS / Dedicated, config-populated for SelfHosted; the table
   ships now).
-- `idempotency_keys` — the durable `IIdempotencyStore`
-  ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). Packet 4 ships the port
-  and an in-memory default that is correct for one instance and wrong for two; this is
-  the table that makes it survive a restart and a second instance. Each store call opens
-  its own short transaction and sets `app.tenant_id` as its first statement, because a
-  claim is taken **before** the MediatR `TransactionBehavior` that would otherwise do it.
+- `idempotency_keys` — the table the durable `IIdempotencyStore` will need
+  ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). **The table, not the
+  store:** Amendment 1 splits them, because the schema is a one-way door and the
+  implementation is additive. Packet 4 shipped the port and an in-memory default that
+  is correct for one instance and wrong for two, and that default stays registered
+  until the store's ADR-0035 trigger fires — the first `[Idempotent]` endpoint, or the
+  first deployment running more than one instance. When the store does arrive, each of
+  its calls opens its own short transaction and sets `app.tenant_id` as its first
+  statement, because a claim is taken **before** the MediatR `TransactionBehavior` that
+  would otherwise do it.
 - `outbox_messages` — the outbox table. Nothing dispatches from it until
   [Phase 02b](phase-02b-events-auth.md), but its schema and LearnStack's ownership of
   it are a one-way door — and that ownership is exactly what makes the dispatch
@@ -2159,7 +2163,7 @@ in a record rather than in production.
 > chain can block the other. Every one carries `ENABLE` **and** `FORCE ROW LEVEL
 > SECURITY` and one `AND`-ed policy per table, per
 > [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md):
-> the self-keyed class for `tenants`, the tenant-wide class for six, the full
+> the self-keyed class for `tenants`, the tenant-wide class for seven, the full
 > org-scoped template with its `app.scope` read hatch and two `AS RESTRICTIVE`
 > write guards for `tenant_settings`, and the role-qualified platform-scoped class
 > for `platform_host_to_tenant`, which is read *before* a tenant is known.
@@ -2236,8 +2240,9 @@ in a record rather than in production.
 >
 > ### What the corpus owed, and now carries
 >
-> Four amendments, all correcting a document against a measurement rather than
-> changing a decision: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)
+> Eleven amendments across seven ADRs, every one correcting a document against a
+> measurement rather than changing a decision. The five that change what an
+> implementer does: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)
 > Amendment 1 (the two forbidden EF calls) and Amendment 2 (the chain is three
 > calls, not one, because `HasDefaultValue` sets `ValueGenerated`);
 > [ADR-0037](../decisions/0037-idempotency-key-contract.md) Amendment 3
@@ -2254,18 +2259,23 @@ in a record rather than in production.
 > [docs/modules/tenancy/](../modules/tenancy/README.md) is the repository's first
 > module spec, carrying all ten Standards 13 sections.
 >
-> Nine architecture rules moved from **Registered** to **Implemented**, and the
-> catalogue rows say so with the file that carries them:
-> `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`,
+> Ten catalogue rows say **Implemented** that did not before, and each names the
+> file that carries it. Only **three** were standing debt this packet closed —
 > `Organization_Aggregate_Declared_In_Tenancy_Domain`,
-> `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA`,
-> `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`,
+> `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` and
+> `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` are the only three of the
+> ten that existed in the catalogue before this packet's first commit. The other
+> seven it both registered and implemented, because they descend from ADR-0039 and
+> ADR-0040, which that same commit wrote:
+> `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`,
+> `SoftDelete_Advances_The_Row_Version`,
 > `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`,
-> `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`, and three the packet
-> registered as it went — `Migration_Startup_Project_References_EntityFrameworkCore_Design`,
+> `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`,
+> `Migration_Startup_Project_References_EntityFrameworkCore_Design`,
 > `Migrate_Target_Covers_Every_Migration_Chain` and
 > `Every_Foreign_Key_Has_A_Supporting_Index`, the last of which found two real gaps
-> on its first run.
+> on its first run. The split matters: the first number is how much standing corpus
+> debt was outstanding, the second how much this packet created and then paid.
 >
 > ### What Packet 6 deliberately did not do
 >

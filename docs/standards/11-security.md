@@ -281,13 +281,16 @@ Because every `current_setting` read is called with its missing-OK argument (`tr
 **and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
 the policy predicate filters the row out. The failure mode is an empty result set, not a
 leak — but an empty result set arriving from production is an outage, so a
-`DbCommandInterceptor` additionally asserts that **a sanctioned setter** has already
+`DbCommandInterceptor` is to assert that **a sanctioned setter** has already
 issued the `SET LOCAL` pair on this transaction before any command against a
 `[TenantOwned]` table runs — `TransactionBehavior` in the general case, or any of the
 out-of-band setters above, each of which stamps the same marker on the transaction it
 opens. Naming `TransactionBehavior` alone would make the guard reject every write the
 idempotency store and the audit store legitimately make. It throws
-`TenantContextMissingException` when it has not. It cannot be a connection-checkout
+`TenantContextMissingException` when it has not. **It does not exist yet**: Packet 6
+ships the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it would
+back up, and no packet yet owns the interceptor — the first tenant-owned read on a
+request path is Packet 7's, and that is where it belongs. It cannot be a connection-checkout
 interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
 values: checkout precedes the transaction, so the transaction-local value is not there to
 be observed ([05-database.md § Connection Management](05-database.md)).

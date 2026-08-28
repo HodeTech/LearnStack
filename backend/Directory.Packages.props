@@ -43,18 +43,23 @@
     <!-- Architecture tests -->
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
 
-    <!-- Integration test infrastructure — declared because the Integration
-         csproj references them today. The first real Testcontainers-backed
-         test arrives in Phase 02a; until then the packages restore but the
-         suite only runs the WebApplicationFactory smoke test. -->
+    <!-- Integration test infrastructure. Phase 02a Packet 6 brought the first
+         real Testcontainers-backed suite: the four-role provisioning cases, both
+         migration chains and the schema-level isolation suite, all under
+         `[Trait("Requires","Docker")]` in CI's `backend-integration` job. -->
     <PackageVersion Include="Testcontainers" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
-    <!-- The Testcontainers .NET library publishes its RESP-compatible test
-         container under the `Testcontainers.Redis` NuGet identifier; the
-         container itself can be pointed at any RESP-compatible image
-         (Valkey 8 per ADR-0030, Redis 7.4) via builder config. Do not
-         try to rename this to "Testcontainers.Valkey" — that package
-         does not exist on NuGet. -->
+    <!-- Declared, and used by nothing yet. Kept rather than removed because
+         both have a named consumer: `Testcontainers.Redis` is the RESP-compatible
+         container the Valkey-backed `ICacheService` adapter will need in Phase 11
+         (the .NET library publishes it under that identifier — there is no
+         `Testcontainers.Valkey` on NuGet, and the container takes any
+         RESP-compatible image via builder config, Valkey 8 per ADR-0030).
+         `Respawn` resets a database between tests, which the schema suite does not
+         need — its cases roll back or clean up after themselves, because the
+         fixture's seeded row counts are what the isolation assertions compare
+         against. If Phase 03's second module context does not need it either,
+         drop it then. -->
     <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />
     <PackageVersion Include="Respawn" Version="6.2.1" />
   </ItemGroup>

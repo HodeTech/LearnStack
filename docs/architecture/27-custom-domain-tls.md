@@ -222,9 +222,17 @@ public interface IHostToTenantResolver
 
 public sealed record HostResolution(TenantId TenantId, OrganizationId? OrganizationId);
 
+// NpgsqlDataSource, NOT a module DbContext and NOT IUnitOfWork. This runs in
+// TenantResolverMiddleware, before any transaction exists — and the shared
+// registration helper throws by design when a module context is resolved outside
+// the ambient transaction, because a context that never saw SET LOCAL reads zero
+// rows from every tenant-owned table. ADR-0040 § Who sets app.tenant_id already
+// puts every pre-transaction reader on "a short transaction of its own on its own
+// connection"; this is that, and the resolver is the only setter of
+// app.resolving_host.
 public sealed class CachedHostToTenantResolver(
     ICacheService cache,
-    TenancyDbContext db) : IHostToTenantResolver
+    NpgsqlDataSource dataSource) : IHostToTenantResolver
 {
     public Task<HostResolution?> ResolveAsync(string host, CancellationToken ct = default)
         => cache.GetOrSetAsync(
@@ -240,7 +248,8 @@ public sealed class CachedHostToTenantResolver(
                 // "WARNING: SET LOCAL can only be used in transaction blocks" and
                 // has no effect, and a session-level set_config(..., false) would
                 // survive on a pooled connection into the next request.
-                await using var tx = await db.Database.BeginTransactionAsync(token);
+                await using var connection = await dataSource.OpenConnectionAsync(token);
+                await using var tx = await connection.BeginTransactionAsync(token);
 
                 // set_config(..., true) is SET LOCAL's function form and is
                 // transaction-local for the same reason. It has to be this form:
@@ -249,19 +258,26 @@ public sealed class CachedHostToTenantResolver(
                 // spelling every other query uses is unavailable here, and string
                 // interpolation into SET would be an injection site on the
                 // anonymous page-load path.
-                await db.Database.ExecuteSqlAsync(
-                    $"SELECT set_config('app.resolving_host', {host}, true)", token);
+                await using (var announce = new NpgsqlCommand(
+                    "SELECT set_config('app.resolving_host', @host, true)", connection, tx))
+                {
+                    announce.Parameters.AddWithValue("host", host);
+                    await announce.ExecuteNonQueryAsync(token);
+                }
 
-                var resolution = await db.HostMappings
-                    .AsNoTracking()
-                    // is_publicly_live, per ADR-0036 § HostOnly — NOT the
-                    // Hub-side `is_active` in the payload sample below. A
-                    // domain can be active (owned, verified) and not yet
-                    // publicly live, and only the latter may answer an
-                    // anonymous page load.
-                    .Where(m => m.Host == host && m.IsPubliclyLive)
-                    .Select(m => new HostResolution(m.TenantId, m.OrganizationId))
-                    .SingleOrDefaultAsync(token);
+                // is_publicly_live, per ADR-0036 § HostOnly — NOT the Hub-side
+                // `is_active` in the payload sample below. A domain can be active
+                // (owned, verified) and not yet publicly live, and only the latter
+                // may answer an anonymous page load.
+                await using var read = new NpgsqlCommand(
+                    """
+                    SELECT tenant_id, organization_id
+                    FROM platform_host_to_tenant
+                    WHERE host = @host AND is_publicly_live
+                    """, connection, tx);
+                read.Parameters.AddWithValue("host", host);
+
+                var resolution = await ReadSingleAsync(read, token);
 
                 await tx.CommitAsync(token);
                 return resolution;
