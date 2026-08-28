@@ -103,6 +103,74 @@ public sealed class PersistenceConventionTests
             + "dotnet ef resolves the design-time package from there");
     }
 
+    [Fact]
+    public void Migrate_Target_Covers_Every_Migration_Chain()
+    {
+        // `make migrate` is the only documented path that applies a migration, and
+        // its project loop is a glob. The first version globbed `src/Modules` only,
+        // which left the platform chain — outbox_messages and idempotency_keys —
+        // unapplied by every documented path while the Testcontainers fixtures,
+        // which call Database.MigrateAsync() directly, stayed green.
+        //
+        // Scanned rather than listed: the assertion is that every directory under
+        // backend/src carrying a Persistence/Migrations folder is reachable from
+        // the recipe, so adding a chain and forgetting the Makefile fails here
+        // rather than in a deployment.
+        var recipe = ReadMigrateRecipe();
+
+        var chains = Directory
+            .EnumerateDirectories(RepositoryPaths.BackendSrc(), "Migrations", SearchOption.AllDirectories)
+            .Where(path => Path.GetFileName(Path.GetDirectoryName(path)) == "Persistence")
+            .Select(path => Path.GetDirectoryName(Path.GetDirectoryName(path))!)
+            .Select(project => Path.GetRelativePath(RepositoryPaths.RepoRoot(), project)
+                .Replace(Path.DirectorySeparatorChar, '/'))
+            .ToList();
+
+        chains.Should().NotBeEmpty("the tenancy and platform chains both exist");
+
+        var uncovered = chains
+            .Where(chain => !RecipeReaches(recipe, chain))
+            .ToList();
+
+        uncovered.Should().BeEmpty(
+            "`make migrate` applies every chain, or the ones it misses are "
+            + "unmigrated on the only path Standards 05 § Database roles documents");
+    }
+
+    /// <summary>
+    /// The body of the repo-root Makefile's <c>migrate</c> target.
+    /// </summary>
+    private static string ReadMigrateRecipe()
+    {
+        var lines = File.ReadAllLines(Path.Combine(RepositoryPaths.RepoRoot(), "Makefile"));
+        var start = Array.FindIndex(lines, line => line.StartsWith("migrate:", StringComparison.Ordinal));
+
+        start.Should().BeGreaterThanOrEqualTo(0, "the Makefile carries a `migrate` target");
+
+        var body = lines.Skip(start + 1).TakeWhile(line => line.StartsWith('\t'));
+        return string.Join('\n', body);
+    }
+
+    /// <summary>
+    /// True when the recipe names the project directly or through a glob that
+    /// covers it.
+    /// </summary>
+    /// <remarks>
+    /// A glob segment is matched by translating <c>*</c> to "anything but a
+    /// separator", which is what the shell does. Comparing the literal string
+    /// would fail on the module loop, which is a glob by design — one entry per
+    /// module would be the maintenance burden this rule exists to remove.
+    /// </remarks>
+    private static bool RecipeReaches(string recipe, string projectPath) =>
+        recipe
+            .Split([' ', '\n', '\t', ';'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(token => token.StartsWith("backend/src", StringComparison.Ordinal))
+            .Any(token => System.Text.RegularExpressions.Regex.IsMatch(
+                projectPath,
+                "^" + string.Join(
+                    "[^/]*",
+                    token.Split('*').Select(System.Text.RegularExpressions.Regex.Escape)) + "$"));
+
     /// <summary>
     /// Builds the Tenancy model without a database.
     /// </summary>

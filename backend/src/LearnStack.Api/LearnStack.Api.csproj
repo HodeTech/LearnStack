@@ -56,7 +56,8 @@
          Without it the tool refuses before it opens a connection — "Your startup
          project 'LearnStack.Api' doesn't reference Microsoft.EntityFrameworkCore.Design"
          — which is how Packet 6 shipped a migration no documented path could apply.
-         `Api_References_EntityFrameworkCore_Design` is the guard. PrivateAssets is
+         `Migration_Startup_Project_References_EntityFrameworkCore_Design`
+         is the guard. PrivateAssets is
          still correct: nothing at runtime touches it. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>

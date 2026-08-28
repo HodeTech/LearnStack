@@ -44,6 +44,17 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
 {
     private const string ConnectionStringVariable = "ConnectionStrings__Migration";
 
+    /// <summary>
+    /// The migration history table for this chain.
+    /// </summary>
+    /// <remarks>
+    /// Public and referenced by the test fixtures rather than repeated as a
+    /// literal beside them. `dotnet ef` — and therefore `make migrate` — only ever
+    /// goes through this factory, so a fixture that wrote its own copy would
+    /// assert the name it chose while the deployment path drifted underneath it.
+    /// </remarks>
+    public const string HistoryTable = "__ef_migrations_history_tenancy";
+
     public TenancyDbContext CreateDbContext(string[] args)
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
@@ -62,7 +73,7 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
 
         var options = new DbContextOptionsBuilder<TenancyDbContext>()
             .UseNpgsql(connectionString, npgsql =>
-                npgsql.MigrationsHistoryTable("__ef_migrations_history_tenancy"))
+                npgsql.MigrationsHistoryTable(HistoryTable))
             .Options;
 
         return new TenancyDbContext(options);

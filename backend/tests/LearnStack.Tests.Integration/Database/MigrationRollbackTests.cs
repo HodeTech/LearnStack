@@ -114,12 +114,12 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     private TenancyDbContext CreateTenancy() =>
         new(new DbContextOptionsBuilder<TenancyDbContext>()
             .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
-                npgsql.MigrationsHistoryTable("__ef_migrations_history_tenancy"))
+                npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
             .Options);
 
     private PlatformDbContext CreatePlatform() =>
         new(new DbContextOptionsBuilder<PlatformDbContext>()
             .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
-                npgsql.MigrationsHistoryTable("__ef_migrations_history_platform"))
+                npgsql.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable))
             .Options);
 }

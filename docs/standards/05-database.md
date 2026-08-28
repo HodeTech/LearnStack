@@ -1029,7 +1029,18 @@ CREATE TABLE idempotency_keys (
         CHECK (body IS NULL OR octet_length(body) <= 262144),
     -- Matches [Idempotent]'s header bounds, so a key the API accepted always fits.
     CONSTRAINT ck_idempotency_keys_key_length
-        CHECK (length(key) BETWEEN 8 AND 128)
+        CHECK (length(key) BETWEEN 8 AND 128),
+    -- The state and the response columns are one fact, not two. ADR-0037
+    -- Amendment 2's claim statement reports a `completed` row as replayable, so a
+    -- `completed` row with no status code and no body makes the caller replay a
+    -- response that does not exist; and the reclaim branch NULLs all four
+    -- alongside `state = 'in_flight'`, so the reverse is equally a lie about what
+    -- the row is. content_type stays free in the completed arm — the port defines
+    -- it as null for an empty body.
+    CONSTRAINT ck_idempotency_keys_outcome CHECK (
+        (state =  'completed' AND status_code IS NOT NULL AND body IS NOT NULL)
+     OR (state <> 'completed' AND status_code IS NULL AND content_type IS NULL
+                              AND headers IS NULL AND body IS NULL))
 );
 
 -- Serves both the retention sweep and the per-tenant admission count, tenant first

@@ -69,6 +69,13 @@ public sealed class TenantSetting : AuditableEntity<TenantSettingId>
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
 
+        if (!id.IsInitialized())
+        {
+            throw new ArgumentException(
+                "The identifier was never assigned; construct it through its factory.",
+                nameof(id));
+        }
+
         if (!tenantId.IsInitialized())
         {
             throw new ArgumentException("A setting belongs to a tenant.", nameof(tenantId));

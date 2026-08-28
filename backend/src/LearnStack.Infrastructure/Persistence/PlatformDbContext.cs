@@ -17,13 +17,15 @@ namespace LearnStack.Infrastructure.Persistence;
 /// module.
 /// </para>
 /// <para>
-/// <b>It is the second <c>DbContext</c>, and that is useful rather than
-/// incidental.</b>
-/// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040</see>
-/// says its central property — several contexts enlisted on one connection, so
-/// <c>SET LOCAL</c> protects every statement — becomes testable only when a
-/// second context exists, and expected that in Phase 03. It exists here, so the
-/// property is testable a phase earlier.
+/// It is the second <c>DbContext</c>, and that does <b>not</b> yet make
+/// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040</see>'s
+/// central property testable. That property is several contexts enlisted on one
+/// connection so <c>SET LOCAL</c> protects every statement, and the enlistment
+/// machinery — <c>IUnitOfWork</c>, the shared registration helper, the
+/// <c>TransactionBehavior</c> body — lands in step 6; ADR-0040 § What Packet 6
+/// can and cannot prove says the property becomes observable in Phase 03, with
+/// the second <b>module</b> context. This context exists for the reason below and
+/// no other.
 /// </para>
 /// <para>
 /// Both tables are <b>tenant-owned, tenant-wide</b> despite living outside a
@@ -47,8 +49,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         // designs avoid.
         //
         // The context exists to own the MIGRATION for these tables — that is what
-        // needs a model root — and to be the second context ADR-0040's property
-        // requires.
+        // needs a model root.
         base.OnModelCreating(modelBuilder);
     }
 }

@@ -189,8 +189,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     b.HasKey("Host")
                         .HasName("pk_platform_host_to_tenant");
 
-                    b.HasIndex("TenantId")
-                        .HasDatabaseName("ix_platform_host_to_tenant_tenant_id");
+                    b.HasIndex("TenantId", "OrganizationId")
+                        .HasDatabaseName("ix_platform_host_to_tenant_tenant_id_organization_id");
 
                     b.ToTable("platform_host_to_tenant", (string)null);
                 });

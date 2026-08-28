@@ -19,6 +19,17 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
 {
     private const string ConnectionStringVariable = "ConnectionStrings__Migration";
 
+    /// <summary>
+    /// The migration history table for this chain — its own, so the two chains
+    /// advance independently.
+    /// </summary>
+    /// <remarks>
+    /// Public for the same reason as Tenancy's: the fixtures reference it instead
+    /// of repeating the literal, so the assertion is against the name the
+    /// deployment path uses.
+    /// </remarks>
+    public const string HistoryTable = "__ef_migrations_history_platform";
+
     public PlatformDbContext CreateDbContext(string[] args)
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
@@ -36,7 +47,7 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
                 // Its own history table, so the two chains advance independently:
                 // a module's migration must not be blocked by, or block, the
                 // platform's.
-                npgsql.MigrationsHistoryTable("__ef_migrations_history_platform"))
+                npgsql.MigrationsHistoryTable(HistoryTable))
             .Options;
 
         return new PlatformDbContext(options);

@@ -187,9 +187,9 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "ix_platform_host_to_tenant_tenant_id",
+                name: "ix_platform_host_to_tenant_tenant_id_organization_id",
                 table: "platform_host_to_tenant",
-                column: "tenant_id");
+                columns: new[] { "tenant_id", "organization_id" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_tenant_domains_tenant_id",

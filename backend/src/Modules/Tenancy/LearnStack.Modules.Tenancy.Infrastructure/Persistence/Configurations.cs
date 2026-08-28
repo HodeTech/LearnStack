@@ -342,8 +342,14 @@ internal sealed class PlatformHostMappingConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.IsPubliclyLive).IsRequired();
 
-        // A tenant listing its own hosts is the second of the two read paths the
-        // policy admits, so it gets an index; the first (by host) is the key.
-        builder.HasIndex(x => x.TenantId).HasDatabaseName("ix_platform_host_to_tenant_tenant_id");
+        // Two jobs, one index. A tenant listing its own hosts is the second of the
+        // two read paths the policy admits (the first, by host, is the key), and
+        // tenant_id leads, so the composite serves it. The organization column is
+        // there because fk_platform_host_to_tenant_organization is composite on
+        // (tenant_id, organization_id) and Standards 05 § Indexes says index every
+        // foreign key — a leading-column-only index does not serve the ON DELETE
+        // RESTRICT scan, it just narrows it to the tenant.
+        builder.HasIndex(x => new { x.TenantId, x.OrganizationId })
+            .HasDatabaseName("ix_platform_host_to_tenant_tenant_id_organization_id");
     }
 }

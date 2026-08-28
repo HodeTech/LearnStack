@@ -106,6 +106,13 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
 
+        if (!id.IsInitialized())
+        {
+            throw new ArgumentException(
+                "The identifier was never assigned; construct it through its factory.",
+                nameof(id));
+        }
+
         if (!tenantId.IsInitialized())
         {
             throw new ArgumentException(

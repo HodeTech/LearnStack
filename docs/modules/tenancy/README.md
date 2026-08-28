@@ -246,10 +246,16 @@ request and are the only Tenancy work an anonymous visitor pays for.
 ## Risks and open questions
 
 - **`app.scope` has no carrier.** `ITenantContext` exposes no scope member, so
-  nothing sets `app.scope = 'tenant'` and the cross-organization read hatch on
-  `tenant_settings` is currently unreachable. That is the correct default;
-  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) decides how the flag
-  arrives ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)).
+  no application path sets `app.scope = 'tenant'` and the cross-organization read
+  hatch on `tenant_settings` is unreachable at runtime. That is the correct
+  default; [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) decides how the
+  flag arrives ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)).
+  The two `AS RESTRICTIVE` write guards are tested **now** rather than then —
+  `TheTenantScopeHatchWidensReadsAndNeitherWrite` sets the flag directly — because
+  under any ordinary organization-scoped session the base policy's own
+  organization term already refuses a sibling's row, so both guards could be
+  deleted with the whole suite green. Measured: with the hatch set and the delete
+  guard dropped, a `DELETE` removed another organization's row.
 - **No query filters yet.** The EF tenant and organization filters land in Packet
   7 with `TenantResolverMiddleware`. Between the packets nothing reads a
   tenant-owned table on a request path, and with `app.tenant_id` unset every

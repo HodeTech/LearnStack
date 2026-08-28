@@ -89,6 +89,7 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
     public void MarkVerified(IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
+        EnsureVerifiable();
 
         Status = TenantDomainStatus.Verified;
         VerifiedAt = clock.UtcNow;
@@ -102,11 +103,34 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        EnsureVerifiable();
 
         Status = TenantDomainStatus.Failed;
         VerificationAttempts++;
         LastVerificationError = error;
         MarkUpdated(clock.UtcNow, updatedBy);
+    }
+
+    /// <summary>
+    /// Only a <see cref="TenantDomainKind.Custom"/> domain travels the
+    /// verification path.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="TenantDomainKind.Subdomain"/> is verified by construction —
+    /// the platform controls the zone — and every state diagram in the corpus
+    /// draws it that way. Without this guard the two verification methods would
+    /// move one to <c>Verifying</c> or <c>Failed</c>, a state the module spec says
+    /// it cannot reach, and the schema would not object: the kind and status
+    /// CHECKs are independent single-column constraints.
+    /// </remarks>
+    private void EnsureVerifiable()
+    {
+        if (Kind != TenantDomainKind.Custom)
+        {
+            throw new InvalidOperationException(
+                $"A {Kind} domain is verified by construction and has no verification lifecycle; "
+                + "only a Custom domain can be marked verified or failed.");
+        }
     }
 
     private static TenantDomain CreateCore(
@@ -119,6 +143,13 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
+
+        if (!id.IsInitialized())
+        {
+            throw new ArgumentException(
+                "The identifier was never assigned; construct it through its factory.",
+                nameof(id));
+        }
 
         if (!tenantId.IsInitialized())
         {

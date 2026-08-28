@@ -472,7 +472,10 @@ ON CONFLICT (tenant_id, key) DO UPDATE SET
     status_code  = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.status_code  END,
     content_type = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.content_type END,
     headers      = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.headers      END,
-    body         = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.body         END
+    body         = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.body         END,
+    -- Amendment 3: without this the reclaimed row reports a new fence against the
+    -- timestamp of a claim several reclaims ago.
+    claimed_at   = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.claimed_at   ELSE idempotency_keys.claimed_at   END
 RETURNING (xmax = 0) AS inserted, state, fingerprint, claim_token,
           status_code, content_type, headers, body;
 ```
@@ -501,6 +504,48 @@ ownership-by-identity test `InMemoryIdempotencyStore` already performs with
 object to compare. `TryClaimAsync` takes no caller-supplied token precisely so this
 comparison cannot be skipped at a call site: only the store knows the value it
 minted.
+
+### Amendment 3 — `claimed_at` on reclaim, and the outcome CHECK (2026-08-28)
+
+Two corrections found by measuring Amendment 2's statement against the shipped
+table.
+
+**`claimed_at` is never refreshed.** The `DO UPDATE SET` list replaces the row's
+whole identity on the reclaim branch — `fingerprint`, `claim_token`, `state`,
+`expires_at`, and all four response columns NULLed — and does not touch
+`claimed_at`, whose only writer is the initial insert's `DEFAULT now()`. A
+reclaimed row therefore reports a new fence, a new lease and a new request against
+the timestamp of a claim several reclaims ago. Nothing reads the column yet, which
+is exactly why it is cheap to fix and easy to leave wrong: it is the column an
+operator traces a duplicate side effect with. The `SET` list gains one line, in the
+same shape as every other:
+
+```sql
+    claimed_at   = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.claimed_at ELSE idempotency_keys.claimed_at END,
+```
+
+**The state and the response columns are one fact, and the database now says so.**
+Nothing tied `state` to `status_code` / `content_type` / `headers` / `body`: a
+`completed` row could carry all four NULL, and the claim statement would report it
+as `Completed`, which its own outcome table defines as "replay the four response
+columns" — the caller then replays a response that does not exist. The reverse was
+equally free: an `unreplayable` tombstone could carry a full `201` body. The
+canonical DDL and the shipped migration both gain
+
+```sql
+    CONSTRAINT ck_idempotency_keys_outcome CHECK (
+        (state =  'completed' AND status_code IS NOT NULL AND body IS NOT NULL)
+     OR (state <> 'completed' AND status_code IS NULL AND content_type IS NULL
+                              AND headers IS NULL AND body IS NULL))
+```
+
+`content_type` stays free in the completed arm, because the port defines it as null
+for an empty body. The constraint matches the reclaim branch above, which already
+NULLs all four alongside `state = 'in_flight'`.
+
+Neither changes what this ADR decides. `PostgresIdempotencyStore` does not exist
+yet — it is demand-gated on the trigger Amendment 1 names — so both land while the
+table has no rows and the constraint validates instantly.
 
 ## References
 

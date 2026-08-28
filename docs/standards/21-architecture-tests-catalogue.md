@@ -673,6 +673,39 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Status:** **Implemented** (Packet 6 step 4,
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 
+#### `Migrate_Target_Covers_Every_Migration_Chain`
+
+- **Asserts:** every directory under `backend/src` carrying a
+  `Persistence/Migrations` folder is reachable from the `migrate` recipe's project
+  loop in the repo-root `Makefile` — scanned, not listed, so adding a chain and
+  forgetting the recipe fails here. `make migrate` is the only path
+  [05-database.md § Database roles](05-database.md) documents for applying a
+  migration; its first version globbed `src/Modules` only, which left the platform
+  chain unapplied everywhere except the Testcontainers fixtures, which call
+  `Database.MigrateAsync()` directly and stayed green.
+- **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
+- **Type:** xUnit + Makefile and directory inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 5,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Mutation-checked: narrowing the loop back to `src/Modules` fails this case.
+
+#### `Every_Foreign_Key_Has_A_Supporting_Index`
+
+- **Asserts:** every foreign key in schema `public` has an index whose **leading**
+  columns are the constraint's columns, or a **unique** index over a leading prefix
+  of them — a unique prefix already yields at most one candidate row, which is why
+  `tenants`' primary key supports the composite
+  `fk_tenants_default_organization`. Every foreign key in this schema is
+  `ON DELETE RESTRICT`, so every parent delete pays the child scan.
+- **Source:** [05-database.md § Indexes](05-database.md).
+- **Type:** **integration** test (Testcontainers + PostgreSQL), reading
+  `pg_constraint` / `pg_index`. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 5,
+  `LearnStack.Tests.Integration`, `TenancySchemaTests`). It found two real gaps on
+  its first run — `fk_organizations_reporting_parent` and
+  `fk_platform_host_to_tenant_organization` — which is the evidence that it is not
+  vacuous.
+
 #### `SoftDelete_Advances_The_Row_Version`
 
 - **Asserts:** `AuditableEntity.SoftDelete` leaves `Version` strictly greater than it
