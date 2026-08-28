@@ -1,8 +1,12 @@
 using FluentAssertions;
+using LearnStack.Api.Composition;
+using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,9 +83,26 @@ public sealed class UnitOfWorkTests
         (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
             .Should().BeEmpty();
 
+        // Every mapped entity type, swept from the model rather than listed. Two
+        // of the six that a hand-written pair left out are the ones where
+        // fail-closed is least obvious: tenant_settings, whose USING carries the
+        // app.scope hatch, and platform_host_to_tenant, whose read policy is an OR
+        // over app.resolving_host — a GUC SetTenantContextAsync never writes.
         var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
-        (await context.Tenants.CountAsync()).Should().Be(0);
-        (await context.Organizations.CountAsync()).Should().Be(0);
+
+        var counts = new Dictionary<string, long>(StringComparer.Ordinal);
+
+        foreach (var entity in context.Model.GetEntityTypes())
+        {
+            var table = entity.GetTableName()!;
+            await using var command = (NpgsqlCommand)unitOfWork.Connection.CreateCommand();
+            command.CommandText = $"SELECT count(*) FROM \"{table}\"";
+            command.Transaction = (NpgsqlTransaction?)unitOfWork.Transaction;
+            counts[table] = (long)(await command.ExecuteScalarAsync())!;
+        }
+
+        counts.Should().HaveCount(8, "TenancyDbContext maps eight entity types");
+        counts.Should().OnlyContain(entry => entry.Value == 0);
 
         await unitOfWork.RollbackAsync();
     }
@@ -171,22 +192,197 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
-    public async Task A_nested_failure_makes_the_outer_commit_impossible()
+    public async Task An_absorbed_inner_failure_still_commits_the_outer_work()
     {
-        // ADR-0040 § Nesting: an inner failure marks the transaction
-        // rollback-only, and the outer commit throws rather than committing a
-        // partial unit.
+        // ADR-0040 § Nesting's worked example, through the REAL behavior against a
+        // real database: an inner frame declines, the outer handler absorbs it and
+        // reports success, and the outer handler's own row must be there
+        // afterwards. The first implementation poisoned the unit here — the inner
+        // rollback set the rollback-only flag before the joiner check — so the
+        // outer commit threw and the row was discarded.
+        await using var provider = BuildProvider();
+        var slug = $"absorbed-{Guid.CreateVersion7():N}"[..20];
+
+        try
+        {
+            await using (var scope = provider.CreateAsyncScope())
+            {
+                var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                var outer = new TransactionBehavior<Probe, Result<string>>(
+                    unitOfWork, Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                var inner = new TransactionBehavior<Probe, Result<string>>(
+                    unitOfWork, Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+
+                var result = await outer.Handle(
+                    new Probe(),
+                    async () =>
+                    {
+                        await ExecuteAsync(unitOfWork,
+                            """
+                            INSERT INTO organizations
+                                (id, tenant_id, slug, display_name, status,
+                                 created_at, created_by, row_version)
+                            VALUES (uuidv7(), @tenant, @slug, 'Absorbed', 'Active', now(), @actor, 0)
+                            """,
+                            ("tenant", SchemaFixture.TenantA), ("slug", slug),
+                            ("actor", SchemaFixture.Actor));
+
+                        var innerResult = await inner.Handle(
+                            new Probe(),
+                            () => Task.FromResult(Result.FailFor<Result<string>>(
+                                new Error(new LocalizedMessage("lockey_business_rule_violation")))),
+                            default);
+
+                        innerResult.IsFailure.Should().BeTrue();
+                        return Result.Ok("absorbed");
+                    },
+                    default);
+
+                result.IsSuccess.Should().BeTrue();
+            }
+
+            (await CountOrganizationsAsync(slug)).Should().Be(1L,
+                "the outer handler took responsibility for the inner failure, and its work commits");
+        }
+        finally
+        {
+            await using var platform = await PostgresFixture.OpenAsync(
+                _schema.Postgres.PlatformConnectionString);
+            await using var cleanup = new NpgsqlCommand(
+                "DELETE FROM organizations WHERE slug = @slug", (NpgsqlConnection)platform);
+            cleanup.Parameters.AddWithValue("slug", slug);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    public async Task A_leaked_inner_frame_makes_the_outer_completion_throw()
+    {
+        // The frame-blind CommitAsync cannot tell the owning frame's commit from a
+        // joiner's, so a frame nobody resolved turns the outer commit into a
+        // silent no-op: success reported, nothing written. Resolving through the
+        // handle is what catches it, and this is why TransactionBehavior uses the
+        // handle rather than the bare call.
         await using var provider = BuildProvider();
         await using var scope = provider.CreateAsyncScope();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        await unitOfWork.BeginTransactionAsync();
+        var outer = await unitOfWork.BeginTransactionAsync();
         await unitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
 
-        await unitOfWork.BeginTransactionAsync();
-        await unitOfWork.RollbackAsync();
+        await unitOfWork.BeginTransactionAsync();   // leaked: never resolved
 
-        var commit = async () => await unitOfWork.CommitAsync();
+        var complete = async () => await outer.CompleteAsync();
+
+        (await complete.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*innermost-first*");
+
+        await unitOfWork.RollbackAsync();
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task MarkRollbackOnly_outlives_the_transaction_it_marked()
+    {
+        // The interface says "irreversible". The first implementation cleared the
+        // flag inside BeginTransactionAsync, so a unit marked before a transaction
+        // was opened — or between two on the same scope — committed anyway.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        unitOfWork.MarkRollbackOnly();
+
+        var begin = async () => await unitOfWork.BeginTransactionAsync();
+
+        (await begin.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*rollback-only*");
+    }
+
+    [Fact]
+    public async Task The_runtime_role_does_not_bypass_row_security()
+    {
+        // Asked of the server rather than of the connection string, because the
+        // name is not the privilege: learnstack_app could have been granted
+        // BYPASSRLS, and a superuser bypasses row security with rolbypassrls
+        // false. The composition root's data source runs this on every physical
+        // connection; here it is asserted directly of the role the suite uses.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT rolbypassrls OR rolsuper FROM pg_roles WHERE rolname = current_user",
+            (NpgsqlConnection)connection);
+
+        (await command.ExecuteScalarAsync()).Should().Be(false,
+            "every isolation assertion in this suite is vacuous against a bypass role");
+    }
+
+    [Fact]
+    public async Task The_data_source_refuses_a_runtime_role_that_was_granted_bypass()
+    {
+        // The name check cannot see this one: the connection string still says
+        // learnstack_app. Only the server knows the role was granted BYPASSRLS,
+        // and with it every policy in the database is inert — so the composition
+        // root asks, once per physical connection.
+        //
+        // The grant is made and reverted here rather than mocked, because the
+        // question is whether the initializer actually runs and actually reads
+        // the right catalogue column. Reverted in a finally: the cluster is shared
+        // with every other case in this collection, and all of them are vacuous
+        // against a bypass role.
+        try
+        {
+            // The superuser, because none of the four LearnStack roles may alter a
+            // role — learnstack_migration owns tables, and PostgreSQL wants
+            // CREATEROLE plus ADMIN OPTION.
+            await _schema.Postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_app BYPASSRLS");
+
+            await using var dataSource = PersistenceCompositionExtensions.BuildApplicationDataSource(
+                _schema.Postgres.AppConnectionString);
+
+            var open = async () =>
+            {
+                await using var connection = await dataSource.OpenConnectionAsync();
+            };
+
+            (await open.Should().ThrowAsync<InvalidOperationException>())
+                .WithMessage("*bypasses Row Level Security*");
+        }
+        finally
+        {
+            await _schema.Postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_app NOBYPASSRLS");
+        }
+
+        // And the same data source is fine once the grant is gone, so the guard is
+        // a guard rather than a permanent refusal.
+        await using var restored = PersistenceCompositionExtensions.BuildApplicationDataSource(
+            _schema.Postgres.AppConnectionString);
+        await using var healthy = await restored.OpenConnectionAsync();
+
+        healthy.State.Should().Be(System.Data.ConnectionState.Open);
+    }
+
+    [Fact]
+    public async Task A_nested_failure_makes_the_outer_commit_impossible()
+    {
+        // ADR-0040 § Nesting: an EXCEPTION in an inner frame marks the unit, and
+        // the outer commit then throws rather than committing a partial one.
+        //
+        // The escalation is MarkRollbackOnly, not the inner rollback — that is
+        // the distinction the ADR draws and the one the first implementation
+        // collapsed. An inner rollback alone is
+        // An_absorbed_inner_failure_still_commits_the_outer_work, and it commits.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        var outer = await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+
+        var inner = await unitOfWork.BeginTransactionAsync();
+        unitOfWork.MarkRollbackOnly();
+        await inner.FailAsync();
+
+        var commit = async () => await outer.CompleteAsync();
 
         (await commit.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage("*rollback-only*");
@@ -286,6 +482,17 @@ public sealed class UnitOfWorkTests
         return services.BuildServiceProvider();
     }
 
+    private async Task<long> CountOrganizationsAsync(string slug)
+    {
+        await using var platform = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM organizations WHERE slug = @slug", (NpgsqlConnection)platform);
+        command.Parameters.AddWithValue("slug", slug);
+
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
+
     private async Task<long> CountOutboxAsync(string correlation)
     {
         await using var platform = await PostgresFixture.OpenAsync(
@@ -329,6 +536,9 @@ public sealed class UnitOfWorkTests
     /// A resolved context, standing in for what Packet 7's
     /// <c>TenantResolverMiddleware</c> will populate.
     /// </summary>
+    /// <summary>A request type for driving the real behavior.</summary>
+    public sealed record Probe : MediatR.IRequest<Result<string>>;
+
     private sealed class StubTenantContext(Guid tenant, Guid organization) : ITenantContext
     {
         public bool IsResolved => true;

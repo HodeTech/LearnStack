@@ -304,6 +304,9 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
         public Task CompleteAsync(CancellationToken cancellationToken = default) =>
             unitOfWork.CommitAsync(cancellationToken);
 
+        public Task FailAsync(CancellationToken cancellationToken = default) =>
+            unitOfWork.RollbackAsync(cancellationToken);
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

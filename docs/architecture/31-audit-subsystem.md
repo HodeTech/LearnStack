@@ -481,8 +481,22 @@ public async Task<TResponse> Handle(TRequest request,
 
 `IUnitOfWork` is the seam that lets this generic behavior open and commit a transaction
 without naming any module's `DbContext`, and through which `IAuditStore` reaches the
-ambient connection. It is a [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)
-deliverable that the shipped `TransactionBehavior` shell already presumes.
+ambient connection. It **shipped** in
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) step 6, together with the
+`TransactionBehavior` body — everything above except the `auditStore` and `stateCapture`
+lines, which land with `IAuditStore` in Packet 9 and have their place reserved in the
+shipped body.
+
+Two differences between the block above and what shipped, both decided by
+[ADR-0040 Amendment 2](../decisions/0040-ambient-unit-of-work.md) after this block was
+written. The shipped behavior resolves its frame through the `IUnitOfWorkScope` handle
+(`CompleteAsync` / `FailAsync`) rather than through the frame-blind
+`unitOfWork.CommitAsync` / `RollbackAsync`, because a nested frame nobody resolved
+otherwise turns the outer commit into a silent no-op. And it marks the unit
+rollback-only on the exception path only: an inner `Result.Fail` an outer handler
+absorbs is not a failure of the unit, per ADR-0040 § Nesting. The `stateCapture` guard
+on the outer catch is what the shipped body writes as a `committing` flag, and it does
+the same job — a faulted `COMMIT` must not be followed by a rollback attempt.
 
 The alternative — moving `TransactionBehavior` outward so it wraps `AuditLogBehavior` —
 was considered and rejected in

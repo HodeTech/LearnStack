@@ -37,8 +37,19 @@ public static class ModuleDbContextRegistration
     /// a structural assertion about the composition root, and a test that built
     /// its own container would otherwise assert about that container instead.
     /// </remarks>
-    public static IReadOnlyCollection<Type> RegisteredContexts =>
-        new ReadOnlyCollection<Type>([.. Registered]);
+    public static IReadOnlyCollection<Type> RegisteredContexts
+    {
+        get
+        {
+            // Inside the lock. HashSet is not safe to enumerate while another
+            // thread adds, and composition roots do run in parallel — the test
+            // host builds one per fixture.
+            lock (Registered)
+            {
+                return new ReadOnlyCollection<Type>([.. Registered]);
+            }
+        }
+    }
 
     /// <summary>
     /// Registers <typeparamref name="TContext"/> scoped, built on the ambient
@@ -80,6 +91,14 @@ public static class ModuleDbContextRegistration
                 // does not return the connection to the pool underneath its
                 // siblings — IUnitOfWork is the sole owner.
                 .UseNpgsql(unitOfWork.Connection)
+                // Without this EF has no ILoggerFactory to resolve, and every
+                // Microsoft.EntityFrameworkCore log category is silent for every
+                // context this helper registers — on a seam whose whole premise is
+                // that a misconfigured context fails invisibly. Measured: the
+                // model-validation warnings and the command-error lines carrying
+                // the failing SQL both disappear. It is also what lets a
+                // DI-registered interceptor be found, which Packet 9 needs.
+                .UseApplicationServiceProvider(provider)
                 .Options;
 
             var context = (TContext)Activator.CreateInstance(typeof(TContext), options)!;

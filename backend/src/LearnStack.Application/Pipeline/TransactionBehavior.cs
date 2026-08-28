@@ -30,11 +30,31 @@ namespace LearnStack.Application.Pipeline;
 /// exemption defined nowhere.
 /// </para>
 /// <para>
+/// <b>The commit is outside the catch, deliberately.</b> The filter
+/// <c>when (!committing)</c> is what stops the cleanup path from running after a
+/// faulted <c>COMMIT</c>. Two things go wrong without it, both measured: the
+/// rollback's own complaint replaces the database's exception, so a constraint
+/// violation at commit time reaches the client as a bookkeeping error with no
+/// inner exception; and because the replacement is not an
+/// <c>OperationCanceledException</c>, a client that disconnects mid-commit is
+/// audited as a failure, captured by <c>IErrorTrackingProvider</c> and answered
+/// <c>500</c> instead of <c>499</c> — three ADR-0032 behaviours inverted at once.
+/// A faulted commit also leaves the outcome genuinely unknown, which is
+/// <see href="../../../../docs/decisions/0033-audit-durability-model.md">ADR-0033</see>'s
+/// <c>Indeterminate</c>, not a failure to roll back.
+/// </para>
+/// <para>
+/// <b>The exception path marks the unit; the fail-<c>Result</c> path does not.</b>
+/// ADR-0040 § Nesting: an inner <c>Result.Fail</c> that an outer handler
+/// deliberately absorbs is not a failure of the unit — the outer handler took
+/// responsibility, and its own work still commits. An exception is, so it calls
+/// <c>MarkRollbackOnly</c> before failing its frame.
+/// </para>
+/// <para>
 /// <b>What is not here yet.</b> The MUST-class audit write —
 /// <c>IAuditStore.WritePendingAsync(unitOfWork, ct)</c> immediately before
-/// <c>COMMIT</c>, per
-/// <see href="../../../../docs/decisions/0033-audit-durability-model.md">ADR-0033</see>
-/// — belongs on this exact line and lands with <c>IAuditStore</c> in
+/// <c>COMMIT</c>, per ADR-0033 — belongs on the marked line and lands with
+/// <c>IAuditStore</c> in
 /// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 9</see>,
 /// together with the <c>IAuditStateCapture</c> transitions that make the commit
 /// the only place durability is claimed. The commit boundary is here now so that
@@ -55,7 +75,11 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
     {
         ArgumentNullException.ThrowIfNull(next);
 
-        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        // Through the handle, not the frame-blind CommitAsync: the handle knows
+        // its own depth, so a nested frame nobody resolved is an exception here
+        // rather than a commit that quietly resolves the wrong frame, writes
+        // nothing, and returns success.
+        var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
 
         // First statement inside the transaction, per ADR-0003 Amendment 3. Until
         // Packet 7's TenantResolverMiddleware populates ITenantContext this writes
@@ -63,6 +87,8 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
         // NULLIF(current_setting(...), '')::uuid, so an unresolved context is a
         // NULL predicate and every tenant-owned table returns zero rows.
         await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
+
+        var committing = false;
 
         try
         {
@@ -72,8 +98,9 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             {
                 // A business-rule failure is not an exception (ADR-0032
                 // § Sub-decision 4), and it still must not commit: the handler
-                // may have written before deciding it could not finish.
-                await unitOfWork.RollbackAsync(CancellationToken.None);
+                // may have written before deciding it could not finish. It does
+                // not mark the unit — see the class remarks.
+                await scope.FailAsync(CancellationToken.None);
                 return response;
             }
 
@@ -82,19 +109,25 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             // await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
             // It throws on failure, which reaches the catch below and rolls the
             // business write back, which is what ADR-0033 means by fail-closed.
-            await unitOfWork.CommitAsync(cancellationToken);
+            committing = true;
+            await scope.CompleteAsync(cancellationToken);
             return response;
         }
-        catch
+        catch when (!committing)
         {
+            // An exception marks the unit, so an outer frame that absorbs it
+            // cannot commit a partial one (ADR-0040 § Nesting).
+            unitOfWork.MarkRollbackOnly();
+
             // CancellationToken.None: the rollback is the cleanup path, and a
             // cancelled rollback leaves the transaction open on a connection
             // about to go back to the pool.
-            await unitOfWork.RollbackAsync(CancellationToken.None);
+            await scope.FailAsync(CancellationToken.None);
 
-            // Rethrown, not swallowed: AuditLogBehavior one frame out catches it,
-            // audits the failure and rethrows through ExceptionDispatchInfo, and
-            // the L1 IExceptionHandler turns it into Problem Details.
+            // Rethrown, not swallowed: AuditLogBehavior — three behaviors out,
+            // at step 3 — catches it, audits the failure and rethrows through
+            // ExceptionDispatchInfo, and the L1 IExceptionHandler turns it into
+            // Problem Details.
             throw;
         }
     }

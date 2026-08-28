@@ -28,11 +28,16 @@ namespace LearnStack.SharedKernel.Persistence;
 /// <b>Nesting.</b> An application contract may reach a second handler through
 /// <c>ISender</c>, so a second <see cref="BeginTransactionAsync"/> on a live
 /// transaction is reachable. The outermost call owns the transaction and is the
-/// only one whose <see cref="CommitAsync"/> commits; an inner call joins, and its
-/// commit resolves its own frame and nothing else. An inner
-/// <see cref="RollbackAsync"/> — or an explicit
-/// <see cref="MarkRollbackOnly"/> — makes the whole unit unable to commit, so a
-/// partial unit is never committed by an outer frame that did not notice.
+/// only one whose terminal call touches the database; an inner call joins, and
+/// its commit or rollback resolves its own frame and nothing else.
+/// </para>
+/// <para>
+/// What escalates a frame's failure to the whole unit is
+/// <see cref="MarkRollbackOnly"/>, and only two things call it: an exception —
+/// <c>TransactionBehavior</c> marks the unit before rolling back on one — and a
+/// caller doing so deliberately. An inner <c>Result.Fail</c> that an outer
+/// handler absorbs is not one of them, per ADR-0040 § Nesting: the outer handler
+/// took responsibility for it, and its own work still commits.
 /// </para>
 /// <para>
 /// <b>One command at a time.</b> One connection means the ambient transaction
@@ -69,9 +74,11 @@ public interface IUnitOfWork : IAsyncDisposable
     /// Joins the ambient transaction if one is active; otherwise opens it.
     /// </summary>
     /// <returns>
-    /// A handle for the frame this call opened. Completing it resolves that
-    /// frame; disposing it without completing rolls the unit back, because a
-    /// frame that ended without an explicit terminal call has failed and
+    /// A handle for the frame this call opened. Resolving it through the handle
+    /// rather than through <see cref="CommitAsync"/> is what makes a leaked inner
+    /// frame loud: the handle knows its own depth and refuses to resolve while a
+    /// frame opened after it is still open. Disposing it unresolved rolls the unit
+    /// back, because a frame that ended without a terminal call has failed and
     /// committing it would commit work nobody claimed was finished.
     /// </returns>
     Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default);
@@ -95,22 +102,52 @@ public interface IUnitOfWork : IAsyncDisposable
     /// unless the unit is marked rollback-only, in which case it throws rather
     /// than committing a partial unit.
     /// </summary>
+    /// <remarks>
+    /// Frame-blind: it resolves whatever frame is innermost, so a caller that
+    /// leaked one silently downgrades its own commit to a no-op.
+    /// <see cref="IUnitOfWorkScope.CompleteAsync"/> is the guarded form and is
+    /// what <c>TransactionBehavior</c> uses; this exists for a caller that has no
+    /// handle to hand.
+    /// </remarks>
     Task CommitAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Resolves the innermost open frame by failing it. The unit becomes
-    /// rollback-only, and the outermost frame performs the actual
-    /// <c>ROLLBACK</c>.
+    /// Resolves the innermost open frame by failing it.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A joiner's failure does not poison the unit.</b> ADR-0040 § Nesting:
+    /// "an inner <c>Result.Fail</c> that the outer handler deliberately absorbs
+    /// is <i>not</i> a failure and does not mark it — only an exception, or an
+    /// explicit <see cref="MarkRollbackOnly"/>, does." So this resolves the
+    /// caller's frame and, on the outermost one, performs the actual
+    /// <c>ROLLBACK</c>; escalating to the whole unit is
+    /// <see cref="MarkRollbackOnly"/>'s job, and the exception path calls it.
+    /// </para>
+    /// <para>
+    /// <b>It is cleanup, so it never throws over the thing it is cleaning up
+    /// after.</b> On a unit with nothing left to resolve — the state a faulted
+    /// <see cref="CommitAsync"/> leaves behind — this is a no-op. The alternative
+    /// was measured: it replaced every commit-time exception with
+    /// "no transaction frame is open", including the
+    /// <c>OperationCanceledException</c> that three separate ADR-0032 behaviours
+    /// key on.
+    /// </para>
+    /// </remarks>
     Task RollbackAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Marks the ambient transaction as unable to commit. Irreversible.
+    /// Marks the unit as unable to commit. Irreversible, for the life of the unit
+    /// of work — not just of the current transaction.
     /// </summary>
     /// <remarks>
     /// An inner <c>Result.Fail</c> that an outer handler deliberately absorbs is
-    /// not a failure and does not mark it — only an exception, an explicit
-    /// <see cref="RollbackAsync"/>, or this call does.
+    /// not a failure and does not mark it; an exception is, and
+    /// <c>TransactionBehavior</c> calls this before rolling back on one. Once
+    /// marked, <see cref="CommitAsync"/> throws and
+    /// <see cref="BeginTransactionAsync"/> refuses to open a new transaction on
+    /// the same unit — a scope that needs a fresh one takes a fresh scope, which
+    /// is the model.
     /// </remarks>
     void MarkRollbackOnly();
 }
@@ -119,12 +156,19 @@ public interface IUnitOfWork : IAsyncDisposable
 /// A handle for one frame of the ambient transaction.
 /// </summary>
 /// <remarks>
-/// Returned by <see cref="IUnitOfWork.BeginTransactionAsync"/> so a caller can
-/// write <c>await using</c> and have the frame resolved either way.
-/// <c>TransactionBehavior</c> does not use it — it calls
-/// <see cref="IUnitOfWork.CommitAsync"/> / <see cref="IUnitOfWork.RollbackAsync"/>
-/// explicitly, because which one it calls depends on the <c>Result</c> the
-/// handler returned.
+/// <para>
+/// Returned by <see cref="IUnitOfWork.BeginTransactionAsync"/>. It carries the
+/// depth of the frame it opened, which is the whole reason to prefer it over the
+/// frame-blind <see cref="IUnitOfWork.CommitAsync"/>: a caller that resolves
+/// through the handle cannot silently resolve someone else's frame, and a leaked
+/// inner frame becomes an exception at the outer frame's terminal call rather
+/// than a success that wrote nothing.
+/// </para>
+/// <para>
+/// Two terminal calls rather than one, because which one a caller makes depends
+/// on the outcome it is reporting — <c>TransactionBehavior</c> chooses by the
+/// <c>Result</c> the handler returned.
+/// </para>
 /// </remarks>
 public interface IUnitOfWorkScope : IAsyncDisposable
 {
@@ -138,5 +182,17 @@ public interface IUnitOfWorkScope : IAsyncDisposable
     /// Resolves this frame successfully. On the owning frame that is the commit;
     /// on a joiner it is a no-op, per ADR-0040 § Nesting.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// A frame opened after this one is still open. Resolving out of order would
+    /// commit nothing and report success.
+    /// </exception>
     Task CompleteAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolves this frame by failing it. On the owning frame that is the
+    /// <c>ROLLBACK</c>; on a joiner it declines this frame without making the
+    /// unit unable to commit, which is ADR-0040 § Nesting's rule about an
+    /// absorbed inner failure.
+    /// </summary>
+    Task FailAsync(CancellationToken cancellationToken = default);
 }

@@ -138,6 +138,30 @@ public sealed class PostgresFixture : IAsyncLifetime
             "-f", ContainerScriptPath,
         ]);
 
+    /// <summary>
+    /// Runs one statement as the container's superuser.
+    /// </summary>
+    /// <remarks>
+    /// For the few assertions that need to change the cluster itself rather than
+    /// its data — <c>ALTER ROLE … BYPASSRLS</c> is the case — which none of the
+    /// four LearnStack roles may do: <c>learnstack_migration</c> owns tables, not
+    /// roles, and PostgreSQL requires <c>CREATEROLE</c> plus <c>ADMIN OPTION</c>.
+    /// Every caller reverts what it did in a <c>finally</c>: the cluster is shared,
+    /// and an isolation suite running against a bypass role is vacuous.
+    /// </remarks>
+    public async Task ExecuteAsSuperuserAsync(string sql)
+    {
+        var result = await _container.ExecAsync(
+            ["psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", Database, "-c", sql]);
+
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Superuser statement failed (exit {result.ExitCode}): {sql}{Environment.NewLine}"
+                + $"{result.Stderr}{Environment.NewLine}{result.Stdout}");
+        }
+    }
+
     /// <summary>Opens a connection as the given role and returns it open.</summary>
     public static async Task<DbConnection> OpenAsync(
         string connectionString, CancellationToken cancellationToken = default)

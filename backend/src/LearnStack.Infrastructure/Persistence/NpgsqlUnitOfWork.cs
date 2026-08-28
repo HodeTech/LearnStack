@@ -12,21 +12,30 @@ namespace LearnStack.Infrastructure.Persistence;
 /// <remarks>
 /// <para>
 /// Registered <b>scoped</b>. It is the sole owner of the connection — every
-/// module <c>DbContext</c> is built against it with
-/// <c>contextOwnsConnection: false</c>, so disposing a context does not return
-/// the connection to the pool underneath its siblings. Disposal order is
+/// module <c>DbContext</c> is built against it, so disposing a context does not
+/// return the connection to the pool underneath its siblings. Disposal order is
 /// transaction, then connection, and disposing with a live transaction rolls it
 /// back
 /// (<see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040</see>
 /// § Consequences).
 /// </para>
 /// <para>
-/// <b>Frames, not a boolean.</b> Nesting is tracked as a depth because
-/// <c>TransactionBehavior</c> calls <c>CommitAsync</c> directly rather than
-/// through the handle, and ADR-0040 § Nesting says a nested frame "never commits,
-/// never rolls back". Only a depth counter can make that true of a bare
-/// <c>CommitAsync</c>: an inner call resolves its own frame and the outermost one
-/// touches the database.
+/// <b>Frames, not a boolean.</b> Nesting is a depth because a joiner's terminal
+/// call must resolve its own frame and nothing else, and because
+/// <see cref="IUnitOfWork.CommitAsync"/> takes no argument. The frame-blind form
+/// is kept for a caller with no handle; <see cref="IUnitOfWorkScope"/> is the
+/// guarded one, and it is what <c>TransactionBehavior</c> uses.
+/// </para>
+/// <para>
+/// <b>Three rules that only look like details.</b> A commit disposes its
+/// transaction in a <c>finally</c>, so a faulted <c>COMMIT</c> still leaves a
+/// clean unit. A rollback on a unit with nothing to resolve is a no-op, because
+/// rollback is cleanup and cleanup must never throw over the exception it is
+/// cleaning up after — measured, the strict form replaced every commit-time
+/// exception with "no transaction frame is open". And
+/// <see cref="MarkRollbackOnly"/> is sticky for the life of the unit rather than
+/// of the transaction, because the interface says "irreversible" and a poison
+/// that a later <c>BEGIN</c> clears is not.
 /// </para>
 /// </remarks>
 public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
@@ -38,6 +47,7 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
     private DbTransaction? _transaction;
     private int _depth;
     private bool _rollbackOnly;
+    private bool _commitRequested;
     private bool _disposed;
 
     public DbConnection Connection
@@ -68,6 +78,14 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        if (_rollbackOnly)
+        {
+            throw new InvalidOperationException(
+                "This unit of work is marked rollback-only and cannot open a transaction. "
+                + "The mark is irreversible for the life of the unit; a caller that needs a "
+                + "fresh transaction takes a fresh scope, which is the model ADR-0040 decides.");
+        }
+
         if (_transaction is null)
         {
             _connection ??= _dataSource.CreateConnection();
@@ -78,7 +96,6 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
             }
 
             _transaction = await _connection.BeginTransactionAsync(cancellationToken);
-            _rollbackOnly = false;
         }
 
         return new Frame(this, ++_depth);
@@ -122,45 +139,25 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
                     : string.Empty));
     }
 
-    public async Task CommitAsync(CancellationToken cancellationToken = default)
+    public Task CommitAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureFrameOpen();
 
-        if (--_depth > 0)
-        {
-            // A joiner's commit is not a commit.
-            return;
-        }
-
-        if (_rollbackOnly)
-        {
-            await RollbackCoreAsync();
-
-            throw new InvalidOperationException(
-                "The ambient transaction is marked rollback-only and has been rolled back. "
-                + "An inner frame failed, so committing here would commit a partial unit.");
-        }
-
-        var transaction = _transaction!;
-        _transaction = null;
-        await transaction.CommitAsync(cancellationToken);
-        await transaction.DisposeAsync();
+        return CommitFrameAsync(cancellationToken);
     }
 
-    public async Task RollbackAsync(CancellationToken cancellationToken = default)
+    public Task RollbackAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        EnsureFrameOpen();
 
-        _rollbackOnly = true;
-
-        if (--_depth > 0)
-        {
-            return;
-        }
-
-        await RollbackCoreAsync();
+        // No EnsureFrameOpen. A rollback is the cleanup path: on a unit a faulted
+        // commit already resolved there is nothing to roll back, and throwing
+        // here would replace the caller's real exception with a complaint about
+        // bookkeeping.
+        return _depth == 0 || _transaction is null
+            ? Task.CompletedTask
+            : RollbackFrameAsync();
     }
 
     public void MarkRollbackOnly()
@@ -180,6 +177,8 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
         // A scope that ended with a live transaction has failed: committing here
         // would commit work nobody claimed was finished.
+        var swallowedCommit = _commitRequested && _transaction is not null;
+
         if (_transaction is not null)
         {
             await RollbackCoreAsync();
@@ -190,6 +189,74 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
             await _connection.DisposeAsync();
             _connection = null;
         }
+
+        if (swallowedCommit)
+        {
+            // A commit was asked for and the transaction outlived it, which means
+            // a frame opened below the committer was never resolved and the
+            // frame-blind CommitAsync resolved that one instead. The caller has
+            // already been told it succeeded. Throwing from disposal is the last
+            // remaining place to say otherwise, and a silent no-op on the success
+            // path is the worse outcome. IUnitOfWorkScope.CompleteAsync catches
+            // this at the terminal call instead, which is why TransactionBehavior
+            // uses it.
+            throw new InvalidOperationException(
+                "A commit was requested but the transaction was still open at disposal, so it "
+                + "was rolled back after the caller had been told it succeeded. A nested "
+                + "BeginTransactionAsync frame was never resolved — resolve frames through the "
+                + "IUnitOfWorkScope handle, which refuses to complete out of order.");
+        }
+    }
+
+    private async Task CommitFrameAsync(CancellationToken cancellationToken)
+    {
+        _commitRequested = true;
+
+        if (--_depth > 0)
+        {
+            // A joiner's commit is not a commit.
+            return;
+        }
+
+        if (_rollbackOnly)
+        {
+            await RollbackCoreAsync();
+
+            throw new InvalidOperationException(
+                "The ambient transaction is marked rollback-only and has been rolled back. "
+                + "An inner frame failed, so committing here would commit a partial unit.");
+        }
+
+        var transaction = _transaction!;
+        _transaction = null;
+
+        try
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            // In a finally, so a faulted COMMIT still leaves the connection clean.
+            // Deliberately NOT rolled back: a COMMIT that threw leaves the
+            // server-side outcome genuinely unknown, and ADR-0033 calls that state
+            // Indeterminate rather than failed.
+            await transaction.DisposeAsync();
+        }
+    }
+
+    private async Task RollbackFrameAsync()
+    {
+        if (--_depth > 0)
+        {
+            // A joiner declining its own frame. It does NOT mark the unit:
+            // ADR-0040 § Nesting reserves that for an exception or an explicit
+            // MarkRollbackOnly, because an inner Result.Fail the outer handler
+            // absorbs is the outer handler's to decide about.
+            return;
+        }
+
+        _rollbackOnly = true;
+        await RollbackCoreAsync();
     }
 
     private async Task RollbackCoreAsync()
@@ -203,11 +270,17 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
             return;
         }
 
-        // CancellationToken.None: a rollback is the cleanup path, and cancelling
-        // it would leave the transaction open on a connection about to go back to
-        // the pool.
-        await transaction.RollbackAsync(CancellationToken.None);
-        await transaction.DisposeAsync();
+        try
+        {
+            // CancellationToken.None: a rollback is the cleanup path, and
+            // cancelling it would leave the transaction open on a connection
+            // about to go back to the pool.
+            await transaction.RollbackAsync(CancellationToken.None);
+        }
+        finally
+        {
+            await transaction.DisposeAsync();
+        }
     }
 
     private void EnsureFrameOpen()
@@ -215,8 +288,8 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
         if (_depth == 0 || _transaction is null)
         {
             throw new InvalidOperationException(
-                "No transaction frame is open. CommitAsync and RollbackAsync resolve a frame "
-                + "opened by BeginTransactionAsync.");
+                "No transaction frame is open. CommitAsync resolves a frame opened by "
+                + "BeginTransactionAsync.");
         }
     }
 
@@ -236,6 +309,12 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
     }
 
     /// <summary>One frame of the ambient transaction.</summary>
+    /// <remarks>
+    /// It knows its own depth, which is what the frame-blind
+    /// <see cref="IUnitOfWork.CommitAsync"/> cannot: resolving while a frame
+    /// opened after this one is still open would commit nothing and report
+    /// success.
+    /// </remarks>
     private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth) : IUnitOfWorkScope
     {
         private bool _resolved;
@@ -244,25 +323,63 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
         public Task CompleteAsync(CancellationToken cancellationToken = default)
         {
-            if (_resolved || unitOfWork._depth < depth)
+            if (AlreadyResolved())
             {
-                // Already resolved, here or by an explicit CommitAsync.
                 return Task.CompletedTask;
             }
 
+            EnsureInnermost();
             _resolved = true;
             return unitOfWork.CommitAsync(cancellationToken);
         }
 
+        public Task FailAsync(CancellationToken cancellationToken = default)
+        {
+            if (AlreadyResolved())
+            {
+                return Task.CompletedTask;
+            }
+
+            _resolved = true;
+
+            if (unitOfWork._depth > depth)
+            {
+                // Frames above this one leaked. On the failure path that collapses
+                // rather than throws: everything opened after a frame that failed
+                // has failed too, and raising here would replace the caller's real
+                // exception with one about bookkeeping. CompleteAsync is where the
+                // same condition is loud, because there it would otherwise be
+                // reported as success.
+                unitOfWork.MarkRollbackOnly();
+                return unitOfWork.RollbackCoreAsync();
+            }
+
+            return unitOfWork.RollbackAsync(cancellationToken);
+        }
+
         public async ValueTask DisposeAsync()
         {
-            if (_resolved || unitOfWork._disposed || unitOfWork._depth < depth)
+            if (AlreadyResolved())
             {
                 return;
             }
 
             _resolved = true;
             await unitOfWork.RollbackAsync(CancellationToken.None);
+        }
+
+        private bool AlreadyResolved() =>
+            _resolved || unitOfWork._disposed || unitOfWork._depth < depth;
+
+        private void EnsureInnermost()
+        {
+            if (unitOfWork._depth > depth)
+            {
+                throw new InvalidOperationException(
+                    $"Frame {depth} cannot complete while frame {unitOfWork._depth} is still open. "
+                    + "Frames resolve innermost-first; completing out of order would resolve "
+                    + "someone else's frame, commit nothing, and report success.");
+            }
         }
     }
 }

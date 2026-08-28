@@ -738,8 +738,12 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
-- **Asserts:** `TransactionBehavior` names `IUnitOfWork` and no `DbContext`, and
-  `LearnStack.Application` takes no build-time reference to any module assembly.
+- **Asserts:** `TransactionBehavior`'s constructor names `IUnitOfWork` and no
+  `DbContext`, and `LearnStack.Application` references no module assembly — checked
+  against the **project file** as well as the emitted assembly-reference table,
+  because the compiler elides a reference whose types the IL never touches, so a
+  dangling `<ProjectReference>` would leave a reflection-only check green. The
+  assembly half carries a positive control.
 - **Source:** ADR-0040; ADR-0033.
 - **Type:** xUnit + assembly-reference and constructor inspection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6,

@@ -172,12 +172,33 @@ public sealed class PersistenceConventionTests
         // has to name a module. Two assertions: the assembly takes no build-time
         // reference to one, and the behavior's own surface names IUnitOfWork and
         // no DbContext.
+        // The PROJECT file, not only the emitted assembly-reference table. The
+        // compiler elides a reference whose types the IL never touches, so an
+        // unused <ProjectReference> to a module would leave a reflection-only
+        // check green — a trap this repository has documented twice and moved a
+        // rule out of this project over.
+        var project = Path.Combine(
+            RepositoryPaths.BackendSrc(), "LearnStack.Application", "LearnStack.Application.csproj");
+
+        XDocument.Load(project)
+            .Descendants("ProjectReference")
+            .Select(element => element.Attribute("Include")?.Value ?? string.Empty)
+            .Should().NotContain(
+                include => include.Contains("LearnStack.Modules.", StringComparison.Ordinal),
+                "LearnStack.Application is generic over every module and references none");
+
         var application = typeof(TransactionBehavior<,>).Assembly;
 
-        application.GetReferencedAssemblies()
-            .Select(reference => reference.Name)
-            .Should().NotContain(name => name!.StartsWith("LearnStack.Modules.", StringComparison.Ordinal),
-                "LearnStack.Application is generic over every module and references none");
+        var referenced = application.GetReferencedAssemblies()
+            .Select(reference => reference.Name!)
+            .ToList();
+
+        // The positive control the assembly half needs: if this list were empty
+        // the NotContain below would pass against a check that read nothing.
+        referenced.Should().Contain("LearnStack.SharedKernel");
+
+        referenced.Should().NotContain(
+            name => name.StartsWith("LearnStack.Modules.", StringComparison.Ordinal));
 
         var constructor = typeof(TransactionBehavior<,>).GetConstructors().Single();
 

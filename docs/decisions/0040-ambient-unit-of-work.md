@@ -368,6 +368,60 @@ or arrives another way is
 `TenantResolverMiddleware`; until then no caller sets it and the tenant-scope read
 hatch is simply unused, which is the correct default.
 
+### Amendment 2 — the handle's shape, and what a joiner's rollback does not do (2026-08-28)
+
+§ Decision specifies `IUnitOfWork` member by member and leaves `IUnitOfWorkScope`
+at one sentence: "Returns a handle whose `Complete()` is a no-op for a joiner."
+Implementing it in Packet 6 step 6 fixed three things that sentence does not, and
+two of them were found by a review measuring the first implementation against
+this ADR. Recording them here rather than leaving the divergence silent, on the
+Amendment 1 precedent.
+
+**The handle is `CompleteAsync` / `FailAsync` / `IsOwner`, and resolving through
+it is the guarded path.** `Complete()` in the sketch becomes `CompleteAsync`,
+matching every other member. `FailAsync` is added because which terminal call a
+caller makes depends on the outcome it is reporting — `TransactionBehavior`
+chooses by the `Result` the handler returned — and the alternative was the
+frame-blind `IUnitOfWork.RollbackAsync`.
+
+*Frame-blind* is the word that matters. `CommitAsync` and `RollbackAsync` take no
+argument, so they resolve whatever frame is innermost. Measured: a nested frame
+nobody resolved makes the outer `CommitAsync` decrement the depth, return without
+committing, and hand back a success — nothing written, nothing raised. The handle
+carries its own depth, so `CompleteAsync` refuses to resolve while a frame opened
+after it is still open, and `TransactionBehavior` uses the handle for exactly that
+reason. The bare calls remain for a caller that has no handle to hand.
+
+**A joiner's rollback does not mark the unit.** § Nesting already decides this —
+"an inner `Result.Fail` that the outer handler deliberately absorbs is *not* a
+failure and does not mark it — only an exception, or an explicit
+`MarkRollbackOnly()`, does" — and the first implementation contradicted it by
+setting the flag inside `RollbackAsync` before the joiner check. Measured against
+a real database: the outer handler absorbed the inner failure, reported success,
+and its own committed row was discarded. The rule is realised by putting the mark
+on the outermost frame only, and by having `TransactionBehavior` call
+`MarkRollbackOnly()` explicitly on the exception path — which is the one cause
+§ Nesting names that a terminal call cannot distinguish on its own.
+
+**Two robustness rules follow from "irreversible" and from what a rollback is
+for.** `MarkRollbackOnly` is sticky for the life of the unit of work, not of the
+transaction — the sketch says irreversible, and a poison a later `BEGIN` clears is
+not — so `BeginTransactionAsync` refuses to open a transaction on a marked unit.
+And `RollbackAsync` on a unit with nothing left to resolve is a no-op rather than
+an error, because rollback is the cleanup path and cleanup must never throw over
+the exception it is cleaning up after. The strict form was measured replacing
+every commit-time exception with "no transaction frame is open" — including the
+`OperationCanceledException` that `AuditLogBehavior`, `HttpStatusMap` and
+`IErrorTrackingProvider` each key on, so a client disconnecting mid-commit was
+audited as a failure, captured, and answered `500` instead of `499`. A faulted
+`COMMIT` leaves the outcome genuinely unknown, which is
+[ADR-0033](0033-audit-durability-model.md)'s `Indeterminate` rather than something
+to roll back; `TransactionBehavior`'s catch is filtered so it does not run after
+one.
+
+None of this changes what the ADR decides — one connection per scope, owned by
+`IUnitOfWork`, with every context and cross-cutting writer enlisted on it.
+
 ## References
 
 - [ADR-0002 — Initial Architecture](0002-initial-architecture.md)
