@@ -30,6 +30,7 @@ builder.Configuration.RefuseAmbientForwardedHeaders();
 
 builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
+builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
 
 // The outer half of the body bound, and deliberately NOT the same number.

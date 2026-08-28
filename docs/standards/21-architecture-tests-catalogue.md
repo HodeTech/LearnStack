@@ -722,22 +722,28 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
 
-- **Asserts:** no `DbContext` registration configures its own connection string or
-  calls `UseNpgsql(string)`; every one is built through the shared registration
-  helper against the connection `IUnitOfWork` owns. A context on its own connection
-  never saw `SET LOCAL`, so every read through it returns zero rows under the
-  corrected policy — silently.
+- **Asserts:** two halves. The composition root's persistence registration is run,
+  and every `DbContext` service in it is one `AddModuleDbContext` registered —
+  scoped, from an implementation factory, never a type registration EF could give
+  its own connection. And under `backend/src`, exactly three files may mention
+  `UseNpgsql` or `AddDbContext` at all: the two design-time factories, where a
+  connection string is the point, and the shared helper, which passes a
+  *connection*. A fourth is a new decision. A context on its own connection never
+  saw `SET LOCAL`, so every read through it returns zero rows under the corrected
+  policy — silently.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
-- **Type:** xUnit + DI registration inspection. **Kind:** structural.
-- **Status:** **Registered.** **Phase:** 02a Packet 6.
+- **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 6,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
 - **Asserts:** `TransactionBehavior` names `IUnitOfWork` and no `DbContext`, and
   `LearnStack.Application` takes no build-time reference to any module assembly.
 - **Source:** ADR-0040; ADR-0033.
-- **Type:** NetArchTest. **Kind:** structural.
-- **Status:** **Registered.** **Phase:** 02a Packet 6.
+- **Type:** xUnit + assembly-reference and constructor inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 6,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 
 #### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
 

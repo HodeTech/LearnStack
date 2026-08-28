@@ -1,9 +1,14 @@
 using System.Xml.Linq;
 using FluentAssertions;
+using LearnStack.Api.Composition;
+using LearnStack.Application.Pipeline;
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -102,6 +107,97 @@ public sealed class PersistenceConventionTests
             "`make migrate` passes --startup-project backend/src/LearnStack.Api, and "
             + "dotnet ef resolves the design-time package from there");
     }
+
+    [Fact]
+    public void Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork()
+    {
+        // Two halves, because either alone leaves the hole open.
+        //
+        // The registration half: the composition root's own persistence
+        // registration is run, and every DbContext service in it must be one the
+        // shared helper registered. A context registered any other way is absent
+        // from ModuleDbContextRegistration.RegisteredContexts.
+        var services = new ServiceCollection();
+        services.AddLearnStackPersistence(new ConfigurationBuilder().Build());
+
+        var contexts = services
+            .Where(descriptor => typeof(DbContext).IsAssignableFrom(descriptor.ServiceType))
+            .ToList();
+
+        contexts.Should().NotBeEmpty("TenancyDbContext is registered and is the first consumer");
+
+        contexts.Should().OnlyContain(
+            descriptor => ModuleDbContextRegistration.RegisteredContexts.Contains(descriptor.ServiceType),
+            "every DbContext registration goes through AddModuleDbContext");
+
+        contexts.Should().OnlyContain(
+            descriptor => descriptor.Lifetime == ServiceLifetime.Scoped
+                          && descriptor.ImplementationFactory != null,
+            "a context is built per scope, from the connection IUnitOfWork owns — "
+            + "a type registration would let EF open its own");
+
+        // The call-site half: a context on its own connection never saw
+        // SET LOCAL, so every read through it returns zero rows under the
+        // corrected policy — silently. `UseNpgsql` with a connection string is how
+        // that happens, and there are exactly three files under backend/src that
+        // may configure a provider at all: the two design-time factories, where a
+        // connection string is the point, and the shared helper, which passes a
+        // connection rather than a string. A fourth is a new decision.
+        var callSites = Directory
+            .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                       StringComparison.Ordinal)
+                       && !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+                       StringComparison.Ordinal))
+            .Where(file => StripComments(File.ReadAllText(file))
+                .Contains("UseNpgsql", StringComparison.Ordinal)
+                || StripComments(File.ReadAllText(file))
+                .Contains("AddDbContext", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        callSites.Should().BeEquivalentTo(
+        [
+            "ModuleDbContextRegistration.cs",
+            "PlatformDbContextFactory.cs",
+            "TenancyDbContextFactory.cs",
+        ]);
+    }
+
+    [Fact]
+    public void TransactionBehavior_Does_Not_Reference_A_Module_Assembly()
+    {
+        // The seam exists so that the behavior owning the commit boundary never
+        // has to name a module. Two assertions: the assembly takes no build-time
+        // reference to one, and the behavior's own surface names IUnitOfWork and
+        // no DbContext.
+        var application = typeof(TransactionBehavior<,>).Assembly;
+
+        application.GetReferencedAssemblies()
+            .Select(reference => reference.Name)
+            .Should().NotContain(name => name!.StartsWith("LearnStack.Modules.", StringComparison.Ordinal),
+                "LearnStack.Application is generic over every module and references none");
+
+        var constructor = typeof(TransactionBehavior<,>).GetConstructors().Single();
+
+        constructor.GetParameters().Select(parameter => parameter.ParameterType)
+            .Should().Contain(typeof(IUnitOfWork))
+            .And.NotContain(parameter => typeof(DbContext).IsAssignableFrom(parameter));
+    }
+
+    /// <summary>
+    /// Source with its comments removed.
+    /// </summary>
+    /// <remarks>
+    /// Every file the scan above touches argues in prose about the very call it
+    /// is forbidden to make, so scanning raw text would fail on the documentation
+    /// that explains the rule.
+    /// </remarks>
+    private static string StripComments(string source) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            source, @"//[^\n]*|/\*.*?\*/", string.Empty,
+            System.Text.RegularExpressions.RegexOptions.Singleline);
 
     [Fact]
     public void Migrate_Target_Covers_Every_Migration_Chain()
