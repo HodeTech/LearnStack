@@ -19,10 +19,13 @@
 # see .github/CONTRIBUTING.md § Branch protection for the three edits:
 #   - backend-integration : Testcontainers needs a real Docker socket inside
 #     the runner — works on `ubuntu-latest` natively. Activates in Phase 02a
-#     Packet 7, with the first cross-tenant isolation test. The HTTP tests
-#     already in LearnStack.Tests.Integration do NOT wait for it: they use
-#     WebApplicationFactory, need no Docker, and run in the `backend` job
-#     today. Packet 7 splits the Docker-bound tests out into this job.
+#     Packet 6 — brought forward from Packet 7, because Packet 6 ships the
+#     first Docker-bound test (the four-role provisioning suite) and is
+#     therefore the packet that has to split them. The HTTP tests in
+#     LearnStack.Tests.Integration stay in the `backend` job: they use
+#     WebApplicationFactory and need no Docker. The split is by
+#     [Trait("Requires","Docker")] and the two jobs' filters are exact
+#     complements, so every test runs in exactly one of them.
 #   - openapi-diff        : oasdiff against the prior `main` spec. Activates
 #     in Phase 02d, which ships the first real `/api/v1/*` read endpoints and
 #     retires `/healthz` as the only documented surface.
@@ -96,18 +99,22 @@ jobs:
           CI: "true"
         run: dotnet build LearnStack.slnx --no-restore --configuration Release
 
-      # No --filter. LearnStack.Tests.Integration holds WebApplicationFactory
-      # tests that need no Docker, and they carry rules the structural tests
-      # cannot: no-op'ing VersionedRouteConvention leaves every architecture
-      # test green and turns most of this assembly red. Excluding it meant a
-      # broken route convention shipped green. Testcontainers
-      # tests arrive in Packet 7 and move to the backend-integration job then;
-      # this job's NAME is a required check and does not change.
+      # The filter EXCLUDES a set, it does not name one. LearnStack.Tests.Integration
+      # holds WebApplicationFactory tests that need no Docker and carry rules the
+      # structural tests cannot — no-op'ing VersionedRouteConvention leaves every
+      # architecture test green and turns most of that assembly red — so excluding
+      # the assembly wholesale once let a broken route convention ship green. What
+      # is excluded here is only what carries [Trait("Requires","Docker")], and
+      # backend-integration runs exactly that complement, so every test runs once.
+      # Phase 02a Packet 6 brought this forward from Packet 7: it ships the first
+      # Docker-bound test, so it is the packet that has to split them.
+      # This job's NAME is a required check and does not change.
       - name: Test (unit + architecture + contract + HTTP integration)
         working-directory: backend
         run: |
           dotnet test LearnStack.slnx \
             --no-restore --no-build --configuration Release \
+            --filter "Requires!=Docker" \
             --logger "trx;LogFileName=test-results.trx" \
             --results-directory ../artifacts/backend-tests
 
@@ -121,14 +128,51 @@ jobs:
 
   # ─── Backend integration (deferred — Testcontainers harness lights up Phase 02a) ─
   backend-integration:
-    name: backend integration (Testcontainers — deferred)
+    name: backend integration (Testcontainers)
     runs-on: ubuntu-latest
-    # Disabled by default: unset vars are the empty string, so this is false until
-    # the repository variable is set to 'true'. Not `if: false` — actionlint rejects
-    # a constant condition ([if-cond]).
-    if: vars.ENABLE_BACKEND_INTEGRATION == 'true'
+    # ubuntu-latest carries a real Docker socket natively, which is why this job
+    # exists separately rather than the `backend` job growing a service container:
+    # Testcontainers manages its own lifecycle and needs the daemon, not a
+    # pre-declared service.
+    #
+    # The filter is the exact complement of the `backend` job's. Every test in the
+    # solution runs in exactly one of the two; a trait value that is neither would
+    # run in nowhere, which is why the value is a constant
+    # (LearnStack.Tests.Integration.Database.RequiresDocker) rather than a string
+    # repeated at each call site.
     steps:
-      - run: echo "Placeholder — Phase 02a wires the first Testcontainers integration test."
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore LearnStack.slnx --locked-mode
+
+      - name: Build
+        working-directory: backend
+        env:
+          CI: "true"
+        run: dotnet build LearnStack.slnx --no-restore --configuration Release
+
+      - name: Test (Testcontainers)
+        working-directory: backend
+        run: |
+          dotnet test LearnStack.slnx \
+            --no-restore --no-build --configuration Release \
+            --filter "Requires=Docker" \
+            --logger "trx;LogFileName=integration-results.trx" \
+            --results-directory ../artifacts/backend-integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-results
+          path: artifacts/backend-integration
+          if-no-files-found: warn
 
   # ─── Frontend ───────────────────────────────────────────────────────────
   frontend:

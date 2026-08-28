@@ -117,6 +117,43 @@ build-backend: ## `dotnet build` the solution.
 build-frontend: ## `pnpm -r build` the frontend monorepo.
 	(cd frontend && pnpm -r build)
 
+.PHONY: migrate
+migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ONLY sanctioned carrier of that credential).
+	@# Standards 05 § Database roles: ConnectionStrings:Migration must never appear
+	@# in API or worker runtime configuration. The role OWNS every table it creates,
+	@# and a runtime that is the owner is precisely the arrangement FORCE ROW LEVEL
+	@# SECURITY exists to defeat — every isolation test would then pass against
+	@# policies that constrain nothing. This target is where the credential lives.
+	@#
+	@# `--connection` is passed explicitly rather than letting the startup project
+	@# resolve one, because that would be ConnectionStrings:Default — the
+	@# learnstack_app role, which holds USAGE but not CREATE on schema public and
+	@# fails with `permission denied for schema public`. The tempting fix for that
+	@# error (granting it CREATE) is the ownership mistake above.
+	@set -a; test -f .env && . ./.env; set +a; \
+	if [ -z "$${ConnectionStrings__Migration:-}" ]; then \
+		echo "ConnectionStrings__Migration is not set."; \
+		echo "It arrives with the four-role model in Phase 02a Packet 6: copy the"; \
+		echo "'four database roles' and 'four connection strings' blocks out of"; \
+		echo ".env.example into your .env and re-run. A .env written before that"; \
+		echo "packet has neither."; \
+		exit 1; \
+	fi; \
+	dotnet tool restore >/dev/null; \
+	found=0; \
+	for proj in backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
+		test -d "$$proj/Persistence/Migrations" || continue; \
+		found=1; \
+		echo "==> $$(basename $$proj)"; \
+		dotnet ef database update \
+			--project "$$proj" \
+			--startup-project backend/src/LearnStack.Api \
+			--connection "$$ConnectionStrings__Migration"; \
+	done; \
+	if [ "$$found" = "0" ]; then \
+		echo "No module carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
+	fi
+
 .PHONY: sdk
 sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
 	@# Needs the API up. `make dev` starts the compose stack, NOT the API — run

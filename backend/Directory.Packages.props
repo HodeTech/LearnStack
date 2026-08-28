@@ -14,6 +14,12 @@
     <!-- EF Core (per-module Infrastructure projects) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <!-- The raw ADO.NET provider. Referenced by the integration fixture, which
+         connects as each of the four database roles directly: the assertions are
+         about what a role can and cannot do, and a DbContext in the way would
+         test the DbContext. Same major as the EF provider above, which depends
+         on it. -->
+    <PackageVersion Include="Npgsql" Version="10.0.0" />
 
     <!-- Application infrastructure (per-module Application projects) -->
     <PackageVersion Include="MediatR" Version="12.4.1" />

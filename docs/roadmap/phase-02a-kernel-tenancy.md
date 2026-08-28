@@ -642,10 +642,14 @@ re-stated against reality: a standard with no implementing code moves from
 `Active` to `Adopted`. All twenty-two currently claim `Active`, which makes the
 three-state model decorative.
 
-The deferred `backend-integration` CI job
-([Phase 01 Packet 8](phase-01-repository-tooling.md)) activates once Packet 7's first
-isolation test is green — `vars.ENABLE_BACKEND_INTEGRATION` set, the placeholder step
-replaced, and the job renamed and re-required per
+The `backend-integration` CI job
+([Phase 01 Packet 8](phase-01-repository-tooling.md)) **activated in Packet 6**, one
+packet earlier than planned: Packet 6 ships the first Docker-bound test — the
+four-role provisioning suite — so it is the packet that has to split them. The
+`vars.ENABLE_BACKEND_INTEGRATION` gate and the placeholder step are gone; the job
+restores, builds and runs `--filter "Requires=Docker"`, and the `backend` job runs
+the exact complement, so every test runs in exactly one of the two. Making it a
+required check is a repository setting, per
 [`.github/CONTRIBUTING.md`](../../.github/CONTRIBUTING.md). Closes the architecture-test arm of the
 [Phase Exit Decision](#phase-exit-decision); the remaining gates close as their
 owning packets ship.

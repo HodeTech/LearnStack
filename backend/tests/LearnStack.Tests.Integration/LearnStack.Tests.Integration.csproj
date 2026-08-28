@@ -25,6 +25,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- The fixture opens connections as each of the four roles directly, not
+         through a DbContext: the point is to prove what a role can and cannot
+         do, and an ORM in the way would test the ORM. -->
+    <PackageReference Include="Npgsql" />
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Respawn" />
     <PackageReference Include="coverlet.collector" />
