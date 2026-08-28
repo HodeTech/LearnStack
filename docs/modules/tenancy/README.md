@@ -49,10 +49,27 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## Entity-relationship diagram
 
-Aggregate roots are `Tenant` and `Organization`. `TenantDomain`, `TenantSetting`,
-`TenantLocale` and `TenantFeatureFlag` are entities inside the Tenant aggregate.
-`PlatformHostMapping` and `PlatformEntitlement` are projections rather than
-aggregates — nothing in this module mutates them through a root.
+Aggregate roots are `Tenant` and `Organization` — the two that implement
+`IAggregateRoot<TId>`. `PlatformHostMapping` and `PlatformEntitlement` are
+projections rather than aggregates: nothing in this module mutates them through
+a root.
+
+**The other four sit between the two, and the boundary is not settled.**
+`TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` each have
+a public factory, a top-level `DbSet` on `TenancyDbContext`, and no navigation
+from `Tenant` — so there is no path through a root, which
+[Standards 01 § Aggregate Ownership](../../standards/01-architecture-standards.md)
+requires for state changes inside an aggregate. They also split:
+`TenantDomain` and `TenantSetting` are root-shaped already (a surrogate Vogen id,
+`AuditableEntity`, `row_version`, their own RLS policy), while `TenantLocale` and
+`TenantFeatureFlag` have composite natural keys and no id at all and therefore
+cannot be `IAggregateRoot<TId>` under any reading.
+
+**Packet 7 decides it**, because Packet 7 writes the first command that touches
+any of them and a boundary with no writer is a boundary with no evidence. Until
+then nothing writes them, so the divergence costs nothing — but it is a
+divergence, and this paragraph says so rather than describing a containment the
+code does not implement.
 
 ```mermaid
 erDiagram

@@ -95,10 +95,18 @@ Forbidden references (architecture test will catch them):
 
 ### Step 3: Author the `IModule` registration
 
+> **The shape, not today's API.** `IModule`, `AddMediatRFromModule`,
+> `IPermissionRegistry`, `IAuditCatalog` and the `modules.Add(...)` call site do
+> not exist yet — the registration seam lands with **Phase 02a Packet 9**, which
+> is what ships `IAuditStore` and the audit catalogue, and the permission
+> registry with it. `AddModuleDbContext<T>` **does** exist and the warning below
+> it is live today. Until Packet 9, a module registers its handlers and
+> validators from the composition root directly.
+
 In `LearnStack.Modules.<Name>.Application/<Name>Module.cs`:
 
 ```csharp
-public sealed class <Name>Module : ILearnStackModule
+public sealed class <Name>Module : IModule
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
@@ -176,23 +184,22 @@ module — not one global.
 
 ### Step 5: Architecture test fixture
 
-Add the module to the architecture-test list under
-`backend/tests/LearnStack.Tests.Architecture/ModuleConventionsTests.cs`. The test
-asserts:
-
-- The four packages exist with the right dependency direction.
-- No forbidden cross-module references.
-- The module's audit-coverage matrix file exists at
-  `docs/modules/<name>/audit.md`.
-- The module's permission matrix file exists at
-  `docs/modules/<name>/permissions.md`.
+The dependency-direction and cross-module rules live in
+`backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs` and are
+**scanned**, not listed — a new module needs no edit there. What is still owed is
+`Every_Module_Has_An_AuditCoverage_Matrix`, registered in
+[21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
+and **awaiting backfill in Packet 9** with the audit catalogue it reads. Until it
+exists, the two matrix files below are a review check rather than a test.
 
 ### Step 6: Module spec files
 
 Per [13-documentation.md § Per-Module Specifications](../../../docs/standards/13-documentation.md),
 create the spec files under `docs/modules/<name>/`:
 
-- `overview.md` — what the module owns and does not own.
+- `README.md` with an `## Overview` section — what the module owns and does not
+  own. (The standard names the *section*, not a filename; the one shipped spec,
+  `docs/modules/tenancy/README.md`, is the model.)
 - `audit.md` — audit-coverage matrix (use the
   [add-audit-coverage](../add-audit-coverage/SKILL.md) skill).
 - `permissions.md` — permission matrix (use the

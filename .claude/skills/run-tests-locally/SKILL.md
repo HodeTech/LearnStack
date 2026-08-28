@@ -32,9 +32,9 @@ flags, and a triage map for the most common failure shapes.
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Suite | Yes | `unit` / `integration` / `architecture` / `e2e`. |
+| Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend`. (`e2e` arrives in Phase 02d.) |
 | Filter | No | `--filter <expr>` to run a subset. |
-| Docker available? | Integration (`Requires=Docker`) / E2E | A running daemon. Postgres only — no Valkey, no Kafka. |
+| Docker available? | Integration (`Requires=Docker`) | A running daemon. Postgres only — no Valkey, no Kafka. |
 
 ## Workflow
 
@@ -46,11 +46,13 @@ dotnet --version    # 10.0.x
 node --version      # 20+ for the frontend
 pnpm --version
 
-# Restore (locked)
-dotnet restore --locked-mode
-pnpm install --frozen-lockfile
+# Restore — from the directories that hold the solution and the workspace.
+# There is no solution and no package.json at the repository root, so both
+# commands fail there. `make install` runs exactly these two lines.
+(cd backend && dotnet restore LearnStack.slnx)
+(cd frontend && pnpm install --frozen-lockfile)
 
-# Docker must be running for integration / E2E
+# Docker must be running for the integration suite's Database/ cases
 docker info >/dev/null && echo "docker OK"
 ```
 
@@ -65,7 +67,10 @@ backend/tests/
                                    # learnstack_app), split by [Trait("Requires","Docker")].
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
-frontend/apps/web/                 # Vitest + axe-core + Playwright (E2E).
+frontend/apps/web/                 # Vitest. The axe-core and Playwright suites
+                                   # arrive with the first content-bearing pages
+                                   # in Phase 02d, which is also when CI's
+                                   # `lighthouse budget` job stops being deferred.
 ```
 
 ### Step 3: Run unit tests
@@ -137,20 +142,16 @@ Common failure shapes:
 ```bash
 cd frontend/apps/web
 pnpm test                # vitest
-pnpm test:a11y           # axe-core
-pnpm test:e2e            # playwright (requires backend running)
+pnpm typecheck           # tsc --noEmit
+pnpm lint                # next lint — what `pnpm -r lint` runs in CI
 ```
 
-For E2E:
-
-```bash
-# Terminal 1
-make dev                 # brings up backend + frontend via docker-compose
-
-# Terminal 2
-cd frontend/apps/web
-pnpm test:e2e
-```
+> **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
+> defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
+> `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 02d**
+> with the first content-bearing public pages — the same phase that activates
+> CI's deferred `lighthouse budget` job. Until then there is no accessibility or
+> end-to-end gate to run.
 
 ### Step 7: Single-test focus
 
@@ -174,12 +175,6 @@ pnpm test usage-meter             # path filter
 pnpm test -t "shows danger tone"  # name filter
 ```
 
-`playwright`:
-
-```bash
-pnpm exec playwright test e2e/enrollment.spec.ts --headed --debug
-```
-
 ### Step 8: Coverage (optional)
 
 ```bash
@@ -199,9 +194,8 @@ Application ≥ 80%, Infrastructure ≥ 50%. CI fails on regression.
 # Pull the exact branch CI ran
 git checkout <branch>
 
-# Use the same locked deps
-dotnet restore --locked-mode
-pnpm install --frozen-lockfile
+# The same restore CI does
+make install
 
 # Run the same command CI ran (see .github/workflows/*.yml)
 dotnet test backend/tests/LearnStack.Tests.Integration \
@@ -221,12 +215,14 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   `pnpm --version` CI uses.
 - For integration suites, Docker is running and nothing else holds 5432.
 - A failing test message points at the specific rule / scenario it violates.
-- For frontend changes, `pnpm test:a11y` is clean — `axe-core` violations fail
-  the test by design.
+- For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
+  The accessibility gate joins this list in Phase 02d, with the suite that
+  enforces it.
 
 ## Common pitfalls
 
-- **No Docker.** Integration / E2E require it. Start Docker Desktop first.
+- **No Docker.** The `Requires=Docker` integration cases need it. Start Docker
+  Desktop first, or run `--filter "Requires!=Docker"`.
 - **Stale lockfile.** `pnpm install --frozen-lockfile` after a `package.json`
   change — the lockfile must match.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
@@ -236,7 +232,9 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   publishing 5432 from `make dev`.
 - **`--no-build` after a source change.** Drop the flag — the test would run
   against stale binaries.
-- **Ignoring `axe-core` failures.** Accessibility violations are blocking per
-  [16-accessibility.md](../../../docs/standards/16-accessibility.md).
+- **Assuming an accessibility gate exists.**
+  [16-accessibility.md](../../../docs/standards/16-accessibility.md) makes WCAG
+  2.2 AA binding, and Phase 02d is what makes a suite enforce it. Reading the
+  standard is the gate until then.
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.

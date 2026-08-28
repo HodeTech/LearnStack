@@ -81,7 +81,7 @@ Trailers go at the **end** of the body (after a blank line). The supported set:
 
 | Trailer | When |
 |---------|------|
-| `ADR: NNNN[, NNNN]` | The commit implements or derives from one or more ADRs. |
+| `ADR: NNNN[, NNNN]` | The commit implements or derives from one or more ADRs. **Bare numbers** — `ADR: 0040, 0003` — never `ADR: ADR-0040`: `git log --grep='ADR: 0017'` is what the trailer exists for, and the prefixed form does not match it. A `feat` commit that creates a schema an ADR decides carries this too; the trailer is about the *derivation*, not the commit type. |
 | `Module: <list>` | Multi-module change; list every module touched. |
 | `I18n: <keys>` | Added / renamed / removed user-facing i18n keys. |
 | `Co-Authored-By: …` | Required for AI-assisted commits. |

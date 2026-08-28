@@ -469,6 +469,16 @@ read-only transaction before the lookup, because `SET LOCAL` outside a transacti
 block has no effect and a session-level setting would leak across a pooled
 connection. `app.resolving_host` is the fourth and last canonical session variable.
 
+**The Tenancy aggregate boundary is settled here.** Packet 6 shipped
+`TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` with
+public factories and top-level `DbSet`s and no navigation from `Tenant`, which is
+not the containment
+[the module spec's ERD](../modules/tenancy/README.md) described — and the two
+halves do not resolve the same way: the first pair is root-shaped already, the
+second cannot be a root at all under `IAggregateRoot<TId>`. Packet 7 writes the
+first command that touches any of them, which is the first evidence either
+reading has, so it decides and reconciles code and spec in one direction.
+
 **Two seed tenants in unrelated domains**, each with two organizations: an
 English school and a **yoga studio**. This is the artefact that tests the
 genericity claim, and it moves here from

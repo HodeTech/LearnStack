@@ -309,12 +309,16 @@ container.
 
 - **Skipping the isolation pair.** Architecture tests catch the *policy*; only
   an integration test catches the *semantic* leak.
-- **Forgetting `using fixture.AsTenant(...)`.** Without it, `app.tenant_id` is
-  unset and queries return empty — which can mask a missing filter / RLS.
+- **Forgetting the tenant statement.** `SchemaQueries.SetTenantAsync(connection,
+  transaction, tenantId)` is the transaction's first statement today; without it
+  `app.tenant_id` is unset and every tenant-owned table returns empty — which
+  reads exactly like "there is no data" and masks a missing filter or policy.
+  (The `fixture.AsTenant(...)` helper in the Step 3-5 samples is the shape those
+  phases will provide, not today's API.)
 - **Asserting on row count without `AsNoTracking`.** EF's change tracker can
   hold a stale instance; use `AsNoTracking()` in reads after writes.
-- **Sharing seed across tenants.** Always seed per-tenant inside an `AsTenant`
-  block; cross-tenant seed creates ambiguity.
+- **Sharing seed across tenants.** Always seed per-tenant inside a transaction
+  that has issued its own tenant statement; cross-tenant seed creates ambiguity.
 - **In-memory DB substitution.** Forbidden for integration tests; RLS doesn't run.
 - **One test asserting six things.** Prefer one assertion per test for triage.
 - **Container reuse without reset.** The fixture handles cleanup; don't roll

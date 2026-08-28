@@ -50,4 +50,3 @@ dotnet_diagnostic.CA1707.severity = none
 # the repo-wide `charset = utf-8`, and stripping it by hand is an edit the next
 # `dotnet ef migrations add` undoes.
 charset = utf-8-bom
-

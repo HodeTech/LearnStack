@@ -373,11 +373,27 @@ jobs:
           else
               base="${PUSH_BEFORE_SHA}"
           fi
-          changed=$(git diff --name-only "$base"...HEAD -- '*.md' || true)
+          # Resolve the base before diffing against it. `|| true` on the diff
+          # made an unresolvable base indistinguishable from a clean one: the
+          # step printed "No changed Markdown files" and exited 0. Reachable on
+          # two of the three triggers — workflow_dispatch leaves
+          # github.event.before empty, and a force-push to main leaves it
+          # pointing at a commit no ref reaches — so a manually dispatched run
+          # audited nothing, silently, every time.
+          if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+              echo "Base '${base}' does not resolve; auditing every tracked Markdown file."
+              base=""
+          fi
+          if [[ -n "$base" ]]; then
+              changed=$(git diff --name-only "$base"...HEAD -- '*.md')
+          else
+              changed=$(git ls-files -- '*.md')
+          fi
           if [[ -z "$changed" ]]; then
-              echo "No changed Markdown files."
+              echo "No changed Markdown files (base: ${base:-<full tree>})."
               exit 0
           fi
+          echo "Auditing $(printf '%s\n' "$changed" | wc -l | tr -d ' ') file(s) against base '${base:-<full tree>}'."
           broken=0
           while IFS= read -r f; do
               # `]\(([^)#][^)]*)\)` — capture every non-anchor link target.

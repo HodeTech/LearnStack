@@ -82,7 +82,12 @@ decision itself changes, write a new ADR that supersedes this one.
 
 ## References
 
-- [Related ADR](NNNN-related.md)
-- [Related architecture doc](../architecture/NN-related.md)
-- [Related standard](../standards/NN-related.md)
+<!-- Placeholders, not links. A link here is a link to a file that does not
+     exist, and the CI Markdown audit is right to say so — including on the
+     full-tree pass it falls back to when the diff base does not resolve.
+     Replace each with a real relative link when copying the template. -->
+
+- Related ADR — link to `NNNN-related.md`
+- Related architecture doc — link to `../architecture/NN-related.md`
+- Related standard — link to `../standards/NN-related.md`
 - External link (optional).

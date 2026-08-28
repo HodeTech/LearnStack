@@ -187,7 +187,7 @@ routing `SoftDelete` through the same stamp-and-increment primitive.
   Until these land the corpus answers the question twice, and an implementer
   reading a standard rather than this ADR gets the withdrawn answer:
 
-  | Carrier | What it still says | 
+  | Carrier | What it still says |
   |---|---|
   | [Database Standards § Concurrency](../standards/05-database.md) | "`row_version bigint` (incremented by an EF interceptor) … `xmin`-based tokens are an alternative; pick one project-wide" — wrong on the mechanism and still offering the rejected option |
   | [Database Standards § Audit Columns](../standards/05-database.md) | "A shared EF interceptor populates these on `SaveChanges`" — no such interceptor exists, and [ADR-0033](0033-audit-durability-model.md) reserves the only sanctioned `SaveChanges` interceptor for snapshot capture, which writes nothing |

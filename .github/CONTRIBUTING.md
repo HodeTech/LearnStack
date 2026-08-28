@@ -130,10 +130,10 @@ doing exactly that. Nothing verifies its output outside the frontend workspace
 anyway, since no CI job runs prettier and `make format` invokes it from
 `frontend/`.
 
-Older Leakwatch builds — including the `v1.5.0` CI pins — only accept a
-directory target. The hook detects that and skips the local scan with an
-upgrade hint rather than failing your commit; CI scans the whole tree either
-way.
+Leakwatch builds before v1.6.0 only accept a directory target. CI pins v1.8.0,
+which accepts files; the hook detects an older *local* build and skips the scan
+with an upgrade hint rather than failing your commit. CI scans the whole tree
+either way.
 
 The secret scanner is [Leakwatch](https://github.com/HodeTech/leakwatch)
 — MIT licensed, verifier-equipped, hybrid Aho-Corasick + regex + entropy
