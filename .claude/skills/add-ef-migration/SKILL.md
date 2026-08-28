@@ -308,9 +308,18 @@ dotnet ef database update \
 ```
 
 `ConnectionStrings__Migration` is the environment spelling of
-`ConnectionStrings:Migration`. Packet 6 adds it to `.env.example` and exports it
-from the repo-root `make migrate` target, which Standards 05 names as its only
-sanctioned carrier.
+`ConnectionStrings:Migration`. It is in `.env.example` from Packet 6, and
+`make migrate` is its only sanctioned carrier per Standards 05 — **prefer that
+target over this command**, which is shown for the case where you need one
+module rather than all of them.
+
+Two things `make migrate` does that a hand-run does not. It reads the value out
+of `.env` with `sed` rather than sourcing the file, because a connection string
+contains semicolons and `. ./.env` on an unquoted row parses them as statement
+separators — measured, the value arrived as `Host=localhost`. And it refuses a
+value that does not name `learnstack_migration`, because the failure mode is not
+an empty variable but a truncated or wrong-role one, whose obvious local fix is
+the ownership mistake the role split exists to prevent.
 
 Then run the architecture + integration test suite. The Testcontainers integration
 tests automatically apply migrations on a fresh Postgres; a green run means the

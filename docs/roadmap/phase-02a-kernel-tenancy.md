@@ -792,10 +792,12 @@ reads `platform_host_to_tenant` in order to *determine* the tenant. Three classe
 
 Packet 6 also ships `infra/compose/postgres-init/02-create-roles.sql` and splits the
 development connection strings — `learnstack_migration` for `dotnet ef`, `learnstack_app`
-for the API, plus the two bypass roles' own credentials. Until it lands,
-`infra/compose/dev.yml` runs everything as one `POSTGRES_USER` superuser, which owns
-every table and therefore bypasses every policy: the isolation layer is inert in local
-development and every isolation test would pass against it. The script also grants
+for the API, plus the two bypass roles' own credentials. Before it landed, `infra/compose/dev.yml` ran everything as one `POSTGRES_USER`
+superuser, which owns every table and therefore bypasses every policy: the isolation
+layer was inert in local development and every isolation test would have passed
+against it. **A `postgres-data` volume created before this packet still has no
+roles** — init scripts do not re-run — and
+[`infra/compose/README.md`](../../infra/compose/README.md) carries the recovery. The script also grants
 `CREATE ON SCHEMA public` to `learnstack_migration` — since PostgreSQL 15 the public
 schema no longer grants it to `PUBLIC`, so without it the first migration fails with
 `permission denied for schema public`, and the tempting fix (make the role a superuser)

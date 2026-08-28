@@ -37,6 +37,14 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `frontend (typecheck + lint + build + test)`
     - `meta (commit hygiene + link audit)`
     - `secret scan (leakwatch)`
+    - `backend integration (Testcontainers)` — **activated in Phase 02a Packet 6**
+      with the four-role provisioning suite, one packet earlier than planned:
+      Packet 6 ships the first Docker-bound test and is therefore the packet that
+      has to split them. The job carries no `vars.ENABLE_*` gate and no placeholder
+      step, so it already runs on every pull request. **Adding it to the live
+      branch-protection rule is the one remaining edit**, and it is a repository
+      setting rather than a file in this repo — until it is made, the job runs and
+      gates nothing.
   - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
     unset by default — a constant `if: false` is rejected by actionlint).
     Activating one is **four edits, in the same pull request wherever possible**:
@@ -45,8 +53,6 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     `(deferred …)` suffix, and add the new name both to this list and to the live
     branch-protection setting. Setting the variable alone leaves a job that runs
     but gates nothing.
-    - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
-      with the first cross-tenant isolation test.
     - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
       `/api/v1/*` read endpoints.
     - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first

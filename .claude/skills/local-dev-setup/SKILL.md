@@ -98,10 +98,28 @@ the API or the web app, and it does not run migrations or seeds; those are
 separate commands you run yourself:
 
 ```bash
+make migrate                                       # apply every module's EF migrations
 dotnet run --project backend/src/LearnStack.Api    # API on 5080
 pnpm --filter @learnstack/web dev                  # web on 3000
 make seed                                          # health gate + demo credentials
 ```
+
+**`make migrate` runs as `learnstack_migration`, not as the API's role.** From
+Phase 02a Packet 6 the stack provisions four database roles on the first boot of
+a fresh `postgres-data` volume
+([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)):
+`learnstack_migration` owns every table, `learnstack_app` is what the API
+connects as, and `learnstack_platform` / `learnstack_outbox_admin` hold audited
+bypasses. Four roles, four passwords, four connection strings — all in
+`.env.example`, and none of them interchangeable. Running migrations as the
+runtime role would make it the table owner, which is the arrangement
+`FORCE ROW LEVEL SECURITY` exists to defeat.
+
+**A volume created before that packet has no roles**, and nothing says so: init
+scripts do not re-run, `make dev` reports healthy, and `make migrate` fails with
+`password authentication failed`. Recovery is in
+[`infra/compose/README.md`](../../../infra/compose/README.md) — `make clean` then
+`make dev`, or apply `02-create-roles.sql` by hand, which is idempotent.
 
 What `make dev` expands to:
 

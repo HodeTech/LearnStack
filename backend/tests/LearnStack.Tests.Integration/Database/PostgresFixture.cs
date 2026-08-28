@@ -16,13 +16,18 @@ namespace LearnStack.Tests.Integration.Database;
 /// real Docker socket and runs in <c>backend-integration</c>.
 /// </para>
 /// <para>
-/// <b>The two filters must stay exact complements.</b> `backend` runs
+/// <b>The two filters are exact complements.</b> `backend` runs
 /// <c>--filter "Requires!=Docker"</c> and `backend-integration` runs
-/// <c>--filter "Requires=Docker"</c>, so every test runs exactly once. A
-/// mistyped trait value belongs to neither set and would run nowhere — green in
-/// both jobs, executed in neither, which is the failure mode the `backend` job's
-/// own comment warns about after a filter once hid a broken route convention.
-/// Hence one constant rather than a string at each call site.
+/// <c>--filter "Requires=Docker"</c>, so every test runs exactly once —
+/// measured: 11 + 135 against 146 total.
+/// </para>
+/// <para>
+/// The value is a constant because a mistyped one lands in the <b>wrong</b> job.
+/// Measured: <c>Requires!=Docker</c> matches every test with no <c>Requires</c>
+/// trait at all, so <c>Requires=Dockerr</c> would satisfy it and run in
+/// <c>backend</c>, where there is no Docker daemon — a loud failure rather than a
+/// silent skip, but a failure in the job that cannot fix it. One constant removes
+/// the class.
 /// </para>
 /// </remarks>
 internal static class RequiresDocker
@@ -156,9 +161,19 @@ public sealed class PostgresFixture : IAsyncLifetime
 /// <c>bin/Debug/net10.0</c>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// A relative path resolves against that directory, where nothing exists — the
 /// query silently yields nothing and the assertion over it passes. Walking up to
-/// the repository root is the only form that fails loudly when it is wrong.
+/// a marker is the only form that fails loudly when it is wrong.
+/// </para>
+/// <para>
+/// <c>LearnStack.Tests.Architecture</c> has its own <c>RepositoryPaths</c> doing
+/// the same walk. This is a deliberate duplicate rather than a shared helper: the
+/// two assemblies reference nothing in common, and a shared test-utility project
+/// referenced by both would be a fourth test project to justify against
+/// <see href="../../../../docs/standards/06-testing.md">Standards 06</see>'s three.
+/// Both markers are files that only exist at the root.
+/// </para>
 /// </remarks>
 internal static class RepositoryPath
 {
@@ -169,13 +184,21 @@ internal static class RepositoryPath
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CLAUDE.md")))
+        // Two markers, because either alone is reachable in a layout that is not
+        // the repository: a published output can carry a stray CLAUDE.md, and a
+        // git worktree of a submodule can carry a .git file. Both together, at the
+        // same level, are the root.
+        while (directory is not null
+               && !(File.Exists(Path.Combine(directory.FullName, "CLAUDE.md"))
+                    && Directory.Exists(Path.Combine(directory.FullName, "infra", "compose"))))
         {
             directory = directory.Parent;
         }
 
         return directory?.FullName
             ?? throw new InvalidOperationException(
-                $"Repository root not found above {AppContext.BaseDirectory}.");
+                $"Repository root not found above {AppContext.BaseDirectory}. "
+                + "This fixture reads infra/compose/postgres-init/02-create-roles.sql "
+                + "from the working tree; it cannot run from a published layout.");
     }
 }

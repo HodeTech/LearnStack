@@ -12,20 +12,23 @@
 #   - frontend : pnpm install + typecheck + lint + build + Vitest
 #   - meta     : `make lint`-style format verification
 #
-# Deferred to later phases. Each is scaffolded behind a repository variable
+# Active since Phase 02a Packet 6:
+#   - backend-integration : Testcontainers needs a real Docker socket inside the
+#     runner, which `ubuntu-latest` has natively. Brought forward from Packet 7,
+#     because Packet 6 ships the first Docker-bound test — the four-role
+#     provisioning suite — and is therefore the packet that has to split them.
+#     The HTTP tests in LearnStack.Tests.Integration stay in the `backend` job:
+#     they use WebApplicationFactory and need no Docker. The split is by
+#     [Trait("Requires","Docker")] and the two jobs' filters are exact
+#     complements, so every test runs in exactly one of them. Making it a
+#     REQUIRED check is a repository setting — see .github/CONTRIBUTING.md
+#     § Branch protection.
+#
+# Still deferred to later phases. Each is scaffolded behind a repository variable
 # (`vars.ENABLE_*`), unset by default, so activation is one variable plus the
 # real steps. A constant `if: false` would be simpler but actionlint rejects it
 # ([if-cond] constant expression). Activation is never *only* the variable —
 # see .github/CONTRIBUTING.md § Branch protection for the three edits:
-#   - backend-integration : Testcontainers needs a real Docker socket inside
-#     the runner — works on `ubuntu-latest` natively. Activates in Phase 02a
-#     Packet 6 — brought forward from Packet 7, because Packet 6 ships the
-#     first Docker-bound test (the four-role provisioning suite) and is
-#     therefore the packet that has to split them. The HTTP tests in
-#     LearnStack.Tests.Integration stay in the `backend` job: they use
-#     WebApplicationFactory and need no Docker. The split is by
-#     [Trait("Requires","Docker")] and the two jobs' filters are exact
-#     complements, so every test runs in exactly one of them.
 #   - openapi-diff        : oasdiff against the prior `main` spec. Activates
 #     in Phase 02d, which ships the first real `/api/v1/*` read endpoints and
 #     retires `/healthz` as the only documented surface.
@@ -126,7 +129,7 @@ jobs:
           path: artifacts/backend-tests
           if-no-files-found: warn
 
-  # ─── Backend integration (deferred — Testcontainers harness lights up Phase 02a) ─
+  # ─── Backend integration (Testcontainers — active since Phase 02a Packet 6) ────
   backend-integration:
     name: backend integration (Testcontainers)
     runs-on: ubuntu-latest
@@ -140,16 +143,26 @@ jobs:
     # run in nowhere, which is why the value is a constant
     # (LearnStack.Tests.Integration.Database.RequiresDocker) rather than a string
     # repeated at each call site.
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          global-json-file: global.json
+          persist-credentials: false
+
+      # Same shape as the `backend` job: the SDK version comes from the
+      # workflow-level DOTNET_SDK_VERSION, not from a global.json — the only
+      # global.json in this repository is backend/global.json, and pointing
+      # setup-dotnet at a repo-root path that does not exist fails the job
+      # before a single test runs.
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
       - name: Restore
         working-directory: backend
-        run: dotnet restore LearnStack.slnx --locked-mode
+        run: dotnet restore LearnStack.slnx
 
       - name: Build
         working-directory: backend

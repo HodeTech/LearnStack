@@ -58,11 +58,26 @@ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_outbox_admin'
 -- credentialed connection instead (Standards 05 § How EnterPlatformAdminScope
 -- reaches learnstack_platform).
 
--- :"db" quotes as an identifier. The database name is POSTGRES_DB, which .env
--- may override, so the literal `learnstack` would grant CONNECT on a database
--- that need not exist. Note this grants nothing on the `keycloak` database that
--- 01 creates — Keycloak keeps its own role, and these four have no business
--- there.
+-- PUBLIC holds CONNECT and TEMPORARY on every database by default, so the grant
+-- below adds nothing until that default is removed. Revoke first, and the four
+-- explicit grants become the whole of the reach INTO THIS DATABASE — measured:
+-- afterwards `pg_database.datacl` carries no `=Tc` entry for PUBLIC, only the
+-- four `c` grants and the owner's.
+--
+-- Scope is exactly one database, and that is worth saying because it is easy to
+-- read as more. Measured: `learnstack_app` can still connect to `keycloak` and
+-- `postgres`, because PUBLIC's default there is untouched. That is accepted. The
+-- `keycloak` database is a dev-only convenience — 01-create-keycloak-db.sql
+-- creates it and Keycloak connects to it as POSTGRES_USER, and production
+-- isolates Keycloak in its own cluster entirely per Standards 12 § Database
+-- Operations — so it is not a boundary anything relies on. The boundary that
+-- matters is inside `:"db"`, and it is the policies plus the grant matrix, not
+-- the ability to open a connection.
+--
+-- :"db" quotes as an identifier. The database name is POSTGRES_DB, which .env may
+-- override, so the literal `learnstack` would name a database that need not
+-- exist.
+REVOKE CONNECT, TEMPORARY ON DATABASE :"db" FROM PUBLIC;
 GRANT CONNECT ON DATABASE :"db"
     TO learnstack_migration, learnstack_app, learnstack_platform, learnstack_outbox_admin;
 

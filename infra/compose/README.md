@@ -37,10 +37,30 @@ Two realms imported on first boot from `infra/keycloak/realms/`:
 See [../keycloak/README.md](../keycloak/README.md) for the realm-isolation
 invariant, re-seed procedure, and the Phase 02b/03 wiring notes.
 
-The Postgres init script at `postgres-init/01-create-keycloak-db.sql` creates
-the `keycloak` database on the first start of the `postgres-data` volume.
-Re-seeding the realm structure requires either `down -v` (wipes all volumes)
-or a manual `DROP DATABASE keycloak; CREATE DATABASE keycloak OWNER learnstack;`.
+Two Postgres init scripts run, in name order, **only on the first start of a
+fresh `postgres-data` volume**:
+
+| Script | Creates |
+|---|---|
+| `postgres-init/01-create-keycloak-db.sql` | the `keycloak` database Keycloak stores its realm state in |
+| `postgres-init/02-create-roles.sql` | the four database roles of [ADR-0003 Amendment 3](../../docs/decisions/0003-tenant-isolation-defense-in-depth.md) — `learnstack_migration`, `learnstack_app`, `learnstack_platform`, `learnstack_outbox_admin` — reading their passwords from `LEARNSTACK_*_PW` in the environment |
+
+**A volume created before Phase 02a Packet 6 has no roles**, and nothing will
+tell you: init scripts do not re-run, `make dev` reports healthy, and the first
+`make migrate` fails with `password authentication failed for user
+"learnstack_migration"`. Either run `make clean` (destructive — drops every
+volume) and `make dev`, or apply the script by hand:
+
+```bash
+docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   psql -v ON_ERROR_STOP=1 -U learnstack -d learnstack   < infra/compose/postgres-init/02-create-roles.sql
+```
+
+It is idempotent, so re-running it against a cluster that already has the roles
+is a no-op rather than an error.
+
+Re-seeding the Keycloak realm structure requires either `down -v` (wipes all
+volumes) or a manual
+`DROP DATABASE keycloak; CREATE DATABASE keycloak OWNER learnstack;`.
 
 ### Live media (Phase 01 packet 5)
 

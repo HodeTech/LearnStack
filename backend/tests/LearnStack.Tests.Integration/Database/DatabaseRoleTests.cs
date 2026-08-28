@@ -39,7 +39,8 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
     {
         await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);
         await using var command = new NpgsqlCommand(
-            "SELECT rolbypassrls, rolcanlogin FROM pg_roles WHERE rolname = @role", (NpgsqlConnection)connection);
+            "SELECT rolbypassrls, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = @role",
+            (NpgsqlConnection)connection);
         command.Parameters.AddWithValue("role", role);
 
         await using var reader = await command.ExecuteReaderAsync();
@@ -47,6 +48,13 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
         (await reader.ReadAsync()).Should().BeTrue($"{role} must exist");
         reader.GetBoolean(0).Should().Be(expectedBypass);
         reader.GetBoolean(1).Should().BeTrue($"{role} logs in for itself — per-role settings are applied at login and do not follow SET ROLE");
+
+        // rolbypassrls alone is not the question. A SUPERUSER bypasses row security
+        // whatever that column says, so asserting only the attribute would let the
+        // whole model be defeated by one CREATE ROLE … SUPERUSER and still pass.
+        reader.GetBoolean(2).Should().BeFalse($"{role} must not be a superuser: a superuser bypasses RLS regardless of rolbypassrls");
+        reader.GetBoolean(3).Should().BeFalse($"{role} has no reason to create databases");
+        reader.GetBoolean(4).Should().BeFalse($"{role} creating roles could grant itself the bypass");
     }
 
     [Fact]
@@ -58,17 +66,18 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
         // tenant's request. EnterPlatformAdminScope uses a second credentialed
         // connection instead.
         await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);
+        // pg_has_role, not pg_auth_members: membership is TRANSITIVE, and a chain
+        // through a third role would satisfy a direct-membership query while still
+        // handing learnstack_app the bypass. The catalogue join tests the shape of
+        // the graph; this tests the question actually being asked.
         await using var command = new NpgsqlCommand(
             """
-            SELECT count(*)
-            FROM pg_auth_members m
-            JOIN pg_roles member ON member.oid = m.member
-            JOIN pg_roles granted ON granted.oid = m.roleid
-            WHERE member.rolname = 'learnstack_app'
-              AND granted.rolname IN ('learnstack_platform', 'learnstack_outbox_admin')
+            SELECT pg_has_role('learnstack_app', 'learnstack_platform', 'USAGE')
+                OR pg_has_role('learnstack_app', 'learnstack_outbox_admin', 'USAGE')
+                OR pg_has_role('learnstack_app', 'learnstack_migration', 'USAGE')
             """, (NpgsqlConnection)connection);
 
-        (await command.ExecuteScalarAsync()).Should().Be(0L);
+        (await command.ExecuteScalarAsync()).Should().Be(false);
     }
 
     [Fact]
@@ -111,6 +120,24 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
             (NpgsqlConnection)migration);
 
         (await owner.ExecuteScalarAsync()).Should().Be("learnstack_migration");
+
+        // The second half of the name, which the first version of this test did not
+        // assert. FORCE ROW LEVEL SECURITY is what makes ownership grant no bypass,
+        // and the owner being NOBYPASSRLS is what makes FORCE meaningful — so the
+        // owner is subjected to its own policies like anyone else.
+        await using var force = new NpgsqlCommand(
+            """
+            ALTER TABLE owner_probe ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE owner_probe FORCE  ROW LEVEL SECURITY;
+            CREATE POLICY owner_probe_never ON owner_probe USING (false) WITH CHECK (false);
+            INSERT INTO owner_probe VALUES (1);
+            """, (NpgsqlConnection)migration);
+
+        var act = async () => await force.ExecuteNonQueryAsync();
+
+        (await act.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "the owner is refused by its own policy — that is what FORCE buys");
     }
 
     [Fact]
@@ -154,6 +181,31 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
 
         (await act.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task EveryRoleCredentialActuallyLogsIn()
+    {
+        // All four, including learnstack_outbox_admin, whose connection string no
+        // other case opens. A password the script never set, or set to something
+        // else, is invisible until the dispatcher tries to start — in Phase 02b,
+        // far from here.
+        foreach (var connectionString in new[]
+                 {
+                     _postgres.MigrationConnectionString,
+                     _postgres.AppConnectionString,
+                     _postgres.PlatformConnectionString,
+                     _postgres.OutboxConnectionString,
+                 })
+        {
+            await using var connection = await PostgresFixture.OpenAsync(connectionString);
+            await using var who = new NpgsqlCommand("SELECT current_user", (NpgsqlConnection)connection);
+
+            var actual = (string?)await who.ExecuteScalarAsync();
+
+            connectionString.Should().Contain($"Username={actual}",
+                "the role that authenticated must be the role the connection string named");
+        }
     }
 
     [Fact]

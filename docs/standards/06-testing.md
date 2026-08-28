@@ -36,7 +36,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 | Type | Project | Tool |
 |------|---------|------|
 | Unit | `LearnStack.Tests.Unit` | xUnit, FluentAssertions |
-| Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 7, Testcontainers + Respawn |
+| Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 6, Testcontainers marked `[Trait("Requires","Docker")]` — CI runs the two halves in separate jobs by that trait |
 | Architecture | `LearnStack.Tests.Architecture` | NetArchTest / ArchUnitNET |
 | API contract | `LearnStack.Tests.Contract` | OpenAPI snapshot, Pact-style consumer tests |
 | End-to-end | none yet | Playwright, per § End-to-End Tests below. No project exists; the owning phase is named there |
