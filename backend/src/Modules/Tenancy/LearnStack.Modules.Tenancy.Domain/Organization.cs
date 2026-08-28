@@ -26,7 +26,7 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// <para>
 /// <b>Branding is not here.</b> ADR-0017's sample carries an
 /// <c>OrganizationBranding?</c> override; the value object and the token merge
-/// belong to <see href="../../../../../docs/roadmap/phase-06-admin-portal.md">Phase 06</see>,
+/// belong to <see href="../../../../../docs/roadmap/phase-06-renderer-admin-studio.md">Phase 06</see>,
 /// so the column arrives with them rather than as an unused <c>jsonb</c> nobody
 /// writes.
 /// </para>
