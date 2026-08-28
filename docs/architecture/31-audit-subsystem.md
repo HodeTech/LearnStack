@@ -484,8 +484,16 @@ without naming any module's `DbContext`, and through which `IAuditStore` reaches
 ambient connection. It **shipped** in
 [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) step 6, together with the
 `TransactionBehavior` body — everything above except the `auditStore` and `stateCapture`
-lines, which land with `IAuditStore` in Packet 9 and have their place reserved in the
-shipped body.
+lines, which land with `IAuditStore` in Packet 9.
+
+Only the `auditStore.WritePendingAsync` line has a slot waiting for it, marked by a dated
+TODO immediately before the commit. The `stateCapture` calls do not, and one of them needs
+more than a line: the shipped body's catch is filtered `when (!committing)` precisely so it
+does **not** run after a faulted commit, so there is no reachable branch for
+`MarkIndeterminate` to go in. `MarkCommitted` and `MarkRolledBack` drop into the existing
+success and failure paths; `MarkIndeterminate` requires Packet 9 to add a `try`/`catch`
+around the commit call itself, which is what the block above shows and what the filter
+stands in for until then.
 
 Two differences between the block above and what shipped, both decided by
 [ADR-0040 Amendment 2](../decisions/0040-ambient-unit-of-work.md) after this block was

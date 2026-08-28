@@ -93,10 +93,17 @@ public sealed class ApplicationDataSourceGuardTests
         // mistake the migrate target already made once and fixed.
         var messages = new List<string>();
 
+        // Pwd and PSW are Npgsql aliases for Password and parse into the same
+        // field. A keyword regex that knew only the canonical spelling carried
+        // both straight into the message — measured, which is why the redaction
+        // now clears the parsed field rather than matching text.
         foreach (var value in new[]
         {
             "Host=localhost;Username=learnstack_platform;Password=hunter2", // leakwatch:ignore
+            "Host=localhost;Username=learnstack_platform;Pwd=hunter2", // leakwatch:ignore
+            "Host=localhost;Username=learnstack_platform;PSW=hunter2", // leakwatch:ignore
             "Host=localhost;Port=nope;Username=learnstack_app;Password=hunter2", // leakwatch:ignore
+            "Host=localhost;Port=nope;Username=learnstack_app;Pwd=hunter2", // leakwatch:ignore
         })
         {
             try
@@ -109,8 +116,8 @@ public sealed class ApplicationDataSourceGuardTests
             }
         }
 
-        messages.Should().HaveCount(2, "both values are refused");
+        messages.Should().HaveCount(5, "every value is refused");
         messages.Should().OnlyContain(message => !message.Contains("hunter2", StringComparison.Ordinal));
-        messages.Should().OnlyContain(message => message.Contains("Password=***", StringComparison.Ordinal));
+        messages.Should().OnlyContain(message => message.Contains("***", StringComparison.Ordinal));
     }
 }

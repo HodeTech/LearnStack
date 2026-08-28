@@ -282,6 +282,40 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task Disposing_a_frame_out_of_order_collapses_the_whole_unit()
+    {
+        // A frame that ends unresolved has failed, so disposal goes through the
+        // same path FailAsync does — including its leaked-frames collapse.
+        //
+        // The alternative was measured: the frame-blind rollback decremented the
+        // shared depth by one and left the transaction open, so the still-open
+        // inner frame's completion did nothing and reported success, and a frame
+        // opened later joined an abandoned transaction, committed nothing, and
+        // handed the exception to that entirely innocent caller.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        var outer = await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        var inner = await unitOfWork.BeginTransactionAsync();
+
+        await outer.DisposeAsync();
+
+        unitOfWork.HasActiveTransaction.Should().BeFalse(
+            "the outer frame ended unresolved, so the whole unit is done");
+
+        // And the abandoned inner frame cannot revive it.
+        await inner.CompleteAsync();
+        unitOfWork.HasActiveTransaction.Should().BeFalse();
+
+        var begin = async () => await unitOfWork.BeginTransactionAsync();
+
+        (await begin.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*rollback-only*", "the collapse marked the unit, so nothing joins it later");
+    }
+
+    [Fact]
     public async Task MarkRollbackOnly_outlives_the_transaction_it_marked()
     {
         // The interface says "irreversible". The first implementation cleared the

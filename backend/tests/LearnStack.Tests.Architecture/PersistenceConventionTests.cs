@@ -138,21 +138,25 @@ public sealed class PersistenceConventionTests
 
         // The call-site half: a context on its own connection never saw
         // SET LOCAL, so every read through it returns zero rows under the
-        // corrected policy — silently. `UseNpgsql` with a connection string is how
-        // that happens, and there are exactly three files under backend/src that
-        // may configure a provider at all: the two design-time factories, where a
-        // connection string is the point, and the shared helper, which passes a
-        // connection rather than a string. A fourth is a new decision.
+        // corrected policy — silently.
+        //
+        // Four files under backend/src may reach for a connection at all: the two
+        // design-time factories, where a connection string is the point; the
+        // shared helper, which passes a connection rather than a string; and the
+        // composition root, which builds the one application data source behind
+        // its credential guard. A fifth is a new decision.
+        //
+        // The scan covers the raw constructors as well as `UseNpgsql` and
+        // `AddDbContext`, because a call site that opened its own
+        // `NpgsqlConnection` would bypass the seam without naming either.
         var callSites = Directory
             .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
                        StringComparison.Ordinal)
                        && !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
                        StringComparison.Ordinal))
-            .Where(file => StripComments(File.ReadAllText(file))
-                .Contains("UseNpgsql", StringComparison.Ordinal)
-                || StripComments(File.ReadAllText(file))
-                .Contains("AddDbContext", StringComparison.Ordinal))
+            .Where(file => ProviderTokens.Any(token =>
+                StripComments(File.ReadAllText(file)).Contains(token, StringComparison.Ordinal)))
             .Select(Path.GetFileName)
             .Order(StringComparer.Ordinal)
             .ToList();
@@ -160,10 +164,24 @@ public sealed class PersistenceConventionTests
         callSites.Should().BeEquivalentTo(
         [
             "ModuleDbContextRegistration.cs",
+            "PersistenceCompositionExtensions.cs",
             "PlatformDbContextFactory.cs",
             "TenancyDbContextFactory.cs",
         ]);
     }
+
+    /// <summary>
+    /// Every way source under <c>backend/src</c> could configure or open a
+    /// PostgreSQL connection outside the seam.
+    /// </summary>
+    private static readonly string[] ProviderTokens =
+    [
+        "UseNpgsql",
+        "AddDbContext",
+        "NpgsqlDataSourceBuilder",
+        "NpgsqlDataSource.Create",
+        "new NpgsqlConnection(",
+    ];
 
     [Fact]
     public void TransactionBehavior_Does_Not_Reference_A_Module_Assembly()

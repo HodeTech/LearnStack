@@ -419,6 +419,25 @@ audited as a failure, captured, and answered `500` instead of `499`. A faulted
 to roll back; `TransactionBehavior`'s catch is filtered so it does not run after
 one.
 
+**`CompleteAsync` is loud about a leaked frame and `FailAsync` is silent, deliberately.**
+Completing while a deeper frame is still open would commit nothing and report success, so it
+throws. Failing while a deeper frame is still open is not ambiguous in the same way —
+everything opened after a frame that failed has failed too — so it collapses instead:
+marks the unit and rolls the whole thing back, without raising. Raising there would put a
+bookkeeping exception on top of whatever the caller was already reporting, which is the
+same mistake as the strict `RollbackAsync` above. `IUnitOfWorkScope.DisposeAsync` goes
+through `FailAsync` for that reason: a frame that ends unresolved has failed, and it has
+failed in exactly the way `FailAsync` already handles.
+
+**"Frames, not savepoints" describes *this* mechanism, not the connection.** A joiner
+issues no SQL, and the depth counter is in-process. EF Core is separate and unaffected by
+it: its automatic-savepoint feature issues a real `SAVEPOINT` / `RELEASE SAVEPOINT` on the
+ambient connection around **every** `SaveChangesAsync` that runs inside an externally
+supplied transaction, at any frame depth, and nothing here turns that off. It is the
+behaviour we want — a failed `SaveChanges` rolls back to its savepoint and leaves the
+ambient transaction usable — and it is recorded because a reader of § Nesting alone would
+conclude no nested SQL exists.
+
 None of this changes what the ADR decides — one connection per scope, owned by
 `IUnitOfWork`, with every context and cross-cutting writer enlisted on it.
 

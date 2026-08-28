@@ -357,16 +357,14 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
             return unitOfWork.RollbackAsync(cancellationToken);
         }
 
-        public async ValueTask DisposeAsync()
-        {
-            if (AlreadyResolved())
-            {
-                return;
-            }
-
-            _resolved = true;
-            await unitOfWork.RollbackAsync(CancellationToken.None);
-        }
+        public ValueTask DisposeAsync() =>
+            // Through FailAsync, not the frame-blind RollbackAsync: a frame that
+            // ends unresolved has failed, and it has failed in exactly the way
+            // FailAsync already handles — including the leaked-frames collapse.
+            // Calling RollbackAsync here instead decremented the shared depth by
+            // one and left the transaction open, so a frame opened later joined an
+            // abandoned transaction and reported a success that never committed.
+            new(FailAsync(CancellationToken.None));
 
         private bool AlreadyResolved() =>
             _resolved || unitOfWork._disposed || unitOfWork._depth < depth;

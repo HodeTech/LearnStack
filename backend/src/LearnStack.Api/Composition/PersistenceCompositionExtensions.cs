@@ -116,7 +116,8 @@ public static class PersistenceCompositionExtensions
             // on several hosts — otherwise gets a bare ArgumentException out of
             // System.Data.Common.
             throw new InvalidOperationException(
-                $"ConnectionStrings:Default is not a valid connection string: {Redact(connectionString)}. "
+                $"ConnectionStrings:Default is not a valid connection string: "
+                + $"{RedactUnparsed(connectionString)}. "
                 + "The expected form is a semicolon-separated key/value list — Host, Port, "
                 + "Database, Username, Password — not a URI. See .env.example.",
                 exception);
@@ -126,7 +127,7 @@ public static class PersistenceCompositionExtensions
         {
             throw new InvalidOperationException(
                 $"ConnectionStrings:Default names Username='{parsed.Username}', not {RuntimeRole}: "
-                + $"{Redact(connectionString)}. A runtime process connects as the NOBYPASSRLS "
+                + $"{Redact(parsed)}. A runtime process connects as the NOBYPASSRLS "
                 + "application role and nothing else. learnstack_migration owns every table, and "
                 + "learnstack_platform and learnstack_outbox_admin hold BYPASSRLS — with any of "
                 + "them here every Row Level Security policy in the database is inert, and the "
@@ -168,10 +169,41 @@ public static class PersistenceCompositionExtensions
         }
     }
 
-    /// <summary>The connection string with its password replaced.</summary>
-    private static string Redact(string connectionString) =>
+    /// <summary>The connection string with its password removed.</summary>
+    /// <remarks>
+    /// From the <b>parsed</b> builder, not by pattern-matching the raw text.
+    /// Npgsql accepts <c>Pwd</c> and <c>PSW</c> as aliases for <c>Password</c> and
+    /// parses all three into the same field, so a keyword regex over the raw value
+    /// that knows only the canonical spelling carries the other two straight into
+    /// the exception message — measured, and it is what shipped first. Setting the
+    /// field is alias-proof by construction. (A regex over
+    /// <c>parsed.ConnectionString</c> would also work, because the round trip
+    /// normalises the aliases away — but it works for a reason a reader would have
+    /// to know, and the raw-string form one edit away from it does not.)
+    /// </remarks>
+    private static string Redact(NpgsqlConnectionStringBuilder parsed)
+    {
+        var redacted = new NpgsqlConnectionStringBuilder(parsed.ConnectionString)
+        {
+            Password = "***",
+        };
+
+        return redacted.ConnectionString;
+    }
+
+    /// <summary>
+    /// The same, for a value Npgsql could not parse — so there is no builder to
+    /// clear a field on.
+    /// </summary>
+    /// <remarks>
+    /// A regex is the only tool left here, so it covers every alias Npgsql accepts
+    /// rather than the canonical spelling alone, and it does not have to be
+    /// exhaustive to be safe: the value it is redacting is one Npgsql rejected, so
+    /// nothing downstream will treat it as a credential.
+    /// </remarks>
+    private static string RedactUnparsed(string connectionString) =>
         System.Text.RegularExpressions.Regex.Replace(
             connectionString,
-            "(?i)(password\\s*=)[^;]*",
-            "$1***");
+            "(?i)\\b(password|pwd|psw)(\\s*=)[^;]*",
+            "$1$2***");
 }
