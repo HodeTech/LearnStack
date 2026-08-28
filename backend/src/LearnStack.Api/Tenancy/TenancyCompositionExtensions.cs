@@ -186,9 +186,12 @@ public static class TenancyCompositionExtensions
         services.AddSingleton<ITenantAssertionRecorder, LoggingTenantAssertionRecorder>();
 
         // The only registered IIdempotencyStore. Correct for one instance and
-        // wrong for two — the durable implementation lands with the schema in
-        // Packet 6, and Standards 04's "required for payment operations" list
-        // has no member before then.
+        // wrong for two, and it stays registered anyway: ADR-0037 Amendment 1
+        // separates the table from the store. Packet 6 ships idempotency_keys
+        // because the schema is a one-way door; the durable store is additive and
+        // ships on its ADR-0035 trigger — the first [Idempotent] endpoint, or the
+        // first deployment running more than one instance. Standards 04's
+        // "required for payment operations" list has no member yet.
         services.AddSingleton<LearnStack.SharedKernel.Idempotency.IIdempotencyStore,
             LearnStack.Infrastructure.Idempotency.InMemoryIdempotencyStore>();
 

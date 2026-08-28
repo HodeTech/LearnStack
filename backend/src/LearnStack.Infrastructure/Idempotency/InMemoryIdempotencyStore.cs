@@ -16,10 +16,18 @@ namespace LearnStack.Infrastructure.Idempotency;
 /// is precisely what an idempotency key exists to prevent. Per
 /// <see href="../../../../docs/decisions/0037-idempotency-key-contract.md">ADR-0037</see>
 /// that is acceptable only while there is one instance and no endpoint yet
-/// requires the header; the durable implementation lands with the schema in
+/// requires the header, and Standards 04's "required for payment operations"
+/// list has no member yet.
+/// </para>
+/// <para>
+/// <b>The table and the store ship apart.</b> ADR-0037 Amendment 1 separates
+/// them: <c>idempotency_keys</c> is one-way-door schema and shipped with
 /// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 6</see>,
-/// and Standards 04's "required for payment operations" list has no member
-/// before then.
+/// while the durable store is additive and ships on its
+/// <see href="../../../../docs/decisions/0035-demand-gated-infrastructure.md">ADR-0035</see>
+/// trigger — the first <c>[Idempotent]</c> endpoint, or the first deployment
+/// running more than one instance. This implementation stays registered until
+/// then.
 /// </para>
 /// <para>
 /// The same limitation is why <c>ICacheService</c> exists as a port and why
