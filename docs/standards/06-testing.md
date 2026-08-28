@@ -62,10 +62,12 @@ belongs to is decided by what it needs, not by what it is about:
   Valkey and not SeaweedFS: nothing the backend runs calls either, and both sit
   behind the gated compose profile ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). Everything that is a
   property of the schema lives here, and **every tenant-isolation invariant**
-  does. The schema itself lands in Packet 6; these arrive with the **isolation suite**
-  in Packet 7 — connected as `learnstack_app`, because a test run as the owner or as a
-  `BYPASSRLS` role passes against inert policies — and run in the separate
-  `backend-integration` job.
+  does. The fixture and the first of these — the four-role provisioning suite —
+  land in **Packet 6** with the roles themselves; the tenant-isolation suite
+  follows in **Packet 7** with the schema's policies. Both connect as
+  `learnstack_app`, because a test run as the owner or as a `BYPASSRLS` role
+  passes against inert policies. They run in the separate `backend-integration`
+  job, split from the Docker-free tests by `[Trait("Requires","Docker")]`.
 
 Both: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.

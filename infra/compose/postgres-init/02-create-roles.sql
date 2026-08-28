@@ -68,9 +68,9 @@ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'learnstack_outbox_admin'
 -- read as more. Measured: `learnstack_app` can still connect to `keycloak` and
 -- `postgres`, because PUBLIC's default there is untouched. That is accepted. The
 -- `keycloak` database is a dev-only convenience — 01-create-keycloak-db.sql
--- creates it and Keycloak connects to it as POSTGRES_USER, and production
--- isolates Keycloak in its own cluster entirely per Standards 12 § Database
--- Operations — so it is not a boundary anything relies on. The boundary that
+-- creates it and Keycloak connects to it as POSTGRES_USER (01's own comment says
+-- so, and calls the shared role a dev-only convenience) — so it is not a boundary
+-- anything relies on here. The boundary that
 -- matters is inside `:"db"`, and it is the policies plus the grant matrix, not
 -- the ability to open a connection.
 --

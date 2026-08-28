@@ -130,38 +130,50 @@ migrate: ## Apply every module's EF migrations as `learnstack_migration` (the ON
 	@# learnstack_app role, which holds USAGE but not CREATE on schema public and
 	@# fails with `permission denied for schema public`. The tempting fix for that
 	@# error (granting it CREATE) is the ownership mistake above.
-	@# `-e` does NOT abort on a failure inside a for-loop body that is part of a
-	@# compound list: measured, both iterations ran after `false` and the recipe
-	@# still exited 0. A migration target that reports success after every
-	@# migration failed is worse than one that does not exist, so the loop carries
-	@# the status in `failed` and the recipe ends on it.
+	@# Four things this recipe does that a naive version does not, each because the
+	@# naive version was measured doing the wrong thing:
 	@#
-	@# `.env` is read one key at a time, NOT shell-sourced. A connection string
-	@# contains semicolons, and `. ./.env` on an unquoted row parses them as
-	@# statement separators: measured, `ConnectionStrings__Migration` arrived as
-	@# `Host=localhost` and `Port`, `Database`, `Username`, `Password` leaked into
-	@# the environment as bare variables. `.env.example` quotes its values, but a
-	@# developer's `.env` predates that, so this reads the value rather than
-	@# trusting the file's quoting.
+	@# 1. `.env` is read one key at a time, NOT shell-sourced. A connection string
+	@#    contains semicolons, and `. ./.env` on an unquoted row parses them as
+	@#    statement separators: `ConnectionStrings__Migration` arrived as
+	@#    `Host=localhost`, and `Port`, `Database`, `Username`, `Password` leaked
+	@#    into the environment as bare variables. `tr -d '\r'` as well, because a
+	@#    CRLF row otherwise leaves the closing quote and the carriage return
+	@#    inside the credential.
+	@# 2. The role is compared EXACTLY. An unanchored `*Username=learnstack_migration*`
+	@#    accepted `learnstack_migration_readonly` and would have run migrations as
+	@#    it. Splitting on `;` and comparing the whole token has no neighbourhood.
+	@# 3. The error path prints a REDACTED string. An earlier version echoed the
+	@#    whole value, password included — in the one target whose entire purpose
+	@#    is keeping that credential in one place.
+	@# 4. The loop carries its own status. `-e` does not abort on a failure inside
+	@#    a for-loop body that is part of a compound list: both iterations ran
+	@#    after `false` and the recipe still exited 0, so a migration target
+	@#    reported success after every migration failed.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
 	if [ -z "$$migration_cs" ] && [ -f .env ]; then \
-		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env | tail -1 | sed "s/^['\"]//; s/['\"]$$//"); \
+		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
+			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
 	fi; \
-	case "$$migration_cs" in \
-		*Username=learnstack_migration*) ;; \
-		"") echo "ConnectionStrings__Migration is not set."; \
-			echo "It arrives with the four-role model in Phase 02a Packet 6: copy the"; \
-			echo "'four database roles' and 'four connection strings' blocks out of"; \
-			echo ".env.example into your .env and re-run. A .env written before that"; \
-			echo "packet has neither."; \
-			exit 1 ;; \
-		*) echo "ConnectionStrings__Migration does not name learnstack_migration:"; \
-			echo "  $$migration_cs"; \
-			echo "Migrations must run as the role that OWNS every table. Running them as"; \
-			echo "the runtime role is the arrangement FORCE ROW LEVEL SECURITY defeats."; \
-			echo "If the value looks truncated at the first ';', quote it in .env."; \
-			exit 1 ;; \
-	esac; \
+	role=$$(printf '%s' "$$migration_cs" | tr ';' '\n' \
+		| sed -n 's/^[[:space:]]*[Uu][Ss][Ee][Rr][Nn][Aa][Mm][Ee][[:space:]]*=[[:space:]]*//p' | head -1); \
+	redacted=$$(printf '%s' "$$migration_cs" | sed "s/[Pp]assword[[:space:]]*=[^;]*/Password=***/g"); \
+	if [ -z "$$migration_cs" ]; then \
+		echo "ConnectionStrings__Migration is not set."; \
+		echo "It arrives with the four-role model in Phase 02a Packet 6: copy the"; \
+		echo "'four database roles' and 'four connection strings' blocks out of"; \
+		echo ".env.example into your .env and re-run. A .env written before that"; \
+		echo "packet has neither."; \
+		exit 1; \
+	fi; \
+	if [ "$$role" != "learnstack_migration" ]; then \
+		echo "ConnectionStrings__Migration names Username='$$role', not learnstack_migration:"; \
+		echo "  $$redacted"; \
+		echo "Migrations must run as the role that OWNS every table. Running them as"; \
+		echo "the runtime role is the arrangement FORCE ROW LEVEL SECURITY defeats."; \
+		echo "If the value looks truncated at the first ';', quote it in .env."; \
+		exit 1; \
+	fi; \
 	dotnet tool restore >/dev/null; \
 	found=0; \
 	failed=0; \

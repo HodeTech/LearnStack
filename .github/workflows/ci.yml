@@ -118,9 +118,13 @@ jobs:
           dotnet test LearnStack.slnx \
             --no-restore --no-build --configuration Release \
             --filter "Requires!=Docker" \
-            --logger "trx;LogFileName=test-results.trx" \
+            --logger trx \
             --results-directory ../artifacts/backend-tests
 
+      # `--logger trx` without a LogFileName, deliberately. A fixed name makes all
+      # four projects write the SAME path in the SAME results directory: measured,
+      # one 874 KB file where four should be, so three assemblies' outcomes were
+      # silently overwritten and the artifact showed only the last to finish.
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -176,7 +180,7 @@ jobs:
           dotnet test LearnStack.slnx \
             --no-restore --no-build --configuration Release \
             --filter "Requires=Docker" \
-            --logger "trx;LogFileName=integration-results.trx" \
+            --logger trx \
             --results-directory ../artifacts/backend-integration
 
       - name: Upload test results

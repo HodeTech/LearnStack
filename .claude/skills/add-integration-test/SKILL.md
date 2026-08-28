@@ -5,8 +5,10 @@ description: >
   `backend/tests/LearnStack.Tests.Integration` that exercises a real Postgres —
   connected as `learnstack_app`, never as the owner — and asserts behaviour under
   tenant + organization context. No Valkey and no Kafka: nothing the backend runs
-  calls them. The fixture arrives in Phase 02a Packet 6; the isolation suite and
-  CI's `backend-integration` job activate in Packet 7. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
+  calls them. The Postgres fixture and CI's `backend-integration` job both
+  arrived in Phase 02a Packet 6; the tenant-isolation suite and the seeded
+  tenants follow in Packet 7. Docker-bound cases carry
+  `[Trait("Requires","Docker")]`, which is how CI routes them. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
   new `[TenantOwned]` / `[OrganizationScoped]` entity), outbox → consumer round
   trips, audit-pipeline assertions, RLS-effective-isolation tests. DO NOT USE FOR:
   pure unit tests (use `LearnStack.Tests.Unit`), architecture tests (use
@@ -54,14 +56,17 @@ architecture test) plus any other invariant the change touches. See
 
 ### Step 1: Reuse the fixture
 
-> **There is no `TestFixture` yet.** `LearnStack.Tests.Integration` today holds
-> HTTP tests over `WebApplicationFactory` and touches no container; the
-> Testcontainers packages are referenced and unused. Phase 02a **Packet 6**
-> introduces the Postgres fixture and **Packet 7** the isolation suite, which is
-> also when CI's `backend-integration` job activates. Until then, treat the shape
-> below as the target and write HTTP-only tests against the existing factory.
+> **The Postgres fixture exists** — `LearnStack.Tests.Integration.Database.PostgresFixture`,
+> shipped by Phase 02a Packet 6 along with CI's `backend-integration` job. What
+> does **not** exist yet is the tenant-isolation suite or any seeded tenant: the
+> fixture provisions the four roles and hands out four connection strings, and
+> Packet 7 adds the schema, the policies and the seed. The `AsTenant(...)` helper
+> below is Packet 7's shape, not today's.
+>
+> Anything using it carries `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`,
+> which is how CI routes it to `backend-integration` rather than `backend`.
 
-The fixture Packet 6 introduces:
+What the fixture does today:
 
 - Spins **Postgres only** via Testcontainers. Not Valkey, not Kafka — nothing the
   backend runs today calls either, and both sit behind the `gated` compose profile

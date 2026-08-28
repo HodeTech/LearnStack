@@ -190,22 +190,60 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
         // other case opens. A password the script never set, or set to something
         // else, is invisible until the dispatcher tries to start — in Phase 02b,
         // far from here.
-        foreach (var connectionString in new[]
-                 {
-                     _postgres.MigrationConnectionString,
-                     _postgres.AppConnectionString,
-                     _postgres.PlatformConnectionString,
-                     _postgres.OutboxConnectionString,
-                 })
+        // Compared against the EXPECTED role, not against one derived from the same
+        // connection that just proved it. `connectionString.Contains($"Username={current_user}")`
+        // reads like an assertion and is not: under password auth a successful
+        // OpenAsync already guarantees current_user equals the string's Username, so
+        // it is true a priori everywhere it is reached and can never be the thing
+        // that fails.
+        (string Expected, string ConnectionString)[] roles =
+        [
+            ("learnstack_migration", _postgres.MigrationConnectionString),
+            ("learnstack_app", _postgres.AppConnectionString),
+            ("learnstack_platform", _postgres.PlatformConnectionString),
+            ("learnstack_outbox_admin", _postgres.OutboxConnectionString),
+        ];
+
+        foreach (var (expected, connectionString) in roles)
         {
             await using var connection = await PostgresFixture.OpenAsync(connectionString);
             await using var who = new NpgsqlCommand("SELECT current_user", (NpgsqlConnection)connection);
 
-            var actual = (string?)await who.ExecuteScalarAsync();
-
-            connectionString.Should().Contain($"Username={actual}",
-                "the role that authenticated must be the role the connection string named");
+            (await who.ExecuteScalarAsync()).Should().Be(expected,
+                "the fixture's {0} connection string must authenticate as {0}", expected);
         }
+    }
+
+    [Fact]
+    public async Task PublicHoldsNoConnectPrivilegeOnTheDatabase()
+    {
+        // PUBLIC holds CONNECT and TEMPORARY on every database by default, so the
+        // script's four explicit grants add nothing until that default is revoked.
+        // Asserted because nothing else in this suite would notice: removing the
+        // REVOKE from the script leaves all the other cases green, which was
+        // measured — the grants and the roles are unaffected, only the reach is.
+        //
+        // pg_database.datacl renders PUBLIC's entry with an empty grantee, i.e. a
+        // leading "=" — `=Tc/owner`. Its absence is the property.
+        await using var connection = await PostgresFixture.OpenAsync(_postgres.MigrationConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT unnest(datacl)::text FROM pg_database WHERE datname = current_database()",
+            (NpgsqlConnection)connection);
+
+        var entries = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                entries.Add(reader.GetString(0));
+            }
+        }
+
+        entries.Should().NotBeEmpty("an ACL of NULL means PostgreSQL's permissive default is still in force");
+        entries.Should().NotContain(e => e.StartsWith('='),
+            "PUBLIC must hold no privilege on this database; the four explicit grants are the whole of the reach");
+        entries.Should().Contain(e => e.StartsWith("learnstack_app="),
+            "and learnstack_app must still hold the CONNECT it was granted");
     }
 
     [Fact]

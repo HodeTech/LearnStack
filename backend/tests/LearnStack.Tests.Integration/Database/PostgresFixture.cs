@@ -18,8 +18,9 @@ namespace LearnStack.Tests.Integration.Database;
 /// <para>
 /// <b>The two filters are exact complements.</b> `backend` runs
 /// <c>--filter "Requires!=Docker"</c> and `backend-integration` runs
-/// <c>--filter "Requires=Docker"</c>, so every test runs exactly once —
-/// measured: 11 + 135 against 146 total.
+/// <c>--filter "Requires=Docker"</c>, so every test in the assembly runs in
+/// exactly one of them. No count is written here on purpose: one was, and it
+/// went stale in the same commit that added a test.
 /// </para>
 /// <para>
 /// The value is a constant because a mistyped one lands in the <b>wrong</b> job.
