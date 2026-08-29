@@ -419,7 +419,16 @@ jobs:
                       echo "BROKEN: $f → $link"
                       broken=$((broken + 1))
                   fi
-              done < <(grep -oE '\]\(([^)#][^)]*)\)' "$f" | sed -E 's/^\]\((.+)\)$/\1/')
+                  # Fenced code blocks are stripped first. `](…)` inside a fence
+                  # is sample text — no renderer linkifies it, so no target has to
+                  # exist — and the audit flagged two of them: the ADR template's
+                  # `NNNN-related.md` placeholders and ADR-0041's erratum shape.
+                  # Working around it in the documents made both templates worse
+                  # at being templates, which is the sign the check was the thing
+                  # that was wrong.
+              done < <(awk '/^[[:space:]]*```/ { fence = !fence; next } !fence' "$f" \
+                  | grep -oE '\]\(([^)#][^)]*)\)' \
+                  | sed -E 's/^\]\((.+)\)$/\1/')
           done <<< "$changed"
           if [[ $broken -gt 0 ]]; then
               echo "::error::$broken broken relative link(s) in changed Markdown."
