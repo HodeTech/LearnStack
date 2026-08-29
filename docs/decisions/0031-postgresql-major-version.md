@@ -192,12 +192,21 @@ wrong, and it was wrong in the one place a spelling matters: a `DEFAULT` clause
 in a migration. [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)
 writes the first such clause, which is why this surfaced now.
 
-Following the precedent of
-[ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) — where wrong
-content inside an Accepted ADR was corrected in place and the correction
-recorded as an amendment rather than left to propagate — the name is corrected
-at every carrier rather than annotated at each one. The carriers, so the edit is
-recorded rather than silent:
+The name is corrected at every carrier rather than annotated at each one,
+because one of the carriers is C# — `IGuidFactory.cs`'s XML remarks — and a
+Markdown erratum cannot sit beside it.
+
+This ADR previously cited
+[ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) as precedent
+for "wrong content inside an Accepted ADR corrected in place". **That citation
+was false**, and git says so: the RLS template it removed sat at line 53 of the
+pre-amendment file, inside `## Amendment 1 — Organization scope (2026-05-18)`.
+ADR-0003's `## Decision` block has never been edited, and the ADR has no section
+named "Decision outcome". An amendment corrected an amendment; no accepted
+Decision body was touched.
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md) is where the
+instruments are told apart. The carriers, so the edit is recorded rather than
+silent:
 
 | Carrier | Occurrences |
 |---|---|

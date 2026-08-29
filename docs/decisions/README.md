@@ -9,7 +9,7 @@ This directory contains LearnStack ADRs. Each ADR captures a one-time decision w
 - **Superseded** — Replaced by a newer ADR. Kept as a redirect.
 - **Deprecated** — No longer applies. Kept for history.
 
-Accepted ADRs are not rewritten. A new decision is a new ADR, possibly superseding the old one.
+Accepted ADRs are not rewritten. A new decision is a new ADR, possibly superseding the old one. Dated Amendments, appended at the bottom, are the one sanctioned way to add to an accepted record — see [Documentation Standards § ADR Amendments](../standards/13-documentation.md). Whether an Accepted ADR's **body** may ever be corrected, and with which instrument, is the open question in [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md).
 
 ## Active ADRs
 
@@ -52,6 +52,7 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 | 0038 | [Cross-Cutting Port and Event Contracts](0038-cross-cutting-port-and-event-contracts.md) | **Supersedes ADR-0014.** Retains Dapr behind demand gates; fixes the event envelope, handler isolation, trace/audit scope and cache contracts |
 | 0039 | [The Optimistic Concurrency Token](0039-optimistic-concurrency-token.md) | An explicit `row_version bigint` (CLR `long`), project-wide, incremented inside `AuditableEntity` by the single primitive `MarkUpdated` and `SoftDelete` both route through, and mapped with `HasDefaultValue(0L).IsConcurrencyToken().ValueGeneratedNever()` — exactly those three calls (Amendment 2): `ValueGeneratedOnAddOrUpdate()` / `IsRowVersion()` make EF omit the column from the `UPDATE` entirely (Amendment 1, measured), and `HasDefaultValue` alone leaves `ValueGenerated` at `OnAdd`, which the registered rule rejects; `xmin` is rejected because the token is client-visible through ETag / `If-Match` and a dump-restore or logical-replication cutover changes it — measured, unlike the widely-cited `VACUUM FREEZE` objection, which does not |
 | 0040 | [The Ambient Unit of Work](0040-ambient-unit-of-work.md) | One `DbConnection` per scope, owned by `IUnitOfWork`; every module `DbContext`, `IAuditStore` and `IOutbox` enlists on it, because `SET LOCAL` is connection-local and a context on its own connection reads **zero rows** under the corrected RLS policy. Spans one aggregate's write plus audit plus outbox plus any reads — cross-aggregate writes stay forbidden. Defines nesting, disposal, and the event-consumer entry point that never reaches MediatR |
+| 0041 | [Correcting False Statements in Accepted ADRs](0041-correcting-false-statements-in-accepted-adrs.md) | **Proposed — awaiting decision.** Inline erratum beside the false text is the default; in-place replacement only where an erratum cannot reach the reader (text meant to be copied, or a token carried by a file that cannot hold a Markdown banner). Bounded to statements that were false **when the ADR was accepted** — a statement that has since gone stale is history, and gets an amendment or a superseding ADR |
 
 ## Superseded ADRs
 
