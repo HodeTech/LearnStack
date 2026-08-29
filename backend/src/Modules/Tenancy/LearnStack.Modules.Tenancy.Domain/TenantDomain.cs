@@ -108,8 +108,8 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
             TenantDomainStatus.Requested,
             TenantDomainStatus.Failed);
 
-        Status = TenantDomainStatus.Verifying;
         MarkUpdated(clock.UtcNow, updatedBy);
+        Status = TenantDomainStatus.Verifying;
     }
 
     /// <summary>Records a verification attempt that succeeded.</summary>
@@ -119,11 +119,14 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
         EnsureVerifiable();
         EnsureStatusIs("record a verification result", TenantDomainStatus.Verifying);
 
+        // Stamped first — see Tenant.ChangeStatus. Here it also protects the
+        // attempt counter, which is not idempotent.
+        MarkUpdated(clock.UtcNow, updatedBy);
+
         Status = TenantDomainStatus.Verified;
         VerifiedAt = clock.UtcNow;
         VerificationAttempts++;
         LastVerificationError = null;
-        MarkUpdated(clock.UtcNow, updatedBy);
     }
 
     /// <summary>Records a verification attempt that failed.</summary>
@@ -138,10 +141,11 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
         EnsureVerifiable();
         EnsureStatusIs("record a verification result", TenantDomainStatus.Verifying);
 
+        MarkUpdated(clock.UtcNow, updatedBy);
+
         Status = TenantDomainStatus.Failed;
         VerificationAttempts++;
         LastVerificationError = error;
-        MarkUpdated(clock.UtcNow, updatedBy);
     }
 
     /// <summary>

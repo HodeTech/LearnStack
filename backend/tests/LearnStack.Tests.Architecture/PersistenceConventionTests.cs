@@ -382,6 +382,48 @@ public sealed class PersistenceConventionTests
             + "place must not echo it into a terminal or a CI log");
     }
 
+    [Theory]
+    // Npgsql accepts a semicolon inside a quoted value — measured against
+    // Npgsql 10, both quote characters, with a doubled quote as the escape. The
+    // split-on-";" version cut such a value in half: the first half matched the
+    // keyword table and was redacted, the second half matched nothing and was
+    // printed, so `make migrate` echoed a "redacted" string that still carried
+    // the password.
+    //
+    // Every literal is an INPUT to the redaction under test — the file cannot be
+    // written without one. They name localhost and a password no service has
+    // ever had; leakwatch:ignore applies per line.
+    [InlineData("Host=localhost;Password=\";hunter2\";UID=learnstack_app")] // leakwatch:ignore
+    [InlineData("Host=localhost;Password=';hunter2';UID=learnstack_app")] // leakwatch:ignore
+    [InlineData("Host=localhost;PWD=\"a;hunter2\";Username=learnstack_app")] // leakwatch:ignore
+    [InlineData("Host=localhost;Password=\"said \"\"hi\"\";hunter2\";Username=learnstack_app")] // leakwatch:ignore
+    public void Migrate_Target_Redacts_A_Quoted_Value_Whole(string value)
+    {
+        var (exitCode, output) = RunMigrateTarget(value);
+
+        exitCode.Should().NotBe(0, "{0}", output);
+        output.Should().Contain("learnstack_app", "the role is still read correctly");
+        output.Should().NotContain(
+            "hunter2",
+            "a semicolon inside a quoted value is not a field boundary, so the "
+            + "redaction covers the value whole or it covers nothing");
+    }
+
+    [Fact]
+    public void Migrate_Target_Reads_The_Role_Through_A_Quoted_Value()
+    {
+        // The other half: a quoted password containing a semicolon must not
+        // shift the fields that follow it out of alignment, or the role check
+        // reads the wrong token and the recipe refuses a correct credential.
+        var (exitCode, output) = RunMigrateTarget(
+            "Host=localhost;Password=\";hunter2\";Username=learnstack_app"); // leakwatch:ignore
+
+        exitCode.Should().NotBe(0, "{0}", output);
+        output.Should().Contain(
+            "Username='learnstack_app'",
+            "the field after the quoted value is still parsed as its own field");
+    }
+
     [Fact]
     public void Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo()
     {
@@ -417,8 +459,29 @@ public sealed class PersistenceConventionTests
         startInfo.ArgumentList.Add("migrate");
         startInfo.Environment["ConnectionStrings__Migration"] = migrationConnectionString;
 
-        using var process = System.Diagnostics.Process.Start(startInfo)
-            ?? throw new InvalidOperationException("`make` did not start.");
+        // Not skipped when `make` is absent — a skipped architecture test is a
+        // bug by policy, and a machine without make cannot run `make install`,
+        // `make test` or `make migrate` either, so the documented workflow is
+        // already broken there. What is worth fixing is the message: the raw
+        // Win32Exception says "No such file or directory" and names nothing.
+        System.Diagnostics.Process process;
+
+        try
+        {
+            process = System.Diagnostics.Process.Start(startInfo)
+                ?? throw new InvalidOperationException("`make` did not start.");
+        }
+        catch (System.ComponentModel.Win32Exception exception)
+        {
+            throw new InvalidOperationException(
+                "`make` is not on PATH. The repo-root Makefile is the documented entry "
+                + "point for restoring, testing and migrating (see .github/CONTRIBUTING.md "
+                + "§ Local checks before pushing), and this rule executes its `migrate` "
+                + "target to prove the credential guard refuses what it claims to.",
+                exception);
+        }
+
+        using var _ = process;
 
         var stdout = process.StandardOutput.ReadToEnd();
         var stderr = process.StandardError.ReadToEnd();

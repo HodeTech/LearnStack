@@ -132,8 +132,8 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
                 "The default organization must be a real organization.", nameof(organizationId));
         }
 
-        DefaultOrganizationId = organizationId;
         MarkUpdated(clock.UtcNow, updatedBy);
+        DefaultOrganizationId = organizationId;
     }
 
     /// <summary>Moves the tenant to a new lifecycle state.</summary>
@@ -151,8 +151,12 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         EnsureTransitionAllowed(status);
 
-        Status = status;
+        // Stamped before the field moves. MarkUpdated is the only statement here
+        // that can throw — a sentinel timestamp or an unreal actor — and an
+        // aggregate left mutated by a call that failed is a state no guard above
+        // it can see.
         MarkUpdated(clock.UtcNow, updatedBy);
+        Status = status;
     }
 
     private void EnsureTransitionAllowed(TenantStatus target)

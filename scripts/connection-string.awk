@@ -19,9 +19,86 @@
 # table is duplicated here on purpose, and
 # `Migrate_Target_Refuses_An_Aliased_Runtime_Credential` executes this recipe
 # against the aliases to keep the two halves honest.
+#
+# ── Why this tokenizes instead of splitting on ";" ────────────────────────────
+# Npgsql accepts a semicolon INSIDE a quoted value — measured against Npgsql 10:
+#
+#   Host=h;Password=";secret";Database=d   ->  Password = ';secret'
+#
+# Splitting on `;` cut that value in half. The first half matched the keyword
+# table and was redacted; the second half — `secret"` — matched nothing and was
+# printed verbatim, so `make migrate` reported a redacted string that still
+# carried the password. Redacting by keyword only works if the keywords are found
+# on real field boundaries, so the boundaries are found first.
+
+function normalize_key(text,    key) {
+    key = text
+    sub(/=.*/, "", key)
+    gsub(/[ \t\r\n]/, "", key)
+
+    return tolower(key)
+}
+
+# The value with its surrounding quotes removed and doubled inner quotes
+# collapsed — Npgsql's own escaping rule.
+function unquote(text,    value, quote, inner) {
+    value = text
+    sub(/^[^=]*=/, "", value)
+    gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", value)
+
+    quote = substr(value, 1, 1)
+
+    if ((quote == "\"" || quote == "'") &&
+        length(value) > 1 &&
+        substr(value, length(value), 1) == quote) {
+        inner = substr(value, 2, length(value) - 2)
+        gsub(quote quote, quote, inner)
+
+        return inner
+    }
+
+    return value
+}
+
+# Splits `text` into out[1..n] on semicolons that are OUTSIDE quotes, and returns
+# n. A doubled quote inside a quoted run is an escaped quote, not its end.
+function split_fields(text, out,    i, c, quote, current, count, length_of) {
+    count = 0
+    current = ""
+    quote = ""
+    length_of = length(text)
+
+    for (i = 1; i <= length_of; i++) {
+        c = substr(text, i, 1)
+
+        if (quote != "") {
+            current = current c
+
+            if (c == quote) {
+                if (substr(text, i + 1, 1) == quote) {
+                    current = current quote
+                    i++
+                } else {
+                    quote = ""
+                }
+            }
+        } else if (c == "\"" || c == "'") {
+            quote = c
+            current = current c
+        } else if (c == ";") {
+            out[++count] = current
+            current = ""
+        } else {
+            current = current c
+        }
+    }
+
+    out[++count] = current
+
+    return count
+}
 
 BEGIN {
-    RS = ";"
     ORS = ""
 
     # Every alias Npgsql 10 parses into Username, and into Password, with the
@@ -35,50 +112,47 @@ BEGIN {
     secret["password"] = 1
     secret["psw"] = 1
     secret["pwd"] = 1
-
-    found = 0
 }
 
 {
-    key = $0
-    sub(/=.*/, "", key)
-    gsub(/[ \t\r\n]/, "", key)
-    key = tolower(key)
-
-    if (field == "user") {
-        if (key in user && !found) {
-            value = $0
-            sub(/^[^=]*=/, "", value)
-            gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", value)
-            print value
-            found = 1
-        }
-        next
-    }
-
-    if (NR > 1) {
-        print ";"
-    }
-
-    if (key in secret) {
-        token = $0
-        sub(/=.*/, "=***", token)
-        print token
-        next
-    }
-
-    # No keyword to key on in a URI-style DSN — `postgres://role:secret@host/db`
-    # keeps its password in the userinfo. Npgsql rejects that form outright, so
-    # the value is on its way to an error message either way; the userinfo goes
-    # whole rather than by halves, because a value that did not parse gives
-    # nothing to be confident about.
-    token = $0
-    gsub(/:\/\/[^@]*@/, "://***@", token)
-    print token
+    input = input (NR > 1 ? "\n" : "") $0
 }
 
 END {
-    if (field == "user" && found) {
-        print "\n"
+    count = split_fields(input, fields)
+
+    if (field == "user") {
+        for (i = 1; i <= count; i++) {
+            if (normalize_key(fields[i]) in user) {
+                print unquote(fields[i]) "\n"
+                exit
+            }
+        }
+
+        exit
+    }
+
+    for (i = 1; i <= count; i++) {
+        if (i > 1) {
+            print ";"
+        }
+
+        if (normalize_key(fields[i]) in secret) {
+            # The whole field, quotes included: a partial replacement is how the
+            # split-on-";" version leaked.
+            token = fields[i]
+            sub(/=.*/, "=***", token)
+            print token
+            continue
+        }
+
+        # No keyword to key on in a URI-style DSN — `postgres://role:secret@host/db`
+        # keeps its password in the userinfo. Npgsql rejects that form outright, so
+        # the value is on its way to an error message either way; the userinfo goes
+        # whole rather than by halves, because a value that did not parse gives
+        # nothing to be confident about.
+        token = fields[i]
+        gsub(/:\/\/[^@]*@/, "://***@", token)
+        print token
     }
 }

@@ -149,8 +149,8 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         EnsureWithinMappedLengths(Slug, displayName);
 
-        DisplayName = displayName;
         MarkUpdated(clock.UtcNow, updatedBy);
+        DisplayName = displayName;
     }
 
     /// <summary>
@@ -170,8 +170,9 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
         ArgumentNullException.ThrowIfNull(clock);
         EnsureTransitionAllowed(status);
 
-        Status = status;
+        // Stamped first — see Tenant.ChangeStatus.
         MarkUpdated(clock.UtcNow, updatedBy);
+        Status = status;
     }
 
     private void EnsureTransitionAllowed(OrganizationStatus target)

@@ -123,7 +123,8 @@ public sealed class TenantSetting : AuditableEntity<TenantSettingId>
         ArgumentNullException.ThrowIfNull(clock);
         JsonValue.EnsureWellFormed(value, nameof(value));
 
-        Value = value;
+        // Stamped first — see Tenant.ChangeStatus.
         MarkUpdated(clock.UtcNow, updatedBy);
+        Value = value;
     }
 }

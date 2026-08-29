@@ -469,7 +469,8 @@ read-only transaction before the lookup, because `SET LOCAL` outside a transacti
 block has no effect and a session-level setting would leak across a pooled
 connection. `app.resolving_host` is the fourth and last canonical session variable.
 
-**The Tenancy aggregate boundary is settled here.** Packet 6 shipped
+**Packet 7 settles the Tenancy aggregate boundary**, which Packet 6 left
+open. Packet 6 shipped
 `TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` with
 public factories and top-level `DbSet`s and no navigation from `Tenant`, which is
 not the containment

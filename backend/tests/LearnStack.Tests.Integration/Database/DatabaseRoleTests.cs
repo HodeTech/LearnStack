@@ -335,14 +335,19 @@ public sealed class DatabaseRoleTests : IClassFixture<PostgresFixture>
         }
         finally
         {
-            await _postgres.ExecuteAsSuperuserAsync(
-                "REVOKE learnstack_platform FROM learnstack_app");
-
+            // The bridge goes first: dropping it clears its memberships in both
+            // directions, so nothing is stranded if the revoke below is the
+            // statement that fails. Revoking a membership that was never granted
+            // only warns — measured — so the direct branch's revoke is safe to
+            // run unconditionally, and it is required, because learnstack_app is
+            // a permanent role.
             if (throughABridge)
             {
-                await _postgres.ExecuteAsSuperuserAsync(
-                    $"DROP ROLE IF EXISTS {bridge}");
+                await _postgres.ExecuteAsSuperuserAsync($"DROP ROLE IF EXISTS {bridge}");
             }
+
+            await _postgres.ExecuteAsSuperuserAsync(
+                "REVOKE learnstack_platform FROM learnstack_app");
         }
     }
 

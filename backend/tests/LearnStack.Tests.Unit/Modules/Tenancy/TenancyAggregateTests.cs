@@ -404,6 +404,64 @@ public sealed class TenancyAggregateTests
         fail.Should().Throw<ArgumentException>().WithMessage("*the column holds 1000*");
     }
 
+    [Fact]
+    public void A_refused_audit_stamp_leaves_the_aggregate_untouched()
+    {
+        // MarkUpdated is the only statement in these mutator bodies that can
+        // throw. With the assignment first, a call that failed its audit
+        // validation still moved the aggregate — an inconsistent object no guard
+        // above it can see, and one EF would happily persist if a handler caught
+        // the ArgumentException and carried on.
+        var tenant = NewTenant();
+        var organization = NewOrganization();
+        var setting = TenantSetting.Create(
+            TenantSettingId.From(Guid.Parse("55555555-2222-7222-8222-222222222222")),
+            Tenant, null, "k", "true", Clock, Actor);
+        var domain = TenantDomain.RequestCustomDomain(
+            DomainId, Tenant, "learn.acme.com", Clock, Actor);
+
+        var unreal = UserId.From(Guid.Empty);
+
+        ((Action)(() => tenant.ChangeStatus(TenantStatus.Active, Clock, unreal)))
+            .Should().Throw<ArgumentException>();
+        ((Action)(() => organization.ChangeStatus(OrganizationStatus.Suspended, Clock, unreal)))
+            .Should().Throw<ArgumentException>();
+        ((Action)(() => organization.Rename("Renamed", Clock, unreal)))
+            .Should().Throw<ArgumentException>();
+        ((Action)(() => setting.SetValue("false", Clock, unreal)))
+            .Should().Throw<ArgumentException>();
+        ((Action)(() => domain.MarkVerificationStarted(Clock, unreal)))
+            .Should().Throw<ArgumentException>();
+
+        tenant.Status.Should().Be(TenantStatus.Trial, "the refused call moved nothing");
+        organization.Status.Should().Be(OrganizationStatus.Active);
+        organization.DisplayName.Should().Be("Acme");
+        setting.Value.Should().Be("true");
+        domain.Status.Should().Be(TenantDomainStatus.Requested);
+    }
+
+    [Fact]
+    public void A_refused_audit_stamp_does_not_advance_the_verification_counter()
+    {
+        // The attempt counter is the one field here that is not idempotent, so a
+        // partially-applied mutator is observable rather than merely untidy.
+        var domain = TenantDomain.RequestCustomDomain(
+            DomainId, Tenant, "learn.acme.com", Clock, Actor);
+        domain.MarkVerificationStarted(Clock, Actor);
+
+        var fail = () => domain.MarkVerificationFailed(
+            "no TXT record", Clock, UserId.From(Guid.Empty));
+
+        fail.Should().Throw<ArgumentException>();
+        domain.VerificationAttempts.Should().Be(0);
+        domain.LastVerificationError.Should().BeNull();
+        domain.Status.Should().Be(TenantDomainStatus.Verifying);
+    }
+
+    private static Organization NewOrganization() => Organization.Create(
+        OrganizationId.From(Guid.Parse("22222222-2222-7222-8222-222222222222")),
+        Tenant, "acme", "Acme", Clock, Actor);
+
     private static TenancyDomain.Tenant NewTenant() =>
         TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
 

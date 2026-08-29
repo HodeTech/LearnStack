@@ -313,8 +313,6 @@ container.
   transaction, tenantId)` is the transaction's first statement today; without it
   `app.tenant_id` is unset and every tenant-owned table returns empty — which
   reads exactly like "there is no data" and masks a missing filter or policy.
-  (The `fixture.AsTenant(...)` helper in the Step 3-5 samples is the shape those
-  phases will provide, not today's API.)
 - **Asserting on row count without `AsNoTracking`.** EF's change tracker can
   hold a stale instance; use `AsNoTracking()` in reads after writes.
 - **Sharing seed across tenants.** Always seed per-tenant inside a transaction

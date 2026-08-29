@@ -433,8 +433,13 @@ public sealed class UnitOfWorkTests
         }
         finally
         {
-            await _schema.Postgres.ExecuteAsSuperuserAsync(
-                "REVOKE uow_bridge FROM learnstack_app");
+            // DROP alone, and no REVOKE first. Measured on PG 18.4: dropping a
+            // role clears every pg_auth_members row naming it, in both
+            // directions, so learnstack_app stops reaching the bypass role
+            // without a separate revoke. And `REVOKE uow_bridge FROM …` ERRORS
+            // when the role does not exist — which is exactly the state a failed
+            // setup leaves — so the unnecessary statement was also the one that
+            // would replace the real failure with a cleanup complaint.
             await _schema.Postgres.ExecuteAsSuperuserAsync("DROP ROLE IF EXISTS uow_bridge");
         }
     }
