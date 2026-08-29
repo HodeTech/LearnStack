@@ -227,7 +227,15 @@ aggregate is.
 | `No_Per_Vertical_Folders` | [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md) | `No_Source_Folder_Named_Verticals` |
 
 ADR-0018 is Accepted and is not rewritten; the mapping lives here for the same reason
-ADR-0017's spellings do. Every mutable carrier is corrected in place.
+ADR-0017's spellings do. The **mutable** carriers — this catalogue, the standards, the
+skills — carry the canonical names.
+
+ADR-0018's own body keeps the superseded spellings, and under
+[ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) it must:
+those names were canonicalized *after* ADR-0018 was accepted, so they were true when
+they entered the record and are stale now, which is history rather than error. If the
+drift ever needs to be visible in ADR-0018 itself, the instrument is a dated Amendment
+or an inline erratum — never a rewrite.
 
 The reconciliation is a [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md)
 deliverable: the canonical names go green in CI and the superseded spellings disappear

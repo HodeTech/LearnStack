@@ -73,7 +73,7 @@ The following are kept current and treated as code:
 | Type | Purpose | Mutability |
 |------|---------|-----------|
 | Architecture (`architecture/`) | Conceptual descriptions of what we are building | Editable as the system evolves |
-| ADR (`decisions/`) | A one-time decision with status, context, decision, consequences | Immutable after acceptance, except for typo fixes |
+| ADR (`decisions/`) | A one-time decision with status, context, decision, consequences | Immutable after acceptance, except for dated Amendments and the bounded corrections in § Correcting and Amending ADRs |
 | Standard (`standards/`) | Ongoing engineering rules | Editable as the team learns |
 | Runbook (`runbooks/`) | Operational procedures | Editable; review quarterly |
 | Roadmap (`roadmap/`) | Phased plan | Editable per phase |
@@ -119,7 +119,10 @@ Proposed | Accepted | Superseded | Deprecated
 
 Rules:
 - Numbered sequentially (`0001`, `0002`, ...). Never reused.
-- Accepted ADRs are immutable except for typo fixes and dated Amendments.
+- Accepted ADRs are immutable except for dated Amendments and the two bounded
+  correction mechanisms in § Correcting and Amending ADRs. "Typo fixes" was the
+  earlier wording and had no test attached; [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  replaces it with one.
 - A new decision that supersedes an old one is a **new ADR**; the old one is marked
   `Superseded by ADR-NNNN` and reduced to a redirect stub. The full stub lives in
   `decisions/_redirects/` when the file is otherwise empty.
@@ -189,7 +192,9 @@ When a module reaches "design stable, ready to implement", it gets a spec under 
 
 A module spec without these sections is not "done"; reviewers block merges that skip required diagrams.
 
-## ADR Amendments
+## Correcting and Amending ADRs
+
+**Derives from:** [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)
 
 Accepted ADRs are otherwise immutable, but **dated Amendments** are allowed at the bottom of the file for clarifications that do not change the decision:
 
@@ -202,6 +207,34 @@ Accepted ADRs are otherwise immutable, but **dated Amendments** are allowed at t
 ```
 
 Amendments must not change the Decision section. If the decision itself changes, write a new ADR that supersedes the old one.
+
+### When the body says something false
+
+An Accepted ADR sometimes carries a statement that was **false when it entered the record** — a function that does not exist, a policy that does not do what the prose beside it claims. Two mechanisms correct it, and the weaker one is the default. Which applies is decided by [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md); this section is the operating rule.
+
+**Default — inline erratum.** The body is not edited. A dated blockquote goes immediately before the paragraph or fence it corrects, and immediately *below* a heading when the span is a whole subsection, because a reader arriving on the anchor starts their viewport at the heading:
+
+```markdown
+> **Erratum — YYYY-MM-DD.** The <statement> below reads `<what it says>`. It is
+> `<what is true>`; shown by `<the command, query or file>`. The Decision is
+> unchanged. Current authority: [<document>](<link>). Recorded in Amendment N.
+```
+
+**Exception — in-place replacement.** Only when all three hold:
+
+1. The statement was false **when it entered the record**. Text from the original body is judged at the acceptance commit; text inside a dated Amendment is judged at *that amendment's* date. A statement that was true then and is stale now is history — it gets an amendment or a superseding ADR, never a rewrite.
+2. The text is a **canonical artifact for reuse** — a template other documents are told to copy, a DDL or config block meant to be applied, a command meant to be run. Not merely something that *could* be copied: an illustrative sketch is read, not applied, and gets an erratum. A carrier outside the ADRs licenses nothing; correct that carrier on its own.
+3. The diff adds and removes no normative content — no obligation, scope, alternative, rationale or consequence.
+
+**Never touched by either mechanism:** § Status, § Date, § Deciders, and all rationale, framing, trade-offs and judgements. A Status change is a lifecycle event, not a fact correction.
+
+**Both mechanisms owe the same three things:**
+
+1. **A dated Amendment in every Accepted ADR the diff changes**, naming what was wrong, how it was shown wrong, and every carrier changed. A cross-file carrier list is additive, never a substitute — an amendment in one ADR does not disclose a change made in another.
+2. The decision restated as **unchanged**. If it cannot be, the change is a superseding ADR.
+3. Two review gates, checked separately: reproducible evidence of falsity at entry, and a diff that moves no normative content.
+
+**Not a correction at all:** retargeting a moved link with its text unchanged. Nothing the ADR asserts changes, and no amendment is owed.
 
 ## When to Update Documentation
 

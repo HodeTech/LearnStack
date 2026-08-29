@@ -311,6 +311,16 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Platform Entitlement Cache** | The `platform_entitlement_cache` table in LearnStack core — the **durable** read-only mirror of the Hub-side Entitlement Aggregate, carrying `valid_until` and `grace_until`. Despite the name it is a projection store, not a cache: the volatile layers are L1 and L2 in front of it. Third in the normative read path `L1 → L2 → platform_entitlement_cache → Hub` ([ADR-0034](decisions/0034-hub-contract-surface-invariant.md)). Eager-invalidated on the entitlement-updated event; modules never read the table directly (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). |
 | **Operator Portal** | `operator-portal` — the separate Next.js app for Hub operators. Authenticates against the `learnstack-hub` Keycloak realm. |
 
+## Decision Records
+
+| Term | Definition |
+|---|---|
+| **Amendment** | A dated, append-only entry at the bottom of an ADR. The only way to add to an accepted record, and the disclosure both correction mechanisms below owe — **in every Accepted ADR a diff changes**, because an amendment in one ADR discloses nothing to a reader of another. A correction amendment names what was wrong, how it was shown wrong, and every carrier changed, and restates the Decision as unchanged ([ADR-0041](decisions/0041-correcting-false-statements-in-accepted-adrs.md)). |
+| **Inline Erratum** | The **default** way to correct an Accepted ADR that says something false: a dated blockquote placed immediately before the paragraph or fence it corrects — and immediately *below* a heading when the span is a subsection, since a reader arriving on the anchor starts their viewport there. The body is not edited, so the accepted wording survives in the document rather than only in `git log -L`. Shape and rules in [13-documentation.md § Correcting and Amending ADRs](standards/13-documentation.md). |
+| **In-Place Replacement** | The bounded **exception** to the erratum default: the false text is rewritten. Licensed only when the statement was false **when it entered the record**, the text is a *canonical artifact* rather than an *illustrative sketch*, and the diff moves no normative content. A carrier outside the ADRs — source, script, workflow — licenses nothing; correct that carrier on its own. |
+| **Canonical Artifact** | Text an ADR presents **for reuse**: a template other documents are told to copy, a DDL or config block meant to be applied, a command meant to be run. It travels away from any banner placed beside it, which is why it is the one class in-place replacement covers. The corrected RLS policy template in [ADR-0003](decisions/0003-tenant-isolation-defense-in-depth.md) Amendment 3 is the worked example — four documents had copied it, wrong in all four. |
+| **Illustrative Sketch** | Text an ADR presents to be **read**, not applied — a code fence showing the shape of a type, a function named in prose. Not a canonical artifact however copyable it looks, and it gets an erratum. [ADR-0017](decisions/0017-tenant-organization-hierarchy.md)'s namespace fence is the worked example: its own amendment calls it "superseded as illustrative", and the fence still carries the original text. |
+
 ## Roadmap & Delivery
 
 | Term | Definition |

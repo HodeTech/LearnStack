@@ -165,20 +165,21 @@ Its binding properties:
 
 ### Which tables the template applies to
 
-> **Amendment note (2026-08-27).** The enumeration below was written before
-> `idempotency_keys` existed and before the tenant-owned class was split into
-> org-scoped and tenant-wide. **[Database Standards § Table classes](../standards/05-database.md)
-> is the single authority for the assignment**; this section keeps the *rule* —
-> which class a table belongs to and why — and no longer keeps the list, for the
-> same reason the template itself lives in one file: a list copied into three
-> documents drifts in three directions, and this copy already had.
+> **Erratum — 2026-08-29.** The tenant-owned row below enumerates the Phase 02a
+> tenancy set. The list was correct when Amendment 3 was written on 2026-08-08 and has
+> since gone stale: `idempotency_keys` did not exist yet, and the tenant-owned class
+> has since been split into org-scoped and tenant-wide. It is history, not error, so
+> it stands — per [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md), a
+> statement that was true when it entered the record is amended, never rewritten.
+> Current authority for the assignment: [Database Standards § Table
+> classes](../standards/05-database.md). Recorded in Amendment 4.
 
 The corrected template governs **tenant-owned** tables. Two classes sit outside it, and
 both are enumerated rather than left to judgement:
 
 | Class | Rule | Tables |
 |---|---|---|
-| Tenant-owned | The corrected template, with the organization term present only on tables that carry an `organization_id` | every domain table, plus the Phase 02a tenancy set — enumerated and kept current in [Database Standards § Table classes](../standards/05-database.md), which splits it into org-scoped and tenant-wide |
+| Tenant-owned | The corrected template | every domain table; of the Phase 02a tenancy set: `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings`, `tenant_feature_flags`, `platform_entitlement_cache`, `outbox_messages` |
 | Tenant-owned, self-keyed | The corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id | `tenants` |
 | Platform-scoped | `ENABLE` + `FORCE`, role-qualified per-command policies; the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
 
@@ -275,3 +276,27 @@ that sets `app.tenant_id` for the tenant being created.
 
 No migration may be written against the superseded template.
 
+## Amendment 4 — The Phase 02a table list has gone stale (2026-08-29)
+
+Amendment 3's § Which tables the template applies to enumerates the Phase 02a
+tenancy set in its **tenant-owned** row. The list was correct on 2026-08-08, when
+Amendment 3 was written. It is not correct now:
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) added
+`idempotency_keys`, and split the tenant-owned class into org-scoped
+(`tenant_settings`, which carries an `organization_id`) and tenant-wide (the rest).
+
+**The row stands, with an erratum.** Under
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md) a statement that
+was true when it entered the record and is stale now is history, not error: it is
+amended, never rewritten. Packet 6 rewrote it in place, and this amendment is the
+disclosure that edit owed and did not carry; the row is restored to what Amendment
+3 accepted.
+
+**The Decision is unchanged**, and so is Amendment 3's: defense in depth by
+context + query filter + RLS + architecture test, with one `AND`-ed policy per
+table under `ENABLE` and `FORCE ROW LEVEL SECURITY`. Only the enumeration moved on.
+
+The single authority for which class a table belongs to is
+[Database Standards § Table classes](../standards/05-database.md). A list copied
+into three documents drifts in three directions, and this copy already had — which
+is why the assignment lives in one file and this section keeps only the *rule*.

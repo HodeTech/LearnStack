@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-08-28 **Deciders:** @platform
+**Accepted:** 2026-08-29
 
 ## Decision Drivers
 
@@ -290,8 +291,11 @@ Named so the cost is visible before the decision, not after:
 
 ## Implementation Notes
 
-Accepting this ADR is one commit that touches **seventeen files** — the sixteen
-below plus this one, whose Status flips to Accepted. The rule is stated in
+Accepting this ADR is one commit that touches **eighteen files** — the seventeen
+below plus this one, whose Status flips to Accepted. The eighteenth is
+[ADR-0003](0003-tenant-isolation-defense-in-depth.md), which the enforcement check
+below found the moment it was written: Packet 6 had rewritten a table row inside
+Amendment 3 with an ad-hoc note and no dated Amendment. The rule is stated in
 seventeen sentences across thirteen tracked files; the first draft named three of
 them, and counted the reversals in § Consequences without listing them.
 
@@ -329,6 +333,7 @@ them, and counted the reversals in § Consequences without listing them.
 | [ADR-0023](0023-strongly-typed-id-source-generator.md) | same, plus Amendment 4's in-place list edit becomes an erratum |
 | [ADR-0002](0002-initial-architecture.md) | same, for its one occurrence — the carrier ADR-0031's table calls "the PostgreSQL row" |
 | [.github/workflows/ci.yml](../../.github/workflows/ci.yml) | the disclosure check described under **Enforcement** |
+| [ADR-0003](0003-tenant-isolation-defense-in-depth.md) | Amendment 3's tenant-owned table row is restored and carries an erratum, disclosed by a new Amendment 4. The list was **true when Amendment 3 was written** and went stale when Packet 6 added `idempotency_keys` and split the class — so it is history, and replacing it was never licensed. Found by the check, not by review |
 
 **A retroactive amendment, owed to the record rather than to this rule:**
 [ADR-0023](0023-strongly-typed-id-source-generator.md) gains an amendment dated

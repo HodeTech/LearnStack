@@ -66,6 +66,12 @@ Two backend-row clarifications recorded together because they share the
 trigger (do major-version + vendor calls while LearnStack is still
 pre-implementation, so the migration drag is zero):
 
+> **Erratum — 2026-08-29.** Item 2 below names PostgreSQL 18's native UUIDv7
+> generator `gen_uuid_v7()`. No such function exists — it is `uuidv7()`, shown by
+> `SELECT gen_uuid_v7()` on `postgres:18.4-alpine` returning `ERROR: function
+> gen_uuid_v7() does not exist`. The Decision is unchanged. Current authority: [ADR-0031
+> Amendment 1](0031-postgresql-major-version.md).
+
 1. **Cache + state backend Redis → Valkey** per
    [ADR-0030](0030-redis-compatible-store-valkey.md). Redis 7.4 was the
    last BSD-3-Clause Redis release; the 8.x line ships under a
@@ -75,7 +81,7 @@ pre-implementation, so the migration drag is zero):
    change — it is the RESP-provider identifier, not a vendor brand.
 2. **PostgreSQL major pinned to 18.x** per
    [ADR-0031](0031-postgresql-major-version.md). 18 is the longest-
-   runway LTS available (EOL 2030-11), brings native `uuidv7()`
+   runway LTS available (EOL 2030-11), brings native `gen_uuid_v7()`
    that [ADR-0023](0023-strongly-typed-id-source-generator.md) adopts
    without an extension, and async I/O for sequential scans helps the
    partitioned `audit_log`
@@ -90,3 +96,29 @@ read as "Valkey 8" or "PostgreSQL 18". Library names + protocol
 identifiers stay (`StackExchange.Redis`, `IConnectionMultiplexer`,
 `state.redis` Dapr component, RESP) — those are protocol/library
 identifiers, not vendor brands.
+
+## Amendments
+
+### 2026-08-29 — `gen_uuid_v7()` is not a PostgreSQL function
+
+Amendment 2's PostgreSQL row named the native UUIDv7 generator `gen_uuid_v7()`.
+It is `uuidv7()`. Measured on `postgres:18.4-alpine`:
+
+```sql
+SELECT gen_uuid_v7();  -- ERROR:  function gen_uuid_v7() does not exist
+SELECT uuidv7();       -- 01a04366-8141-753d-a6a4-161239372fd0
+```
+
+The **Decision is unchanged** — PostgreSQL 18 is pinned, and generating UUIDv7
+natively without an extension is one of its reasons. Only the spelling was wrong.
+The body keeps it and carries an erratum, per
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md): a function named
+in prose is read, not applied, so it is not a canonical artifact for reuse.
+
+Carriers changed in this pass, so the correction is recorded rather than silent:
+this ADR (1 occurrence, erratum), [ADR-0023](0023-strongly-typed-id-source-generator.md)
+(6, errata), [ADR-0031](0031-postgresql-major-version.md) (5, errata),
+[Backend Coding Standards § Identifiers](../standards/02-backend-coding.md) (1,
+corrected), [decisions/README.md](README.md) (1, corrected) and
+`LearnStack.SharedKernel/Identifiers/IGuidFactory.cs` (1, corrected). The last
+three are not Accepted ADRs and immutability never bound them.

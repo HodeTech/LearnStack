@@ -5,8 +5,11 @@ description: >
   Drivers + Considered Options) and reserve its number. USE FOR: capturing a
   one-time architectural decision that other docs will cite, picking between two or
   more incompatible technology / pattern choices, recording the reason a rule is
-  the way it is. DO NOT USE FOR: editing an existing Accepted ADR's Decision section
-  (write a new ADR that supersedes it), recording day-to-day implementation choices
+  the way it is. DO NOT USE FOR: changing an existing Accepted ADR's decision
+  (write a new ADR that supersedes it), correcting a false statement in an
+  Accepted ADR's body (that is an erratum or a replacement under
+  [ADR-0041](../../../docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md),
+  not a new ADR), recording day-to-day implementation choices
   (those go in code review / commit messages), or research notes (use
   `docs/analysis/`, which is gitignored).
 ---
@@ -29,8 +32,12 @@ cross-linked.
 
 ## When not to use
 
-- Editing the Decision section of an Accepted ADR. Write a **new** ADR that
+- Changing the decision an Accepted ADR records. Write a **new** ADR that
   supersedes it instead.
+- Correcting a statement in an Accepted ADR's body that was false when it entered
+  the record. That is an inline erratum, or in-place replacement where the text is
+  a canonical artifact for reuse — see
+  [13-documentation.md § Correcting and Amending ADRs](../../../docs/standards/13-documentation.md).
 - Implementation-level choices that fit in a commit message.
 - "We might do X someday" — defer until the decision is real.
 - Tenant-customization rule changes that are data, not code.
@@ -121,8 +128,10 @@ present tense.>
 
 ## Amendments
 
-<Empty at authoring time. Append dated clarifications later that do not change
-the Decision section.>
+<Empty at authoring time — the heading is omitted entirely until there is one.
+Append dated clarifications later that do not change the Decision section. An
+amendment that records a correction names what was wrong, how it was shown wrong,
+and every carrier changed.>
 ```
 
 ### Step 3: Cross-link
@@ -165,8 +174,12 @@ After writing the ADR:
 - **One-option Considered Options.** Forces the author to compare, even briefly,
   against at least one rejected alternative. If you cannot name a rejected option,
   the decision probably isn't ADR-worthy.
-- **Editing an Accepted ADR's Decision.** Add an Amendment (date + clarification),
-  or write a superseding ADR. Never rewrite the Decision in place.
+- **Rewriting an Accepted ADR's Decision.** Add an Amendment (date +
+  clarification), or write a superseding ADR. The two bounded corrections
+  [ADR-0041](../../../docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  permits do not reach the decision itself: where a correction would change how
+  the decision *reads* rather than what it *names*, the body stays and the
+  amendment carries the reading.
 - **Reusing a number.** ADR numbers are sequential and immutable per
   [decisions/README.md](../../../docs/decisions/README.md). The rule is enforced
   by code review, not by an architecture test today; do not depend on a test to

@@ -1,7 +1,7 @@
 # 17 — Code Review Standards
 
 **Status:** Active
-**Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md) (zero-tolerance blockers map back to these two).
+**Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md), [ADR 0041 — Correcting False Statements in Accepted ADRs](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) (every zero-tolerance blocker maps back to one of these three).
 
 How LearnStack reviews pull requests. The goal is faster, safer ship — not gatekeeping.
 
@@ -35,6 +35,7 @@ The following findings are always `blocker:`. No discussion needed; the PR does 
 | Public-read ACL on a tenant-scoped object | [11-security.md](11-security.md) § File Uploads |
 | `Result<T>.Ok(default!)` or other null-success pattern | [09-error-handling.md](09-error-handling.md) § Forbidden |
 | `DateTime.UtcNow` / `DateTime.Now` in domain or application code | [02-backend-coding.md](02-backend-coding.md) § Time |
+| Accepted ADR body edited without a dated Amendment **in that ADR's own file**, naming what was wrong, how it was shown wrong, and every carrier changed | [13-documentation.md](13-documentation.md) § Correcting and Amending ADRs, [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) |
 
 These are not opinions — they map directly to existing standards. If you find one, cite the standard line and request changes.
 

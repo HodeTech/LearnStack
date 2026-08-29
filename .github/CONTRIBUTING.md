@@ -168,5 +168,11 @@ If Leakwatch flags an intentional dev credential, prefer:
   around it.
 - Bypass the pre-commit hook (`--no-verify`) for anything but a documented
   emergency — CI will catch it and the PR will fail.
-- Edit an Accepted ADR's Decision section. Open a new ADR that supersedes
-  it, with the same number rule preserved.
+- Edit an Accepted ADR's body outside the two bounded mechanisms in
+  [Documentation Standards § Correcting and Amending ADRs](../docs/standards/13-documentation.md)
+  ([ADR-0041](../docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)):
+  an inline erratum by default, in-place replacement only for a canonical
+  artifact for reuse, both only for a statement false when it entered the record,
+  and both owing a dated Amendment in every Accepted ADR the diff changes. A
+  changed decision is a new ADR that supersedes the old one, with the same number
+  rule preserved.

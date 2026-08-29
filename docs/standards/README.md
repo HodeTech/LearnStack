@@ -110,7 +110,7 @@ to a reviewer than twenty-two identical labels.
 
 | Document type | Purpose |
 |---------------|---------|
-| ADR (`docs/decisions/`) | A one-time decision with status, context, decision, consequences. Immutable history. |
+| ADR (`docs/decisions/`) | A one-time decision with status, context, decision, consequences. Immutable history, corrected only by the two bounded mechanisms in [13-documentation.md § Correcting and Amending ADRs](13-documentation.md). |
 | Standard (`docs/standards/`) | An ongoing rule that the team applies day to day. Editable as the team learns. |
 
 When a standard is established, an ADR records the moment of adoption. The ADR then points at the standard for the living detail.

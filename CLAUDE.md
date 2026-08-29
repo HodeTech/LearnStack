@@ -204,7 +204,7 @@ let the entry point pick it.
 | Directory | Purpose | Mutability |
 |-----------|---------|------------|
 | `docs/architecture/` | Conceptual descriptions of what we are building. Numbered `NN-topic.md` linearly. | Editable as the system evolves. |
-| `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments. |
+| `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments and the two bounded corrections in [Documentation Standards § Correcting and Amending ADRs](docs/standards/13-documentation.md) ([ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)). |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
 | `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
 | `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
@@ -284,8 +284,16 @@ rules:
 
 ## Things to never do
 
-- Edit an Accepted ADR's decision section. Write a new ADR that
-  supersedes the old one instead.
+- Edit an Accepted ADR's body, except by the two bounded mechanisms
+  [ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  defines: an **inline erratum** beside the false text, which is the default, or
+  **in-place replacement** where the text is a canonical artifact for reuse — a
+  template others are told to copy, a DDL or command meant to be applied. Both
+  are for a statement that was false **when it entered the record**, both leave
+  § Status / § Date / § Deciders and all rationale untouched, and both owe a
+  dated Amendment **in every Accepted ADR the diff changes**. A statement that
+  was true then and is stale now is history: amend it, or write a new ADR that
+  supersedes the old one.
 - Introduce a fifth cross-module communication mechanism.
 - Add domain-specific code (CEFR, exam, English placement, kyu/dan,
   asana, code-challenge runner, …) to **any** module. Such shapes live

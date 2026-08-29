@@ -6,7 +6,10 @@ description: >
   preparing a commit, opening a PR, picking the right scope for a doc-only change,
   adding the AI co-author trailer correctly. DO NOT USE FOR: deciding whether a
   change is ready to commit (that's a code-review concern, not a commit-format
-  concern), force-pushing, or amending an Accepted ADR (write a new ADR instead).
+  concern), force-pushing, or changing what an Accepted ADR decides (write a new
+  ADR that supersedes it — amendments and the bounded corrections in
+  [ADR-0041](../../../docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  are permitted, and are a [write-adr](../write-adr/SKILL.md) concern).
 ---
 
 # LearnStack commit + PR conventions
