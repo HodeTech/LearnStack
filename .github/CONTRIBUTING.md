@@ -24,6 +24,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 > Everything else in this section — required status checks, linear history, no
 > force pushes, no direct pushes — is live today. Only the two named settings
 > are deferred.
+>
+> **Two required-check edits are outstanding**, both flagged in the list below:
+> the `meta` check is required under a name nothing reports any more, and
+> `backend integration (Testcontainers)` runs on every pull request and is not
+> required at all. The first blocks every merge; the second gates nothing.
 
 - **Require a pull request before merging**
   - Require approvals: **1** (raise to 2 once the team grows past two
@@ -37,6 +42,13 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `frontend (typecheck + lint + build + test)`
     - `meta (compose + commit hygiene + link audit)`
     - `secret scan (leakwatch)`
+    - `meta (compose + commit hygiene + link audit)` — ⚠️ **the live rule still
+      requires the pre-rename name** `meta (commit hygiene + link audit)`, which
+      nothing reports. GitHub matches by name, so that required check never
+      arrives and **every** pull request sits at "Expected — waiting for status to
+      be reported". Re-require it under the current name; the job itself is green.
+      This is the failure the warning below describes, in the direction that
+      blocks rather than the one that waves through.
     - `backend integration (Testcontainers)` — **activated in Phase 02a Packet 6**
       with the four-role provisioning suite, one packet earlier than planned:
       Packet 6 ships the first Docker-bound test and is therefore the packet that
