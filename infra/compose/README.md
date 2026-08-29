@@ -52,7 +52,7 @@ tell you: init scripts do not re-run, `make dev` reports healthy, and the first
 volume) and `make dev`, or apply the script by hand:
 
 ```bash
-docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   psql -v ON_ERROR_STOP=1 -U learnstack -d learnstack   < infra/compose/postgres-init/02-create-roles.sql
+docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'   < infra/compose/postgres-init/02-create-roles.sql
 ```
 
 It is idempotent, so re-running it against a cluster that already has the roles

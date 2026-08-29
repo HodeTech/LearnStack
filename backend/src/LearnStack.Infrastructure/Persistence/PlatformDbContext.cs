@@ -7,10 +7,14 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>outbox_messages</c> and <c>idempotency_keys</c> are written through
-/// SharedKernel ports (<c>IOutbox</c>, <c>IIdempotencyStore</c>) by any module's
-/// handler and read by infrastructure that belongs to none of them. Putting them
-/// in a module's context would make every other module's use of the outbox a
+/// <c>outbox_messages</c> and <c>idempotency_keys</c> belong to no module: they
+/// are reached through SharedKernel ports by any module's handler and read by
+/// infrastructure that belongs to none of them. <c>IIdempotencyStore</c> ships
+/// today, behind <c>InMemoryIdempotencyStore</c> until its ADR-0035 trigger
+/// fires; <c>IOutbox</c> does not exist yet and lands with the dispatcher in
+/// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>.
+/// Nothing writes either table at runtime — Packet 6 shipped the tables. Putting
+/// them in a module's context would make every other module's use of the outbox a
 /// dependency on that module — the shape
 /// <see href="../../../../docs/architecture/15-event-and-outbox.md">15-event-and-outbox.md</see>
 /// rules out when it says LearnStack uses a single shared table, not one per

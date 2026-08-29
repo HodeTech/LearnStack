@@ -490,6 +490,22 @@ public sealed class TenancyAggregateTests
     }
 
     [Theory]
+    // Case is not significant in BCP-47, which is the problem for a column that is
+    // half the primary key: without canonicalization `en-US` and `en-us` are two
+    // rows naming one locale, for one tenant.
+    [InlineData("en-us", "en-US")]
+    [InlineData("EN-US", "en-US")]
+    [InlineData("tr-tr", "tr-TR")]
+    [InlineData("ZH-hans-cn", "zh-Hans-CN")]
+    [InlineData("en-US", "en-US")]
+    [InlineData("tr", "tr")]
+    public void A_locale_is_stored_in_canonical_case(string input, string expected)
+    {
+        TenantLocale.Create(Tenant, input, isDefault: true)
+            .Locale.Should().Be(expected);
+    }
+
+    [Theory]
     [InlineData("tr")]
     [InlineData("tr-TR")]
     [InlineData("zh-Hans")]

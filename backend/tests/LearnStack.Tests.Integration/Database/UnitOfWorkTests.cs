@@ -611,6 +611,52 @@ public sealed class UnitOfWorkTests
         }
     }
 
+    [Fact]
+    public async Task An_abandoned_transaction_after_a_committed_one_is_just_rolled_back()
+    {
+        // The swallowed-commit diagnostic is for a nested frame nobody resolved.
+        // With the flag left set by an earlier, entirely correct commit, an
+        // ordinary abandoned transaction tripped it instead — and DisposeAsync
+        // threw that diagnostic over whatever exception had abandoned the
+        // transaction in the first place.
+        await using var provider = BuildProvider();
+        var committed = $"00-uow-{Guid.CreateVersion7():N}";
+        var abandoned = $"00-uow-{Guid.CreateVersion7():N}";
+
+        try
+        {
+            var dispose = async () =>
+            {
+                await using var scope = provider.CreateAsyncScope();
+                var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+                await unitOfWork.BeginTransactionAsync();
+                await unitOfWork.SetTenantContextAsync(
+                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                await InsertOutboxAsync(unitOfWork, committed);
+                await unitOfWork.CommitAsync();
+
+                // Opened, written, and left for the scope to clean up.
+                await unitOfWork.BeginTransactionAsync();
+                await unitOfWork.SetTenantContextAsync(
+                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+                await InsertOutboxAsync(unitOfWork, abandoned);
+            };
+
+            await dispose.Should().NotThrowAsync(
+                "an abandoned transaction is rolled back, not reported as a commit "
+                + "the unit swallowed");
+
+            (await CountOutboxAsync(committed)).Should().Be(1L);
+            (await CountOutboxAsync(abandoned)).Should().Be(0L, "it was never committed");
+        }
+        finally
+        {
+            await DeleteOutboxAsync(committed);
+            await DeleteOutboxAsync(abandoned);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private ServiceProvider BuildProvider()

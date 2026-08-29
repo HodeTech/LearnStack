@@ -93,11 +93,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Twenty-nine test methods exist in
+Thirty-six test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4 and
-Packet 6 — 43 cases once the theories expand. Methods are not rows: a `[Theory]`
+Packet 6 — 55 cases once the theories expand. Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
 assertion that stops it passing vacuously.
 
@@ -134,6 +134,8 @@ against a host serving unversioned endpoints.
 | `Handlers_Return_Result` | `CrossCuttingFoundationTests.cs` |
 | `Modules_Do_Not_Reference_DeploymentMode` | `CrossCuttingFoundationTests.cs` |
 | `IErrorTrackingProvider_Is_Singleton` | `CrossCuttingFoundationTests.cs` |
+| `Modules_Do_Not_Inject_IEventBus_Directly` | `CrossCuttingFoundationTests.cs` |
+| `Integration_Event_TopicNames_FollowConvention` | `CrossCuttingFoundationTests.cs` |
 | `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
 | `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
@@ -148,6 +150,12 @@ against a host serving unversioned endpoints.
 | `Organization_Aggregate_Declared_In_Tenancy_Domain` (per-type theory) | `TenancyConventionTests.cs` |
 | `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
 | `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | `PersistenceConventionTests.cs` |
+| `The_registration_marker_does_not_vouch_across_containers` | `PersistenceConventionTests.cs` |
+| `Every_Database_Test_Carries_The_Docker_Trait` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Refuses_An_Aliased_Runtime_Credential` (per-alias theory) | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Redacts_A_Quoted_Value_Whole` (per-shape theory) | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Reads_The_Role_Through_A_Quoted_Value` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo` | `PersistenceConventionTests.cs` |
 | `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` | `PersistenceConventionTests.cs` |
 | `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |

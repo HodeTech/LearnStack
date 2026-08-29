@@ -116,6 +116,15 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
             _transaction = await _connection.BeginTransactionAsync(cancellationToken);
             _generation++;
+
+            // Scoped to this transaction, like the generation above it. The flag
+            // was never cleared, so a unit that committed and then opened a second
+            // transaction carried the first one's request into the second one's
+            // disposal: an ordinary abandoned transaction was reported as a
+            // swallowed commit, and DisposeAsync threw a diagnostic about a nested
+            // frame nobody had opened — over whatever exception was already in
+            // flight.
+            _commitRequested = false;
         }
 
         return new Frame(this, ++_depth, _generation);

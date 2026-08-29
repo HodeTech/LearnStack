@@ -55,7 +55,7 @@ public enum TenantDomainKind
 /// <remarks>
 /// The four states are fixed by
 /// <see href="../../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Phase 02a
-/// Packet 6</see>. A <see cref="Subdomain"/> is created already
+/// Packet 6</see>. A <see cref="TenantDomainKind.Subdomain"/> is created already
 /// <see cref="Verified"/>; only a custom domain travels the whole path.
 /// </remarks>
 public enum TenantDomainStatus

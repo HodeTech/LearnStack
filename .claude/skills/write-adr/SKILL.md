@@ -125,14 +125,14 @@ present tense.>
 - Prior-art (Nexora paths if applicable — see
   [13-documentation.md § Local-Only Directories](../../../docs/standards/13-documentation.md)
   for the rule against `docs/analysis/` references).
-
-## Amendments
-
-<Empty at authoring time — the heading is omitted entirely until there is one.
-Append dated clarifications later that do not change the Decision section. An
-amendment that records a correction names what was wrong, how it was shown wrong,
-and every carrier changed.>
 ```
+
+**No `## Amendments` heading at authoring time.** The corpus convention is a
+biconditional — every ADR with the heading has at least one entry, and every ADR
+without amendments omits it entirely. Append the section with the first dated
+clarification, which must not change the Decision section; one recording a
+correction names what was wrong, how it was shown wrong, and every carrier
+changed.
 
 ### Step 3: Cross-link
 

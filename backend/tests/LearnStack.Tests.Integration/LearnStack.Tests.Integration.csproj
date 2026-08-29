@@ -16,10 +16,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
     <!-- The tenancy schema tests apply the module's own migration and assert its
-         policies. They reference Infrastructure directly rather than through the
-         API, because the API does not register TenancyDbContext: ADR-0040 has
-         every module context built on the connection IUnitOfWork owns, and that
-         seam lands in step 6. -->
+         policies, so they need the migration assembly and the persistence model
+         directly — not the DI registration. AddLearnStackPersistence does register
+         TenancyDbContext through AddModuleDbContext, but a registration builds a
+         context on the ambient connection at request time; it does not give a test
+         the Migrations folder to apply. -->
     <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
   </ItemGroup>
 

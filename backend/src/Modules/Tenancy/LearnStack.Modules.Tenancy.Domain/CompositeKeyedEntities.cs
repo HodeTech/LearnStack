@@ -30,7 +30,17 @@ public sealed class TenantLocale
 
     public TenantId TenantId { get; private set; }
 
-    /// <summary>BCP-47 tag, lowercase region included — <c>tr-TR</c>, <c>en-US</c>.</summary>
+    /// <summary>
+    /// BCP-47 tag in canonical case — <c>tr-TR</c>, <c>en-US</c>, <c>zh-Hans-CN</c>.
+    /// </summary>
+    /// <remarks>
+    /// Canonicalized by <see cref="LocaleTag"/> on the way in, because this is half
+    /// of the primary key: <c>en-US</c> and <c>en-us</c> are the same locale and
+    /// would otherwise be two rows for one tenant, which is exactly the duplicate
+    /// the composite key exists to prevent. The same argument
+    /// <c>TenantDomain</c> makes for running its host through
+    /// <c>EffectiveHost.Normalize</c>.
+    /// </remarks>
     public string Locale { get; private set; }
 
     /// <summary>Exactly one locale per tenant carries this.</summary>
@@ -54,7 +64,7 @@ public sealed class TenantLocale
         return new TenantLocale
         {
             TenantId = tenantId,
-            Locale = locale,
+            Locale = LocaleTag.Canonicalize(locale),
             IsDefault = isDefault,
             IsEnabled = isEnabled,
             Sort = sort,
@@ -265,6 +275,41 @@ internal static partial class LocaleTag
                 + "'tr', 'tr-TR', 'zh-Hans', 'zh-Hans-CN'.",
                 parameterName);
         }
+    }
+
+    /// <summary>
+    /// The tag in BCP-47 canonical case: language lowercase, a 4-letter script
+    /// subtag Title-cased, a 2-letter region uppercased. Everything else is
+    /// lowercased.
+    /// </summary>
+    /// <remarks>
+    /// Case is not significant in BCP-47, which is precisely the problem for a
+    /// column that is half a primary key: without this, `en-US` and `en-us` are two
+    /// rows naming one locale.
+    /// </remarks>
+    public static string Canonicalize(string value)
+    {
+        var parts = value.Split('-');
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i].ToLowerInvariant();
+
+            if (i > 0 && part.Length == 4 && !char.IsDigit(part[0]))
+            {
+                // A 4-letter subtag in this position is a script: Title case.
+                part = char.ToUpperInvariant(part[0]) + part[1..];
+            }
+            else if (i > 0 && part.Length == 2)
+            {
+                // A 2-letter subtag after the language is a region: uppercase.
+                part = part.ToUpperInvariant();
+            }
+
+            parts[i] = part;
+        }
+
+        return string.Join('-', parts);
     }
 
     // language[-script][-region][-variant…]: 2-3 letter (or 4-8 for registered

@@ -226,7 +226,7 @@ An Accepted ADR sometimes carries a statement that was **false when it entered t
 2. The text is a **canonical artifact for reuse** — a template other documents are told to copy, a DDL or config block meant to be applied, a command meant to be run. Not merely something that *could* be copied: an illustrative sketch is read, not applied, and gets an erratum. A carrier outside the ADRs licenses nothing; correct that carrier on its own.
 3. The diff adds and removes no normative content — no obligation, scope, alternative, rationale or consequence.
 
-**Never touched by either mechanism:** § Status, § Date, § Deciders, and all rationale, framing, trade-offs and judgements. A Status change is a lifecycle event, not a fact correction.
+**Never touched by either mechanism:** § Status and the `**Date:**` / `**Deciders:**` fields beneath it, and all rationale, framing, trade-offs and judgements. A Status change is a lifecycle event, not a fact correction.
 
 **Both mechanisms owe the same three things:**
 
