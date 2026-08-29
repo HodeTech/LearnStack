@@ -214,7 +214,7 @@ flowchart LR
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `Tenant` | Yes | Global table; sits above `tenant_id` scoping. Status: Trial / Active / Suspended / Archived. |
+| `Tenant` | Yes | Tenant-owned, **self-keyed**: no `tenant_id` column, because its `id` *is* the tenant id and its RLS policy keys on `id`. Status: Trial / Active / Suspended / Archived. |
 | `Organization` | Yes | Sub-unit within a tenant (branch, studio, campus, department, cohort). Two-level hierarchy strict (ADR-0017). Every tenant has at least one default org. |
 | `TenantDomain` | Inside Tenant | Subdomain on `{slug}.learnstack.app` (always available) or custom domain (Hub-managed; see [27-custom-domain-tls.md](27-custom-domain-tls.md)). |
 | `TenantBranding` | Inside Tenant | Logo, colors, typography tokens. May be overridden per-organization via `OrganizationBranding`. |

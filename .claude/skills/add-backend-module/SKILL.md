@@ -95,17 +95,23 @@ Forbidden references (architecture test will catch them):
 
 ### Step 3: Author the `IModule` registration
 
+> **The shape, not today's API.** `IModule`, `AddMediatRFromModule`,
+> `IPermissionRegistry`, `IAuditCatalog` and the `modules.Add(...)` call site do
+> not exist yet — the registration seam lands with **Phase 02a Packet 9**, which
+> is what ships `IAuditStore` and the audit catalogue, and the permission
+> registry with it. `AddModuleDbContext<T>` **does** exist and the warning below
+> it is live today. Until Packet 9, a module registers its handlers and
+> validators from the composition root directly.
+
 In `LearnStack.Modules.<Name>.Application/<Name>Module.cs`:
 
 ```csharp
-public sealed class <Name>Module : ILearnStackModule
+public sealed class <Name>Module : IModule
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<<Name>DbContext>(opt => opt
-            .UseNpgsql(configuration.GetConnectionString("Default"))
-            .UseSnakeCaseNamingConvention());
-
+        // The DbContext is NOT registered here — see below. Application may not
+        // reference Infrastructure, and the registration helper lives there.
         services.AddMediatRFromModule(typeof(<Name>Module).Assembly);
         services.AddValidatorsFromAssembly(typeof(<Name>Module).Assembly);
 
@@ -131,6 +137,25 @@ Call this from the composition root (`LearnStack.Api/Program.cs`):
 modules.Add(new <Name>Module());
 ```
 
+**The `DbContext` registration is a composition-root concern, not a module one.**
+`AddModuleDbContext<T>` lives in `LearnStack.Infrastructure.Persistence`, and
+`Application` may not reference `Infrastructure` — so the call belongs beside the
+others in `AddLearnStackPersistence`
+(`LearnStack.Api/Composition/PersistenceCompositionExtensions.cs`):
+
+```csharp
+services.AddModuleDbContext<<Name>DbContext>();
+```
+
+Not `AddDbContext(o => o.UseNpgsql(connectionString))`. A context that opens its
+own connection never saw the `SET LOCAL` the ambient transaction carries, so every
+read through it returns **zero rows** under the corrected RLS policy — silently.
+Per [ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md) every module
+context is built on the connection `IUnitOfWork` owns, and
+`Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` fails the build if you reach
+for the EF default instead — from both sides: the registration, and the fact that
+only three files under `backend/src` may mention `UseNpgsql` at all.
+
 ### Step 4: Module DbContext
 
 In `LearnStack.Modules.<Name>.Infrastructure/Persistence/<Name>DbContext.cs`:
@@ -144,9 +169,11 @@ public sealed class <Name>DbContext(
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Tenant + Organization query filters applied via convention to
-        // [TenantOwned] and [OrganizationScoped] entities — see
-        // SharedKernel/Conventions/TenantQueryFilterConvention.cs.
+        // Tenant + Organization query filters are applied PER ENTITY in its
+        // IEntityTypeConfiguration. There is no TenantQueryFilterConvention —
+        // that type has never existed. Every_TenantOwned_Entity_HasFilterAndRlsPolicy
+        // is what WILL make a forgotten filter fail — it is registered in the
+        // catalogue and implemented in Phase 02a Packet 7, not before.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(<Name>DbContext).Assembly);
     }
 }
@@ -157,23 +184,22 @@ module — not one global.
 
 ### Step 5: Architecture test fixture
 
-Add the module to the architecture-test list under
-`backend/tests/LearnStack.Tests.Architecture/ModuleConventionsTests.cs`. The test
-asserts:
-
-- The four packages exist with the right dependency direction.
-- No forbidden cross-module references.
-- The module's audit-coverage matrix file exists at
-  `docs/modules/<name>/audit.md`.
-- The module's permission matrix file exists at
-  `docs/modules/<name>/permissions.md`.
+The dependency-direction and cross-module rules live in
+`backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs` and are
+**scanned**, not listed — a new module needs no edit there. What is still owed is
+`Every_Module_Has_An_AuditCoverage_Matrix`, registered in
+[21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
+and **awaiting backfill in Packet 9** with the audit catalogue it reads. Until it
+exists, the two matrix files below are a review check rather than a test.
 
 ### Step 6: Module spec files
 
 Per [13-documentation.md § Per-Module Specifications](../../../docs/standards/13-documentation.md),
 create the spec files under `docs/modules/<name>/`:
 
-- `overview.md` — what the module owns and does not own.
+- `README.md` with an `## Overview` section — what the module owns and does not
+  own. (The standard names the *section*, not a filename; the one shipped spec,
+  `docs/modules/tenancy/README.md`, is the model.)
 - `audit.md` — audit-coverage matrix (use the
   [add-audit-coverage](../add-audit-coverage/SKILL.md) skill).
 - `permissions.md` — permission matrix (use the
@@ -184,8 +210,16 @@ create the spec files under `docs/modules/<name>/`:
 
 Module migrations live with the module:
 
+> `dotnet ef migrations add` needs `ConnectionStrings__Migration` exported into
+> the process environment first — the design-time factory reads it and nothing
+> else, and `--connection` does not satisfy it. See
+> [add-ef-migration Step 1](../add-ef-migration/SKILL.md) for the one-line export;
+> `make migrate` does the same thing for applying them.
+
 ```bash
-dotnet ef migrations add Initial_<Name>_Schema \
+# INTENT ONLY, snake_case: EF prepends the UTC timestamp, producing the
+# <UTC_yyyyMMddHHmmss>_<intent> filename Standards 05 specifies.
+dotnet ef migrations add create_<name>_schema \
   --project backend/src/Modules/<Name>/LearnStack.Modules.<Name>.Infrastructure \
   --startup-project backend/src/LearnStack.Api \
   --output-dir Persistence/Migrations

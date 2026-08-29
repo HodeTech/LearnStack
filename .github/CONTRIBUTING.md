@@ -24,6 +24,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 > Everything else in this section — required status checks, linear history, no
 > force pushes, no direct pushes — is live today. Only the two named settings
 > are deferred.
+>
+> **Two required-check edits are outstanding**, both flagged in the list below:
+> the `meta` check is required under a name nothing reports any more, and
+> `backend integration (Testcontainers)` runs on every pull request and is not
+> required at all. The first blocks every merge; the second gates nothing.
 
 - **Require a pull request before merging**
   - Require approvals: **1** (raise to 2 once the team grows past two
@@ -35,8 +40,23 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
   - Required status checks (the job names from `.github/workflows/ci.yml`):
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
-    - `meta (commit hygiene + link audit)`
+    - `meta (compose + commit hygiene + link audit)`
     - `secret scan (leakwatch)`
+    - `meta (compose + commit hygiene + link audit)` — ⚠️ **the live rule still
+      requires the pre-rename name** `meta (commit hygiene + link audit)`, which
+      nothing reports. GitHub matches by name, so that required check never
+      arrives and **every** pull request sits at "Expected — waiting for status to
+      be reported". Re-require it under the current name; the job itself is green.
+      This is the failure the warning below describes, in the direction that
+      blocks rather than the one that waves through.
+    - `backend integration (Testcontainers)` — **activated in Phase 02a Packet 6**
+      with the four-role provisioning suite, one packet earlier than planned:
+      Packet 6 ships the first Docker-bound test and is therefore the packet that
+      has to split them. The job carries no `vars.ENABLE_*` gate and no placeholder
+      step, so it already runs on every pull request. **Adding it to the live
+      branch-protection rule is the one remaining edit**, and it is a repository
+      setting rather than a file in this repo — until it is made, the job runs and
+      gates nothing.
   - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
     unset by default — a constant `if: false` is rejected by actionlint).
     Activating one is **four edits, in the same pull request wherever possible**:
@@ -45,8 +65,6 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     `(deferred …)` suffix, and add the new name both to this list and to the live
     branch-protection setting. Setting the variable alone leaves a job that runs
     but gates nothing.
-    - `backend integration (Testcontainers — deferred)` — Phase 02a **Packet 7**,
-      with the first cross-tenant isolation test.
     - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
       `/api/v1/*` read endpoints.
     - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
@@ -95,8 +113,14 @@ Per CLAUDE.md § Commit conventions:
 make install        # one-time per clone: deps + git hooks
 make lint           # dotnet format --verify + ESLint
 make typecheck      # tsc --noEmit
-make test           # unit + arch + contract + vitest
+make test           # unit + arch + contract + integration + vitest
 ```
+
+`make test` starts Testcontainers since Phase 02a Packet 6, so it needs a Docker
+socket and takes noticeably longer than it did. The Docker-bound cases are split
+out by `[Trait("Requires","Docker")]`; to skip them, run
+`dotnet test backend/LearnStack.slnx --filter "Requires!=Docker"`, which is
+exactly what CI's `backend` job runs.
 
 The pre-commit hook (activated by `make install`) runs, on staged files only:
 `dotnet format` on `*.cs`; prettier on JS / TS / JSON / Markdown **under
@@ -118,22 +142,28 @@ doing exactly that. Nothing verifies its output outside the frontend workspace
 anyway, since no CI job runs prettier and `make format` invokes it from
 `frontend/`.
 
-Older Leakwatch builds — including the `v1.5.0` CI pins — only accept a
-directory target. The hook detects that and skips the local scan with an
-upgrade hint rather than failing your commit; CI scans the whole tree either
-way.
+Leakwatch builds before v1.6.0 only accept a directory target. CI pins v1.8.0,
+which accepts files; the hook detects an older *local* build and skips the scan
+with an upgrade hint rather than failing your commit. CI scans the whole tree
+either way.
 
-The secret scanner is [Leakwatch](https://github.com/cemililik/Leakwatch)
+The secret scanner is [Leakwatch](https://github.com/HodeTech/leakwatch)
 — MIT licensed, verifier-equipped, hybrid Aho-Corasick + regex + entropy
 detection engine. Config lives at `.leakwatch.yaml` + `.leakwatchignore`
 at the repo root. Install once for the local pre-commit scan (CI runs it
 regardless, this is just earlier feedback):
 
 ```bash
-brew install cemililik/tap/leakwatch      # macOS (Homebrew)
+brew install HodeTech/tap/leakwatch        # macOS (Homebrew)
 # or:
-go install github.com/cemililik/leakwatch@latest
+go install github.com/HodeTech/leakwatch@v1.8.0
 ```
+
+The version is pinned, and to the same one CI installs. `@latest` on the old
+`cemililik/` path resolves to v1.5.0 — the module renamed its path at v1.6.0, so
+nothing newer is installable there — and v1.5.0 does not understand
+`leakwatch:ignore`, so a developer following an unpinned instruction would get a
+scanner that disagrees with the one gating their pull request.
 
 If Leakwatch flags an intentional dev credential, prefer:
 
@@ -150,5 +180,11 @@ If Leakwatch flags an intentional dev credential, prefer:
   around it.
 - Bypass the pre-commit hook (`--no-verify`) for anything but a documented
   emergency — CI will catch it and the PR will fail.
-- Edit an Accepted ADR's Decision section. Open a new ADR that supersedes
-  it, with the same number rule preserved.
+- Edit an Accepted ADR's body outside the two bounded mechanisms in
+  [Documentation Standards § Correcting and Amending ADRs](../docs/standards/13-documentation.md)
+  ([ADR-0041](../docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)):
+  an inline erratum by default, in-place replacement only for a canonical
+  artifact for reuse, both only for a statement false when it entered the record,
+  and both owing a dated Amendment in every Accepted ADR the diff changes. A
+  changed decision is a new ADR that supersedes the old one, with the same number
+  rule preserved.

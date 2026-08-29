@@ -421,14 +421,33 @@ public sealed class CrossCuttingFoundationTests
             "IServiceProvider is a service-locator escape hatch");
         UsesForbiddenEventBusAccess(typeof(DeliberateMethodPublisher)).Should().BeTrue(
             "method injection is still direct event-bus access");
+        UsesForbiddenEventBusAccess(typeof(DeliberateInheritingPublisher)).Should().BeTrue(
+            "inheriting the surface is the same violation with one extra hop");
         UsesForbiddenEventBusAccess(typeof(CrossCuttingFoundationTests)).Should().BeFalse();
+
+        // The other direction, pinned on the one real type that exercises it:
+        // TenancyDbContext inherits IInfrastructure<IServiceProvider> from
+        // DbContext. A rule that read inherited members without asking where they
+        // are declared flags every module context in the repository.
+        UsesForbiddenEventBusAccess(
+            typeof(LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyDbContext))
+            .Should().BeFalse(
+                "what EF Core declares on DbContext is not what a module author wrote");
 
         foreach (var name in ModuleAssemblyShapes)
         {
             var assembly = TryLoadAssembly(name);
             if (assembly is null) continue;
 
+            // Compiler- and generator-emitted types are excluded, and the reason
+            // is specific rather than hygienic: Vogen emits a nested TypeConverter
+            // per value object, and TypeConverter's ConvertFrom takes an
+            // ITypeDescriptorContext — which implements IServiceProvider. The
+            // service-locator clause caught every strongly-typed id the moment the
+            // first module declared one. A generated type cannot inject anything
+            // the author chose, so it is not what this rule is aimed at.
             var offenders = assembly.GetTypes()
+                .Where(t => !IsGenerated(t))
                 .Where(UsesForbiddenEventBusAccess)
                 .Select(t => t.FullName)
                 .ToList();
@@ -441,26 +460,72 @@ public sealed class CrossCuttingFoundationTests
         }
     }
 
+    /// <summary>
+    /// True for a type the compiler or a source generator emitted, including one
+    /// nested inside a hand-written type.
+    /// </summary>
+    /// <remarks>
+    /// Walks the declaring chain because Vogen stamps <c>[GeneratedCode]</c> on
+    /// the <b>outer</b> value object and on none of the converters nested inside
+    /// it — so a nested <c>EfCoreValueConverter</c> or
+    /// <c>&lt;Name&gt;TypeConverter</c> is only reachable as generated through its
+    /// declaring type. The side effect is that the outer <c>[ValueObject]</c>
+    /// partial, which a developer co-writes, is excluded too; that is accepted
+    /// because a strongly-typed id has no constructor a bus could arrive through.
+    /// </remarks>
+    private static bool IsGenerated(Type type)
+    {
+        for (var current = type; current is not null; current = current.DeclaringType)
+        {
+            if (current.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false)
+                || current.IsDefined(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute), inherit: false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool UsesForbiddenEventBusAccess(Type type)
     {
         var bus = typeof(LearnStack.SharedKernel.Messaging.IEventBus);
         var serviceProvider = typeof(IServiceProvider);
         var forbidden = new[] { bus, serviceProvider };
+
+        // Inherited members ARE read, and then filtered by where they are
+        // DECLARED. The obvious form — BindingFlags.DeclaredOnly — excludes them
+        // wholesale, and that is both necessary and too much: necessary because
+        // DbContext implements IInfrastructure<IServiceProvider>, so every
+        // module's DbContext was flagged the moment the first one existed, for
+        // something EF declares and no module author wrote; too much because it
+        // also stops seeing a module type that inherits a bus-shaped surface from
+        // a module base, which is the same violation with one extra hop.
+        //
+        // The declaring assembly separates the two. A member declared in the
+        // type's own assembly, or in any other module assembly, is the module's
+        // business; one declared in EF Core or the SharedKernel is not.
         const BindingFlags members = BindingFlags.Instance
                                      | BindingFlags.Static
                                      | BindingFlags.Public
                                      | BindingFlags.NonPublic;
 
-        return type.GetConstructors(members).Any(constructor =>
+        bool InScope(MemberInfo member) =>
+            member.DeclaringType is null
+            || member.DeclaringType.Assembly == type.Assembly
+            || ModuleAssemblyShapes.Contains(
+                member.DeclaringType.Assembly.GetName().Name, StringComparer.Ordinal);
+
+        return type.GetConstructors(members).Where(InScope).Any(constructor =>
                    constructor.GetParameters().Any(parameter =>
                        forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
-               || type.GetMethods(members).Any(method =>
+               || type.GetMethods(members).Where(InScope).Any(method =>
                    forbidden.Any(candidate => candidate.IsAssignableFrom(method.ReturnType))
                    || method.GetParameters().Any(parameter =>
                        forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
-               || type.GetFields(members).Any(field =>
+               || type.GetFields(members).Where(InScope).Any(field =>
                    forbidden.Any(candidate => candidate.IsAssignableFrom(field.FieldType)))
-               || type.GetProperties(members).Any(property =>
+               || type.GetProperties(members).Where(InScope).Any(property =>
                    forbidden.Any(candidate => candidate.IsAssignableFrom(property.PropertyType)));
     }
 
@@ -475,6 +540,20 @@ public sealed class CrossCuttingFoundationTests
     {
         public IServiceProvider Services { get; } = services;
     }
+
+    /// <summary>A base whose bus-shaped surface a derived type inherits.</summary>
+    private class DeliberateEventBusBase
+    {
+        protected LearnStack.SharedKernel.Messaging.IEventBus Bus =>
+            throw new NotSupportedException("shape only");
+    }
+
+    /// <summary>
+    /// A deliberate offender that declares nothing at all and inherits the
+    /// violation, so the declaring-assembly filter cannot quietly widen back into
+    /// BindingFlags.DeclaredOnly.
+    /// </summary>
+    private sealed class DeliberateInheritingPublisher : DeliberateEventBusBase;
 
     /// <summary>A method-injection-shaped deliberate offender.</summary>
     private sealed class DeliberateMethodPublisher

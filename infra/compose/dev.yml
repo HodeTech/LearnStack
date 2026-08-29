@@ -60,6 +60,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-learnstack}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-learnstack}
       POSTGRES_DB: ${POSTGRES_DB:-learnstack}
+      # Read by postgres-init/02-create-roles.sql through psql's \getenv on the
+      # first boot of a fresh volume. The four-role model of ADR-0003
+      # Amendment 3; an unset one aborts initdb rather than creating a
+      # passwordless role.
+      LEARNSTACK_MIGRATION_PW: ${LEARNSTACK_MIGRATION_PW:-learnstack-migration-dev}
+      LEARNSTACK_APP_PW: ${LEARNSTACK_APP_PW:-learnstack-app-dev}
+      LEARNSTACK_PLATFORM_PW: ${LEARNSTACK_PLATFORM_PW:-learnstack-platform-dev}
+      LEARNSTACK_OUTBOX_PW: ${LEARNSTACK_OUTBOX_PW:-learnstack-outbox-dev}
       # Dev-only. Production secrets come from Vault via ISecretProvider.
     ports:
       - "127.0.0.1:5432:5432"

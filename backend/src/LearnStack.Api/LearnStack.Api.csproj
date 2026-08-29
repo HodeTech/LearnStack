@@ -49,6 +49,17 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+
+    <!-- Design-time only, and the reason it is HERE rather than only on the
+         Infrastructure projects that own the migrations: `dotnet ef` resolves the
+         design package from the STARTUP project, and `make migrate` names this one.
+         Without it the tool refuses before it opens a connection — "Your startup
+         project 'LearnStack.Api' doesn't reference Microsoft.EntityFrameworkCore.Design"
+         — which is how Packet 6 shipped a migration no documented path could apply.
+         `Migration_Startup_Project_References_EntityFrameworkCore_Design`
+         is the guard. PrivateAssets is
+         still correct: nothing at runtime touches it. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

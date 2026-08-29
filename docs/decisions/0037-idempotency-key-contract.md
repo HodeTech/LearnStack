@@ -419,7 +419,154 @@ will replay is worth a log line rather than silence.
 
 ## Amendments
 
-None yet.
+### Amendment 1 — Packet 6 ships the table; the store ships on its trigger (2026-08-27)
+
+§ Decision Drivers and § The durable store said the Postgres-backed
+implementation "lands with the tenancy schema in Packet 6". § Implementation
+Notes, in the same document, gives the ADR-0035 four-part gating precisely:
+owning phase Packet 6, "**which ships the table**", trigger "the first endpoint
+carrying `[Idempotent]` … or the first deployment running more than one instance".
+[Standards 20 § Demand-gated building blocks](../standards/20-infrastructure-stack.md)
+carries the same row. **The gating row is right**; the two prose sentences are
+loose, and are superseded by this amendment — read both as *the table* lands with
+the tenancy schema in Packet 6. `PostgresIdempotencyStore` itself lands when the
+gating row's trigger fires. The body is left as written, per
+[Documentation Standards § ADR Amendments](../standards/13-documentation.md).
+
+The distinction is the one ADR-0035 exists to draw. The **table** is one-way-door
+schema: adding it later means a migration against a system that has already been
+answering `[Idempotent]` requests out of an instance-local dictionary. The
+**implementation** is additive: it replaces a registration at the composition
+root and touches nothing already written. So the table ships now and
+`InMemoryIdempotencyStore` stays registered — correct for one instance, wrong for
+two, and saying so on its own type — until the trigger fires.
+
+The canonical DDL is
+[Database Standards § Idempotency](../standards/05-database.md), derived column
+by column from the shipped port rather than restated here.
+
+### Amendment 2 — The claim statement, corrected (2026-08-27)
+
+§ The durable store said "**The claim is one statement.** `INSERT … ON CONFLICT
+(tenant_id, key) DO UPDATE … WHERE <the existing row has expired> RETURNING …`
+decides acquire versus in-flight versus replay in a single round trip." Measured
+against the canonical DDL as `learnstack_app`: **it does not.** When the `DO
+UPDATE`'s `WHERE` is false PostgreSQL performs no update and `RETURNING` emits
+nothing, so *blocked by a live claim* and *blocked by a completed row* are both
+`(0 rows)` and indistinguishable — and neither surfaces the stored `fingerprint`
+that `Mismatched` needs or the four response columns a replay needs.
+
+The decision the statement realises is unchanged. The statement is:
+
+```sql
+INSERT INTO idempotency_keys
+    (tenant_id, key, fingerprint, claim_token, state, expires_at)
+VALUES (@tenant, @key, @fingerprint, @token, 'in_flight', now() + interval '5 minutes')
+ON CONFLICT (tenant_id, key) DO UPDATE SET
+    -- Fires unconditionally so RETURNING always has a row; the expiry test moves
+    -- into the SET expressions. `reclaimable` is expiry AND fingerprint equality,
+    -- repeated because a SET expression cannot see a name bound elsewhere in the
+    -- same statement.
+    --
+    -- The fingerprint term is not optional. With expiry alone, an expired lease
+    -- met by a DIFFERENT request overwrote the stored fingerprint and RETURNING
+    -- handed the caller back its own — so the caller could not detect the
+    -- mismatch, and a changed request took over a key while the original attempt
+    -- may still have been running. Measured on postgres:18.4-alpine: the reclaim
+    -- returned `FINGERPRINT-B` where the row held `FINGERPRINT-A`, and the outcome
+    -- table below says `Mismatched` wins over every row in it, this one included.
+    fingerprint  = idempotency_keys.fingerprint,
+    claim_token  = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN EXCLUDED.claim_token  ELSE idempotency_keys.claim_token  END,
+    state        = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN 'in_flight'           ELSE idempotency_keys.state        END,
+    expires_at   = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN EXCLUDED.expires_at   ELSE idempotency_keys.expires_at   END,
+    -- The re-acquire branch MUST clear the previous outcome. Measured: without
+    -- these four the new claim inherits the expired row's status_code and a later
+    -- replay answers with a response this request never produced.
+    status_code  = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.status_code  END,
+    content_type = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.content_type END,
+    headers      = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.headers      END,
+    body         = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.body         END,
+    -- Amendment 3: without this the reclaimed row reports a new fence against the
+    -- timestamp of a claim several reclaims ago.
+    claimed_at   = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN EXCLUDED.claimed_at   ELSE idempotency_keys.claimed_at   END
+RETURNING (xmax = 0) AS inserted, state, fingerprint, claim_token,
+          status_code, content_type, headers, body;
+```
+
+`fingerprint` is assigned its own stored value rather than left out of the `SET`
+list: a `DO UPDATE` must assign something, and assigning the stored value is what
+makes the mismatch survive into `RETURNING`. An expired row whose fingerprint
+differs is therefore untouched by the reclaim — same token, same state, same
+outcome columns — and the caller reads the stored fingerprint and answers
+`Mismatched`. An expired row whose fingerprint matches reclaims exactly as before;
+both halves measured.
+
+**The deciding column is `claim_token`, not `state`.** `xmax = 0` separates a fresh
+insert from a conflict resolution, but `state` and `fingerprint` alone cannot
+separate the two conflict outcomes that matter most: a claim blocked by a live lease
+and a claim that *reclaimed* an expired one both return `state = 'in_flight'` with
+the same stored fingerprint. Measured — the only difference is whose token came
+back:
+
+| Case | `inserted` | `state` | `claim_token` returned | Outcome |
+|---|---|---|---|---|
+| No row | `t` | `in_flight` | **this call's** | `Acquired` |
+| Live lease held by another | `f` | `in_flight` | the **holder's** | `InFlight` |
+| Expired lease, reclaimed | `f` | `in_flight` | **this call's** | `Acquired` |
+| Completed, unexpired | `f` | `completed` | the completer's | `Completed` (replay the four response columns) |
+| Completed with no response | `f` | `unreplayable` | the completer's | `Unreplayable` |
+| Any of the above, different fingerprint | — | — | — | `Mismatched`, which wins over all of them |
+
+So the store compares the `claim_token` the statement returned against the one it
+generated for this call: **equal means this caller owns the claim** — whether by
+insert or by reclaim — and anything else means someone else does. That is the same
+ownership-by-identity test `InMemoryIdempotencyStore` already performs with
+`ReferenceEquals`; the durable store performs it with a token because it has no
+object to compare. `TryClaimAsync` takes no caller-supplied token precisely so this
+comparison cannot be skipped at a call site: only the store knows the value it
+minted.
+
+### Amendment 3 — `claimed_at` on reclaim, and the outcome CHECK (2026-08-28)
+
+Two corrections found by measuring Amendment 2's statement against the shipped
+table.
+
+**`claimed_at` is never refreshed.** The `DO UPDATE SET` list replaces the row's
+whole identity on the reclaim branch — `fingerprint`, `claim_token`, `state`,
+`expires_at`, and all four response columns NULLed — and does not touch
+`claimed_at`, whose only writer is the initial insert's `DEFAULT now()`. A
+reclaimed row therefore reports a new fence, a new lease and a new request against
+the timestamp of a claim several reclaims ago. Nothing reads the column yet, which
+is exactly why it is cheap to fix and easy to leave wrong: it is the column an
+operator traces a duplicate side effect with. The `SET` list gains one line, in the
+same shape as every other:
+
+```sql
+    claimed_at   = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.claimed_at ELSE idempotency_keys.claimed_at END,
+```
+
+**The state and the response columns are one fact, and the database now says so.**
+Nothing tied `state` to `status_code` / `content_type` / `headers` / `body`: a
+`completed` row could carry all four NULL, and the claim statement would report it
+as `Completed`, which its own outcome table defines as "replay the four response
+columns" — the caller then replays a response that does not exist. The reverse was
+equally free: an `unreplayable` tombstone could carry a full `201` body. The
+canonical DDL and the shipped migration both gain
+
+```sql
+    CONSTRAINT ck_idempotency_keys_outcome CHECK (
+        (state =  'completed' AND status_code IS NOT NULL AND body IS NOT NULL)
+     OR (state <> 'completed' AND status_code IS NULL AND content_type IS NULL
+                              AND headers IS NULL AND body IS NULL))
+```
+
+`content_type` stays free in the completed arm, because the port defines it as null
+for an empty body. The constraint matches the reclaim branch above, which already
+NULLs all four alongside `state = 'in_flight'`.
+
+Neither changes what this ADR decides. `PostgresIdempotencyStore` does not exist
+yet — it is demand-gated on the trigger Amendment 1 names — so both land while the
+table has no rows and the constraint validates instantly.
 
 ## References
 

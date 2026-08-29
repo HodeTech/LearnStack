@@ -1,6 +1,6 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-20).** Phase 02a in progress. Packets 0–3, 3b and 4 shipped; the
+> **Status (2026-08-28).** Phase 02a in progress. Packets 0–3, 3b, 4, 5 and 6 shipped; the
 > 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -14,8 +14,8 @@
 > | 3 | Cross-cutting foundation | ✅ [record](#delivery-record-packets-03) |
 > | 3b | Decision repair | ✅ [record](#delivery-record-packet-3b) |
 > | 4 | API conventions | ✅ [record](#delivery-record-packet-4) |
-> | 5 | Foundation ports and default implementations | ⏳ [scope](#packet-sequence) |
-> | 6 | Tenancy schema and the corrected RLS template | ⏳ [scope](#packet-sequence) |
+> | 5 | Foundation ports and default implementations | ✅ [record](#delivery-record-packet-5) |
+> | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ⏳ [scope](#packet-sequence) |
 > | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
 > | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
@@ -28,8 +28,9 @@
 > [`## Delivery Record (Packets 0–3)`](#delivery-record-packets-03) and are not
 > rewritten. Packet 3b has its own record in
 > [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), and Packet 4 in
-> [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), and Packet 5 in
-> [`## Delivery Record (Packet 5)`](#delivery-record-packet-5) — each kept separate
+> [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
+> [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
+> [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -342,7 +343,8 @@ They are demand-gated with written triggers in
 stack moves them behind a non-default profile so the daily loop runs the
 services the backend can actually call.
 
-**Packet 6 — Tenancy schema and the corrected RLS template ⏳**
+**Packet 6 — Tenancy schema and the corrected RLS template ✅**
+([delivery record](#delivery-record-packet-6))
 Migrations and EF configurations for `tenants`, `organizations` (per
 [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
 `tenant_domains`, `tenant_locales` (per
@@ -350,19 +352,32 @@ Migrations and EF configurations for `tenants`, `organizations` (per
 nullable `organization_id` for org-scoped settings), `tenant_feature_flags`
 (tenant-flag level only — plan-level features arrive through the entitlement
 projection), `platform_entitlement_cache`, `platform_host_to_tenant`, `idempotency_keys`
-(the durable `IIdempotencyStore` per
-[ADR-0037](../decisions/0037-idempotency-key-contract.md); Packet 4 shipped the
-port and an in-memory default that is correct for one instance and wrong for
-two), and `outbox_messages`. Default-organization seeding at tenant creation.
+(**the table only** — [ADR-0037](../decisions/0037-idempotency-key-contract.md)
+Amendment 1 separates the one-way-door schema from the additive store, so
+`InMemoryIdempotencyStore` stays the only registered `IIdempotencyStore` until
+the store's ADR-0035 trigger fires), and `outbox_messages`. Default-organization seeding at tenant creation.
 
-**Seed the system actor.** `UserId.SystemActor` — the fixed id
-`00000000-0000-7000-8000-000000000001` in
+**The system actor needs no seed, and this packet creates no `users` table.**
+`UserId.SystemActor` — the fixed id `00000000-0000-7000-8000-000000000001` in
 `LearnStack.SharedKernel.Identifiers` — is what an integration-event consumer, a
 background job, or any other non-request execution writes state as, per
 [Audit Coverage](../standards/18-audit-coverage.md)'s actor-of-type-`system` rule.
 `AuditableEntity.MarkCreated` refuses `default(UserId)` and `Guid.Empty` alike, so
-without it no consumer can create an aggregate at all. It is a foreign key: this
-packet's migration seeds the matching `users` row so `created_by` resolves.
+the constant is what lets a consumer create an aggregate at all — and a CLR
+constant is all it needs to be.
+
+This packet entry previously called it a foreign key and ordered the migration to
+seed a matching `users` row. **There is no such foreign key.** `REFERENCES users`
+appears in no document and no source file; the canonical template writes
+`created_by uuid NOT NULL` with no referential clause, and `audit_log` declares
+`actor_user_id uuid NULL` with none either. The absence is deliberate:
+[31-audit-subsystem.md](../architecture/31-audit-subsystem.md) depends on the
+erased actor becoming an orphan surrogate key, which any `ON DELETE` action would
+make unreachable. See
+[ADR-0038 Amendment 1](../decisions/0038-cross-cutting-port-and-event-contracts.md).
+`users` is created by the first Identity migration in
+[Phase 03](phase-03-identity-admin.md), which owns the table. This packet ships
+exactly the ten tables listed above.
 
 The `Organization` aggregate is declared in `LearnStack.Modules.Tenancy.Domain`, with
 its EF configuration and its migration on `TenancyDbContext`, per [ADR-0017 Amendment 2
@@ -454,6 +469,17 @@ read-only transaction before the lookup, because `SET LOCAL` outside a transacti
 block has no effect and a session-level setting would leak across a pooled
 connection. `app.resolving_host` is the fourth and last canonical session variable.
 
+**Packet 7 settles the Tenancy aggregate boundary**, which Packet 6 left
+open. Packet 6 shipped
+`TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` with
+public factories and top-level `DbSet`s and no navigation from `Tenant`, which is
+not the containment
+[the module spec's ERD](../modules/tenancy/README.md) described — and the two
+halves do not resolve the same way: the first pair is root-shaped already, the
+second cannot be a root at all under `IAggregateRoot<TId>`. Packet 7 writes the
+first command that touches any of them, which is the first evidence either
+reading has, so it decides and reconciles code and spec in one direction.
+
 **Two seed tenants in unrelated domains**, each with two organizations: an
 English school and a **yoga studio**. This is the artefact that tests the
 genericity claim, and it moves here from
@@ -476,6 +502,15 @@ suite includes at minimum:
   superseded template leaked
 - `Unsetting_tenant_context_returns_zero_rows_through_RLS`
 - `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
+
+**All five shipped in Packet 6** (`TenancySchemaTests`), against the two-tenant
+seed that packet's own coverage needed anyway: every case is a statement about
+the migration, and holding them back would have left the schema's own assertions
+tautological — the first version of the owner-denial case passed with every
+policy dropped, because nothing had put a row in the table. What Packet 7 owns is
+what a *request* does: the same five re-run through `TenantResolverMiddleware`
+and the EF query filters rather than through `set_config` in a test, plus
+whatever the two seed tenants add.
 
 Carries two Packet 3 follow-ups: converting `ITenantContext` **and**
 `CapturedContext` from raw `Guid` / `Guid?` to the strongly-typed `TenantId` /
@@ -629,10 +664,14 @@ re-stated against reality: a standard with no implementing code moves from
 `Active` to `Adopted`. All twenty-two currently claim `Active`, which makes the
 three-state model decorative.
 
-The deferred `backend-integration` CI job
-([Phase 01 Packet 8](phase-01-repository-tooling.md)) activates once Packet 7's first
-isolation test is green — `vars.ENABLE_BACKEND_INTEGRATION` set, the placeholder step
-replaced, and the job renamed and re-required per
+The `backend-integration` CI job
+([Phase 01 Packet 8](phase-01-repository-tooling.md)) **activated in Packet 6**, one
+packet earlier than planned: Packet 6 ships the first Docker-bound test — the
+four-role provisioning suite — so it is the packet that has to split them. The
+`vars.ENABLE_BACKEND_INTEGRATION` gate and the placeholder step are gone; the job
+restores, builds and runs `--filter "Requires=Docker"`, and the `backend` job runs
+the exact complement, so every test runs in exactly one of the two. Making it a
+required check is a repository setting, per
 [`.github/CONTRIBUTING.md`](../../.github/CONTRIBUTING.md). Closes the architecture-test arm of the
 [Phase Exit Decision](#phase-exit-decision); the remaining gates close as their
 owning packets ship.
@@ -729,17 +768,45 @@ have to retrofit:
 - `platform_host_to_tenant` — host → `(tenant_id, organization_id?)` mapping
   (Hub-populated for SaaS / Dedicated, config-populated for SelfHosted; the table
   ships now).
-- `idempotency_keys` — the durable `IIdempotencyStore`
-  ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). Packet 4 ships the port
-  and an in-memory default that is correct for one instance and wrong for two; this is
-  the table that makes it survive a restart and a second instance. Each store call opens
-  its own short transaction and sets `app.tenant_id` as its first statement, because a
-  claim is taken **before** the MediatR `TransactionBehavior` that would otherwise do it.
+- `idempotency_keys` — the table the durable `IIdempotencyStore` will need
+  ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). **The table, not the
+  store:** Amendment 1 splits them, because the schema is a one-way door and the
+  implementation is additive. Packet 4 shipped the port and an in-memory default that
+  is correct for one instance and wrong for two, and that default stays registered
+  until the store's ADR-0035 trigger fires — the first `[Idempotent]` endpoint, or the
+  first deployment running more than one instance. When the store does arrive, each of
+  its calls opens its own short transaction and sets `app.tenant_id` as its first
+  statement, because a claim is taken **before** the MediatR `TransactionBehavior` that
+  would otherwise do it.
 - `outbox_messages` — the outbox table. Nothing dispatches from it until
   [Phase 02b](phase-02b-events-auth.md), but its schema and LearnStack's ownership of
   it are a one-way door — and that ownership is exactly what makes the dispatch
   transport swappable later
   ([ADR-0006](../decisions/0006-events-and-outbox.md)).
+
+**Five of the ten have no published column list at all, and this packet authors
+them.** `outbox_messages` and `idempotency_keys` have canonical DDL
+([Database Standards](../standards/05-database.md)); `tenant_feature_flags` and
+`platform_entitlement_cache` have `CREATE TABLE` blocks in
+[21-feature-flags.md](../architecture/21-feature-flags.md) that `IFeatureFlags`'s
+resolution logic already reads by column name, so the migration **transcribes**
+those and adds the row-security clauses that architecture doc omits;
+`tenant_locales` has a sketch in
+[12-localization.md](../architecture/12-localization.md). Where a transcription and
+the shipped migration disagreed, the disagreement was closed in one direction and
+the architecture doc amended to the shipped shape — length caps on `key`,
+`plan_code` and `locale`, which the fences left as bare `text` — while the
+migration took the two `DEFAULT now()` clauses it had dropped, because a raw
+insert that omits the column relies on them. `source` stayed `text`: it is a
+closed set, and Database Standards § Column types fixes `text` + `CHECK` as the
+form for those. The columns of `tenants`,
+`organizations`, `tenant_domains`, `tenant_settings` and `platform_host_to_tenant`
+are designed here, against the constraints the corpus does fix — the audit-column
+set, the table classes, the composite-foreign-key rule, ADR-0017's organization
+model and ADR-0008's locale model — and recorded in this packet's delivery record.
+Standards 05 keeps the template and the two cross-cutting infrastructure tables;
+the tenancy schema lives in its migration, so there is one source rather than two
+that can disagree.
 
 All ten tables ship with `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and an explicit
 `WITH CHECK`. They do **not** all take the same policy, and saying they do produces a
@@ -751,16 +818,19 @@ reads `platform_host_to_tenant` in order to *determine* the tenant. Three classe
 
 | Class | Tables | Policy |
 |---|---|---|
-| Tenant-owned | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_settings` (the one org-scoped table — it also takes the two `AS RESTRICTIVE` write guards), `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` | the corrected template verbatim |
+| Tenant-owned, **org-scoped** | `tenant_settings` — the only one in this set | the corrected template in full, including the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards |
+| Tenant-owned, **tenant-wide** | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` | the same shape with the organization half of the predicate omitted, and therefore no restrictive guards — these tables have no `organization_id` column to guard |
 | Tenant-owned, self-keyed | `tenants` | the corrected template with the tenant term keyed on `id`, because the primary key *is* the tenant id |
 | Platform-scoped | `platform_host_to_tenant` | `ENABLE` + `FORCE` with role-qualified per-command policies: reads keyed on the declared `app.resolving_host` (pre-context, single row) or on `app.tenant_id` (a tenant listing its own hosts); writes keyed on `app.tenant_id` only |
 
 Packet 6 also ships `infra/compose/postgres-init/02-create-roles.sql` and splits the
 development connection strings — `learnstack_migration` for `dotnet ef`, `learnstack_app`
-for the API, plus the two bypass roles' own credentials. Until it lands,
-`infra/compose/dev.yml` runs everything as one `POSTGRES_USER` superuser, which owns
-every table and therefore bypasses every policy: the isolation layer is inert in local
-development and every isolation test would pass against it. The script also grants
+for the API, plus the two bypass roles' own credentials. Before it landed, `infra/compose/dev.yml` ran everything as one `POSTGRES_USER`
+superuser, which owns every table and therefore bypasses every policy: the isolation
+layer was inert in local development and every isolation test would have passed
+against it. **A `postgres-data` volume created before this packet still has no
+roles** — init scripts do not re-run — and
+[`infra/compose/README.md`](../../infra/compose/README.md) carries the recovery. The script also grants
 `CREATE ON SCHEMA public` to `learnstack_migration` — since PostgreSQL 15 the public
 schema no longer grants it to `PUBLIC`, so without it the first migration fails with
 `permission denied for schema public`, and the tempting fix (make the role a superuser)
@@ -1205,6 +1275,8 @@ Six further decisions were taken during the phase and are Accepted:
 | [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) | Demand-gated infrastructure | **Accepted** (2026-08-08) | The one-way-door test; ports ship now, adapters ship on a named trigger |
 | [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) | Trusted inputs for tenant + organization resolution | **Accepted** (2026-08-18, Amendment 1 2026-08-20) | Resolution by **agreement, not priority**; no request header names a tenant, one header names a **host** over an authenticated hop; Amendment 1 corrects the normalization order |
 | [ADR-0037](../decisions/0037-idempotency-key-contract.md) | What an idempotency key identifies, owns and replays | **Accepted** (2026-08-20) | A key is a **nonce inside a tenant's key space**, not an identity; a fingerprint decides whether a replay answers the question asked; a fencing token owns the claim; capacity is admission, not eviction |
+| [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) | The optimistic concurrency token | **Accepted** (2026-08-27) | An explicit `row_version bigint` (CLR `long`) project-wide, incremented by the primitive that stamps the audit columns; `xmin` rejected because the token is client-visible through ETag and a restore or replication cutover changes it |
+| [ADR-0040](../decisions/0040-ambient-unit-of-work.md) | The ambient unit of work | **Accepted** (2026-08-27) | One `DbConnection` per scope owned by `IUnitOfWork`; every module `DbContext`, `IAuditStore` and `IOutbox` enlists on it, because `SET LOCAL` is connection-local. Defines nesting, disposal, and the event-consumer entry point that never reaches MediatR |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
 `learnstack_app`, the durable audit pipeline, customization runtime read paths, API
@@ -1941,7 +2013,7 @@ one.
 >
 > **A trap the non-generic port creates, closed with it.** With `IIntegrationEvent`
 > as the declared type at every dispatch boundary,
-> `JsonSerializer.Serialize(@event)` emits four members and silently drops
+> `JsonSerializer.Serialize(@event)` emits five members and silently drops
 > everything the concrete event added — valid JSON, no exception, committed inside
 > the transaction that reported success, and failing to deserialize on every retry
 > until it dead-letters. `ToPayloadJson()` serialises by runtime type.
@@ -1993,3 +2065,244 @@ one.
 > were still blocked, and patterns from `.gitignore` and a developer's
 > `.git/info/exclude` were honoured as leakwatch's. It is evaluated in isolation
 > now.
+>
+> **Five more review rounds ran after this record was first written**, and they
+> are part of the packet rather than a sequel to it — the packet closed when PR
+> #13 merged on 2026-08-27, not when the record was drafted. What they found
+> divides cleanly in two, and both halves are the same lesson the packet keeps
+> teaching: a guarantee is worth what its evidence is worth.
+>
+> **A budget that was not a budget, in three successive shapes.** The factory
+> timeout ended the flight with `TrySetCanceled`, so every waiter — including one
+> whose own token was healthy — was told *it* had cancelled; ASP.NET reads a
+> cancellation as a client hang-up, so the timeout an operator needs to see would
+> have produced no body, no captured error and no span. Faulting with a
+> `TimeoutException` exposed the next layer: `CancelAfter` cancels a *token*, and
+> a factory that never observes one — the ordinary shape of any dependency call
+> that does not thread it — ran to completion regardless. Measured against a
+> 150 ms budget, the caller waited 3,002 ms and was handed the late value, which
+> means the timeout branch just added was unreachable on exactly the path that
+> most needs it. Racing the deadline fixed it and required `Flight.Overrunning`:
+> waiting on the completion instead would have spun the retry loop hot, because a
+> terminal flight satisfies it instantly. Then the value itself: `factoryTimeout`
+> reached `Flight` unvalidated, and `CancelAfter` answers the three bad values
+> three different ways — negative throws, but from inside the first cache miss
+> rather than at the wiring that was wrong; zero is accepted and cancels
+> immediately, making the cache a permanent `TimeoutException` generator; and
+> `Timeout.InfiniteTimeSpan` is accepted and never fires, which is the deadline
+> silently not existing, reached through configuration this time instead of
+> through an uncooperative factory. One `<= TimeSpan.Zero` check at construction
+> covers all three.
+>
+> **A span that reported success for a delivery that failed.** The in-process
+> transport logged handler failures at `Error` and let the consumer activity end
+> `Unset`, so an operator filtering the trace backend for errors found a green
+> span beside the error log describing the same delivery. The activity now covers
+> construction, invocation and the await. Publish-token cancellation stays
+> `Unset` deliberately — shutdown is not a failure, and marking it would put one
+> `Error` span per in-flight subscription into the 100%-sampled error traces
+> every time the host stops.
+>
+> **Three test-side defects of the kind this packet names as its main lesson.** A
+> concurrency test whose whole point was detecting overlapping factories used
+> `Interlocked.Exchange(ref max, Math.Max(max, current))` — read, compute, write
+> as three steps, so the lower result can land last and the overlap disappears. A
+> mutation harness reported a mutant that failed to *compile* as SURVIVED, twice,
+> because it grepped only for test failures; the second time the mutant was
+> genuinely invalid — CA2208 refuses a `paramName` that names no parameter, which
+> is a stronger guard than any test. And a mutant aimed at the consumer span's
+> cancellation branch initially hit the wrong method's `catch`, so it survived
+> for a reason that had nothing to do with the code under test.
+>
+> **Documentation defects that were each a contradiction inside one file.**
+> `architecture/15` and the `wire-dapr-pubsub` skill both handed `envelope.Event`
+> to a generic Dapr publish overload — its declared type is `IIntegrationEvent`
+> by ADR-0038's design, so `TData` infers to the interface and the publish drops
+> every concrete field, the exact loss `ToPayloadJson()` documents as measured
+> two paragraphs above the snippet reintroducing it. `architecture/29` claimed
+> the cache implementation prefixes keys while its own § 3 explains why prefixing
+> would emit `{tenant}:{tenant}:{module}:{name}`. `standards/12` stated Vault
+> storage and a Vault watcher as current behaviour four lines under the bullet
+> calling Vault a Phase 11 target. `architecture/05` invalidated the entitlement
+> cache on a "Dapr pub/sub event" in the list whose first bullet gates Dapr to
+> Phase 11. Earlier rounds found the same shape in `architecture/09`,
+> `architecture/24`, `10-cross-module-contracts`, `phase-02b`, the glossary and
+> `local-dev-setup`. A skill that had its drifted copy of the topic regex removed
+> kept the sentence telling authors to keep that copy aligned.
+>
+> **What was deliberately not done.** ADR-0006 and ADR-0010 carry the same stale
+> publish sketch in ASCII flow diagrams, and ADR-0022's Decision outcome still
+> names the superseded `hub:host:{host}` key. Accepted ADR bodies are immutable,
+> the superseding records already govern both points, and a dated Amendment for a
+> diagram would cost more than the drift does.
+
+## Delivery Record (Packet 6)
+
+Kept separate from the records above for the reason they are separate from each
+other: each is scoped to its own packets and is not rewritten. This one records
+what Packet 6 shipped across six steps, and — like Packets 4 and 5 — what its own
+plan and its own first drafts had wrong. Almost every defect below was introduced
+by this packet and found by its own review rounds, which is the only reason it is
+in a record rather than in production.
+
+> **Packet 6 — Tenancy schema and the corrected RLS template ✅**
+>
+> Nineteen commits: six implementation steps, each followed by an Opus and a
+> Sonnet review round whose confirmed findings were fixed and committed before the
+> next step began.
+>
+> ### What shipped
+>
+> **The decisions the packet needed and did not have.**
+> [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) fixes the
+> concurrency token at `row_version bigint` / CLR `long`, incremented in
+> `AuditableEntity` rather than by an interceptor; three documents had answered
+> that question three ways, one of them offering `xmin`.
+> [ADR-0040](../decisions/0040-ambient-unit-of-work.md) fixes the unit of work at
+> one connection per scope; three documents named `IUnitOfWork` and none said what
+> it wrapped.
+>
+> **The four database roles**, provisioned by the same script the compose stack
+> runs and the integration fixture reads: `learnstack_migration` owns every table
+> and is `NOBYPASSRLS`, `learnstack_app` connects at runtime, and
+> `learnstack_platform` and `learnstack_outbox_admin` hold the two audited
+> bypasses. Four connection strings, and `make migrate` as the only carrier of the
+> migration credential.
+>
+> **Ten tables in two migration chains.** Eight in the Tenancy module's, two — the
+> ones no module owns — in the platform's, on its own history table so neither
+> chain can block the other. Every one carries `ENABLE` **and** `FORCE ROW LEVEL
+> SECURITY` and one `AND`-ed policy per table, per
+> [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md):
+> the self-keyed class for `tenants`, the tenant-wide class for seven, the full
+> org-scoped template with its `app.scope` read hatch and two `AS RESTRICTIVE`
+> write guards for `tenant_settings`, and the role-qualified platform-scoped class
+> for `platform_host_to_tenant`, which is read *before* a tenant is known.
+>
+> **The ambient unit of work.** `IUnitOfWork` / `IUnitOfWorkScope` in the
+> SharedKernel, `NpgsqlUnitOfWork` in Infrastructure, the shared
+> `AddModuleDbContext` helper, `TenancyDbContext` as its first consumer, and the
+> `TransactionBehavior` body replacing the Packet 3 shell. The application data
+> source is guarded twice against a credential that would make every policy inert.
+>
+> ### What the packet got wrong, and what caught it
+>
+> **`make migrate` could not apply the migration this packet exists to ship.**
+> `dotnet ef` resolves the design-time package from the **startup** project, and
+> the recipe names `LearnStack.Api`, which did not reference it. The tool refused
+> before opening a connection — and the suite stayed green, because the
+> Testcontainers fixture calls `Database.MigrateAsync()` directly. The recipe also
+> never exported the value it read from `.env` (EF applies `--connection` *after*
+> the design-time factory returns, so the factory threw first) and walked only
+> `src/Modules`, leaving the platform chain unmigrated. Three faults on the one
+> documented path, none of which any test could see.
+>
+> **A sweep is only as wide as the schema it runs on.** The structural
+> assertions — row security, the permissive-policy rule, snake_case, the grant
+> matrix — were rewritten from a hand-written eight-name list to a catalogue
+> enumeration, and then still ran on a fixture carrying one of the two chains. So
+> "every table" meant eight of ten. Measured: a second permissive `SELECT` policy
+> on `outbox_messages` passed the entire suite while letting any session with any
+> tenant context read every tenant's pending events, and
+> `GRANT UPDATE ON outbox_messages TO learnstack_app` let a handler mark every
+> pending row processed — making each event permanently undeliverable — with every
+> assertion still green.
+>
+> **Tests that agreed with the code instead of constraining it**, the packet's
+> most repeated lesson and the one Packet 5's record already carried.
+> `TheOwnerIsDeniedOnThePlatformScopedTable` asserted `count(*) = 0` on a table the
+> fixture never populated: it passed with every policy dropped and row security
+> disabled. Five of the eight tenancy tables held no rows at all. The two
+> `AS RESTRICTIVE` guards on `tenant_settings` could both be deleted with the suite
+> green, because no test ever set `app.scope = 'tenant'` — and under any ordinary
+> session the base policy's own organization term refuses the sibling row first.
+> The idempotency assertions pinned constraint *names* rather than bounds, so a cap
+> of zero passed.
+>
+> **The transaction boundary was wrong in the two places it is hardest to see.**
+> `CommitAsync` resolved its frame before the `COMMIT` round trip, so a faulted
+> commit left no frame and the behavior's rollback threw over the database's own
+> exception — and because the replacement is not an `OperationCanceledException`, a
+> client disconnecting mid-commit was audited as a failure, captured, and answered
+> `500` instead of `499`. Separately, an inner `Result.Fail` that an outer handler
+> absorbed poisoned the whole unit, which ADR-0040 § Nesting forbids in as many
+> words; measured through the real behavior against a real database, the outer
+> handler lost its committed row and got an exception in place of its success.
+> Neither was reachable by the tests as written: the fake unit of work modelled
+> neither nesting depth nor a failing terminal call.
+>
+> **`ConnectionStrings:Default` was accepted whatever role it named.** Two
+> paragraphs of remarks argued for `learnstack_app` and the factory built a data
+> source from anything. Either `BYPASSRLS` role — they sit two and three lines away
+> in `.env.example` — turns the fail-closed state this packet ships in from "no
+> rows" into "every tenant's rows".
+>
+> **Schema defects the reviews measured.** `ux_tenant_domains_host` was table-wide,
+> so a soft-deleted claim held a hostname against every other tenant forever,
+> across a boundary RLS otherwise hides. `Down()` reversed nothing — it aborted on
+> `DROP FUNCTION` and would have aborted again on `DROP TABLE organizations`.
+> "NULLS NOT DISTINCT, which EF cannot express" was false on the pinned packages,
+> and the raw-SQL workaround left an index in the snapshot against a constraint in
+> the database. `row_version` carried `HasDefaultValue(0L)` alone, which sets
+> `ValueGenerated = OnAdd` — benign, and rejected by the rule this packet
+> registered. Two foreign keys had no supporting index. Nothing tied
+> `idempotency_keys.state` to its four response columns, so a `completed` row with
+> no body would have been reported as replayable.
+>
+> ### What the corpus owed, and now carries
+>
+> Eleven amendments across seven ADRs, every one correcting a document against a
+> measurement rather than changing a decision. The five that change what an
+> implementer does: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)
+> Amendment 1 (the two forbidden EF calls) and Amendment 2 (the chain is three
+> calls, not one, because `HasDefaultValue` sets `ValueGenerated`);
+> [ADR-0037](../decisions/0037-idempotency-key-contract.md) Amendment 3
+> (`claimed_at` on reclaim, and the outcome CHECK); and
+> [ADR-0040](../decisions/0040-ambient-unit-of-work.md) Amendment 2 (the handle's
+> shape as shipped, and why `FailAsync` collapses silently where `CompleteAsync`
+> throws). [ADR-0031](../decisions/0031-postgresql-major-version.md) Amendment 1
+> corrected `gen_uuid_v7()` to `uuidv7()` in six documents — the function the first
+> name refers to does not exist, so every insert would have failed.
+>
+> The glossary classed `tenants` as a table living above tenants and called RLS
+> "(later)", which the shipped schema falsifies twice over. `12-localization.md`
+> and `21-feature-flags.md` were reconciled with what the migration transcribes.
+> [docs/modules/tenancy/](../modules/tenancy/README.md) is the repository's first
+> module spec, carrying all ten Standards 13 sections.
+>
+> Ten catalogue rows say **Implemented** that did not before, and each names the
+> file that carries it. Only **three** were standing debt this packet closed —
+> `Organization_Aggregate_Declared_In_Tenancy_Domain`,
+> `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` and
+> `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` are the only three of the
+> ten that existed in the catalogue before this packet's first commit. The other
+> seven it both registered and implemented, because they descend from ADR-0039 and
+> ADR-0040, which that same commit wrote:
+> `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`,
+> `SoftDelete_Advances_The_Row_Version`,
+> `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`,
+> `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`,
+> `Migration_Startup_Project_References_EntityFrameworkCore_Design`,
+> `Migrate_Target_Covers_Every_Migration_Chain` and
+> `Every_Foreign_Key_Has_A_Supporting_Index`, the last of which found two real gaps
+> on its first run. The split matters: the first number is how much standing corpus
+> debt was outstanding, the second how much this packet created and then paid.
+>
+> ### What Packet 6 deliberately did not do
+>
+> `IHostToTenantResolver`, `TenantResolverMiddleware`, the EF query filters and the
+> request-level isolation suite are Packet 7 — the schema-level cases ship here
+> because the migration's own assertions needed the two-tenant seed anyway.
+> `app.scope` has no carrier: `ITenantContext` exposes no scope member, so no
+> application path sets it and the cross-organization read hatch is unreachable at
+> runtime, which is the correct default. `IAuditStore.WritePendingAsync` has its
+> line reserved immediately before the commit and lands in Packet 9. The durable
+> `IIdempotencyStore` is **not** here: ADR-0037 Amendment 1 separates the
+> one-way-door table from the additive store, and the store ships on its ADR-0035
+> trigger. `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection` is registered
+> and awaits the first module code that could break it.
+>
+> Two things ADR-0040 says are not observable until Phase 03, recorded so a reader
+> does not mistake a green suite for proof of them: a cross-module read inside the
+> ambient transaction returning rows, and an outer failure after an inner write
+> leaving zero rows in both modules. Both need a second module `DbContext`.

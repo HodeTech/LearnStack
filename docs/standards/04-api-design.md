@@ -1,7 +1,8 @@
 # 04 — API Design Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md), [ADR 0037 — What an Idempotency Key Identifies, Owns, and Replays](../decisions/0037-idempotency-key-contract.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md), [ADR 0037 — What an Idempotency Key Identifies, Owns, and Replays](../decisions/0037-idempotency-key-contract.md),
+[ADR 0039 — The Optimistic Concurrency Token](../decisions/0039-optimistic-concurrency-token.md).
 
 REST conventions for LearnStack public and admin APIs.
 

@@ -65,10 +65,14 @@ Decisions made or referenced in this phase:
 
 ### Durable outbox dispatch
 
-The producer side already exists: a handler calls `IOutbox.EnqueueAsync`, the row is
-written in the same `SaveChanges` as the aggregate change, and the Phase 02a Packet 3
-`OutboxFlushBehavior` shell lights up here to enrol those messages on a success-`Result`.
-What lands in this phase is the consumer side.
+The producer side is **planned, not shipped**: `IOutbox` does not exist yet and Packet 3's
+`OutboxFlushBehavior` is a pass-through shell. Both land here. A handler calls
+`IOutbox.EnqueueAsync` and the row is written on the same **transaction** as the aggregate
+change — the ambient one `IUnitOfWork` owns
+([ADR-0040](../decisions/0040-ambient-unit-of-work.md)), not a shared `SaveChanges`, a
+formulation [ADR-0033](../decisions/0033-audit-durability-model.md) withdrew — and the
+`OutboxFlushBehavior` shell lights up to enrol those messages on a success-`Result`. The
+table itself ships in Packet 6. The consumer side lands here too.
 
 - **`OutboxProcessor`** as a `BackgroundService` polling `outbox_messages` with
   `FOR UPDATE SKIP LOCKED`, dispatching each message through `IEventBus`, and marking it
@@ -77,7 +81,11 @@ What lands in this phase is the consumer side.
   `available_after`, with `attempts` and `last_error` recorded on the row.
 - **Per-module `inbox_messages` table and `IInboxGuard`.** Every
   `IIntegrationEventHandler<T>` calls `IsAlreadyProcessedAsync` before business logic and
-  `MarkAsProcessed` inside the same `SaveChanges` as the business write. Dispatch is
+  `MarkAsProcessed` inside the same **transaction** as the business write — the
+  ambient one the transport opens per delivery through `IUnitOfWork`
+  ([ADR-0040](../decisions/0040-ambient-unit-of-work.md)), not a shared
+  `SaveChanges`, a formulation [ADR-0033](../decisions/0033-audit-durability-model.md)
+  withdrew. Dispatch is
   at-least-once; the inbox is what makes consumption effectively once.
 - **Tenant and organization context restored from the envelope** in every handler scope,
   before the inner pipeline runs. A consumer that runs without tenant context writes

@@ -41,7 +41,9 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3 and 3b shipped; packets 4–10 re-scoped on 2026-08-08.**
+packets 0–3, 3b, 4, 5 and 6 shipped; packets 4–10 re-scoped on 2026-08-08.
+[Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — host and tenant
+resolution, the query filters, and the two seed tenants — is next.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the
@@ -58,6 +60,25 @@ management — whose *timing* later moved to Phase 11), the shared kernel core, 
 cross-cutting foundation. [Packet 3b](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-3b)
 then repaired what a corpus audit found — before any consumer existed.
 
+[Packet 4](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-4) shipped the
+API conventions: `/api/v{N}` routing, one RFC 7807 shape on every error, cursor
+pagination and the sort grammar, the
+[ADR-0036](docs/decisions/0036-tenant-resolution-trusted-inputs.md) tenancy edge,
+idempotency keys and ETag concurrency, and the first working SDK generation.
+[Packet 5](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5) shipped the
+foundation ports with the implementations that actually run today — `ICacheService` /
+`InMemoryCacheService`, `IEventBus` / `InProcessEventBus`, `ISecretProvider` /
+`ConfigurationSecretProvider` — each selected at one composition-root site, and moved
+the seven demand-gated services out of the daily `make dev` loop.
+[Packet 6](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-6) shipped the
+tenancy schema — the four database roles, ten tables in two migration chains, every one
+under `ENABLE` **and** `FORCE ROW LEVEL SECURITY` with the corrected
+[ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md)
+template — together with the `Tenant` and `Organization` aggregates, the first module
+spec, and [ADR-0040](docs/decisions/0040-ambient-unit-of-work.md)'s ambient unit of work.
+Each record lists the defects the packet introduced and caught in its own review rounds
+alongside what it built.
+
 The 2026-08-08 restructure moved correctness earlier (the corrected RLS template in
 [ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md), durable
 MUST-class audit in [ADR-0033](docs/decisions/0033-audit-durability-model.md)), moved
@@ -65,11 +86,13 @@ additive infrastructure later behind its ports
 ([ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)), and moved the
 genericity proof earlier — two seed tenants in Packet 7, rendered in a browser in
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), the next user-visible
-milestone. Module assemblies hold no domain code yet.
+milestone. Tenancy is the only module holding domain code; the other six assemblies are
+still empty.
 
 ```bash
 make install   # one-time: deps + git hooks
-make dev       # bring local stack up
+make dev       # bring local stack up (containers only — it creates no tables)
+make migrate   # apply the platform + module migration chains
 make seed      # verify health + print demo credentials
 ```
 

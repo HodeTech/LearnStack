@@ -14,7 +14,7 @@ title: LearnStack Test Pyramid
 flowchart TB
   e2e[End-to-end / Playwright<br/>handful of golden flows]
   contract[Contract & API tests<br/>OpenAPI + provider fakes]
-  integration[Integration tests<br/>Testcontainers Postgres / Valkey / SeaweedFS]
+  integration[Integration tests<br/>Testcontainers Postgres]
   arch[Architecture tests<br/>module boundaries + tenant invariants]
   unit[Unit tests<br/>domain + application + UI logic]
 
@@ -25,7 +25,7 @@ Text fallback (for renderers without Mermaid support — pyramid base → top):
 
 - **Unit tests** (base layer, widest) — domain + application + UI logic.
 - **Architecture tests** — module boundaries + tenant invariants.
-- **Integration tests** — Testcontainers Postgres / Valkey / SeaweedFS.
+- **Integration tests** — Testcontainers **Postgres**. Valkey, SeaweedFS and the rest arrive with the phase that ships something calling them ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
 - **Contract & API tests** — OpenAPI + provider fakes.
 - **End-to-end / Playwright** (top, narrowest) — handful of golden flows.
 
@@ -36,7 +36,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 | Type | Project | Tool |
 |------|---------|------|
 | Unit | `LearnStack.Tests.Unit` | xUnit, FluentAssertions |
-| Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 7, Testcontainers + Respawn |
+| Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 6, Testcontainers marked `[Trait("Requires","Docker")]` — CI runs the two halves in separate jobs by that trait |
 | Architecture | `LearnStack.Tests.Architecture` | NetArchTest / ArchUnitNET |
 | API contract | `LearnStack.Tests.Contract` | OpenAPI snapshot, Pact-style consumer tests |
 | End-to-end | none yet | Playwright, per § End-to-End Tests below. No project exists; the owning phase is named there |
@@ -57,11 +57,20 @@ belongs to is decided by what it needs, not by what it is about:
   Docker. Everything that is a property of the API surface lives here: routing,
   the error shape, idempotency, limits, the tenancy edge. These run in the
   required `backend` CI job alongside the unit suite.
-- **Data tests** — real Postgres + Valkey + SeaweedFS via Testcontainers, one
-  database per test class (or Respawn between tests). Everything that is a
+- **Data tests** — real **Postgres** via Testcontainers, connected as
+  `learnstack_app`, one database per test collection — cases that write either roll
+  back or clean up after themselves, because the fixture's seeded row counts are
+  what the isolation assertions compare against. Not
+  Valkey and not SeaweedFS: nothing the backend runs calls either, and both sit
+  behind the gated compose profile ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). Everything that is a
   property of the schema lives here, and **every tenant-isolation invariant**
-  does. These arrive with the schema in Packet 7 and run in the separate
-  `backend-integration` job.
+  does. **Packet 6** shipped the fixtures, the four-role provisioning suite, both
+  migration chains, the policies, a two-tenant seed and the schema-level isolation
+  suite; **Packet 7** re-runs those cases through `TenantResolverMiddleware` and
+  the EF query filters, which is the layer a handler actually meets. All of them
+  connect as `learnstack_app`, because a test run as the owner or as a
+  `BYPASSRLS` role passes against inert policies. They run in the separate `backend-integration`
+  job, split from the Docker-free tests by `[Trait("Requires","Docker")]`.
 
 Both: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.

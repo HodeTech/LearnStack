@@ -35,12 +35,21 @@ public readonly partial record struct UserId : IStronglyTypedId<Guid>
     /// could legally pass and nothing to write at all.
     /// </para>
     /// <para>
-    /// The value is fixed rather than generated, because it is a foreign key.
-    /// Phase 02a Packet 6 owns the matching Tenancy seed and must create the
-    /// <c>users</c> row before the first outbox consumer can write audit columns.
-    /// No Tenancy schema exists before that packet. Version 7 shape with an all-zero random
-    /// section, so it reads as deliberate in a database dump rather than as a
-    /// stray identifier somebody forgot to replace.
+    /// The value is fixed rather than generated so it reads as deliberate in a
+    /// database dump rather than as a stray identifier somebody forgot to
+    /// replace — version 7 shape with an all-zero random section.
+    /// </para>
+    /// <para>
+    /// <b>It is not a foreign key, and needs no <c>users</c> row.</b>
+    /// <c>created_by</c>, <c>updated_by</c>, <c>deleted_by</c> and
+    /// <c>audit_log.actor_user_id</c> carry no referential constraint anywhere in
+    /// the schema, and that absence is load-bearing: GDPR erasure leaves the audit
+    /// row's actor as an orphan surrogate key with no path back to a natural
+    /// person, which is what keeps the row's existence auditable after erasure. An
+    /// enforced foreign key would make that state unreachable under every
+    /// <c>ON DELETE</c> action. See
+    /// <see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038
+    /// Amendment 1</see>; the <c>users</c> table itself is owned by Phase 03.
     /// </para>
     /// </remarks>
     public static UserId SystemActor { get; } =

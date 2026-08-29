@@ -98,6 +98,66 @@ public sealed class TenancyConventionTests
                 + "(ADR-0036 § Recording a rejected assertion)");
     }
 
+    [Theory]
+    // `required: true` for the type that exists — a rule accepting zero
+    // declarations of `Organization` would stay green if the aggregate were
+    // deleted, which is the vacuity this catalogue calls out generally.
+    // `OrganizationBranding` is genuinely zero-or-one: it ships with the token
+    // merge in Phase 06, and stating the rule now is what stops the first one
+    // landing in the wrong module.
+    [InlineData("Organization", true)]
+    [InlineData("OrganizationBranding", false)]
+    public void Organization_Aggregate_Declared_In_Tenancy_Domain(string typeName, bool required)
+    {
+        // ADR-0017's original sample put Organization in Identity; Amendment 2
+        // moved it to Tenancy, and Identity now holds OrganizationId by value and
+        // reads organization data through an application contract. A second
+        // declaration is how the two drift back apart.
+        //
+        // The assembly set is ENUMERATED rather than discovered. A rule that
+        // scanned loaded assemblies would silently skip the module nobody
+        // referenced, and pass vacuously — the failure
+        // Meta_NetArchTest_DetectsAPlantedViolation guards against generally.
+        //
+        // OrganizationBranding does not exist yet (Phase 06 ships it with the
+        // token merge). The rule still runs: "exactly one, in Tenancy" is
+        // satisfied by none as well as by one, and stating it now is what stops
+        // the first one landing in the wrong module.
+        var declarations = ModuleDomainAssemblies()
+            .SelectMany(assembly => assembly.GetTypes()
+                .Where(type => type.Name == typeName)
+                .Select(type => $"{type.FullName} in {assembly.GetName().Name}"))
+            .ToList();
+
+        if (required)
+        {
+            declarations.Should().ContainSingle(
+                $"{typeName} is declared exactly once across every module Domain "
+                + "assembly (ADR-0017 Amendment 2)");
+        }
+        else
+        {
+            declarations.Should().HaveCountLessThanOrEqualTo(1,
+                $"{typeName} does not exist yet; when it does it is declared once, "
+                + "in Tenancy (ADR-0017 Amendment 2)");
+        }
+
+        declarations
+            .Where(d => !d.EndsWith("LearnStack.Modules.Tenancy.Domain", StringComparison.Ordinal))
+            .Should().BeEmpty($"and Tenancy is where {typeName} is declared");
+    }
+
+    /// <summary>
+    /// The <c>Domain</c> assembly of every module, by name.
+    /// </summary>
+    private static IEnumerable<Assembly> ModuleDomainAssemblies() =>
+        ModuleNames.Select(module => Assembly.Load($"LearnStack.Modules.{module}.Domain"));
+
+    private static readonly string[] ModuleNames =
+    [
+        "Tenancy", "Identity", "Customization", "Audit", "Content", "Media", "Education",
+    ];
+
     /// <summary>
     /// Types in the <c>LearnStack.Api.Tenancy</c> namespace that take an
     /// <see cref="LearnStack.SharedKernel.Caching.ICacheService"/> as a
@@ -162,11 +222,12 @@ public sealed class TenancyConventionTests
                 continue;
             }
 
-            var code = WithoutWhitespace(WithoutComments(File.ReadAllText(file)));
+            var code = SourceText.WithoutWhitespace(
+                SourceText.WithoutComments(File.ReadAllText(file)));
 
             foreach (var literal in banned)
             {
-                if (code.Contains(WithoutWhitespace(literal), StringComparison.Ordinal))
+                if (code.Contains(SourceText.WithoutWhitespace(literal), StringComparison.Ordinal))
                 {
                     offenders.Add($"{relative} contains '{literal}'");
                 }
@@ -175,164 +236,4 @@ public sealed class TenancyConventionTests
 
         return offenders;
     }
-
-    /// <summary>Strips line and block comments, leaving literals alone.</summary>
-    /// <remarks>
-    /// Literal state is tracked, because a <c>//</c> inside a string is not a
-    /// comment: <c>"https://…"</c> would otherwise truncate the rest of that
-    /// line, and anything after it — including a banned literal — would go
-    /// unseen. A false negative in a rule that guards the tenancy edge is worth
-    /// the twenty lines.
-    /// </remarks>
-    private static string WithoutComments(string source)
-    {
-        var kept = new System.Text.StringBuilder(source.Length);
-        var i = 0;
-
-        while (i < source.Length)
-        {
-            var c = source[i];
-
-            if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
-            {
-                while (i < source.Length && source[i] != '\n')
-                {
-                    i++;
-                }
-
-                continue;
-            }
-
-            if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
-            {
-                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                i = close < 0 ? source.Length : close + 2;
-                continue;
-            }
-
-            // A literal is copied through verbatim, so nothing inside it is read
-            // as a comment marker — and nothing inside it is lost, so a banned
-            // literal written as a string is still found.
-            if (c is '"' or '\'')
-            {
-                i = CopyLiteral(source, i, kept);
-                continue;
-            }
-
-            kept.Append(c);
-            i++;
-        }
-
-        return kept.ToString();
-    }
-
-    /// <summary>Copies one string or character literal and returns the index after it.</summary>
-    /// <remarks>
-    /// Three shapes, because C# has three and they terminate differently: a
-    /// normal literal ends at an unescaped quote, a verbatim one (<c>@"…"</c>)
-    /// escapes a quote by doubling it, and a raw one opens with a <b>run</b> of
-    /// three or more quotes and closes only on a run of the same length. Reading
-    /// a raw literal's first quote as its terminator puts the scanner back
-    /// inside code while it is still inside a string — which is how a <c>//</c>
-    /// there would swallow the rest of the line again.
-    /// </remarks>
-    private static int CopyLiteral(string source, int start, System.Text.StringBuilder kept)
-    {
-        var quote = source[start];
-
-        if (quote == '"')
-        {
-            var opening = 0;
-            while (start + opening < source.Length && source[start + opening] == '"')
-            {
-                opening++;
-            }
-
-            if (opening >= 3)
-            {
-                return CopyRawLiteral(source, start, opening, kept);
-            }
-        }
-
-        var verbatim = start > 0 && source[start - 1] == '@';
-        var i = start;
-
-        kept.Append(source[i]);
-        i++;
-
-        while (i < source.Length)
-        {
-            var c = source[i];
-
-            if (!verbatim && c == '\\' && i + 1 < source.Length)
-            {
-                kept.Append(c).Append(source[i + 1]);
-                i += 2;
-                continue;
-            }
-
-            if (c == quote)
-            {
-                if (verbatim && i + 1 < source.Length && source[i + 1] == quote)
-                {
-                    kept.Append(c).Append(source[i + 1]);
-                    i += 2;
-                    continue;
-                }
-
-                kept.Append(c);
-                return i + 1;
-            }
-
-            // An unterminated non-verbatim literal cannot span a line; bailing
-            // keeps a malformed file from swallowing the rest of the scan.
-            if (!verbatim && c == '\n')
-            {
-                return i;
-            }
-
-            kept.Append(c);
-            i++;
-        }
-
-        return i;
-    }
-
-    /// <summary>Copies a raw string literal, closing only on a run of the opening length.</summary>
-    private static int CopyRawLiteral(
-        string source, int start, int opening, System.Text.StringBuilder kept)
-    {
-        var i = start;
-        kept.Append(source, i, opening);
-        i += opening;
-
-        while (i < source.Length)
-        {
-            if (source[i] != '"')
-            {
-                kept.Append(source[i]);
-                i++;
-                continue;
-            }
-
-            var run = 0;
-            while (i + run < source.Length && source[i + run] == '"')
-            {
-                run++;
-            }
-
-            kept.Append(source, i, run);
-            i += run;
-
-            if (run >= opening)
-            {
-                return i;
-            }
-        }
-
-        return i;
-    }
-
-    private static string WithoutWhitespace(string value) =>
-        string.Concat(value.Where(character => !char.IsWhiteSpace(character)));
 }

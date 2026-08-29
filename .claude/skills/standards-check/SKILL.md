@@ -114,8 +114,12 @@ Walk every item in [CLAUDE.md § Hard rules](../../../CLAUDE.md) and
 
 Things to never do (forbidden — block the change if any tripped):
 
-- [ ] Edit an Accepted ADR's Decision section (add an Amendment instead, or
-  write a superseding ADR).
+- [ ] Edit an Accepted ADR's body outside
+  [13-documentation.md § Correcting and Amending ADRs](../../../docs/standards/13-documentation.md):
+  an inline erratum by default, in-place replacement only for a canonical artifact
+  for reuse, both only for a statement false when it entered the record, and both
+  owing a dated Amendment **in every Accepted ADR the diff changes**. A changed
+  decision is a superseding ADR.
 - [ ] Introduce a 5th cross-module communication mechanism.
 - [ ] Add domain-specific code (CEFR, exam, English placement, kyu/dan,
   asana, code-challenge, …) to any module.
@@ -214,8 +218,12 @@ domain the diff doesn't touch.
 - [ ] Isolation tests for the table connect as **`learnstack_app`**, not as the owner
   or a `BYPASSRLS` role. A test that connects as the owner passes against an inert
   policy and proves nothing.
-- [ ] Mutable aggregates carry the audit columns (`created_at` /
-  `created_by` / `updated_at` / `updated_by` / `row_version`).
+- [ ] Mutable aggregates carry **all six** audit columns plus `row_version`, per
+  [Database Standards § Audit Columns](../../../docs/standards/05-database.md):
+  `created_at` / `created_by` NOT NULL, `updated_at` / `updated_by` **nullable**
+  (`MarkCreated` stamps neither, so NOT NULL rejects every insert), and
+  `deleted_at` / `deleted_by` **unconditionally** (`AuditableEntity<TId>`
+  implements `ISoftDelete` for every aggregate, so EF maps them either way).
 - [ ] Migrations forward-only by default; destructive change has a two-step
   plan documented.
 - [ ] PgBouncer transaction-pooling assumption respected (no statement-mode

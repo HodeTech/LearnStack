@@ -33,6 +33,12 @@ Accepted
   behind an interface — so the chosen library has to be one we are comfortable depending
   on for the platform's lifetime, or removable with a one-shot find-and-replace if it
   goes unmaintained.
+> **Erratum — 2026-08-29.** The driver below names PostgreSQL 18's native UUIDv7
+> generator `gen_uuid_v7()`. No such function exists — it is `uuidv7()`, shown by
+> `SELECT gen_uuid_v7()` on `postgres:18.4-alpine` returning `ERROR: function
+> gen_uuid_v7() does not exist`. The Decision is unchanged. Current authority: [ADR-0031
+> Amendment 1](0031-postgresql-major-version.md).
+
 - **PostgreSQL 18 native `gen_uuid_v7()` is available** ([ADR-0031](0031-postgresql-major-version.md)).
   The emitter has to play well with DB-side `DEFAULT gen_uuid_v7()` as well as
   app-side `Guid.CreateVersion7()` (.NET 9+) — both code paths exist in the codebase
@@ -86,6 +92,12 @@ value objects.
   § Strongly-Typed Identifiers](../standards/02-backend-coding.md)) is
   implemented by every Vogen-emitted ID struct. The interface stays; Vogen
   is just the body.
+
+> **Erratum — 2026-08-29.** The paragraph below names PostgreSQL 18's native UUIDv7
+> generator `gen_uuid_v7()`. No such function exists — it is `uuidv7()`, shown by
+> `SELECT gen_uuid_v7()` on `postgres:18.4-alpine` returning `ERROR: function
+> gen_uuid_v7() does not exist`. The Decision is unchanged. Current authority: [ADR-0031
+> Amendment 1](0031-postgresql-major-version.md).
 
 The choice covers the four-artefact emission requirement, the value-object case, the
 PostgreSQL 18 DB-side UUIDv7 path (Vogen can wrap any `Guid`, including those minted
@@ -150,6 +162,12 @@ Three things outweighed the appeal:
   validation hook could not express.
 
 ### What we explicitly punted on
+
+> **Erratum — 2026-08-29.** The bullet below names PostgreSQL 18's native UUIDv7
+> generator `gen_uuid_v7()`. No such function exists — it is `uuidv7()`, shown by
+> `SELECT gen_uuid_v7()` on `postgres:18.4-alpine` returning `ERROR: function
+> gen_uuid_v7() does not exist`. The Decision is unchanged. Current authority: [ADR-0031
+> Amendment 1](0031-postgresql-major-version.md).
 
 - **UUIDv7 source.** Both DB-side (`gen_uuid_v7()`) and app-side
   (`Guid.CreateVersion7()`) are valid; the choice between them is per-aggregate (high-
@@ -232,6 +250,16 @@ Three things outweighed the appeal:
   `TId` carries `[ValueObject<Guid>]`. Catalogued under
   [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md)
   when the first ID lands.
+> **Erratum — 2026-08-29.** The two bullets below name PostgreSQL 18's native UUIDv7
+> generator `gen_uuid_v7()`. No such function exists — it is `uuidv7()`, shown by
+> `SELECT gen_uuid_v7()` on `postgres:18.4-alpine` returning `ERROR: function
+> gen_uuid_v7() does not exist`. The Decision is unchanged. Current authority: [ADR-0031
+> Amendment 1](0031-postgresql-major-version.md).
+> **Erratum — 2026-08-29.** The DB-side list below includes `idempotency_keys`, which
+> mints no id: it is addressed by the natural key `(tenant_id, key)` and has no
+> surrogate column. See Amendment 4. Current authority: [Database Standards §
+> Idempotency](../standards/05-database.md).
+
 - **UUIDv7 minting:**
   - DB-side (`gen_uuid_v7()` per ADR-0031) for `audit_log`, `outbox_messages`,
     `inbox_messages`, `idempotency_keys` — high-volume append-only tables.
@@ -338,6 +366,67 @@ Both rules are written in
 [Standards 02 § Domain Modeling](../standards/02-backend-coding.md).
 
 This is a clarification; the Decision is unchanged.
+
+### Amendment 4 — `idempotency_keys` mints no id (2026-08-27)
+
+§ Implementation Notes lists `idempotency_keys` among the tables whose ids are
+minted DB-side. It has no id to mint. The shipped port
+(`LearnStack.SharedKernel/Idempotency/IIdempotencyStore.cs`) addresses a record by
+`(tenantId, key)` at every one of its three methods, so the canonical DDL in
+[Database Standards § Idempotency](../standards/05-database.md) declares
+`PRIMARY KEY (tenant_id, key)` and no surrogate column. A generated id would be a
+column nothing reads.
+
+The Decision is unchanged: UUIDv7 for `uuid` primary keys, minted app-side through
+`IGuidFactory` for aggregates and DB-side for the high-volume append-only tables.
+`idempotency_keys` is neither — it is mutable and naturally keyed — so it was never
+in scope for either path.
+
+The list keeps the entry and carries an erratum. An earlier draft of this amendment
+removed it in place; under
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md) that is not
+licensed — a list of table names is read, not applied, so it is not a canonical
+artifact for reuse. The canonical list is the DDL in
+[Database Standards § Idempotency](../standards/05-database.md).
+
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) creates the table.
+
+### Amendment 5 — `gen_uuid_v7()` is not a PostgreSQL function (2026-08-29)
+
+Six occurrences across § Decision Drivers, § Decision, § Context and
+§ Implementation Notes name PostgreSQL 18's native UUIDv7 generator
+`gen_uuid_v7()`. It is `uuidv7()`. Measured on `postgres:18.4-alpine`:
+
+```sql
+SELECT gen_uuid_v7();  -- ERROR:  function gen_uuid_v7() does not exist
+SELECT uuidv7();       -- 01a04366-8141-753d-a6a4-161239372fd0
+```
+
+The **Decision is unchanged**: UUIDv7 is the canonical id format, wrapped by Vogen,
+minted DB-side for high-volume append-only tables and app-side elsewhere. Only the
+spelling of the DB-side function was wrong. The body keeps it and carries errata,
+per [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md).
+
+Every carrier is enumerated in
+[ADR-0031 Amendment 1](0031-postgresql-major-version.md), which is where the
+correction was found; this amendment is the disclosure ADR-0041 requires **in this
+file**, because an amendment in another ADR discloses nothing to a reader of this
+one.
+
+### Amendment 6 — Retroactive disclosure of the 2026-05-21 edit (2026-08-29)
+
+Commit `a1ad5fb` (2026-05-21, pull request #6) added `UserId` to the cross-cutting
+value-object list in § Implementation Notes. This ADR was already Accepted — the
+acceptance commit is `da1d37e`, 2026-05-20 — and no amendment recorded the change.
+It was found by a `git log` audit during
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md), 99 days later.
+
+**The edit is not undone.** `UserId` does belong on that list, and Amendment 2
+(2026-08-10) later argued the same point at length. What was missing was the
+record, which is what this amendment supplies.
+
+Dated the day it is written, not the day of the edit it discloses: back-dating it
+to 2026-05-21 would manufacture evidence of a disclosure that never happened.
 
 ## References
 

@@ -143,7 +143,7 @@ When the local Hub stack is up, the seed additionally:
 
 - Creates the tenant on Hub via `POST /api/internal/tenants`.
 - Receives `PUT /api/internal/tenants/{id}/entitlements` push with a default plan.
-- `platform_entitlement_cache` is populated by the Dapr event consumer.
+- `IEntitlementProvider.RefreshAsync` writes `platform_entitlement_cache` from that push. Nothing writes the table directly, and no Dapr consumer is involved — the transport behind `IEventBus` is `InProcessEventBus` until Phase 11's trigger fires ([ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)).
 - `platform_host_to_tenant` gets the slug → tenant mapping.
 
 When `--hub-backed=false`, `NullEntitlementProvider` covers entitlement (all

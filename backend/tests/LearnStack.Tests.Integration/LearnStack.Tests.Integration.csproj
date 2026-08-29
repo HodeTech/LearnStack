@@ -15,6 +15,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <!-- The tenancy schema tests apply the module's own migration and assert its
+         policies, so they need the migration assembly and the persistence model
+         directly — not the DI registration. AddLearnStackPersistence does register
+         TenancyDbContext through AddModuleDbContext, but a registration builds a
+         context on the ambient connection at request time; it does not give a test
+         the Migrations folder to apply. -->
+    <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,6 +32,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- The fixture opens connections as each of the four roles directly, not
+         through a DbContext: the point is to prove what a role can and cannot
+         do, and an ORM in the way would test the ORM. -->
+    <PackageReference Include="Npgsql" />
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Respawn" />
     <PackageReference Include="coverlet.collector" />

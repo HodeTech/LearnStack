@@ -77,3 +77,29 @@ Integration event types are `sealed record` inheriting `IntegrationEventBase` (i
 (`UserCreatedIntegrationEventV2`) and the producer migrates within one deployment window.
 Outbox stores `EventType` as the assembly-qualified name for version disambiguation.
 
+
+---
+
+## Amendment 2 — The canonical outbox DDL lives in Standards 05 (2026-08-27)
+
+This ADR's sketches predate the outbox table's canonical DDL and use two spellings
+that table does not have: **`retry_count`** (the column is `attempts`) and
+**`EventType`** (the column is `type`). The Decision — an outbox row written in the
+same transaction as the aggregate change, dispatched at-least-once, deduplicated by
+a consumer-side inbox — is unchanged; only these two names were stale.
+
+**The canonical DDL is
+[Database Standards § Outbox](../standards/05-database.md)** — every column, both
+partial indexes, the isolation policy and the three role grants. It is written down
+in exactly one place for the reason
+[ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md) records: the
+previous template lived in four documents and was wrong in all four. A document
+that needs the shape links there rather than restating it, and this ADR is now one
+of them.
+
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) creates the table;
+nothing dispatches from it until [Phase 02b](../roadmap/phase-02b-events-auth.md).
+`locked_by` / `locked_until` arrive with the dispatcher in that phase and extend
+`learnstack_outbox_admin`'s column-scoped `UPDATE` grant in the same migration — a
+column added without extending it fails at runtime with `permission denied for
+table`.

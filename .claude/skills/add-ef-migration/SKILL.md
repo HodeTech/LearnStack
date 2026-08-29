@@ -51,7 +51,19 @@ and survive forward-only deploy rules
 ### Step 1: Generate the migration
 
 ```bash
-dotnet ef migrations add <UTC_yyyyMMddHHmmss>_<intent> \
+# The design-time factory reads ConnectionStrings__Migration from the ENVIRONMENT
+# and nothing else — `--connection` does not satisfy it, because EF consumes that
+# option in its own parser and applies it only after the factory has returned.
+# Read it out of .env the way the `migrate` target does, one key at a time: a
+# connection string contains semicolons, so `. ./.env` parses them as statement
+# separators, and .env.example single-quotes the value.
+export ConnectionStrings__Migration=$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
+  | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
+
+# Pass the INTENT only, in snake_case. EF prepends the UTC timestamp itself, so
+# the file lands as <UTC_yyyyMMddHHmmss>_<intent>.cs — the format Standards 05
+# specifies. Typing the timestamp as well produces it twice.
+dotnet ef migrations add <intent> \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
   --startup-project backend/src/LearnStack.Api \
   --output-dir Persistence/Migrations
@@ -69,7 +81,7 @@ AddColumn) but does not know about:
 
 - RLS enable + policies (you add them manually).
 - Partition declarations (you add them manually).
-- Postgres-specific defaults (`gen_random_uuid()`, `now()`).
+- Postgres-specific defaults (`uuidv7()`, `now()`). `gen_random_uuid()` in a generated migration is a **defect**: it produces a v4 UUID with none of the index locality UUIDv7 was adopted for ([Database Standards § Identifiers](../../../docs/standards/05-database.md)).
 - Strongly-typed id column types — confirm they map to `uuid`.
 
 ### Step 3: New table — add the four mandatory pieces
@@ -83,10 +95,17 @@ migrationBuilder.Sql("""
         tenant_id        uuid NOT NULL,
         organization_id  uuid NULL,                  -- only for [OrganizationScoped]
         -- ... domain columns ...
+        -- The six-column set from Database Standards § Audit Columns, verbatim.
+        -- updated_* are NULLABLE: MarkCreated stamps created_* only, so NOT NULL
+        -- here rejects every INSERT. deleted_* are UNCONDITIONAL: AuditableEntity<TId>
+        -- implements ISoftDelete for every aggregate, so EF maps them either way and
+        -- a table without them cannot materialize its own entity.
         created_at       timestamptz NOT NULL DEFAULT now(),
         created_by       uuid NOT NULL,
-        updated_at       timestamptz NOT NULL DEFAULT now(),
-        updated_by       uuid NOT NULL,
+        updated_at       timestamptz NULL,
+        updated_by       uuid NULL,
+        deleted_at       timestamptz NULL,
+        deleted_by       uuid NULL,
         row_version      bigint NOT NULL DEFAULT 0,
         -- Exists solely so child tables can carry a composite FK into this one.
         CONSTRAINT ux_<name_plural>_tenant_id_id UNIQUE (tenant_id, id)
@@ -283,11 +302,33 @@ dotnet ef migrations script \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
   --startup-project backend/src/LearnStack.Api
 
-# Apply against a local test DB
+# Apply against a local test DB. NOTE THE CONNECTION STRING: migrations connect as
+# learnstack_migration, which OWNS every table. Running this through the API's
+# runtime configuration would connect as learnstack_app and either fail with
+# "permission denied for schema public" or — worse, if someone "fixes" that with a
+# grant — make the runtime role the table owner, which is the arrangement
+# FORCE ROW LEVEL SECURITY exists to defeat. ConnectionStrings:Migration must never
+# appear in API or worker runtime configuration
+# (docs/standards/05-database.md § Database roles).
 dotnet ef database update \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
-  --startup-project backend/src/LearnStack.Api
+  --startup-project backend/src/LearnStack.Api \
+  --connection "$ConnectionStrings__Migration"
 ```
+
+`ConnectionStrings__Migration` is the environment spelling of
+`ConnectionStrings:Migration`. It is in `.env.example` from Packet 6, and
+`make migrate` is its only sanctioned carrier per Standards 05 — **prefer that
+target over this command**, which is shown for the case where you need one
+module rather than all of them.
+
+Two things `make migrate` does that a hand-run does not. It reads the value out
+of `.env` with `sed` rather than sourcing the file, because a connection string
+contains semicolons and `. ./.env` on an unquoted row parses them as statement
+separators — measured, the value arrived as `Host=localhost`. And it refuses a
+value that does not name `learnstack_migration`, because the failure mode is not
+an empty variable but a truncated or wrong-role one, whose obvious local fix is
+the ownership mistake the role split exists to prevent.
 
 Then run the architecture + integration test suite. The Testcontainers integration
 tests automatically apply migrations on a fresh Postgres; a green run means the
@@ -311,8 +352,11 @@ migration is consistent.
   fixing late is painful because production may already have leakable rows.
 - **Wrong session variable name.** `current_setting('app.current_tenant_id')` is
   silently wrong — RLS returns zero rows because the variable is never set.
-- **Editing an applied migration.** EF stores a checksum in `__EFMigrationsHistory`;
-  editing in place breaks the chain. Add a new migration to fix instead.
+- **Editing an applied migration.** `__EFMigrationsHistory` holds only
+  `MigrationId` and `ProductVersion` — there is no checksum and **nothing detects
+  the edit**. On a database that already applied the migration your change is a
+  silent no-op; on a fresh one it runs. The two diverge permanently. Add a new
+  migration instead.
 - **Mixing destructive change with non-destructive in one migration.** Split into
   separate migrations so rollback is granular.
 - **One migration spanning multiple modules.** Each module owns its own migrations;

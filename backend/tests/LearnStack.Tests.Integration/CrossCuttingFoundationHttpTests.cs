@@ -11,6 +11,7 @@ using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using FluentValidation;
 using LearnStack.SharedKernel.Identifiers;
@@ -234,7 +235,79 @@ public sealed class CrossCuttingHttpFixture : WebApplicationFactory<Program>
             // handler.
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext>(_ => TestResolvedTenantContext.Instance);
+
+            // TransactionBehavior opens a real transaction on every request that
+            // reaches step 6 — ADR-0040 § Decision has no gate, deliberately,
+            // because a read needs the SET LOCAL as much as a write does. This
+            // host has no database: it is a WebApplicationFactory in the non-Docker
+            // CI job, and what it tests is validation and the Problem Details
+            // shape. So the seam is replaced rather than satisfied. The real
+            // protocol is asserted in TransactionBehaviorTests (the call order)
+            // and UnitOfWorkTests (against a real PostgreSQL).
+            services.RemoveAll<IUnitOfWork>();
+            services.AddScoped<IUnitOfWork, NoDatabaseUnitOfWork>();
         });
+    }
+}
+
+/// <summary>
+/// An <see cref="IUnitOfWork"/> for a host with no database.
+/// </summary>
+/// <remarks>
+/// Every member is a no-op except <see cref="Connection"/>, which throws: a test
+/// that reached for the connection would be a test that needs a database, and
+/// should say so by carrying the Docker trait instead of silently getting null.
+/// </remarks>
+internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
+{
+    public System.Data.Common.DbConnection Connection =>
+        throw new NotSupportedException(
+            "This host has no database. A test that needs one belongs in the "
+            + "Docker-trait suite (see RequiresDocker).");
+
+    public System.Data.Common.DbTransaction? Transaction => null;
+
+    public bool HasActiveTransaction { get; private set; }
+
+    public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        HasActiveTransaction = true;
+        return Task.FromResult<IUnitOfWorkScope>(new Frame(this));
+    }
+
+    public Task SetTenantContextAsync(
+        ITenantContext context, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task CommitAsync(CancellationToken cancellationToken = default)
+    {
+        HasActiveTransaction = false;
+        return Task.CompletedTask;
+    }
+
+    public Task RollbackAsync(CancellationToken cancellationToken = default)
+    {
+        HasActiveTransaction = false;
+        return Task.CompletedTask;
+    }
+
+    public void MarkRollbackOnly()
+    {
+        // Nothing to mark: there is no transaction to refuse to commit.
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private sealed class Frame(NoDatabaseUnitOfWork unitOfWork) : IUnitOfWorkScope
+    {
+        public bool IsOwner => true;
+
+        public Task CompleteAsync(CancellationToken cancellationToken = default) =>
+            unitOfWork.CommitAsync(cancellationToken);
+
+        public Task FailAsync(CancellationToken cancellationToken = default) =>
+            unitOfWork.RollbackAsync(cancellationToken);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
 

@@ -187,27 +187,34 @@ wait_for_realm() {
 wait_for_realm "$KEYCLOAK_REALM_TENANT" || exit 1
 wait_for_realm "$KEYCLOAK_REALM_HUB" || exit 1
 
-# ─── Step 3: Phase 02a deferral notice ───────────────────────────────────
-cyan "▶ Step 3/3: application-level tenant seeding (deferred to Phase 02a)"
+# ─── Step 3: Packet 7 deferral notice ────────────────────────────────────
+cyan "▶ Step 3/3: application-level tenant seeding (deferred to Phase 02a Packet 7)"
 
 cat <<'NOTICE'
 
-  The platform-level Tenant aggregate + Tenancy module DbContext do not
-  exist yet (they ship in Phase 02a per docs/roadmap/phase-02a-kernel-tenancy.md).
-  Phase 01 seeding therefore stops at:
+  Packet 6 shipped the schema: the four database roles, both migration chains
+  and the Tenant + Organization aggregates. `make migrate` applies them, and
+  this script does not — it verifies the stack and prints credentials.
+
+  What is still missing is a SEEDER: nothing writes the two demo tenants, and
+  the aggregates alone cannot be reached from a shell. Packet 7 ships the two
+  seed tenants (docs/roadmap/phase-02a-kernel-tenancy.md), and Phase 02d
+  renders both of them in a browser.
+
+  Phase 01 seeding therefore still stops at:
 
     - Keycloak realms imported (done at compose boot, verified above)
     - Demo users present in each realm (seeded by the realm JSON files)
 
-  Phase 02a swaps this section for:
+  Packet 7 swaps this section for:
 
     dotnet run --project backend/src/LearnStack.Tools.Seeder -- \
       --tenants demo-platform,demo-vertical                       \
       --platform-admin demo-admin@learnstack.test                 \
       --connection-string "$ConnectionStrings__Default"
 
-  The console project does not exist yet; reserve the path now so the
-  Phase 02a packet can drop the executable + edit this stub in one PR.
+  The console project does not exist yet; the path is reserved so that packet
+  can drop the executable and edit this stub in one PR.
 
 NOTICE
 

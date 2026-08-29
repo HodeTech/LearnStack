@@ -31,7 +31,7 @@ Out of scope for the initial implementation:
 -- in tenancy module
 CREATE TABLE tenant_locales (
     tenant_id UUID NOT NULL,
-    locale TEXT NOT NULL,
+    locale VARCHAR(35) NOT NULL,   -- an application bound, not a BCP-47 one
     is_default BOOLEAN NOT NULL,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     sort SMALLINT NOT NULL DEFAULT 0,
@@ -40,6 +40,16 @@ CREATE TABLE tenant_locales (
 ```
 
 A tenant with no `tenant_locales` row falls back to the platform default (`en`).
+
+The shipped table is the Tenancy module's migration, which adds the audit-free
+composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
+tenant-wide policy; this fence is the column sketch, not the DDL.
+
+`varchar(35)` is an **application** bound, not a BCP-47 one — the tag grammar sets no
+maximum, and a well-formed tag longer than 35 characters exists and would be rejected
+here. The number is the practical ceiling for the language-script-region-variant shapes
+a tenant publishes in; well-formedness itself is validated in application code, not by
+this column.
 
 ## Storage Schema: Translatable Fields
 
@@ -248,10 +258,17 @@ CREATE TABLE tenant_template_library (
     subject         text NULL,                     -- channels with a subject (email)
     body            text NOT NULL,
     schema_version  int  NOT NULL DEFAULT 1,
+    -- The AuditableEntity<TId> set, verbatim from Database Standards § Audit
+    -- Columns. updated_* are NULL because MarkCreated stamps created_* only, so
+    -- NOT NULL here would reject every INSERT; deleted_* are unconditional
+    -- because AuditableEntity implements ISoftDelete for every aggregate.
     created_at      timestamptz NOT NULL DEFAULT now(),
     created_by      uuid NOT NULL,
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    updated_by      uuid NOT NULL,
+    updated_at      timestamptz NULL,
+    updated_by      uuid NULL,
+    deleted_at      timestamptz NULL,
+    deleted_by      uuid NULL,
+    row_version     bigint NOT NULL DEFAULT 0,
     -- NULLS NOT DISTINCT (PostgreSQL 15+; LearnStack pins 18 per ADR-0031) is
     -- load-bearing here. organization_id is null on every tenant-wide template, and a
     -- standard UNIQUE treats nulls as distinct, so without it a tenant could hold

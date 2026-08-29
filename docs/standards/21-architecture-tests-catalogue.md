@@ -71,6 +71,7 @@ Every row below carries a status:
 |---|---|
 | **Implemented** | The test exists, runs in CI, and can fail. The row names the file. |
 | **Registered** | The name is reserved and the assertion is agreed; no code yet. The row names the owning phase or packet. A registered test is a commitment, not a claim. |
+| **Awaiting backfill** | Decided and reserved like *Registered*, but blocked on something that does not exist yet rather than on someone writing it — usually the first code that could violate it. The row names what it waits for. |
 | **Retired** | Moved to § Retired with the reason and the replacement. |
 
 Each row also carries a **Kind**:
@@ -92,10 +93,13 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Twenty-two test methods exist in
+Thirty-six test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md) and Packet 4.
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4 and
+Packet 6 — 55 cases once the theories expand. Methods are not rows: a `[Theory]`
+is one row and many cases, and several rows pair a rule with the companion
+assertion that stops it passing vacuously.
 
 **Not every implemented rule lives in that assembly.** Packet 4 added eight
 rules there — four API-convention ones
@@ -130,6 +134,8 @@ against a host serving unversioned endpoints.
 | `Handlers_Return_Result` | `CrossCuttingFoundationTests.cs` |
 | `Modules_Do_Not_Reference_DeploymentMode` | `CrossCuttingFoundationTests.cs` |
 | `IErrorTrackingProvider_Is_Singleton` | `CrossCuttingFoundationTests.cs` |
+| `Modules_Do_Not_Inject_IEventBus_Directly` | `CrossCuttingFoundationTests.cs` |
+| `Integration_Event_TopicNames_FollowConvention` | `CrossCuttingFoundationTests.cs` |
 | `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
 | `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
@@ -141,16 +147,34 @@ against a host serving unversioned endpoints.
 | `Tenant_Headers_Are_Never_A_Resolution_Source` | `TenancyConventionTests.cs` |
 | `Assertion_Recorder_Is_The_Only_Mismatch_Writer` | `TenancyConventionTests.cs` |
 | `Assertion_Budget_Does_Not_Depend_On_ICacheService` | `TenancyConventionTests.cs` |
+| `Organization_Aggregate_Declared_In_Tenancy_Domain` (per-type theory) | `TenancyConventionTests.cs` |
+| `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
+| `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | `PersistenceConventionTests.cs` |
+| `The_registration_marker_does_not_vouch_across_containers` | `PersistenceConventionTests.cs` |
+| `Every_Database_Test_Carries_The_Docker_Trait` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Refuses_An_Aliased_Runtime_Credential` (per-alias theory) | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Redacts_A_Quoted_Value_Whole` (per-shape theory) | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Reads_The_Role_Through_A_Quoted_Value` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo` | `PersistenceConventionTests.cs` |
+| `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` | `PersistenceConventionTests.cs` |
+| `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
-Three further rules in this catalogue are **implemented outside** that assembly and are
-no less binding:
+Seven further rules in this catalogue are **implemented outside** that assembly and are
+no less binding. Four of them could not live in it: a policy that is well-formed
+and wrong, or a foreign key with no index, is only visible against an applied
+schema.
 
 | Rule | Where |
 |---|---|
 | `ValidationBehavior_DoesNotThrow_ValidationException` | `LearnStack.Tests.Unit` + `LearnStack.Tests.Integration` |
 | `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` | `LearnStack.Tests.Unit` |
+| `SoftDelete_Advances_The_Row_Version` | `LearnStack.Tests.Unit` (`AuditableEntityTests`) |
+| `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
+| `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
+| `Every_Foreign_Key_Has_A_Supporting_Index` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
 | `LearnStackException-DomainExceptionThrow` (`LS0001`) | `backend/analyzers/LearnStack.Analyzers` + `DomainExceptionThrowAnalyzerTests` |
 
 `Meta_NetArchTest_DetectsAPlantedViolation` deserves its own note: it plants a forbidden
@@ -158,7 +182,10 @@ dependency and asserts NetArchTest **finds** it. If that meta-test ever passes i
 inverted sense — NetArchTest reporting the planted dependency as absent — every other
 NetArchTest-based row in this catalogue is vacuously green. Keep it in perpetuity.
 
-Everything else in this document is **Registered**.
+Every other rule in this document carries its own **Status** line, and that line —
+not this section — is the authority. This index is a reader's orientation and goes
+stale the moment a packet closes a row without updating it; the Status column is
+what a reviewer checks.
 
 ## Canonical names and superseded spellings
 
@@ -208,7 +235,15 @@ aggregate is.
 | `No_Per_Vertical_Folders` | [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md) | `No_Source_Folder_Named_Verticals` |
 
 ADR-0018 is Accepted and is not rewritten; the mapping lives here for the same reason
-ADR-0017's spellings do. Every mutable carrier is corrected in place.
+ADR-0017's spellings do. The **mutable** carriers — this catalogue, the standards, the
+skills — carry the canonical names.
+
+ADR-0018's own body keeps the superseded spellings, and under
+[ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) it must:
+those names were canonicalized *after* ADR-0018 was accepted, so they were true when
+they entered the record and are stale now, which is history rather than error. If the
+drift ever needs to be visible in ADR-0018 itself, the instrument is a dated Amendment
+or an inline erratum — never a rewrite.
 
 The reconciliation is a [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md)
 deliverable: the canonical names go green in CI and the superseded spellings disappear
@@ -621,9 +656,144 @@ otherwise).
   out of scope here.
 - **Source:** [ADR-0017 Amendment 2 (2026-08-10)](../decisions/0017-tenant-organization-hierarchy.md);
   [03-module-boundaries.md § Tenancy](../architecture/03-module-boundaries.md).
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection over the enumerated module `Domain` assemblies.
+  **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Architecture`, `TenancyConventionTests`). `Organization`
+  exists and is asserted; `OrganizationBranding` does not yet, and "exactly one,
+  in Tenancy" is satisfied by none — which is what stops the first one landing in
+  the wrong module. Closes in Packet 10 when the remaining module `Domain`
+  assemblies carry types.
 - **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
+
+### Persistence: concurrency and the unit of work
+
+Source: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md),
+[ADR-0040](../decisions/0040-ambient-unit-of-work.md). Introduced by
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md); the two behavioural
+rules that need a second `DbContext` are owed by Phase 03.
+
+#### `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`
+
+- **Asserts:** every entity implementing `IOptimisticConcurrency` has its `Version`
+  configured as the concurrency token against a `row_version` column, **and** that
+  the property's `ValueGenerated` is `Never` with both save behaviours at `Save`.
+  Neither `ValueGeneratedOnAddOrUpdate()` nor `IsRowVersion()` may appear: on a
+  `long` property the two produce byte-identical metadata, and EF then omits the
+  column from the `UPDATE` entirely, so the token stays `0` and every lost update
+  succeeds ([ADR-0039 Amendment 1](../decisions/0039-optimistic-concurrency-token.md),
+  measured). A structural test can see the metadata; it cannot see a silently
+  inert token, which is why the assertion is on `ValueGenerated` and not on the
+  call site.
+- **Source:** ADR-0039 (Amendments 1 and 2);
+  [05-database.md § Concurrency](05-database.md).
+- **Type:** xUnit + EF model inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Mutation-checked: dropping `.ValueGeneratedNever()` from `MapAuditColumns`
+  fails this case and only this case.
+
+#### `Migration_Startup_Project_References_EntityFrameworkCore_Design`
+
+- **Asserts:** `backend/src/LearnStack.Api/LearnStack.Api.csproj` carries a
+  `PackageReference` to `Microsoft.EntityFrameworkCore.Design`. `dotnet ef` resolves
+  the design-time package from the **startup** project, and
+  [`make migrate`](../standards/05-database.md) names that one; without the reference
+  the tool refuses before it opens a connection. The failure is invisible to the test
+  suite, which calls `Database.MigrateAsync()` directly — Packet 6 shipped a migration
+  in exactly that state, green under Testcontainers and inapplicable by the only path
+  the corpus documents.
+- **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
+- **Type:** xUnit + project-file inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+
+#### `Migrate_Target_Covers_Every_Migration_Chain`
+
+- **Asserts:** every directory under `backend/src` carrying a
+  `Persistence/Migrations` folder is reachable from the `migrate` recipe's project
+  loop in the repo-root `Makefile` — scanned, not listed, so adding a chain and
+  forgetting the recipe fails here. `make migrate` is the only path
+  [05-database.md § Database roles](05-database.md) documents for applying a
+  migration; its first version globbed `src/Modules` only, which left the platform
+  chain unapplied everywhere except the Testcontainers fixtures, which call
+  `Database.MigrateAsync()` directly and stayed green.
+- **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
+- **Type:** xUnit + Makefile and directory inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 5,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Mutation-checked: narrowing the loop back to `src/Modules` fails this case.
+
+#### `Every_Foreign_Key_Has_A_Supporting_Index`
+
+- **Asserts:** every foreign key in schema `public` has an index whose **leading**
+  columns are the constraint's columns, or a **unique** index over a leading prefix
+  of them — a unique prefix already yields at most one candidate row, which is why
+  `tenants`' primary key supports the composite
+  `fk_tenants_default_organization`. Every foreign key in this schema is
+  `ON DELETE RESTRICT`, so every parent delete pays the child scan.
+- **Source:** [05-database.md § Indexes](05-database.md).
+- **Type:** **integration** test (Testcontainers + PostgreSQL), reading
+  `pg_constraint` / `pg_index`. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 5,
+  `LearnStack.Tests.Integration`, `TenancySchemaTests`). It found two real gaps on
+  its first run — `fk_organizations_reporting_parent` and
+  `fk_platform_host_to_tenant_organization` — which is the evidence that it is not
+  vacuous.
+
+#### `SoftDelete_Advances_The_Row_Version`
+
+- **Asserts:** `AuditableEntity.SoftDelete` leaves `Version` strictly greater than it
+  was. Behavioural, because the structural rule cannot see it: before Packet 6 step 2
+  `SoftDelete` stamped `UpdatedAt` / `UpdatedBy` directly rather than through the
+  shared `Touch` primitive, so an increment placed only in `MarkUpdated` would have
+  left a soft delete un-versioned and a client's pre-delete ETag would have kept
+  satisfying `If-Match` on the row it deleted.
+- **Source:** ADR-0039 § Why `MarkUpdated` and not an interceptor.
+- **Type:** xUnit (`LearnStack.Tests.Unit`, `AuditableEntityTests`). **Kind:** behavioural.
+- **Status:** **Implemented** (Packet 6 step 2). Mutation-checked: routing
+  `SoftDelete` back to stamping the fields itself fails this case and only this
+  case.
+
+#### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
+
+- **Asserts:** two halves. The composition root's persistence registration is run,
+  and every `DbContext` service in it is one `AddModuleDbContext` registered —
+  scoped, from an implementation factory, never a type registration EF could give
+  its own connection. And under `backend/src`, exactly three files may mention
+  `UseNpgsql` or `AddDbContext` at all: the two design-time factories, where a
+  connection string is the point, and the shared helper, which passes a
+  *connection*. A fourth is a new decision. A context on its own connection never
+  saw `SET LOCAL`, so every read through it returns zero rows under the corrected
+  policy — silently.
+- **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
+- **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 6,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+
+#### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
+
+- **Asserts:** `TransactionBehavior`'s constructor names `IUnitOfWork` and no
+  `DbContext`, and `LearnStack.Application` references no module assembly — checked
+  against the **project file** as well as the emitted assembly-reference table,
+  because the compiler elides a reference whose types the IL never touches, so a
+  dangling `<ProjectReference>` would leave a reflection-only check green. The
+  assembly half carries a positive control.
+- **Source:** ADR-0040; ADR-0033.
+- **Type:** xUnit + assembly-reference and constructor inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 6 step 6,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+
+#### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
+
+- **Asserts:** no module code passes two `DbContext`-bound operations to
+  `Task.WhenAll` / `Task.WhenAny`. One connection means one command at a time; a
+  handler that fans out corrupts the protocol.
+- **Source:** ADR-0040 § Nesting.
+- **Type:** Roslyn/NetArchTest. **Kind:** structural.
+- **Status:** **Awaiting backfill** — the rule is decided; no module code exists to
+  violate it yet. **Phase:** 02a Packet 6 registers it; Phase 03 implements it with
+  the first module that could.
 
 ### Tenancy and isolation
 
@@ -633,6 +803,27 @@ Source: [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amen
 
 Read § What a structural test proves before relying on any row in this section. The
 first two rows are coverage checks; the last three are the proof.
+
+#### `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor`
+
+- **Asserts:** `ConnectionStrings:OutboxDispatcher` is resolved by `OutboxProcessor`
+  and nothing else. A `GRANT` names a role, not a code path — every handler in the
+  API process runs as the same role — so code-path confinement of a `BYPASSRLS`
+  credential is carried here or nowhere.
+- **Source:** [05-database.md § GRANT matrix](05-database.md); ADR-0003 Amendment 3.
+- **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
+- **Status:** **Awaiting backfill** — cited by the standard, no dispatcher yet.
+  **Phase:** 02b.
+
+#### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
+
+- **Asserts:** the keyed `NpgsqlDataSource` built from `ConnectionStrings:PlatformAdmin`
+  is resolvable only by `PlatformAdminScope`. Module code cannot reach the
+  `BYPASSRLS` credential.
+- **Source:** [05-database.md § How `EnterPlatformAdminScope(reason)` reaches
+  `learnstack_platform`](05-database.md).
+- **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
+- **Status:** **Awaiting backfill.** **Phase:** 02a Packet 7.
 
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 
@@ -698,8 +889,13 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
   test. **Kind:** runtime.
-- **Status:** **Registered.**
-- **Phase:** 02a (Packet 7).
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Integration`, `TenancySchemaTests`). It moved forward because
+  the schema's own assertions needed the two-tenant seed anyway: without rows for
+  both tenants, every count assertion in that class passed against dropped
+  policies. Packet 7 re-runs it through `TenantResolverMiddleware` and the EF
+  query filters rather than through `set_config`.
+- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
 
 #### `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
 
@@ -711,14 +907,18 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
-- **Phase:** 02a (Packet 7).
+- **Status:** **Implemented** (Packet 6 step 4,
+  `LearnStack.Tests.Integration`, `TenancySchemaTests`) — as a `[Theory]` over
+  both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a rule
+  covering one leaves the other open.
+- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
 
-The Packet 7 suite additionally carries `Tenant_A_cannot_read_Tenant_B_data`,
-`Org_X_cannot_read_Org_Y_within_TenantA`, and
-`Unsetting_tenant_context_returns_zero_rows_through_RLS`. Those are ordinary integration
-tests named in the phase document rather than catalogue-governed rules; they are listed
-in [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md).
+`Tenant_A_cannot_read_Tenant_B_data`, `Org_X_cannot_read_Org_Y_within_TenantA` and
+`Unsetting_tenant_context_returns_zero_rows_through_RLS` are ordinary integration tests
+named in the phase document rather than catalogue-governed rules; all three shipped
+alongside the two rules above in Packet 6 step 4 and are listed in
+[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), which re-runs them through
+the request path.
 
 #### `Db_Connection_String_Is_TransactionPooled`
 

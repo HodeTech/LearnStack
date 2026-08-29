@@ -117,6 +117,93 @@ build-backend: ## `dotnet build` the solution.
 build-frontend: ## `pnpm -r build` the frontend monorepo.
 	(cd frontend && pnpm -r build)
 
+.PHONY: migrate
+migrate: ## Apply every EF migration chain (platform + each module) as `learnstack_migration` (the ONLY sanctioned carrier of that credential).
+	@# Standards 05 § Database roles: ConnectionStrings:Migration must never appear
+	@# in API or worker runtime configuration. The role OWNS every table it creates,
+	@# and a runtime that is the owner is precisely the arrangement FORCE ROW LEVEL
+	@# SECURITY exists to defeat — every isolation test would then pass against
+	@# policies that constrain nothing. This target is where the credential lives.
+	@#
+	@# `--connection` is passed explicitly rather than letting the startup project
+	@# resolve one, because that would be ConnectionStrings:Default — the
+	@# learnstack_app role, which holds USAGE but not CREATE on schema public and
+	@# fails with `permission denied for schema public`. The tempting fix for that
+	@# error (granting it CREATE) is the ownership mistake above.
+	@#
+	@# `--connection` alone is NOT enough, which is why the value is also exported.
+	@# `dotnet ef` consumes `--connection` in its own parser and applies it to the
+	@# context AFTER the design-time factory has returned, so the factory never
+	@# sees it in `args` and throws first on a workstation whose value lives only
+	@# in `.env`. Measured. The export is what lets the factory construct; the
+	@# flag is what EF then applies.
+	@# Four things this recipe does that a naive version does not, each because the
+	@# naive version was measured doing the wrong thing:
+	@#
+	@# 1. `.env` is read one key at a time, NOT shell-sourced. A connection string
+	@#    contains semicolons, and `. ./.env` on an unquoted row parses them as
+	@#    statement separators: `ConnectionStrings__Migration` arrived as
+	@#    `Host=localhost`, and `Port`, `Database`, `Username`, `Password` leaked
+	@#    into the environment as bare variables. `tr -d '\r'` as well, because a
+	@#    CRLF row otherwise leaves the closing quote and the carriage return
+	@#    inside the credential.
+	@# 2. The role is compared EXACTLY. An unanchored `*Username=learnstack_migration*`
+	@#    accepted `learnstack_migration_readonly` and would have run migrations as
+	@#    it. Splitting on `;` and comparing the whole token has no neighbourhood.
+	@# 3. The error path prints a REDACTED string. An earlier version echoed the
+	@#    whole value, password included — in the one target whose entire purpose
+	@#    is keeping that credential in one place.
+	@# 4. The loop carries its own status. `-e` does not abort on a failure inside
+	@#    a for-loop body that is part of a compound list: both iterations ran
+	@#    after `false` and the recipe still exited 0, so a migration target
+	@#    reported success after every migration failed.
+	@# 5. The loop covers `LearnStack.Infrastructure` as well as the modules. The
+	@#    platform chain (outbox_messages, idempotency_keys) lives outside
+	@#    `src/Modules`, and a glob that only walked the modules left the two
+	@#    tables no module owns unmigrated on every documented path.
+	@migration_cs="$${ConnectionStrings__Migration:-}"; \
+	if [ -z "$$migration_cs" ] && [ -f .env ]; then \
+		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
+			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
+	fi; \
+	role=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=user); \
+	redacted=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=redacted); \
+	if [ -z "$$migration_cs" ]; then \
+		echo "ConnectionStrings__Migration is not set."; \
+		echo "It arrives with the four-role model in Phase 02a Packet 6: copy the"; \
+		echo "'four database roles' and 'four connection strings' blocks out of"; \
+		echo ".env.example into your .env and re-run. A .env written before that"; \
+		echo "packet has neither."; \
+		exit 1; \
+	fi; \
+	if [ "$$role" != "learnstack_migration" ]; then \
+		echo "ConnectionStrings__Migration names Username='$$role', not learnstack_migration:"; \
+		echo "  $$redacted"; \
+		echo "Migrations must run as the role that OWNS every table. Running them as"; \
+		echo "the runtime role is the arrangement FORCE ROW LEVEL SECURITY defeats."; \
+		echo "If the value looks truncated at the first ';', quote it in .env. A"; \
+		echo "URI-style DSN (postgres://...) is not a form Npgsql parses at all; the"; \
+		echo "expected shape is the key/value list in .env.example."; \
+		exit 1; \
+	fi; \
+	export ConnectionStrings__Migration="$$migration_cs"; \
+	dotnet tool restore >/dev/null; \
+	found=0; \
+	failed=0; \
+	for proj in backend/src/LearnStack.Infrastructure backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
+		test -d "$$proj/Persistence/Migrations" || continue; \
+		found=1; \
+		echo "==> $$(basename $$proj)"; \
+		dotnet ef database update \
+			--project "$$proj" \
+			--startup-project backend/src/LearnStack.Api \
+			--connection "$$migration_cs" || failed=1; \
+	done; \
+	if [ "$$found" = "0" ]; then \
+		echo "No project carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
+	fi; \
+	exit "$$failed"
+
 .PHONY: sdk
 sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
 	@# Needs the API up. `make dev` starts the compose stack, NOT the API — run
@@ -129,15 +216,17 @@ sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
 test: test-backend test-frontend ## Run all test suites (backend + frontend).
 
 .PHONY: test-backend
-test-backend: ## `dotnet test` (unit + architecture + contract + HTTP integration — same set as CI).
+test-backend: ## `dotnet test` — every suite, INCLUDING the Docker-bound ones CI splits across two jobs.
 	(cd backend && dotnet test LearnStack.slnx --nologo)
 
 .PHONY: test-integration
 test-integration: ## Just the LearnStack.Tests.Integration assembly (a subset of test-backend).
-	@# Today this assembly holds only WebApplicationFactory HTTP tests and needs
-	@# no Docker, so `make test-backend` already covers it. The target stays as
-	@# the fast inner loop while working on that assembly, and becomes the
-	@# Docker-bound entry point in Packet 7 when Testcontainers tests land.
+	@# From Phase 02a Packet 6 this assembly holds BOTH kinds: WebApplicationFactory
+	@# HTTP tests that need no Docker, and Testcontainers tests carrying
+	@# [Trait("Requires","Docker")]. CI splits them across two jobs by that trait;
+	@# this target and `make test-backend` run both, because a developer's machine
+	@# has the daemon CI has to arrange for. Narrow with
+	@# `--filter "Requires!=Docker"` when Docker is down.
 	(cd backend && dotnet test tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj --nologo)
 
 .PHONY: test-frontend

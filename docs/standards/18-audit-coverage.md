@@ -51,7 +51,7 @@ which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
 
 ## Classification Matrix Template
 
-Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it. The `docs/modules/` directory is created with the first module spec and does not exist yet during pre-implementation.
+Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it. The `docs/modules/` directory was created with the first module spec — [Tenancy](../modules/tenancy/README.md), in Phase 02a Packet 6.
 
 | Resource | create | update | delete | read-sensitive | security-event |
 |----------|:------:|:------:|:------:|:--------------:|:--------------:|
@@ -137,9 +137,16 @@ Rules:
 
 ## Storage
 
-- One global `audit_log` table partitioned by `occurred_at` **monthly from day one**
-  ([ADR-0016](../decisions/0016-audit-log-subsystem.md)). RLS isolates rows by
-  `tenant_id`; the partition strategy serves retention pruning.
+- One global `audit_log` table. Phase 02a Packet 9 ships it **plain and
+  unpartitioned**; monthly partitioning by `timestamp` — the column's name in
+  ADR-0033's DDL — the retention job and the
+  lifecycle policy of [ADR-0028](../decisions/0028-audit-log-partition-management.md)
+  arrive in [Phase 11](../roadmap/phase-11-production-hardening.md). "Monthly from day
+  one" was the earlier plan and [ADR-0033](../decisions/0033-audit-durability-model.md)
+  changed it: PostgreSQL has no `ALTER TABLE … PARTITION BY`, so the conversion is a
+  new table either way, and partitioning on day one would force every partition-key
+  column into the primary key before the schema that shape has to serve exists. RLS
+  isolates rows by `tenant_id` in both shapes.
 - Append-only. The `AuditEntry` aggregate inherits `Entity<TId>` **not**
   `AuditableEntity<T>` and exposes no mutators; `IAuditStore` has no update method; and
   the runtime database role `learnstack_app` holds no `UPDATE` or `DELETE` privilege on

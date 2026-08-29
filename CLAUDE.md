@@ -36,8 +36,11 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4 and 5 shipped; packets 4–10 were re-scoped on 2026-08-08
-after a four-report audit of the corpus.**
+packets 0–3, 3b, 4, 5 and 6 shipped; packets 3b–10 were re-scoped on 2026-08-08
+after a four-report audit of the corpus.
+[Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — host and
+tenant resolution, the EF query filters, the request-level isolation suite and
+the two seed tenants — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -88,6 +91,42 @@ client had no way to question — and the two that did not were worse: one hande
 back a truncated body under a `200`, the other a `500` per request that an
 anonymous caller could trigger at will.
 
+**Packet 5** shipped the foundation ports with the implementations that
+actually run today — `ICacheService` / `InMemoryCacheService`, `IEventBus` /
+`InProcessEventBus`, and Packet 3's `ISecretProvider` /
+`ConfigurationSecretProvider` — each selected at a single composition-root site
+so Phase 11's adapter is one line rather than a search. With them: `CacheKey`
+and `EnsureValid`, because there is no query filter and no RLS policy in front
+of a dictionary, so the key *is* the isolation boundary; the
+[ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md) port
+and event contracts, including `IntegrationEventEnvelope` and the non-generic
+`PublishAsync`; and the compose `gated` profile that took Kafka, Valkey, Vault,
+APISIX and the two Dapr containers out of `make dev`. `IHostToTenantResolver`
+and `IEntitlementProvider` are **not** here — they need the tenancy schema and
+belong to Packets 7 and 9. Its record,
+[Delivery Record (Packet 5)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5),
+is long because several of its defects were introduced by the *fix* for an
+earlier one, and because three tests were caught agreeing with the code instead
+of constraining it — the packet's most repeated lesson.
+
+**Packet 6** shipped the tenancy schema: the four database roles, ten tables in
+two independent migration chains, and every one of them under `ENABLE` **and**
+`FORCE ROW LEVEL SECURITY` with the corrected
+[ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md)
+template — one `AND`-ed policy per table, in the four table classes. With them:
+`TenantId` / `OrganizationId` as Vogen value objects, the `Tenant` and
+`Organization` aggregates, the repository's first module spec at
+[docs/modules/tenancy/](docs/modules/tenancy/README.md), and
+[ADR-0040](docs/decisions/0040-ambient-unit-of-work.md)'s ambient unit of work —
+one connection per scope, every module `DbContext` enlisted on it, and
+`TransactionBehavior`'s body replacing the Packet 3 shell. Its record,
+[Delivery Record (Packet 6)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-6),
+is long for the reason Packet 5's was: the packet's own review rounds found that
+`make migrate` could not apply the migration the packet exists to ship, that a
+structural sweep is only as wide as the schema it runs on — a second permissive
+policy on `outbox_messages` passed the whole suite — and that the transaction
+boundary was wrong in the two places it is hardest to see.
+
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
 
@@ -114,11 +153,14 @@ is the next user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
-Every module assembly is still empty of domain code. Module-level
-references in the docs (e.g. `LearnStack.Modules.Education.Application`,
-`ILiveClassProvider`, `ITenantSearch`) describe **intended** shape that
-the corpus anchors against; Phase 02a packets 6–9 and Phase 02d are
-where the first of those types actually land.
+**Tenancy is the only module holding domain code**, as of Packet 6: the
+`Tenant` and `Organization` aggregates, their entities, and
+`TenancyDbContext`. The other six module assemblies are still empty, and
+module-level references in the docs (e.g.
+`LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
+`ITenantSearch`) describe **intended** shape that the corpus anchors
+against; Phase 02a packets 7–9 and Phase 02d are where the first of those
+types actually land.
 
 ## Where to start
 
@@ -162,9 +204,10 @@ let the entry point pick it.
 | Directory | Purpose | Mutability |
 |-----------|---------|------------|
 | `docs/architecture/` | Conceptual descriptions of what we are building. Numbered `NN-topic.md` linearly. | Editable as the system evolves. |
-| `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments. |
+| `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments and the two bounded corrections in [Documentation Standards § Correcting and Amending ADRs](docs/standards/13-documentation.md) ([ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)). |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
 | `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
+| `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
 | `docs/glossary.md` | Terminology source of truth. | Editable; new term goes here first, then used. |
 
 > `docs/analysis/` exists locally but is **gitignored** — it is a private scratchpad
@@ -241,8 +284,16 @@ rules:
 
 ## Things to never do
 
-- Edit an Accepted ADR's decision section. Write a new ADR that
-  supersedes the old one instead.
+- Edit an Accepted ADR's body, except by the two bounded mechanisms
+  [ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  defines: an **inline erratum** beside the false text, which is the default, or
+  **in-place replacement** where the text is a canonical artifact for reuse — a
+  template others are told to copy, a DDL or command meant to be applied. Both
+  are for a statement that was false **when it entered the record**, both leave
+  § Status / § Date / § Deciders and all rationale untouched, and both owe a
+  dated Amendment **in every Accepted ADR the diff changes**. A statement that
+  was true then and is stale now is history: amend it, or write a new ADR that
+  supersedes the old one.
 - Introduce a fifth cross-module communication mechanism.
 - Add domain-specific code (CEFR, exam, English placement, kyu/dan,
   asana, code-challenge runner, …) to **any** module. Such shapes live

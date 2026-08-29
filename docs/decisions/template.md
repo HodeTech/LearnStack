@@ -74,15 +74,28 @@ years figure out whether circumstances have changed enough to re-open the ADR.
 ## Amendments
 
 Dated, append-only clarifications that do not change the Decision section. If the
-decision itself changes, write a new ADR that supersedes this one.
+decision itself changes, write a new ADR that supersedes this one. Omit this whole
+section until there is an amendment to put in it.
 
 ### YYYY-MM-DD — Clarification title
 
 …short note about what was previously ambiguous and how it should be read now.
 
+An amendment that records a **correction** names three things, per
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md): what was wrong,
+**how it was shown wrong** (the command, the query, the file), and **every carrier
+changed** — and it restates the Decision as unchanged. Where the correction is an
+enumeration, it also names the document the corpus treats as canonical for that
+list.
+
 ## References
 
-- [Related ADR](NNNN-related.md)
-- [Related architecture doc](../architecture/NN-related.md)
-- [Related standard](../standards/NN-related.md)
+<!-- Placeholders, not links. A link here is a link to a file that does not
+     exist, and the CI Markdown audit is right to say so — including on the
+     full-tree pass it falls back to when the diff base does not resolve.
+     Replace each with a real relative link when copying the template. -->
+
+- Related ADR — link to `NNNN-related.md`
+- Related architecture doc — link to `../architecture/NN-related.md`
+- Related standard — link to `../standards/NN-related.md`
 - External link (optional).

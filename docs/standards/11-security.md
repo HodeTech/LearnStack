@@ -253,13 +253,44 @@ consequences follow, and both are load-bearing:
   shared across transactions, so the value is either absent or — worse — left over from
   another tenant's transaction.
 
+### The out-of-band setters
+
+`TransactionBehavior` is the general case, not the only one. Six setters exist in
+total and the set is closed
+([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md)
+is the authority; it is reproduced here because this section is the placement
+authority). Two set it on the **ambient** transaction; four own a **short
+transaction of their own**, because they run where no ambient transaction exists
+yet:
+
+| Setter | Transaction | Why it is not `TransactionBehavior` |
+|---|---|---|
+| `TransactionBehavior` | ambient | — the general case |
+| The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
+| `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
+| `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
+| `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
+| The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
+
+Every one of them connects as `learnstack_app`. A setter that reached for
+`learnstack_platform` would be invisible to the isolation suite, which is the
+failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
+names by hand.
+
 Because every `current_setting` read is called with its missing-OK argument (`true`)
 **and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
 the policy predicate filters the row out. The failure mode is an empty result set, not a
 leak — but an empty result set arriving from production is an outage, so a
-`DbCommandInterceptor` additionally asserts that `TransactionBehavior` has already issued
-the `SET LOCAL` pair before any command against a `[TenantOwned]` table runs, and throws
-`TenantContextMissingException` when it has not. It cannot be a connection-checkout
+`DbCommandInterceptor` is to assert that **a sanctioned setter** has already
+issued the `SET LOCAL` pair on this transaction before any command against a
+`[TenantOwned]` table runs — `TransactionBehavior` in the general case, or any of the
+out-of-band setters above, each of which stamps the same marker on the transaction it
+opens. Naming `TransactionBehavior` alone would make the guard reject every write the
+idempotency store and the audit store legitimately make. It throws
+`TenantContextMissingException` when it has not. **It does not exist yet**: Packet 6
+ships the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it would
+back up, and no packet yet owns the interceptor — the first tenant-owned read on a
+request path is Packet 7's, and that is where it belongs. It cannot be a connection-checkout
 interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
 values: checkout precedes the transaction, so the transaction-local value is not there to
 be observed ([05-database.md § Connection Management](05-database.md)).
@@ -446,10 +477,15 @@ directly. Entries are append-only and queryable by tenant admins for their own t
 
 Security-relevant durability rules:
 
-- **MUST-class audit fails closed.** The row is enrolled in the same
-  `DbContext.SaveChanges` as the business write, so a privileged operation cannot commit
-  unaudited. It also means the insert runs while `app.tenant_id` is set, which is what
-  lets Row Level Security accept it.
+- **MUST-class audit fails closed.** The row is written on the same **transaction**
+  as the business write — `AuditLogBehavior` classifies and parks the intent,
+  `TransactionBehavior` calls `IAuditStore.WritePendingAsync` immediately before
+  `COMMIT` — so a privileged operation cannot commit unaudited. It also means the
+  insert runs while `app.tenant_id` is set, which is what lets Row Level Security
+  accept it. "The same `DbContext.SaveChanges`" was the earlier formulation and
+  [ADR-0033](../decisions/0033-audit-durability-model.md) **withdrew** it: the
+  guarantee is the transaction, which is what a reader of `audit_log` observes and
+  which needs no cross-context machinery.
 - **A failure to read `AuditConfig` fails closed too.** A tenant override may narrow
   SHOULD/MAY coverage; it may never remove baseline MUST coverage.
 - SHOULD/MAY-class audit stays best-effort, and its accepted loss is written down rather

@@ -158,7 +158,59 @@ required only where the event type declares it.
 
 ## Amendments
 
-None.
+### Amendment 1 — The system actor needs no `users` row (2026-08-27)
+
+§ Consequences above says "The Tenancy migration must seed `UserId.SystemActor`
+(`00000000-0000-7000-8000-000000000001`) before a persisted consumer can write audit
+foreign keys." **The foreign key it names does not exist, and must not.** The clause is
+withdrawn.
+
+Verified across the corpus and the shipped code: `REFERENCES users` appears in no
+document and no source file. The canonical tenant-owned template declares
+`created_by uuid NOT NULL` with no `REFERENCES` clause
+([Database Standards](../standards/05-database.md)), and `audit_log`'s own DDL declares
+`actor_user_id uuid NULL` with none either.
+
+The absence is load-bearing rather than accidental.
+[31-audit-subsystem.md](../architecture/31-audit-subsystem.md) depends on it for GDPR
+erasure: once the `users` row is erased the audit row's actor is "an orphan surrogate key
+with no path back to a natural person, which is what keeps the audit row's existence
+auditable after erasure". An enforced foreign key — under any `ON DELETE` action — makes
+that state unreachable: `RESTRICT` blocks the erasure, `CASCADE` destroys the audit
+trail, `SET NULL` erases the distinction between "system actor" and "unknown actor".
+
+What the constant is actually for stands unchanged: `AuditableEntity.MarkCreated` refuses
+`default(UserId)` and `Guid.Empty` alike, so a non-request execution needs a concrete
+`UserId` to pass. `UserId.SystemActor` supplies exactly that, as a CLR constant. It needs
+no database row, in Packet 6 or ever.
+
+Consequently:
+
+- **Phase 02a Packet 6 seeds nothing and creates no `users` table.** Its migration
+  creates exactly the ten tables its scope names, which keeps
+  [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md)'s ten-table completion criterion
+  literally true and introduces no table outside the three declared RLS classes.
+- **`users` is created by the first Identity migration in
+  [Phase 03](../roadmap/phase-03-identity-admin.md)**, which owns the table. Whether that
+  migration also inserts a row describing the system actor is Phase 03's decision and is
+  presentational — nothing depends on its existence.
+- `created_by` / `updated_by` / `deleted_by` remain plain `uuid` columns with no
+  referential constraint, project-wide.
+
+**Three carriers still state the withdrawn premise, and this amendment is not
+complete until they are corrected.** Packet 6 step 1 owns the edits; naming them
+here is what keeps the amendment from being one more voice in a corpus that
+answers the question twice:
+
+| Carrier | What it still says |
+|---|---|
+| [Glossary — `UserId.SystemActor`](../glossary.md) | "It must have a matching `users` row before a persisted consumer can write an audit foreign key. The Tenancy schema and that seed are owned by Phase 02a Packet 6" |
+| [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | "**Seed the system actor.** … It is a foreign key: this packet's migration seeds the matching `users` row so `created_by` resolves." The same packet entry lists exactly ten tables and `users` is not among them, so the roadmap already contradicts itself |
+| `LearnStack.SharedKernel/Identifiers/UserId.cs` | "The value is fixed rather than generated, because it is a foreign key. Phase 02a Packet 6 owns the matching Tenancy seed" |
+
+The rest of this ADR is unaffected: the envelope contract, the consumer identity split
+(`UserId.SystemActor` as the effective principal, `CausalActorUserId` as the human), and
+the cache-key rules all stand.
 
 ## References
 

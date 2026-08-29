@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using Xunit;
@@ -67,6 +68,121 @@ public sealed class AuditableEntityTests
         aggregate.IsDeleted.Should().BeTrue();
         aggregate.UpdatedAt.Should().Be(t1, "SoftDelete bumps UpdatedAt for monotonic last-touched");
         aggregate.UpdatedBy.Should().Be(Actor);
+    }
+
+    // ---- the concurrency token (ADR-0039) --------------------------------
+
+    [Fact]
+    public void MarkCreated_LeavesTheVersionAtZero()
+    {
+        // The column's DEFAULT 0 and the CLR default have to agree, or an insert
+        // needs a special case that nothing would remember to write.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        aggregate.MarkCreated(T0, Actor);
+
+        aggregate.Version.Should().Be(0);
+    }
+
+    [Fact]
+    public void MarkUpdated_AdvancesTheRowVersion()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+
+        aggregate.MarkUpdated(T0.AddHours(1), Actor);
+        aggregate.MarkUpdated(T0.AddHours(2), Actor);
+
+        aggregate.Version.Should().Be(2, "every audited mutation is a versioned mutation");
+    }
+
+    [Fact]
+    public void SoftDelete_Advances_The_Row_Version()
+    {
+        // The case that fails when the increment lives in MarkUpdated alone.
+        // SoftDelete stamps UpdatedAt/UpdatedBy itself, so a delete would leave
+        // the token where it was — and a client holding the pre-delete ETag would
+        // still satisfy If-Match on the row it had just deleted. Route both paths
+        // through one primitive and this cannot happen; delete the routing and
+        // this test is what notices.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+        aggregate.MarkUpdated(T0.AddHours(1), Actor);
+        var beforeDelete = aggregate.Version;
+
+        aggregate.SoftDelete(T0.AddDays(3), Actor);
+
+        aggregate.Version.Should().BeGreaterThan(beforeDelete);
+    }
+
+    [Fact]
+    public void TheVersionIsWideEnoughForTheColumnItMapsTo()
+    {
+        // row_version is bigint, so the CLR side is long. It was uint — the
+        // Npgsql convention for an xmin token, which ADR-0039 rejected — and a
+        // uint property against a bigint column round-trips wrong at the top of
+        // the range rather than failing loudly.
+        // BOTH, and the second is the one that matters. Measured: narrowing only
+        // the class property to uint and adding an explicit `long
+        // IOptimisticConcurrency.Version => Version;` compiles and passes all 577
+        // tests — while silently making the token 32-bit against a bigint column.
+        // The interface assertion alone agreed with the code rather than
+        // constraining it.
+        typeof(IOptimisticConcurrency)
+            .GetProperty(nameof(IOptimisticConcurrency.Version))!
+            .PropertyType.Should().Be<long>();
+
+        typeof(AuditableEntity<TestId>)
+            .GetProperty(nameof(AuditableEntity<TestId>.Version))!
+            .PropertyType.Should().Be<long>("this is the property EF maps to row_version");
+    }
+
+    [Fact]
+    public void MarkUpdated_BeforeMarkCreated_Throws()
+    {
+        // Measured before the guard existed: this succeeded and left CreatedAt at
+        // 0001-01-01 — the programmer-error sentinel EnsureValidAuditInput refuses
+        // as an argument — and a later MarkCreated then succeeded too, because its
+        // own guard reads `CreatedAt != default` and the sentinel satisfied it.
+        // The row that reached the database had updated_at preceding created_at.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        var act = () => aggregate.MarkUpdated(T0, Actor);
+
+        act.Should().Throw<InvalidOperationException>();
+        aggregate.UpdatedAt.Should().BeNull("a refused call changes nothing");
+        aggregate.Version.Should().Be(0);
+    }
+
+    [Fact]
+    public void SoftDelete_BeforeMarkCreated_Throws()
+    {
+        var aggregate = new TestAuditableAggregate(TestId.New());
+
+        var act = () => aggregate.SoftDelete(T0, Actor);
+
+        act.Should().Throw<InvalidOperationException>();
+        aggregate.DeletedAt.Should().BeNull();
+        aggregate.IsDeleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public void SoftDelete_CalledTwice_Throws()
+    {
+        // Same reason MarkCreated refuses a second call: the second delete would
+        // overwrite who deleted the row and when.
+        var aggregate = new TestAuditableAggregate(TestId.New());
+        aggregate.MarkCreated(T0, Actor);
+        aggregate.SoftDelete(T0.AddDays(1), Actor);
+        var firstDeleter = aggregate.DeletedBy;
+        var versionAfterFirst = aggregate.Version;
+
+        var act = () => aggregate.SoftDelete(T0.AddDays(2), UserId.From(Guid.CreateVersion7()));
+
+        act.Should().Throw<InvalidOperationException>();
+        aggregate.DeletedBy.Should().Be(firstDeleter, "the first deleter is who deleted it");
+        aggregate.DeletedAt.Should().Be(T0.AddDays(1));
+        aggregate.Version.Should().Be(versionAfterFirst, "a refused call changes nothing");
     }
 
     [Fact]

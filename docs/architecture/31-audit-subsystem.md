@@ -427,8 +427,12 @@ through the pipeline; the commit outcome travels back out.
 public async Task<TResponse> Handle(TRequest request,
     RequestHandlerDelegate<TResponse> next, CancellationToken ct)
 {
-    if (!RequiresTransaction(request)) return await next();
-
+    // No gate. Everything that reaches step 6 needs a transaction, because the
+    // requests that must not open one have already short-circuited: validation
+    // failure at step 1, an unresolved tenant at step 4 (tenant_mismatch), and
+    // authorization denial at step 5. An earlier draft called a
+    // RequiresTransaction(request) predicate that is defined nowhere and would
+    // have been a fourth exemption if it were.
     await unitOfWork.BeginTransactionAsync(ct);
     // First statement inside the transaction, per ADR-0003 Amendment 3.
     await unitOfWork.SetTenantContextAsync(tenantContext, ct);
@@ -477,8 +481,30 @@ public async Task<TResponse> Handle(TRequest request,
 
 `IUnitOfWork` is the seam that lets this generic behavior open and commit a transaction
 without naming any module's `DbContext`, and through which `IAuditStore` reaches the
-ambient connection. It is a [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)
-deliverable that the shipped `TransactionBehavior` shell already presumes.
+ambient connection. It **shipped** in
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) step 6, together with the
+`TransactionBehavior` body — everything above except the `auditStore` and `stateCapture`
+lines, which land with `IAuditStore` in Packet 9.
+
+Only the `auditStore.WritePendingAsync` line has a slot waiting for it, marked by a dated
+TODO immediately before the commit. The `stateCapture` calls do not, and one of them needs
+more than a line: the shipped body's catch is filtered `when (!committing)` precisely so it
+does **not** run after a faulted commit, so there is no reachable branch for
+`MarkIndeterminate` to go in. `MarkCommitted` and `MarkRolledBack` drop into the existing
+success and failure paths; `MarkIndeterminate` requires Packet 9 to add a `try`/`catch`
+around the commit call itself, which is what the block above shows and what the filter
+stands in for until then.
+
+Two differences between the block above and what shipped, both decided by
+[ADR-0040 Amendment 2](../decisions/0040-ambient-unit-of-work.md) after this block was
+written. The shipped behavior resolves its frame through the `IUnitOfWorkScope` handle
+(`CompleteAsync` / `FailAsync`) rather than through the frame-blind
+`unitOfWork.CommitAsync` / `RollbackAsync`, because a nested frame nobody resolved
+otherwise turns the outer commit into a silent no-op. And it marks the unit
+rollback-only on the exception path only: an inner `Result.Fail` an outer handler
+absorbs is not a failure of the unit, per ADR-0040 § Nesting. The `stateCapture` guard
+on the outer catch is what the shipped body writes as a `committing` flag, and it does
+the same job — a faulted `COMMIT` must not be followed by a rollback attempt.
 
 The alternative — moving `TransactionBehavior` outward so it wraps `AuditLogBehavior` —
 was considered and rejected in

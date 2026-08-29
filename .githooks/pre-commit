@@ -167,10 +167,11 @@ leakwatch_path_ignored() {
     return 1
 }
 
-# Older builds only accept a DIRECTORY target. CI pins v1.5.0, which rejects a
-# file with "source validation failed: source is not a directory" — so a
-# developer who mirrors the CI pin gets a hook that aborts every commit. Probe
-# once and degrade to a message rather than blocking; CI is the real gate.
+# Builds before v1.6.0 only accept a DIRECTORY target, rejecting a file with
+# "source validation failed: source is not a directory" — so a developer on one
+# of them gets a hook that aborts every commit. CI pins v1.8.0, which accepts
+# files, so the probe covers the local build only. Probe once and degrade to a
+# message rather than blocking; CI is the real gate.
 leakwatch_takes_files() {
     local probe
 
@@ -208,7 +209,7 @@ leakwatch_takes_files() {
 if command -v leakwatch >/dev/null 2>&1 && ! leakwatch_takes_files; then
     printf "pre-commit: this leakwatch build only scans directories — skipping the\n" >&2
     printf "  local secret scan (CI re-runs it on the whole tree).\n" >&2
-    printf "  upgrade: brew upgrade leakwatch  |  go install github.com/cemililik/leakwatch@latest\n" >&2
+    printf "  upgrade: brew upgrade leakwatch  |  go install github.com/HodeTech/leakwatch@v1.8.0\n" >&2
 elif command -v leakwatch >/dev/null 2>&1; then
     if [[ ${#all_staged[@]} -gt 0 ]]; then
         printf "pre-commit: leakwatch scan (%d file(s)) …\n" "${#all_staged[@]}"
@@ -235,8 +236,8 @@ elif command -v leakwatch >/dev/null 2>&1; then
     fi
 else
     printf "pre-commit: leakwatch not on PATH — skipping local secret scan (CI re-runs it).\n" >&2
-    printf "  install: brew install cemililik/tap/leakwatch\n" >&2
-    printf "       or: go install github.com/cemililik/leakwatch@latest\n" >&2
+    printf "  install: brew install HodeTech/tap/leakwatch\n" >&2
+    printf "       or: go install github.com/HodeTech/leakwatch@v1.8.0\n" >&2
 fi
 
 # ─── Backend: dotnet format ─────────────────────────────────────────────
