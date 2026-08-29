@@ -10,8 +10,11 @@ Proposed
 
 [Documentation Standards § ADR Amendments](../standards/13-documentation.md)
 says an Accepted ADR is "otherwise immutable" and that clarifications go in dated
-Amendments appended at the bottom. Twelve other tracked documents restate the
-prohibition, four of them as a hard review blocker.
+Amendments appended at the bottom. Its § ADRs Rules list is looser than that and
+than the twelve other documents restating it: "Accepted ADRs are immutable except
+for **typo fixes** and dated Amendments." So an unbounded in-place exception is
+already written down, in the one document that is the authority — with no test for
+what counts as a typo. Four of the twelve restatements are hard review blockers.
 
 The corpus does not obey it, and the first draft of this ADR was wrong about how
 it disobeys. That draft claimed four precedents for correcting an Accepted ADR's
@@ -55,8 +58,10 @@ Two further facts the check turned up, both relevant to the decision:
   `postgres:18.4-alpine`: `SELECT gen_uuid_v7()` is
   `ERROR: function gen_uuid_v7() does not exist`, and `pg_proc` holds no such
   function even with all 46 bundled extensions installed. The name is `uuidv7()`.
-  Five documents repeated the wrong one, including `IGuidFactory.cs`'s XML
-  remarks. Under strict immutability all six keep it.
+  Five other carriers repeated the wrong one, including `IGuidFactory.cs`'s XML
+  remarks. Immutability binds Accepted ADR bodies and nothing else, so under any
+  option the standards, the index and the C# carry the correct name; what is at
+  stake is only the occurrences inside ADR bodies.
 - **"Does not change the decision" is not a workable test alone.** It is the test
   amendments already use, and it is the test every edit above claimed. Without a
   bound on *what kind* of statement may be touched it licenses rewriting the
@@ -75,9 +80,9 @@ the bottom of the file.
 
 - **For:** the record is exactly what was accepted. No judgement call.
 - **Against:** a reader who arrives at § Decision Drivers from a search hit never
-  scrolls to the bottom, and acts on the false statement. It also requires
-  reverting ADR-0031 Amendment 1 and restoring a non-existent SQL function to six
-  documents.
+  scrolls to the bottom, and acts on the false statement. The cost is bounded —
+  only the ADR-body occurrences revert, because immutability reaches no further —
+  but those are the occurrences a reader of the ADR meets.
 
 ### Option B — Bounded in-place replacement, disclosed by amendment
 
@@ -119,32 +124,59 @@ the text only where an erratum cannot reach the reader.
 ### The default: inline erratum
 
 An Accepted ADR's body is **not edited**. Where it carries a statement that was
-false when the ADR was accepted, add a dated erratum immediately adjacent to it —
-before the paragraph, or before the fence — and record the correction in a dated
-Amendment. The corrected value lives in whichever standard or architecture
-document is the operational authority for it.
+false when it entered the record, add a dated erratum immediately adjacent to it
+and record the correction in a dated Amendment. The corrected value lives in
+whichever standard or architecture document is the operational authority for it.
+
+The erratum is a blockquote, placed **before** the span it corrects — before the
+paragraph, or before the fence — so a reader meets it first:
+
+```markdown
+> **Erratum — YYYY-MM-DD.** The <statement> below reads `<what it says>`. It is
+> `<what is true>`; shown by `<the command, query or file>`. The Decision is
+> unchanged. Current authority: [<document>](<link>). Recorded in Amendment N.
+```
+
+One erratum per span, not per sentence. Where the span runs longer than a
+paragraph or a fence — a subsection, a table — place the single erratum before the
+subsection heading and repeat the authority link at its end, because a reader who
+enters a long span from a deep link starts below the banner.
 
 ### The exception: in-place replacement
 
 Replacement is licensed only when **all three** hold:
 
-1. **The statement was false when the ADR was accepted** — not true then and
-   stale now. Evidence is a command and its output, pinned where possible to the
-   authority as it stood on the acceptance date.
-2. **An erratum cannot protect the reader**, because the text travels away from
-   its banner. That means either:
-   - the text is meant to be **executed or copied elsewhere** — a template, a DDL
-     or config fence, a command, a symbol a reader will type into code; or
-   - the same false token is carried by **more than one document**, at least one
-     of which cannot hold a Markdown banner (source, script, workflow).
+1. **The statement was false when it entered the accepted record** — not true
+   then and stale now. The reference point is per statement, not per file: text
+   from the original body is judged at the acceptance commit, and text inside a
+   dated Amendment is judged at *that amendment's* date. ADR-0003 is why this
+   matters — its wrong SQL entered through Amendment 1, months after the ADR was
+   accepted, so the ADR's own acceptance date is the wrong clock. Evidence is a
+   command and its output, pinned where possible to the authority as it stood on
+   that date.
+2. **The text is presented as a canonical artifact for reuse** — a template the
+   corpus tells other documents to copy, a DDL or config block meant to be
+   applied, a command meant to be run. Such text travels away from its banner by
+   design, and a reader who copies the fence does not copy the erratum above it.
+   Illustrative code is not this: a sketch that shows the shape of a type is read,
+   not applied, and it gets an erratum like any other prose.
 3. **The diff adds and removes no normative content** — no obligation, scope,
    alternative, rationale or consequence.
 
-ADR-0003 Amendment 3 meets (2): an RLS template exists to be copied, and had in
-fact been copied into four documents, wrong in all four. ADR-0031 Amendment 1
-meets (2) by the second limb: six carriers, one of them C# XML remarks. ADR-0017's
-namespace meets neither limb — nobody lifts a namespace declaration out of an ADR
-into a migration — and an erratum is what it correctly got.
+ADR-0003 Amendment 3 meets (2) exactly: the RLS template is the canonical artifact
+by construction — four documents had copied it, and it was wrong in all four.
+ADR-0017's namespace does not, and it is worth being precise about why, because it
+sits in a C# fence and an earlier draft of this ADR classified it wrongly by
+appealing to whether anyone would copy it. The distinguishing property is not
+copyability but **canonicity**: ADR-0017's fence is an illustrative sketch, and the
+ADR's own amendment says so, calling it "superseded as illustrative". An erratum is
+what it correctly got.
+
+**A carrier outside the ADRs licenses nothing.** `IGuidFactory.cs` cannot hold a
+Markdown banner, but that is an argument for correcting `IGuidFactory.cs` — which
+is code, and which immutability never bound — not for editing an ADR body. Each
+carrier is judged on its own; the existence of a source-file carrier is not a
+licence to touch the ADRs alongside it.
 
 ### What is never touched
 
@@ -189,12 +221,13 @@ Both instruments carry the same three:
 
 ### Positive
 
-- The documents an engineer opens before writing a migration stop naming
-  functions that do not exist, and the accepted wording survives in the document
+- The documents an engineer opens before writing a migration stop **presenting**
+  a function that does not exist as the current one — the erratum is met before
+  the text it corrects — while the accepted wording survives in the document
   rather than only in `git log -L`.
 - The corpus's three instruments become three named instruments with a rule for
-  choosing between them, instead of one prohibition and three undisclosed
-  departures from it.
+  choosing between them, instead of one prohibition, an untested "typo fixes"
+  escape, and three disclosed-but-unclassified departures.
 - The class is narrow enough to check in review without a debate about intent.
 
 ### Negative
@@ -212,15 +245,26 @@ Named so the cost is visible before the decision, not after:
   `idempotency_keys` from a list in § Implementation Notes in place. It fails
   exception limb (2) — a list of tables is not copied and has one carrier — so it
   becomes an erratum.
-- **[ADR-0031](0031-postgresql-major-version.md) Amendment 1** stands under limb
-  (2)'s second clause, but its own prose cites ADR-0003 Amendment 3 as precedent
-  for correcting "wrong content inside an Accepted ADR **in place**". That is
-  false: ADR-0003's edit was inside Amendment 1. The citation is corrected in the
-  same commit that raises this ADR, because it is a statement about git history
-  that git history refutes.
+- **[ADR-0031](0031-postgresql-major-version.md) Amendment 1** is the larger cost,
+  and dropping the carrier clause is what makes it one. Its sweep replaced
+  `gen_uuid_v7()` in three ADR bodies — its own, ADR-0023's and ADR-0002's — and
+  in three non-ADR carriers. The three non-ADR carriers are unaffected: they are a
+  standard, an index and C# XML remarks, which immutability never bound and which
+  are simply correct now. The three ADR-body occurrences fail the canonical-artifact
+  test — a function named in prose is read, not applied — so under this rule they
+  become errata. That is a real reversal of work already done, and it is the
+  honest price of the rule; it is cheap here only because Amendment 1 has not
+  merged.
+- **ADR-0031 Amendment 1's precedent citation was false and is already corrected.**
+  It claimed ADR-0003 Amendment 3 as precedent for correcting "wrong content
+  inside an Accepted ADR **in place**"; ADR-0003's edit was inside its own
+  Amendment 1. No instrument was owed for that correction and none was used:
+  Amendment 1 is **new on this branch** — `origin/main`'s ADR-0031 has no
+  amendments section at all — so the text has never been part of the accepted
+  record, and editing an unmerged draft is editing a draft.
 - **Commit `a1ad5fb`'s undisclosed edit to ADR-0023** is owed a retroactive
-  amendment. Nothing enforces the prohibition today, which is why it survived
-  fifteen months unnoticed.
+  amendment. Nothing enforces the prohibition today, which is why it survived 99
+  days and a merge unnoticed.
 
 ### Neutral
 
@@ -244,7 +288,7 @@ three of them.
 | [write-adr/SKILL.md](../../.claude/skills/write-adr/SKILL.md) | four sentences |
 | [commit-and-pr/SKILL.md](../../.claude/skills/commit-and-pr/SKILL.md) | its parenthetical is already false today — amendments are permitted |
 | [standards/README.md](../standards/README.md) | "Immutable history" |
-| [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md) | its justification for correcting ADR-0018's test names in place |
+| [21-architecture-tests-catalogue.md](../standards/21-architecture-tests-catalogue.md) | "Every mutable carrier is corrected in place" — the blanket this ADR bounds. Note it does **not** rewrite ADR-0018, and must not start: those test names were canonicalized after acceptance, which is true-then-stale-now, not false-at-entry |
 
 **Additions:**
 
@@ -257,6 +301,22 @@ three of them.
   and under-specifies obligation 1; its amendment stanza gains the three things an
   amendment must name.
 
+**A retroactive amendment, owed to the record rather than to this rule:**
+[ADR-0023](0023-strongly-typed-id-source-generator.md) gains an amendment dated
+the acceptance commit, recording that commit `a1ad5fb` (2026-05-21) added `UserId`
+to the cross-cutting value-object list in § Implementation Notes with no
+disclosure. The edit itself is not undone — it is correct, and `UserId` does
+belong there — but an accepted record that changed without a note is the thing
+this ADR is about.
+
+**Glossary:** `inline erratum`, `amendment` and `in-place replacement` become
+project vocabulary on acceptance, and [the glossary](../glossary.md) is the
+source of truth for terms — one entry each, pointing here.
+
+**Verified at acceptance:** ADR-0037's body is byte-identical to its text on
+`main` (sha256 of everything above `## Amendments`, both revisions), which is what
+makes its worked-example status true rather than asserted.
+
 **Left alone, deliberately:** the Packet 5 delivery record in
 [phase-02a-kernel-tenancy.md](../roadmap/phase-02a-kernel-tenancy.md) argues from
 ADR body immutability. It is a dated delivery record and is not rewritten
@@ -265,12 +325,21 @@ historically-true-and-stale, which is what a frozen record is for.
 
 **Enforcement.** The class test is semantic and no architecture test can check it.
 A narrower *disclosure* check is buildable in the CI meta job, against its existing
-base-resolution machinery: an Accepted ADR changed in a diff that adds no dated
-amendment anywhere is a failure. It cannot check the class, and it cannot key on
+base-resolution machinery: a file under `docs/decisions/` whose Status is already
+`Accepted` **on the diff base**, changed in a diff that adds no dated amendment
+anywhere, is a failure. The Status filter and the base are both load-bearing — an
+ADR introduced by the same pull request has no accepted record to violate, which
+is the case ADR-0039, ADR-0040 and this file are all in.
+
+It cannot check the class, and it cannot key on
 "the pre-amendment portion" — three ADRs put amendments in the top third of the
 file, and two use `## Amendment N` with no container — so it enforces only that
 something was disclosed. That is still more than the zero enforcement the
 prohibition has today, which is what let `a1ad5fb` through.
+
+## Amendments
+
+None yet.
 
 ## References
 
