@@ -464,24 +464,42 @@ INSERT INTO idempotency_keys
 VALUES (@tenant, @key, @fingerprint, @token, 'in_flight', now() + interval '5 minutes')
 ON CONFLICT (tenant_id, key) DO UPDATE SET
     -- Fires unconditionally so RETURNING always has a row; the expiry test moves
-    -- into the SET expressions.
-    fingerprint  = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.fingerprint  ELSE idempotency_keys.fingerprint  END,
-    claim_token  = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.claim_token  ELSE idempotency_keys.claim_token  END,
-    state        = CASE WHEN idempotency_keys.expires_at <= now() THEN 'in_flight'           ELSE idempotency_keys.state        END,
-    expires_at   = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.expires_at   ELSE idempotency_keys.expires_at   END,
+    -- into the SET expressions. `reclaimable` is expiry AND fingerprint equality,
+    -- repeated because a SET expression cannot see a name bound elsewhere in the
+    -- same statement.
+    --
+    -- The fingerprint term is not optional. With expiry alone, an expired lease
+    -- met by a DIFFERENT request overwrote the stored fingerprint and RETURNING
+    -- handed the caller back its own — so the caller could not detect the
+    -- mismatch, and a changed request took over a key while the original attempt
+    -- may still have been running. Measured on postgres:18.4-alpine: the reclaim
+    -- returned `FINGERPRINT-B` where the row held `FINGERPRINT-A`, and the outcome
+    -- table below says `Mismatched` wins over every row in it, this one included.
+    fingerprint  = idempotency_keys.fingerprint,
+    claim_token  = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN EXCLUDED.claim_token  ELSE idempotency_keys.claim_token  END,
+    state        = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN 'in_flight'           ELSE idempotency_keys.state        END,
+    expires_at   = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN EXCLUDED.expires_at   ELSE idempotency_keys.expires_at   END,
     -- The re-acquire branch MUST clear the previous outcome. Measured: without
     -- these four the new claim inherits the expired row's status_code and a later
     -- replay answers with a response this request never produced.
-    status_code  = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.status_code  END,
-    content_type = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.content_type END,
-    headers      = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.headers      END,
-    body         = CASE WHEN idempotency_keys.expires_at <= now() THEN NULL ELSE idempotency_keys.body         END,
+    status_code  = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.status_code  END,
+    content_type = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.content_type END,
+    headers      = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.headers      END,
+    body         = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN NULL ELSE idempotency_keys.body         END,
     -- Amendment 3: without this the reclaimed row reports a new fence against the
     -- timestamp of a claim several reclaims ago.
-    claimed_at   = CASE WHEN idempotency_keys.expires_at <= now() THEN EXCLUDED.claimed_at   ELSE idempotency_keys.claimed_at   END
+    claimed_at   = CASE WHEN idempotency_keys.expires_at <= now() AND idempotency_keys.fingerprint = EXCLUDED.fingerprint THEN EXCLUDED.claimed_at   ELSE idempotency_keys.claimed_at   END
 RETURNING (xmax = 0) AS inserted, state, fingerprint, claim_token,
           status_code, content_type, headers, body;
 ```
+
+`fingerprint` is assigned its own stored value rather than left out of the `SET`
+list: a `DO UPDATE` must assign something, and assigning the stored value is what
+makes the mismatch survive into `RETURNING`. An expired row whose fingerprint
+differs is therefore untouched by the reclaim — same token, same state, same
+outcome columns — and the caller reads the stored fingerprint and answers
+`Mismatched`. An expired row whose fingerprint matches reclaims exactly as before;
+both halves measured.
 
 **The deciding column is `claim_token`, not `state`.** `xmax = 0` separates a fresh
 insert from a conflict resolution, but `state` and `fingerprint` alone cannot
