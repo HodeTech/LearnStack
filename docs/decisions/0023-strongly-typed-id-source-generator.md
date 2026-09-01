@@ -428,6 +428,47 @@ record, which is what this amendment supplies.
 Dated the day it is written, not the day of the edit it discloses: back-dating it
 to 2026-05-21 would manufacture evidence of a disclosure that never happened.
 
+### Amendment 7 — an id's own formatting is not a wire format (2026-09-01)
+
+Not a correction. A consequence of choosing a struct-based generator that this ADR
+did not foresee, found by measurement in
+[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) step 2, when
+`ITenantContext` moved from raw `Guid` to `TenantId` / `OrganizationId`.
+
+**What was measured.** On the pinned Vogen 7.0.0, for an id nothing ever assigned:
+
+| Expression | Result |
+|---|---|
+| `id.ToString()` | the literal `"[UNINITIALIZED]"` |
+| `$"{id}"` (string interpolation) | `""` |
+| `id.Value` | throws `ValueObjectValidationException` |
+| `default(TId)` | does not compile — analyzer `VOG009` |
+
+The first two disagree, so **neither is a contract**. `id.Value.ToString()` is.
+`default(TId)` being blocked matters less than it looks: an array element, a
+`default(T)` inside a generic, and a member a deserializer skipped all reach the
+same state, and none of them is a token a grep can find.
+
+**Why it is worth an amendment rather than a standards line alone.** The cost is
+not uniform. `"[UNINITIALIZED]"` in a log line is noise; the same string reaching
+`app.tenant_id` is cast `::uuid` by the Row Level Security policy and raises
+`22P02` on the first predicate evaluation — converting the corpus's designed
+fail-closed empty result into a hard error on every query
+([ADR-0003 Amendment 3](0003-tenant-isolation-defense-in-depth.md)). A generator
+choice reaching that far is this ADR's consequence to record.
+
+**`IsInitialized()` is only half the guard.** `TenantId.From(Guid.Empty)` does not
+throw and reports `IsInitialized() == true` — these ids declare no `Validate`, so
+Vogen checks the value's shape and not that it names anything. A boundary that
+must refuse an unusable id refuses the all-zero one too, which is what the domain
+already does by hand.
+
+**The rule this produced** lives in
+[Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md): at
+an export boundary write `id.Value` under an `IsInitialized()` gate; inside the
+type system pass the id. Nothing this ADR decides changes — Vogen, the `IdMask`
+conversion set, and the no-`New()` rule all stand.
+
 ## References
 
 - [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)

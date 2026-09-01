@@ -156,8 +156,18 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         // the alternative — treating "no organization resolved" as agreement —
         // would let a header widen the request's scope, which is the one thing
         // ADR-0036 says an assertion may never do.
+        // IsInitialized() alongside the null check, and for the same reason: a
+        // non-null OrganizationId? says a struct is there, not that anything
+        // assigned it, and Value throws on one nothing did. That throw escapes
+        // into UseExceptionHandler and answers 500 — replacing the clean
+        // fail-closed 404 this middleware exists to produce with an uncontrolled
+        // error, on a pre-auth path, for a request carrying an attacker-supplied
+        // header. TenantId's two reads need no such clause: ITenantContext
+        // documents IsResolved as implying an initialized TenantId, and the
+        // nullable OrganizationId deliberately carries no equivalent promise.
         if (assertedOrganization is { } organization
             && (tenantContext.OrganizationId is not { } resolvedOrganization
+                || !resolvedOrganization.IsInitialized()
                 || organization != resolvedOrganization.Value))
         {
             return (TenantAssertionDimension.Organization, organization);

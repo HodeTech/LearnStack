@@ -245,6 +245,27 @@ public sealed class TenantWideOrganizationAssertionTests(TenantWideFixture fixtu
     }
 
     [Fact]
+    public async Task An_Organization_Asserted_Against_An_Unassigned_One_Is_A_404_Not_A_500()
+    {
+        // A resolved context whose OrganizationId is non-null but was never
+        // assigned. Reading Value on it throws, and the throw escapes into
+        // UseExceptionHandler — replacing this middleware's whole purpose, a
+        // clean fail-closed 404, with an uncontrolled 500 on a pre-auth path,
+        // triggered by an attacker-supplied header. The comparison must treat an
+        // unusable resolved organization exactly as it treats an absent one.
+        using var client = fixture.WithUnassignedOrganization().CreateClient();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+        request.Headers.Add(
+            TenantAssertionMiddleware.OrganizationHeaderName, Guid.NewGuid().ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task The_Same_Request_Without_The_Header_Is_Served()
     {
         // The companion that stops the 404 above from passing for the wrong
@@ -273,6 +294,47 @@ public sealed class TenantWideFixture : ResolvedTenantFixture
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext>(_ => TenantWideContext.Instance);
         });
+    }
+
+    /// <summary>
+    /// The same host, with an organization that is present but never assigned.
+    /// </summary>
+    public WebApplicationFactory<Program> WithUnassignedOrganization() =>
+        WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ITenantContext>();
+            services.AddScoped<ITenantContext>(_ => UnassignedOrganizationContext.Instance);
+        }));
+
+    private sealed class UnassignedOrganizationContext : ITenantContext
+    {
+        public static UnassignedOrganizationContext Instance { get; } = new();
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId =>
+            SharedKernel.Identifiers.TenantId.From(ResolvedTenantFixture.TenantId);
+
+        /// <summary>
+        /// Non-null and uninitialized. VOG009 forbids writing that as a literal,
+        /// so it comes from an array element — the way production reaches it too,
+        /// through a member nothing assigned.
+        /// </summary>
+        public OrganizationId? OrganizationId => Unassigned;
+
+        private static readonly OrganizationId Unassigned = Zeroed();
+
+        private static OrganizationId Zeroed()
+        {
+            var slot = new OrganizationId[1];
+            return slot[0];
+        }
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "integration-test";
     }
 
     private sealed class TenantWideContext : ITenantContext

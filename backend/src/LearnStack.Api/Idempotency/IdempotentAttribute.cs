@@ -443,7 +443,14 @@ internal sealed partial class IdempotencyFilter(
             tenantContext.OrganizationId is { } fingerprintOrganization
                 ? fingerprintOrganization.Value.ToString()
                 : string.Empty);
-        Append(digest, tenantContext.UserId is { } user ? $"user:{user}" : "anonymous");
+        // Value, not the wrapper. Measured: for an initialized id
+        // $"user:{id}" and "user:" + id.Value are byte-identical, so no live
+        // claim is invalidated — but for one nothing assigned, interpolation
+        // silently yields the literal "user:" while the sibling components
+        // throw. Two callers with a corrupted principal would then share a
+        // digest and replay each other's response bodies, which is precisely
+        // what putting the principal in the fingerprint prevents.
+        Append(digest, tenantContext.UserId is { } user ? $"user:{user.Value}" : "anonymous");
         Append(digest, context.Request.Method);
         Append(digest, context.Request.Path.Value ?? string.Empty);
         Append(digest, context.Request.QueryString.Value ?? string.Empty);

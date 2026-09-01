@@ -10,6 +10,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -116,6 +117,58 @@ public sealed class UnitOfWorkTests
             .Should().Be("0");
 
         await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    [Trait(RequiresDocker.Key, RequiresDocker.Value)]
+    public async Task A_resolved_context_holding_an_all_zero_tenant_id_still_writes_the_empty_string()
+    {
+        // IsInitialized() is only half the test, and this is the other half.
+        // Measured: TenantId.From(Guid.Empty) does not throw and IsInitialized()
+        // returns true for it — Vogen validates the value's shape, and these ids
+        // declare no Validate() — so an all-zero tenant reaches the setter as a
+        // perfectly well-formed id. It casts cleanly to ::uuid and then matches
+        // every row a bug ever wrote under it, which is worse than raising.
+        // The domain refuses it by hand (TenantOwned.EnsureRealTenant); this is
+        // the same refusal at the session-variable boundary.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(Resolved(Guid.Empty, Guid.Empty));
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty("an all-zero tenant names nothing and must not be written");
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.organization_id', true)"))
+            .Should().BeEmpty();
+        (await ReadAsync(unitOfWork, "SELECT count(*)::text FROM organizations"))
+            .Should().Be("0");
+
+        // And it said so. A context that claims to be resolved and yields nothing
+        // usable is a bug in its producer; the empty string keeps the request
+        // fail-closed, but without this line the only symptom is data that looks
+        // absent rather than a context that is broken.
+        provider.GetRequiredService<CapturingLogger>().Records
+            .Should().ContainSingle(record => record.Level == LogLevel.Error)
+            .Which.Message.Should().Contain("no usable tenant id");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public void The_uninitialized_id_fixture_really_is_uninitialized()
+    {
+        // Guards the guard. The two cases above prove the setter's behaviour only
+        // if the stub actually carries unassigned ids, and it reaches them through
+        // an array element because VOG009 forbids default(TenantId). If a Vogen
+        // upgrade ever made that produce an initialized value, both cases would
+        // keep passing while testing nothing at all — silently, which is the one
+        // failure mode a test cannot report on its own behalf.
+        var context = new UninitializedIdContext();
+
+        context.TenantId.IsInitialized().Should().BeFalse();
+        context.OrganizationId!.Value.IsInitialized().Should().BeFalse();
     }
 
     [Fact]
@@ -720,10 +773,48 @@ public sealed class UnitOfWorkTests
         var services = new ServiceCollection();
         services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
         services.AddLogging();
+        // Capturing, so a case can assert the unit of work actually complained.
+        // The Error it logs when a resolved context yields no usable tenant is
+        // the only signal that state ever produces — the request itself just
+        // reads zero rows — so an unasserted logger would leave the diagnostic
+        // in the same position as the silence it replaced.
+        services.AddSingleton<CapturingLogger>();
+        services.AddSingleton<ILogger<NpgsqlUnitOfWork>>(
+            sp => sp.GetRequiredService<CapturingLogger>());
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>Collects what <see cref="NpgsqlUnitOfWork"/> logged.</summary>
+    private sealed class CapturingLogger : ILogger<NpgsqlUnitOfWork>
+    {
+        private readonly List<(LogLevel Level, int EventId, string Message)> _records = [];
+
+        public IReadOnlyList<(LogLevel Level, int EventId, string Message)> Records
+        {
+            get { lock (_records) { return [.. _records]; } }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+            lock (_records)
+            {
+                _records.Add((logLevel, eventId.Id, formatter(state, exception)));
+            }
+        }
     }
 
     private async Task<long> CountOrganizationsAsync(string slug)

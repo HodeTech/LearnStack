@@ -35,6 +35,17 @@ injects `ITenantContext` gets one instance captured for the life of the process,
 whatever the accessor held at construction. The rule now has no container-level backstop,
 so the accessor is the whole of it.
 
+**A second stale shape, same section.** § Sub-decision 10's
+`TenantContextSpanProcessor` sketch writes `SetTag("tenant.id", context.TenantId)`
+and `SetTag("organization.id", orgId)`. Both were correct when written on
+2026-05-20, when those members were `Guid` and `Guid?`. Packet 7 step 2 made them
+Vogen value objects, and the shipped processor now writes
+`context.TenantId.Value.ToString()` under an `IsInitialized()` gate — because an
+id's own `ToString()` renders `"[UNINITIALIZED]"` for an unassigned value and is
+therefore not a wire format ([ADR-0023 Amendment 7](0023-strongly-typed-id-source-generator.md)).
+The **decision** the sketch illustrates is untouched: cross-cutting singletons read
+the tenant through the accessor and never inject `ITenantContext`.
+
 **Every carrier changed.** This amendment. The two "request-scoped" phrasings in
 § Sub-decision 10 and its code-block commentary stand as written, read against this
 amendment. The carriers that state the lifetime and state it correctly are
