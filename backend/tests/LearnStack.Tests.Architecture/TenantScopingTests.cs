@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -84,19 +85,12 @@ public sealed class TenantScopingTests
             // carried by its policy alone — `tenants` keys on `id`, and a filter
             // comparing Id to the current tenant would be correct but redundant
             // with the policy and wrong the moment a platform-admin path reads it.
-            if (attribute.SelfKeyed)
-            {
-                FilterText(mapped).Should().BeNull(
-                    $"{table} is tenant-owned self-keyed; its policy keys on id");
-            }
-            else
-            {
-                FilterText(mapped).Should().NotBeNull(
-                    $"{table} has no EF global query filter");
+            var key = attribute.SelfKeyed ? "Id" : nameof(ITenantOwned.TenantId);
 
-                FilterText(mapped).Should().Contain(nameof(ITenantOwned.TenantId),
-                    $"{table}'s filter must read the tenant key");
-            }
+            RowMembersRead(mapped).Should().Contain(
+                key,
+                $"{table}'s filter must compare the row's own {key} — a filter that reads "
+                + "only context members narrows nothing and would return every row");
 
             AssertRowSecurity(migrations, table);
         }
@@ -129,9 +123,10 @@ public sealed class TenantScopingTests
             var entityType = context.Model.FindEntityType(entity)!;
             var table = entityType.GetTableName()!;
 
-            var filter = FilterText(entityType);
-            filter.Should().NotBeNull($"{table} has no EF global query filter");
-            filter.Should().Contain(
+            var members = RowMembersRead(entityType);
+            members.Should().Contain(nameof(ITenantOwned.TenantId),
+                $"{table}'s filter must still carry the tenant term");
+            members.Should().Contain(
                 nameof(IOrganizationScoped.OrganizationId),
                 $"{table}'s filter must carry the organization term too");
 
@@ -167,29 +162,62 @@ public sealed class TenantScopingTests
             .Should().BeFalse();
 
         using var context = ModelOnlyContext();
-        FilterText(context.Model.FindEntityType(typeof(PlatformHostMapping))!)
-            .Should().BeNull("a tenant filter here would make host resolution impossible");
+        RowMembersRead(context.Model.FindEntityType(typeof(PlatformHostMapping))!)
+            .Should().BeEmpty("a tenant filter here would make host resolution impossible");
     }
 
     /// <summary>
-    /// The entity's declared global query filters as text, or <c>null</c> when it
-    /// has none.
+    /// The names of the members each declared query filter reads <b>off the
+    /// entity</b> — the row side of every comparison, and nothing else.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>The tree, not its text.</b> The first version of these rules asserted
+    /// <c>filter.ToString().Contains("TenantId")</c>, which is satisfied by the
+    /// context-side member name <c>CurrentTenantId</c> all on its own — so the row
+    /// side of the comparison was never checked, and a builder that compared two
+    /// context members to each other passed. Measured: that mutation survived the
+    /// entire suite. Anchoring on the lambda's own parameter is what makes the
+    /// assertion about the thing it names.
+    /// </para>
+    /// <para>
     /// <c>GetDeclaredQueryFilters()</c> rather than the obsolete
-    /// <c>GetQueryFilter()</c>: EF 10 supports several named filters per entity,
-    /// and the singular accessor throws once more than one exists. Joining them
-    /// keeps the assertions honest if a later packet adds a second — a soft-delete
-    /// filter is the obvious candidate — rather than silently reading only one.
+    /// <c>GetQueryFilter()</c>: EF 10 allows several named filters per entity and
+    /// the singular accessor throws once more than one exists. All of them are
+    /// swept, so a later soft-delete filter adds to this set rather than hiding
+    /// the tenant one.
+    /// </para>
     /// </remarks>
-    private static string? FilterText(IReadOnlyEntityType entityType)
+    private static HashSet<string> RowMembersRead(IReadOnlyEntityType entityType)
     {
-        var expressions = entityType.GetDeclaredQueryFilters()
-            .Select(filter => filter.Expression?.ToString())
-            .Where(text => text is not null)
-            .ToList();
+        var members = new HashSet<string>(StringComparer.Ordinal);
 
-        return expressions.Count == 0 ? null : string.Join(" && ", expressions);
+        foreach (var filter in entityType.GetDeclaredQueryFilters())
+        {
+            if (filter.Expression is not { } lambda || lambda.Parameters.Count == 0)
+            {
+                continue;
+            }
+
+            new RowMemberVisitor(lambda.Parameters[0], members).Visit(lambda.Body);
+        }
+
+        return members;
+    }
+
+    /// <summary>Collects member reads whose target is the lambda's own parameter.</summary>
+    private sealed class RowMemberVisitor(ParameterExpression row, HashSet<string> members)
+        : ExpressionVisitor
+    {
+        protected override Expression VisitMember(MemberExpression node)
+        {
+            if (node.Expression == row)
+            {
+                members.Add(node.Member.Name);
+            }
+
+            return base.VisitMember(node);
+        }
     }
 
     private static IEnumerable<Type> ScopedEntities() =>

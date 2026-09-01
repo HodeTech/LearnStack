@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -99,13 +100,26 @@ public static class TenantQueryFilters
         {
             var clrType = entityType.ClrType;
 
+            if (clrType.GetCustomAttribute<TenantOwnedAttribute>() is { SelfKeyed: true })
+            {
+                // The self-keyed class filters on its own Id, because that Id *is*
+                // the tenant key — which is exactly what its policy does
+                // (`tenants_isolation` keys on `id`). Filtered rather than skipped:
+                // Database Standards § Table classes mandates `t.Id ==
+                // currentTenantId` for this class, and skipping it would leave
+                // `SELECT … FROM tenants` with no WHERE clause at all — correct
+                // only because Row Level Security is underneath, which is the one
+                // argument this project does not accept for dropping a layer.
+                modelBuilder.Entity(clrType).HasQueryFilter(BuildSelfKeyedFilter(clrType, context));
+                continue;
+            }
+
             if (!typeof(ITenantOwned).IsAssignableFrom(clrType))
             {
-                // Includes the two deliberate non-implementers: the tenant-owned
-                // self-keyed class, whose Id is the tenant key and whose policy
-                // says so, and the platform-scoped host map, which is read before
-                // any tenant exists. Neither is an omission; both are table
-                // classes — see Database Standards § Table classes.
+                // The platform-scoped host map, which is read before any tenant
+                // exists. Not an omission — a table class, see Database Standards
+                // § Table classes. A tenant-keyed predicate here would make host
+                // resolution return zero rows forever.
                 continue;
             }
 
@@ -127,6 +141,28 @@ public static class TenantQueryFilters
     /// access rooted at a constant holding the context — which is the shape EF
     /// re-evaluates per query.
     /// </remarks>
+    /// <summary>
+    /// <c>e =&gt; e.Id == context.CurrentTenantId</c> for the tenant-owned
+    /// self-keyed class.
+    /// </summary>
+    /// <remarks>
+    /// Its <c>Id</c> is a <see cref="TenantId"/>, so the comparison is the same
+    /// one every other entity makes — only the property differs.
+    /// </remarks>
+    private static LambdaExpression BuildSelfKeyedFilter(
+        Type clrType, ITenantScopedDbContext context)
+    {
+        var entity = Expression.Parameter(clrType, "e");
+
+        return Expression.Lambda(
+            Expression.Equal(
+                Expression.Property(entity, "Id"),
+                Expression.Property(
+                    Expression.Constant(context),
+                    nameof(ITenantScopedDbContext.CurrentTenantId))),
+            entity);
+    }
+
     private static LambdaExpression BuildFilter(Type clrType, ITenantScopedDbContext context)
     {
         var entity = Expression.Parameter(clrType, "e");
