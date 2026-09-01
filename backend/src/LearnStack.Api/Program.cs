@@ -87,6 +87,13 @@ app.UseLearnStackRequestBodyLimit();
 // an edge concern — APISIX blocks or allow-lists /openapi per environment.
 app.MapLearnStackOpenApi();
 
+// Which host is this /api/v1 request for? Before authentication, so an unknown
+// host is refused before any token is validated (ADR-0036 § Rules) — and after
+// the rate limiter, so a flood of novel hostnames is bounded before it buys a
+// Postgres transaction each. Context construction runs later, after
+// authentication, so the factory sees both signals at once.
+app.UseLearnStackHostClassification();
+
 // X-Tenant-Id / X-Organization-Id are assertions: compared against what the
 // API resolved, never a source of it (ADR-0036). Registered after
 // MapLearnStackClientErrors so a rejection gets the one Problem Details shape,

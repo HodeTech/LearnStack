@@ -2007,8 +2007,14 @@ structural test proves — and what it does not.
 - **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + route-table inspection. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (Packet 7 step 4, `HostClassificationScopeTests`).
 - **Phase:** 02a Packet 7.
+- **Note:** driven against `HostClassificationMiddleware.ClassifiesPath` rather than
+  through the middleware. The rule is about paths, and routing a request to observe it
+  would need a resolver and a database the decision never touches. The prefix-versus-
+  literal distinction is asserted directly — every excluded prefix must also exclude
+  everything beneath it — because that is the half whose absence 404s the Hub contract
+  surface.
 
 #### `TenantContext_Is_Constructed_Only_By_The_Factory`
 

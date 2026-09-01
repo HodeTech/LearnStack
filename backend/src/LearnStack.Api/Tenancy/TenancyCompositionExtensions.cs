@@ -1,6 +1,9 @@
+using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.SharedKernel.Hosting;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace LearnStack.Api.Tenancy;
 
@@ -144,6 +147,32 @@ public static class TenancyCompositionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        // Tenancy:PlatformHosts — the hosts that map to no tenant. Bound and
+        // validated here so a malformed entry fails the boot rather than turning
+        // the operator's own entry point into a 404 nobody sees until production.
+        var platformHosts = new PlatformHostOptions
+        {
+            Hosts = configuration.GetSection(PlatformHostOptions.SectionName).Get<string[]>() ?? [],
+        };
+
+        platformHosts.Validate();
+        services.AddSingleton(platformHosts);
+
+        // Singleton, so the resolver's in-flight map is process-wide: a scoped one
+        // gives every request its own and coalesces nothing.
+        services.AddSingleton(new UnknownHostCacheOptions());
+        services.AddSingleton(new HostResolutionOptions());
+        services.AddSingleton<UnknownHostCache>();
+
+        // Lazy, so the resolver's construction builds no data source: a request on
+        // a platform host is answered from configuration and must cost nothing
+        // below it. The composition root already registers the data source as a
+        // factory rather than an instance, so this preserves that deferral instead
+        // of collapsing it at the first classified request.
+        services.AddSingleton(provider =>
+            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+        services.AddSingleton<IHostToTenantResolver, CachedHostToTenantResolver>();
 
         services.Configure<TrustedHopOptions>(
             configuration.GetSection(TrustedHopOptions.SectionName));
