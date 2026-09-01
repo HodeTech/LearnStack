@@ -740,6 +740,19 @@ hyphen. A whitelist is the right shape and a denylist never was — the set of
 characters a hostname may contain is small and closed, and the set it may not is
 neither.
 
+> **Erratum — 2026-09-02.** The corrected order below still lets an IPv4 literal
+> through, by the same mechanism it was written to close. It places **reject IPv4
+> literals** before **strip exactly one trailing dot**, so `1.2.3.4.` reaches the
+> strip as a name and leaves it as a literal — and `GetAscii`'s compatibility
+> mapping folds U+3002 and U+FF0E into `.` after that. Measured on the shipped
+> transcription: `1.2.3.4.`, `1.2.3.4.:443`, `127.0.0.1.`, `9.`, `2130706433.` and
+> `010.010.010.010.` were all returned as accepted hosts, and every one then threw
+> in `CacheKey.ForHostMapping` — a `500` and an error-tracker capture per request,
+> from an unauthenticated caller, where a bodyless `404` was designed. The IPv4
+> refusal belongs on the **produced value**, beside the character whitelist, for
+> the reason point 2 below already gives for the whitelist. Recorded in
+> Amendment 4.
+
 **Corrected order.** Reject empty, whitespace-only, or over-253-character input →
 reject the input outright if it contains whitespace, `/`, `@`, `%`, NUL, `\`, `?`
 or `#` (a superset of the original list; the last three are equally not part of a
@@ -795,6 +808,48 @@ context — `TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
 (`/api/internal/*`), the Hangfire `JobActivator` (jobs), and the outbox / inbox
 handler scope (integration events) — and `EnterPlatformAdminScope` is not among
 them, because it opens a second connection and sets no tenant context.
+
+### 2026-09-02 — Amendment 4: the IPv4 refusal belongs on the produced value
+
+**What was wrong.** Amendment 1's corrected order places **reject IPv4 literals**
+before **strip exactly one trailing dot**. Both steps were already in that order
+when the amendment was written, so the bypass it exists to close was open in the
+order it published: `1.2.3.4.` reaches the strip as a name and leaves it as a
+literal.
+
+**How it was shown.** Measured against the shipped transcription — the whole point
+of a step order is that it is transcribed — `EffectiveHost.Normalize` returned
+`1.2.3.4.`, `1.2.3.4.:443`, `127.0.0.1.`, `9.`, `2130706433.` and
+`010.010.010.010.` as accepted hosts. Each then threw `ArgumentException` in
+`CacheKey.ForHostMapping`, which `CachedHostToTenantResolver` calls as its first
+statement, producing a `500` and an unsampled `IErrorTrackingProvider` capture per
+request from an unauthenticated caller — where this ADR's own § The reconciliation
+matrix row 1 specifies a bodyless `404`. The throw also precedes the negative
+cache, so repeats never coalesce, and because only a host that reaches the
+resolver can produce it, the `500` is a positive host-existence oracle against the
+indistinguishability row 1 exists to provide.
+
+**The general form, which is the part worth keeping.** Amendment 1 already made
+this argument once, for the character set: "the character rejection must be an
+output whitelist, not only an input denylist", because `GetAscii`'s compatibility
+mapping produces characters the input scan never saw. The IPv4 refusal is the same
+shape and was left on the input side. **Every rejection in `Normalize` is a
+predicate on the produced value**; an input-side check is an optimisation, and an
+optimisation that is also the only check is a gate the next normalization step
+walks around. Two later steps can produce a literal the early check never saw —
+the trailing-dot strip, and `GetAscii` folding U+3002 and U+FF0E into `.`.
+
+**Every carrier changed.** This ADR — the inline erratum beside Amendment 1's
+corrected order, and this amendment. `EffectiveHost` re-runs
+`IPAddress.TryParse` on the value it is about to return, keeping the early check
+as the cheap exit it always was. `EffectiveHostTests` gains the six spellings
+above and, new, the pairing property nothing asserted: for every input `Normalize`
+accepts, `CacheKey.ForHostMapping` must not throw — the two validators are the
+same idea written apart, and checking either alone is how they drifted.
+
+**The Decision is unchanged.** `EffectiveHost.Normalize` is still the sole
+producer of the lookup key and of `app.resolving_host`, still total, still returns
+`null` on every failure, and still never throws.
 
 ### 2026-09-01 — Amendment 3: where the `[PublicSurface]` set is enumerated
 

@@ -27,11 +27,17 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// as well as the limiter.
 /// </para>
 /// <para>
-/// <b>Eviction is oldest-first on a bounded map, and entries expire.</b> Bounded
-/// so a flood cannot grow it without limit; expiring so a host that becomes live
-/// is not denied for the life of the process. The activation path also invalidates
-/// explicitly — <see cref="Forget"/> — so the TTL is the backstop rather than the
-/// mechanism.
+/// <b>Eviction is oldest-first down to a low-water mark, and entries expire.</b>
+/// Bounded so a flood cannot grow it without limit; expiring so a host that becomes
+/// live is not denied for the life of the process. <b>Nothing calls
+/// <see cref="Forget"/> yet</b>, so the TTL is the whole of it today: the
+/// invalidation ADR-0036 asks for on the transaction that flips either flag needs
+/// a writer of <c>platform_host_to_tenant</c>, and the Hub-side lifecycle that
+/// owns one is [Phase 02c](../../../../docs/roadmap/phase-02c-hub-foundation.md).
+/// Until then a host activated inside the TTL keeps its 404 for the rest of it.
+/// A trim sweeps the lapsed entries on the way past,
+/// because nothing else does: a read only drops the one entry it looked at, so the
+/// map otherwise ratchets to its cap and stays there for the life of the process.
 /// </para>
 /// </remarks>
 public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions options)
@@ -85,28 +91,61 @@ public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions optio
     /// Forgets <paramref name="host"/>, so the next request re-reads the table.
     /// </summary>
     /// <remarks>
-    /// The activation path calls this. Without it a host that was guessed before it
-    /// went live stays denied for the whole TTL after activation, which is the
-    /// cache window ADR-0036 asks to be closed on the transaction that flips
-    /// either flag.
+    /// <b>Nothing calls this yet.</b> It exists because the alternative to an
+    /// explicit invalidation is waiting out the TTL, and ADR-0036 asks for the
+    /// cache window to be closed on the transaction that flips either flag rather
+    /// than by expiry. The caller is the host-mapping writer, which arrives with
+    /// the Hub-side custom-domain lifecycle in
+    /// [Phase 02c](../../../../docs/roadmap/phase-02c-hub-foundation.md).
     /// </remarks>
     public void Forget(string host) => _seen.TryRemove(host, out _);
 
     private void Trim()
     {
-        // Oldest-first, in one pass, down to the cap. Racy by construction — a
-        // concurrent Add may push it back over — and that is acceptable: the cap
-        // is a bound on growth, not an invariant, and taking a lock on the
-        // anonymous page-load path to make it exact would cost more than the
-        // handful of extra entries it saves.
-        var excess = _seen.Count - _options.MaxEntries;
+        var now = _clock.UtcNow;
+
+        // ToArray() takes every bucket lock and hands back a stable copy.
+        // Enumerating the dictionary directly does not: LINQ buffers through
+        // ICollection.CopyTo after a stale Count read, and under a concurrent Add
+        // that TEARS — a concurrent insert throws ArgumentException, a concurrent
+        // removal leaves a default slot whose null key makes TryRemove throw
+        // ArgumentNullException. Measured on the shipped shape: eight threads
+        // adding at the cap threw on 33% of adds. An earlier comment here called
+        // the race benign on the theory that the worst case was overshooting the
+        // cap; the worst case was throwing, out of an unguarded call on the
+        // anonymous page-load path, where it became a 500 instead of the bodyless
+        // 404 this structure exists to make cheap — and, because only an unknown
+        // host reaches Add, a positive host-existence oracle.
+        var snapshot = _seen.ToArray();
+
+        // Reclaim the lapsed entries in the pass already being paid for. Contains
+        // only drops the one entry it happened to read, so a map that filled
+        // slowly is mostly expired by now, and this often makes the sort below
+        // unnecessary.
+        foreach (var pair in snapshot)
+        {
+            if (now - pair.Value >= _options.Ttl)
+            {
+                _seen.TryRemove(pair);
+            }
+        }
+
+        // A low-water mark rather than the cap itself, matching
+        // InMemoryCacheService. Trimming back to exactly the cap leaves the map
+        // one add from overflowing, so every subsequent novel host pays for
+        // another full sort.
+        var target = Math.Max(1, _options.MaxEntries * 9 / 10);
+        var excess = _seen.Count - target;
 
         if (excess <= 0)
         {
             return;
         }
 
-        foreach (var entry in _seen.OrderBy(entry => entry.Value).Take(excess))
+        // TryRemove(KeyValuePair) rather than by key: it compares the value too,
+        // so an entry re-added with a fresher timestamp between the snapshot and
+        // here is left alone.
+        foreach (var entry in _seen.ToArray().OrderBy(entry => entry.Value).Take(excess))
         {
             _seen.TryRemove(entry);
         }
@@ -117,11 +156,13 @@ public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions optio
 /// The cap and the lifetime of a negative answer.
 /// </summary>
 /// <remarks>
-/// Configuration rather than literals, because the block that reads them is copied
-/// and a copied number outlives the measurement that chose it. The defaults are
-/// deliberately modest: the structure exists to blunt a flood, not to be a
-/// long-lived store, and a host that goes live is forgotten explicitly rather than
-/// waited out.
+/// A named options record rather than inline literals, so the block that reads them
+/// carries a reference and not a number — that block gets copied, and a copied
+/// number outlives the measurement that chose it. <b>Not bound to
+/// <c>IConfiguration</c>:</b> nothing validates these, and an operator who set the
+/// cap to zero or the TTL to a day would get a structure that either caches
+/// nothing or denies an activated host for a day, with no failure to see. The
+/// defaults are deliberately modest — this blunts a flood, it is not a store.
 /// </remarks>
 public sealed record UnknownHostCacheOptions
 {

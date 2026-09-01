@@ -257,7 +257,11 @@ public sealed class CachedHostToTenantResolver(
     ICacheService cache,
     UnknownHostCache unknownHosts,
     HostResolutionOptions options,
-    NpgsqlDataSource dataSource) : IHostToTenantResolver
+    // Lazy: a platform host is answered from Tenancy:PlatformHosts and never
+    // reaches a lookup, so it must cost no database work — including no data
+    // source construction. Holding it directly builds one at the first classified
+    // request whatever its host.
+    Lazy<NpgsqlDataSource> dataSource) : IHostToTenantResolver
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<HostResolution?>>> _flights =
         new(StringComparer.Ordinal);
@@ -343,7 +347,7 @@ public sealed class CachedHostToTenantResolver(
         // in transaction blocks" and has no effect, and a session-level
         // set_config(..., false) would survive on a pooled connection into the
         // next request.
-        await using var connection = await dataSource.OpenConnectionAsync(ct);
+        await using var connection = await dataSource.Value.OpenConnectionAsync(ct);
         await using var tx = await connection.BeginTransactionAsync(ct);
 
         // set_config(..., true) is SET LOCAL's function form and is

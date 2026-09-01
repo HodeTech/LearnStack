@@ -2002,9 +2002,25 @@ structural test proves — and what it does not.
 - **Phase:** 02b.
 - **Note:** The integration test is the load-bearing half: the structural test passes while issuer validation is disabled in configuration.
 
+#### `Resolving_Host_Is_Set_In_One_Place`
+
+- **Asserts:** `set_config('app.resolving_host'` appears in exactly one file across
+  `backend/src` — `CachedHostToTenantResolver`. The bare literal is deliberately not banned:
+  the migration's own policy DDL must name the variable in order to read it.
+- **Why it matters:** `app.resolving_host` is the only session variable whose value *is* the
+  lookup key. The policy on `platform_host_to_tenant` admits exactly the row the setter
+  announces, so a second setter is a second announcement on the one table read before any
+  tenant context exists — the one place a widened read is not already caught by
+  `app.tenant_id` being `NULL`.
+- **Source:** [11-security.md § Tenant Context](11-security.md);
+  [05-database.md § Table classes](05-database.md); ADR-0036.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 4, `TenancyConventionTests`).
+- **Phase:** 02a Packet 7.
+
 #### `Host_Classification_Applies_To_Tenant_Facing_Routes_Only`
 
-- **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface.
+- **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface. The list's **contents** are pinned as well as its shape: an emptied or shortened list would otherwise start classifying the Hub surface with every case still green.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + route-table inspection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 step 4, `HostClassificationScopeTests`).

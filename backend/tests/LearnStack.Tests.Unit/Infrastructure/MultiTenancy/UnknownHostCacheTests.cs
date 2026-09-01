@@ -107,6 +107,78 @@ public sealed class UnknownHostCacheTests
             "the most recent answer is the one worth keeping");
     }
 
+    [Fact]
+    public async Task Concurrent_Adds_At_The_Cap_Do_Not_Throw()
+    {
+        // The blocker this case exists for was measured, not imagined: the first
+        // Trim enumerated the dictionary through LINQ, which buffers via
+        // ICollection.CopyTo after a stale Count read. Eight threads adding at the
+        // cap threw on 33% of adds — ArgumentException from a concurrent insert,
+        // ArgumentNullException from a default slot left by a concurrent removal.
+        // Add is unguarded in the resolver and the middleware has no catch, so
+        // each throw was a 500 where a bodyless 404 was designed — and, because
+        // only an unknown host reaches Add, a positive host-existence oracle.
+        var cache = Build(out _, new UnknownHostCacheOptions { MaxEntries = 200 });
+
+        for (var i = 0; i < 200; i++)
+        {
+            cache.Add($"seed-{i}.example.com");
+        }
+
+        using var release = new ManualResetEventSlim(false);
+        var failures = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+
+        var workers = Enumerable.Range(0, 8).Select(worker => Task.Run(() =>
+        {
+            release.Wait();
+
+            for (var i = 0; i < 200; i++)
+            {
+                try
+                {
+                    cache.Add($"w{worker}-{i}.example.com");
+                }
+                catch (Exception failure)
+                {
+                    failures.Add(failure);
+                }
+            }
+        })).ToArray();
+
+        release.Set();
+        await Task.WhenAll(workers);
+
+        failures.Should().BeEmpty(
+            "Add is called from an unguarded, unauthenticated path — a throw here is a 500");
+        cache.Count.Should().BeLessThanOrEqualTo(200, "the cap still bounds growth");
+    }
+
+    [Fact]
+    public void A_Trim_Reclaims_The_Entries_That_Have_Lapsed()
+    {
+        // Nothing else sweeps: a read drops only the entry it looked at, so a map
+        // that filled slowly would otherwise ratchet to its cap and stay there for
+        // the life of the process, sorting the whole structure on every novel
+        // host. The trim already pays for one pass; expiring on the way past is
+        // free.
+        var cache = Build(out var clock, new UnknownHostCacheOptions
+        {
+            MaxEntries = 100,
+            Ttl = TimeSpan.FromMinutes(2),
+        });
+
+        for (var i = 0; i < 100; i++)
+        {
+            cache.Add($"lapsed-{i}.example.com");
+        }
+
+        clock.Advance(TimeSpan.FromMinutes(3));
+        cache.Add("fresh.example.com");
+
+        cache.Count.Should().Be(1,
+            "one add past the cap sweeps every lapsed entry, leaving only the fresh one");
+    }
+
     private static UnknownHostCache Build(
         out FixedClock clock, UnknownHostCacheOptions? options = null)
     {

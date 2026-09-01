@@ -236,4 +236,38 @@ public sealed class TenancyConventionTests
 
         return offenders;
     }
+    [Fact]
+    public void Resolving_Host_Is_Set_In_One_Place()
+    {
+        // app.resolving_host is the fourth canonical session variable and the only
+        // one with a single setter: the resolver announces the host it is about to
+        // look up, and the policy on platform_host_to_tenant admits exactly that
+        // row. A second setter is a second announcement, on the one table read
+        // before any tenant context exists — the one place a widened read is not
+        // already caught by app.tenant_id being NULL.
+        //
+        // Its own scan rather than the Offenders helper above, which is scoped to
+        // LearnStack.Api: the sole setter lives in LearnStack.Infrastructure, so a
+        // rule that only looked at the Api project would be green by construction.
+        //
+        // The SETTER spelling only. Banning the bare literal `app.resolving_host`
+        // fails on the migration's own policy DDL, which must name the variable in
+        // order to read it.
+        const string Setter = "set_config('app.resolving_host'";
+        const string SoleSetter = "CachedHostToTenantResolver.cs";
+
+        var offenders = Directory
+            .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(file => !file.EndsWith(SoleSetter, StringComparison.Ordinal))
+            .Where(file => SourceText.WithoutComments(File.ReadAllText(file))
+                .Contains(Setter, StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file))
+            .ToList();
+
+        offenders.Should().BeEmpty(
+            "CachedHostToTenantResolver is the sole setter of app.resolving_host "
+            + "(Security Standards § Tenant Context)");
+    }
 }

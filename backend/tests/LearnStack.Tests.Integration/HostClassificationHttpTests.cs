@@ -123,6 +123,30 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
         (await response.Content.ReadAsStringAsync()).Should().Contain("Tenant");
     }
 
+    [Theory]
+    [InlineData("1.2.3.4", "an IPv4 literal is not a name")]
+    [InlineData("1.2.3.4.", "nor is one a trailing dot used to hide")]
+    [InlineData("[::1]", "nor an IPv6 literal")]
+    [InlineData("ex%41mple.com", "nor a percent-escape, which gives one host two spellings")]
+    public async Task A_Host_That_Names_Nothing_Is_A_404_And_Not_An_Error(
+        string host, string because)
+    {
+        // The branch that had no test, and the one the IPv4 blocker escaped
+        // through: `1.2.3.4.` normalized to `1.2.3.4`, reached the resolver, and
+        // threw in the cache-key factory — a 500 and an error-tracker capture per
+        // request, from an unauthenticated caller. TryAddWithoutValidation because
+        // HttpClient refuses to send several of these through Headers.Host, and
+        // the point is what the server does with a header a client can still put
+        // on the wire.
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/hostprobe", UriKind.Relative));
+        request.Headers.TryAddWithoutValidation("Host", host);
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound, because);
+    }
+
     [Fact]
     public async Task An_Unclassified_Prefix_Is_Served_Whatever_Its_Host()
     {

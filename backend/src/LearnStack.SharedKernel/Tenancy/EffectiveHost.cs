@@ -75,6 +75,8 @@ public static class EffectiveHost
         }
 
         // IPv4 literal after the port is gone, so `1.2.3.4:443` is caught too.
+        // A cheap early exit, and not the guarantee — the one below the
+        // conversion is. See the return.
         if (IPAddress.TryParse(withoutPort, out _))
         {
             return null;
@@ -131,6 +133,28 @@ public static class EffectiveHost
         // Measured on .NET 10: nine 20-character `ü` labels convert to 246 and
         // pass; twenty-one throw. A guard here would be unreachable code
         // claiming to prevent something that cannot happen.
+        //
+        // The IPv4 refusal, re-run on the value about to be RETURNED. The check
+        // above sees `withoutPort`, and two later steps can PRODUCE a literal it
+        // never saw: the trailing-dot strip turns `1.2.3.4.` into `1.2.3.4`, and
+        // GetAscii's compatibility mapping folds U+3002 and U+FF0E into '.'.
+        // Measured: `1.2.3.4.`, `9.`, `127.0.0.1.`, `2130706433.` and
+        // `1.2.3.4.:443` all came back as accepted hosts, and every one of them
+        // then threw in CacheKey.ForHostMapping — a 500 and an error-tracker
+        // capture, per request, from an unauthenticated caller, where a bodyless
+        // 404 was designed. That throw is also a host-existence oracle: only a
+        // host that reaches the resolver can produce it.
+        //
+        // The general form, because this is the second instance of it and the
+        // whitelist below was the first: **every rejection in this function is a
+        // predicate on the produced value.** An input scan is an optimisation, and
+        // an optimisation that is also the only check is a gate the next
+        // normalization step walks around.
+        if (IPAddress.TryParse(lowered, out _))
+        {
+            return null;
+        }
+
         return IsLdh(lowered) ? lowered : null;
     }
 

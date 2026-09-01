@@ -47,6 +47,17 @@ public sealed class HostClassificationScopeTests
     }
 
     [Fact]
+    public void The_Exclusion_List_Is_Pinned()
+    {
+        // The shape assertions below iterate the list, so an emptied list passes
+        // them vacuously — and an emptied list means the Hub contract surface,
+        // /healthz and /openapi all start being classified, each of which is a 404
+        // for a caller that has no host to resolve.
+        HostClassificationMiddleware.UnclassifiedPrefixes.Should().Equal(
+            "/healthz", "/readyz", "/openapi", "/admin/hangfire", "/api/internal");
+    }
+
+    [Fact]
     public void The_Exclusions_Are_Prefixes_And_Not_Endpoint_Literals()
     {
         // The distinction the catalogue calls out by name. A closed allow-list of

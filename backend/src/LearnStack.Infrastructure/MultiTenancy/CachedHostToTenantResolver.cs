@@ -72,7 +72,25 @@ public sealed class CachedHostToTenantResolver(
         // Composed by the factory, never interpolated: CacheKey.EnsureValid is what
         // stops an unnormalized spelling creating a parallel entry, and it refuses
         // an IP literal outright.
-        var key = CacheKey.ForHostMapping(host);
+        //
+        // Total, because this is the anonymous pre-authentication path. The two
+        // validators — EffectiveHost.Normalize and CacheKey.EnsureValid — agree
+        // today, and the last time they did not, a trailing dot walked an IPv4
+        // literal past the first and into the second, where the throw became a 500
+        // and an error-tracker capture per request instead of the bodyless 404
+        // this method exists to make cheap. A host this key shape refuses is an
+        // unresolvable host, and saying so is the answer; letting the next
+        // divergence be an incident is not.
+        string key;
+
+        try
+        {
+            key = CacheKey.ForHostMapping(host);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
 
         if (await _cache.GetAsync<HostResolution>(key, cancellationToken) is { } cached)
         {
@@ -84,16 +102,7 @@ public sealed class CachedHostToTenantResolver(
             return null;
         }
 
-        var resolution = await ReadCoalescedAsync(host, cancellationToken);
-
-        if (resolution is null)
-        {
-            _unknownHosts.Add(host);
-            return null;
-        }
-
-        await _cache.SetAsync(key, resolution, _options.PositiveCache, cancellationToken);
-        return resolution;
+        return await ReadCoalescedAsync(host, key, cancellationToken);
     }
 
     /// <summary>
@@ -110,18 +119,18 @@ public sealed class CachedHostToTenantResolver(
     /// lookup.
     /// </remarks>
     private async Task<HostResolution?> ReadCoalescedAsync(
-        string host, CancellationToken cancellationToken)
+        string host, string key, CancellationToken cancellationToken)
     {
         var flight = _flights.GetOrAdd(
             host,
-            static (h, self) => new Lazy<Task<HostResolution?>>(
-                () => self.ReadAndRetireAsync(h)),
-            this);
+            static (h, state) => new Lazy<Task<HostResolution?>>(
+                () => state.Self.ReadAndRetireAsync(h, state.Key)),
+            (Self: this, Key: key));
 
         return await flight.Value.WaitAsync(cancellationToken);
     }
 
-    private async Task<HostResolution?> ReadAndRetireAsync(string host)
+    private async Task<HostResolution?> ReadAndRetireAsync(string host, string key)
     {
         // Retirement is bound to the FLIGHT's termination, inside the flight's own
         // task — never to a caller's exit. Retiring in each waiter's finally lets a
@@ -136,7 +145,26 @@ public sealed class CachedHostToTenantResolver(
         // race.
         try
         {
-            return await ReadAsync(host, CancellationToken.None);
+            var resolution = await ReadAsync(host, CancellationToken.None);
+
+            // Published inside the flight, not by each waiter. A lookup whose only
+            // caller hangs up still completes — that is the point of running it on
+            // CancellationToken.None — and if the write lived in the caller's tail
+            // the answer would be thrown away, so the next request would pay for
+            // the same round trip again. Doing it here also means the answer is
+            // written once however many waiters there are, rather than once per
+            // waiter.
+            if (resolution is null)
+            {
+                _unknownHosts.Add(host);
+            }
+            else
+            {
+                await _cache.SetAsync(
+                    key, resolution, _options.PositiveCache, CancellationToken.None);
+            }
+
+            return resolution;
         }
         finally
         {

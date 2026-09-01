@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Tenancy;
 using Xunit;
 
@@ -67,6 +68,17 @@ public sealed class EffectiveHostTests
     [InlineData("[::1]:5080", "a bracketed IPv6 literal with a port")]
     [InlineData("1.2.3.4", "an IPv4 literal")]
     [InlineData("1.2.3.4:443", "an IPv4 literal with a port")]
+    // A trailing dot walked every one of these past the input-side IPv4 gate,
+    // because the dot is stripped AFTER it. Measured: each came back as an
+    // accepted host and then threw in CacheKey.ForHostMapping — a 500 and an
+    // error-tracker capture per request, from an unauthenticated caller, where a
+    // bodyless 404 was designed. The refusal now runs on the produced value.
+    [InlineData("1.2.3.4.", "an IPv4 literal a trailing dot hid from the input scan")]
+    [InlineData("1.2.3.4.:443", "the same, with a port hiding it twice")]
+    [InlineData("127.0.0.1.", "loopback, same route")]
+    [InlineData("9.", "a bare integer IPv4 spelling")]
+    [InlineData("2130706433.", "the 32-bit integer spelling of 127.0.0.1")]
+    [InlineData("010.010.010.010.", "the dotted-octal spelling")]
     [InlineData("example.com..", "two trailing dots")]
     [InlineData(".", "a bare dot")]
     [InlineData("a..b.com", "an empty label")]
@@ -78,6 +90,33 @@ public sealed class EffectiveHostTests
     [InlineData("a.xn--.b", "a third IDNA edge")]
     public void An_Input_That_Cannot_Name_A_Host_Returns_Null(string? raw, string why) =>
         EffectiveHost.Normalize(raw).Should().BeNull(why);
+
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("EXAMPLE.com")]
+    [InlineData("english.example.com.")]
+    [InlineData("example.com:8443")]
+    [InlineData("türkçe.example.com")]
+    [InlineData("a-b.example.com")]
+    [InlineData("sub.sub.example.com")]
+    public void Anything_Normalize_Accepts_Is_A_Host_The_Cache_Key_Accepts(string raw)
+    {
+        // The pairing nothing asserted, and whose absence let a blocker through.
+        // EffectiveHost.Normalize and CacheKey.EnsureValid are two validators of
+        // the same idea, written apart; the resolver hands the output of the first
+        // to the second on the anonymous page-load path, so any input the first
+        // accepts and the second refuses is an exception where a 404 was designed.
+        // Asserting the relation is what makes the two move together — checking
+        // either one alone is how they drifted.
+        var normalized = EffectiveHost.Normalize(raw);
+
+        normalized.Should().NotBeNull();
+
+        var act = () => CacheKey.ForHostMapping(normalized!);
+
+        act.Should().NotThrow(
+            "a host Normalize produced must be a host the resolver can key on");
+    }
 
     [Fact]
     public void A_Host_At_The_DNS_Limit_Is_Accepted_And_One_Over_Is_Not()

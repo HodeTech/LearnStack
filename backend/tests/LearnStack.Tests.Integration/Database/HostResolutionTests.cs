@@ -156,6 +156,98 @@ public sealed class HostResolutionTests
             "the second answer comes from ICacheService");
     }
 
+    [Fact]
+    public async Task Concurrent_First_Lookups_Of_One_Host_Open_One_Connection()
+    {
+        // The coalescing had no test at any layer: deleting it left 1003/1003
+        // green. It exists because the split that sends positives and negatives to
+        // different structures forfeits GetOrSetAsync's single flight, and the
+        // flight it replaces is a PostgreSQL transaction opened on an anonymous,
+        // pre-authentication path — N simultaneous first requests for one cold
+        // host would otherwise be N transactions.
+        //
+        // Counted at the physical-connection initializer, which is the only place
+        // that sees a real open and is a seam the data source already exposes.
+        var opens = 0;
+
+        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        builder.UsePhysicalConnectionInitializer(
+            _ => Interlocked.Increment(ref opens),
+            _ => { Interlocked.Increment(ref opens); return Task.CompletedTask; });
+
+        await using var dataSource = builder.Build();
+        var resolver = BuildResolver(dataSource);
+
+        // Warm the pool first, so the count below is about flights and not about
+        // however many physical connections the pool happened to need.
+        (await resolver.ResolveAsync(SchemaFixture.HostB)).Should().NotBeNull();
+        var warm = opens;
+
+        using var release = new ManualResetEventSlim(false);
+
+        var callers = Enumerable.Range(0, 12).Select(_ => Task.Run(async () =>
+        {
+            release.Wait();
+            return await resolver.ResolveAsync(SchemaFixture.HostA);
+        })).ToArray();
+
+        release.Set();
+        var resolutions = await Task.WhenAll(callers);
+
+        resolutions.Should().OnlyContain(resolution => resolution != null);
+        (opens - warm).Should().BeLessThanOrEqualTo(1,
+            "twelve simultaneous first lookups of one cold host are one round trip");
+    }
+
+    [Fact]
+    public async Task A_Cancelled_Caller_Still_Leaves_The_Answer_Cached()
+    {
+        // The flight runs on CancellationToken.None precisely so one caller
+        // hanging up does not cancel the lookup others wait on — but if the cache
+        // write lived in the caller's tail, a lookup whose only caller cancelled
+        // would complete and then throw its answer away, and the next request
+        // would pay for the same round trip. Publishing inside the flight is what
+        // makes the work survive the caller.
+        var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var resolver = BuildResolver(dataSource);
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        try
+        {
+            await resolver.ResolveAsync(SchemaFixture.HostA, cancelled.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: this caller stopped waiting. The flight did not.
+        }
+
+        // Give the flight a moment to finish and publish, then take the database
+        // away so only a cached answer can succeed.
+        for (var attempt = 0; attempt < 50 && !await IsCachedAsync(resolver); attempt++)
+        {
+            await Task.Delay(20);
+        }
+
+        await dataSource.DisposeAsync();
+
+        (await resolver.ResolveAsync(SchemaFixture.HostA)).Should().NotBeNull(
+            "the flight published its answer even though its only caller had gone");
+
+        static async Task<bool> IsCachedAsync(CachedHostToTenantResolver resolver)
+        {
+            try
+            {
+                return await resolver.ResolveAsync(SchemaFixture.HostA) is not null;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+        }
+    }
+
     private static CachedHostToTenantResolver BuildResolver(NpgsqlDataSource dataSource)
     {
         var clock = new FixedClock(new DateTimeOffset(2026, 9, 2, 9, 0, 0, TimeSpan.Zero));

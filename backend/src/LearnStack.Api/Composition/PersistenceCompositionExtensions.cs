@@ -65,8 +65,26 @@ public static class PersistenceCompositionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.TryAddSingleton(_ =>
-            BuildApplicationDataSource(configuration.GetConnectionString(DefaultConnectionName)));
+        var connectionString = configuration.GetConnectionString(DefaultConnectionName);
+
+        // Validated at boot when the key is present; built on first use either way.
+        //
+        // The build is deferred so that a request on a platform host — answered
+        // from Tenancy:PlatformHosts, never from the database — costs nothing
+        // below it, and so the Docker-free host suites keep working with no
+        // credential at all. But deferring the build used to defer the *checks*
+        // with it, and those are worth having early: a connection string that
+        // names learnstack_migration is the ownership mistake FORCE ROW LEVEL
+        // SECURITY exists to defeat, and discovering it on the first tenant
+        // request rather than at boot is discovering it in production. An absent
+        // key still throws lazily, because a deployment that serves only platform
+        // hosts legitimately has none.
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            ValidateApplicationConnectionString(connectionString);
+        }
+
+        services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
 
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
@@ -92,6 +110,32 @@ public static class PersistenceCompositionExtensions
     /// every log that captured the startup failure.
     /// </remarks>
     internal static NpgsqlDataSource BuildApplicationDataSource(string? connectionString)
+    {
+        ValidateApplicationConnectionString(connectionString);
+
+        var builder = new NpgsqlDataSourceBuilder(connectionString);
+
+        // Asked of the server, once per physical connection, because the name is
+        // not the privilege: learnstack_app could have been granted BYPASSRLS, and
+        // a superuser bypasses row security with rolbypassrls = false — which is
+        // why rolsuper is in the predicate.
+        builder.UsePhysicalConnectionInitializer(
+            connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
+            connection => RefuseBypassRole(connection, async: true));
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Everything about <c>ConnectionStrings:Default</c> that can be checked
+    /// without opening a connection.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the build so the composition root can run it at boot while
+    /// still deferring the data source itself. The server-side bypass check is not
+    /// here — it needs a connection, and it runs per physical connection.
+    /// </remarks>
+    internal static void ValidateApplicationConnectionString(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -134,18 +178,6 @@ public static class PersistenceCompositionExtensions
                 + "unresolved-tenant state that returns no rows returns every tenant's instead. "
                 + "EnterPlatformAdminScope is the only sanctioned path to a bypass credential.");
         }
-
-        var builder = new NpgsqlDataSourceBuilder(connectionString);
-
-        // Asked of the server, once per physical connection, because the name is
-        // not the privilege: learnstack_app could have been granted BYPASSRLS, and
-        // a superuser bypasses row security with rolbypassrls = false — which is
-        // why rolsuper is in the predicate.
-        builder.UsePhysicalConnectionInitializer(
-            connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
-            connection => RefuseBypassRole(connection, async: true));
-
-        return builder.Build();
     }
 
     private static async Task RefuseBypassRole(NpgsqlConnection connection, bool async)

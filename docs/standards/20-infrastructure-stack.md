@@ -192,7 +192,7 @@ adapter trigger.
   `CacheKey.EnsureValid`, and none re-prefixes. There is no query filter and no RLS
   policy in front of a dictionary, so the key is the entire isolation boundary —
   which is why the shape is validated rather than left to each call site to remember.
-- TTL defaults: 60s for hot-path reads (host → tenant, entitlement projection cache,
+- TTL defaults: 60s for hot-path reads (entitlement projection cache,
   permission cache), 5min for medium-warm reads, 1h for cold lookups. Anything
   longer needs explicit justification in code review.
 - **Correctness never lives in the cache.** A miss is not an error, and an
