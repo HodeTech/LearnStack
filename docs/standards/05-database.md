@@ -266,9 +266,11 @@ Rules:
   `TransactionBehavior` in the general case, and by each of the out-of-band setters on
   the transaction it opens ([Security Standards § The out-of-band setters](11-security.md)).
   `app.scope` has **no carrier**: it derives from the actor's role plus a declared
-  tenant-wide operation, roles arrive with authentication in
-  [Phase 02b](../roadmap/phase-02b-events-auth.md), and until then the tenant-scope read
-  hatch is unreachable — the correct default. Its placement rule is unchanged and applies
+  tenant-wide operation, and roles land with `Membership` / `Role` in
+  [Phase 03](../roadmap/phase-03-identity-admin.md) — after
+  [Phase 02b](../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is the
+  prerequisite and not the carrier. Until then the tenant-scope read hatch is unreachable
+  — the correct default. Its placement rule is unchanged and applies
   the moment a carrier exists. `app.resolving_host` is set by
   `CachedHostToTenantResolver` alone, in its own short read-only transaction, and is
   read by exactly one policy — see § Table classes. Always call `current_setting` with

@@ -1370,7 +1370,7 @@ Three ADRs targeted Phase 02a as exit blockers; all three are now Accepted
 | [ADR-0024](../decisions/0024-api-versioning-policy.md) | API versioning policy | **Accepted** (2026-05-20) | URL `/v{N}/`, 6-month deprecation window, RFC 8594 `Sunset` + `Deprecation` headers, OpenAPI `x-sunset` extensions |
 | [ADR-0028](../decisions/0028-audit-log-partition-management.md) | `audit_log` monthly partition management | **Accepted** (2026-05-20) | Daily Hangfire recurring job (`learnstack:audit:partition-management`); no `pg_partman` runtime dependency. Its *implementation* moves to [Phase 11](phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — the decision stands, the schedule changed |
 
-Six further decisions were taken during the phase and are Accepted:
+Seven further decisions were taken during the phase and are Accepted:
 
 | # | Topic | Status | Decision |
 |---|---|---|---|
@@ -1382,6 +1382,7 @@ Six further decisions were taken during the phase and are Accepted:
 | [ADR-0037](../decisions/0037-idempotency-key-contract.md) | What an idempotency key identifies, owns and replays | **Accepted** (2026-08-20) | A key is a **nonce inside a tenant's key space**, not an identity; a fingerprint decides whether a replay answers the question asked; a fencing token owns the claim; capacity is admission, not eviction |
 | [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) | The optimistic concurrency token | **Accepted** (2026-08-27) | An explicit `row_version bigint` (CLR `long`) project-wide, incremented by the primitive that stamps the audit columns; `xmin` rejected because the token is client-visible through ETag and a restore or replication cutover changes it |
 | [ADR-0040](../decisions/0040-ambient-unit-of-work.md) | The ambient unit of work | **Accepted** (2026-08-27) | One `DbConnection` per scope owned by `IUnitOfWork`; every module `DbContext`, `IAuditStore` and `IOutbox` enlists on it, because `SET LOCAL` is connection-local. Defines nesting, disposal, and the event-consumer entry point that never reaches MediatR |
+| [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md) | Tenant provisioning as a bounded cross-aggregate transaction | **Accepted** (2026-09-01) | A standing exception to § Aggregate Ownership, bounded by **enumeration**: provisioning writes `Tenant` and its default `Organization` in one transaction, because `tenants.default_organization_id` carries an invariant an integration event cannot deliver. One operation, an allow-list of one, no child entity, no projection, no cross-**module** write |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
 `learnstack_app`, the durable audit pipeline, customization runtime read paths, API

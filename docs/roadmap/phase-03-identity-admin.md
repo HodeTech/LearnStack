@@ -236,6 +236,18 @@ refresh token storage, or brute-force protection — those are Keycloak responsi
   deny, per
   [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md).
 
+- **Owns the `app.scope` carrier**, parked here by Phase 02a Packet 7. The
+  cross-organization read hatch in the canonical Row Level Security policy is reachable
+  only when a session sets `app.scope = 'tenant'`, and that flag derives from the actor's
+  **role** plus a declared tenant-wide operation — never from a header, query parameter,
+  cookie or body, and unreachable under `TenantContextOrigin.HostOnly`
+  ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)). `Membership` and
+  `Role` land in this phase, so this is the earliest phase that can supply the derivation;
+  [Phase 02b](phase-02b-events-auth.md)'s authenticated principal is the prerequisite, not
+  the carrier. Placement is unchanged and already fixed:
+  [Security Standards § Tenant Context](../standards/11-security.md).
+  `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input` becomes non-vacuous here.
+
 Authorization is the third layer, not the first. A permission check that passes still
 runs under the tenant's `ITenantContext` and under Row Level Security; a deny is a
 better error message, not the isolation boundary.

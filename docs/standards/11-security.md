@@ -261,9 +261,12 @@ consequences follow, and both are load-bearing:
 [Packet 7](../roadmap/phase-02a-kernel-tenancy.md) ships nothing that does:
 `ITenantContext` carries no scope member
 ([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), and the flag
-derives from the actor's role plus a declared tenant-wide operation, so the earliest
-carrier arrives with authentication in
-[Phase 02b](../roadmap/phase-02b-events-auth.md). The deferral is forced, not chosen.
+derives from the actor's role plus a declared tenant-wide operation, and **the role is
+the part that does not exist yet**. [Phase 02b](../roadmap/phase-02b-events-auth.md)
+delivers the authenticated principal the carrier needs and says in its own scope that it
+delivers "only the authentication plumbing"; `Membership`, `Role` and `Permission` land in
+[Phase 03](../roadmap/phase-03-identity-admin.md), which is therefore the earliest phase
+that can own a working carrier. The deferral is forced, not chosen.
 Until it lifts, the cross-organization read hatch in the policy template is unreachable at
 runtime — the hatch term reads an unset variable and is never true, so reads stay inside
 the caller's organization plus the tenant-wide rows — which is the correct default. The

@@ -305,10 +305,11 @@ request and are the only Tenancy work an anonymous visitor pays for.
   hatch on `tenant_settings` is unreachable at runtime. That is the correct
   default, and no carrier ships in
   [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md): the flag derives from the
-  actor's role and roles
-  arrive with authentication in
-  [Phase 02b](../../roadmap/phase-02b-events-auth.md), so the deferral is forced,
-  not chosen ([Security Standards § Tenant Context](../../standards/11-security.md)).
+  actor's role, and roles land with `Membership` / `Role` in
+  [Phase 03](../../roadmap/phase-03-identity-admin.md) — after
+  [Phase 02b](../../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is
+  the prerequisite and not the carrier. The deferral is forced, not chosen
+  ([Security Standards § Tenant Context](../../standards/11-security.md)).
   The two `AS RESTRICTIVE` write guards are tested **now** rather than then —
   `TheTenantScopeHatchWidensReadsAndNeitherWrite` sets the flag directly — because
   under any ordinary organization-scoped session the base policy's own

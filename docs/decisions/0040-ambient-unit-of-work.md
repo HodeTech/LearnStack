@@ -69,6 +69,14 @@ Every module `DbContext` resolved in that scope is constructed against that same
 connection and enlisted in that same transaction; `IAuditStore` and `IOutbox`
 reach the same connection through the same seam.
 
+> **Erratum — 2026-09-01.** The `SetTenantContextAsync` doc-comment in the sketch below
+> reads "Issues SET LOCAL app.tenant_id / app.organization_id / app.scope". It issues the
+> first two and not `app.scope`: `ITenantContext` carries no scope member, so the method
+> has nothing to read one from — which Amendment 1 of this ADR already records, making the
+> sketch inconsistent with its own document. `app.scope` has no carrier anywhere; see
+> § Amendment 1. The Decision is unchanged. Current authority:
+> [Security Standards § Tenant Context](../standards/11-security.md).
+
 ```csharp
 // LearnStack.SharedKernel.Persistence
 public interface IUnitOfWork : IAsyncDisposable

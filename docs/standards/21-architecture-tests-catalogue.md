@@ -2051,10 +2051,13 @@ structural test proves — and what it does not.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
 - **Note:** no `app.scope` carrier ships in Packet 7. `ITenantContext` exposes no scope
-  member and the flag derives from the actor's role, so the earliest carrier arrives with
-  authentication in [Phase 02b](../roadmap/phase-02b-events-auth.md)
+  member and the flag derives from the actor's **role**, which lands with `Membership` /
+  `Role` in [Phase 03](../roadmap/phase-03-identity-admin.md) — after
+  [Phase 02b](../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is the
+  prerequisite and not the carrier
   ([11-security.md § Tenant Context](11-security.md)). The rule holds as a negative until
-  then — nothing sets the flag, so nothing sets it from request input.
+  then — nothing sets the flag, so nothing sets it from request input — and becomes
+  non-vacuous in Phase 03.
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 

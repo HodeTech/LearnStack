@@ -189,7 +189,11 @@ Rules:
 - **Infrastructure adapters:** ≥ 70% line.
 - **UI components:** behavior coverage, not lines.
 
-Coverage is reported in CI but does not block PRs by itself. The architecture + isolation + contract tests are the hard gates.
+**No CI job collects coverage today**, so these numbers are a local target and gate
+nothing. The architecture, isolation and contract suites are the hard gates. Collection
+lands with the release pipeline in
+[Phase 11](../roadmap/phase-11-production-hardening.md); until it does, a statement that
+coverage "blocks" anything is false.
 
 ## Test Speed
 

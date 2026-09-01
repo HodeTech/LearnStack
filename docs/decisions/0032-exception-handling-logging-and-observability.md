@@ -37,9 +37,13 @@ so the accessor is the whole of it.
 
 **Every carrier changed.** This amendment. The two "request-scoped" phrasings in
 § Sub-decision 10 and its code-block commentary stand as written, read against this
-amendment; the corpus's live descriptions — `CrossCuttingFoundationExtensions`,
-[Security Standards § Tenant Context](../standards/11-security.md) and the Phase 02a
-roadmap — say transient.
+amendment. The carriers that state the lifetime and state it correctly are
+`CrossCuttingFoundationExtensions` (the registration and the comment above it), the
+Phase 02a and [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) roadmaps, and the
+glossary's `ITenantContextAccessor` entry. Not
+[Security Standards § Tenant Context](../standards/11-security.md): that section declares
+itself the authority for session-variable **placement** only, and a container lifetime is
+not a `SET LOCAL` concern.
 
 ### Amendment 2 — Three corrections from the 2026-08-08 restructure
 

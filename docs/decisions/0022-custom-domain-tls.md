@@ -357,6 +357,27 @@ APISIX pod) — not stored in cleartext YAML.
 
 LearnStack edge receives request with `Host: anatolia-yoga.com`. Resolution:
 
+> **Erratum — 2026-09-01.** The sketch below is wrong in three ways, all of them about
+> shapes that were already decided elsewhere when it entered the record.
+> (1) `_tenantContextAccessor.SetTenant(...)` names a member that has never existed: the
+> interface's sole member is `ITenantContext? Current { get; set; }`, fixed by
+> [ADR-0032 § Sub-decision 10](0032-exception-handling-logging-and-observability.md) and
+> recorded in [ADR-0036 Amendment 2](0036-tenant-resolution-trusted-inputs.md), whose
+> carrier list did not reach this file. Population has exactly four sanctioned sites and
+> this is not the shape any of them uses.
+> (2) `ResolveAsync` returns `HostResolution?` — a `(TenantId, OrganizationId?)` pair, not
+> a nullable scalar — so `tenantId.Value` and a hard-coded `organizationId: null` are both
+> wrong; the anonymous organization scope comes from the host-mapping row
+> ([ADR-0036](0036-tenant-resolution-trusted-inputs.md)).
+> (3) A raw `context.Request.Host.Host` read is exactly what
+> `Effective_Host_Computed_In_One_Place` now forbids; the host comes from
+> `EffectiveHostAccessor`.
+> The Decision — a custom domain resolves to a tenant at the edge, by host — is unchanged.
+> Current authority for the mechanism:
+> [architecture/27 § Tenant runtime](../architecture/27-custom-domain-tls.md) and
+> [ADR-0036](0036-tenant-resolution-trusted-inputs.md). Recorded in the 2026-09-01
+> amendment below.
+
 ```csharp
 // Nexora-pattern AsyncLocal tenant context; Host-aware bootstrap
 public sealed class TenantMiddleware
@@ -377,7 +398,10 @@ public sealed class TenantMiddleware
 }
 ```
 
-`_hostToTenantResolver` is backed by `ICacheService` (Dapr State / Valkey); cache key
+`_hostToTenantResolver` is backed by `ICacheService` — `InMemoryCacheService` today,
+with the Valkey-via-Dapr adapter demand-gated to
+[Phase 11](../roadmap/phase-11-production-hardening.md) per
+[ADR-0035](0035-demand-gated-infrastructure.md); cache key
 `hub:host:{host}` invalidated on `CustomDomainActivatedEvent` / `CustomDomainRevokedEvent`.
 
 ### Public suffix list validation
@@ -522,6 +546,39 @@ sentinel's clothes.
 The canonical shape lives in
 [Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), which is the
 one document that owns it. Nothing else in this decision depends on the spelling.
+
+### 2026-09-01 — Amendment: the tenant-runtime sketch, corrected
+
+**What was wrong.** § Tenant runtime's `TenantMiddleware` sketch calls
+`_tenantContextAccessor.SetTenant(tenantId.Value, organizationId: null, userId: null)`,
+treats `ResolveAsync`'s result as a nullable scalar, and reads
+`context.Request.Host.Host` directly. All three were false when they entered the record
+on 2026-05-18.
+
+**How it was shown.** `ITenantContextAccessor` has never had a `SetTenant` member —
+`backend/src/LearnStack.SharedKernel/Tenancy/ITenantContextAccessor.cs` declares
+`ITenantContext? Current { get; set; }` and nothing else, the shape
+[ADR-0032 § Sub-decision 10](0032-exception-handling-logging-and-observability.md) had
+already decided two days before this ADR; `grep -rn SetTenant backend/src` returns only
+the unrelated `IUnitOfWork.SetTenantContextAsync`. The resolver returns
+`HostResolution(TenantId, OrganizationId?)`
+([architecture/27](../architecture/27-custom-domain-tls.md)), so a `.Value` on it does not
+compile and a hard-coded `organizationId: null` contradicts
+[ADR-0036](0036-tenant-resolution-trusted-inputs.md)'s rule that the anonymous
+organization scope is the host-mapping row. And the direct `Request.Host` read is what
+`Effective_Host_Computed_In_One_Place` — a Roslyn analyzer shipped in Packet 4 — now
+fails the build for.
+
+**Every carrier changed.** This ADR (the inline erratum in § Tenant runtime and this
+amendment). [ADR-0036 Amendment 2](0036-tenant-resolution-trusted-inputs.md) corrected the
+`SetTenant` naming in its own body, the architecture-tests catalogue and
+architecture/09; its carrier list did not reach this file, and this amendment closes that
+gap rather than reopening it. The mechanism's live description is
+[architecture/27 § Tenant runtime](../architecture/27-custom-domain-tls.md).
+
+**The Decision is unchanged.** A custom domain resolves to a tenant at the edge, by host,
+before any tenant context exists; certificate material moves by secret-store replication
+and is referenced by path.
 
 ## References
 

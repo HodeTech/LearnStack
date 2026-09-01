@@ -125,9 +125,11 @@ ships `IUnitOfWork.SetTenantContextAsync`, which writes `app.tenant_id` and
 `app.organization_id`; `ITenantContext` carries no scope member
 ([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), so nothing sets
 `app.scope` and the hatch below is unreachable at runtime — the correct default. The
-flag derives from the actor's role plus a declared tenant-wide operation, and roles
-arrive with authentication in [Phase 02b](../roadmap/phase-02b-events-auth.md), so that
-is the earliest carrier: the deferral is forced, not chosen
+flag derives from the actor's role plus a declared tenant-wide operation.
+[Phase 02b](../roadmap/phase-02b-events-auth.md) delivers the authenticated principal it
+needs and nothing more — `Membership`, `Role` and `Permission` are
+[Phase 03](../roadmap/phase-03-identity-admin.md)'s — so Phase 03 is the earliest phase
+that can own a working carrier: the deferral is forced, not chosen
 ([Security Standards § Tenant Context](../standards/11-security.md) is the single
 authority). What middleware contributes is the *input*: the request comes from a
 tenant-admin role carrying a tenant-wide operation flag (e.g. cross-org reporting), and
