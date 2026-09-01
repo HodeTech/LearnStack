@@ -14,19 +14,23 @@ namespace LearnStack.Application.Pipeline;
 /// this behavior runs at step 4, before any transaction exists. They are issued by
 /// <c>TransactionBehavior</c> as the first statement inside the transaction at step 6
 /// — see Security Standards § Tenant Context, the single authority for this
-/// placement. Two packets, two things: Packet 6 opens the transaction
-/// (<c>TransactionBehavior</c>'s unit-of-work shell), and Packet 7 issues the
-/// <c>SET LOCAL</c> inside it, together with the resolver middleware that gives it
-/// a tenant to write.
+/// placement. Packet 6 shipped both halves: <c>TransactionBehavior</c> opens the
+/// ambient transaction and calls <c>IUnitOfWork.SetTenantContextAsync</c> inside
+/// it. Packet 7 adds the resolver middleware that gives it a tenant to write.
 /// </summary>
 /// <remarks>
 /// Phase 02a Packet 3 ships the <strong>assertion shell</strong>. Until
 /// Packet 7 lands the resolver middleware every request runs against
 /// <see cref="UnresolvedTenantContext"/>; this behavior surfaces the fact
-/// loudly so no handler reads an unresolved context by accident. Packet 7
-/// flips the default registration to the real resolver. It adds nothing here:
-/// the RLS session variables are issued by <c>TransactionBehavior</c> inside
-/// the transaction at step 6, never from this behavior.
+/// loudly so no handler reads an unresolved context by accident. Packet 7's
+/// <c>TenantResolverMiddleware</c> writes the singleton
+/// <c>ITenantContextAccessor</c> the injected context reads from, and adds a
+/// second rejection here: a request whose <c>TenantContextOrigin</c> exceeds
+/// what the request type permits — a host-only context reaches only
+/// <c>[PublicSurface]</c> types — is refused at this step, which is what makes
+/// ADR-0036's authority ceiling mechanical. The RLS session variables are still
+/// issued by <c>TransactionBehavior</c> inside the transaction at step 6, never
+/// from this behavior.
 /// </remarks>
 public sealed class TenantContextBehavior<TRequest, TResponse>(
     ITenantContext tenantContext)
@@ -49,9 +53,12 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
             return Task.FromResult(Result.FailFor<TResponse>(TenantMismatchError));
         }
 
-        // Nothing to do here for RLS, and nothing anywhere else yet: no code
-        // in this repository issues set_config today. Packet 7 adds it to
-        // TransactionBehavior, and until then RLS is not enforced at runtime.
+        // Nothing to do here for RLS, and nothing left undone elsewhere:
+        // TransactionBehavior issues the set_config pair at step 6. RLS is
+        // enforced today and fail-closed before Packet 7 — an unresolved context
+        // writes the empty string, so every predicate is NULL and every
+        // tenant-owned table returns zero rows. What Packet 7 supplies is a
+        // non-NULL predicate.
         //
         // Why it belongs there and not here: the GUCs are transaction-local
         // (set_config('app.tenant_id', ..., true)) and this behavior runs at

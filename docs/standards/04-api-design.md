@@ -135,6 +135,44 @@ The two rules an API author needs at the point of writing an endpoint:
 
 A request that cannot resolve a tenant returns **404** (not 403, to avoid disclosure).
 
+### Public surface
+
+`[PublicSurface]` marks a request type as reachable by a caller LearnStack has not
+authenticated — the [`Portal Public`](19-permissions.md) role, made mechanical. The
+marker is the whole of the claim under a host-only context: a request type without it is
+unreachable from `HostOnly`, whatever its route looks like. Rows 13 and 15 of ADR-0036's
+reconciliation matrix are the separate case — no tenant context resolves at all, and
+`[AllowsUnresolvedTenantContext]` governs them.
+
+- **`TenantContextOrigin` is the ceiling.** A context resolved from the host alone
+  carries `HostOnly` and reaches only `[PublicSurface]` request types;
+  `TenantContextBehavior` at pipeline step 4
+  ([02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)) rejects anything
+  else — with the same bodyless **404** `UseStatusCodePages` renders as `not_found` for
+  an unresolvable host, because anything a client can tell apart confirms to an
+  anonymous caller that the tenant exists.
+- **Permitted methods default to `GET` / `HEAD`.** An entry declaring a mutating method
+  states why, in the table.
+- **No `[PublicSurface]` type performs a tenant-owned write.**
+- **No `[PublicSurface]` type is classified MUST-class `read-sensitive`**
+  ([18-audit-coverage.md](18-audit-coverage.md)) — an anonymous `GET` would otherwise
+  become a durable standalone audit write.
+
+[ADR-0036 § The reconciliation matrix](../decisions/0036-tenant-resolution-trusted-inputs.md)
+is the authority for why the ceiling holds and what a forged host reaches under it. The
+matrix is not restated here.
+
+The set is this table and nothing else:
+
+| Request type | Permitted methods | Why | Owning phase |
+|--------------|-------------------|-----|--------------|
+
+Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s two
+anonymous read endpoints. Until then `PublicSurface_Marker_Set_Is_Enumerated` and
+`PublicSurface_Requests_Are_Never_ReadSensitive`
+([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) are vacuously
+green over an empty set — the honest state of a marker no request type carries yet.
+
 ## Pagination
 
 Cursor pagination by default:

@@ -202,6 +202,16 @@ the business write" — a formulation ADR-0033 **withdrew** in favour of the sam
 
 ### Who sets `app.tenant_id`, completely
 
+> **Erratum — 2026-08-30.** The paragraph and table below read that the set "is
+> closed" at six. It is seven. The seventh is `IOrganizationScopeValidator`,
+> which reads `organizations` by `(tenant_id, id)` "in its own short read-only
+> transaction that sets `app.tenant_id` as its first statement"; shown by
+> [ADR-0036 § What is out of scope, and what is not](0036-tenant-resolution-trusted-inputs.md),
+> Accepted 2026-08-18 — nine days before this ADR. The Decision is unchanged.
+> Current authority: this subsection as corrected, reproduced in
+> [Security Standards § The out-of-band setters](../standards/11-security.md).
+> Recorded in Amendment 3.
+
 The set is closed. Each entry either **is** the ambient transaction or owns a
 short transaction of its own on its own connection, because it runs where no
 ambient transaction exists yet:
@@ -443,6 +453,59 @@ conclude no nested SQL exists.
 
 None of this changes what the ADR decides — one connection per scope, owned by
 `IUnitOfWork`, with every context and cross-cutting writer enlisted on it.
+
+### Amendment 3 — the setter set is seven, not six (2026-08-30)
+
+**What was wrong.** § Who sets `app.tenant_id`, completely opens "The set is
+closed" over a six-row table. The set was already seven when that sentence
+entered the record.
+
+**How it was shown.**
+[ADR-0036](0036-tenant-resolution-trusted-inputs.md) § What is out of scope, and
+what is not — Accepted **2026-08-18**, nine days before this ADR's 2026-08-27 —
+schedules `IOrganizationScopeValidator`, "reading `organizations` by the
+composite key `(tenant_id, id)` in its own short read-only transaction that sets
+`app.tenant_id` as its first statement — the same pattern
+`CachedHostToTenantResolver` uses for `app.resolving_host`". It is a setter of
+`app.tenant_id` by that sentence's own terms, and it is not in the table. It
+cannot be `TransactionBehavior`'s ambient transaction either: the organization
+assertion is validated in the request edge, before the pipeline reaches step 6.
+
+**Every carrier changed.** This ADR (the inline erratum above and this
+amendment) and
+[Security Standards § The out-of-band setters](../standards/11-security.md),
+which reproduces the count and the table — "six" becomes seven, "four own a
+short transaction of their own" becomes five, and the table gains an
+`IOrganizationScopeValidator` row. No other document states the count.
+
+**The canonical list** remains this subsection, as corrected. Security Standards
+reproduces it because that section is the placement authority; it is not a second
+enumeration.
+
+**The Decision is unchanged.** One connection per scope, owned by `IUnitOfWork`,
+with every context and cross-cutting writer enlisted on it. The seventh setter
+obeys the same rule as the four before it — its own short transaction, on its own
+connection, connected as `learnstack_app` — which is the property the enumeration
+exists to hold.
+
+### Amendment 4 — one bounded cross-aggregate write is now sanctioned (2026-08-30)
+
+Not a correction. § What the transaction spans says the transaction covers "one
+aggregate's write" and closes with "**This ADR does not relax either rule.**"
+Both statements were true when written and remain true of *this* ADR: it relaxes
+nothing.
+
+[ADR-0042](0042-tenant-provisioning-cross-aggregate-transaction.md) does, once
+and by enumeration. Tenant provisioning writes `Tenant` and its default
+`Organization` in one transaction, because `tenants.default_organization_id`
+carries an invariant no eventual-consistency mechanism can deliver. The table row
+is therefore an incomplete description of the sanctioned transaction, and this
+amendment is the pointer that keeps a reader of this ADR alone from concluding
+the exception does not exist.
+
+Nothing else changes. Cross-**module** writes remain forbidden with no exception,
+which is the property ADR-0010's outbox boundary exists to protect, and the
+exception's holder is a literal allow-list of one.
 
 ## References
 

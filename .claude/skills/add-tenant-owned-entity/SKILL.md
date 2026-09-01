@@ -34,11 +34,13 @@ cross-tenant leak; this skill is the prevention.
 - `tenants` — **not** because its isolation is conceptual. ADR-0003 Amendment 3
   gives it a policy like every other table; it is the **tenant-owned, self-keyed**
   class, whose predicate keys on `id` because the primary key *is* the tenant id.
-  Use [Database Standards § Table classes](../../../docs/standards/05-database.md),
+  It carries no marker-driven `TenantId` filter, because it has no `tenant_id`
+  column to filter on. Use
+  [Database Standards § Table classes](../../../docs/standards/05-database.md),
   not this skill.
 - `platform_host_to_tenant` — the one **platform-scoped** table, with role-qualified
-  per-command policies, because it is read *in order to determine* the tenant.
-  Standards 05 again.
+  per-command policies, because it is read *in order to determine* the tenant. It
+  takes **no `[TenantOwned]` marker at all**. Standards 05 again.
 - `users`, `plans`, `permissions` — owned by phases that have not written their
   schema yet. Nothing here says they are exempt from row security.
 - The audit aggregate (`AuditEntry`) — it inherits `Entity<TId>`, not
@@ -51,6 +53,12 @@ both directions have a tenant and it keeps the ordinary tenant-owned template. A
 earlier version of this file exempted it, which would have handed the application
 role a table-wide read of every tenant's plan.
 - Pure value objects with no own table.
+
+The marker's scope is decided by **table class**, not by whether a `TenantId`
+property happens to be there — the note under
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` in
+[the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) is the
+authority.
 
 ## Inputs
 
@@ -309,8 +317,15 @@ Always call `current_setting` with the second argument `true`. Without it an uns
 context raises inside a pooled connection instead of simply filtering the row out.
 
 The session-variable names are **canonical**: `app.tenant_id`, `app.organization_id`,
-`app.scope` ([05-database.md](../../../docs/standards/05-database.md)). Other names
-break RLS silently.
+`app.scope` and `app.resolving_host`
+([05-database.md](../../../docs/standards/05-database.md)). Other names break RLS
+silently. Note that **nothing sets `app.scope`** — `ITenantContext` exposes no scope
+member, the flag derives from the actor's role, and roles arrive in
+[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which is the earliest
+phase that can own the carrier. The cross-organization read hatch is therefore
+unreachable at runtime, which is the correct default; write the term into the policy
+anyway, because a test can set the variable and the two `AS RESTRICTIVE` guards need
+it to mean anything.
 
 The runtime connects as **`learnstack_app`** (`NOBYPASSRLS`, not the table owner);
 migrations run as `learnstack_migration`, which owns the table. Integration tests for
@@ -348,25 +363,42 @@ Every new tenant-owned entity must ship with an isolation test pair in
 `LearnStack.Tests.Integration`:
 
 ```csharp
-[Fact]
-public async Task <Name>_TenantA_cannot_read_TenantB_data()
+[Trait(RequiresDocker.Key, RequiresDocker.Value)]
+[Collection(SharedSchema.Name)]
+public sealed class <Name>IsolationTests(SchemaFixture schema)
 {
-    await using var fixture = await TestFixture.CreateAsync();
-    var aId = await fixture.CreateTenantAsync("A");
-    var bId = await fixture.CreateTenantAsync("B");
+    [Fact]
+    public async Task <Name>_TenantA_cannot_read_TenantB_data()
+    {
+        // AppConnectionString — learnstack_app, NOBYPASSRLS, not the owner. A test
+        // that connects as learnstack_migration, learnstack_platform or
+        // learnstack_outbox_admin passes with every policy inert and proves nothing.
+        await using var connection = await PostgresFixture.OpenAsync(
+            schema.Postgres.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
 
-    using (fixture.AsTenant(aId)) {
-        await fixture.Create<Name>Async();
-    }
+        // The transaction's first statement. set_config(..., true) is
+        // transaction-local, so outside one it is discarded before the read.
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
 
-    using (fixture.AsTenant(bId)) {
-        var rows = await fixture.Db.<NamePlural>.ToListAsync();
-        Assert.Empty(rows);
+        await using var read = new NpgsqlCommand(
+            "SELECT count(*) FROM <name_plural> WHERE tenant_id = @other",
+            (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+        read.Parameters.AddWithValue("other", SchemaFixture.TenantB);
+
+        (await read.ExecuteScalarAsync()).Should().Be(0L);
     }
 }
 
 // Add a matching org-isolation test if the entity is [OrganizationScoped].
 ```
+
+There is no `TestFixture`, no `CreateTenantAsync` and no `AsTenant(...)` helper —
+an earlier version of this file used all three. The shipped fixtures are
+`PostgresFixture` (container + the four roles) and `SchemaFixture` (both migration
+chains, every table seeded for two tenants), shared with
+`[Collection(SharedSchema.Name)]`. The fixture must seed **both** tenants: a count
+of zero against a table nothing populated passes whatever the policy says.
 
 See [add-integration-test](../add-integration-test/SKILL.md).
 
@@ -374,8 +406,12 @@ See [add-integration-test](../add-integration-test/SKILL.md).
 
 - `dotnet build` is green.
 - `dotnet ef migrations script` includes the table, both indexes, RLS-enable, and
-  the policies — matching the templates above verbatim except for column names.
-- `LearnStack.Tests.Architecture` passes the auto-conventions on this entity.
+  the policies — the policies matching the canonical block in
+  [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md)
+  verbatim, with only `<name_plural>` substituted.
+- `LearnStack.Tests.Architecture` is green. Note that no rule covers this entity's
+  filter until Packet 7 lands the two in Step 4; the schema sweeps in
+  `TenancySchemaTests` are what run against your migration today.
 - `LearnStack.Tests.Integration` includes the cross-tenant test (and cross-org if
   applicable).
 - Glossary updated if the entity name is a new domain term.
@@ -401,5 +437,7 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   assertion against a table the fixture never populated passes whatever the policy
   says; that shipped once in Packet 6 and is the reason `SchemaFixture` fills
   every table it asserts on.
-- **Forgetting `using x.AsTenant(...)` in tests.** Without it, the connection has no
-  `app.tenant_id` set and queries see nothing — which can mask a missing filter.
+- **Forgetting `SchemaQueries.SetTenantAsync` in tests.** Without it the transaction
+  has no `app.tenant_id` and every query sees nothing — which can mask a missing
+  filter. Issuing it outside a transaction has the same effect, because
+  `set_config(..., true)` is transaction-local.

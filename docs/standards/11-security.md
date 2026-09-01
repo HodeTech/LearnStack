@@ -224,7 +224,7 @@ Row Level Security predicates read four PostgreSQL session variables — `app.te
 and canonical policy templates live in
 [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md) and
 [05-database.md § Table classes](05-database.md). This section fixes **where** the first
-three are set. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
+three belong. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
 own short read-only transaction before the host lookup, because the row that determines
 the tenant must be readable before any tenant context exists; it is read by exactly one
 policy, on `platform_host_to_tenant`. Its value is the **normalized effective host** as
@@ -236,8 +236,8 @@ from; this section remains the authority for session-variable **placement** only
 
 ### The rule
 
-`app.tenant_id`, `app.organization_id` **and `app.scope`** are set with **`SET LOCAL`,
-inside the ambient transaction, as the first statement after it opens** — in practice by
+`app.tenant_id` and `app.organization_id` are set with **`SET LOCAL`, inside the
+ambient transaction, as the first statement after it opens** — in practice by
 `TransactionBehavior` (step 6 of the MediatR pipeline), from the `ITenantContext` that
 `TenantContextBehavior` asserted at step 4.
 
@@ -253,13 +253,25 @@ consequences follow, and both are load-bearing:
   shared across transactions, so the value is either absent or — worse — left over from
   another tenant's transaction.
 
+**`app.scope` has no carrier.** No application path sets it, and
+[Packet 7](../roadmap/phase-02a-kernel-tenancy.md) ships nothing that does:
+`ITenantContext` carries no scope member
+([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), and the flag
+derives from the actor's role plus a declared tenant-wide operation, so the earliest
+carrier arrives with authentication in
+[Phase 02b](../roadmap/phase-02b-events-auth.md). The deferral is forced, not chosen.
+Until it lifts, the cross-organization read hatch in the policy template is unreachable at
+runtime — the hatch term reads an unset variable and is never true, so reads stay inside
+the caller's organization plus the tenant-wide rows — which is the correct default. The
+placement rule above is unchanged and governs `app.scope` the moment a carrier exists.
+
 ### The out-of-band setters
 
-`TransactionBehavior` is the general case, not the only one. Six setters exist in
+`TransactionBehavior` is the general case, not the only one. Seven setters exist in
 total and the set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md)
 is the authority; it is reproduced here because this section is the placement
-authority). Two set it on the **ambient** transaction; four own a **short
+authority). Two set it on the **ambient** transaction; five own a **short
 transaction of their own**, because they run where no ambient transaction exists
 yet:
 
@@ -267,6 +279,7 @@ yet:
 |---|---|---|
 | `TransactionBehavior` | ambient | — the general case |
 | The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
+| `IOrganizationScopeValidator` | its own short read-only one | The organization assertion is validated in the request edge, before the pipeline reaches step 6 ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)) |
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
@@ -287,13 +300,13 @@ issued the `SET LOCAL` pair on this transaction before any command against a
 out-of-band setters above, each of which stamps the same marker on the transaction it
 opens. Naming `TransactionBehavior` alone would make the guard reject every write the
 idempotency store and the audit store legitimately make. It throws
-`TenantContextMissingException` when it has not. **It does not exist yet**: Packet 6
-ships the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it would
-back up, and no packet yet owns the interceptor — the first tenant-owned read on a
-request path is Packet 7's, and that is where it belongs. It cannot be a connection-checkout
-interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
-values: checkout precedes the transaction, so the transaction-local value is not there to
-be observed ([05-database.md § Connection Management](05-database.md)).
+`TenantContextMissingException` when it has not. **Packet 7 owns it**: Packet 6 ships
+the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it will back up, and
+the first tenant-owned read on a request path is Packet 7's, which is where the guard
+belongs. It cannot be a connection-checkout interceptor, for the same reason it cannot be
+a `DbConnectionInterceptor` that *sets* the values: checkout precedes the transaction, so
+the transaction-local value is not there to be observed
+([05-database.md § Connection Management](05-database.md)).
 
 ### Corrections this supersedes
 

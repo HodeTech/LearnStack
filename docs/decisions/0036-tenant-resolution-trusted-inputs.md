@@ -254,6 +254,16 @@ per-request durable write on a *happy* path: nothing re-issues the token, so the
 disagreement would hold for the whole session and every subresource fetch would re-emit
 the event.
 
+> **Erratum — 2026-09-01.** The paragraph below says the `[PublicSurface]` set "is
+> enumerated in the catalogue". It was enumerated nowhere, and "the catalogue" had three
+> candidate referents in this corpus (architecture tests, audit coverage, permissions);
+> shown by `grep -rn "PublicSurface" docs/` at this ADR's acceptance, whose only hits are
+> inside this file. The set now lives in
+> [Standards 04 § Public surface](../standards/04-api-design.md), which this ADR's
+> § Architecture tests already designates as the home of its day-to-day rules — so the
+> location changed, not the rule. Every rule the paragraph states about the set is
+> unchanged, and so is the Decision. Recorded in Amendment 3.
+
 **`TenantContextOrigin` is the authority ceiling, and it is what makes a forged host
 harmless.** `HostOnly` reaches only request types marked `[PublicSurface]` — the
 corpus's existing `Portal Public` role, made mechanical — and `TenantContextBehavior` at
@@ -601,6 +611,19 @@ output is not retained under audit retention is not a detector anyone can rely o
 
 ### Rules
 
+> **Erratum — 2026-08-30.** The second bullet below names the member
+> `ITenantContextAccessor.SetTenant`. There is no such member and never was: the
+> interface shipped on 2026-05-21 in Phase 02a Packet 3 carrying
+> `ITenantContext? Current { get; set; }` and nothing else, exactly as its owning
+> [ADR-0032 § Sub-decision 10](0032-exception-handling-logging-and-observability.md)
+> specifies; shown by `backend/src/LearnStack.SharedKernel/Tenancy/ITenantContextAccessor.cs`
+> and by `grep -rn SetTenant backend/src`, whose only hits are the unrelated
+> `IUnitOfWork.SetTenantContextAsync`. Read the bullet as governing **writes to
+> `ITenantContextAccessor.Current`**; what it decides — exactly four callers, and
+> `EnterPlatformAdminScope` not among them — is unchanged. Current authority:
+> [ADR-0032 § Sub-decision 10](0032-exception-handling-logging-and-observability.md)
+> for the member, this bullet for the caller set. Recorded in Amendment 2.
+
 - **Never** assign `ITenantContext.TenantId` or `OrganizationId` from a bound header.
   There is no exception and no mode in which there is one.
 - `ITenantContextAccessor.SetTenant` has exactly the four callers the corpus already
@@ -732,6 +755,71 @@ explicitly.
 Implemented in `LearnStack.SharedKernel.Tenancy.EffectiveHost`; covered by
 `EffectiveHostTests`.
 
+### 2026-08-30 — Amendment 2: the accessor member is `Current`, not `SetTenant`
+
+**What was wrong.** § Rules' second bullet opens
+"`ITenantContextAccessor.SetTenant` has exactly the four callers…". No member of
+that name has ever existed on that interface, so the rule as written governs
+nothing.
+
+**How it was shown.** `backend/src/LearnStack.SharedKernel/Tenancy/ITenantContextAccessor.cs`
+declares exactly one member, `ITenantContext? Current { get; set; }`, and has
+since it shipped in Phase 02a Packet 3 on 2026-05-21 — three months before this
+ADR was accepted. `grep -rn SetTenant backend/src` returns only
+`IUnitOfWork.SetTenantContextAsync`, a different member on a different type with
+a different job. The member this ADR should have named is fixed by
+[ADR-0032 § Sub-decision 10](0032-exception-handling-logging-and-observability.md),
+which decided the accessor's shape and is unchanged by this amendment.
+
+**Why the code is not the thing corrected.** The shipped shape is the one its
+owning ADR specifies, and the property setter is what the already-shipped fourth
+caller needs: `InProcessEventBus` saves the previous context, writes its own, and
+restores the previous — possibly `null` — on the way out. A `void SetTenant(ctx)`
+cannot express that save-and-restore, so renaming the code to match this ADR
+would break a working caller to satisfy a naming error.
+
+**Every carrier changed.** This ADR (the inline erratum in § Rules and this
+amendment);
+[Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md),
+where `SetTenant_Callers_Are_The_Enumerated_Four` is restated against writes to
+`Current`; and [architecture/09 Tenant Isolation](../architecture/09-tenant-isolation.md),
+which spells `SetTenant(...)` in four places. The test's canonical **name** is
+unchanged — the catalogue's § Canonical names rule makes a rename its own
+liability, and the name describes the caller set, which is what this ADR
+actually decides.
+
+**The Decision is unchanged.** Exactly four callers populate the ambient tenant
+context — `TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
+(`/api/internal/*`), the Hangfire `JobActivator` (jobs), and the outbox / inbox
+handler scope (integration events) — and `EnterPlatformAdminScope` is not among
+them, because it opens a second connection and sets no tenant context.
+
+### 2026-09-01 — Amendment 3: where the `[PublicSurface]` set is enumerated
+
+**What was wrong.** § The reconciliation matrix says the `[PublicSurface]` set "is
+enumerated in the catalogue with each entry's permitted methods". It was enumerated in
+no file, and "the catalogue" is not a resolvable referent: this corpus uses the word for
+the architecture-tests catalogue, the audit-coverage catalogue and the permission
+catalogue. A rule that reads against a set nobody wrote down cannot be implemented, and
+`PublicSurface_Marker_Set_Is_Enumerated` is a Packet 7 deliverable that has to.
+
+**How it was shown.** `grep -rn "PublicSurface" docs/` returns hits only inside this
+file. The architecture-tests catalogue disclaims owning rule content in its own opening
+section, so it was never the home.
+
+**Every carrier changed.** This ADR (the inline erratum in § The reconciliation matrix
+and this amendment); [Standards 04 § Public surface](../standards/04-api-design.md),
+which now holds the marker's rules and the enumeration table — shipped **empty**, taking
+its first rows with Phase 02d's two anonymous read endpoints; and
+[the architecture-tests catalogue](../standards/21-architecture-tests-catalogue.md),
+where both `PublicSurface_*` entries now point at Standards 04 rather than at
+themselves. § Architecture tests of this ADR already named Standards 04 § Tenant Context
+as the home of these day-to-day rules, so the correction moves the set to where this ADR
+had already sent the reader.
+
+**The Decision is unchanged.** Every rule about the set holds exactly as written: the
+default is `GET`/`HEAD`, a mutating entry states why, no `[PublicSurface]` type performs
+a tenant-owned write, and none is classified MUST-class `read-sensitive`.
 
 ## References
 

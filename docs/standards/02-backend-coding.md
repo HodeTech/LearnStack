@@ -1,7 +1,7 @@
 # 02 — Backend Coding Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -258,7 +258,11 @@ this order and changes only the durability contract of what step 3 records
    and carries the resolved tenant + organization forward for the rest of
    the pipeline. Unresolved context short-circuits with
    `Result.Fail(tenant_mismatch)` unless the request carries
-   `[AllowsUnresolvedTenantContext]`.
+   `[AllowsUnresolvedTenantContext]`. The behavior also rejects a request whose
+   `TenantContextOrigin` exceeds what the request type permits — a `HostOnly`
+   context reaches only `[PublicSurface]` request types, enumerated in
+   [04-api-design.md § Public surface](04-api-design.md) and bounded by
+   [ADR-0036 § The reconciliation matrix](../decisions/0036-tenant-resolution-trusted-inputs.md).
 
    This behavior does **not** set the PostgreSQL session variables. It runs
    at step 4; the transaction opens at step 6; and

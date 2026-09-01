@@ -23,7 +23,7 @@ namespace LearnStack.Api.Composition;
 /// Composition-root extension that wires the entire ADR-0032 surface in one
 /// disciplined pass — Serilog, OpenTelemetry, error tracking,
 /// <see cref="LearnStackExceptionHandler"/>, MediatR pipeline, the singleton
-/// <see cref="ITenantContextAccessor"/>, and the request-scoped
+/// <see cref="ITenantContextAccessor"/>, and the transient
 /// <see cref="ITenantContext"/> default. The <c>wire-cross-cutting-foundation</c>
 /// skill is the long-form walk; this method is the binary.
 /// </summary>
@@ -67,9 +67,13 @@ public static class CrossCuttingFoundationExtensions
         builder.Services.AddLearnStackErrorTracking(
             secretProvider, builder.Configuration, deploymentMode);
 
-        // Request-scoped ITenantContext default — Packet 7 swaps this for the
-        // resolved instance produced by TenantResolverMiddleware. The
-        // singleton ITenantContextAccessor is set in
+        // ITenantContext default. Transient is deliberate and pinned by
+        // DeploymentModeCompositionTests
+        // .Tenant_Context_Resolution_Forwards_Each_Access_To_The_Accessor: a
+        // scoped factory would cache the first value for the rest of the scope,
+        // so a write to the accessor after a handler resolved would never reach
+        // it. Do not restore this to Scoped. The singleton
+        // ITenantContextAccessor is registered in
         // AddLearnStackObservabilityServices above.
         // Resolved FROM the accessor rather than hard-wired to the unresolved
         // singleton. Nothing wrote the accessor before the event bus, so this is

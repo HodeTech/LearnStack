@@ -666,6 +666,23 @@ otherwise).
   assemblies carry types.
 - **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
 
+#### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
+
+- **Asserts:** no MediatR handler issues `Add` / `AddRange` / `Update` / `Remove`
+  against more than one `DbSet` whose entity implements `IAggregateRoot<TId>`, except
+  the single handler on a literal allow-list — the handler for `ProvisionTenantCommand`,
+  which writes `Tenant` and its default `Organization` in one transaction per ADR-0042.
+- **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
+  [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
+- **Note:** the scan catches the direct form, which is the form a handler is written
+  in. It does not catch a write routed through a repository, a helper, or a second
+  `DbContext` reached indirectly. The binding control is that the allow-list has one
+  entry and growing it is a reviewed diff; the scan is what makes the ordinary mistake
+  loud.
+
 ### Persistence: concurrency and the unit of work
 
 Source: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md),
@@ -840,15 +857,30 @@ first two rows are coverage checks; the last three are the proof.
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Note:** the marker's scope is decided by **table class**, not by the presence of a
+  `TenantId` property. `tenants` is tenant-owned **self-keyed** — its policy is on `id`
+  and it carries no marker-driven `TenantId` filter — and `platform_host_to_tenant` is
+  **platform-scoped** and takes no marker at all, because it is read in order to
+  determine the tenant. See
+  [Database Standards § Table classes](05-database.md);
+  [Architecture Standards § Tenant-Scoped Code](01-architecture-standards.md) was
+  corrected to match in the same pass.
 
 #### `Every_OrgScoped_Entity_HasOrgIdAndFilter`
 
 - **Asserts:** every entity marked `[OrganizationScoped]` carries a **nullable**
-  `OrganizationId` (null = tenant-wide per ADR-0017), an org-aware EF query filter, and
-  an organization term `AND`-ed into the same single policy as the tenant term.
+  `OrganizationId` (null = tenant-wide per ADR-0017), an org-aware EF query filter, an
+  organization term `AND`-ed into the same single policy as the tenant term, and — in
+  the migration that creates its table — the two `AS RESTRICTIVE` write guards,
+  `FOR UPDATE` and `FOR DELETE`, that ADR-0003 Amendment 3 makes mandatory for every
+  organization-scoped table. The guards are part of the assertion, not decoration:
+  [the Tenancy module spec § Risks](../modules/tenancy/README.md) records the
+  measurement — with the hatch set and the delete guard dropped, a `DELETE` removed
+  another organization's row.
 - **Canonical name.** See § Canonical names and superseded spellings for the four
   superseded spellings.
-- **Source:** ADR-0017; ADR-0003 Amendment 3.
+- **Source:** ADR-0017; ADR-0003 Amendment 3;
+  [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
@@ -1945,19 +1977,36 @@ structural test proves — and what it does not.
 
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
 
-- **Asserts:** `ITenantContextAccessor.SetTenant` is called only by `TenantResolverMiddleware`, `HubCorrelationMiddleware`, the Hangfire `JobActivator`, and the outbox / inbox handler scope. `EnterPlatformAdminScope` is not among them.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
+- **Asserts:** `ITenantContextAccessor.Current` is **written** only by `TenantResolverMiddleware`, `HubCorrelationMiddleware`, the Hangfire `JobActivator`, and the outbox / inbox handler scope. `EnterPlatformAdminScope` is not among them: it opens a second connection and sets no tenant context. Reads are unconstrained.
+- **Source:** ADR-0036 § Rules, second bullet, as corrected by its erratum and
+  [Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md).
+- **Type:** Roslyn / IL call-site scan + xUnit. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
+- **Note:** the name predates the correction and is kept. `ITenantContextAccessor`
+  declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant`
+  this row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and
+  keeps the test's spelling, because § Canonical names makes a rename its own
+  liability and the name describes the caller set, which is what ADR-0036 decides.
+- **Note:** call-site scan rather than NetArchTest: NetArchTest resolves *type*
+  references and cannot see a write to a property, which is the whole assertion —
+  the same reason `Effective_Host_Computed_In_One_Place` is a scan.
+- **Note:** in Packet 7 the rule can assert only the **negative** — no writer outside
+  the four. `HubCorrelationMiddleware` is Phase 02c and the Hangfire `JobActivator`
+  is Phase 02b, so two of the four callers do not exist yet.
 
 #### `PublicSurface_Marker_Set_Is_Enumerated`
 
-- **Asserts:** every `[PublicSurface]` request type appears in the catalogue's enumerated set with its permitted methods; the default is `GET`/`HEAD` and a mutating entry states why. No `[PublicSurface]` type performs a tenant-owned write.
-- **Source:** ADR-0036 § The reconciliation matrix.
+- **Asserts:** every `[PublicSurface]` request type appears in the enumerated set in [Standards 04 § Public surface](04-api-design.md) with its permitted methods; the default is `GET`/`HEAD` and a mutating entry states why. No `[PublicSurface]` type performs a tenant-owned write.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [Standards 04 § Public surface](04-api-design.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
+- **Note:** the set ships **empty** in Packet 7, which registers no `[PublicSurface]`
+  request type, and takes its first rows in
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). The rule is vacuously green
+  until then.
 
 #### `PublicSurface_Requests_Are_Never_ReadSensitive`
 
@@ -1982,11 +2031,16 @@ structural test proves — and what it does not.
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
+- **Note:** no `app.scope` carrier ships in Packet 7. `ITenantContext` exposes no scope
+  member and the flag derives from the actor's role, so the earliest carrier arrives with
+  authentication in [Phase 02b](../roadmap/phase-02b-events-auth.md)
+  ([11-security.md § Tenant Context](11-security.md)). The rule holds as a negative until
+  then — nothing sets the flag, so nothing sets it from request input.
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
 - **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
-- **Source:** ADR-0036 § The reconciliation matrix.
+- **Source:** ADR-0036 § The platform-admin override is not a resolution source.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.

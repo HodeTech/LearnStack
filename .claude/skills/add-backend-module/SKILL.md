@@ -169,18 +169,36 @@ public sealed class <Name>DbContext(
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Tenant + Organization query filters are applied PER ENTITY in its
-        // IEntityTypeConfiguration. There is no TenantQueryFilterConvention —
-        // that type has never existed. Every_TenantOwned_Entity_HasFilterAndRlsPolicy
-        // is what WILL make a forgotten filter fail — it is registered in the
-        // catalogue and implemented in Phase 02a Packet 7, not before.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(<Name>DbContext).Assembly);
+
+        // Tenant + Organization query filters are applied HERE, from
+        // OnModelCreating, with a DbContext INSTANCE MEMBER as the closure root.
+        // Not from an IEntityTypeConfiguration: a configuration reached by
+        // ApplyConfigurationsFromAssembly cannot close over the context instance,
+        // and a filter whose closure root is anything else is constant-folded into
+        // EF's cached model as a SQL literal — so request B emits request A's
+        // baked-in tenant id. There is no TenantQueryFilterConvention either; that
+        // type has never existed. Every_TenantOwned_Entity_HasFilterAndRlsPolicy is
+        // what WILL make a forgotten filter fail — registered in the catalogue and
+        // implemented in Phase 02a Packet 7, not before.
+        foreach (var entity in modelBuilder.Model.GetEntityTypes())
+        {
+            // …build the filter over `tenantContext`, the constructor parameter
+            // captured as an instance field, one expression per entity.
+        }
     }
 }
 ```
 
 Per [05-database.md](../../../docs/standards/05-database.md), one `DbContext` per
 module — not one global.
+
+`ApplyConfigurationsFromAssembly` also **silently skips** a configuration class
+that has constructor arguments — no exception, no log, the entity mapped by
+convention with no filter at all — so `<Name>Configuration(ITenantContext ctx)`
+disappears rather than failing. That is the second reason the filter is not a
+configuration's job. See
+[add-tenant-owned-entity Step 2](../add-tenant-owned-entity/SKILL.md).
 
 ### Step 5: Architecture test fixture
 

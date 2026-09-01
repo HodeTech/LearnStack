@@ -48,7 +48,9 @@ pnpm --version
 
 # Restore — from the directories that hold the solution and the workspace.
 # There is no solution and no package.json at the repository root, so both
-# commands fail there. `make install` runs exactly these two lines.
+# commands fail there. `make install` is these two lines, after its `.env` and
+# `hooks` prerequisites (which copy `.env.example` and point core.hooksPath at
+# `.githooks/`).
 (cd backend && dotnet restore LearnStack.slnx)
 (cd frontend && pnpm install --frozen-lockfile)
 
@@ -95,18 +97,27 @@ dotnet test backend/tests/LearnStack.Tests.Architecture \
   --no-restore
 ```
 
-Common failure messages and fixes:
+Common failure messages and fixes, from the rules that are **implemented today**.
+A rule you expected and do not see here is probably **Registered** against a later
+phase — check its Status line in
+[21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
+before concluding a net is under you.
 
 | Message | Fix |
 |---------|-----|
-| `Every_TenantOwned_Entity_Has_TenantId` | Missing `TenantId` property; see [add-tenant-owned-entity](../add-tenant-owned-entity/SKILL.md). |
-| `Every_TenantOwned_Table_HasRls_With_AppTenantId` | Migration missing `ENABLE ROW LEVEL SECURITY` + the policy. |
-| `Integration_Event_Handlers_Use_InboxGuard` | Handler skipped `IsAlreadyProcessedAsync`; see [add-integration-event](../add-integration-event/SKILL.md). |
-| `Dapr_PubSub_TopicNames_FollowConvention` | Topic isn't `learnstack.{module}.{aggregate}`. |
-| `Modules_Do_Not_Inject_Valkey_Directly` | Use `ICacheService` not `IConnectionMultiplexer`. |
-| `LearnStack_Modules_DoNotReference_Hub` | Hub URL or namespace referenced outside the dedicated adapter. |
-| `No_Source_Folder_Named_Verticals` | A `Verticals/` folder exists; ADR-0018 forbids. |
-| `Core_Modules_HaveNo_DomainSpecific_Names` | A `Cefr`, `English`, `Asana`, etc. name appears in core. |
+| `ModuleDomain_DoesNotDependOn_OtherModuleDomain` | Depend on the other module's `Application.Contracts`, never its `Domain`. |
+| `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` | Dependency direction is inverted; see [add-backend-module](../add-backend-module/SKILL.md). |
+| `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | A context opened its own connection — register it with `AddModuleDbContext<T>`, per [ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md). |
+| `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | The `row_version` mapping is missing a save behaviour; the token stays 0 and every ETag comparison is meaningless ([ADR-0039](../../../docs/decisions/0039-optimistic-concurrency-token.md)). |
+| `Modules_Do_Not_Reference_DeploymentMode` | The composition root branches on the mode; modules never. |
+| `Modules_Do_Not_Inject_IEventBus_Directly` | The only sanctioned publisher is the outbox processor; enqueue through `IOutbox`. |
+| `Modules_Do_Not_Reference_Sentry_SDK_Directly` | Capture through `IErrorTrackingProvider`. |
+| `Handlers_Return_Result` | A handler threw where it should return `Result.Fail(...)`. |
+| `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | A behavior moved; the eight-step order is fixed by [ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md). |
+| `Integration_Event_TopicNames_FollowConvention` | Topic isn't `learnstack.{module}.{aggregate}`. |
+| `No_Source_Folder_Named_Verticals` | A `Verticals/` folder exists; ADR-0018 forbids it. |
+| `Every_Database_Test_Carries_The_Docker_Trait` | A `Database/` test class is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
+| `Migrate_Target_Covers_Every_Migration_Chain` | A new chain exists that `make migrate` does not apply. |
 
 ### Step 5: Run integration tests
 
@@ -164,8 +175,8 @@ dotnet test --filter "FullyQualifiedName~EnrollmentCreateTests"
 # Method
 dotnet test --filter "FullyQualifiedName~EnrollmentCreateTests.Create_succeeds"
 
-# Trait (xUnit)
-dotnet test --filter "Trait=tenant-isolation"
+# Trait — the only one this repository sets, and the one CI routes on
+dotnet test --filter "Requires=Docker"
 ```
 
 `vitest`:
@@ -190,6 +201,12 @@ Application ≥ 80%, Infrastructure ≥ 50%. CI fails on regression.
 
 ### Step 9: Reproduce a CI failure
 
+CI runs the **whole solution** with a trait filter, not one project — and it builds
+with `CI=true`, which is what turns `TreatWarningsAsErrors` on
+(`backend/Directory.Build.props`). A local build without it is green on exactly the
+warnings the required check rejects; that shipped once, in Packet 4, and `CI=true`
+is now the only way this repository is built.
+
 ```bash
 # Pull the exact branch CI ran
 git checkout <branch>
@@ -197,11 +214,21 @@ git checkout <branch>
 # The same restore CI does
 make install
 
-# Run the same command CI ran (see .github/workflows/*.yml)
-dotnet test backend/tests/LearnStack.Tests.Integration \
-  --no-restore \
-  --logger "trx;LogFileName=results.trx"
+# The `backend` job — build with warnings as errors, then the Docker-free half
+(cd backend && CI=true dotnet build LearnStack.slnx --no-restore --configuration Release)
+(cd backend && dotnet test LearnStack.slnx \
+  --no-restore --no-build --configuration Release \
+  --filter "Requires!=Docker" --logger trx)
+
+# The `backend-integration` job — the exact complement, so every test runs once
+(cd backend && dotnet test LearnStack.slnx \
+  --no-restore --no-build --configuration Release \
+  --filter "Requires=Docker" --logger trx)
 ```
+
+`--logger trx` carries no `LogFileName` on purpose: a fixed name makes all four
+projects write the same path in the same results directory, and three assemblies'
+outcomes are silently overwritten.
 
 For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 

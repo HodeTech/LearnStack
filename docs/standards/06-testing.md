@@ -50,7 +50,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 
 ### Integration Tests
 
-`LearnStack.Tests.Integration` holds **two populations**, and which one a test
+`LearnStack.Tests.Integration` holds **three populations**, and which one a test
 belongs to is decided by what it needs, not by what it is about:
 
 - **Host tests** — a real HTTP pipeline through `WebApplicationFactory`, no
@@ -63,16 +63,31 @@ belongs to is decided by what it needs, not by what it is about:
   what the isolation assertions compare against. Not
   Valkey and not SeaweedFS: nothing the backend runs calls either, and both sit
   behind the gated compose profile ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). Everything that is a
-  property of the schema lives here, and **every tenant-isolation invariant**
-  does. **Packet 6** shipped the fixtures, the four-role provisioning suite, both
+  property of the schema lives here, and **every schema-level tenant-isolation
+  invariant** does. **Packet 6** shipped the fixtures, the four-role provisioning suite, both
   migration chains, the policies, a two-tenant seed and the schema-level isolation
-  suite; **Packet 7** re-runs those cases through `TenantResolverMiddleware` and
-  the EF query filters, which is the layer a handler actually meets. All of them
-  connect as `learnstack_app`, because a test run as the owner or as a
+  suite; **Packet 7** re-runs those cases one layer up — the third population below.
+  All of them connect as `learnstack_app`, because a test run as the owner or as a
   `BYPASSRLS` role passes against inert policies. They run in the separate `backend-integration`
   job, split from the Docker-free tests by `[Trait("Requires","Docker")]`.
+- **Request-level isolation tests** — a `WebApplicationFactory<Program>` pointed at
+  a Testcontainers PostgreSQL. **Packet 7** introduces the population, because it is
+  the only shape in which the real middleware chain, the real EF query filters and
+  the real RLS policies run against one another in one request, connected as
+  `learnstack_app`. It drives no production endpoint — Packet 7 ships none — but a
+  test-only controller the fixture registers, which is what `IdempotencyFixture`
+  already does for `/api/v1/sideeffectprobe`. These live under `Database/` with the
+  rest of the Docker-bound suite and carry the same trait.
 
-Both: real module configuration, no mocked repositories, and coverage of the
+**Where a Docker-bound test lives is what routes it.**
+`Every_Database_Test_Carries_The_Docker_Trait` scans
+`LearnStack.Tests.Integration/Database` and nothing else, so a class placed outside
+that directory is never checked for the trait — and a missing trait does not fail the
+class, it runs it in the `backend` job. Both CI runners are `ubuntu-latest` and both
+carry a Docker socket, so the container starts and the test passes: nothing goes red,
+and the Docker suite stops being where the Docker tests live.
+
+All three: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.
 
 **An isolation test connects as `learnstack_app`.** One that runs as

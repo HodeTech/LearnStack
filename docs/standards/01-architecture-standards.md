@@ -93,6 +93,14 @@ third build-time reference to Domain or SharedKernel requires an ADR.
 - The aggregate root is the only entry point for state changes inside the aggregate.
 - Repositories return aggregates, not raw entities.
 - Cross-aggregate writes inside a single transaction are forbidden. Use an integration event.
+  **One standing exception, bounded by enumeration:** tenant provisioning writes `Tenant`
+  and its default `Organization` in one transaction, because
+  `tenants.default_organization_id` carries an invariant no eventual-consistency
+  mechanism can deliver
+  ([ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)).
+  It covers those two roots and that one operation; the allow-list is literal, and
+  `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` holds it at one entry.
+  Cross-**module** writes remain forbidden with no exception at all.
 
 ## Cross-Module Communication
 
@@ -132,7 +140,16 @@ Rules:
 
 ## Tenant-Scoped Code
 
-- Every entity that has a `TenantId` property must be annotated `[TenantOwned]`.
+- Every entity backed by a table in one of the **tenant-owned** table classes carries
+  `[TenantOwned]`. The two exceptions are classes, not omissions:
+  `tenants` is tenant-owned **self-keyed** — its `id` *is* the tenant id, so it has no
+  `TenantId` property and its policy keys on `id` — and `platform_host_to_tenant` is
+  **platform-scoped**, read in order to determine the tenant, so a tenant-keyed
+  predicate on it would make host resolution return zero rows forever. See
+  [Database Standards § Table classes](05-database.md) and
+  [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
+  The presence of a `TenantId` property is **not** the test: `PlatformHostMapping` has
+  one and takes no marker.
 - `[TenantOwned]` entities must have a configured EF global query filter and a PostgreSQL RLS policy (see [Database Standards](05-database.md)).
 - Application services must never expose `IgnoreQueryFilters()` directly to callers.
 - Background jobs and integration event handlers must accept `TenantId` as part of their payload and set it as the ambient context before doing work.

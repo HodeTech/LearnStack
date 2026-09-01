@@ -120,10 +120,16 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
                 context.User.Identity?.IsAuthenticated == true));
 
             // 404, not 403: saying "wrong tenant" confirms the other tenant
-            // exists. The code differs by caller — `tenant_mismatch` for an
-            // authenticated one, `not_found` for an anonymous one — so the
-            // header adds no bit an anonymous client could not already get by
-            // retrying without it.
+            // exists. From Phase 02b the code differs by caller —
+            // `tenant_mismatch` for an authenticated one, `not_found` for an
+            // anonymous one — so the header adds no bit an anonymous client
+            // could not already get by retrying without it. Until then the
+            // authenticated tier is dormant per ADR-0036 § Staging across
+            // packets — there is no UseAuthentication to be ordered after and
+            // the `authenticated` label is constant-false — so every caller
+            // takes the anonymous branch, and Phase 02b's split needs this
+            // middleware to write the authenticated code itself rather than
+            // leaving the body to UseStatusCodePages.
             await WriteAsync(context, StatusCodes.Status404NotFound);
             return;
         }

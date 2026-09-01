@@ -261,8 +261,15 @@ Rules:
   every organization-scoped table, not an optional hardening step.
 - The session variable names `app.tenant_id`, `app.organization_id`, `app.scope` and
   `app.resolving_host` are canonical and the set is closed; do not invent alternatives
-  (`app.current_tenant_id`, `learnstack.tenant_id`, …). The first three are set by
-  `TransactionBehavior` inside the ambient transaction. `app.resolving_host` is set by
+  (`app.current_tenant_id`, `learnstack.tenant_id`, …). `app.tenant_id` and
+  `app.organization_id` are set inside the ambient transaction — by
+  `TransactionBehavior` in the general case, and by each of the out-of-band setters on
+  the transaction it opens ([Security Standards § The out-of-band setters](11-security.md)).
+  `app.scope` has **no carrier**: it derives from the actor's role plus a declared
+  tenant-wide operation, roles arrive with authentication in
+  [Phase 02b](../roadmap/phase-02b-events-auth.md), and until then the tenant-scope read
+  hatch is unreachable — the correct default. Its placement rule is unchanged and applies
+  the moment a carrier exists. `app.resolving_host` is set by
   `CachedHostToTenantResolver` alone, in its own short read-only transaction, and is
   read by exactly one policy — see § Table classes. Always call `current_setting` with
   the second argument `true` (missing-OK), and always wrap the result in `NULLIF(…, '')`,
@@ -360,6 +367,23 @@ migration states which one its table is.
 | **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
+
+**The EF query filter follows the class.** It is the second layer, not a restatement of
+the policy: the filter is what a handler's `IQueryable` meets, the policy is what still
+drops the other tenants' rows when the filter is missing.
+
+- **Tenant-owned, org-scoped** — `e.TenantId == currentTenantId` **and**
+  `e.OrganizationId == null || e.OrganizationId == currentOrgId`, the null arm being the
+  tenant-wide row ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)).
+- **Tenant-owned, tenant-wide** — `e.TenantId == currentTenantId`, with no organization
+  term, for the same reason the class carries no restrictive guards.
+- **Tenant-owned, self-keyed** — `t.Id == currentTenantId`. `tenants` has no `TenantId`
+  property, so the filter keys on the primary key exactly as the policy does.
+- **Platform-scoped** — **no query filter.** `platform_host_to_tenant` is read in order
+  to *determine* the tenant, so a tenant-keyed filter would return zero rows on every
+  anonymous request and no host would ever resolve. `PlatformHostMapping` carries a
+  `TenantId` property and still takes no filter — the property is not the test, the
+  class is.
 
 **A table is platform-scoped only when it is read before the tenant is known.** That is
 one table today, and adding a second is a decision, not a convenience.
@@ -705,9 +729,11 @@ The residual risk is that the platform credential exists in the API process's
 configuration. It is mitigated by resolving it only through `PlatformAdminScope`; by a
 separate secret path (`learnstack/{deployment}/platform/db-password`) that a deployment
 needing no platform admin simply does not provision, in which case
-`EnterPlatformAdminScope` throws at startup rather than degrading to `learnstack_app`;
-and by an audit row written **inside** the scope before the operation runs and committed
-on its own, so an operation that later fails is still recorded. That row is written as
+`EnterPlatformAdminScope` throws **on entry** — on the first call, naming the missing
+`ConnectionStrings:PlatformAdmin`, so a host that never enters the scope still boots,
+every test fixture included — rather than degrading to `learnstack_app`; and by an audit
+row written **inside** the scope before the operation runs and committed on its own, so
+an operation that later fails is still recorded. That row is written as
 `learnstack_platform` and carries the sentinel platform tenant id, because a cross-tenant
 operation has no tenant of its own and `audit_log` is itself tenant-owned.
 
@@ -1125,16 +1151,19 @@ Forbidden: string interpolation with non-constant values.
 - `app.tenant_id` (and `app.organization_id` when relevant) set **within the same
   transaction** as the work (`SET LOCAL ...`).
 - A `DbCommandInterceptor` — **not** a connection-checkout interceptor — is to guard
-  the context. **It does not exist yet**; Packet 6 ships the setter and the policies
-  it backs up, and the first tenant-owned read on a request path is Packet 7's, which
-  is where it belongs. Checkout happens before `TransactionBehavior` opens the transaction that
+  the context. **Packet 7 ships it**: Packet 6 ships the setter and the policies it
+  backs up, and the first tenant-owned read on a request path is Packet 7's, which is
+  where the guard belongs. Checkout happens before `TransactionBehavior` opens the transaction that
   carries the `SET LOCAL` values, so a checkout hook would read an unset
   `app.tenant_id` on every request and throw universally; under PgBouncer transaction
   pooling it would sometimes read a *previous* transaction's leftover value, which is
   worse than throwing. The command interceptor instead checks the in-process marker
-  `TransactionBehavior` stamps on the ambient transaction once it has issued the
-  `SET LOCAL` pair, and throws `TenantContextMissingException` when a command against a
-  `[TenantOwned]` table runs without it — no extra round trip.
+  **a sanctioned setter** stamps on the transaction it opens, once the `SET LOCAL`
+  pair is issued, and throws `TenantContextMissingException` when a command against a
+  `[TenantOwned]` table runs without it — no extra round trip. The setters are a closed
+  set, named in [Security Standards § The out-of-band setters](11-security.md), which is
+  the placement authority: a guard keyed on `TransactionBehavior` alone would reject the
+  writes the idempotency store and the audit store make on their own short transactions.
 - The database-side guard is fail-closed independently: with `app.tenant_id` unset or
   reset the policy predicate is `NULL`, so the query returns zero rows rather than
   leaking. The interceptor exists to turn that silent empty result into a loud failure,
