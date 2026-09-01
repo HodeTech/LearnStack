@@ -157,14 +157,31 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
         // so '' is NULL is fail-closed — and setting it explicitly is what makes
         // a value left behind on a pooled connection by anything session-scoped
         // unreachable, rather than merely unlikely.
+        //
+        // Value, under an IsInitialized() gate — never ToString() on the id. This
+        // is the one place where the difference is a fault rather than a
+        // cosmetic. Measured on Vogen 7: an uninitialized id's ToString() returns
+        // the literal "[UNINITIALIZED]" while string interpolation of the same
+        // value returns "", so the two spellings of "print this id" disagree, and
+        // the first reaches PostgreSQL as '[UNINITIALIZED]'::uuid — which raises
+        // 22P02 on the first policy evaluation rather than filtering. Reading
+        // Value on an uninitialized id throws instead, which is why the gate is
+        // IsInitialized() and not a null check: ITenantContext's contract says
+        // IsResolved implies initialized, and this is the boundary that does not
+        // take the contract's word for it.
         await ExecuteAsync(
             "SELECT set_config('app.tenant_id', @tenant, true), "
             + "set_config('app.organization_id', @organization, true)",
             cancellationToken,
-            ("tenant", context.IsResolved ? context.TenantId.ToString() : string.Empty),
+            ("tenant",
+                context.IsResolved && context.TenantId.IsInitialized()
+                    ? context.TenantId.Value.ToString()
+                    : string.Empty),
             ("organization",
-                context.IsResolved && context.OrganizationId is { } organization
-                    ? organization.ToString()
+                context.IsResolved
+                && context.OrganizationId is { } organization
+                && organization.IsInitialized()
+                    ? organization.Value.ToString()
                     : string.Empty));
     }
 

@@ -807,7 +807,7 @@ public sealed class InProcessEventBusTests
     {
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
-            recorder.Tenants.Enqueue(accessor.Current!.TenantId);
+            recorder.Tenants.Enqueue(accessor.Current!.TenantId.Value);
             return Task.CompletedTask;
         }
     }
@@ -817,7 +817,7 @@ public sealed class InProcessEventBusTests
     {
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
-            recorder.Tenants.Enqueue(context.TenantId);
+            recorder.Tenants.Enqueue(context.TenantId.Value);
             return Task.CompletedTask;
         }
     }
@@ -836,7 +836,7 @@ public sealed class InProcessEventBusTests
 
             if (context.OrganizationId is { } organization)
             {
-                recorder.Organizations.Enqueue(organization);
+                recorder.Organizations.Enqueue(organization.Value);
             }
 
             return Task.CompletedTask;
@@ -894,7 +894,7 @@ public sealed class InProcessEventBusTests
         public async Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(20), CancellationToken.None);
-            recorder.Tenants.Enqueue(accessor.Current!.TenantId);
+            recorder.Tenants.Enqueue(accessor.Current!.TenantId.Value);
         }
     }
 
@@ -939,7 +939,7 @@ public sealed class InProcessEventBusTests
             _recorder = recorder;
 
             // Captured at CONSTRUCTION, which is the point.
-            recorder.Tenants.Enqueue(context.TenantId);
+            recorder.Tenants.Enqueue(context.TenantId.Value);
         }
 
         public Task HandleAsync(Thing @event, CancellationToken cancellationToken = default)

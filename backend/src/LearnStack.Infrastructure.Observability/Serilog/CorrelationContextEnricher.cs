@@ -35,13 +35,15 @@ public sealed class CorrelationContextEnricher(ITenantContextAccessor accessor) 
 
         if (context.IsResolved)
         {
+            // Value.ToString() — see TenantContextSpanProcessor for why the id's
+            // own ToString() is not a wire format.
             logEvent.AddOrUpdateProperty(
-                propertyFactory.CreateProperty("tenant.id", context.TenantId.ToString()));
+                propertyFactory.CreateProperty("tenant.id", context.TenantId.Value.ToString()));
 
-            if (context.OrganizationId is { } orgId)
+            if (context.OrganizationId is { } orgId && orgId.IsInitialized())
             {
                 logEvent.AddOrUpdateProperty(
-                    propertyFactory.CreateProperty("organization.id", orgId.ToString()));
+                    propertyFactory.CreateProperty("organization.id", orgId.Value.ToString()));
             }
 
             // IsInitialized() before Value - see TenantContextSpanProcessor;

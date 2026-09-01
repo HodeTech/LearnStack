@@ -49,7 +49,7 @@ public sealed class UnassignedActorIdTests
     {
         UserId = Command.ActorId,
         IsResolved = true,
-        TenantId = Guid.Parse("018f4d40-1234-7000-8000-000000000001"),
+        TenantId = TenantId.From(Guid.Parse("018f4d40-1234-7000-8000-000000000001")),
         OrganizationId = null,
         CorrelationId = "00-aabbccdd-eeff0011-01",
         ModuleName = "education",
@@ -151,9 +151,9 @@ public sealed class UnassignedActorIdTests
     {
         public bool IsResolved { get; init; }
 
-        public Guid TenantId { get; init; }
+        public TenantId TenantId { get; init; }
 
-        public Guid? OrganizationId { get; init; }
+        public OrganizationId? OrganizationId { get; init; }
 
         public UserId? UserId { get; init; }
 

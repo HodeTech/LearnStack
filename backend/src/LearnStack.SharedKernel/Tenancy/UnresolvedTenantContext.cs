@@ -22,10 +22,10 @@ public sealed class UnresolvedTenantContext : ITenantContext
 
     public bool IsResolved => false;
 
-    public Guid TenantId => throw new InvalidOperationException(
+    public TenantId TenantId => throw new InvalidOperationException(
         "TenantId is not available on an unresolved tenant context. Gate reads on IsResolved.");
 
-    public Guid? OrganizationId => null;
+    public OrganizationId? OrganizationId => null;
 
     public UserId? UserId => null;
 

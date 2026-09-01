@@ -18,8 +18,8 @@ using LearnStack.SharedKernel.Messaging;
 public sealed class EventTenantContext : ITenantContext
 {
     private EventTenantContext(
-        Guid tenantId,
-        Guid? organizationId,
+        TenantId tenantId,
+        OrganizationId? organizationId,
         UserId? causalActorUserId,
         string? correlationId,
         string? moduleName)
@@ -36,7 +36,7 @@ public sealed class EventTenantContext : ITenantContext
     public bool IsResolved => true;
 
     /// <inheritdoc />
-    public Guid TenantId { get; }
+    public TenantId TenantId { get; }
 
     /// <summary>
     /// The organization the fact belongs to, when the envelope names one.
@@ -54,7 +54,7 @@ public sealed class EventTenantContext : ITenantContext
     /// <c>WITH CHECK</c> rejects writing one. Widening is the
     /// <c>app.scope = 'tenant'</c> hatch, not an absent value.
     /// </remarks>
-    public Guid? OrganizationId { get; }
+    public OrganizationId? OrganizationId { get; }
 
     /// <summary>Who the consumer's writes are attributed to.</summary>
     /// <remarks>
@@ -97,8 +97,10 @@ public sealed class EventTenantContext : ITenantContext
         }
 
         return new EventTenantContext(
-            envelope.Event.TenantId,
-            envelope.OrganizationId,
+            Identifiers.TenantId.From(envelope.Event.TenantId),
+            envelope.OrganizationId is { } organization
+                ? Identifiers.OrganizationId.From(organization)
+                : null,
             envelope.ActorUserId,
             envelope.CorrelationId,
             moduleName);

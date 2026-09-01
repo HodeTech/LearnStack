@@ -197,7 +197,11 @@ internal sealed partial class IdempotencyFilter(
             return;
         }
 
-        var tenantId = tenantContext.TenantId;
+        // Value once, here: IIdempotencyStore's key space is (Guid, string) and
+        // that port is not part of this conversion, so the seam is crossed at a
+        // single site rather than at each of its five call sites. Safe — the
+        // IsResolved gate above has already returned.
+        var tenantId = tenantContext.TenantId.Value;
         var cancellationToken = context.HttpContext.RequestAborted;
         var fingerprint = await ComputeFingerprintAsync(context.HttpContext, cancellationToken)
             .ConfigureAwait(false);
@@ -422,8 +426,17 @@ internal sealed partial class IdempotencyFilter(
     {
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        Append(digest, tenantContext.TenantId.ToString());
-        Append(digest, tenantContext.OrganizationId?.ToString() ?? string.Empty);
+        // Value, not the id's own ToString(). Measured: for an initialized id the
+        // two produce the same string, so this conversion leaves every existing
+        // fingerprint byte-identical — which matters, because a changed digest
+        // would silently invalidate every live idempotency claim. Value is what
+        // makes that property independent of Vogen's formatting.
+        Append(digest, tenantContext.TenantId.Value.ToString());
+        Append(
+            digest,
+            tenantContext.OrganizationId is { } fingerprintOrganization
+                ? fingerprintOrganization.Value.ToString()
+                : string.Empty);
         Append(digest, tenantContext.UserId is { } user ? $"user:{user}" : "anonymous");
         Append(digest, context.Request.Method);
         Append(digest, context.Request.Path.Value ?? string.Empty);

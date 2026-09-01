@@ -114,7 +114,12 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         if (mismatch is not null)
         {
             recorder.RecordRejection(new TenantAssertionRejection(
-                tenantContext.TenantId,
+                // Value, not the id: TenantAssertionRejection carries a Guid and
+                // feeds it to a metric tag, so keeping the underlying value here
+                // holds the exported dimension byte-identical across this
+                // conversion. Safe unconditionally — the !IsResolved branch
+                // above has already returned.
+                tenantContext.TenantId.Value,
                 mismatch.Value.Dimension,
                 mismatch.Value.Asserted,
                 context.User.Identity?.IsAuthenticated == true));
@@ -140,13 +145,20 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     private static (TenantAssertionDimension Dimension, Guid Asserted)? Mismatch(
         ITenantContext tenantContext, Guid? assertedTenant, Guid? assertedOrganization)
     {
-        if (assertedTenant is { } tenant && tenant != tenantContext.TenantId)
+        if (assertedTenant is { } tenant && tenant != tenantContext.TenantId.Value)
         {
             return (TenantAssertionDimension.Tenant, tenant);
         }
 
+        // An asserted organization against an unresolved one is a mismatch, not
+        // a pass. The pre-conversion form was a lifted `Guid != Guid?`, which is
+        // true when the right side is null; spelling it out keeps that, because
+        // the alternative — treating "no organization resolved" as agreement —
+        // would let a header widen the request's scope, which is the one thing
+        // ADR-0036 says an assertion may never do.
         if (assertedOrganization is { } organization
-            && organization != tenantContext.OrganizationId)
+            && (tenantContext.OrganizationId is not { } resolvedOrganization
+                || organization != resolvedOrganization.Value))
         {
             return (TenantAssertionDimension.Organization, organization);
         }

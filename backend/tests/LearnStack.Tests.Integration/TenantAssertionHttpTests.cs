@@ -266,8 +266,12 @@ public class ResolvedTenantFixture : WebApplicationFactory<Program>
         public static ResolvedContext Instance { get; } = new();
 
         public bool IsResolved => true;
-        public Guid TenantId => ResolvedTenantFixture.TenantId;
-        public Guid? OrganizationId => ResolvedTenantFixture.OrganizationId;
+        // Fully qualified: each property's own name shadows its type here.
+        public TenantId TenantId =>
+            SharedKernel.Identifiers.TenantId.From(ResolvedTenantFixture.TenantId);
+
+        public OrganizationId? OrganizationId =>
+            SharedKernel.Identifiers.OrganizationId.From(ResolvedTenantFixture.OrganizationId);
         public UserId? UserId => null;
         public string? CorrelationId => null;
         public string? ModuleName => "integration-test";

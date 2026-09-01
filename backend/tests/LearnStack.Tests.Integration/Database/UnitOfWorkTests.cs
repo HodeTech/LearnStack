@@ -67,6 +67,44 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    [Trait(RequiresDocker.Key, RequiresDocker.Value)]
+    public async Task A_resolved_context_holding_an_uninitialized_id_still_writes_the_empty_string()
+    {
+        // The failure this exists to prevent is specific and was measured, not
+        // imagined. Vogen 7 gives an uninitialized id two different textual
+        // forms: ToString() returns the literal "[UNINITIALIZED]", while string
+        // interpolation of the same value returns "". So a setter written the
+        // obvious way — context.TenantId.ToString() — sends
+        // '[UNINITIALIZED]' into app.tenant_id, and the first policy predicate
+        // that evaluates it raises 22P02 instead of filtering. Reading .Value
+        // without a gate throws instead. Both are worse than the fail-closed
+        // empty string, and only an IsInitialized() gate produces it.
+        //
+        // IsResolved is deliberately true here: an implementation is *supposed*
+        // to hold "IsResolved implies initialized", and this asserts that the
+        // one boundary where being wrong is a security fault does not take that
+        // promise on trust.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(new UninitializedIdContext());
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty("an uninitialized id must fail closed, not reach ::uuid");
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.organization_id', true)"))
+            .Should().BeEmpty();
+
+        // And the fail-closed value is usable: the policy filters rather than
+        // raising, which is the whole point of writing '' over the alternative.
+        (await ReadAsync(unitOfWork, "SELECT count(*)::text FROM organizations"))
+            .Should().Be("0");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
     public async Task An_unresolved_context_leaves_every_tenant_owned_table_empty()
     {
         // Between Packet 6 and Packet 7 every request runs against
@@ -743,6 +781,40 @@ public sealed class UnitOfWorkTests
     private static StubTenantContext Resolved(Guid tenant, Guid organization) =>
         new(tenant, organization);
 
+    /// <summary>
+    /// Claims to be resolved while carrying ids nothing ever assigned.
+    /// </summary>
+    /// <remarks>
+    /// <c>default(TenantId)</c> does not compile — Vogen's VOG009 analyzer
+    /// prohibits it — so the uninitialized value comes from an array element,
+    /// which the analyzer cannot see and the runtime leaves zeroed. That is also
+    /// how one reaches production: a struct field nobody assigned, a
+    /// <c>default(T)</c> in a generic, a deserializer that skipped a member.
+    /// </remarks>
+    private sealed class UninitializedIdContext : ITenantContext
+    {
+        private static readonly TenantId Unassigned = Zeroed<TenantId>();
+        private static readonly OrganizationId UnassignedOrganization = Zeroed<OrganizationId>();
+
+        private static T Zeroed<T>()
+        {
+            var slot = new T[1];
+            return slot[0];
+        }
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId => Unassigned;
+
+        public OrganizationId? OrganizationId => UnassignedOrganization;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "uninitialized-id-probe";
+    }
+
     /// <summary>A request type for driving the real behavior.</summary>
     public sealed record Probe : MediatR.IRequest<Result<string>>;
 
@@ -752,11 +824,15 @@ public sealed class UnitOfWorkTests
     /// </summary>
     private sealed class StubTenantContext(Guid tenant, Guid organization) : ITenantContext
     {
+        // Converted here rather than at each call site: the stub's callers hold
+        // raw fixture Guids and the contract holds typed ids.
+
         public bool IsResolved => true;
 
-        public Guid TenantId => tenant;
+        public TenantId TenantId => SharedKernel.Identifiers.TenantId.From(tenant);
 
-        public Guid? OrganizationId => organization;
+        public OrganizationId? OrganizationId =>
+            SharedKernel.Identifiers.OrganizationId.From(organization);
 
         public UserId? UserId => null;
 

@@ -158,10 +158,13 @@ internal sealed class LearnStackExceptionHandler(
             RequestMethod: httpContext.Request.Method,
             TenantId: context?.IsResolved == true ? context.TenantId : null,
             OrganizationId: context?.OrganizationId,
-            // IsInitialized() before Value: this builds context while already
-            // handling an exception, so a throw here loses the original one.
+            // IsInitialized() before it is carried: a UserId? being non-null
+            // says a UserId struct is there, not that it was ever assigned one,
+            // and every downstream reader of this record reaches for Value.
+            // This builds context while already handling an exception, so a
+            // throw further down the pipe would lose the original one.
             UserId: context?.UserId is { } userId && userId.IsInitialized()
-                ? userId.Value
+                ? userId
                 : null,
             ModuleName: context?.ModuleName,
             AdditionalTags: null);

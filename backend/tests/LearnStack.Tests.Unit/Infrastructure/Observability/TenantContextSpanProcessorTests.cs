@@ -39,8 +39,8 @@ public sealed class TenantContextSpanProcessorTests
 
         var accessor = new TestAccessor(new TestTenantContext(
             IsResolved: true,
-            TenantId: tenantId,
-            OrganizationId: organizationId,
+            TenantId: TenantId.From(tenantId),
+            OrganizationId: OrganizationId.From(organizationId),
             UserId: userId,
             CorrelationId: "00-aabbccdd-eeff0011-01",
             ModuleName: "education"));
@@ -83,8 +83,8 @@ public sealed class TenantContextSpanProcessorTests
 
     private sealed record TestTenantContext(
         bool IsResolved,
-        Guid TenantId,
-        Guid? OrganizationId,
+        TenantId TenantId,
+        OrganizationId? OrganizationId,
         UserId? UserId,
         string? CorrelationId,
         string? ModuleName) : ITenantContext;

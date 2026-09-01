@@ -32,14 +32,26 @@ public interface ITenantContext
     /// <see cref="System.InvalidOperationException"/> — callers gate on
     /// <see cref="IsResolved"/> first.
     /// </summary>
-    Guid TenantId { get; }
+    /// <remarks>
+    /// <b><see cref="IsResolved"/> implies this is initialized.</b> Every
+    /// implementation holds that invariant, and it is what lets a caller write
+    /// <c>TenantId.Value</c> under an <see cref="IsResolved"/> gate — reading
+    /// <c>Value</c> on an uninitialized Vogen id throws
+    /// <c>ValueObjectValidationException</c>. Do not reach for
+    /// <c>ToString()</c> as a substitute: measured on Vogen 7, an uninitialized
+    /// id's <c>ToString()</c> returns the literal <c>"[UNINITIALIZED]"</c> while
+    /// string interpolation of the same value returns the empty string, so the
+    /// two disagree and one of them reaches PostgreSQL as
+    /// <c>'[UNINITIALIZED]'::uuid</c>, which raises.
+    /// </remarks>
+    TenantId TenantId { get; }
 
     /// <summary>
     /// The resolved organization within the tenant, when the request targets
     /// an <c>[OrganizationScoped]</c> resource. <c>null</c> for tenant-wide
     /// requests.
     /// </summary>
-    Guid? OrganizationId { get; }
+    OrganizationId? OrganizationId { get; }
 
     /// <summary>
     /// The effective actor. Authenticated requests carry their user, anonymous

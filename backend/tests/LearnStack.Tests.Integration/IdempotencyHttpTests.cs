@@ -556,10 +556,11 @@ public sealed class IdempotencyFixture : WebApplicationFactory<Program>
     {
         public bool IsResolved => Read(TenantHeader) is not null;
 
-        public Guid TenantId => Read(TenantHeader)
-            ?? throw new InvalidOperationException("No tenant on this request.");
+        public TenantId TenantId => Read(TenantHeader) is { } tenant
+            ? SharedKernel.Identifiers.TenantId.From(tenant)
+            : throw new InvalidOperationException("No tenant on this request.");
 
-        public Guid? OrganizationId => null;
+        public OrganizationId? OrganizationId => null;
 
         public UserId? UserId => Read(UserHeader) is { } id
             ? SharedKernel.Identifiers.UserId.From(id)

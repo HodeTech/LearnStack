@@ -220,8 +220,9 @@ public sealed class IntegrationEventContractTests
         // consumer that sends a MediatR command — silently, before its business
         // logic ran.
         context.IsResolved.Should().BeTrue();
-        context.TenantId.Should().Be(Tenant);
-        context.OrganizationId.Should().Be(organization);
+        context.TenantId.Should().Be(TenantId.From(Tenant));
+        context.OrganizationId.Should().Be(
+            organization is { } org ? OrganizationId.From(org) : null);
         context.UserId.Should().Be(UserId.SystemActor);
         context.CausalActorUserId.Should().Be(actor);
         context.CorrelationId.Should().Be(Trace);

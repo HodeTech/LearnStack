@@ -316,8 +316,8 @@ internal sealed class TestResolvedTenantContext : ITenantContext
     public static TestResolvedTenantContext Instance { get; } = new();
 
     public bool IsResolved => true;
-    public Guid TenantId { get; } = Guid.Parse("018f4d40-0000-7000-8000-000000000001");
-    public Guid? OrganizationId { get; }
+    public TenantId TenantId { get; } = TenantId.From(Guid.Parse("018f4d40-0000-7000-8000-000000000001"));
+    public OrganizationId? OrganizationId { get; }
     public UserId? UserId { get; }
     public string? CorrelationId => null;
     public string? ModuleName => "integration-test";
