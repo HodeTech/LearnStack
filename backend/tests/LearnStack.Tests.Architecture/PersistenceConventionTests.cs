@@ -541,5 +541,5 @@ public sealed class PersistenceConventionTests
             // The model is what these cases read, and a query filter emits no
             // DDL and no table mapping, so the context this builds is identical
             // whichever tenant context it holds.
-            UnresolvedTenantContext.Instance);
+            StaticTenantContextAccessor.Unresolved);
 }

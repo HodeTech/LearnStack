@@ -264,6 +264,47 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task A_context_follows_the_accessor_after_it_was_built()
+    {
+        // Whether the filters read the CURRENT ambient tenant or the one that
+        // happened to be there when EF constructed the context. In every flow the
+        // corpus designs, the accessor is written first — the resolver middleware
+        // at scope start, the event transport per delivery — so a snapshot would
+        // be correct today and wrong the first time that ordering changed. This
+        // asserts the mechanism rather than the ordering.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        // Built while tenant A is ambient.
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        (await context.Organizations.CountAsync()).Should().BeGreaterThan(0);
+
+        // Now the ambient tenant changes underneath it, and only the accessor
+        // moves — app.tenant_id stays on A, because SetTenantContextAsync is
+        // transaction-local and this transaction already issued it.
+        scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current =
+            Resolved(SchemaFixture.TenantB, Guid.NewGuid());
+
+        // Zero is the discriminating answer, and it is the only one available:
+        // the filter now narrows to B while Row Level Security still narrows to
+        // A, so their intersection is empty. A context that had frozen its tenant
+        // context at construction would still be filtering to A, agree with the
+        // policy, and hand back tenant A's rows — which is what this asserts
+        // against. Reading the emitted SQL cannot tell the two apart, because both
+        // emit the same parameterised text and differ only in the value bound.
+        (await context.Organizations.CountAsync()).Should().Be(0,
+            "the filter must read the accessor on every query, not the instance it "
+            + "was built with — a frozen context would still be reading tenant A");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
     public async Task A_module_context_enlists_in_the_ambient_transaction()
     {
         // The property the shared registration helper exists for. The row is

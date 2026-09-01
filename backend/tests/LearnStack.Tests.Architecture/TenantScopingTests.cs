@@ -233,7 +233,7 @@ public sealed class TenantScopingTests
             new DbContextOptionsBuilder<TenancyDbContext>()
                 .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
                 .Options,
-            UnresolvedTenantContext.Instance);
+            StaticTenantContextAccessor.Unresolved);
 
     /// <summary>
     /// Every migration source in the repository, concatenated.

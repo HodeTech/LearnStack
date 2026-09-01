@@ -210,21 +210,40 @@ public static class TenantQueryFilters
 /// <c>OnModelCreating</c>, where the failure is a model that cannot be built.
 /// </remarks>
 public abstract class TenantScopedDbContext(
-    DbContextOptions options, ITenantContext tenantContext)
+    DbContextOptions options, ITenantContextAccessor accessor)
     : DbContext(options), ITenantScopedDbContext
 {
     private static readonly TenantId NoTenant = TenantId.From(Guid.Empty);
 
+    /// <summary>
+    /// The ambient context, read fresh on every access.
+    /// </summary>
+    /// <remarks>
+    /// <b>The accessor, not an injected <c>ITenantContext</c>.</b> That contract is
+    /// registered transient and resolved from this same accessor, so a context
+    /// constructed with one captures whatever the accessor happened to hold at
+    /// construction and never moves again. Measured: with the injected form, a
+    /// context built under tenant A kept filtering to A after the accessor moved to
+    /// B. Every flow the corpus designs writes the accessor before the context is
+    /// built — the resolver middleware at scope start, the event transport per
+    /// delivery — so the snapshot was correct today and would have been wrong the
+    /// first time that ordering changed. Reading through the accessor makes the
+    /// property hold by mechanism rather than by ordering, which is the same reason
+    /// <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032
+    /// § Sub-decision 10</see> routes every cross-cutting reader through it.
+    /// </remarks>
+    private ITenantContext Ambient => accessor.Current ?? UnresolvedTenantContext.Instance;
+
     /// <inheritdoc />
     public TenantId CurrentTenantId =>
-        tenantContext.IsResolved && tenantContext.TenantId.IsInitialized()
-            ? tenantContext.TenantId
+        Ambient is { IsResolved: true } context && context.TenantId.IsInitialized()
+            ? context.TenantId
             : NoTenant;
 
     /// <inheritdoc />
     public OrganizationId? CurrentOrganizationId =>
-        tenantContext.IsResolved
-        && tenantContext.OrganizationId is { } organization
+        Ambient is { IsResolved: true } context
+        && context.OrganizationId is { } organization
         && organization.IsInitialized()
             ? organization
             : null;

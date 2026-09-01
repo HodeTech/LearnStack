@@ -38,8 +38,8 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// </para>
 /// </remarks>
 public sealed class TenancyDbContext(
-    DbContextOptions<TenancyDbContext> options, ITenantContext tenantContext)
-    : TenantScopedDbContext(options, tenantContext)
+    DbContextOptions<TenancyDbContext> options, ITenantContextAccessor accessor)
+    : TenantScopedDbContext(options, accessor)
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
 

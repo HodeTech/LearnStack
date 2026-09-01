@@ -113,7 +113,7 @@ public sealed class SchemaFixture : IAsyncLifetime
                 .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
                     npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
                 .Options,
-            UnresolvedTenantContext.Instance))
+            StaticTenantContextAccessor.Unresolved))
         {
             await tenancy.Database.MigrateAsync();
         }
