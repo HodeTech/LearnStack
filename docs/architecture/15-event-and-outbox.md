@@ -192,7 +192,8 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
     await _outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
     {
         EventId = _guidFactory.NewUuidV7(),   // IGuidFactory, not Guid.NewGuid
-        TenantId = _tenantContext.TenantId,   // ITenantContext, not the accessor
+        TenantId = _tenantContext.TenantId.Value,  // Guid on the wire; ITenantContext,
+                                                   // not the accessor
         OccurredAt = _clock.UtcNow,           // IClock per Standards 02 § Time
         EnrollmentId = enrollment.Id.Value,
         LearnerId = cmd.LearnerId,

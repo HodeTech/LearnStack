@@ -89,6 +89,20 @@ public sealed class UnitOfWorkTests
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         await unitOfWork.BeginTransactionAsync();
+
+        // Seeded session-scoped (the third argument is false), so it survives
+        // the transaction the setter runs in. Without this the assertion below
+        // passes on a connection where the variable was simply never set, which
+        // proves nothing about the setter: the property under test is that it
+        // *overwrites* a leftover with the fail-closed empty string, which is
+        // the case that matters on a pooled connection.
+        await ReadAsync(
+            unitOfWork,
+            "SELECT set_config('app.tenant_id', '018f4d40-0000-7000-8000-00000000dead', false)");
+        await ReadAsync(
+            unitOfWork,
+            "SELECT set_config('app.organization_id', '018f4d40-0000-7000-8000-00000000beef', false)");
+
         await unitOfWork.SetTenantContextAsync(new UninitializedIdContext());
 
         (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
@@ -705,6 +719,7 @@ public sealed class UnitOfWorkTests
         // fixture's container is not the one appsettings names.
         var services = new ServiceCollection();
         services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        services.AddLogging();
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
 

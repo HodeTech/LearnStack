@@ -432,6 +432,12 @@ internal sealed partial class IdempotencyFilter(
         // would silently invalidate every live idempotency claim. Value is what
         // makes that property independent of Vogen's formatting.
         Append(digest, tenantContext.TenantId.Value.ToString());
+        // Ungated on purpose, and the reason is the opposite of the usual one.
+        // Falling back to the empty string is exactly what a genuinely
+        // tenant-wide (null) organization contributes, so gating an
+        // uninitialized id into the same empty string would merge "no scope" and
+        // "unknown scope" into one key space and let the two replay each other's
+        // responses. Throwing is the fail-closed answer here.
         Append(
             digest,
             tenantContext.OrganizationId is { } fingerprintOrganization

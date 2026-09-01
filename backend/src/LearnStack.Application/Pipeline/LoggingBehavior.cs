@@ -86,9 +86,16 @@ public sealed class LoggingBehavior<TRequest, TResponse>(
         {
             ["RequestName"] = requestName,
             // Value, so the scope carries a boxed Guid exactly as it did before
-            // the ids became value objects. Boxing the Vogen struct instead would
-            // hand Serilog something it destructures rather than renders.
-            ["TenantId"] = context?.IsResolved == true ? context.TenantId.Value : null,
+            // the ids became value objects. Measured through a capturing sink on
+            // the real Serilog: a boxed Vogen id arrives as a ScalarValue holding
+            // a *string* — Serilog stringifies an unknown scalar at capture — and
+            // a boxed Guid as a ScalarValue holding a Guid. No destructuring
+            // either way, but a sink that formats by type would see the change.
+            // Gated, because BuildScope runs at pipeline step 2 outside any try
+            // of its own, so a throw here fails the request it is logging.
+            ["TenantId"] = context?.IsResolved == true && context.TenantId.IsInitialized()
+                ? context.TenantId.Value
+                : null,
             ["OrganizationId"] = context?.OrganizationId is { } organizationId
                 && organizationId.IsInitialized()
                     ? organizationId.Value

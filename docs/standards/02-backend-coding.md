@@ -72,6 +72,32 @@ The same annotation covers richer value objects (`Email`, `Slug`, `LocaleCode`,
 `Money`) — the emitter shape is identical for IDs and value objects, with the
 value-object's invariant captured in a `Validate` static method.
 
+Emission — **at an export boundary, write `id.Value`, never the id**:
+
+- The boundaries are: a span tag, a log property, an error-tracker tag, a SQL
+  parameter, a hash input, a JSON or wire payload, a job payload, and a metric
+  dimension. Anywhere the identifier leaves the type system, the underlying value
+  goes, not the wrapper.
+- **A Vogen id's own formatting is not a wire format.** Measured on Vogen 7, for
+  an id that was never assigned: `id.ToString()` returns the literal
+  `"[UNINITIALIZED]"`, while `$"{id}"` — string interpolation of the same value —
+  returns the empty string. Two spellings of "print this id" disagree, so neither
+  is a contract. `id.Value.ToString()` is.
+- Reading `Value` on an uninitialized id throws `ValueObjectValidationException`,
+  so the read is gated on `IsInitialized()` wherever the id may not have been
+  assigned. `default(TId)` does not compile — Vogen's `VOG009` analyzer prohibits
+  it — but an array element, a `default(T)` in a generic, and a member a
+  deserializer skipped all reach that state.
+- The cost of getting it wrong is not cosmetic on every path. `'[UNINITIALIZED]'`
+  reaching `app.tenant_id` is cast by the Row Level Security policy as `::uuid`
+  and raises `22P02` on the first predicate evaluation, turning a fail-closed
+  empty result into a hard error — see
+  [Security Standards § Tenant Context](11-security.md).
+- Inside the type system the opposite holds: pass the id, not its value. A domain
+  factory, a repository and an application contract all take `TenantId`, and
+  unwrapping early is how a tenant id ends up where an organization id belongs
+  with the compiler's blessing.
+
 ## Nullability
 
 - `Nullable` is on. Treat warnings as errors.

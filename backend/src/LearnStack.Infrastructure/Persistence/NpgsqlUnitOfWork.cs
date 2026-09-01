@@ -1,5 +1,6 @@
 using System.Data.Common;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.Extensions.Logging;
 using LearnStack.SharedKernel.Tenancy;
 using Npgsql;
 
@@ -38,10 +39,14 @@ namespace LearnStack.Infrastructure.Persistence;
 /// that a later <c>BEGIN</c> clears is not.
 /// </para>
 /// </remarks>
-public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
+public sealed class NpgsqlUnitOfWork(
+    NpgsqlDataSource dataSource, ILogger<NpgsqlUnitOfWork> logger) : IUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource =
         dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+
+    private readonly ILogger<NpgsqlUnitOfWork> _logger =
+        logger ?? throw new ArgumentNullException(nameof(logger));
 
     private NpgsqlConnection? _connection;
     private DbTransaction? _transaction;
@@ -169,21 +174,49 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
         // IsInitialized() and not a null check: ITenantContext's contract says
         // IsResolved implies initialized, and this is the boundary that does not
         // take the contract's word for it.
+        // Guid.Empty is refused alongside the uninitialized case, because
+        // IsInitialized() is only half the test: Vogen validates the *shape* of
+        // the value, not that it names anything, and the domain already refuses
+        // the all-zero id by hand (TenantOwned.EnsureRealTenant). An all-zero
+        // tenant would otherwise cast cleanly and match every row a bug wrote
+        // under it.
+        var tenant = context.IsResolved
+            && context.TenantId.IsInitialized()
+            && context.TenantId.Value != Guid.Empty
+                ? context.TenantId.Value.ToString()
+                : string.Empty;
+
+        var organization = context.IsResolved
+            && context.OrganizationId is { } scoped
+            && scoped.IsInitialized()
+            && scoped.Value != Guid.Empty
+                ? scoped.Value.ToString()
+                : string.Empty;
+
+        // A context that says it is resolved and yields no usable tenant is a
+        // bug in whoever built it. The empty string keeps the request
+        // fail-closed, but silence here is the worst possible diagnostic: every
+        // query returns nothing, attributed to nobody, and the symptom looks
+        // like missing data rather than a broken context.
+        if (context.IsResolved && tenant.Length == 0)
+        {
+            LogResolvedWithoutTenant(_logger, context.GetType().Name, null);
+        }
+
         await ExecuteAsync(
             "SELECT set_config('app.tenant_id', @tenant, true), "
             + "set_config('app.organization_id', @organization, true)",
             cancellationToken,
-            ("tenant",
-                context.IsResolved && context.TenantId.IsInitialized()
-                    ? context.TenantId.Value.ToString()
-                    : string.Empty),
-            ("organization",
-                context.IsResolved
-                && context.OrganizationId is { } organization
-                && organization.IsInitialized()
-                    ? organization.Value.ToString()
-                    : string.Empty));
+            ("tenant", tenant),
+            ("organization", organization));
     }
+
+    private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1, nameof(LogResolvedWithoutTenant)),
+            "{ContextType} reports IsResolved but carries no usable tenant id. app.tenant_id "
+            + "was left empty, so every tenant-owned read on this transaction returns zero rows.");
 
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {

@@ -204,6 +204,98 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
 }
 
 /// <summary>
+/// The tenant-wide branch of the organization comparison: a resolved context
+/// carrying <b>no</b> organization, with an organization asserted at it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Its own fixture because <see cref="ResolvedTenantFixture"/>'s context always
+/// resolves an organization, so the branch this covers has no fixture there and
+/// was reachable by no test. Measured: rewriting the middleware's null clause to
+/// the natural-looking
+/// <c>OrganizationId is { } r &amp;&amp; organization != r.Value</c> leaves the entire
+/// suite green while turning this case from a 404 into a 200.
+/// </para>
+/// <para>
+/// What that mutant permits is the one thing
+/// <see href="../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
+/// says an assertion may never do: a header would widen a tenant-wide request
+/// into an organization scope the resolver never granted. The rule is that an
+/// assertion can reject a request and can never fill a gap.
+/// </para>
+/// </remarks>
+public sealed class TenantWideOrganizationAssertionTests(TenantWideFixture fixture)
+    : IClassFixture<TenantWideFixture>
+{
+    private readonly HttpClient _client = fixture.CreateClient();
+
+    [Fact]
+    public async Task An_Organization_Asserted_Against_A_Tenant_Wide_Context_Is_A_404()
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+        request.Headers.Add(
+            TenantAssertionMiddleware.OrganizationHeaderName, Guid.NewGuid().ToString());
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(
+            HttpStatusCode.NotFound,
+            "an assertion may reject a request and may never widen one");
+    }
+
+    [Fact]
+    public async Task The_Same_Request_Without_The_Header_Is_Served()
+    {
+        // The companion that stops the 404 above from passing for the wrong
+        // reason — a mis-wired fixture, a missing probe route, a middleware that
+        // refuses every tenant-wide request.
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+}
+
+/// <summary>
+/// <see cref="ResolvedTenantFixture"/> with the organization removed, so the
+/// context is resolved and tenant-wide.
+/// </summary>
+public sealed class TenantWideFixture : ResolvedTenantFixture
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ITenantContext>();
+            services.AddScoped<ITenantContext>(_ => TenantWideContext.Instance);
+        });
+    }
+
+    private sealed class TenantWideContext : ITenantContext
+    {
+        public static TenantWideContext Instance { get; } = new();
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId =>
+            SharedKernel.Identifiers.TenantId.From(ResolvedTenantFixture.TenantId);
+
+        /// <summary>Tenant-wide: no organization, which is a scope and not "unknown".</summary>
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "integration-test";
+    }
+}
+
+/// <summary>
 /// A host whose <see cref="ITenantContext"/> is resolved, so the assertion
 /// comparison has something to compare against.
 /// </summary>

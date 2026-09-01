@@ -49,7 +49,17 @@ public sealed class TenantContextSpanProcessor(ITenantContextAccessor accessor)
             // uninitialized id's ToString() is the literal "[UNINITIALIZED]"
             // while interpolating the same value gives "" — so the id's own
             // formatting is not a wire format, and this tag is one.
-            data.SetTag("tenant.id", context.TenantId.Value.ToString());
+            // IsInitialized() on the tenant id too, not only on the two below
+            // it. This processor runs inside Activity.Start() for every span and
+            // must never throw; before the ids became value objects this was a
+            // Guid read that could not, and the asymmetry with the sibling
+            // branches otherwise reads as an oversight rather than as reliance
+            // on ITenantContext's IsResolved-implies-initialized invariant.
+            if (context.TenantId.IsInitialized())
+            {
+                data.SetTag("tenant.id", context.TenantId.Value.ToString());
+            }
+
             if (context.OrganizationId is { } orgId && orgId.IsInitialized())
             {
                 data.SetTag("organization.id", orgId.Value.ToString());

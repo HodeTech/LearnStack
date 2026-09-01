@@ -107,7 +107,7 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
 {
     EventId = guidFactory.NewUuidV7(),        // IGuidFactory, not Guid.NewGuid
     OccurredAt = clock.UtcNow,                // IClock per Standards 02 § Time
-    TenantId = tenantContext.TenantId,
+    TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
     CourseVersionId = request.CourseVersionId.Value,
