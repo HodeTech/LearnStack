@@ -892,7 +892,6 @@ first two rows are coverage checks; the last three are the proof.
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
   module; Packet 10 closes it across every module.
-- **Status:** **Registered.**
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`

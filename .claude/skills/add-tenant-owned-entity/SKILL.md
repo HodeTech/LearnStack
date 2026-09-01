@@ -174,24 +174,36 @@ that cannot be seen locally**, and the two facts behind it are what you need:
   convention, with no filter at all. `TenancyDbContext` uses that call, so a
   `ThingConfiguration(ITenantContext ctx)` disappears rather than failing.
 
-Together those rule out the obvious shape, which is why **Phase 02a Packet 7
-owns the filters** — it lands `TenantResolverMiddleware`, the value the filter
-reads, and the two rules below, together. Do not invent a filter here ahead of
-it; if your entity ships before Packet 7, say so in the PR and rely on RLS,
-which is live from the migration that creates the table.
+Together those rule out the obvious shape. **Since Packet 7 step 3 you do not
+write a filter at all** — you declare the entity's scope and the seam applies
+one:
 
-`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` is what will make a forgotten
-filter fail, and `Every_OrgScoped_Entity_HasOrgIdAndFilter` covers the
-organization term. Both are **registered and not yet implemented** — Packet 7
-introduces them, so until then a forgotten filter is caught by review only. Check
-the [catalogue](../../../docs/standards/21-architecture-tests-catalogue.md)
-rather than assuming a net is under you.
+1. Implement `ITenantOwned` (or `IOrganizationScoped`, which extends it) from
+   `LearnStack.SharedKernel.Persistence`.
+2. Mark the class `[TenantOwned]`, adding `[OrganizationScoped]` when it carries
+   a nullable `OrganizationId`.
+3. Make sure the module's `DbContext` derives from `TenantScopedDbContext`. Its
+   `OnModelCreating` sweeps the model and applies the filter to every entity
+   implementing those interfaces, closing over the **context instance member**
+   that is the whole point of the mechanism.
 
-One thing that is true whenever the filter does land: a second `HasQueryFilter`
-call **replaces** the first rather than combining with it, so the tenant term,
-the organization term and the soft-delete term go into one expression — and the
-soft-delete term gates on `DeletedAt`, not the computed `IsDeleted` property,
-which EF cannot translate.
+Two entities take neither treatment, and both are table classes rather than
+oversights: the tenant-owned **self-keyed** class carries
+`[TenantOwned(SelfKeyed = true)]` and is filtered on its own `Id`, and a
+**platform-scoped** table carries no marker at all
+([Database Standards § Table classes](../../../docs/standards/05-database.md)).
+
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
+`Every_OrgScoped_Entity_HasOrgIdAndFilter` are **implemented** as of that step and
+will fail the build for a marked entity with no filter, no tenant key, or a
+migration missing `ENABLE` + `FORCE` + one permissive policy with both clauses.
+They cannot catch a **missing marker** — a marker-gated rule iterates what it
+finds — so that one is still on you and on review.
+
+One thing that stays true: a second `HasQueryFilter` call **replaces** the first
+rather than combining with it, so a soft-delete term has to go into the same
+expression as the tenant term rather than beside it — and it gates on
+`DeletedAt`, not the computed `IsDeleted` property, which EF cannot translate.
 
 ### Step 3: Migration — schema + RLS
 

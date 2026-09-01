@@ -353,8 +353,11 @@ migration is consistent.
 - `LearnStack.Tests.Architecture` is green. The two rules for this surface —
   `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
   `Every_OrgScoped_Entity_HasOrgIdAndFilter`, the canonical names — are
-  **Registered and owned by Packet 7**, so today they check nothing. What actually
-  runs against your migration is the schema sweeps in
+  **Implemented** as of Packet 7 step 3 (`TenantScopingTests`): they read the EF
+  model and scan every migration source, so a marked entity with no filter, no
+  tenant key, or a table missing `ENABLE` + `FORCE` + one permissive policy with
+  both clauses fails the build. Alongside them, what runs against your migration is
+  the schema sweeps in
   `LearnStack.Tests.Integration`'s `TenancySchemaTests`: row security enabled *and*
   forced on every table in the catalogue, no second permissive policy for one
   command, snake_case identifiers, foreign-key indexing, and the exact grant matrix.

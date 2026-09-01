@@ -166,32 +166,29 @@ In `LearnStack.Modules.<Name>.Infrastructure/Persistence/<Name>DbContext.cs`:
 // parameter throws `MissingMethodException` on first resolution — and
 // `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` forbids registering the
 // context any other way. This is the shape the one shipped context carries.
-public sealed class <Name>DbContext(DbContextOptions<<Name>DbContext> options)
-    : DbContext(options)
+public sealed class <Name>DbContext(
+    DbContextOptions<<Name>DbContext> options, ITenantContextAccessor accessor)
+    : TenantScopedDbContext(options, accessor)
 {
-    // The filters' closure root, held as an instance member. Nullable because the
-    // registrar cannot hand it over yet; Packet 7 populates it (see below).
-    private ITenantContextAccessor? _accessor;
+    // The base owns the two members the filters close over and applies one to
+    // every entity implementing ITenantOwned / IOrganizationScoped. Do not write
+    // a filter here, and never from an IEntityTypeConfiguration: a configuration
+    // reached by ApplyConfigurationsFromAssembly cannot close over the context
+    // instance, and a filter whose closure root is anything else is constant-
+    // folded into EF's cached model as a SQL literal. There is no
+    // TenantQueryFilterConvention either; that type has never existed.
+    //
+    // The accessor rather than an injected ITenantContext: that contract is
+    // registered transient and resolved from this same accessor, so a context
+    // holding one freezes whatever the accessor held at construction.
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(<Name>DbContext).Assembly);
 
-        // Tenant + Organization query filters are applied HERE, from
-        // OnModelCreating, with a DbContext INSTANCE MEMBER as the closure root.
-        // Not from an IEntityTypeConfiguration: a configuration reached by
-        // ApplyConfigurationsFromAssembly cannot close over the context instance,
-        // and a filter whose closure root is anything else is constant-folded into
-        // EF's cached model as a SQL literal — so request B emits request A's
-        // baked-in tenant id. There is no TenantQueryFilterConvention either; that
-        // type has never existed. Every_TenantOwned_Entity_HasFilterAndRlsPolicy is
-        // what WILL make a forgotten filter fail — registered in the catalogue and
-        // implemented in Phase 02a Packet 7, not before.
-        foreach (var entity in modelBuilder.Model.GetEntityTypes())
-        {
-            // …build the filter over `_accessor`, the instance member, one
-            // expression per entity.
-        }
+        // AFTER the configurations, so every entity type is in the model when the
+        // base sweeps it. Forgetting this call loses every filter, silently.
+        base.OnModelCreating(modelBuilder);
     }
 }
 ```

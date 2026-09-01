@@ -99,8 +99,12 @@ public sealed class TenantScopingTests
     [Fact]
     public void Every_OrgScoped_Entity_HasOrgIdAndFilter()
     {
-        var marked = ScopedEntities()
-            .Where(entity => entity.GetCustomAttribute<OrganizationScopedAttribute>() is not null)
+        // Enumerated by its own marker, not by filtering the tenant-owned set: an
+        // entity carrying only [OrganizationScoped] would otherwise be invisible to
+        // both rules, which is the one arrangement neither could report.
+        var marked = TenancyDomain.GetTypes()
+            .Where(type => type.GetCustomAttribute<OrganizationScopedAttribute>() is not null)
+            .OrderBy(type => type.Name, StringComparer.Ordinal)
             .ToList();
 
         marked.Should().NotBeEmpty(
@@ -114,14 +118,24 @@ public sealed class TenantScopingTests
             typeof(IOrganizationScoped).IsAssignableFrom(entity).Should().BeTrue(
                 $"{entity.Name} carries [OrganizationScoped] and must expose OrganizationId");
 
-            // Nullable, because null is a scope and not an absence: a row with no
-            // organization is tenant-wide (ADR-0017).
-            var property = entity.GetProperty(nameof(IOrganizationScoped.OrganizationId))!;
-            Nullable.GetUnderlyingType(property.PropertyType).Should().NotBeNull(
-                $"{entity.Name}.OrganizationId must be nullable — null means tenant-wide");
+            // An organization exists only inside a tenant, so the two markers travel
+            // together. Asserted rather than assumed, because the tenant-owned rule
+            // enumerates its own marker and would not see this entity at all.
+            entity.GetCustomAttribute<TenantOwnedAttribute>().Should().NotBeNull(
+                $"{entity.Name} is organization-scoped, so it is tenant-owned by construction");
 
             var entityType = context.Model.FindEntityType(entity)!;
             var table = entityType.GetTableName()!;
+
+            // The mapped column, not the CLR property. `IOrganizationScoped`
+            // already declares `OrganizationId?`, so a reflection check on the
+            // property type cannot fail — it asserts the compiler. What can go
+            // wrong is a configuration marking the column required, which would
+            // make a tenant-wide row unrepresentable: null is a scope here, not an
+            // absence (ADR-0017).
+            entityType.FindProperty(nameof(IOrganizationScoped.OrganizationId))!.IsNullable
+                .Should().BeTrue(
+                    $"{table}.organization_id must be nullable — null means tenant-wide");
 
             var members = RowMembersRead(entityType);
             members.Should().Contain(nameof(ITenantOwned.TenantId),

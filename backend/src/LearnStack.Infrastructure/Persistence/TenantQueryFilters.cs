@@ -21,17 +21,28 @@ namespace LearnStack.Infrastructure.Persistence;
 /// member per query and emits a parameter.
 /// <c>Two_contexts_under_two_tenants_each_see_only_their_own_rows</c> holds the
 /// property and fails against the baked-in form.
-/// <b>Measured, and not what one would guess:</b> the baked-in failure here is
-/// not "the first request's tenant, served to the second". The model is built on
-/// first use, which in this codebase is reliably before any tenant is resolved,
-/// so the literal that bakes in is the all-zero id and <i>every</i> query returns
-/// zero rows for the life of the process. Fail-closed, and total — a bug that
-/// looks like an empty database rather than like a leak. That is the better of
-/// the two directions and still an outage.
+/// <para>
+/// <b>The baked-in failure has two directions, and which one a host gets depends
+/// on who builds the model first.</b> Whatever <c>CurrentTenantId</c> returns at
+/// that moment is the literal every later query carries.
+/// In the API host the first build is necessarily inside a request — the module
+/// registration refuses to resolve a context outside the ambient transaction — so
+/// the literal is a real tenant's id and every later request reads **that
+/// tenant's rows**. Row Level Security still refuses to serve them, so it is a
+/// zero-row outage rather than a leak, but the id in the <c>WHERE</c> clause
+/// belongs to someone else. In a test or design-time host the first build is
+/// unresolved, the literal is the all-zero id, and every query returns nothing
+/// for the life of the process — which is what this repository measured, and why
+/// the measurement alone would have named the wrong direction for production.
+/// </para>
 /// </para>
 /// <para>
 /// Implemented via <see cref="TenantScopedDbContext"/>, which every module context
-/// derives from rather than restating.
+/// derives from rather than restating. The extension that consumes this interface
+/// additionally constrains its argument to a <see cref="DbContext"/>, because an
+/// implementer that is not one cannot be a closure root EF re-evaluates — the
+/// interface alone would let the mechanism be defeated by a caller that satisfied
+/// its shape.
 /// </para>
 /// </remarks>
 public interface ITenantScopedDbContext
@@ -90,14 +101,26 @@ public static class TenantQueryFilters
     /// Adds a filter to every entity type implementing <see cref="ITenantOwned"/>,
     /// narrowing further for those implementing <see cref="IOrganizationScoped"/>.
     /// </summary>
-    public static ModelBuilder ApplyTenantQueryFilters(
-        this ModelBuilder modelBuilder, ITenantScopedDbContext context)
+    public static ModelBuilder ApplyTenantQueryFilters<TContext>(
+        this ModelBuilder modelBuilder, TContext context)
+        where TContext : DbContext, ITenantScopedDbContext
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         ArgumentNullException.ThrowIfNull(context);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
+            // EF refuses a query filter on anything but a root entity type: an
+            // owned type is queried through its owner, and on a TPH/TPT hierarchy
+            // only the root may carry one. Skipping them here means the first
+            // module to model either does not discover the rule by exception at
+            // startup — and the root still gets its filter, which is what covers
+            // the derived rows.
+            if (entityType.BaseType is not null || entityType.IsOwned())
+            {
+                continue;
+            }
+
             var clrType = entityType.ClrType;
 
             if (clrType.GetCustomAttribute<TenantOwnedAttribute>() is { SelfKeyed: true })
