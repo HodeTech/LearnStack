@@ -9,6 +9,38 @@ Accepted
 
 ## Amendments
 
+### Amendment 3 — `ITenantContext` is registered transient, not scoped (2026-09-01)
+
+Not a correction. § Sub-decision 10 and the `TenantContextSpanProcessor` code block both
+call `ITenantContext` **request-scoped**, and § Sub-decision 10 adds that injecting it
+into the singleton processor "would fail at startup with *Cannot consume scoped service
+`ITenantContext` from singleton*". Both were true when written. Packet 5 changed the
+registration, so the wording is now history rather than description.
+
+**What changed and why.** Commit `3c18f88` (2026-08-26) registers the default as
+`TryAddTransient<ITenantContext>(sp => sp.GetRequiredService<ITenantContextAccessor>().Current
+?? UnresolvedTenantContext.Instance)`. A *scoped* factory caches the first value it
+produced for the rest of the scope, so a write to the accessor after a handler had
+already resolved the context would never reach that handler — which is exactly what the
+integration-event transport does when it restores a consumer's tenant. `Transient` makes
+every access re-read the accessor.
+`DeploymentModeCompositionTests.Tenant_Context_Resolution_Forwards_Each_Access_To_The_Accessor`
+pins it, and the composition root carries a comment saying not to restore it to `Scoped`.
+
+**What does not change.** The decision — cross-cutting singletons read the tenant through
+`ITenantContextAccessor` and never inject `ITenantContext` — is unchanged, and the
+transient registration makes it *more* load-bearing rather than less. Under `Scoped` the
+container refused the mistake at startup. Under `Transient` it does not: a singleton that
+injects `ITenantContext` gets one instance captured for the life of the process, reading
+whatever the accessor held at construction. The rule now has no container-level backstop,
+so the accessor is the whole of it.
+
+**Every carrier changed.** This amendment. The two "request-scoped" phrasings in
+§ Sub-decision 10 and its code-block commentary stand as written, read against this
+amendment; the corpus's live descriptions — `CrossCuttingFoundationExtensions`,
+[Security Standards § Tenant Context](../standards/11-security.md) and the Phase 02a
+roadmap — say transient.
+
 ### Amendment 2 — Three corrections from the 2026-08-08 restructure
 
 None of the three changes a sub-decision; all three correct text that would mislead an implementer.

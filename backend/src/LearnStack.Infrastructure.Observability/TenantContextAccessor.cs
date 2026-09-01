@@ -7,9 +7,10 @@ namespace LearnStack.Infrastructure.Observability;
 /// <see cref="ITenantContextAccessor"/>. Per ADR-0032 § Sub-decision 10:
 /// cross-cutting infrastructure (OTel span processor, Serilog enricher,
 /// Sentry enricher) reads the current tenant context through this accessor
-/// instead of injecting the request-scoped <see cref="ITenantContext"/>
-/// directly — the lifetime mismatch (singleton processor versus scoped
-/// context) would otherwise fail at startup.
+/// instead of injecting <see cref="ITenantContext"/> directly — that context is
+/// registered transient and resolved from this accessor on every access, so a
+/// singleton processor capturing it would pin one request's value for the
+/// process lifetime rather than fail at startup.
 /// </summary>
 internal sealed class TenantContextAccessor : ITenantContextAccessor
 {

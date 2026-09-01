@@ -208,8 +208,18 @@ Generate the migration:
 # too produces 20260827120000_20260827120000_add_<name>.cs.
 dotnet ef migrations add add_<name> \
   --project backend/src/Modules/<Module>/LearnStack.Modules.<Module>.Infrastructure \
-  --startup-project backend/src/LearnStack.Api
+  --startup-project backend/src/LearnStack.Api \
+  --output-dir Persistence/Migrations
 ```
+
+`--output-dir` is not optional, and this is the skill that needs it most: EF
+defaults the output to `Migrations/` when the project has no sibling migration to
+reuse, which is six of the seven module assemblies today. `make migrate`,
+`backend/.editorconfig` and `Migrate_Target_Covers_Every_Migration_Chain` all key
+on `Persistence/Migrations` — a chain landing one directory up is skipped by the
+Makefile loop in silence and is invisible to the architecture test written for
+exactly that hole, while the Testcontainers fixtures call `MigrateAsync()` directly
+and keep the suite green.
 
 Edit the generated migration to add the table and **one** RLS policy.
 

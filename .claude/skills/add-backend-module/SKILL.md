@@ -161,12 +161,18 @@ only three files under `backend/src` may mention `UseNpgsql` at all.
 In `LearnStack.Modules.<Name>.Infrastructure/Persistence/<Name>DbContext.cs`:
 
 ```csharp
-public sealed class <Name>DbContext(
-    DbContextOptions<<Name>DbContext> options,
-    ITenantContext tenantContext,
-    IPublisher publisher)
+// ONE constructor parameter. `ModuleDbContextRegistration` builds every module
+// context with `Activator.CreateInstance(typeof(TContext), options)`, so a second
+// parameter throws `MissingMethodException` on first resolution — and
+// `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` forbids registering the
+// context any other way. This is the shape the one shipped context carries.
+public sealed class <Name>DbContext(DbContextOptions<<Name>DbContext> options)
     : DbContext(options)
 {
+    // The filters' closure root, held as an instance member. Nullable because the
+    // registrar cannot hand it over yet; Packet 7 populates it (see below).
+    private ITenantContextAccessor? _accessor;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(<Name>DbContext).Assembly);
@@ -183,12 +189,20 @@ public sealed class <Name>DbContext(
         // implemented in Phase 02a Packet 7, not before.
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
         {
-            // …build the filter over `tenantContext`, the constructor parameter
-            // captured as an instance field, one expression per entity.
+            // …build the filter over `_accessor`, the instance member, one
+            // expression per entity.
         }
     }
 }
 ```
+
+**How the instance member gets populated is Packet 7's choice**, and it is one of
+two: switch `ModuleDbContextRegistration` to
+`ActivatorUtilities.CreateInstance(provider, typeof(TContext), options)`, or read
+the accessor off the application service provider the registrar already passes to
+`UseApplicationServiceProvider`. Prefer the singleton `ITenantContextAccessor`
+over an `ITenantContext` snapshot: EF parameterises `_accessor.Current` per query,
+and it avoids baking in an `UnresolvedTenantContext` whose `TenantId` throws.
 
 Per [05-database.md](../../../docs/standards/05-database.md), one `DbContext` per
 module — not one global.
@@ -203,8 +217,10 @@ configuration's job. See
 ### Step 5: Architecture test fixture
 
 The dependency-direction and cross-module rules live in
-`backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs` and are
-**scanned**, not listed — a new module needs no edit there. What is still owed is
+`backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs`. Both are
+`[Theory]`-driven from the literal `ModuleNames` array in that file, not scanned —
+**add `<Name>` to that array**. Until you do, the new module's `Domain` assembly is
+never inspected and both rules pass vacuously. What is still owed is
 `Every_Module_Has_An_AuditCoverage_Matrix`, registered in
 [21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
 and **awaiting backfill in Packet 9** with the audit catalogue it reads. Until it
@@ -249,9 +265,9 @@ See [add-ef-migration](../add-ef-migration/SKILL.md) for migration conventions
 ## Validation
 
 - `dotnet build` succeeds for all four projects.
-- `LearnStack.Tests.Architecture` is green; specifically
-  `Module_<Name>_DependencyDirection_IsCorrect`,
-  `Module_<Name>_HasAuditMatrix`, `Module_<Name>_HasPermissionMatrix`.
+- `LearnStack.Tests.Architecture` is green; specifically the two rules that
+  actually run, `ModuleDomain_DoesNotDependOn_OtherModuleDomain` and
+  `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure`, for `<Name>`.
 - `dotnet ef migrations script` for the module shows the expected baseline schema.
 - The module appears in [03-module-boundaries.md](../../../docs/architecture/03-module-boundaries.md)
   module map and in [docs/glossary.md](../../../docs/glossary.md) if it owns any
@@ -270,5 +286,6 @@ See [add-ef-migration](../add-ef-migration/SKILL.md) for migration conventions
   reads go through repository contracts or read-model projections.
 - **Forgetting the `IModule` registration in the composition root.** The module
   builds but no handlers run; takes hours to diagnose.
-- **Missing `docs/modules/<name>/` spec files.** The architecture tests
-  `Module_<Name>_HasAuditMatrix` / `_HasPermissionMatrix` fail; CI rejects the PR.
+- **Missing `docs/modules/<name>/` spec files.** Nothing fails.
+  `Every_Module_Has_An_AuditCoverage_Matrix` is Registered against Packet 9 and
+  there is no permission-matrix rule at all, so review is the only gate until then.

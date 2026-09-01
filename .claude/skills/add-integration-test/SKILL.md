@@ -170,7 +170,8 @@ public async Task Unsetting_tenant_context_returns_zero_rows_through_RLS()
 }
 ```
 
-There is no `TenantContextMissingException` today: the `DbCommandInterceptor` that
+Nothing throws `TenantContextMissingException` today — the type itself shipped in
+Packet 3, in `LearnStack.SharedKernel/Errors/`. The `DbCommandInterceptor` that
 throws it is described in Standards 05 and 11 and lands in **Packet 7**, which owns
 it. Until it does, the fail-closed behaviour is the empty result, which is what to
 assert. From Packet 7 the same read **through a module `DbContext`** is a loud

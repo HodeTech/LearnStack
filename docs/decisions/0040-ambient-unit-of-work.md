@@ -476,7 +476,9 @@ amendment) and
 [Security Standards § The out-of-band setters](../standards/11-security.md),
 which reproduces the count and the table — "six" becomes seven, "four own a
 short transaction of their own" becomes five, and the table gains an
-`IOrganizationScopeValidator` row. No other document states the count.
+`IOrganizationScopeValidator` row. No other document reproduces the table; a pointer
+that only names the count — `.claude/skills/add-ef-migration/SKILL.md` is one — stays
+correct by naming the corrected number rather than by carrying a second enumeration.
 
 **The canonical list** remains this subsection, as corrected. Security Standards
 reproduces it because that section is the placement authority; it is not a second

@@ -22,7 +22,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// </para>
 /// <para>
 /// <b>No global query filters here yet.</b> The tenant and organization filters
-/// are Packet 7's, with <c>TenantResolverMiddleware</c> and the request-scoped
+/// are Packet 7's, with <c>TenantResolverMiddleware</c> and the
 /// <c>ITenantContext</c> they read. Between the two packets no tenant-owned table
 /// is read on a request path, and with the policies live and <c>app.tenant_id</c>
 /// unset every predicate evaluates to <c>NULL</c> and every query correctly

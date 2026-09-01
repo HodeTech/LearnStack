@@ -424,8 +424,9 @@ frame out.
 else** — never the Hub, per
 [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); an anonymous
 page load must not depend on a control plane being reachable.
-`TenantResolverMiddleware`, request-scoped `ITenantContext` (`TenantId`,
-`OrganizationId?`, `UserId?`), singleton `ITenantContextAccessor`
+`TenantResolverMiddleware`, transient `ITenantContext` (`TenantId`,
+`OrganizationId?`, `UserId?`) resolved from the singleton
+`ITenantContextAccessor` on every access, the accessor
 (`AsyncLocal<ITenantContext?>`-backed) populated at scope start by
 `TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
 (`/api/internal/*`), the Hangfire `JobActivator` (background jobs), and the
@@ -444,7 +445,7 @@ remembered to enumerate; the prefixes are enumerated in
 sealed context's only entry point: it returns `Result.Fail` on any disagreement between
 signals and never a partially populated context. `TenantContextOrigin` is the authority
 ceiling, and the `[PublicSurface]` set it gates is enumerated in
-[Standards 04 § Tenant Context](../standards/04-api-design.md) — the enumeration ships
+[Standards 04 § Public surface](../standards/04-api-design.md) — the enumeration ships
 **empty**, because the first request types that need it are
 [Phase 02d](phase-02d-walking-skeleton.md)'s two anonymous read endpoints.
 `IOrganizationScopeValidator` answers "does this organization belong to this tenant" by
@@ -696,9 +697,11 @@ Implements `Core_Modules_HaveNo_DomainSpecific_Names` — the mechanical
 guarantee behind the platform's entire premise, and currently unimplemented
 while its far weaker sibling `No_Source_Folder_Named_Verticals` is green.
 
-One rule is restated rather than renamed. The catalogue's
-`Every_TenantOwned_Table_HasRls_With_AppTenantId` asserts that a policy
-**exists** and mentions `app.tenant_id`. The superseded template satisfied that
+One rule is restated rather than renamed. `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
+asserts more than that a policy **exists** and mentions `app.tenant_id`: it requires
+`ENABLE` **and** `FORCE ROW LEVEL SECURITY` and exactly one policy carrying both a
+`USING` and a `WITH CHECK`. The superseded spelling
+`Every_TenantOwned_Table_HasRls_With_AppTenantId` asserted only the weaker half. The superseded template satisfied that
 assertion perfectly while leaking every tenant-wide row across tenants — a
 structure-shaped test that passes against a broken policy is worse than no test,
 because it converts an open question into a false answer. Structural assertions
@@ -1009,11 +1012,14 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
   `ActivitySource` named per module (`learnstack.<module>`) for use-case
   spans.
 - **`ITenantContextAccessor`** (singleton, `AsyncLocal<ITenantContext?>`-backed)
-  lives in `LearnStack.SharedKernel` alongside the request-scoped
-  `ITenantContext`. The scoped interface is what handlers and services
-  inject; the singleton accessor is what cross-cutting infrastructure
-  (OTel processor, Serilog enricher, Sentry enricher) reads. The accessor
-  is populated at scope start by `TenantResolverMiddleware` (HTTP),
+  lives in `LearnStack.SharedKernel` alongside `ITenantContext`, whose
+  production registration is **transient, resolved from the singleton
+  accessor on every access** — a scoped factory would cache the first value
+  for the rest of the scope, so a write to the accessor after a handler
+  resolved would never reach it. That transient interface is what handlers
+  and services inject; the singleton accessor is what cross-cutting
+  infrastructure (OTel processor, Serilog enricher, Sentry enricher) reads.
+  The accessor is populated at scope start by `TenantResolverMiddleware` (HTTP),
   `HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
   (background jobs), and the outbox / inbox handler scope (integration
   events). Modules never write to the accessor.
@@ -1093,7 +1099,8 @@ Implementation:
   sealed context's only entry point, with `TenantContextOrigin` as the authority ceiling
   over the `[PublicSurface]` set.
 - `IOrganizationScopeValidator` and `DenyAllTenantMembershipReader`.
-- `ITenantContext` (request-scoped) exposing `TenantId`, `OrganizationId?`, `UserId?`.
+- `ITenantContext` (transient, resolved from the singleton accessor on every access)
+  exposing `TenantId`, `OrganizationId?`, `UserId?`.
 - Tenant- and org-aware query conventions.
 - Tenant + org context propagation seams for Hangfire jobs and outbox dispatcher
   handlers (wired in 02b).
@@ -1188,7 +1195,8 @@ identifiers registered in
   as `learnstack_app`; a structural assertion passes against a policy that leaks.
 - Every `[OrganizationScoped]` entity has org filter + RLS
   (`Every_OrgScoped_Entity_HasOrgIdAndFilter`).
-- No `IgnoreQueryFilters()` outside platform-admin module.
+- No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
+  call path (`No_IgnoreQueryFilters_Outside_PlatformAdminScope`).
 - Audit-coverage matrix file exists per module.
 - `AuditEntry_Inherits_Entity_Not_AuditableEntity`.
 - `MustClass_Audit_Writes_Share_The_Business_Transaction` — per

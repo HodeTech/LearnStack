@@ -1160,7 +1160,8 @@ Forbidden: string interpolation with non-constant values.
   worse than throwing. The command interceptor instead checks the in-process marker
   **a sanctioned setter** stamps on the transaction it opens, once the `SET LOCAL`
   pair is issued, and throws `TenantContextMissingException` when a command against a
-  `[TenantOwned]` table runs without it — no extra round trip. The setters are a closed
+  `[TenantOwned]` table runs without it — no extra round trip. Both arms are asserted by
+  [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md). The setters are a closed
   set, named in [Security Standards § The out-of-band setters](11-security.md), which is
   the placement authority: a guard keyed on `TransactionBehavior` alone would reject the
   writes the idempotency store and the audit store make on their own short transactions.

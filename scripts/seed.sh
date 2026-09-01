@@ -209,7 +209,7 @@ cat <<'NOTICE'
   Packet 7 swaps this section for:
 
     dotnet run --project backend/src/LearnStack.Tools.Seeder -- \
-      --tenants demo-platform,demo-vertical                       \
+      --tenants demo-english,demo-yoga                            \
       --platform-admin demo-admin@learnstack.test                 \
       --connection-string "$ConnectionStrings__Default"
 

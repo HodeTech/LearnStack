@@ -148,9 +148,17 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   carries `HostOnly` and reaches only `[PublicSurface]` request types;
   `TenantContextBehavior` at pipeline step 4
   ([02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)) rejects anything
-  else — with the same bodyless **404** `UseStatusCodePages` renders as `not_found` for
-  an unresolvable host, because anything a client can tell apart confirms to an
-  anonymous caller that the tenant exists.
+  else — failing with `lockey_not_found`, so the body it renders is byte-identical to
+  the one an unresolvable host gets, because anything a client can tell apart confirms
+  to an anonymous caller that the tenant exists. Not `lockey_tenant_mismatch`: a
+  `HostOnly` context is anonymous by construction and `tenant_mismatch` is the
+  authenticated code. The mechanism differs and the wire result must not —
+  host classification writes a bodyless **404** that `UseStatusCodePages` fills in through
+  `ProblemDetailsFactory.ForStatus(404)`, while a step-4 failure carries its own Problem
+  Details body through `ProblemDetailsActionResult`; since
+  `HttpStatusMap.CanonicalCodeFor(404)` is `not_found` and `Error.Code` strips the
+  `lockey_` prefix, both carry the same `type`, `title`, `status`, `code` and
+  `messageKey`.
 - **Permitted methods default to `GET` / `HEAD`.** An entry declaring a mutating method
   states why, in the table.
 - **No `[PublicSurface]` type performs a tenant-owned write.**

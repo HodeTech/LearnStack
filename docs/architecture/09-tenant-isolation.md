@@ -12,7 +12,9 @@ two scopes (tenant + organization):
 
 - Tenant context resolved per request, background job, and event handler.
 - Organization context resolved alongside tenant context where applicable.
-- `tenant_id` on every tenant-owned table (mandatory).
+- `tenant_id` on every tenant-owned table (mandatory), except the tenant-owned
+  **self-keyed** class, whose `id` *is* the tenant id — see
+  [Database Standards § Table classes](../standards/05-database.md).
 - `organization_id` on every org-scoped tenant-owned table (nullable; null = tenant-wide).
 - EF Core global query filters for both `tenant_id` and `organization_id`.
 - PostgreSQL Row Level Security on every tenant-owned table: **one** permissive policy
@@ -41,7 +43,7 @@ two scopes (tenant + organization):
 | Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
 | Audit (ADR-0016) | `audit_log.tenant_id` mandatory | `audit_log.organization_id` nullable |
 | Logs (Serilog) | Every log scope carries `TenantId` | `OrganizationId` when context set |
-| Architecture tests | `Every_TenantOwned_Entity_HasTenantIdAndFilter` | `Every_OrgScoped_Entity_HasOrgIdAndFilter` |
+| Architecture tests | `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | `Every_OrgScoped_Entity_HasOrgIdAndFilter` |
 
 ## Isolation flow
 
@@ -223,12 +225,14 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 
 ## Architecture tests (Phase 02 blocker)
 
+Canonical rule names **and their assertions** live in the
+[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md); this
+table repeats the isolation-facing half of each.
+
 | Test | Asserts |
 |------|---------|
-| `Every_TenantOwned_Entity_HasTenantId` | Every aggregate marked `[TenantOwned]` has a `TenantId` property and an EF query filter referencing it. |
-| `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every aggregate marked `[OrganizationScoped]` has `OrganizationId` nullable + EF query filter. |
-| `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and **exactly one** permissive policy with an explicit `WITH CHECK`. Two permissive policies fail the test. |
-| `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: the organization term is `AND`-ed inside that single policy — not in a second permissive one — and both `AS RESTRICTIVE` write guards are present. |
+| `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | Every entity marked `[TenantOwned]` has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an EF global query filter referencing it, and — in the migration that creates its table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus exactly one policy carrying both a `USING` and a `WITH CHECK` clause over `app.tenant_id`. A second **permissive** policy on the same table fails the test. |
+| `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every entity marked `[OrganizationScoped]` carries a **nullable** `OrganizationId`, an org-aware EF query filter, an organization term `AND`-ed into that same single policy — not a second permissive one — and, in the creating migration, both `AS RESTRICTIVE` write guards, `FOR UPDATE` and `FOR DELETE`. |
 | `No_IgnoreQueryFilters_Outside_PlatformAdminScope` | Roslyn source scan: `IgnoreQueryFilters()` appears only inside the audited `EnterPlatformAdminScope(reason)` call path. No marker exempts a call site. |
 | `Hangfire_JobPayloads_IncludeTenantId` | Reflection: every `LearnStackJob<TParams>` subclass's `TParams` has `TenantId`. |
 | `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; the write to `ITenantContextAccessor.Current` precedes `ExecuteAsync(...)`. |

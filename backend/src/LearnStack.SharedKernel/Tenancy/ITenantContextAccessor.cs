@@ -4,8 +4,10 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// Singleton, <c>AsyncLocal&lt;ITenantContext?&gt;</c>-backed accessor that
 /// gives cross-cutting infrastructure (OTel span processor, Serilog enricher,
 /// Sentry enricher) a way to read the current tenant context without
-/// injecting the request-scoped <see cref="ITenantContext"/> — which would
-/// fail the singleton-vs-scoped lifetime gate.
+/// injecting <see cref="ITenantContext"/> itself, whose production registration
+/// is transient and resolves from this accessor on every access. A singleton
+/// that captured it would pass DI validation silently and then pin one
+/// request's value for the process lifetime — nothing fails at startup.
 /// </summary>
 /// <remarks>
 /// <para>

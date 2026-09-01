@@ -163,18 +163,25 @@ public void Every_TenantOwned_Entity_HasFilterAndRlsPolicy()
 
     var tenantOwned = migrationFiles
         .Select(f => (File: f, Content: File.ReadAllText(f)))
-        // `CreateTable(`, not the literal "CREATE TABLE". EF writes tables through
-        // migrationBuilder.CreateTable(name: "…") and the policy block through
-        // migrationBuilder.Sql. Measured: "CREATE TABLE" occurs ZERO times in
-        // 20260828092437_create_tenancy_schema.cs, which creates eight tables.
-        .Where(x => x.Content.Contains("CreateTable(") && x.Content.Contains("tenant_id"))
+        // Both tokens, because the two shipped chains use one each. EF writes the
+        // tenancy chain through migrationBuilder.CreateTable(name: "…"): measured,
+        // "CREATE TABLE" occurs ZERO times in 20260828092437_create_tenancy_schema.cs,
+        // which creates eight tables. The platform chain writes outbox_messages and
+        // idempotency_keys through migrationBuilder.Sql("CREATE TABLE …") because
+        // neither is an EF entity: "CreateTable(" occurs ZERO times in
+        // 20260828085701_create_platform_infrastructure_tables.cs. Either token alone
+        // classifies exactly one of the two chains, so the predicate is their union.
+        .Where(x => (x.Content.Contains("CreateTable(") || x.Content.Contains("CREATE TABLE"))
+                    && x.Content.Contains("tenant_id"))
         .ToList();
 
     // Guard two, and the reason this test is worth landing: it asserts on what the
     // scan CLASSIFIED, not on what it read. A detection predicate that matches
     // nothing runs the loop zero times and reports green over the exact migrations
-    // the rule exists to cover — which is what the "CREATE TABLE" version did,
-    // past a NotEmpty guard on the file list.
+    // the rule exists to cover, past a NotEmpty guard on the file list. It catches
+    // an EMPTY classification, not a PARTIAL one: either token on its own leaves
+    // this assertion green while a whole shipped chain goes unscanned, which is
+    // why the predicate above is a union.
     Assert.NotEmpty(tenantOwned);
 
     foreach (var (file, content) in tenantOwned)

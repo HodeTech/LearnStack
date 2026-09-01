@@ -3,7 +3,7 @@ using LearnStack.SharedKernel.Identifiers;
 namespace LearnStack.SharedKernel.Tenancy;
 
 /// <summary>
-/// Request-scoped tenant + organization + user context handed to MediatR
+/// Tenant + organization + user context handed to MediatR
 /// handlers, EF interceptors, and the audit pipeline. Populated at scope
 /// start by <c>TenantResolverMiddleware</c> (HTTP), <c>HubCorrelationMiddleware</c>
 /// (<c>/api/internal/*</c>), the Hangfire <c>JobActivator</c> (background jobs),

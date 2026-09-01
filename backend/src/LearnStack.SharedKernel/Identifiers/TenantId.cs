@@ -27,7 +27,7 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// <para>
 /// <b>The platform sentinel is deliberately absent.</b> The corpus refers to a
 /// "sentinel platform tenant id" for the one row that has no tenant of its own —
-/// the <c>read-sensitive</c> audit row written inside
+/// the audit row written inside
 /// <c>EnterPlatformAdminScope</c>, which describes a cross-tenant operation. Its
 /// *value* is fixed nowhere. Packet 7 is the first to emit it — a <c>Warning</c>
 /// log line from <c>EnterPlatformAdminScope</c> — but a log line is not a

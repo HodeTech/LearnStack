@@ -43,6 +43,7 @@ flowchart LR
     TenantDomain
     TenantBranding
     TenantFeatureFlag
+    TenantLocale
     TenantSetting
   end
 

@@ -57,8 +57,8 @@ answer **yes** to each item, or attach a written justification:
       the entity may be tenant-wide) and has an org-aware EF query filter + RLS policy
       per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). The
       architecture test `Every_OrgScoped_Entity_HasOrgIdAndFilter` checks the marker.
-- [ ] No `IgnoreQueryFilters()` outside platform-admin code paths (Roslyn-allowlisted +
-      audit-logged).
+- [ ] No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
+      call path.
 - [ ] Every background job payload carries `TenantId` (and `OrganizationId?` when
       relevant); the worker sets ambient tenant + org before any work.
 - [ ] Every integration event payload carries `tenant_id` (and `organization_id?` when
@@ -206,8 +206,12 @@ for the full strategy. Standards-side:
   and an org-aware EF filter + RLS policy
   ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)). Nullable
   `OrganizationId` means the row may be tenant-wide.
-- `IgnoreQueryFilters()` is allowed only in platform-admin code paths with a
-  Roslyn-allowlist attribute and an audit-log call.
+- `IgnoreQueryFilters()` is allowed only inside the audited
+  `EnterPlatformAdminScope(reason)` call path, which is itself the record of the
+  access. The architecture test `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
+  is a **path check**: no per-call-site attribute or comment marker exempts a call
+  ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
   payload; jobs without it fail at registration.
 - The `app.tenant_id` and `app.organization_id` session variables are set with
@@ -300,7 +304,9 @@ issued the `SET LOCAL` pair on this transaction before any command against a
 out-of-band setters above, each of which stamps the same marker on the transaction it
 opens. Naming `TransactionBehavior` alone would make the guard reject every write the
 idempotency store and the audit store legitimately make. It throws
-`TenantContextMissingException` when it has not. **Packet 7 owns it**: Packet 6 ships
+`TenantContextMissingException` when it has not, which
+[`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
+asserts in both directions. **Packet 7 owns it**: Packet 6 ships
 the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it will back up, and
 the first tenant-owned read on a request path is Packet 7's, which is where the guard
 belongs. It cannot be a connection-checkout interceptor, for the same reason it cannot be

@@ -98,30 +98,49 @@ The seed is **idempotent** — running it twice produces the same state.
 
 ### Step 3: What Packet 7's seed creates
 
-Per tenant, in one transaction:
+**The provisioning transaction** — `BEGIN` → `SET LOCAL app.tenant_id` to the
+assigned id → `INSERT tenants` → `INSERT organizations` → `UPDATE tenants SET
+default_organization_id` → `COMMIT`:
 
 - Row in `tenants` — id, slug, display_name, `status = Trial`. **Not `Active`**:
   `Tenant.Create` produces `Trial` and `ChangeStatus` is the only way out of it,
   so a seed that wants `Active` calls the transition rather than writing the
   column.
-- Two rows in `organizations`, and `AssignDefaultOrganization` pointing the tenant
-  at the first. Tenant + default organization in one transaction is the single
-  bounded cross-aggregate write
+- One row in `organizations` — **the default one only** — and
+  `AssignDefaultOrganization` pointing the tenant at it. Tenant + default
+  organization in one transaction is the single bounded cross-aggregate write
   ([ADR-0042](../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)),
-  and it is bounded by enumeration — one operation, one allow-list entry.
-- Rows in `tenant_locales` (exactly one `is_default`), `tenant_settings`,
-  `tenant_feature_flags` and `tenant_domains`.
-- One row in `platform_host_to_tenant` — **per tenant, not per organization**.
-  `demo-english` leaves `organization_id` NULL (a `TenantHost`); `demo-yoga` sets
-  it (an `OrgHost`), so both live classification classes from
+  and it is bounded by enumeration — one operation, one allow-list entry. The
+  seeder **invokes** `ProvisionTenantCommand` rather than writing the two roots
+  itself, so the allow-list stays at one entry and the seed exercises the same
+  path production does.
+
+**The follow-on writes**, each its own command in its own transaction:
+
+- The second row in `organizations`. It is a third aggregate root, and the
+  exception covers the two named above and nothing else.
+- Rows in `tenant_domains` and `tenant_settings`. Under Packet 7's promotion
+  `TenantDomain` and `TenantSetting` are aggregate roots in their own right, so
+  each is written the way any other root is.
+- Rows in `tenant_locales` (exactly one `is_default`) and `tenant_feature_flags`.
+  These are navigations inside `Tenant` rather than roots, and ADR-0042's
+  enumeration names them among the rows it does **not** cover: neither carries an
+  atomicity invariant against the tenant row.
+- One row in `platform_host_to_tenant` — **per tenant, not per organization**. It
+  is a projection rather than an aggregate, outside the rule entirely, and it does
+  not share the provisioning transaction. `demo-english` leaves `organization_id`
+  NULL (a `TenantHost`); `demo-yoga` sets it (an `OrgHost`), so both live
+  classification classes from
   [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md) are
   exercised by the seed and not only by a fixture. Neither host belongs in
   `Tenancy:PlatformHosts`, which lists hosts that map to **no** tenant.
 
 Two mechanics the seeder cannot skip:
 
-- **`app.tenant_id` is set before the first insert.** Every table's `WITH CHECK`
-  is live from the moment the migration finishes, and `tenants` keys its policy on
+- **`app.tenant_id` is set once per transaction, before that transaction's first
+  insert.** `SET LOCAL` does not survive `COMMIT`, so every one of the writes
+  above sets it again rather than inheriting it. Every table's `WITH CHECK` is
+  live from the moment the migration finishes, and `tenants` keys its policy on
   `id`, so the provisioning transaction sets the session variable to the assigned
   id before the `INSERT`.
 - **`platform_host_to_tenant` rows go in as `learnstack_app`.** Its policies are
@@ -160,7 +179,7 @@ is in
 table.
 
 There is **no `tenant_branding` table** and no `tenant_branding` row to write.
-Branding tokens are read from `TenantSettings`; the configuration surface that
+Branding tokens are read from `TenantSetting`; the configuration surface that
 writes them is Phase 06.
 
 Keycloak users are **not** seeded by this skill. `infra/keycloak/realms/learnstack.json`
@@ -213,7 +232,7 @@ SQL
 psql -h localhost -p 5432 -U learnstack_app -d learnstack <<'SQL'
 BEGIN;
 SELECT set_config('app.resolving_host', 'demo-english.learnstack.local', true);
-SELECT host, organization_id, is_active FROM platform_host_to_tenant;
+SELECT host, organization_id, is_active, is_publicly_live FROM platform_host_to_tenant;
 COMMIT;
 SQL
 ```
@@ -262,6 +281,9 @@ gated by plan, not customization rows.
   its own `app.resolving_host` (§ Step 6): the read policy admits the declared host or
   the caller's own tenant, so no single `learnstack_app` query can see both rows, and a
   count of two is not observable to the role this skill tells you to connect as.
+- Both host rows carry `is_active` **and** `is_publicly_live` true. The resolver
+  requires both terms, so a row that is only `is_active` is a host that 404s under
+  a seed the checks above report as healthy.
 - The Packet 7 request-level isolation suite is green **connected as
   `learnstack_app`**, against both seeded tenants.
 - From Phase 02d, both hosts render their own catalog page in a browser.

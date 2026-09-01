@@ -49,12 +49,13 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## Entity-relationship diagram
 
-Aggregate roots are `Tenant` and `Organization` — the two that implement
-`IAggregateRoot<TId>`. `PlatformHostMapping` and `PlatformEntitlement` are
+Aggregate roots in the shipped code are `Tenant` and `Organization` — the two
+that implement `IAggregateRoot<TId>`; the promotion below adds two more with
+Packet 7's first command. `PlatformHostMapping` and `PlatformEntitlement` are
 projections rather than aggregates: nothing in this module mutates them through
 a root.
 
-**The other four sit between the two, and the boundary is not settled.**
+**The other four resolve two ways, and Packet 7 settles them as promotion.**
 `TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` each have
 a public factory, a top-level `DbSet` on `TenancyDbContext`, and no navigation
 from `Tenant` — so there is no path through a root, which
@@ -65,11 +66,15 @@ requires for state changes inside an aggregate. They also split:
 `TenantFeatureFlag` have composite natural keys and no id at all and therefore
 cannot be `IAggregateRoot<TId>` under any reading.
 
-**Packet 7 decides it**, because Packet 7 writes the first command that touches
-any of them and a boundary with no writer is a boundary with no evidence. Until
-then nothing writes them, so the divergence costs nothing — but it is a
-divergence, and this paragraph says so rather than describing a containment the
-code does not implement.
+So the first pair becomes aggregate roots in their own right and the second
+becomes navigations inside `Tenant` — four roots in Tenancy, with a write to
+`TenantLocale` or `TenantFeatureFlag` bumping `Tenant.row_version` and the two
+promoted roots carrying their own.
+[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) writes the first command
+that touches any of them, which is the evidence the boundary had none of and
+where the promotion lands; provisioning writing `Tenant` and its default
+`Organization` in one transaction is sanctioned by enumeration in
+[ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 
 ```mermaid
 erDiagram
@@ -145,7 +150,8 @@ Text fallback — **TenantDomain lifecycle**:
 - A `Custom` domain travels the whole path — `Requested → Verifying → Verified`,
   or `Verifying → Failed → Verifying` on retry.
 - **A verified row does not serve traffic on its own.** A corresponding
-  `platform_host_to_tenant` row with `is_publicly_live` does.
+  `platform_host_to_tenant` row that is `is_active` **and** `is_publicly_live`
+  does.
 
 ## Sequence diagrams
 
@@ -293,11 +299,16 @@ request and are the only Tenancy work an anonymous visitor pays for.
 
 ## Risks and open questions
 
-- **`app.scope` has no carrier.** `ITenantContext` exposes no scope member, so
+- **`app.scope` has no carrier.** `ITenantContext` exposes no scope member
+  ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)), so
   no application path sets `app.scope = 'tenant'` and the cross-organization read
   hatch on `tenant_settings` is unreachable at runtime. That is the correct
-  default; [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) decides how the
-  flag arrives ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)).
+  default, and no carrier ships in
+  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md): the flag derives from the
+  actor's role and roles
+  arrive with authentication in
+  [Phase 02b](../../roadmap/phase-02b-events-auth.md), so the deferral is forced,
+  not chosen ([Security Standards § Tenant Context](../../standards/11-security.md)).
   The two `AS RESTRICTIVE` write guards are tested **now** rather than then —
   `TheTenantScopeHatchWidensReadsAndNeitherWrite` sets the flag directly — because
   under any ordinary organization-scoped session the base policy's own
@@ -310,9 +321,11 @@ request and are the only Tenancy work an anonymous visitor pays for.
   policy predicate is `NULL` and every query returns zero rows — fail-closed by
   construction rather than by a filter that does not exist.
 - **Two defaults per tenant are possible.** Nothing stops two `tenant_locales`
-  rows with `is_default = true` for one tenant. A partial unique index would fix
-  it; whether the invariant belongs in the database or in the aggregate is
-  Packet 7's call, with the first code that reads it.
+  rows with `is_default = true` for one tenant.
+  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) closes it in both places:
+  a partial unique index `UNIQUE (tenant_id) WHERE is_default`, because an
+  aggregate invariant alone does not hold across concurrent transactions, plus an
+  aggregate-level guard for the error message.
 - **Nothing stops a tenant claiming a hostname it does not own.**
   `ux_tenant_domains_host` is globally unique — it has to be, or a host would
   resolve to two tenants — so the *first* tenant to insert a `Requested` row for

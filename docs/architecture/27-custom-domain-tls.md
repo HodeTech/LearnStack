@@ -296,21 +296,41 @@ public sealed class CachedHostToTenantResolver(
     {
         // One database round trip per host, however many callers arrive during
         // it. The flight runs on CancellationToken.None: one caller hanging up
-        // must not cancel the lookup the others are waiting on.
+        // must not cancel the lookup the others are waiting on. WaitAsync(ct)
+        // stops only THIS caller waiting, and a caller that stops waiting never
+        // reaches unknownHosts.Add above — so the negative cache is populated
+        // only by a request that survived its own lookup.
         var flight = _flights.GetOrAdd(
             host,
             static (h, self) => new Lazy<Task<HostResolution?>>(
-                () => self.ReadAsync(h, CancellationToken.None)),
+                () => self.ReadAndRetireAsync(h)),
             this);
 
+        return await flight.Value.WaitAsync(ct);
+    }
+
+    private async Task<HostResolution?> ReadAndRetireAsync(string host)
+    {
+        // Retirement is bound to the FLIGHT's termination, inside the flight's
+        // own task — never to a caller's exit. Retiring in each waiter's finally
+        // lets a joiner that cancels de-register a read whose transaction is
+        // still open, so the next arrival opens a second one: the stampede the
+        // coalescing exists to prevent, reintroduced by its own cleanup. Packet 5
+        // convicted that exact shape in InMemoryCacheService, which retires a
+        // flight on the factory's termination rather than on a waiter's exit; a
+        // waiter's exit there only decrements the waiter count, and cancels the
+        // factory when the count reaches zero with the read still pending. This
+        // resolver has no cancellation to propagate — the read runs on
+        // CancellationToken.None — so it needs the retirement rule and not the
+        // waiter bookkeeping. Exactly one flight is registered per host at a
+        // time, so the plain TryRemove here has no successor to race.
         try
         {
-            return await flight.Value.WaitAsync(ct);
+            return await ReadAsync(host, CancellationToken.None);
         }
         finally
         {
-            _flights.TryRemove(
-                new KeyValuePair<string, Lazy<Task<HostResolution?>>>(host, flight));
+            _flights.TryRemove(host, out _);
         }
     }
 
@@ -378,7 +398,17 @@ misses on one key; get-then-set has no factory to coalesce, so N simultaneous fi
 requests for one cold host become N transactions unless the resolver re-adds the
 coalescing itself. **Packet 7 re-adds it**, in `CachedHostToTenantResolver`, because the
 flight it protects is a Postgres transaction opened on an anonymous, pre-authentication
-page load — the one path a stranger can make cold at will.
+page load — the one path a stranger can make cold at will. The re-added map retires a
+flight when the **flight** terminates, never when a caller exits:
+[Packet 5's delivery record](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5)
+convicts the waiter-side cleanup, where a joiner that cancels de-registers a read whose
+transaction is still open and the next arrival starts a second one. What the split does
+not get back is supersession — `InMemoryCacheService` also suppresses the store of a
+factory result whose key was written or dropped while it ran, and that is an adapter
+detail rather than an `ICacheService` guarantee — so an invalidation racing an open
+flight can re-store the mapping it just dropped, bounded by the same positive-TTL window
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) already accepts for a
+deactivated mapping.
 
 `platform_host_to_tenant` is the one **platform-scoped** table — the row is what
 *determines* the tenant, so it cannot be filtered by a tenant context that does not

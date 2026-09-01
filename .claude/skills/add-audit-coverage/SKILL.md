@@ -237,10 +237,12 @@ public async Task User_NationalId_isRedacted_In_AuditSnapshot()
 
 - `dotnet build` and `dotnet test` pass.
 - Architecture tests:
-  - `Module_<Name>_HasAuditMatrix` (the module's `audit.md` exists).
+  - `Every_Module_Has_An_AuditCoverage_Matrix` (the module's `audit.md` exists) —
+    Registered, backfilled in Packet 9.
   - `Modules_Do_Not_Write_AuditLog_Directly` (no `IAuditStore.WriteAsync` call from
-    outside the audit infrastructure).
-  - `Every_MustAudit_Operation_HasMatrixEntry`.
+    outside the audit infrastructure) — Registered, Packet 10.
+  - `Every_TenantOwned_Command_HasAuditCoverage` — Registered, backfilled in
+    Packet 9.
 - An integration test demonstrates the new entry appears in `audit_log` with the
   right `operation`, `actor`, `before`, `after`, and any `[PiiSensitive]` fields
   redacted.
@@ -261,8 +263,8 @@ public async Task User_NationalId_isRedacted_In_AuditSnapshot()
   method, and `learnstack_app` holds no `UPDATE` privilege on `audit_log`.
 - **Truncating snapshots silently.** If a `before/after` JSON is too large, store
   an external pointer (`audit_blob_id`); never an empty object.
-- **Skipping the matrix update.** `Module_<Name>_HasAuditMatrix` will fail; CI
-  rejects.
+- **Skipping the matrix update.** `Every_Module_Has_An_AuditCoverage_Matrix` will
+  fail once Packet 9 backfills it; until then review is the only gate.
 - **Auditing a `read` for noise.** `read-sensitive` is the only read class that
   should be audited; broad read auditing creates noise that hides real signals.
 - **Tenants relaxing MUST.** Forbidden by the catalogue API. Calling

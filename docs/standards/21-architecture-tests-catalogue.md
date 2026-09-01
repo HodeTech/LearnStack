@@ -845,8 +845,9 @@ first two rows are coverage checks; the last three are the proof.
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 
 - **Asserts:** every entity marked `[TenantOwned]` (or implementing `ITenantOwned`)
-  has a `TenantId` property, an EF global query filter referencing it, and — in the
-  migration that creates its table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus
+  has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an
+  EF global query filter referencing it, and — in the migration that creates its
+  table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus
   exactly one policy carrying both a `USING` and a `WITH CHECK` clause over
   `app.tenant_id`. A second **permissive** policy on the same table fails the test: that
   is the defect ADR-0003 Amendment 3 corrects.
@@ -891,7 +892,8 @@ first two rows are coverage checks; the last three are the proof.
   `EnterPlatformAdminScope(reason)` path.
 - **Source:** ADR-0003; [11-security.md](11-security.md);
   [05-database.md § Forbidden](05-database.md).
-- **Type:** xUnit + source scan / Roslyn allowlist. **Kind:** structural.
+- **Type:** xUnit + source scan; the permitted paths are a list inside the scan, not a
+  call-site marker. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 7).
 
@@ -951,6 +953,22 @@ named in the phase document rather than catalogue-governed rules; all three ship
 alongside the two rules above in Packet 6 step 4 and are listed in
 [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), which re-runs them through
 the request path.
+
+#### `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`
+
+- **Asserts:** both arms of the `DbCommandInterceptor` guard. A command against a
+  `[TenantOwned]` table on a transaction no sanctioned setter stamped throws
+  `TenantContextMissingException`; the same command on a transaction opened by any of
+  the seven sanctioned setters runs. One arm is not the rule: a guard keyed on
+  `TransactionBehavior` instead of on the marker passes the first arm and rejects the
+  writes the idempotency store and the audit store legitimately make on their own short
+  transactions.
+- **Runs as `learnstack_app`.**
+- **Source:** [11-security.md § The out-of-band setters](11-security.md);
+  [05-database.md § Connection Management](05-database.md).
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Status:** **Registered.**
+- **Phase:** 02a Packet 7.
 
 #### `Db_Connection_String_Is_TransactionPooled`
 
@@ -2011,7 +2029,8 @@ structural test proves — and what it does not.
 #### `PublicSurface_Requests_Are_Never_ReadSensitive`
 
 - **Asserts:** no `[PublicSurface]` request type is classified MUST-class `read-sensitive`. Otherwise an anonymous `GET` becomes a durable standalone audit write.
-- **Source:** ADR-0036 § The reconciliation matrix.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [Standards 04 § Public surface](04-api-design.md).
 - **Type:** xUnit + audit-catalogue cross-check. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
@@ -2044,6 +2063,14 @@ structural test proves — and what it does not.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
+- **Note:** only the second conjunct is live in Packet 7 — no handler carries both
+  `[AllowsUnresolvedTenantContext]` and a platform-scope entry. The entry gate itself
+  holds as a **negative** until [Phase 03](../roadmap/phase-03-identity-admin.md):
+  `AuthorizationBehavior.Handle` is `return next()`, authentication arrives in
+  [Phase 02b](../roadmap/phase-02b-events-auth.md), and the Platform-scope permission
+  arrives with the Identity module
+  ([Tenancy § Permission Matrix](../modules/tenancy/permissions.md)). Packet 7 ships no
+  caller of the scope, so a gate that refuses everyone blocks nothing this packet ships.
 
 #### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
 

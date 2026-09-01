@@ -24,7 +24,8 @@ flags, and a triage map for the most common failure shapes.
 
 ## When not to use
 
-- Generating coverage reports for release. CI does that.
+- Generating coverage reports for release — no CI job collects coverage; this
+  step is local-only and optional.
 - Writing new tests — different skills cover authoring.
 - Production data migrations or seed scripts.
 
@@ -196,8 +197,11 @@ reportgenerator -reports:"**/coverage.cobertura.xml" \
 ```
 
 Targets per
-[06-testing.md](../../../docs/standards/06-testing.md): Domain ≥ 90%,
-Application ≥ 80%, Infrastructure ≥ 50%. CI fails on regression.
+[06-testing.md § Coverage Targets](../../../docs/standards/06-testing.md): Domain
+≥ 90% line and ≥ 80% branch, Application ≥ 80% line, Infrastructure adapters
+≥ 70% line. **Coverage gates nothing** — no CI job collects it and the standard
+does not make it a blocker. The architecture, isolation and contract suites are
+the hard gates.
 
 ### Step 9: Reproduce a CI failure
 

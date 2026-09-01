@@ -257,8 +257,10 @@ the event.
 > **Erratum — 2026-09-01.** The paragraph below says the `[PublicSurface]` set "is
 > enumerated in the catalogue". It was enumerated nowhere, and "the catalogue" had three
 > candidate referents in this corpus (architecture tests, audit coverage, permissions);
-> shown by `grep -rn "PublicSurface" docs/` at this ADR's acceptance, whose only hits are
-> inside this file. The set now lives in
+> shown by `git grep -n PublicSurface 803b381 -- docs/`, whose twelve hits across three
+> files — this ADR, its row in the decisions index, and the architecture-tests catalogue
+> — never name a marked request type. The catalogue's own entry sent the reader to "the
+> catalogue's enumerated set", which is itself. The set now lives in
 > [Standards 04 § Public surface](../standards/04-api-design.md), which this ADR's
 > § Architecture tests already designates as the home of its day-to-day rules — so the
 > location changed, not the rule. Every rule the paragraph states about the set is
@@ -803,9 +805,13 @@ the architecture-tests catalogue, the audit-coverage catalogue and the permissio
 catalogue. A rule that reads against a set nobody wrote down cannot be implemented, and
 `PublicSurface_Marker_Set_Is_Enumerated` is a Packet 7 deliverable that has to.
 
-**How it was shown.** `grep -rn "PublicSurface" docs/` returns hits only inside this
-file. The architecture-tests catalogue disclaims owning rule content in its own opening
-section, so it was never the home.
+**How it was shown.** `git grep -n PublicSurface 803b381 -- docs/` — this ADR's
+acceptance commit — returns twelve hits in three files: this ADR, its one-line row in
+the decisions index, and two entries in the architecture-tests catalogue. Not one of
+them names a marked request type or its permitted methods. The catalogue's
+`PublicSurface_Marker_Set_Is_Enumerated` asserted that every marked type "appears in the
+catalogue's enumerated set", which is a rule reading against itself; and the catalogue
+disclaims owning rule content in its own opening section, so it was never the home.
 
 **Every carrier changed.** This ADR (the inline erratum in § The reconciliation matrix
 and this amendment); [Standards 04 § Public surface](../standards/04-api-design.md),

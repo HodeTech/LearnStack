@@ -117,9 +117,11 @@ forbids it.
 ### Step 4: Register `ITenantContextAccessor` (singleton, AsyncLocal-backed)
 
 Per [ADR-0032 § Sub-decision 10](../../../docs/decisions/0032-exception-handling-logging-and-observability.md),
-OTel processors are singletons — they cannot inject the request-scoped
-`ITenantContext` directly. Register the singleton accessor *before* the OTel
-pipeline so `TenantContextSpanProcessor` can resolve it:
+OTel processors are singletons, and `ITenantContext` is registered transient and
+resolved from the accessor on every access — a singleton that injected it directly
+would pass DI validation and then pin one request's value for the process lifetime.
+Register the singleton accessor *before* the OTel pipeline so
+`TenantContextSpanProcessor` can resolve it:
 
 ```csharp
 services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();

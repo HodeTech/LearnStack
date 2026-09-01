@@ -141,11 +141,13 @@ Rules:
 ## Tenant-Scoped Code
 
 - Every entity backed by a table in one of the **tenant-owned** table classes carries
-  `[TenantOwned]`. The two exceptions are classes, not omissions:
-  `tenants` is tenant-owned **self-keyed** — its `id` *is* the tenant id, so it has no
-  `TenantId` property and its policy keys on `id` — and `platform_host_to_tenant` is
-  **platform-scoped**, read in order to determine the tenant, so a tenant-keyed
-  predicate on it would make host resolution return zero rows forever. See
+  `[TenantOwned]`. Both exceptions are decided by **table class**, not by oversight, and
+  they except different things. `tenants` is tenant-owned **self-keyed**: it **carries
+  the marker**, and is excepted only from the `TenantId` *property* — its `id` *is* the
+  tenant id, so both the query filter and the policy key on `id`.
+  `platform_host_to_tenant` is **platform-scoped**, read in order to determine the
+  tenant — a tenant-keyed predicate on it would make host resolution return zero rows
+  forever — so it takes **no marker at all**. See
   [Database Standards § Table classes](05-database.md) and
   [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
   The presence of a `TenantId` property is **not** the test: `PlatformHostMapping` has
