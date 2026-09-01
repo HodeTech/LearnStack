@@ -354,27 +354,29 @@ migrations run as `learnstack_migration`, which owns the table. Integration test
 this entity must connect as `learnstack_app` — a test that connects as the owner passes
 against an inert policy and proves nothing.
 
-### Step 4: Architecture test (registered, not yet implemented)
+### Step 4: Architecture test (implemented for Tenancy; Packet 10 closes it)
 
-**Nothing catches a missing filter automatically today.** An earlier version of
-this step said the opposite and named three rules —
-`Every_TenantOwned_Entity_Has_TenantId`,
-`Every_TenantOwned_Table_HasRls_With_AppTenantId` and
-`Every_OrgScoped_Entity_HasOrgIdAndFilter` — of which the first two exist nowhere
-in the catalogue or the test tree. A developer who reached this step was told the
-work was done.
-
-The two rules the catalogue actually registers for this surface are
 `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
-`Every_OrgScoped_Entity_HasOrgIdAndFilter`, both **Registered** and owned by
-Phase 02a Packet 7. What *is* implemented and will catch part of this today:
-`Every_Foreign_Key_Has_A_Supporting_Index` and the schema sweeps in
-`TenancySchemaTests` — row security enabled *and* forced on every table in the
-catalogue, no second permissive policy for one command, snake_case identifiers,
-and the exact grant matrix. Those run against the applied schema, so they cover
-your migration the moment it lands.
+`Every_OrgScoped_Entity_HasOrgIdAndFilter` are **implemented** as of Phase 02a
+Packet 7 step 3, in `TenantScopingTests`. For a **marked** entity they fail the
+build on a missing tenant key, a missing or non-narrowing query filter, a mapped
+`organization_id` that is not nullable, or a migration lacking `ENABLE` + `FORCE`
+plus exactly one permissive policy with both a `USING` and a `WITH CHECK` clause —
+and, for an organization-scoped table, either `AS RESTRICTIVE` write guard.
 
-Until Packet 7, the isolation test in Step 5 is the net, and it is the only one.
+Two gaps remain, and both are yours to close by hand:
+
+- **A marker-gated rule cannot catch a missing marker.** It iterates what it
+  finds. An entity you forget to mark is invisible to both rules, and the
+  isolation test in Step 5 is the net for it.
+- **The reflection scope is the Tenancy domain assembly** until Packet 10 widens
+  it across every module.
+
+Also live against your migration: `Every_Foreign_Key_Has_A_Supporting_Index` and
+the schema sweeps in `TenancySchemaTests` — row security enabled *and* forced,
+no second permissive policy for one command, snake_case identifiers, and the exact
+grant matrix. Those run against the applied schema.
+
 If you're adding a *new* marker attribute or a *new* isolation pattern, write a
 new architecture test (see
 [add-architecture-test](../add-architecture-test/SKILL.md)).
@@ -447,11 +449,14 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   tenant-wide rows. The default is `nullable + tenant-wide allowed`.
 - **`Entity<TId>` instead of `AuditableEntity<<Name>Id>`.** You lose
   `created_at` / `updated_at` automation. Only the audit aggregate uses `Entity<TId>`.
-- **A query filter closing over anything but a `DbContext` instance member.**
-  EF caches the model, so the value is baked in as a literal and every later
-  request answers with the first tenant that built it. Under RLS that is a silent
-  zero-rows outage. See Step 2 — and note there is no convention adding a filter
-  for you, in either direction.
+- **Writing a query filter at all.** Since Packet 7 step 3 the module's
+  `TenantScopedDbContext` base applies one for every entity implementing
+  `ITenantOwned` / `IOrganizationScoped`; your job is the interface and the marker.
+  A hand-written one closing over anything but a `DbContext` instance member is
+  baked into EF's cached model as a literal, and every later request carries
+  whichever tenant built the model first — under RLS a zero-rows outage rather
+  than a leak, which is harder to diagnose, not safer. There is no convention
+  adding a filter for you either, in either direction.
 - **No isolation test.** The schema sweeps catch a missing or mis-shaped *policy*;
   they cannot catch a policy that is well-formed and wrong. An explicit
   `TenantA_cannot_read_TenantB` test — connecting as `learnstack_app`, against a

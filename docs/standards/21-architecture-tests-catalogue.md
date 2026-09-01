@@ -832,6 +832,23 @@ first two rows are coverage checks; the last three are the proof.
 - **Status:** **Awaiting backfill** — cited by the standard, no dispatcher yet.
   **Phase:** 02b.
 
+#### `CoreInfrastructure_DoesNotDependOn_AnyModule`
+
+- **Asserts:** the core `LearnStack.Infrastructure` assembly references no
+  `LearnStack.Modules.*` type. The reverse edge — a module's `Infrastructure`
+  referencing core Infrastructure — is permitted and required, because
+  `TenantScopedDbContext` and the query-filter seam live there
+  ([Architecture Standards § Dependency Direction](01-architecture-standards.md)).
+  This rule is the half that keeps it one-way: core Infrastructure is referenced by
+  every module, so a single edge back into one makes the graph cyclic and makes that
+  module impossible to extract.
+- **Source:** [ADR-0002](../decisions/0002-initial-architecture.md);
+  [ADR-0010](../decisions/0010-cross-module-communication.md);
+  [Architecture Standards § Dependency Direction](01-architecture-standards.md).
+- **Type:** NetArchTest. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 3, `ModuleDependencyTests`).
+- **Phase:** 02a Packet 7.
+
 #### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
 
 - **Asserts:** the keyed `NpgsqlDataSource` built from `ConnectionStrings:PlatformAdmin`

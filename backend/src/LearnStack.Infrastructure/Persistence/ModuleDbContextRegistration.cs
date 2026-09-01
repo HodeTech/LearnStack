@@ -142,8 +142,9 @@ public static class ModuleDbContextRegistration
 
             // ActivatorUtilities, not Activator: a module context takes its
             // DbContextOptions plus whatever else it needs from DI —
-            // TenantScopedDbContext takes ITenantContext, because its query
-            // filters close over it. Activator.CreateInstance can only pass the
+            // TenantScopedDbContext takes ITenantContextAccessor, because its
+            // query filters read it on every access rather than holding a context
+            // captured at construction. Activator.CreateInstance can only pass the
             // options, so it would fail to construct any context with a second
             // parameter, which is now every tenant-scoped one.
             var context = ActivatorUtilities.CreateInstance<TContext>(provider, options);

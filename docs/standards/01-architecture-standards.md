@@ -48,6 +48,7 @@ flowchart LR
   domain[Module.Domain]
   infra[Module.Infrastructure]
   kernel[SharedKernel]
+  coreInfra[Core LearnStack.Infrastructure]
   otherContracts[Other Module.Application.Contracts]
   providers[Provider SDKs]
 
@@ -56,9 +57,29 @@ flowchart LR
   app --> contracts
   app --> otherContracts
   infra --> app
+  infra --> coreInfra
   infra --> providers
   contracts --> kernel
 ```
+
+Text fallback — a module's `Domain` depends on `SharedKernel`; its `Application` on its
+own `Domain`, its own `Application.Contracts` and other modules' contracts; its
+`Infrastructure` on its own `Application`, on **core `LearnStack.Infrastructure`**, and
+on provider SDKs; and `Application.Contracts` on `SharedKernel`.
+
+**`Module.Infrastructure → LearnStack.Infrastructure` is permitted, and narrowly.** It
+carries the shared persistence seams every tenant-owned module derives from rather than
+restates — `TenantScopedDbContext` and the query-filter mechanism it applies
+([ADR-0040](../decisions/0040-ambient-unit-of-work.md);
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)). Those
+call EF model-building APIs, which `SharedKernel` is not sanctioned to do — its EF
+reference is scoped to Vogen-emitted converters
+([ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md), and § Build-time-only
+exceptions below) — so the seam has nowhere else to live. The edge is one-way: core
+`LearnStack.Infrastructure` references no module, which is what keeps it acyclic, and
+`CoreInfrastructure_DoesNotDependOn_AnyModule` holds that. A module reaching into core
+Infrastructure for a **capability of its own** rather than for a shared seam is the
+misuse this sentence exists to name.
 
 Forbidden edges:
 - Domain → Application

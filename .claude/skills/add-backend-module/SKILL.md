@@ -82,9 +82,17 @@ flowchart LR
   Application --> Application.Contracts
   Application -. depends on .-> OtherModule.Application.Contracts
   Infrastructure --> Application
+  Infrastructure --> CoreInfrastructure[LearnStack.Infrastructure core]
   Infrastructure --> ProviderSDKs
   Application.Contracts --> SharedKernel
 ```
+
+`Infrastructure → LearnStack.Infrastructure` (core) is required, not optional: it
+carries `TenantScopedDbContext`, the base your module's `DbContext` derives from in
+Step 4. The seam lives there rather than in `SharedKernel` because it calls EF
+model-building APIs, and SharedKernel's EF reference is sanctioned for Vogen-emitted
+converters only. Omit the reference and Step 4's sample does not compile — the base
+clause is the first thing that fails.
 
 Forbidden references (architecture test will catch them):
 
@@ -161,11 +169,12 @@ only three files under `backend/src` may mention `UseNpgsql` at all.
 In `LearnStack.Modules.<Name>.Infrastructure/Persistence/<Name>DbContext.cs`:
 
 ```csharp
-// ONE constructor parameter. `ModuleDbContextRegistration` builds every module
-// context with `Activator.CreateInstance(typeof(TContext), options)`, so a second
-// parameter throws `MissingMethodException` on first resolution — and
-// `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` forbids registering the
-// context any other way. This is the shape the one shipped context carries.
+// `ModuleDbContextRegistration` builds every module context with
+// `ActivatorUtilities.CreateInstance<TContext>(provider, options)`, which passes the
+// options explicitly and resolves every other constructor parameter from DI — which
+// is how the accessor below arrives. `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
+// still forbids registering the context any other way. This is the shape the one
+// shipped context carries.
 public sealed class <Name>DbContext(
     DbContextOptions<<Name>DbContext> options, ITenantContextAccessor accessor)
     : TenantScopedDbContext(options, accessor)
@@ -193,13 +202,13 @@ public sealed class <Name>DbContext(
 }
 ```
 
-**How the instance member gets populated is Packet 7's choice**, and it is one of
-two: switch `ModuleDbContextRegistration` to
-`ActivatorUtilities.CreateInstance(provider, typeof(TContext), options)`, or read
-the accessor off the application service provider the registrar already passes to
-`UseApplicationServiceProvider`. Prefer the singleton `ITenantContextAccessor`
-over an `ITenantContext` snapshot: EF parameterises `_accessor.Current` per query,
-and it avoids baking in an `UnresolvedTenantContext` whose `TenantId` throws.
+Packet 7 step 3 settled how the accessor arrives: `ModuleDbContextRegistration`
+switched to `ActivatorUtilities.CreateInstance<TContext>(provider, options)`, so DI
+resolves it. The **accessor** and not an injected `ITenantContext`, and that is the
+load-bearing half — the context contract is registered transient and resolved from
+this same accessor, so a context holding one freezes whatever the accessor held at
+construction and never moves again. Measured: a context built under tenant A kept
+filtering to A after the accessor moved to B.
 
 Per [05-database.md](../../../docs/standards/05-database.md), one `DbContext` per
 module — not one global.

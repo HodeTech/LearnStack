@@ -231,6 +231,7 @@ flowchart LR
         INF[Infrastructure<br/>TenancyDbContext]
     end
     SK[SharedKernel<br/>TenantId, OrganizationId, IUnitOfWork]
+    CORE[Core Infrastructure<br/>TenantScopedDbContext]
     PG[(PostgreSQL<br/>8 tables, RLS)]
     HUB[Hub adapters<br/>IEntitlementProvider, IHubTenantSync]
     OTHER[Other modules]
@@ -238,6 +239,7 @@ flowchart LR
     DOM --> SK
     APP --> DOM
     INF --> APP
+    INF --> CORE
     INF --> PG
     HUB -.-> APP
     OTHER -.->|application contract only| APP
@@ -247,7 +249,9 @@ Text fallback — **components**: Tenancy is three assemblies — `Domain` (the
 `Tenant` and `Organization` aggregates), `Application`, and `Infrastructure`
 (`TenancyDbContext`). `Domain` depends on `SharedKernel` for `TenantId`,
 `OrganizationId` and `IUnitOfWork`; `Application` on `Domain`; `Infrastructure`
-on `Application` and on PostgreSQL. The Hub adapters (`IEntitlementProvider`,
+on `Application`, on core `LearnStack.Infrastructure` — where
+`TenantScopedDbContext`, the base `TenancyDbContext` derives from, applies the
+query filters — and on PostgreSQL. The Hub adapters (`IEntitlementProvider`,
 `IHubTenantSync`) and every other module reach `Application` and nothing deeper.
 
 Other modules reach Tenancy **only** through an application contract in

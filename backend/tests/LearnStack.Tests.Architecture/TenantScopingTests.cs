@@ -163,6 +163,31 @@ public sealed class TenantScopingTests
     }
 
     [Fact]
+    public void Every_Scoping_Interface_Carries_Its_Marker()
+    {
+        // The reverse direction. The two rules above enumerate the markers and
+        // check the interfaces; nothing checked that an entity implementing the
+        // interfaces also carries the marker. An entity in that state is filtered
+        // at runtime — the sweep gates on the interface — while both rules skip
+        // it entirely, so its RLS policy, its tenant key and its migration go
+        // unchecked. The pair has to travel together in both directions.
+        foreach (var entity in TenancyDomain.GetTypes()
+            .Where(typeof(ITenantOwned).IsAssignableFrom)
+            .Where(type => type is { IsInterface: false, IsAbstract: false }))
+        {
+            entity.GetCustomAttribute<TenantOwnedAttribute>().Should().NotBeNull(
+                $"{entity.Name} implements ITenantOwned, so it must carry [TenantOwned] "
+                + "— without it both scoping rules skip it while the filter still applies");
+
+            if (typeof(IOrganizationScoped).IsAssignableFrom(entity))
+            {
+                entity.GetCustomAttribute<OrganizationScopedAttribute>().Should().NotBeNull(
+                    $"{entity.Name} implements IOrganizationScoped and must say so");
+            }
+        }
+    }
+
+    [Fact]
     public void The_Host_Map_Carries_No_Tenant_Marker()
     {
         // The negative a marker-gated rule cannot state about itself. The host map

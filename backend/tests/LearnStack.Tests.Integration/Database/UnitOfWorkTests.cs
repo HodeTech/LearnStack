@@ -264,6 +264,48 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task The_organization_filter_admits_tenant_wide_rows_and_the_caller_own()
+    {
+        // The organization term — `organization_id IS NULL OR organization_id =
+        // current` — had no test at any layer. Measured before this case existed:
+        // flipping its OR to an AND survived all 960. The term is the one that
+        // decides whether a tenant-wide row is visible to an organization-scoped
+        // request, which is the distinction ADR-0017 exists for.
+        //
+        // The fixture seeds exactly the three shapes tenant A needs: one
+        // tenant-wide setting (`tz`), one under OrgA1 (`theme`), one under OrgA2
+        // (`theme`). Under OrgA1 the answer is the first two and not the third.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        var visible = await context.TenantSettings
+            .Select(setting => new { setting.Key, setting.OrganizationId })
+            .ToListAsync();
+
+        visible.Should().HaveCount(2,
+            "an organization sees the tenant-wide rows and its own, and no sibling's");
+        visible.Should().Contain(setting => setting.OrganizationId == null,
+            "the tenant-wide row is in scope — null is a scope, not an absence");
+        visible.Should().Contain(
+            setting => setting.OrganizationId != null
+                && setting.OrganizationId.Value.Value == SchemaFixture.OrgA1,
+            "the caller's own organization is in scope");
+        visible.Should().NotContain(
+            setting => setting.OrganizationId != null
+                && setting.OrganizationId.Value.Value == SchemaFixture.OrgA2,
+            "a sibling organization's row is not");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
     public async Task A_context_follows_the_accessor_after_it_was_built()
     {
         // Whether the filters read the CURRENT ambient tenant or the one that

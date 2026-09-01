@@ -153,18 +153,6 @@ public static class TenantQueryFilters
     }
 
     /// <summary>
-    /// <c>e =&gt; e.TenantId == context.CurrentTenantId</c>, and for an
-    /// organization-scoped entity
-    /// <c>&amp;&amp; (e.OrganizationId == null || e.OrganizationId == context.CurrentOrganizationId)</c>.
-    /// </summary>
-    /// <remarks>
-    /// Built as an expression tree rather than written as a lambda because the
-    /// entity type is only known at model-building time. The shape is exactly what
-    /// the compiler emits for a lambda closing over a context property — a member
-    /// access rooted at a constant holding the context — which is the shape EF
-    /// re-evaluates per query.
-    /// </remarks>
-    /// <summary>
     /// <c>e =&gt; e.Id == context.CurrentTenantId</c> for the tenant-owned
     /// self-keyed class.
     /// </summary>
@@ -179,13 +167,25 @@ public static class TenantQueryFilters
 
         return Expression.Lambda(
             Expression.Equal(
-                Expression.Property(entity, "Id"),
+                Expression.Property(entity, nameof(IHasId<TenantId>.Id)),
                 Expression.Property(
                     Expression.Constant(context),
                     nameof(ITenantScopedDbContext.CurrentTenantId))),
             entity);
     }
 
+    /// <summary>
+    /// <c>e =&gt; e.TenantId == context.CurrentTenantId</c>, and for an
+    /// organization-scoped entity
+    /// <c>&amp;&amp; (e.OrganizationId == null || e.OrganizationId == context.CurrentOrganizationId)</c>.
+    /// </summary>
+    /// <remarks>
+    /// Built as an expression tree rather than written as a lambda because the
+    /// entity type is only known at model-building time. The shape is exactly what
+    /// the compiler emits for a lambda closing over a context property — a member
+    /// access rooted at a constant holding the context — which is the shape EF
+    /// re-evaluates per query.
+    /// </remarks>
     private static LambdaExpression BuildFilter(Type clrType, ITenantScopedDbContext context)
     {
         var entity = Expression.Parameter(clrType, "e");
@@ -271,6 +271,19 @@ public abstract class TenantScopedDbContext(
             ? organization
             : null;
 
+    /// <summary>Applies the tenant filters to every entity the model holds.</summary>
+    /// <remarks>
+    /// <b>A subclass overriding this calls <c>base.OnModelCreating</c> LAST.</b> The
+    /// sweep reads <c>modelBuilder.Model.GetEntityTypes()</c>, so anything a fluent
+    /// configuration introduces that is not reachable from a <c>DbSet&lt;T&gt;</c>
+    /// property — an entity mapped only by <c>ApplyConfigurationsFromAssembly</c>, a
+    /// keyless query type, an owned type declared there — is not in the model yet if
+    /// the base runs first, and silently gets no filter. Omitting the call entirely
+    /// loses every filter, which
+    /// <c>Every_TenantOwned_Entity_HasFilterAndRlsPolicy</c> does catch; calling it
+    /// too early loses only the late arrivals, which nothing catches until one
+    /// exists.
+    /// </remarks>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
