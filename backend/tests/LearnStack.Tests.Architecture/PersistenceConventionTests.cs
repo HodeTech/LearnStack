@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Tests.Architecture;
 
@@ -533,7 +534,12 @@ public sealed class PersistenceConventionTests
     /// value is deliberately not a real credential.
     /// </remarks>
     private static TenancyDbContext BuildTenancyContext() =>
-        new(new DbContextOptionsBuilder<TenancyDbContext>()
-            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
-            .Options);
+        new(
+            new DbContextOptionsBuilder<TenancyDbContext>()
+                .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
+                .Options,
+            // The model is what these cases read, and a query filter emits no
+            // DDL and no table mapping, so the context this builds is identical
+            // whichever tenant context it holds.
+            UnresolvedTenantContext.Instance);
 }

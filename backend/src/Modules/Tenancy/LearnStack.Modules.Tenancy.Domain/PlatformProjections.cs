@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.Modules.Tenancy.Domain;
 
@@ -33,7 +34,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// ships <c>RefreshAsync</c> for it to guard.
 /// </para>
 /// </remarks>
-public sealed class PlatformEntitlement
+[TenantOwned]
+public sealed class PlatformEntitlement : ITenantOwned
 {
     private PlatformEntitlement()
     {

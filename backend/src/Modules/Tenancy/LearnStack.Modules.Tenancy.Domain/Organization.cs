@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -32,7 +33,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// writes.
 /// </para>
 /// </remarks>
-public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRoot<OrganizationId>
+[TenantOwned]
+public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRoot<OrganizationId>, ITenantOwned
 {
     private Organization(OrganizationId id)
         : base(id)
@@ -125,7 +127,7 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
                 nameof(id));
         }
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             tenantId,
             "An organization belongs to a tenant; the tenant id was never assigned.",
             nameof(tenantId));

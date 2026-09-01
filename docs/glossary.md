@@ -117,7 +117,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **Tenant-owned table** | A database table whose every row belongs to one tenant, protected by an EF global query filter **and** a Row Level Security policy from the migration that creates it — both layers, always, once the pair exists. As of Packet 6 the policy is live on every such table and the filters are not: they land in Packet 7 with `TenantResolverMiddleware`, and until then RLS carries the invariant alone, fail-closed. Three sub-classes, per [Database Standards § Table classes](standards/05-database.md). |
+| **Tenant-owned table** | A database table whose every row belongs to one tenant, protected by an EF global query filter **and** a Row Level Security policy from the migration that creates it — both layers, always, once the pair exists. Both layers are live as of Packet 7 step 3. Each fails closed on its own: an unset `app.tenant_id` makes every policy predicate `NULL`, and an unresolved context narrows every filter to the all-zero tenant, which no row can carry. RLS is the boundary; the filter is the layer above it. Three sub-classes, per [Database Standards § Table classes](standards/05-database.md). |
 | **Tenant-owned, tenant-wide** | The ordinary sub-class: a `tenant_id` column, one `AND`-ed policy keyed on it. |
 | **Tenant-owned, organization-scoped** | Adds a nullable `organization_id`, the `app.scope` read hatch, and two `AS RESTRICTIVE` write guards. |
 | **Tenant-owned, self-keyed** | `tenants` itself. It has **no** `tenant_id` column — its `id` *is* the tenant id, so its policy keys on `id`. |

@@ -140,7 +140,13 @@ public static class ModuleDbContextRegistration
                 .UseApplicationServiceProvider(provider)
                 .Options;
 
-            var context = (TContext)Activator.CreateInstance(typeof(TContext), options)!;
+            // ActivatorUtilities, not Activator: a module context takes its
+            // DbContextOptions plus whatever else it needs from DI —
+            // TenantScopedDbContext takes ITenantContext, because its query
+            // filters close over it. Activator.CreateInstance can only pass the
+            // options, so it would fail to construct any context with a second
+            // parameter, which is now every tenant-scoped one.
+            var context = ActivatorUtilities.CreateInstance<TContext>(provider, options);
             context.Database.UseTransaction(unitOfWork.Transaction);
 
             return context;

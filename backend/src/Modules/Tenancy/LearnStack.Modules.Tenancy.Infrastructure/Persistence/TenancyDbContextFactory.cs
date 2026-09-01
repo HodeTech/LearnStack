@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 
@@ -76,6 +77,11 @@ public sealed class TenancyDbContextFactory : IDesignTimeDbContextFactory<Tenanc
                 npgsql.MigrationsHistoryTable(HistoryTable))
             .Options;
 
-        return new TenancyDbContext(options);
+        // UnresolvedTenantContext, because `dotnet ef` has no request and needs
+        // no tenant: a global query filter emits no DDL, so the model this
+        // factory builds is byte-identical whatever context it is handed. Passing
+        // the unresolved one keeps that explicit rather than inventing a tenant
+        // the design-time path would then appear to depend on.
+        return new TenancyDbContext(options, UnresolvedTenantContext.Instance);
     }
 }

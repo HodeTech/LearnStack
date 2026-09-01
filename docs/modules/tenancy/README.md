@@ -316,11 +316,16 @@ request and are the only Tenancy work an anonymous visitor pays for.
   organization term already refuses a sibling's row, so both guards could be
   deleted with the whole suite green. Measured: with the hatch set and the delete
   guard dropped, a `DELETE` removed another organization's row.
-- **No query filters yet.** The EF tenant and organization filters land in Packet
-  7 with `TenantResolverMiddleware`. Between the packets nothing reads a
-  tenant-owned table on a request path, and with `app.tenant_id` unset every
-  policy predicate is `NULL` and every query returns zero rows — fail-closed by
-  construction rather than by a filter that does not exist.
+- **The query filters landed in Packet 7 step 3**, ahead of
+  `TenantResolverMiddleware`, which supplies the resolved context they read. Every
+  entity marked `[TenantOwned]` carries one; the two exceptions are table classes
+  rather than omissions — `tenants` is tenant-owned **self-keyed** and its policy
+  keys on `id`, and `platform_host_to_tenant` is **platform-scoped** and takes no
+  marker at all. Row Level Security remains the isolation boundary: with
+  `app.tenant_id` unset every policy predicate is `NULL` and every query returns
+  zero rows whether or not a filter exists. The filter is the layer above it, and
+  it fails closed the same way — an unresolved context narrows to the all-zero
+  tenant, which no row can carry.
 - **Two defaults per tenant are possible.** Nothing stops two `tenant_locales`
   rows with `is_default = true` for one tenant.
   [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) closes it in both places:

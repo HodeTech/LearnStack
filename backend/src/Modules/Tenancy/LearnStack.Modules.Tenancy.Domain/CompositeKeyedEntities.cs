@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.Modules.Tenancy.Domain;
 
@@ -24,7 +25,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// own configuration audit covers as one change, not six.
 /// </para>
 /// </remarks>
-public sealed class TenantLocale
+[TenantOwned]
+public sealed class TenantLocale : ITenantOwned
 {
     private TenantLocale() => Locale = null!;
 
@@ -59,7 +61,7 @@ public sealed class TenantLocale
         MappedLength.EnsureAtMost(locale, 35, nameof(locale));
         LocaleTag.EnsureWellFormed(locale, nameof(locale));
 
-        TenantOwned.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));
+        TenantOwnership.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));
 
         return new TenantLocale
         {
@@ -91,7 +93,8 @@ public sealed class TenantLocale
 /// first write, and no soft delete — removing a flag removes the row.
 /// </para>
 /// </remarks>
-public sealed class TenantFeatureFlag
+[TenantOwned]
+public sealed class TenantFeatureFlag : ITenantOwned
 {
     private TenantFeatureFlag()
     {
@@ -124,7 +127,7 @@ public sealed class TenantFeatureFlag
         // ValueObjectValidationException out of the Vogen EF converter.
         AuditInput.EnsureValid(at, by);
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             tenantId, "A feature flag belongs to a tenant.", nameof(tenantId));
 
         return new TenantFeatureFlag
@@ -212,7 +215,7 @@ internal static class JsonValue
 /// this is refused at the factory rather than left to collide with whatever that
 /// packet chooses.
 /// </remarks>
-internal static class TenantOwned
+internal static class TenantOwnership
 {
     public static void EnsureRealTenant(TenantId tenantId, string message, string parameterName)
     {

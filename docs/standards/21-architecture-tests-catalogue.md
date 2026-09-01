@@ -856,8 +856,15 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
+  module; Packet 10 closes it across every module.
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Note:** a marker-gated rule cannot catch a **missing** marker — it iterates what it
+  finds. The companion case `The_Host_Map_Carries_No_Tenant_Marker` states the negative
+  that matters most in this module: `platform_host_to_tenant` has a `TenantId` property
+  and must carry neither the marker nor a filter, because a tenant-keyed predicate on the
+  table read *in order to* determine the tenant makes host resolution return zero rows
+  forever, on the anonymous page-load path, with no error anywhere.
 - **Note:** the marker's scope is decided by **table class**, not by the presence of a
   `TenantId` property. `tenants` is tenant-owned **self-keyed** — its policy is on `id`
   and it carries no marker-driven `TenantId` filter — and `platform_host_to_tenant` is
@@ -883,6 +890,8 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0017; ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
+  module; Packet 10 closes it across every module.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
 

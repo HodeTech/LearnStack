@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Xunit;
+using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Tests.Integration.Database;
 
@@ -112,10 +113,12 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     }
 
     private TenancyDbContext CreateTenancy() =>
-        new(new DbContextOptionsBuilder<TenancyDbContext>()
-            .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
-                npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
-            .Options);
+        new(
+            new DbContextOptionsBuilder<TenancyDbContext>()
+                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
+                    npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
+                .Options,
+            UnresolvedTenantContext.Instance);
 
     private PlatformDbContext CreatePlatform() =>
         new(new DbContextOptionsBuilder<PlatformDbContext>()

@@ -1,0 +1,202 @@
+using System.Linq.Expressions;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
+using Microsoft.EntityFrameworkCore;
+
+namespace LearnStack.Infrastructure.Persistence;
+
+/// <summary>
+/// What a module <c>DbContext</c> exposes so its global query filters have
+/// something to close over.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>These must be instance members of the context.</b> That is the whole
+/// mechanism, and the reason is EF's model cache: a filter expression is compiled
+/// into the model once per context type, and anything it closes over that is
+/// <i>not</i> reached through the context instance is evaluated at that moment and
+/// baked in as a SQL literal. Reached through the context, EF re-evaluates the
+/// member per query and emits a parameter.
+/// <c>Two_contexts_under_two_tenants_each_see_only_their_own_rows</c> holds the
+/// property and fails against the baked-in form.
+/// <b>Measured, and not what one would guess:</b> the baked-in failure here is
+/// not "the first request's tenant, served to the second". The model is built on
+/// first use, which in this codebase is reliably before any tenant is resolved,
+/// so the literal that bakes in is the all-zero id and <i>every</i> query returns
+/// zero rows for the life of the process. Fail-closed, and total — a bug that
+/// looks like an empty database rather than like a leak. That is the better of
+/// the two directions and still an outage.
+/// </para>
+/// <para>
+/// Implemented via <see cref="TenantScopedDbContext"/>, which every module context
+/// derives from rather than restating.
+/// </para>
+/// </remarks>
+public interface ITenantScopedDbContext
+{
+    /// <summary>
+    /// The tenant every filtered query narrows to, or the all-zero id when no
+    /// tenant is resolved.
+    /// </summary>
+    /// <remarks>
+    /// Never throws, and never absent. An unresolved context yields
+    /// <see cref="TenantId"/> over <see cref="Guid.Empty"/>, which no row can
+    /// carry — the domain refuses it at every factory and
+    /// <c>NpgsqlUnitOfWork</c> refuses to write it into <c>app.tenant_id</c> — so
+    /// the filter degenerates to "no rows" rather than to "all rows". Fail-closed
+    /// is the only acceptable default here; a nullable that EF renders as
+    /// <c>tenant_id IS NULL</c> would be a different, subtler wrong answer.
+    /// </remarks>
+    TenantId CurrentTenantId { get; }
+
+    /// <summary>
+    /// The organization the request narrows to, or <c>null</c> for a tenant-wide
+    /// request — which sees tenant-wide rows and no organization's rows, exactly
+    /// as the Row Level Security policy does with <c>app.organization_id</c> unset.
+    /// </summary>
+    OrganizationId? CurrentOrganizationId { get; }
+}
+
+/// <summary>
+/// Applies the tenant and organization global query filters to every entity a
+/// module's model marks as scoped.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Not the isolation boundary.</b> Row Level Security is
+/// ([ADR-0003 Amendment 3](../../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)),
+/// and it holds whether or not a filter exists. These filters are the layer above
+/// it: they keep a query from silently returning nothing when it should have
+/// narrowed, they make the intent visible in the generated SQL, and they are what
+/// an architecture test can check. Deleting them would not open a leak; it would
+/// make every cross-tenant read return zero rows from the database instead of
+/// from the query — which is the same answer arrived at by luck rather than by
+/// design.
+/// </para>
+/// <para>
+/// Applied from <c>OnModelCreating</c> and never from an
+/// <c>IEntityTypeConfiguration</c>: a configuration class reached by
+/// <c>ApplyConfigurationsFromAssembly</c> is constructed by EF with no access to
+/// the context instance, so a filter written there could only close over
+/// something else — which is the baked-in-literal failure this seam exists to
+/// prevent.
+/// </para>
+/// </remarks>
+public static class TenantQueryFilters
+{
+    /// <summary>
+    /// Adds a filter to every entity type implementing <see cref="ITenantOwned"/>,
+    /// narrowing further for those implementing <see cref="IOrganizationScoped"/>.
+    /// </summary>
+    public static ModelBuilder ApplyTenantQueryFilters(
+        this ModelBuilder modelBuilder, ITenantScopedDbContext context)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        ArgumentNullException.ThrowIfNull(context);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
+
+            if (!typeof(ITenantOwned).IsAssignableFrom(clrType))
+            {
+                // Includes the two deliberate non-implementers: the tenant-owned
+                // self-keyed class, whose Id is the tenant key and whose policy
+                // says so, and the platform-scoped host map, which is read before
+                // any tenant exists. Neither is an omission; both are table
+                // classes — see Database Standards § Table classes.
+                continue;
+            }
+
+            modelBuilder.Entity(clrType).HasQueryFilter(BuildFilter(clrType, context));
+        }
+
+        return modelBuilder;
+    }
+
+    /// <summary>
+    /// <c>e =&gt; e.TenantId == context.CurrentTenantId</c>, and for an
+    /// organization-scoped entity
+    /// <c>&amp;&amp; (e.OrganizationId == null || e.OrganizationId == context.CurrentOrganizationId)</c>.
+    /// </summary>
+    /// <remarks>
+    /// Built as an expression tree rather than written as a lambda because the
+    /// entity type is only known at model-building time. The shape is exactly what
+    /// the compiler emits for a lambda closing over a context property — a member
+    /// access rooted at a constant holding the context — which is the shape EF
+    /// re-evaluates per query.
+    /// </remarks>
+    private static LambdaExpression BuildFilter(Type clrType, ITenantScopedDbContext context)
+    {
+        var entity = Expression.Parameter(clrType, "e");
+        var contextConstant = Expression.Constant(context);
+
+        Expression predicate = Expression.Equal(
+            Expression.Property(entity, nameof(ITenantOwned.TenantId)),
+            Expression.Property(contextConstant, nameof(ITenantScopedDbContext.CurrentTenantId)));
+
+        if (typeof(IOrganizationScoped).IsAssignableFrom(clrType))
+        {
+            var rowOrganization = Expression.Property(
+                entity, nameof(IOrganizationScoped.OrganizationId));
+
+            // Tenant-wide OR the caller's own, mirroring the policy's organization
+            // term. The app.scope = 'tenant' hatch is deliberately absent: it has
+            // no carrier (see Security Standards § Tenant Context), and a filter
+            // that widened where the policy does not would return rows the
+            // database then refuses — the confusing direction of disagreement.
+            predicate = Expression.AndAlso(
+                predicate,
+                Expression.OrElse(
+                    Expression.Equal(
+                        rowOrganization,
+                        Expression.Constant(null, typeof(OrganizationId?))),
+                    Expression.Equal(
+                        rowOrganization,
+                        Expression.Property(
+                            contextConstant,
+                            nameof(ITenantScopedDbContext.CurrentOrganizationId)))));
+        }
+
+        return Expression.Lambda(predicate, entity);
+    }
+}
+
+/// <summary>
+/// The base every module <c>DbContext</c> derives from: it owns the two members
+/// the filters close over and applies them.
+/// </summary>
+/// <remarks>
+/// A base class rather than a copied pair of properties, because the properties
+/// are the mechanism. A module that wrote its own could reasonably write
+/// <c>tenantContext.TenantId</c> — which throws on an unresolved context, inside
+/// <c>OnModelCreating</c>, where the failure is a model that cannot be built.
+/// </remarks>
+public abstract class TenantScopedDbContext(
+    DbContextOptions options, ITenantContext tenantContext)
+    : DbContext(options), ITenantScopedDbContext
+{
+    private static readonly TenantId NoTenant = TenantId.From(Guid.Empty);
+
+    /// <inheritdoc />
+    public TenantId CurrentTenantId =>
+        tenantContext.IsResolved && tenantContext.TenantId.IsInitialized()
+            ? tenantContext.TenantId
+            : NoTenant;
+
+    /// <inheritdoc />
+    public OrganizationId? CurrentOrganizationId =>
+        tenantContext.IsResolved
+        && tenantContext.OrganizationId is { } organization
+        && organization.IsInitialized()
+            ? organization
+            : null;
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyTenantQueryFilters(this);
+    }
+}

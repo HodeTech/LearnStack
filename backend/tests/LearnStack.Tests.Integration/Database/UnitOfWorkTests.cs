@@ -214,6 +214,56 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task Two_contexts_under_two_tenants_each_see_only_their_own_rows()
+    {
+        // The property the whole query-filter seam turns on, and the one that
+        // fails if the filter closes over anything other than a DbContext
+        // instance member. EF compiles a filter into the model once per context
+        // type; a closure over a local, a field of something else, or a captured
+        // value is evaluated at that moment and baked in as a SQL literal. Every
+        // later request in the process then carries the FIRST request's tenant id
+        // in its WHERE clause — with a plausible number of rows, from the wrong
+        // tenant. Two scopes in one process, two tenants, is the smallest shape
+        // that can tell the two implementations apart: one context alone passes
+        // either way.
+        await using var provider = BuildProvider();
+
+        await using var first = provider.CreateAsyncScope();
+        var firstUnitOfWork = first.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await firstUnitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            first.ServiceProvider, firstUnitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var firstContext = first.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var tenantACount = await firstContext.Organizations.CountAsync();
+        var tenantASeen = await firstContext.Organizations
+            .Select(organization => organization.TenantId).Distinct().ToListAsync();
+
+        await firstUnitOfWork.RollbackAsync();
+
+        await using var second = provider.CreateAsyncScope();
+        var secondUnitOfWork = second.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await secondUnitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            second.ServiceProvider, secondUnitOfWork, SchemaFixture.TenantB, Guid.NewGuid());
+
+        var secondContext = second.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var tenantBSeen = await secondContext.Organizations
+            .Select(organization => organization.TenantId).Distinct().ToListAsync();
+
+        await secondUnitOfWork.RollbackAsync();
+
+        // Each sees its own tenant and nothing else. Under a baked-in literal the
+        // second scope would repeat the first's list, which is why the assertion
+        // is on the tenant ids the rows carry and not merely on the counts.
+        tenantACount.Should().BeGreaterThan(0, "the fixture seeds organizations for tenant A");
+        tenantASeen.Should().ContainSingle()
+            .Which.Value.Should().Be(SchemaFixture.TenantA);
+        tenantBSeen.Should().ContainSingle()
+            .Which.Value.Should().Be(SchemaFixture.TenantB);
+    }
+
+    [Fact]
     public async Task A_module_context_enlists_in_the_ambient_transaction()
     {
         // The property the shared registration helper exists for. The row is
@@ -225,7 +275,8 @@ public sealed class UnitOfWorkTests
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         await unitOfWork.BeginTransactionAsync();
-        await unitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        await EnterTenantAsync(
+            scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
 
         await ExecuteAsync(unitOfWork,
             """
@@ -246,7 +297,8 @@ public sealed class UnitOfWorkTests
         await using var after = provider.CreateAsyncScope();
         var afterUnitOfWork = after.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await afterUnitOfWork.BeginTransactionAsync();
-        await afterUnitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        await EnterTenantAsync(
+            after.ServiceProvider, afterUnitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
 
         (await after.ServiceProvider.GetRequiredService<TenancyDbContext>()
             .Organizations.CountAsync()).Should().Be(2);
@@ -773,6 +825,15 @@ public sealed class UnitOfWorkTests
         var services = new ServiceCollection();
         services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
         services.AddLogging();
+        // The composition root's shape, not a shortcut: a singleton accessor and
+        // a transient ITenantContext resolved from it on every access. The module
+        // context's query filters close over that context, so a provider without
+        // it cannot build one — which is what these cases would otherwise be
+        // silently testing around.
+        services.AddSingleton<ITenantContextAccessor, ScopedAccessor>();
+        services.AddTransient<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
         // Capturing, so a case can assert the unit of work actually complained.
         // The Error it logs when a resolved context yields no usable tenant is
         // the only signal that state ever produces — the request itself just
@@ -785,6 +846,19 @@ public sealed class UnitOfWorkTests
         services.AddModuleDbContext<TenancyDbContext>();
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// The accessor a case writes to decide what tenant its scope runs under.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>AsyncLocal</c>-backed like the production one: these cases drive it
+    /// synchronously and want the value to be visible to the whole provider, which
+    /// is what makes "two scopes, two tenants, one process" expressible.
+    /// </remarks>
+    private sealed class ScopedAccessor : ITenantContextAccessor
+    {
+        public ITenantContext? Current { get; set; }
     }
 
     /// <summary>Collects what <see cref="NpgsqlUnitOfWork"/> logged.</summary>
@@ -886,6 +960,24 @@ public sealed class UnitOfWorkTests
 
     private static StubTenantContext Resolved(Guid tenant, Guid organization) =>
         new(tenant, organization);
+
+    /// <summary>
+    /// Sets the session variables <b>and</b> the ambient accessor, which is the
+    /// pairing production makes: <c>TenantResolverMiddleware</c> writes the
+    /// accessor, and <c>TransactionBehavior</c> issues the <c>SET LOCAL</c> from
+    /// the same context. A case that wrote only the first would leave the module
+    /// context's query filter narrowing to the all-zero tenant and reading
+    /// nothing — which is the filter working, not a fixture bug, and worth
+    /// spelling out here so the next reader does not remove the filter to make a
+    /// count come back.
+    /// </summary>
+    private static async Task EnterTenantAsync(
+        IServiceProvider scope, IUnitOfWork unitOfWork, Guid tenant, Guid organization)
+    {
+        var context = Resolved(tenant, organization);
+        scope.GetRequiredService<ITenantContextAccessor>().Current = context;
+        await unitOfWork.SetTenantContextAsync(context);
+    }
 
     /// <summary>
     /// Claims to be resolved while carrying ids nothing ever assigned.

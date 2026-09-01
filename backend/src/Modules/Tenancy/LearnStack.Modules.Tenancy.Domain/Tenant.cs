@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -30,6 +31,7 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// list.
 /// </para>
 /// </remarks>
+[TenantOwned(SelfKeyed = true)]
 public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
 {
     private Tenant(TenantId id)
@@ -97,7 +99,7 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
         UrlSlug.EnsureUrlSafe(slug, nameof(slug));
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             id,
             "A tenant id is assigned by the registry that owns the tenant, never minted here.",
             nameof(id));
