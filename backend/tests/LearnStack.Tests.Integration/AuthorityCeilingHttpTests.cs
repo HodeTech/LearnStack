@@ -38,6 +38,7 @@ namespace LearnStack.Tests.Integration;
 /// to measure at the wire, not to derive from <c>HttpStatusMap</c>.
 /// </para>
 /// </remarks>
+[Collection(HostClassificationMeter.Name)]
 public sealed class AuthorityCeilingHttpTests(AuthorityCeilingFixture fixture)
     : IClassFixture<AuthorityCeilingFixture>
 {
@@ -103,6 +104,24 @@ public sealed class AuthorityCeilingHttpTests(AuthorityCeilingFixture fixture)
 
     private static string WithoutCorrelation(string body) =>
         Regex.Replace(body, "\"correlationId\":\"[^\"]*\"", "\"correlationId\":\"<per-request>\"");
+}
+
+/// <summary>
+/// Serializes the suites that touch <c>learnstack_host_classification_rejected_total</c>.
+/// </summary>
+/// <remarks>
+/// The counter is process-wide and a <c>MeterListener</c> sees every increment from
+/// every instrument of that name, whichever host produced it. So a suite asserting an
+/// exact count cannot run beside one that refuses a host — and this one does, in the
+/// parity case, by design. Measured: the two classes are green alone and green paired,
+/// and red in a full parallel run, which is the shape of a race rather than a defect in
+/// either. Serializing is the honest fix; loosening the count to "at least one" would
+/// keep the suite green by asserting less.
+/// </remarks>
+[CollectionDefinition(Name)]
+public sealed class HostClassificationMeter : ICollectionFixture<HostClassificationMeter>
+{
+    public const string Name = "host-classification-meter";
 }
 
 /// <summary>A host whose resolver maps one tenant host and nothing else.</summary>

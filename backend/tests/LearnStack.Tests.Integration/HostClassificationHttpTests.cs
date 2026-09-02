@@ -37,6 +37,7 @@ namespace LearnStack.Tests.Integration;
 /// Docker-free suites keep working with no database at all.
 /// </para>
 /// </remarks>
+[Collection(HostClassificationMeter.Name)]
 public sealed class HostClassificationHttpTests(HostClassificationFixture fixture)
     : IClassFixture<HostClassificationFixture>
 {

@@ -270,11 +270,19 @@ public sealed class CrossCuttingFoundationTests
         // now, while the pipeline contract is fresh. Vacuous today (no
         // handlers yet); active the moment they land. Standards 02 § MediatR
         // Use Cases (review-4 M1).
-        var applicationAssemblies = ModuleAssemblyShapes
-            .Where(n => n.EndsWith(".Application", StringComparison.Ordinal))
-            .Append("LearnStack.Application")
-            .Select(TryLoadAssembly)
-            .Where(a => a is not null)
+        // Every LearnStack.* project under backend/src, derived rather than listed.
+        // A handler is wherever someone puts it, and the sibling rule in
+        // RequestSurfaceTests was measured passing a marked request type that sat in
+        // Application.Contracts — which is exactly where add-mediatr-handler tells an
+        // author to put one. Loaded without a null filter: an assembly this project
+        // cannot load is a missing ProjectReference, and dropping it turns "I could not
+        // read this code" into "this code is clean".
+        var applicationAssemblies = Directory
+            .EnumerateFiles(
+                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => Assembly.Load(name!))
             .ToArray();
 
         foreach (var assembly in applicationAssemblies)
@@ -288,8 +296,34 @@ public sealed class CrossCuttingFoundationTests
 
                 foreach (var contract in type.GetInterfaces())
                 {
-                    if (!contract.IsGenericType
-                        || contract.GetGenericTypeDefinition() != typeof(IRequestHandler<,>))
+                    if (!contract.IsGenericType)
+                    {
+                        continue;
+                    }
+
+                    var definition = contract.GetGenericTypeDefinition();
+
+                    // The two shapes the arity-2 check below cannot see, both of which
+                    // run with ZERO behaviors. Measured against MediatR 12.4.1:
+                    // typeof(IRequestHandler<>).GetInterfaces() is empty — the void
+                    // handler does not derive from IRequestHandler<T, Unit> — and Unit
+                    // does not implement IResultBase, so MediatR builds a chain of
+                    // IPipelineBehavior<TRequest, Unit> and every LearnStack behavior,
+                    // constrained on IResultBase, is excluded from it. No authority
+                    // ceiling, no validation, no audit classification, and no
+                    // TransactionBehavior — so no SET LOCAL app.tenant_id either.
+                    definition.Should().NotBe(typeof(IRequestHandler<>),
+                        $"{type.FullName} handles a void request, which MediatR runs with "
+                        + "no pipeline at all. Declare it IRequest<Result<None>> instead. "
+                        + "Standards 02 § MediatR Use Cases.");
+
+                    definition.Should().NotBe(typeof(IStreamRequestHandler<,>),
+                        $"{type.FullName} handles a stream request, which MediatR routes "
+                        + "through IStreamPipelineBehavior<,> — of which this solution "
+                        + "registers none, deliberately. Requests_Are_Never_Streamed bans "
+                        + "the shape; this is the handler half of the same ban.");
+
+                    if (definition != typeof(IRequestHandler<,>))
                     {
                         continue;
                     }

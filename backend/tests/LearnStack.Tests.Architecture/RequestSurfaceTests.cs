@@ -103,6 +103,70 @@ public sealed class RequestSurfaceTests
             + "marked type arriving before it is a decision this rule must be told about");
     }
 
+    [Fact]
+    public void Requests_Are_Never_Streamed()
+    {
+        // MediatR dispatches a stream request through IStreamPipelineBehavior<,>, and
+        // this solution registers none — CanonicalBehaviorOrder registers only
+        // IPipelineBehavior<,>. So a stream request reaches its handler with no
+        // authority ceiling, no validation, no audit classification and no
+        // TransactionBehavior, which means no SET LOCAL app.tenant_id. Row Level
+        // Security keeps EF reads fail-closed, so the exposure is every effect that is
+        // not an EF read: the outbox, the cache, provider adapters — each under a
+        // context nothing checked.
+        //
+        // Banned rather than supported because nothing needs it and the alternative is
+        // a second parallel pipeline. Zero stream usage exists today, which is exactly
+        // what makes the ban cheap now and expensive later.
+        var streamed = RequestTypes()
+            .Where(type => type.GetInterfaces().Any(contract =>
+                contract.IsGenericType
+                && contract.GetGenericTypeDefinition() == typeof(IStreamRequest<>)))
+            .Select(type => type.FullName!)
+            .ToList();
+
+        streamed.Should().BeEmpty(
+            "a stream request runs with no pipeline behaviors at all — declare it "
+            + "IRequest<Result<T>> and page with the cursor grammar instead");
+    }
+
+    [Fact]
+    public void The_Sweep_Covers_Every_Production_Assembly()
+    {
+        // The rules above are only as wide as this. Asserted separately because a
+        // narrowed sweep does not fail — it passes, over less code, which is the one
+        // outcome a rule that counts a security hole cannot afford. Loading each is
+        // part of the assertion: a project this test cannot load is one the test csproj
+        // has not referenced, and the fix is the reference, not a smaller scan.
+        var names = ProductionAssemblies().ToList();
+
+        names.Should().HaveCountGreaterThan(30,
+            "backend/src holds every module in four project shapes plus the core "
+            + "assemblies; a count this far below that means the enumeration broke");
+
+        names.Should().Contain("LearnStack.Modules.Tenancy.Application.Contracts",
+            "add-mediatr-handler puts command records here, so this is where the first "
+            + "marker carrier lands — and where the first version of this file did not look");
+
+        var unloadable = names
+            .Where(name =>
+            {
+                try
+                {
+                    Assembly.Load(name);
+                    return false;
+                }
+                catch (FileNotFoundException)
+                {
+                    return true;
+                }
+            })
+            .ToList();
+
+        unloadable.Should().BeEmpty(
+            "add a ProjectReference for each of these to the architecture test project");
+    }
+
     /// <summary>
     /// The literal set of request types permitted to run before a tenant is resolved.
     /// </summary>
@@ -153,32 +217,65 @@ public sealed class RequestSurfaceTests
     }
 
     /// <summary>
-    /// Every concrete MediatR request type in the production assemblies.
+    /// Every concrete MediatR request type in every production assembly.
     /// </summary>
     /// <remarks>
-    /// <b>Fails loudly on an assembly it cannot load</b>, rather than dropping it. The
-    /// shipped precedent filters unloadable assemblies away, which turns "I could not
-    /// read this code" into "this code is clean" — the one failure mode a rule counting
-    /// a security hole cannot afford.
+    /// <para>
+    /// <b>Derived from the tree, never a literal list.</b> The first version named nine
+    /// assemblies. Measured: an identically marked request type failed all three rules
+    /// from <c>LearnStack.Modules.Tenancy.Application</c> and passed all three from
+    /// <c>LearnStack.Modules.Tenancy.Application.Contracts</c> — which is where
+    /// <c>add-mediatr-handler</c> tells an author to put a command record, and therefore
+    /// where <c>ProvisionTenantCommand</c>, the first type to carry either marker, is
+    /// scheduled to land. <c>TenantContextBehavior</c> reads both markers off
+    /// <c>typeof(TRequest)</c> and knows nothing about assembly lists, so the pipeline
+    /// would have granted the widest surface it can grant while the rule whose whole job
+    /// is to count that grant reported clean. This is the same failure the catalogue
+    /// already names for a sibling rule: a rule whose job is the negative cannot be
+    /// scoped to where the positives happen to live.
+    /// </para>
+    /// <para>
+    /// <b>Fails loudly on an assembly it cannot load</b>, rather than dropping it — and
+    /// not via <c>GetReferencedAssemblies</c>, which lists only assemblies whose types
+    /// the compiler actually emitted a reference to and would therefore <i>shrink</i>
+    /// the sweep. A project this test cannot load is a project the test csproj has not
+    /// referenced, and the right outcome is a red build naming it, not a smaller scan.
+    /// </para>
     /// </remarks>
     private static List<Type> RequestTypes()
     {
         var types = new List<Type>();
 
-        foreach (var name in ProductionAssemblies)
+        foreach (var name in ProductionAssemblies())
         {
             var assembly = Assembly.Load(name);
 
             types.AddRange(assembly.GetTypes()
                 .Where(type => type is { IsAbstract: false, IsInterface: false })
-                .Where(type => type.GetInterfaces().Any(contract =>
-                    contract == typeof(IBaseRequest)
-                    || (contract.IsGenericType
-                        && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))));
+                .Where(IsRequest));
         }
 
         return types;
     }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is something MediatR will dispatch.
+    /// </summary>
+    /// <remarks>
+    /// <c>IStreamRequest&lt;&gt;</c> is checked explicitly and is not redundant: measured
+    /// against MediatR 12.4.1, <c>typeof(IStreamRequest&lt;string&gt;).GetInterfaces()</c>
+    /// is empty and <c>IBaseRequest.IsAssignableFrom</c> is <c>false</c>, so a stream
+    /// request is invisible to the ordinary test. It is worth catching here even though
+    /// <c>Requests_Are_Never_Streamed</c> bans the shape outright — this rule counts a
+    /// security hole, and counting it correctly must not depend on a second rule staying
+    /// green.
+    /// </remarks>
+    private static bool IsRequest(Type type) =>
+        type.GetInterfaces().Any(contract =>
+            contract == typeof(IBaseRequest)
+            || (contract.IsGenericType
+                && (contract.GetGenericTypeDefinition() == typeof(IRequest<>)
+                    || contract.GetGenericTypeDefinition() == typeof(IStreamRequest<>))));
 
     private static (AttributeTargets Targets, bool Inherited, bool AllowMultiple) AttributeShape(
         Type attribute)
@@ -189,16 +286,12 @@ public sealed class RequestSurfaceTests
         return (usage!.ValidOn, usage.Inherited, usage.AllowMultiple);
     }
 
-    private static readonly string[] ProductionAssemblies =
-    [
-        "LearnStack.Application",
-        "LearnStack.SharedKernel",
-        "LearnStack.Modules.Tenancy.Application",
-        "LearnStack.Modules.Identity.Application",
-        "LearnStack.Modules.Customization.Application",
-        "LearnStack.Modules.Audit.Application",
-        "LearnStack.Modules.Content.Application",
-        "LearnStack.Modules.Media.Application",
-        "LearnStack.Modules.Education.Application",
-    ];
+    /// <summary>Every <c>LearnStack.*</c> project under <c>backend/src</c>.</summary>
+    private static IEnumerable<string> ProductionAssemblies() =>
+        Directory.EnumerateFiles(
+                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => name!)
+            .OrderBy(name => name, StringComparer.Ordinal);
 }

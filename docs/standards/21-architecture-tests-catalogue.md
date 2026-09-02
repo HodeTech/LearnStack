@@ -2084,6 +2084,16 @@ structural test proves — and what it does not.
   fifth writer anywhere else in the tree pass green: a rule whose job is the negative
   cannot be scoped to the folder its positives happen to live in.
 
+#### `Requests_Are_Never_Streamed`
+
+- **Asserts:** no production request type implements `IStreamRequest<>`, and (in `Handlers_Return_Result`) no type implements `IStreamRequestHandler<,>` or the void `IRequestHandler<>`.
+- **Why it matters:** all three shapes run with **no pipeline behaviors at all**. MediatR routes a stream through `IStreamPipelineBehavior<,>`, of which this solution registers none; and measured against MediatR 12.4.1, `typeof(IRequestHandler<>).GetInterfaces()` is empty — the void handler does not derive from `IRequestHandler<T, Unit>` — while `Unit` does not implement `IResultBase`, which every LearnStack behavior is constrained on. So each shape bypasses the authority ceiling, validation, audit classification and `TransactionBehavior` — and therefore the `SET LOCAL app.tenant_id` that makes Row Level Security non-`NULL`. RLS keeps EF reads fail-closed; what is exposed is every effect that is not an EF read.
+- **Source:** ADR-0032 § Sub-decision 2; [02-backend-coding.md § MediatR Use Cases](02-backend-coding.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (`RequestSurfaceTests` and `CrossCuttingFoundationTests`, Packet 7 step 6).
+- **Phase:** 02a Packet 7.
+- **Note:** vacuous today — nothing streams — and that is the point of landing it now. The shapes are invisible to the ordinary `IRequest<>` filter, so without this rule the first one to arrive would be counted as absent rather than caught.
+
 #### `PublicSurface_Marker_Set_Is_Enumerated`
 
 - **Asserts:** every `[PublicSurface]` request type appears in the enumerated set in [Standards 04 § Public surface](04-api-design.md) with its permitted methods; the default is `GET`/`HEAD` and a mutating entry states why. No `[PublicSurface]` type performs a tenant-owned write.
