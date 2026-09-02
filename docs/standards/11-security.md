@@ -287,10 +287,20 @@ yet:
 | `TransactionBehavior` | ambient | — the general case |
 | The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
 | `IOrganizationScopeValidator` | its own short read-only one | The organization assertion is validated in the request edge, before the pipeline reaches step 6 ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)) |
+
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
 | The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
+
+> **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
+> only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated
+> claim, and there is no `UseAuthentication` until Phase 02b — so no request can reach the
+> call. The assertion path ADR-0036 § What the assertions do names as its caller is
+> subsumed by `TenantAssertionMiddleware`, which refuses on any difference between the
+> asserted and the resolved value before belonging can matter. This table lists it because
+> the set of setters is closed and a closed set is worth stating whole; it is not evidence
+> that a seventh short transaction runs on any Packet 7 request path.
 
 Every one of them connects as `learnstack_app`. A setter that reached for
 `learnstack_platform` would be invisible to the isolation suite, which is the

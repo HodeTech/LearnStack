@@ -606,10 +606,24 @@ this ADR actually shipped.
 |---|---|---|
 | **Packet 4** | Rate limiter, effective host, normalizer, trusted hop, assertion comparison, `LoggingTenantAssertionRecorder`. No resolver, no claims, no `IAuditStore` | 404 + metric + `Warning` log. Unreachable in traffic — every request is already rejected by the unresolved-context guard — and exercised by unit tests over a stubbed context. **Packet 4 must not describe the outcome as audited.** |
 | **Packet 6** | `platform_host_to_tenant` with `UNIQUE (host)`, the normalization `CHECK`, `is_publicly_live` | unchanged |
-| **Packet 7** | Classification, resolver, `TenantContextFactory`, `TenantContextOrigin`, `IOrganizationScopeValidator`, `DenyAllTenantMembershipReader` | 404 + metric + `Warning`. Matrix rows 2, 3, 6, 9, 10 become live; rows 7 and 14 fail closed until Phase 03 |
+| **Packet 7** | Classification, resolver, `TenantContextFactory`, `TenantContextOrigin`, `IOrganizationScopeValidator`, `DenyAllTenantMembershipReader` | 404 + metric + `Warning`. Matrix rows 2, 3, 6, 9, 10 become live; rows 7 and 14 fail closed until Phase 03 — see the erratum below |
 | **Packet 9** | `IAuditStore`, `audit_log`, `AuditingTenantAssertionRecorder` | MUST-class rows begin. `tenancy.tenant-assertion.reject` per occurrence for authenticated callers; `tenancy.tenant-assertion.anonymous-burst` per window |
 | **Phase 02b** | Keycloak, `UseAuthentication`, the `tenant_id` claim | The H↔J cross-check goes live through the **same** recorder and the **same** operation key with `metadata.assertionSource = jwt-claim`. Phase 02b's completion criterion is met by this mechanism, not by a second detector |
 | **Phase 03** | `Membership` | Rows 7 and 14 stop failing closed |
+
+> **Erratum — 2026-09-02.** The Packet 7 row says matrix rows **2, 3, 6, 9, 10** become
+> live. Rows 6, 9 and 10 do not: all three require a validated claim in their Auth
+> column, and the paragraph immediately below this table says so — "the authenticated
+> tier is dormant before Phase 02b — there is no `UseAuthentication` to be ordered
+> after". Shown by `grep -rn UseAuthentication backend/src`, whose only hit is a comment
+> saying it does not exist yet. The rows Packet 7 makes live are **2, 3 and 13**, and it
+> makes **16** reachable for the first time — the assertion comparison shipped in Packet
+> 4 with nothing resolved to compare against. Rows 6, 9 and 10 become live in **Phase
+> 02b**; 7 and 14 need Phase 02b to be reachable at all and Phase 03 to stop failing
+> closed. The table's own Packet 4 row draws exactly this distinction — "unreachable in
+> traffic" — and the Packet 7 row did not. Nothing about what the rows *decide* changes;
+> the factory implements all seventeen and Packet 7 tests them as a pure function.
+> Recorded in Amendment 5.
 
 The authenticated tier is dormant before Phase 02b — there is no `UseAuthentication` to
 be ordered after, `AuthorizationBehavior.Handle` is `return next()`, and the
@@ -851,34 +865,6 @@ had already sent the reader.
 default is `GET`/`HEAD`, a mutating entry states why, no `[PublicSurface]` type performs
 a tenant-owned write, and none is classified MUST-class `read-sensitive`.
 
-## References
-
-- [ADR-0003 Tenant Isolation Defense in
-  Depth](0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
-- [ADR-0004 Authentication Strategy](0004-authentication-strategy.md) (Amendment 1 —
-  the two-realm invariant)
-- [ADR-0013 Page Block Schema Versioning](0013-page-block-schema-versioning.md) — one
-  of the two `/v1/platform/*` dependents left open here.
-- [ADR-0015 API Gateway with APISIX](0015-api-gateway-apisix.md)
-- [ADR-0017 Tenant + Organization Hierarchy](0017-tenant-organization-hierarchy.md)
-- [ADR-0019 LearnStack Hub](0019-learnstack-hub.md) — Option B, which a platform URL
-  space would re-adopt sideways.
-- [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) (Amendment 1 — the
-  standalone-write failure posture § Recording a rejected assertion depends on)
-- [ADR-0034 Hub Contract Surface Invariant](0034-hub-contract-surface-invariant.md)
-- [ADR-0035 Demand-Gated Infrastructure](0035-demand-gated-infrastructure.md)
-- [Standards 04 § Tenant Context](../standards/04-api-design.md)
-- [Standards 05 § Table classes](../standards/05-database.md)
-- [Standards 07 § Tenant Resolution](../standards/07-frontend-architecture.md) — the
-  header's producer.
-- [Standards 11 § Tenant Context](../standards/11-security.md)
-- [Standards 18 Audit Coverage](../standards/18-audit-coverage.md)
-- [Standards 20 § Host → Tenant Resolution](../standards/20-infrastructure-stack.md)
-- [architecture/09 Tenant Isolation](../architecture/09-tenant-isolation.md)
-- [architecture/13 Identity and Auth](../architecture/13-identity-and-auth.md)
-- [architecture/14 Frontend Architecture](../architecture/14-frontend-architecture.md)
-- [architecture/30 API Gateway](../architecture/30-api-gateway.md)
-
 ### 2026-09-02 — Amendment 4: the IPv4 refusal belongs on the produced value
 
 **What was wrong.** Amendment 1's corrected order places **reject IPv4 literals**
@@ -924,3 +910,66 @@ catalogue on its own account.
 **The Decision is unchanged.** `EffectiveHost.Normalize` is still the sole
 producer of the lookup key and of `app.resolving_host`, still total, still returns
 `null` on every failure, and still never throws.
+
+### 2026-09-02 — Amendment 5: which rows Packet 7 actually makes live
+
+**What was wrong.** § Staging across packets' Packet 7 row claims matrix rows 2, 3, 6,
+9 and 10 "become live". Rows 6, 9 and 10 each require a validated claim, and no packet
+before Phase 02b has one. The sentence was false when it entered the record: the same
+subsection's next paragraph already stated that the authenticated tier is dormant until
+Phase 02b, and its own Packet 4 row already used the words "unreachable in traffic" for
+precisely this distinction.
+
+**How it was shown.** `grep -rn UseAuthentication backend/src` returns one hit, a comment
+in `TenantAssertionMiddleware` noting that there is none to be ordered after. The Auth
+column of rows 6, 9 and 10 reads `(T, —)`, `(T, O)` and `(T, —)` — a claim in every case.
+
+**The corrected reading.** Packet 7 makes rows **2, 3 and 13** live and row **16**
+reachable. Row 16 is the one worth naming: the assertion comparison shipped in Packet 4
+against a context that never resolved, so every comparison was vacuous; Packet 7 is what
+gives it a resolved value to disagree with.
+
+**Why the distinction is worth an amendment rather than a shrug.** "Live" is the word a
+later reader uses to decide whether a green suite is evidence. A packet that believes it
+made the authenticated rows live will read `DenyAllTenantMembershipReader`'s untouched
+code path as proof that rows 7 and 14 fail closed, when in fact nothing can reach the
+call at all. Packet 7 tests all seventeen rows as a pure function of
+`TenantResolutionAttempt`, which is the honest form of that evidence and is not the same
+claim.
+
+**Every carrier changed.** This ADR — the inline erratum beside the staging table, and
+this amendment. No other document reproduces the row list;
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) points here rather than restating it,
+and the Packet 7 delivery record states the corrected set directly.
+
+**The Decision is unchanged.** The matrix, the signals, the ceiling and the staging
+order all stand; only the claim about which rows traffic can reach in Packet 7 is
+corrected.
+
+## References
+
+- [ADR-0003 Tenant Isolation Defense in
+  Depth](0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
+- [ADR-0004 Authentication Strategy](0004-authentication-strategy.md) (Amendment 1 —
+  the two-realm invariant)
+- [ADR-0013 Page Block Schema Versioning](0013-page-block-schema-versioning.md) — one
+  of the two `/v1/platform/*` dependents left open here.
+- [ADR-0015 API Gateway with APISIX](0015-api-gateway-apisix.md)
+- [ADR-0017 Tenant + Organization Hierarchy](0017-tenant-organization-hierarchy.md)
+- [ADR-0019 LearnStack Hub](0019-learnstack-hub.md) — Option B, which a platform URL
+  space would re-adopt sideways.
+- [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) (Amendment 1 — the
+  standalone-write failure posture § Recording a rejected assertion depends on)
+- [ADR-0034 Hub Contract Surface Invariant](0034-hub-contract-surface-invariant.md)
+- [ADR-0035 Demand-Gated Infrastructure](0035-demand-gated-infrastructure.md)
+- [Standards 04 § Tenant Context](../standards/04-api-design.md)
+- [Standards 05 § Table classes](../standards/05-database.md)
+- [Standards 07 § Tenant Resolution](../standards/07-frontend-architecture.md) — the
+  header's producer.
+- [Standards 11 § Tenant Context](../standards/11-security.md)
+- [Standards 18 Audit Coverage](../standards/18-audit-coverage.md)
+- [Standards 20 § Host → Tenant Resolution](../standards/20-infrastructure-stack.md)
+- [architecture/09 Tenant Isolation](../architecture/09-tenant-isolation.md)
+- [architecture/13 Identity and Auth](../architecture/13-identity-and-auth.md)
+- [architecture/14 Frontend Architecture](../architecture/14-frontend-architecture.md)
+- [architecture/30 API Gateway](../architecture/30-api-gateway.md)

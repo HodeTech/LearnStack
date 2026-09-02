@@ -68,6 +68,21 @@ public interface ITenantContext
     UserId? CausalActorUserId => null;
 
     /// <summary>
+    /// Which signals agreed to produce this context — the authority ceiling.
+    /// <c>null</c> on a context that resolved nothing.
+    /// </summary>
+    /// <remarks>
+    /// <b>Read it as an allow-list, never as a negation.</b> The default is
+    /// <c>null</c> so that an implementation which has not thought about the ceiling
+    /// gets no authority rather than the wrong one — but that only holds if the
+    /// consumer asks "is this origin one of the ones permitted here?". A check
+    /// written as <c>Origin != HostOnly</c> passes for <c>null</c> and hands an
+    /// unstated context the run of the API. The pipeline's ceiling enforcement is
+    /// the consumer that matters.
+    /// </remarks>
+    TenantContextOrigin? Origin => null;
+
+    /// <summary>
     /// W3C <c>traceparent</c> string ("00-&lt;trace&gt;-&lt;span&gt;-&lt;flags&gt;")
     /// that threads through HTTP / outbox / Hangfire / Hub envelopes. The
     /// observability stack reads this from the singleton accessor; modules

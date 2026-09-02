@@ -35,6 +35,16 @@ public sealed class EventTenantContext : ITenantContext
     /// <inheritdoc />
     public bool IsResolved => true;
 
+    /// <summary>Matrix row 17: the envelope carried the tenant.</summary>
+    /// <remarks>
+    /// Proof that the factory is not the only producer of a resolved context — it is
+    /// the only producer of the <see cref="TenantContext"/> <i>type</i>. There is no
+    /// host and no token here to reconcile, so there is no matrix to apply; a
+    /// missing tenant fails at enqueue, which is the only place it can still be
+    /// fixed.
+    /// </remarks>
+    public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
+
     /// <inheritdoc />
     public TenantId TenantId { get; }
 

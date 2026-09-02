@@ -94,11 +94,20 @@ app.MapLearnStackOpenApi();
 // authentication, so the factory sees both signals at once.
 app.UseLearnStackHostClassification();
 
+// Which tenant, given the host and — from Phase 02b — the validated claims.
+// After classification so TenantContextFactory.Create is called once with both
+// signals in hand, rather than twice with one each; ADR-0036 § Rules splits the
+// single step architecture/27 once described into exactly these two. Phase 02b
+// inserts UseAuthentication ABOVE this line and UseAuthorization below the
+// assertions — two insertions, not one block.
+app.UseLearnStackTenantResolution();
+
 // X-Tenant-Id / X-Organization-Id are assertions: compared against what the
 // API resolved, never a source of it (ADR-0036). Registered after
 // MapLearnStackClientErrors so a rejection gets the one Problem Details shape,
-// and before the endpoints so no handler runs on a request that lost the
-// comparison.
+// after the resolver so there is something to compare against — until this
+// packet the comparison had no resolved value and was unreachable in traffic —
+// and before the endpoints so no handler runs on a request that lost it.
 app.UseLearnStackTenantAssertions();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))

@@ -2034,10 +2034,19 @@ structural test proves — and what it does not.
 
 #### `TenantContext_Is_Constructed_Only_By_The_Factory`
 
-- **Asserts:** `TenantContext` is sealed with no public constructor and `TenantContextFactory.Create` is its only entry point. The factory returns `Result.Fail` on any disagreement and never a partially populated context.
+- **Asserts:** `TenantContext` is sealed with no public constructor and `TenantContextFactory.Create` is its only entry point. Four conjuncts, and they need **two instruments** — which is why this is written out rather than expressed as one NetArchTest chain. Reflection covers sealedness, the absent public constructor, the absence of any `InternalsVisibleTo` on `LearnStack.SharedKernel` (one attribute would hand a whole assembly the constructor), and the single member whose return type mentions `TenantContext`. It cannot cover the fourth: a `new` expression is a call site, not a type reference. That one is a source scan — `TenantContext_Is_Instantiated_In_One_File` — banning `new TenantContext(` everywhere in the kernel but the factory's own file, which is exactly the residual an `internal` constructor leaves. **`internal` and not `private`:** C# has no friend types, so a private constructor and a top-level `TenantContextFactory` — the name ADR-0036, the glossary and two roadmap lines all carry — are mutually exclusive, and both normative carriers say only *public*. The factory returns `Result.Fail` on any disagreement and never a partially populated context.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
+- **Phase:** 02a Packet 7.
+
+#### `TenantContext_Is_Instantiated_In_One_File`
+
+- **Asserts:** the literal `new TenantContext(` appears in exactly one file under `backend/src` — `TenantContextFactory.cs`. Comments and whitespace are stripped first, because the files these rules cover argue in prose about the very literal they may not write.
+- **Why it matters:** the second instrument `TenantContext_Is_Constructed_Only_By_The_Factory` needs and cannot be. `internal` blocks every other assembly, and nothing but a scan blocks a second caller inside the kernel itself — which would be a second entry point producing a context the matrix never decided.
+- **Source:** [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a Packet 7.
 
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
@@ -2046,7 +2055,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § Rules, second bullet, as corrected by its erratum and
   [Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md).
 - **Type:** Roslyn / IL call-site scan + xUnit. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a Packet 7.
 - **Note:** the name predates the correction and is kept. `ITenantContextAccessor`
   declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant`
@@ -2084,10 +2093,10 @@ structural test proves — and what it does not.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 
-- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone.
+- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone. `pk_organizations` is the surrogate id, so a lookup by it is a well-formed, index-served query that returns another tenant's row — for the policy to hide if the announcement was made, and to hand back if it was not. Two legs: the raw-SQL leg pins the validator's `WHERE` clause and its `set_config` announcement (scanned, because a command's text is a string literal no type-reference test can see), and the EF leg bans `Organizations.Find`/`FindAsync`, which take the primary key and therefore cannot express the composite one. **The EF leg is vacuous today** and deliberately kept: nothing reads `organizations` through a `DbContext` until Packet 7 step 9 writes the first command, and a scan added only once there is something to catch is a scan nobody adds. The runtime suite cannot substitute for either leg — with the announcement made, the policy makes both spellings behave identically, which is defence in depth working and is exactly why the rule has to be structural.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a Packet 7.
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`

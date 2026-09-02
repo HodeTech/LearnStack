@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using System.Net;
+using System.Net.Http.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Api.Tenancy;
@@ -49,7 +50,10 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
         var response = await _client.GetAsync(new Uri("/api/v1/hostprobe", UriKind.Relative));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Platform");
+        var probe = await ReadProbeAsync(response);
+        probe.Class.Should().Be("Platform");
+        probe.Resolved.Should().BeFalse(
+            "matrix row 13: a platform host resolves no tenant, and that is not a refusal");
         fixture.Resolver.Calls.Should().BeEmpty(
             "a platform host maps to no tenant by configuration, so it costs no lookup");
     }
@@ -93,6 +97,9 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
             .Should().Be(WithoutCorrelation(await routed.Content.ReadAsStringAsync()));
     }
 
+    private static async Task<HostProbe> ReadProbeAsync(HttpResponseMessage response) =>
+        (await response.Content.ReadFromJsonAsync<HostProbe>())!;
+
     private static string WithoutCorrelation(string body) =>
         System.Text.RegularExpressions.Regex.Replace(
             body, "\"correlationId\":\"[^\"]*\"", "\"correlationId\":\"<per-request>\"");
@@ -107,8 +114,14 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Organization",
+        var probe = await ReadProbeAsync(response);
+        probe.Class.Should().Be("Organization",
             "a mapping row carrying an organization classifies as OrgHost");
+        probe.Resolved.Should().BeTrue();
+        probe.TenantId.Should().Be(HostClassificationFixture.Tenant);
+        probe.OrganizationId.Should().Be(HostClassificationFixture.Organization,
+            "matrix row 3: the anonymous organization scope IS the mapping row");
+        probe.Origin.Should().Be(nameof(TenantContextOrigin.HostOnly));
     }
 
     [Fact]
@@ -121,7 +134,14 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Tenant");
+        var probe = await ReadProbeAsync(response);
+        probe.Class.Should().Be("Tenant");
+        probe.Resolved.Should().BeTrue();
+        probe.TenantId.Should().Be(HostClassificationFixture.Tenant);
+        probe.OrganizationId.Should().BeNull(
+            "matrix row 2: a tenant-wide host resolves no organization");
+        probe.Origin.Should().Be(nameof(TenantContextOrigin.HostOnly),
+            "the ceiling that makes a forged host harmless");
     }
 
     [Theory]
@@ -209,7 +229,7 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
         var response = await _client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Platform");
+        (await ReadProbeAsync(response)).Class.Should().Be("Platform");
         fixture.Resolver.Calls.Should().BeEmpty(
             "the row is never read, which is why it is inert rather than conflicting");
     }
@@ -302,14 +322,38 @@ public sealed class HostClassificationFixture : WebApplicationFactory<Program>
     }
 }
 
-/// <summary>Echoes the classification the middleware attached.</summary>
+/// <summary>
+/// Echoes what the tenancy edge decided — the host classification, and the tenant
+/// context the resolver put on the accessor.
+/// </summary>
+/// <remarks>
+/// Test-only, and registered by the fixture rather than by the application: ADR-0036
+/// and the Packet 7 plan both hold that no production <c>/api/v1</c> endpoint ships
+/// in this packet, and the first real read endpoints are Phase 02d's. It takes
+/// <c>ITenantContext</c> by injection precisely as a handler would, so what it
+/// reports is what a handler would see rather than what the middleware believes it
+/// wrote.
+/// </remarks>
 [ApiExplorerSettings(IgnoreApi = true)]
-public sealed class HostProbeController : ApiControllerBase, ITestOnlyController
+public sealed class HostProbeController(ITenantContext tenantContext)
+    : ApiControllerBase, ITestOnlyController
 {
     [HttpGet]
     public IActionResult Get() =>
-        Ok(new
-        {
-            @class = HttpContext.Features.Get<HostClassification>()?.Class.ToString() ?? "none",
-        });
+        Ok(new HostProbe(
+            HttpContext.Features.Get<HostClassification>()?.Class.ToString() ?? "none",
+            tenantContext.IsResolved,
+            tenantContext.IsResolved ? tenantContext.TenantId.Value : null,
+            tenantContext.OrganizationId?.Value,
+            tenantContext.Origin?.ToString()));
 }
+
+/// <summary>What <see cref="HostProbeController"/> reports, typed.</summary>
+/// <remarks>
+/// A record rather than an anonymous object so the assertions deserialize instead of
+/// substring-matching a body — <c>Contain("Tenant")</c> is satisfied by the word
+/// appearing anywhere, including inside "TenantHost", and a test that passes on a
+/// coincidence of spelling is the failure this packet keeps finding.
+/// </remarks>
+public sealed record HostProbe(
+    string Class, bool Resolved, Guid? TenantId, Guid? OrganizationId, string? Origin);

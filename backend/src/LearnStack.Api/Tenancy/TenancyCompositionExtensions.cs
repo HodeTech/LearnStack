@@ -182,6 +182,21 @@ public static class TenancyCompositionExtensions
             new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
         services.AddSingleton<IHostToTenantResolver, CachedHostToTenantResolver>();
 
+        // The membership reader that covers nothing, and the organization scope
+        // validator — the two ports the reconciliation matrix consults beyond the
+        // host. Both are stateless singletons; the validator shares the Lazy above,
+        // so a platform-only deployment still builds no data source.
+        //
+        // Registered UNCONDITIONALLY, with no DeploymentMode anywhere near them. A
+        // reader that were permissive in Development would reproduce exactly the
+        // appsettings inversion this file argues against at the top: the mechanism
+        // would be off in the environment nobody configures and on in the one that
+        // does, and the demo would pass while production 404'd. Phase 03 replaces
+        // DenyAllTenantMembershipReader with one that reads Membership; until then
+        // "nobody is a member of anything" is the true answer, not a placeholder.
+        services.AddSingleton<ITenantMembershipReader, DenyAllTenantMembershipReader>();
+        services.AddSingleton<IOrganizationScopeValidator, OrganizationScopeValidator>();
+
         services.Configure<TrustedHopOptions>(
             configuration.GetSection(TrustedHopOptions.SectionName));
 

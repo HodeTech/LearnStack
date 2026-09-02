@@ -16,7 +16,8 @@ namespace LearnStack.Application.Pipeline;
 /// — see Security Standards § Tenant Context, the single authority for this
 /// placement. Packet 6 shipped both halves: <c>TransactionBehavior</c> opens the
 /// ambient transaction and calls <c>IUnitOfWork.SetTenantContextAsync</c> inside
-/// it. Packet 7 adds the resolver middleware that gives it a tenant to write.
+/// it. Packet 7 step 5 added <c>TenantResolverMiddleware</c>, which is what now
+/// gives that setter a tenant to write.
 /// </summary>
 /// <remarks>
 /// Phase 02a Packet 3 ships the <strong>assertion shell</strong>. Until
