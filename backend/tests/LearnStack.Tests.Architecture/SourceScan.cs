@@ -31,7 +31,16 @@ internal static class SourceScan
     /// both because one is exempt is how a rule quietly stops covering half of what
     /// it names.
     /// </param>
-    public static List<string> FilesContaining(string root, string literal, string? except)
+    /// <param name="notFollowedBy">
+    /// A character the match may not be followed by. Whitespace is stripped before the
+    /// search, so <c>.Current =</c> becomes <c>.Current=</c> — which is a substring of
+    /// <c>.Current == null</c>, an idiom this codebase uses on <c>Activity.Current</c>
+    /// in the very middleware the rule is about. Passing <c>'='</c> separates the write
+    /// from the comparison. This is the needle being narrowed, which is what the rule
+    /// asks for when a false positive appears — never the folder.
+    /// </param>
+    public static List<string> FilesContaining(
+        string root, string literal, string? except, char? notFollowedBy = null)
     {
         var needle = SourceText.WithoutWhitespace(literal);
         var found = new List<string>();
@@ -55,12 +64,34 @@ internal static class SourceScan
             var code = SourceText.WithoutWhitespace(
                 SourceText.WithoutComments(File.ReadAllText(file)));
 
-            if (code.Contains(needle, StringComparison.Ordinal))
+            if (Contains(code, needle, notFollowedBy))
             {
                 found.Add(relative);
             }
         }
 
         return found;
+    }
+
+    private static bool Contains(string code, string needle, char? notFollowedBy)
+    {
+        if (notFollowedBy is null)
+        {
+            return code.Contains(needle, StringComparison.Ordinal);
+        }
+
+        for (var at = code.IndexOf(needle, StringComparison.Ordinal);
+             at >= 0;
+             at = code.IndexOf(needle, at + 1, StringComparison.Ordinal))
+        {
+            var after = at + needle.Length;
+
+            if (after >= code.Length || code[after] != notFollowedBy)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

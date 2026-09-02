@@ -25,11 +25,16 @@ namespace LearnStack.Application.Pipeline;
 /// <see cref="UnresolvedTenantContext"/>; this behavior surfaces the fact
 /// loudly so no handler reads an unresolved context by accident. Packet 7's
 /// <c>TenantResolverMiddleware</c> writes the singleton
-/// <c>ITenantContextAccessor</c> the injected context reads from, and adds a
-/// second rejection here: a request whose <c>TenantContextOrigin</c> exceeds
-/// what the request type permits — a host-only context reaches only
-/// <c>[PublicSurface]</c> types — is refused at this step, which is what makes
-/// ADR-0036's authority ceiling mechanical. The RLS session variables are still
+/// <c>ITenantContextAccessor</c> the injected context reads from.
+/// <b>The authority ceiling is not enforced here yet.</b> This behavior reads only
+/// <see cref="ITenantContext.IsResolved"/>, and nothing in this assembly or the API
+/// reads <c>Origin</c> at all. Packet 7 step 6 adds the second rejection — a request
+/// whose <c>TenantContextOrigin</c> exceeds what the request type permits, a host-only
+/// context reaching only <c>[PublicSurface]</c> types — failing with
+/// <c>lockey_not_found</c> so the body matches an unresolvable host's. Until then
+/// ADR-0036's ceiling is a decision and not yet a mechanism, and when it lands it must
+/// be an <b>allow-list</b> over stated origins: <c>Origin</c> is a nullable default
+/// interface member, so <c>Origin != HostOnly</c> passes for <c>null</c>. The RLS session variables are still
 /// issued by <c>TransactionBehavior</c> inside the transaction at step 6, never
 /// from this behavior.
 /// </remarks>

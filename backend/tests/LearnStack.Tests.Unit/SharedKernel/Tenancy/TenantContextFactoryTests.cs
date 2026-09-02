@@ -199,6 +199,18 @@ public sealed class TenantContextFactoryTests
             + "outcome let the whole term be deleted, because the membership guard "
             + "then caught the row for an unrelated reason");
 
+        // The two predicates the MIDDLEWARE reads to decide whether to spend a
+        // membership call and a validator transaction. Create refuses this row on its
+        // own standalone ClaimAgreesWithHost check before either is consulted, so
+        // forcing their `&& ClaimAgreesWithHost` conjuncts true left the whole suite
+        // green — measured. What the conjuncts are actually load-bearing for is the
+        // port economy: a request Create will refuse anyway must not first announce an
+        // unvouched tenant id to PostgreSQL.
+        attempt.RequiresMembershipCheck.Should().BeFalse(
+            "a disagreeing claim buys no membership call");
+        attempt.RequiresOrganizationScopeCheck.Should().BeFalse(
+            "nor the transaction that would announce its tenant id");
+
         TenantContextFactory.Create(attempt).IsSuccess.Should().BeFalse();
 
         // And it stays refused once Phase 03 can answer both questions. This is the

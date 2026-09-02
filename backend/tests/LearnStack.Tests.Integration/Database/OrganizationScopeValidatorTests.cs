@@ -125,6 +125,57 @@ public sealed class OrganizationScopeValidatorTests
     }
 
     [Fact]
+    public async Task The_Validators_Own_Statement_Sequence_Cannot_Write()
+    {
+        // Four carriers call this a "short READ-ONLY transaction" — the port's doc, the
+        // Standards 11 setter table, the glossary and ADR-0040 Amendment 3 — and
+        // learnstack_app holds INSERT/UPDATE/DELETE on organizations, so one statement
+        // is the whole of what makes the claim true. Measured: deleting it left all
+        // five other cases here green, which makes it exactly the line a later refactor
+        // of the shared connection boilerplate drops without noticing.
+        //
+        // WHAT THIS PROVES, AND WHAT IT DOES NOT. The validator's connection and
+        // transaction are private locals with no seam, so this reproduces its sequence
+        // rather than intercepting it — which means it establishes that the statement
+        // has the effect claimed, and NOT that the validator issues it. Measured:
+        // deleting the statement from production left this case green, which is the
+        // failure this packet keeps finding, so it is named here rather than left for
+        // the next reader to discover. The other half — that the production file issues
+        // it, before the announcement — is asserted by
+        // Organizations_Are_Read_By_Composite_Key, which already scans this file's SQL.
+        // Neither leg is sufficient alone.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var connection = await dataSource.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        await using (var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY", connection, transaction))
+        {
+            await readOnly.ExecuteNonQueryAsync();
+        }
+
+        await using (var announce = new NpgsqlCommand(
+            "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction))
+        {
+            announce.Parameters.AddWithValue("tenant", SchemaFixture.TenantA.ToString());
+            await announce.ExecuteNonQueryAsync();
+        }
+
+        await using var write = new NpgsqlCommand(
+            "UPDATE organizations SET slug = slug WHERE tenant_id = @tenant AND id = @id",
+            connection,
+            transaction);
+        write.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+        write.Parameters.AddWithValue("id", SchemaFixture.OrgA1);
+
+        var act = async () => await write.ExecuteNonQueryAsync();
+
+        (await act.Should().ThrowAsync<PostgresException>()).Which.SqlState
+            .Should().Be("25006", "read_only_sql_transaction — the announcement is a "
+                + "read's setup and must not also license a write");
+    }
+
+    [Fact]
     public async Task A_Soft_Deleted_Organization_Does_Not_Belong()
     {
         // deleted_at is the corpus's soft-delete column and the policy does not read

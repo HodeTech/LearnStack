@@ -620,11 +620,15 @@ this ADR actually shipped.
 > it makes **16** reachable for the first time — the assertion comparison shipped in
 > Packet 4 with nothing resolved to compare against. Row 1 is on the list because host
 > classification is itself Packet 7's; it is decided before a `TenantResolutionAttempt`
-> exists, which is why the factory's seventeen-row suite does not cover it. Rows 6, 9 and 10 become live in **Phase
-> 02b**; 7 and 14 need Phase 02b to be reachable at all and Phase 03 to stop failing
-> closed. The table's own Packet 4 row draws exactly this distinction — "unreachable in
-> traffic" — and the Packet 7 row did not. Nothing about what the rows *decide* changes;
-> the factory implements all seventeen and Packet 7 tests them as a pure function.
+> exists, which is why the factory's suite does not cover it. Rows 6, 9 and 10 become
+> live in **Phase 02b**; 7 and 14 need Phase 02b to be reachable at all and Phase 03 to
+> stop failing closed. The table's own Packet 4 row draws exactly this distinction —
+> "unreachable in traffic" — and the Packet 7 row did not. Nothing about what the rows
+> *decide* changes: `TenantContextFactory` decides the **twelve** rows expressible as a
+> `TenantResolutionAttempt` — 2, 3 and 6–15 — and Packet 7 tests every one of them as a
+> pure function. The other five are decided elsewhere and always will be: row 1 at host
+> classification, rows 4 and 5 by an authentication outcome nothing implements yet, row
+> 16 by `TenantAssertionMiddleware`, row 17 by `EventTenantContext.FromEnvelope`.
 > Recorded in Amendment 5.
 
 The authenticated tier is dormant before Phase 02b — there is no `UseAuthentication` to
@@ -937,9 +941,13 @@ gives it a resolved value to disagree with.
 later reader uses to decide whether a green suite is evidence. A packet that believes it
 made the authenticated rows live will read `DenyAllTenantMembershipReader`'s untouched
 code path as proof that rows 7 and 14 fail closed, when in fact nothing can reach the
-call at all. Packet 7 tests all seventeen rows as a pure function of
-`TenantResolutionAttempt`, which is the honest form of that evidence and is not the same
-claim.
+call at all. Packet 7 tests, as a pure function of `TenantResolutionAttempt`, the twelve rows that
+are expressible as one — 2, 3 and 6–15 — which is the honest form of that evidence and
+is not the same claim. The remaining five are not the factory's and never will be: row 1
+is decided at host classification, rows 4 and 5 by an authentication outcome, row 16 by
+`TenantAssertionMiddleware` and row 17 by `EventTenantContext.FromEnvelope`. A later
+reader deciding where rows 4, 5, 16 or 17 belong should not conclude from this amendment
+that the factory already has them.
 
 **Every carrier changed.** This ADR — the inline erratum beside the staging table, and
 this amendment. No other document reproduces the row list;

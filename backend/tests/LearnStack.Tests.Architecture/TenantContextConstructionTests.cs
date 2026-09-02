@@ -103,8 +103,14 @@ public sealed class TenantContextConstructionTests
         // in this packet is the NEGATIVE cannot be scoped to the folder the positives
         // happen to live in. If a false positive ever appears, narrow the needle or
         // exempt the one file by path; do not re-narrow by folder.
+        // notFollowedBy '=' because whitespace is stripped before the search, so
+        // ".Current =" becomes ".Current=" — a substring of ".Current == null", which
+        // is how tracing code reads Activity.Current and how TenantResolverMiddleware
+        // itself now reads it. Reproduced: an unrelated equality check failed this rule
+        // with an "unauthorized tenant-context writer" message. Narrowing the needle is
+        // what this rule's own note prescribes; narrowing the folder is what broke it.
         var writers = SourceScan.FilesContaining(
-            SourceScan.SourceRoot, ".Current =", except: null);
+            SourceScan.SourceRoot, ".Current =", except: null, notFollowedBy: '=');
 
         writers.Should().BeEquivalentTo(
             [
@@ -148,6 +154,23 @@ public sealed class TenantContextConstructionTests
         code.Should().Contain(SourceText.WithoutWhitespace("set_config('app.tenant_id'"),
             "the announcement is what makes the policy — not the WHERE clause — the "
             + "thing that decides, and it must come first");
+
+        // The read-only statement, and its position. Four documents call this a short
+        // READ-ONLY transaction and learnstack_app holds write grants on the table, so
+        // one statement is the whole of what makes the claim true — and it survived
+        // deletion against the entire Docker suite, because a test that reproduces the
+        // sequence on its own connection proves what PostgreSQL does, not what this
+        // file does. The Docker case still earns its place: it proves the statement has
+        // the effect claimed. This proves the production code issues it.
+        var readOnly = code.IndexOf(
+            SourceText.WithoutWhitespace("SET TRANSACTION READ ONLY"), StringComparison.Ordinal);
+        var announcement = code.IndexOf(
+            SourceText.WithoutWhitespace("set_config('app.tenant_id'"), StringComparison.Ordinal);
+
+        readOnly.Should().BeGreaterThan(-1, "the transaction the corpus calls read-only must be one");
+        readOnly.Should().BeLessThan(announcement,
+            "SET TRANSACTION READ ONLY is only legal before the transaction's first "
+            + "query, so it has to precede the announcement rather than follow it");
 
         // Leg 2 — the same rule expressed in EF, which is how the NEXT organization
         // read will be written. Vacuous today and deliberately kept: nothing reads

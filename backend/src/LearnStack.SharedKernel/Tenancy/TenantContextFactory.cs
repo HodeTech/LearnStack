@@ -12,8 +12,13 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// <b>Pure, total and synchronous.</b> Every question that needs a database was
 /// answered before the attempt was assembled, so this is
 /// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
-/// reconciliation matrix expressed as a function — which means all seventeen rows
-/// are drivable from a unit test with no container, no HTTP and no clock.
+/// reconciliation matrix expressed as a function — which means every row expressible
+/// as a <see cref="TenantResolutionAttempt"/> is drivable from a unit test with no
+/// container, no HTTP and no clock. That is <b>twelve</b> of the seventeen: rows 2, 3
+/// and 6-15. The other five are decided elsewhere and belong there — row 1 at host
+/// classification, rows 4 and 5 by an authentication outcome, row 16 by
+/// <c>TenantAssertionMiddleware</c>, row 17 by <c>EventTenantContext.FromEnvelope</c>.
+/// Pulling any of them in here would cost exactly the purity the rest depends on.
 /// </para>
 /// <para>
 /// <b>It never returns a partially populated context</b>, which is the rule the
@@ -60,8 +65,11 @@ public static class TenantContextFactory
     {
         ArgumentNullException.ThrowIfNull(attempt);
 
-        // Rows 13 and 15. Refusing here would turn "this host serves no tenant" into
-        // an error, which is what a platform host legitimately is.
+        // Rows 13 and 15, defensively. Callers must not arrive here with NamesNoTenant
+        // set — the middleware leaves those requests on UnresolvedTenantContext,
+        // because "this host serves no tenant" is what a platform host legitimately is
+        // and not an error. Refused is simply the safe answer for a caller that ignores
+        // that contract; it is not the path traffic takes.
         if (attempt.NamesNoTenant)
         {
             return Result.Fail<TenantContext>(Refused);
