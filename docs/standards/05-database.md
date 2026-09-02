@@ -702,9 +702,19 @@ Four things the matrix cannot express, and one it must not be asked to:
 composition root registers a second, separately-credentialed `NpgsqlDataSource` from
 `ConnectionStrings:PlatformAdmin` as a keyed singleton whose only sanctioned consumer is
 `LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope`.
-`EnterPlatformAdminScope(reason)` opens a DI scope whose `DbContext` is built on that
-data source and returns an `IAsyncDisposable` handle. Module code cannot resolve it;
+`IPlatformAdminScope.EnterAsync(reason, …)` opens a **connection and a transaction** on
+that data source and returns an `IAsyncDisposable` handle carrying both; disposing without
+committing rolls back. Module code cannot resolve the data source;
 `Platform_DataSource_Resolved_Only_By_PlatformAdminScope` enforces that.
+
+An earlier wording here — and in the glossary — said the scope opens "a DI scope whose
+`DbContext` is built on that data source". A connection is what shipped, for a reason
+worth keeping: every module `DbContext` is bound to `IUnitOfWork.Connection`, which comes
+from the application data source the composition root guards by name to be
+`learnstack_app`, so a DI-resolved context on the platform source cannot be built without
+reopening that guard. Nothing is foreclosed — EF can be constructed on the handle's
+connection by whoever needs it — and ADR-0003, which is the Accepted authority, says only
+"a second connection".
 
 `SET ROLE` is rejected on three grounds:
 

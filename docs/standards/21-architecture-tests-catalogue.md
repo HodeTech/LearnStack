@@ -857,8 +857,13 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** [05-database.md § How `EnterPlatformAdminScope(reason)` reaches
   `learnstack_platform`](05-database.md).
 - **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
-- **Status:** **Awaiting backfill.** **Phase:** 02a Packet 7.
-
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7). **Phase:** 02a Packet 7.
+- **Note:** three legs, all live. The keyed-resolution scan, a scan that connection
+  strings are read in exactly one file, and a self-check that the scan matched something
+  at all — a two-path allow-list matching nothing would pass vacuously. This is the
+  repository's first keyed DI registration, so the scan is the whole boundary: the key
+  is a public const because `GetKeyedServices(KeyedService.AnyKey)` reaches a keyed
+  registration whatever the key is spelled, so hiding the string buys nothing.
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 
 - **Asserts:** every entity marked `[TenantOwned]` (or implementing `ITenantOwned`)
@@ -919,8 +924,12 @@ first two rows are coverage checks; the last three are the proof.
   [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + source scan; the permitted paths are a list inside the scan, not a
   call-site marker. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7).
 - **Phase:** 02a (Packet 7).
+- **Note:** a live negative — nothing under `backend/src` calls `IgnoreQueryFilters`
+  today, and the rule exists so the first call is a deliberate edit to the exemption
+  rather than a quiet one at a call site. A path check with no marker, deliberately: a
+  comment is what a reviewer skims past.
 
 #### `AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`
 
@@ -2159,8 +2168,16 @@ structural test proves — and what it does not.
 - **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
 - **Source:** ADR-0036 § The platform-admin override is not a resolution source.
 - **Type:** xUnit. **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
 - **Phase:** 02a Packet 7.
+- **Note:** **conjunct A is live, conjunct B is doubly vacuous, and the difference
+  matters.** Live: the gate port exists, the registered implementation refuses everyone,
+  the scope consults it, and no second implementation has appeared beside it — which is
+  how a permissive default actually arrives, registered elsewhere for a demo. The
+  ordering — gate before the credential is touched — is behavioural and asserted in
+  `PlatformAdminGateTests`, which a structural rule cannot see. Vacuous: there is no
+  permission to hold until Phase 03 and no production caller enters the scope, so
+  nothing exercises a permitted entry.
 - **Note:** only the second conjunct is live in Packet 7 — no handler carries both
   `[AllowsUnresolvedTenantContext]` and a platform-scope entry. The entry gate itself
   holds as a **negative** until [Phase 03](../roadmap/phase-03-identity-admin.md):

@@ -1,6 +1,8 @@
+using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
@@ -91,6 +93,37 @@ public static class PersistenceCompositionExtensions
 
         services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
 
+        // The platform credential — the second, separately-credentialed data source
+        // ADR-0003 requires, keyed so only PlatformAdminScope resolves it. Validated at
+        // boot when present, for the same reason the application one is: a credential
+        // naming the wrong role is a deployment mistake, and the first cross-tenant
+        // operation is a bad place to find it.
+        var platformConnectionString = configuration.GetConnectionString(PlatformConnectionName);
+
+        if (!string.IsNullOrWhiteSpace(platformConnectionString))
+        {
+            ValidatePlatformConnectionString(platformConnectionString);
+        }
+
+        // Registered UNCONDITIONALLY, never gated on the key being present. A
+        // conditional registration turns an absent credential into the container's "no
+        // service for type NpgsqlDataSource has been registered", which names neither
+        // the key nor the file an operator has to edit. The Lazy is what lets a
+        // deployment that needs no platform admin — most of them — boot with none.
+        services.TryAddKeyedSingleton<NpgsqlDataSource>(
+            PlatformAdminScope.PlatformDataSourceKey,
+            (_, _) => BuildPlatformDataSource(platformConnectionString));
+
+        services.TryAddKeyedSingleton<Lazy<NpgsqlDataSource>>(
+            PlatformAdminScope.PlatformDataSourceKey,
+            (provider, key) => new Lazy<NpgsqlDataSource>(
+                () => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)));
+
+        // The gate first, so a reader sees that entry is refused before a connection is
+        // opened rather than after. Both are stateless singletons.
+        services.TryAddSingleton<IPlatformAdminGate, DenyAllPlatformAdminGate>();
+        services.TryAddSingleton<IPlatformAdminScope, PlatformAdminScope>();
+
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
         services.TryAddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
@@ -130,6 +163,82 @@ public static class PersistenceCompositionExtensions
 
         return builder.Build();
     }
+
+    /// <summary>The configuration key the platform credential comes from.</summary>
+    public const string PlatformConnectionName = "PlatformAdmin";
+
+    /// <summary>
+    /// The platform-role data source. <b>Not</b> built by
+    /// <see cref="BuildApplicationDataSource"/>.
+    /// </summary>
+    /// <remarks>
+    /// That builder installs a physical-connection initializer refusing any role that can
+    /// reach <c>BYPASSRLS</c> — and <c>learnstack_platform</c> <i>is</i> that role, so
+    /// reusing it would make the credential refuse its own first connection. The
+    /// initializer here asserts the inverse. A platform credential that does not bypass
+    /// is not merely wrong: every cross-tenant read would come back filtered to nothing
+    /// and read as missing data rather than as a misconfiguration.
+    /// </remarks>
+    internal static NpgsqlDataSource BuildPlatformDataSource(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} is not configured, so the "
+                + "platform-admin scope is unavailable. It is the only path to a "
+                + "cross-tenant connection and it does not fall back to the application "
+                + "role — a bypass that silently became a tenant-scoped read would return "
+                + "nothing and look like missing data. A deployment that performs no "
+                + "cross-tenant operation needs no such credential and may leave the key "
+                + "unset; one that does, sets it from the platform role's secret. "
+                + "See .env.example.");
+        }
+
+        ValidatePlatformConnectionString(connectionString);
+
+        var builder = new NpgsqlDataSourceBuilder(connectionString);
+
+        builder.UsePhysicalConnectionInitializer(
+            connection => RequireBypassRole(connection, async: false).GetAwaiter().GetResult(),
+            connection => RequireBypassRole(connection, async: true));
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Everything about <c>ConnectionStrings:PlatformAdmin</c> checkable without a
+    /// connection.
+    /// </summary>
+    internal static void ValidatePlatformConnectionString(string? connectionString)
+    {
+        NpgsqlConnectionStringBuilder parsed;
+
+        try
+        {
+            parsed = new NpgsqlConnectionStringBuilder(connectionString);
+        }
+        catch (ArgumentException failure)
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} is not a valid Npgsql "
+                + "connection string. It must be key/value form, not a URI DSN.", failure);
+        }
+
+        if (!string.Equals(parsed.Username, PlatformRole, StringComparison.Ordinal))
+        {
+            var observed = string.IsNullOrEmpty(parsed.Username) ? "<none>" : parsed.Username;
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} names Username='{observed}'. "
+                + $"It must name '{PlatformRole}', the one role in the four-role model that "
+                + "holds BYPASSRLS. Any other role either cannot see across tenants — in "
+                + "which case every cross-tenant read comes back empty and looks like "
+                + "missing data — or is a wider credential than this path is allowed to "
+                + "hold.");
+        }
+    }
+
+    /// <summary>The role the platform credential must name.</summary>
+    private const string PlatformRole = "learnstack_platform";
 
     /// <summary>
     /// Everything about <c>ConnectionStrings:Default</c> that can be checked
@@ -218,6 +327,42 @@ public static class PersistenceCompositionExtensions
                 + "ConnectionStrings:Default and the role memberships granted to the role it "
                 + "names; EnterPlatformAdminScope is the only sanctioned path to a bypass "
                 + "credential.");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a platform connection whose role does <b>not</b> bypass row security.
+    /// </summary>
+    /// <remarks>
+    /// The mirror of <c>RefuseBypassRole</c>, and asked of the server for the same
+    /// reason: the name is not the privilege. A <c>learnstack_platform</c> that lost
+    /// <c>BYPASSRLS</c> — a re-created role, a restored dump, an <c>ALTER ROLE</c> — is
+    /// the failure that looks like nothing at all, because every cross-tenant query
+    /// simply returns fewer rows.
+    /// </remarks>
+    private static async Task RequireBypassRole(NpgsqlConnection connection, bool async)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_roles r
+                WHERE r.rolname = current_user AND (r.rolbypassrls OR r.rolsuper))
+            """;
+
+        var bypasses = async
+            ? await command.ExecuteScalarAsync()
+            : command.ExecuteScalar();
+
+        if (bypasses is not true)
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} connected as a role that does "
+                + "not bypass Row Level Security. The platform-admin scope exists only to "
+                + "cross tenant boundaries, and under a non-bypassing role every query it "
+                + "runs is silently filtered to the current tenant context — which, with "
+                + "no context set, is no rows at all. Grant BYPASSRLS to "
+                + $"{PlatformRole} or correct the credential.");
         }
     }
 
