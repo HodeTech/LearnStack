@@ -90,6 +90,22 @@ public sealed class TenantContextGuardTests
         var scalar = async () => await creator.HasTablesAsync(CancellationToken.None);
         await scalar.Should().NotThrowAsync();
 
+        // And the same three, blocking. EF does not route the synchronous APIs through
+        // the asynchronous ones, so each pair is two independent arms — and the previous
+        // round fixed this asymmetry only for the refusal direction. Measured: replacing
+        // all three synchronous bodies with an unconditional throw left every case here
+        // green, so a guard that refused every blocking call would have shipped.
+#pragma warning disable xUnit1031 // The blocking API is the subject, not an accident.
+        var syncRead = () => context.Organizations.Count();
+        var syncWrite = () => context.Database.ExecuteSqlRaw(
+            "UPDATE organizations SET slug = slug WHERE false");
+        var syncScalar = () => creator.HasTables();
+#pragma warning restore xUnit1031
+
+        syncRead.Should().NotThrow();
+        syncWrite.Should().NotThrow();
+        syncScalar.Should().NotThrow();
+
         await unitOfWork.RollbackAsync();
     }
 

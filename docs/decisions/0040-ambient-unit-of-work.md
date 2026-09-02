@@ -531,6 +531,17 @@ on a side interface, a future `IUnitOfWork` implementation could omit it and be 
 unguarded; on the seam, the compiler makes every implementation answer, which is what the
 addition buys.
 
+> **Erratum — 2026-09-02.** The sentence below writes the check with **two** terms. The
+> code that shipped in the same commit has **three**, and the missing one is load bearing:
+> `transaction is not null && ReferenceEquals(transaction, _transaction) &&
+> _tenantContextIssued`. After a commit `_transaction` is null and nothing clears the flag
+> there, so without the first term `ReferenceEquals(null, null)` is true and the unit
+> vouches for any command carrying no transaction at all. Shown by removing it: exactly
+> one case fails, `A_Second_Transaction_Does_Not_Inherit_The_First_Ones_Announcement`.
+> The statement was false when it entered the record rather than having aged, which is
+> what makes this an erratum. What the amendment decides — a read member on the seam,
+> taking the transaction, with no writer — is unchanged. Recorded in Amendment 6.
+
 **Why it takes the transaction rather than returning a flag.** The check is
 `ReferenceEquals(transaction, _transaction) && _tenantContextIssued`, and the reference
 half is load-bearing: measured on Npgsql 10, a pooled data source hands back the **same**
@@ -549,6 +560,32 @@ seven stand.
 
 **The Decision is unchanged.** One connection per scope, owned by `IUnitOfWork`, with
 every context and cross-cutting writer enlisted on it.
+
+### Amendment 6 — Amendment 5 wrote the check with a term missing (2026-09-02)
+
+**What was wrong.** Amendment 5's § Why it takes the transaction rather than returning a
+flag gives the check as `ReferenceEquals(transaction, _transaction) &&
+_tenantContextIssued`. The shipped member has a third term first:
+`transaction is not null`.
+
+**How it was shown.** Removing that term and running the guard suite produces exactly one
+failure — `A_Second_Transaction_Does_Not_Inherit_The_First_Ones_Announcement`, "found
+True". After a commit `_transaction` is null and nothing clears the flag there, so
+`ReferenceEquals(null, null)` is true and the unit would vouch for any command carrying no
+transaction at all. The formula appears in no other document; Standards 05 and 11 describe
+the marker without writing it out.
+
+**Why it is an erratum rather than an amendment to a stale sentence.** Amendment 5 and the
+three-term code landed in the same commit, `087b95c`. The sentence never described the
+code, so it was false when it entered the record — ADR-0041's inline-erratum case, not the
+supersede-what-has-aged case.
+
+**Every carrier changed.** This ADR: the inline erratum beside Amendment 5's formula, and
+this amendment. The code is unchanged and was already correct; its test coverage was added
+in `8ff3743`, which is what made the discrepancy visible.
+
+**The Decision is unchanged**, and so is Amendment 5's: one read member on the seam, taking
+the transaction, with no writer.
 
 ## References
 
