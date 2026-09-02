@@ -1,11 +1,15 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -74,6 +78,18 @@ public sealed class TenantContextGuardTests
         (await context.Organizations.CountAsync()).Should().BeGreaterThan(0,
             "the announcement is what makes the policy admit the tenant's own rows");
 
+        // The let-through direction on the other two pairs. Measured: replacing both
+        // NonQuery bodies with an unconditional throw left the whole suite green,
+        // because the only let-through assertion was a reader — so a guard that refused
+        // everything would have passed for two of the three command kinds.
+        var write = async () => await context.Database.ExecuteSqlRawAsync(
+            "UPDATE organizations SET slug = slug WHERE false");
+        await write.Should().NotThrowAsync();
+
+        var creator = context.GetService<IRelationalDatabaseCreator>();
+        var scalar = async () => await creator.HasTablesAsync(CancellationToken.None);
+        await scalar.Should().NotThrowAsync();
+
         await unitOfWork.RollbackAsync();
     }
 
@@ -99,11 +115,12 @@ public sealed class TenantContextGuardTests
     }
 
     [Fact]
-    public async Task An_Unannounced_Write_Throws_Too()
+    public async Task An_Unannounced_Raw_Sql_Write_Throws_Too()
     {
-        // EF routes a SaveChanges INSERT through ReaderExecuting rather than
-        // NonQueryExecuting, so a guard covering only the non-query arms would let every
-        // write past. Asserted separately from the read for that reason.
+        // Raw SQL is the shape that reaches NonQueryExecuting — the read cases above
+        // cover the reader pair, and this is the only case that reaches this pair. An
+        // earlier version of this comment reasoned about a SaveChanges INSERT, which
+        // arrives on ReaderExecuting: it named the one shape the body does not run.
         await using var provider = BuildProvider();
         await using var scope = provider.CreateAsyncScope();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -165,6 +182,14 @@ public sealed class TenantContextGuardTests
             await AnnounceAsync(scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA);
             await unitOfWork.CommitAsync();
         }
+
+        // Where the `transaction is not null` term earns its place. The commit nulled
+        // _transaction and nothing clears the flag there, so without that term
+        // ReferenceEquals(null, null) is true and the unit would vouch for any command
+        // carrying no transaction at all. The assertion below, taken while a transaction
+        // is live, cannot see this: the reference check alone already answers false there.
+        unitOfWork.IsTenantContextIssuedOn(null).Should().BeFalse(
+            "the announcement belonged to a transaction that is over");
 
         await unitOfWork.BeginTransactionAsync();
 
@@ -234,6 +259,71 @@ public sealed class TenantContextGuardTests
 
         await unitOfWork.RollbackAsync();
     }
+
+    [Fact]
+    public async Task A_Scalar_Command_Is_Guarded_Too()
+    {
+        // The third pair, and the one nothing reached: deleting Guard from BOTH Scalar
+        // overrides left all 1136 tests green — a third of the guard's surface asserted
+        // by nothing, in a file whose own comment claimed the mutation standard had been
+        // applied to every arm. IRelationalDatabaseCreator is what reaches it from a
+        // module context without descending into EF internals.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var creator = scope.ServiceProvider.GetRequiredService<TenancyDbContext>()
+            .GetService<IRelationalDatabaseCreator>();
+
+#pragma warning disable xUnit1031 // The blocking arm is half the subject.
+        var blocking = () => creator.HasTables();
+#pragma warning restore xUnit1031
+        var awaited = async () => await creator.HasTablesAsync(CancellationToken.None);
+
+        blocking.Should().Throw<TenantContextMissingException>();
+        await awaited.Should().ThrowAsync<TenantContextMissingException>();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_Save_Reports_The_Guard_Through_The_Wrapper_EF_Puts_Round_It()
+    {
+        // What a caller actually catches, which is not what the guard throws. EF wraps a
+        // failing SaveChanges in DbUpdateException, so an assertion written as a bare
+        // ThrowAsync<TenantContextMissingException> fails on the path Step 9's first
+        // real handler will take. Pinned here so the next step writes the right
+        // assertion rather than discovering the wrapper.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        context.Organizations.Add(NewOrganization());
+
+        var act = async () => await context.SaveChangesAsync(CancellationToken.None);
+
+        var wrapper = (await act.Should().ThrowAsync<DbUpdateException>()).Which;
+
+        wrapper.InnerException.Should().BeOfType<TenantContextMissingException>(
+            "the guard's exception is what EF wrapped, and a caller unwrapping one level "
+            + "finds it — an assertion written as a bare ThrowAsync would not");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    private static Organization NewOrganization() =>
+        Organization.Create(
+            OrganizationId.From(Guid.NewGuid()),
+            TenantId.From(SchemaFixture.TenantA),
+            $"guard-{Guid.NewGuid():N}"[..24],
+            "Guard probe",
+            new FixedClock(new DateTimeOffset(2026, 9, 2, 9, 0, 0, TimeSpan.Zero)),
+            UserId.SystemActor);
 
     private static async Task AnnounceAsync(
         IServiceProvider scope, IUnitOfWork unitOfWork, Guid tenant)

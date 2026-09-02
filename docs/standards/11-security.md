@@ -319,9 +319,12 @@ seven — both narrower than an earlier wording here, and both for reasons the s
 mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
 every query and the database to decide something the transaction already answers.
 And of the seven out-of-band setters only `TransactionBehavior`, through
-`IUnitOfWork.SetTenantContextAsync`, needs to mark anything: four do not exist in code
-yet, and the two that do — `CachedHostToTenantResolver` and `IOrganizationScopeValidator`
-— issue raw `NpgsqlCommand`s, which EF interception never sees. That is also why the
+`IUnitOfWork.SetTenantContextAsync`, marks anything today: five do not exist in code yet — the integration-event transport among them, and that
+one matters most, because it is the other setter that *opens* the ambient transaction and
+must therefore announce it when Phase 02b lands it — and the one that does exist,
+`OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception never
+sees. `CachedHostToTenantResolver` is not in this set at all: it sets
+`app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming

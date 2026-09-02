@@ -1008,10 +1008,13 @@ the request path.
 - **Phase:** 02a Packet 7.
 - **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
   ADR-0040 Amendment 5 adds. **Only one of the seven sanctioned setters stamps it**, and
-  that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the other
-  six, four do not exist in code yet and two — `CachedHostToTenantResolver` and
-  `IOrganizationScopeValidator` — issue raw `NpgsqlCommand`s, which EF interception cannot
-  see, so they need neither a mark nor an exemption. The exemption list is empty for the
+  that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the
+  other six, **five do not exist in code yet** — including the integration-event
+  transport, which is the one other setter that *opens* the ambient transaction and will
+  have to announce it when Phase 02b lands it — and the one that does,
+  `OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception cannot
+  see, so it needs neither a mark nor an exemption. (`CachedHostToTenantResolver` is not
+  one of the seven: it sets `app.resolving_host`.) The exemption list is empty for the
   same reason, which is why `PlatformAdminScope` — a `BYPASSRLS` connection that announces
   no tenant by design — is invisible here by construction rather than by a hand-written
   exception someone later widens.
