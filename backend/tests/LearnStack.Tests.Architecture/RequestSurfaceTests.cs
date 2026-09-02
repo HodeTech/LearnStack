@@ -131,6 +131,34 @@ public sealed class RequestSurfaceTests
     }
 
     [Fact]
+    public void The_Request_Filter_Sees_Every_Shape_MediatR_Dispatches()
+    {
+        // The rules above are only as wide as this predicate, and today every set it
+        // produces is empty — so deleting an arm changes nothing any of them assert.
+        // Driven directly against local types for that reason: a detector with no
+        // positive case is a detector nobody has run.
+        //
+        // The stream arm is the one that matters. Measured against MediatR 12.4.1,
+        // typeof(IStreamRequest<string>).GetInterfaces() is empty and
+        // IBaseRequest.IsAssignableFrom(IStreamRequest<string>) is false, so a stream
+        // request is invisible to the ordinary IRequest<> test — which is exactly how
+        // it came to be invisible to all four rules.
+        IsRequest(typeof(ProbeQuery)).Should().BeTrue();
+        IsRequest(typeof(ProbeStreamed)).Should().BeTrue(
+            "a stream request satisfies neither IBaseRequest nor IRequest<>");
+        IsRequest(typeof(ProbeNotARequest)).Should().BeFalse();
+
+        typeof(IBaseRequest).IsAssignableFrom(typeof(IStreamRequest<string>))
+            .Should().BeFalse("the measurement the stream arm exists for");
+    }
+
+    private sealed record ProbeQuery : IRequest<string>;
+
+    private sealed record ProbeStreamed : IStreamRequest<string>;
+
+    private sealed record ProbeNotARequest;
+
+    [Fact]
     public void The_Sweep_Covers_Every_Production_Assembly()
     {
         // The rules above are only as wide as this. Asserted separately because a

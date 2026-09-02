@@ -159,6 +159,29 @@ reconciliation matrix are the separate case — no tenant context resolves at al
   `HttpStatusMap.CanonicalCodeFor(404)` is `not_found` and `Error.Code` strips the
   `lockey_` prefix, both carry the same `type`, `title`, `status`, `code` and
   `messageKey`.
+
+  **What indistinguishability covers, precisely, and what it does not.** It covers the
+  paths the ceiling controls: on the same path, with the same method, a live tenant host
+  and an unknown one produce byte-identical responses, and nothing anywhere names *which*
+  tenant. It does **not** extend to responses routing produces before the pipeline runs —
+  a method no action accepts is a `405` on a host that resolved and the shared `404` on
+  one that did not. That is measured and deliberate rather than an oversight: the only
+  hosts reaching routing are ones the resolver admitted, and it admits a row only under
+  `is_active AND is_publicly_live`, which
+  [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) defines as DNS
+  pointing at LearnStack and the tenant's public site being served. A host that is not
+  publicly live resolves to nothing and answers the unknown-host `404` here too, so the
+  bit disclosed is exactly the one that is public by definition — and once the table
+  above has a row, a plain `GET` discloses it more directly by returning `200`.
+  `A_Disallowed_Method_Discloses_Only_That_The_Host_Is_Publicly_Live` pins the boundary
+  so a later reader does not have to re-derive it; two independent reviews of this
+  mechanism reached opposite conclusions about it, which is why it is written down.
+
+  A **platform host** is separable from both, by `code` rather than status: an unmarked
+  request there resolves no tenant and fails gate 1 with `tenant_mismatch`, where a
+  tenant host under the ceiling and an unknown host both carry `not_found`. That
+  discloses membership of `Tenancy:PlatformHosts` — a short static list an operator
+  publishes as its own entry point — and nothing about any tenant.
 - **Permitted methods default to `GET` / `HEAD`.** An entry declaring a mutating method
   states why, in the table.
 - **No `[PublicSurface]` type performs a tenant-owned write.**

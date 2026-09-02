@@ -94,10 +94,59 @@ public sealed class AuthorityCeilingHttpTests(AuthorityCeilingFixture fixture)
                 + "different writers");
     }
 
-    private async Task<HttpResponseMessage> SendAsync(
-        string path, string host = AuthorityCeilingFixture.TenantHost)
+    [Theory]
+    [InlineData("PUT")]
+    [InlineData("DELETE")]
+    [InlineData("OPTIONS")]
+    public async Task A_Disallowed_Method_Discloses_Only_That_The_Host_Is_Publicly_Live(string method)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(path, UriKind.Relative));
+        // MEASURED, and pinned deliberately rather than fixed. A verb no action accepts
+        // is answered by routing, which runs ahead of every user middleware, so the
+        // mapped host gets 405 and the unmapped host gets the resolver's 404 — the two
+        // are tellable apart on the same path.
+        //
+        // Why that is acceptable, and why this test says so instead of a middleware
+        // rewriting 405 to 404: the only hosts that reach routing at all are ones the
+        // resolver admitted, and it admits a row only under `is_active AND
+        // is_publicly_live`. ADR-0036 defines the second flag as meaning DNS points at
+        // LearnStack and the tenant's public site is served — a host that is not
+        // publicly live resolves to nothing and answers the unmapped 404 here too. So
+        // the bit disclosed is `is_publicly_live`, which is by definition not a secret;
+        // once Phase 02d ships the first [PublicSurface] page, a plain GET discloses it
+        // more directly by returning 200.
+        //
+        // The invariant that DOES hold, and that the GET case above asserts: nothing
+        // distinguishes a live tenant host from an unknown one on the paths the ceiling
+        // controls, and nothing anywhere names WHICH tenant. Two review rounds reached
+        // opposite conclusions about this, which is why the boundary is written down
+        // here rather than left to be re-derived.
+        var mapped = await SendAsync("/api/v1/ceilingprobe/guarded", method: new HttpMethod(method));
+        var unmapped = await SendAsync(
+            "/api/v1/ceilingprobe/guarded", host: "stranger.example.com", method: new HttpMethod(method));
+
+        mapped.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed,
+            "routing decides this before the pipeline, on a host that resolved");
+        unmapped.StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "an unresolvable host never reaches routing's method table");
+
+        // An unrouted path is identical on both, which is the half that must not drift:
+        // it is the shape an attacker probing for hostnames would actually use.
+        var mappedMiss = await SendAsync("/api/v1/nothing-here", method: new HttpMethod(method));
+        var unmappedMiss = await SendAsync(
+            "/api/v1/nothing-here", host: "stranger.example.com", method: new HttpMethod(method));
+
+        mappedMiss.StatusCode.Should().Be(unmappedMiss.StatusCode);
+        WithoutCorrelation(await mappedMiss.Content.ReadAsStringAsync())
+            .Should().Be(WithoutCorrelation(await unmappedMiss.Content.ReadAsStringAsync()));
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(
+        string path,
+        string host = AuthorityCeilingFixture.TenantHost,
+        HttpMethod? method = null)
+    {
+        using var request = new HttpRequestMessage(
+            method ?? HttpMethod.Get, new Uri(path, UriKind.Relative));
         request.Headers.Host = host;
         return await _client.SendAsync(request);
     }
