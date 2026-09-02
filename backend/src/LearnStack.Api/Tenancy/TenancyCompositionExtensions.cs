@@ -8,10 +8,18 @@ using Npgsql;
 namespace LearnStack.Api.Tenancy;
 
 /// <summary>
-/// Composition-root wiring for the Packet 4 half of
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>:
-/// the effective host, the trusted hop, and the assertion recorder.
+/// Composition-root wiring for
+/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
+/// anonymous, pre-authentication tier.
 /// </summary>
+/// <remarks>
+/// Packet 4 brought the effective host, the trusted hop and the assertion recorder;
+/// Packet 7 added everything host classification needs to answer a request without a
+/// database — <c>Tenancy:PlatformHosts</c> and its boot-time validation, the
+/// separately-capped <c>UnknownHostCache</c>, <c>HostResolutionOptions</c>, and
+/// <c>IHostToTenantResolver</c> over a <c>Lazy&lt;NpgsqlDataSource&gt;</c> so a
+/// platform-only deployment never builds one at all.
+/// </remarks>
 public static class TenancyCompositionExtensions
 {
     public const string DeploymentModeKey = "Deployment:Mode";

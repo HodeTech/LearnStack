@@ -1,5 +1,7 @@
 using FluentAssertions;
 using LearnStack.Api.Composition;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Api.Composition;
@@ -125,5 +127,75 @@ public sealed class ApplicationDataSourceGuardTests
         messages.Should().HaveCount(7, "every value is refused");
         messages.Should().OnlyContain(message => !message.Contains("hunter2", StringComparison.Ordinal));
         messages.Should().OnlyContain(message => message.Contains("***", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("learnstack_migration")]
+    [InlineData("learnstack_platform")]
+    [InlineData("learnstack_outbox_admin")]
+    public void A_present_but_wrong_credential_refuses_the_boot_at_registration(string role)
+    {
+        // The eager half, and the one the other cases here cannot see: they all
+        // call BuildApplicationDataSource directly, which validates whether or not
+        // the caller ever reaches it, so every one of them passes with the
+        // composition root left purely lazy. Measured three times — deleting the
+        // eager block leaves the whole 1026-test suite green.
+        //
+        // What is being asserted is WHEN: the throw comes out of
+        // AddLearnStackPersistence itself, before any ServiceProvider is built and
+        // long before the first request. The Lazy<NpgsqlDataSource> that keeps a
+        // platform-only deployment from needing a credential at all was allowed to
+        // defer the build; it was not meant to defer the checks with it, because
+        // a string naming learnstack_migration is the ownership mistake FORCE ROW
+        // LEVEL SECURITY exists to defeat and production is a bad place to find it.
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Default"] =
+                    $"Host=localhost;Database=learnstack;Username={role};Password=s3cret", // leakwatch:ignore
+            })
+            .Build();
+
+        var register = () => services.AddLearnStackPersistence(configuration);
+
+        register.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*Username='{role}'*");
+    }
+
+    [Fact]
+    public void A_valid_credential_registers_without_connecting()
+    {
+        // The other side of the same coin: eager VALIDATION, still lazy BUILD.
+        // Registration must not open a socket — nothing is listening during
+        // composition — and it must not reject the credential the platform runs on.
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Default"] = Valid,
+            })
+            .Build();
+
+        var register = () => services.AddLearnStackPersistence(configuration);
+
+        register.Should().NotThrow();
+    }
+
+    [Fact]
+    public void An_absent_key_still_fails_lazily_rather_than_at_registration()
+    {
+        // Deliberate, and the reason the eager check is guarded on presence: a
+        // deployment that serves only platform hosts — answered from
+        // Tenancy:PlatformHosts, never from the database — legitimately has no
+        // application credential, and must still boot. It fails on the first
+        // request that needs a tenant, which is the first moment the absence
+        // actually matters.
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+
+        var register = () => services.AddLearnStackPersistence(configuration);
+
+        register.Should().NotThrow();
     }
 }

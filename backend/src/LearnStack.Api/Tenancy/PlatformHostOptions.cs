@@ -42,8 +42,15 @@ public sealed class PlatformHostOptions
     /// <returns>The validated set, for ordinal lookup.</returns>
     public HashSet<string> Validate()
     {
+        // The null check is not redundant with the comparison below it. Measured:
+        // a JSON `null` element normalizes to null, so `null != null` is false and
+        // the entry sails through into the set — while "" and "   " are both
+        // refused. The entry is inert at request time, because Contains on a
+        // non-null host never matches it; but a configuration typo that every
+        // other spelling refuses at boot should not be the one that passes.
         var offenders = Hosts
-            .Where(host => EffectiveHost.Normalize(host) != host)
+            .Where(host => host is null || EffectiveHost.Normalize(host) != host)
+            .Select(host => host ?? "<null>")
             .ToList();
 
         if (offenders.Count > 0)

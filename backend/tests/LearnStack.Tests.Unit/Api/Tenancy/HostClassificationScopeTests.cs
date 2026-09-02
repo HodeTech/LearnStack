@@ -74,14 +74,26 @@ public sealed class HostClassificationScopeTests
         }
     }
 
-    [Fact]
-    public void A_Prefix_Match_Is_On_Segments_Rather_Than_Characters()
+    [Theory]
+    [InlineData("/api/v10/courses", "the second live major is not beneath the first")]
+    [InlineData("/api/v1x", "nor is anything else that merely starts with its characters")]
+    public void A_Prefix_Match_Is_On_Segments_Rather_Than_Characters(string path, string because)
     {
-        // `/api/internalise` starts with the characters of `/api/internal` and is
-        // not beneath it. Segment matching is what keeps a future route from being
-        // silently unclassified because its name happens to begin with another's.
-        HostClassificationMiddleware.ClassifiesPath(new PathString("/api/v1/internalise"))
-            .Should().BeTrue();
+        // Measured: every other case in this file passes with StartsWithSegments
+        // replaced by a plain character StartsWith, because none of them names a
+        // path that the two strategies answer differently. `/api/v10` is that
+        // path, and ADR-0024's own `/api/v{N}` plan makes it the shape that
+        // actually arrives — under character matching the whole of a second major
+        // would be swallowed by the first's prefix and classified as v1.
+        //
+        // Only the CLASSIFIED prefix can show the difference. For the exclusion
+        // list it is unobservable through this predicate: character matching is
+        // strictly wider there, and every path it would wrongly exclude
+        // (`/healthzz`, `/api/internalise`) fails the `/api/v1` test anyway, so
+        // both strategies answer false. Asserting on one of those would be another
+        // vacuous case, which is what this one replaced.
+        HostClassificationMiddleware.ClassifiesPath(new PathString(path))
+            .Should().BeFalse(because);
     }
 }
 
@@ -104,9 +116,10 @@ public sealed class PlatformHostOptionsTests
     [InlineData("1.2.3.4", "an IP literal is refused as a host name")]
     [InlineData("türkçe.example.com", "an unpunycoded IDN never matches its A-label")]
     [InlineData(" ", "whitespace names no host")]
-    public void An_Unnormalized_Entry_Refuses_The_Boot(string host, string because)
+    [InlineData(null, "and a null entry is the one spelling the comparison alone lets through")]
+    public void An_Unnormalized_Entry_Refuses_The_Boot(string? host, string because)
     {
-        var options = new PlatformHostOptions { Hosts = [host] };
+        var options = new PlatformHostOptions { Hosts = [host!] };
 
         var act = options.Validate;
 

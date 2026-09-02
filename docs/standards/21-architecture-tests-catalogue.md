@@ -1890,11 +1890,11 @@ structural test proves — and what it does not.
 
 #### `Effective_Host_Normalization_Is_Total`
 
-- **Asserts:** `EffectiveHost.Normalize` returns a value or `null` for every input and never throws — including the `xn--` forms that make `HostString.FromUriComponent` raise, which an anonymous remote client could otherwise use to drive unhandled exceptions into the error tracker. Covers the two corrections in [ADR-0036 Amendment 1](../decisions/0036-tenant-resolution-trusted-inputs.md): the port is stripped **before** the IPv4 test, so `1.2.3.4:443` is refused, and the result passes a letters-digits-hyphen-dot whitelist, so `IdnMapping`'s compatibility mapping cannot smuggle `/`, `@` or `%` past the input scan.
-- **Source:** ADR-0036 § Normalization, Amendment 1.
+- **Asserts:** `EffectiveHost.Normalize` returns a value or `null` for every input and never throws — including the `xn--` forms that make `HostString.FromUriComponent` raise, which an anonymous remote client could otherwise use to drive unhandled exceptions into the error tracker. Covers the two corrections in [ADR-0036 Amendment 1](../decisions/0036-tenant-resolution-trusted-inputs.md): the port is stripped **before** the IPv4 test, so `1.2.3.4:443` is refused, and the result passes a letters-digits-hyphen-dot whitelist, so `IdnMapping`'s compatibility mapping cannot smuggle `/`, `@` or `%` past the input scan. And [Amendment 4](../decisions/0036-tenant-resolution-trusted-inputs.md)'s correction, which generalizes the same argument to the remaining input-side check: the IPv4 refusal re-runs on the value being returned, so a trailing dot cannot carry `1.2.3.4.` past it — nor can the fullwidth and ideographic dots `GetAscii` folds into `.` after the early check has already run. Paired with `Anything_Normalize_Accepts_Is_A_Host_The_Cache_Key_Accepts`, which is a **separate invariant**: `EffectiveHost.Normalize` and `CacheKey.ForHostMapping` are two spellings of "what counts as a host", written in different assemblies, and every input the first accepts the second must accept too. Checking either alone is how they drifted — the accepted-then-throwing literal above was a `500` and an unsampled error-tracker capture per request, from an unauthenticated caller, where a bodyless `404` was specified.
+- **Source:** ADR-0036 § Normalization, Amendment 1, Amendment 4.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Implemented** (`EffectiveHostTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a Packet 4; the Amendment 4 correction and the pairing property, Packet 7 step 4.
 
 #### `Tenant_Assertions_Are_Compared_Not_Resolved`
 

@@ -108,6 +108,33 @@ public sealed class UnknownHostCacheTests
     }
 
     [Fact]
+    public void A_Trim_Leaves_Headroom_Rather_Than_Stopping_At_The_Cap()
+    {
+        // Measured: trimming back to the cap itself passes every other case here,
+        // including both flood cases, because none of them asserts the count is
+        // strictly BELOW the cap. Without the headroom the map sits one add from
+        // overflowing and every subsequent novel host pays for another full sort —
+        // the property the code's own comment claims and nothing checked.
+        //
+        // Exactly one add past the cap, not a flood: a flood lands wherever the
+        // remainder leaves it, and the number this pins is the target itself.
+        const int Cap = 100;
+        var cache = Build(out _, new UnknownHostCacheOptions
+        {
+            MaxEntries = Cap,
+            Ttl = TimeSpan.FromHours(1),
+        });
+
+        for (var i = 0; i <= Cap; i++)
+        {
+            cache.Add($"host-{i}.example.com");
+        }
+
+        cache.Count.Should().Be(Cap * 9 / 10,
+            "one trim goes to the low-water mark, not to the cap");
+    }
+
+    [Fact]
     public async Task Concurrent_Adds_At_The_Cap_Do_Not_Throw()
     {
         // The blocker this case exists for was measured, not imagined: the first

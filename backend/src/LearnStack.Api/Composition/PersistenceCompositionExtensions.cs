@@ -37,11 +37,16 @@ namespace LearnStack.Api.Composition;
 /// <c>app.tenant_id = ''</c> — turns from "no rows" into "every tenant's rows".
 /// </para>
 /// <para>
-/// <b>Resolved lazily, not built eagerly.</b> The data source is a singleton
-/// whose factory runs when something first needs a connection. A deployment with
-/// no database configured therefore fails on the first request that touches one,
-/// naming the key — rather than at startup, which would make every
-/// <c>WebApplicationFactory</c> test carry a database it does not use.
+/// <b>Built lazily; validated eagerly when there is anything to validate.</b>
+/// The data source is a singleton whose factory runs when something first needs a
+/// connection, so a <c>WebApplicationFactory</c> test — and a deployment serving
+/// only platform hosts — carries no database it does not use. The two checks above
+/// are not deferred with it: a present <c>ConnectionStrings:Default</c> is
+/// name-checked at <c>AddLearnStackPersistence</c> time, because a string naming
+/// <c>learnstack_migration</c> is precisely the ownership mistake this guard exists
+/// for and the first tenant request is a bad place to discover it. An <b>absent</b>
+/// key still fails lazily, on the first request that needs a tenant — which is the
+/// first moment its absence means anything.
 /// </para>
 /// <para>
 /// <c>ConnectionStrings:PlatformAdmin</c> and

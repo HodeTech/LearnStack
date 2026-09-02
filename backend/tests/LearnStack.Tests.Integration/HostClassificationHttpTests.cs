@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Net;
 using FluentAssertions;
 using LearnStack.Api.Common;
@@ -148,6 +149,72 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
     }
 
     [Fact]
+    public async Task A_Rejection_Is_Counted_And_A_Served_Host_Is_Not()
+    {
+        // The counter an operator watches for a hostname flood, which had no
+        // reader in any of the four test assemblies. The level the rejected host
+        // is logged at is the other half of this guarantee and is asserted in
+        // HostClassificationLoggingTests — through the middleware directly,
+        // because Serilog is wired without writeToProviders, so an ILoggerProvider
+        // registered in DI here receives nothing at all.
+        var counted = 0L;
+        using var meterListener = new MeterListener();
+        meterListener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Name == HostClassificationMiddleware.RejectedCounterName)
+            {
+                listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meterListener.SetMeasurementEventCallback<long>(
+            (_, measurement, _, _) => Interlocked.Add(ref counted, measurement));
+        meterListener.Start();
+
+        using var platform = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/hostprobe", UriKind.Relative));
+        (await _client.SendAsync(platform)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        Interlocked.Read(ref counted).Should().Be(0, "a served host is not a rejection");
+
+        using var unknown = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/hostprobe", UriKind.Relative));
+        unknown.Headers.Host = "counted.example.com";
+        (await _client.SendAsync(unknown)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        meterListener.RecordObservableInstruments();
+        Interlocked.Read(ref counted).Should().Be(1, "one refused host, one increment");
+    }
+
+    [Fact]
+    public async Task A_Platform_Host_Wins_Over_A_Mapping_Row_That_Names_It()
+    {
+        // Pinning today's actual behaviour, which nothing stated. The platform
+        // branch short-circuits before the resolver is ever called, so a row in
+        // platform_host_to_tenant for a configured platform host is permanently
+        // and silently inert — no log, no counter, no startup check.
+        //
+        // The precedence is the right way round: Tenancy:PlatformHosts is the
+        // operator's own entry point, and a tenant that managed to claim that
+        // hostname would otherwise take it over. What is worth knowing is that the
+        // losing row is invisible, so this asserts it rather than leaving the next
+        // reader to discover it from a support ticket. A real cross-check belongs
+        // to whichever packet builds the host-mapping writer; a database
+        // constraint cannot see application configuration.
+        fixture.Resolver.Calls.Clear();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/hostprobe", UriKind.Relative));
+        request.Headers.Host = HostClassificationFixture.PlatformHostWithAMappingRow;
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Platform");
+        fixture.Resolver.Calls.Should().BeEmpty(
+            "the row is never read, which is why it is inert rather than conflicting");
+    }
+
+    [Fact]
     public async Task An_Unclassified_Prefix_Is_Served_Whatever_Its_Host()
     {
         // /healthz has no tenant and must answer a probe from anywhere. The same
@@ -167,6 +234,9 @@ public sealed class HostClassificationFixture : WebApplicationFactory<Program>
     public const string OrganizationHost = "branch.example.com";
     public const string TenantHost = "school.example.com";
 
+    /// <summary>Configured as a platform host <b>and</b> answered by the resolver.</summary>
+    public const string PlatformHostWithAMappingRow = "both.example.com";
+
     public static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-0000000000c1");
     public static readonly Guid Organization = Guid.Parse("018f4d40-0000-7000-8000-0000000000c2");
 
@@ -176,6 +246,16 @@ public sealed class HostClassificationFixture : WebApplicationFactory<Program>
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
+
+        // UseSetting, not ConfigureAppConfiguration: the composition root reads
+        // Tenancy:PlatformHosts while the builder is being assembled, which is
+        // before a deferred ConfigureAppConfiguration runs — the same trap
+        // DeploymentModeCompositionTests documents for Deployment:Mode, and
+        // measured here too (the host classified Tenant, not Platform).
+        // appsettings.Development.json already carries localhost at index 0; this
+        // adds the one that ALSO has a mapping row.
+        builder.UseSetting($"{PlatformHostOptions.SectionName}:1", PlatformHostWithAMappingRow);
+
         builder.ConfigureTestServices(services =>
         {
             services.AddControllers(options =>
@@ -211,6 +291,11 @@ public sealed class HostClassificationFixture : WebApplicationFactory<Program>
                 OrganizationHost => new HostResolution(
                     TenantId.From(Tenant), OrganizationId.From(Organization)),
                 TenantHost => new HostResolution(TenantId.From(Tenant), null),
+
+                // Deliberately answerable. If the platform branch ever stopped
+                // short-circuiting, this host would classify Tenant and the
+                // precedence case would fail rather than silently pass.
+                PlatformHostWithAMappingRow => new HostResolution(TenantId.From(Tenant), null),
                 _ => null,
             });
         }

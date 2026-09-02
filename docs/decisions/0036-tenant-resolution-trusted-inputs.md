@@ -286,6 +286,17 @@ host to disagree with — which grants only their own tenant. This is stated so 
 reader does not treat a passing cross-check as evidence of attacker containment. The
 control is that no signal outside the intersection can select a tenant.
 
+**`Tenancy:PlatformHosts` is checked first and wins outright.** A host on the static
+list classifies `PlatformHost` before the resolver is called at all, so a row in
+`platform_host_to_tenant` naming the same host is inert — never read, never logged,
+never counted. The precedence is the right way round: the list is the operator's own
+entry point, and a tenant that acquired that hostname must not be able to take it over.
+What is worth stating is that the losing row is *silent*, so a deployment that creates
+one gets no signal. There is no startup cross-check and no constraint, because the two
+live in different places — one is application configuration, the other a table — and a
+database constraint cannot see the first. Whichever packet builds the host-mapping
+writer owns the check; until then the behaviour is pinned by a test.
+
 **The anonymous organization scope is the host-mapping row**, not the tenant's
 organization count. A tenant that wants its default organization's content on its public
 site seeds `organization_id` into its `platform_host_to_tenant` row. That removes a code
@@ -809,48 +820,6 @@ context — `TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
 handler scope (integration events) — and `EnterPlatformAdminScope` is not among
 them, because it opens a second connection and sets no tenant context.
 
-### 2026-09-02 — Amendment 4: the IPv4 refusal belongs on the produced value
-
-**What was wrong.** Amendment 1's corrected order places **reject IPv4 literals**
-before **strip exactly one trailing dot**. Both steps were already in that order
-when the amendment was written, so the bypass it exists to close was open in the
-order it published: `1.2.3.4.` reaches the strip as a name and leaves it as a
-literal.
-
-**How it was shown.** Measured against the shipped transcription — the whole point
-of a step order is that it is transcribed — `EffectiveHost.Normalize` returned
-`1.2.3.4.`, `1.2.3.4.:443`, `127.0.0.1.`, `9.`, `2130706433.` and
-`010.010.010.010.` as accepted hosts. Each then threw `ArgumentException` in
-`CacheKey.ForHostMapping`, which `CachedHostToTenantResolver` calls as its first
-statement, producing a `500` and an unsampled `IErrorTrackingProvider` capture per
-request from an unauthenticated caller — where this ADR's own § The reconciliation
-matrix row 1 specifies a bodyless `404`. The throw also precedes the negative
-cache, so repeats never coalesce, and because only a host that reaches the
-resolver can produce it, the `500` is a positive host-existence oracle against the
-indistinguishability row 1 exists to provide.
-
-**The general form, which is the part worth keeping.** Amendment 1 already made
-this argument once, for the character set: "the character rejection must be an
-output whitelist, not only an input denylist", because `GetAscii`'s compatibility
-mapping produces characters the input scan never saw. The IPv4 refusal is the same
-shape and was left on the input side. **Every rejection in `Normalize` is a
-predicate on the produced value**; an input-side check is an optimisation, and an
-optimisation that is also the only check is a gate the next normalization step
-walks around. Two later steps can produce a literal the early check never saw —
-the trailing-dot strip, and `GetAscii` folding U+3002 and U+FF0E into `.`.
-
-**Every carrier changed.** This ADR — the inline erratum beside Amendment 1's
-corrected order, and this amendment. `EffectiveHost` re-runs
-`IPAddress.TryParse` on the value it is about to return, keeping the early check
-as the cheap exit it always was. `EffectiveHostTests` gains the six spellings
-above and, new, the pairing property nothing asserted: for every input `Normalize`
-accepts, `CacheKey.ForHostMapping` must not throw — the two validators are the
-same idea written apart, and checking either alone is how they drifted.
-
-**The Decision is unchanged.** `EffectiveHost.Normalize` is still the sole
-producer of the lookup key and of `app.resolving_host`, still total, still returns
-`null` on every failure, and still never throws.
-
 ### 2026-09-01 — Amendment 3: where the `[PublicSurface]` set is enumerated
 
 **What was wrong.** § The reconciliation matrix says the `[PublicSurface]` set "is
@@ -909,3 +878,49 @@ a tenant-owned write, and none is classified MUST-class `read-sensitive`.
 - [architecture/13 Identity and Auth](../architecture/13-identity-and-auth.md)
 - [architecture/14 Frontend Architecture](../architecture/14-frontend-architecture.md)
 - [architecture/30 API Gateway](../architecture/30-api-gateway.md)
+
+### 2026-09-02 — Amendment 4: the IPv4 refusal belongs on the produced value
+
+**What was wrong.** Amendment 1's corrected order places **reject IPv4 literals**
+before **strip exactly one trailing dot**. Both steps were already in that order
+when the amendment was written, so the bypass it exists to close was open in the
+order it published: `1.2.3.4.` reaches the strip as a name and leaves it as a
+literal.
+
+**How it was shown.** Measured against the shipped transcription — the whole point
+of a step order is that it is transcribed — `EffectiveHost.Normalize` returned
+`1.2.3.4.`, `1.2.3.4.:443`, `127.0.0.1.`, `9.`, `2130706433.` and
+`010.010.010.010.` as accepted hosts. Each then threw `ArgumentException` in
+`CacheKey.ForHostMapping`, which `CachedHostToTenantResolver` calls as its first
+statement, producing a `500` and an unsampled `IErrorTrackingProvider` capture per
+request from an unauthenticated caller — where this ADR's own § The reconciliation
+matrix row 1 specifies a bodyless `404`. The throw also precedes the negative
+cache, so repeats never coalesce, and because only a host that reaches the
+resolver can produce it, the `500` is a positive host-existence oracle against the
+indistinguishability row 1 exists to provide.
+
+**The general form, which is the part worth keeping.** Amendment 1 already made
+this argument once, for the character set: "the character rejection must be an
+output whitelist, not only an input denylist", because `GetAscii`'s compatibility
+mapping produces characters the input scan never saw. The IPv4 refusal is the same
+shape and was left on the input side. **Every rejection in `Normalize` is a
+predicate on the produced value**; an input-side check is an optimisation, and an
+optimisation that is also the only check is a gate the next normalization step
+walks around. Two later steps can produce a literal the early check never saw —
+the trailing-dot strip, and `GetAscii` folding U+3002 and U+FF0E into `.`.
+
+**Every carrier changed.** This ADR — the inline erratum beside Amendment 1's
+corrected order, and this amendment. `EffectiveHost` re-runs
+`IPAddress.TryParse` on the value it is about to return, keeping the early check
+as the cheap exit it always was. `EffectiveHostTests` gains the six spellings
+above and, new, the pairing property nothing asserted: for every input `Normalize`
+accepts, `CacheKey.ForHostMapping` must not throw — the two validators are the
+same idea written apart, and checking either alone is how they drifted.
+[Standards 21](../standards/21-architecture-tests-catalogue.md)'s
+`Effective_Host_Normalization_Is_Total` cites this amendment beside Amendment 1 and
+carries the pairing property, which is a distinct invariant and belonged in the
+catalogue on its own account.
+
+**The Decision is unchanged.** `EffectiveHost.Normalize` is still the sole
+producer of the lookup key and of `app.resolving_host`, still total, still returns
+`null` on every failure, and still never throws.

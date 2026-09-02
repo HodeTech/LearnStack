@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using System.Globalization;
 using FluentAssertions;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.MultiTenancy;
@@ -36,6 +37,9 @@ public sealed class HostResolutionTests
     private static readonly ServiceProvider MeterServices = new ServiceCollection()
         .AddMetrics()
         .BuildServiceProvider();
+
+    private static readonly DateTimeOffset Origin =
+        new(2026, 9, 2, 9, 0, 0, TimeSpan.Zero);
 
     private readonly SchemaFixture _schema;
 
@@ -200,64 +204,175 @@ public sealed class HostResolutionTests
     }
 
     [Fact]
-    public async Task A_Cancelled_Caller_Still_Leaves_The_Answer_Cached()
+    public async Task A_Cancelled_Caller_Still_Leaves_The_Answer_Published()
     {
         // The flight runs on CancellationToken.None precisely so one caller
         // hanging up does not cancel the lookup others wait on — but if the cache
         // write lived in the caller's tail, a lookup whose only caller cancelled
         // would complete and then throw its answer away, and the next request
-        // would pay for the same round trip. Publishing inside the flight is what
-        // makes the work survive the caller.
+        // would pay for the same round trip.
+        //
+        // The window is a real one: an ACCESS EXCLUSIVE lock on the table blocks
+        // the resolver's SELECT, so the caller can be cancelled while its flight
+        // is demonstrably mid-read. The first version of this case cancelled the
+        // token BEFORE calling and then polled with uncancelled reads, which is
+        // two false negatives in one: InMemoryCacheService.GetAsync throws on a
+        // cancelled token as its second statement, so no flight was ever created,
+        // and each poll published the answer itself. Measured — with the write
+        // moved back into the caller's tail, the whole file stayed green.
+        await using var lockHolder = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
         var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
-        var resolver = BuildResolver(dataSource);
+        var publishes = new PublishCountingCache(NewCache());
+        var resolver = BuildResolver(dataSource, publishes);
 
-        using var cancelled = new CancellationTokenSource();
-        await cancelled.CancelAsync();
-
-        try
+        await using var blocking = await lockHolder.OpenConnectionAsync();
+        await using var holdingTransaction = await blocking.BeginTransactionAsync();
+        await using (var takeLock = new NpgsqlCommand(
+            "LOCK TABLE platform_host_to_tenant IN ACCESS EXCLUSIVE MODE", blocking, holdingTransaction))
         {
-            await resolver.ResolveAsync(SchemaFixture.HostA, cancelled.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected: this caller stopped waiting. The flight did not.
+            await takeLock.ExecuteNonQueryAsync();
         }
 
-        // Give the flight a moment to finish and publish, then take the database
-        // away so only a cached answer can succeed.
-        for (var attempt = 0; attempt < 50 && !await IsCachedAsync(resolver); attempt++)
+        using var hangUp = new CancellationTokenSource();
+        var caller = resolver.ResolveAsync(SchemaFixture.HostA, hangUp.Token);
+
+        await WaitUntilBlockedOnTheTableAsync(lockHolder);
+
+        // The caller goes away with its flight still inside the SELECT.
+        await hangUp.CancelAsync();
+        var act = async () => await caller;
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        // Release the read, and the flight — which nobody is waiting on any more —
+        // must still publish. Waited for on the COUNTER and never by resolving
+        // again: a poll that calls ResolveAsync publishes the answer itself, which
+        // is exactly how the first version of this case passed against the shape
+        // it was written to reject.
+        await holdingTransaction.CommitAsync();
+
+        for (var attempt = 0; attempt < 100 && !publishes.Observed; attempt++)
         {
-            await Task.Delay(20);
+            await Task.Delay(50);
         }
+
+        publishes.Observed.Should().BeTrue(
+            "the flight publishes its answer even though its only caller had gone");
+        publishes.Count.Should().Be(1);
 
         await dataSource.DisposeAsync();
 
         (await resolver.ResolveAsync(SchemaFixture.HostA)).Should().NotBeNull(
-            "the flight published its answer even though its only caller had gone");
-
-        static async Task<bool> IsCachedAsync(CachedHostToTenantResolver resolver)
-        {
-            try
-            {
-                return await resolver.ResolveAsync(SchemaFixture.HostA) is not null;
-            }
-            catch (ObjectDisposedException)
-            {
-                return false;
-            }
-        }
+            "with the database gone, only a published answer can serve this");
     }
 
-    private static CachedHostToTenantResolver BuildResolver(NpgsqlDataSource dataSource)
+    [Fact]
+    public async Task Twelve_Waiters_On_One_Cold_Host_Publish_One_Answer()
     {
-        var clock = new FixedClock(new DateTimeOffset(2026, 9, 2, 9, 0, 0, TimeSpan.Zero));
-        var meterFactory = MeterServices.GetRequiredService<IMeterFactory>();
+        // The other half of "published inside the flight": once, however many
+        // waiters there are. Counting physical connections proves the flight ran
+        // once; counting writes proves the ANSWER was written once, and by the
+        // flight rather than by each waiter's tail. Measured, the write moved into
+        // the caller's tail leaves every connection-counting case green — this is
+        // the assertion that separates the two shapes.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var publishes = new PublishCountingCache(NewCache());
+        var resolver = BuildResolver(dataSource, publishes);
+
+        using var release = new ManualResetEventSlim(false);
+
+        var callers = Enumerable.Range(0, 12).Select(_ => Task.Run(async () =>
+        {
+            release.Wait();
+            return await resolver.ResolveAsync(SchemaFixture.HostA);
+        })).ToArray();
+
+        release.Set();
+        var resolutions = await Task.WhenAll(callers);
+
+        resolutions.Should().OnlyContain(resolution => resolution != null);
+        publishes.Count.Should().Be(1,
+            "twelve waiters share one flight, and the flight publishes once");
+    }
+
+    /// <summary>
+    /// Blocks until a backend is waiting on the table lock, so the caller can be
+    /// cancelled while its flight is provably mid-read.
+    /// </summary>
+    private static async Task WaitUntilBlockedOnTheTableAsync(NpgsqlDataSource observer)
+    {
+        // pg_stat_activity rather than a delay: a sleep long enough to be reliable
+        // on a loaded CI machine is a sleep every run pays for, and one short
+        // enough not to be is a flake.
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            await using var command = observer.CreateCommand(
+                """
+                SELECT count(*) FROM pg_stat_activity
+                WHERE wait_event_type = 'Lock'
+                  AND query LIKE '%platform_host_to_tenant%'
+                """);
+
+            if (Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture) > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new InvalidOperationException(
+            "The resolver never blocked on the table lock, so the flight was never "
+            + "caught mid-read and this case would prove nothing.");
+    }
+
+    private static InMemoryCacheService NewCache() =>
+        new(new FixedClock(Origin), MeterServices.GetRequiredService<IMeterFactory>());
+
+    private static CachedHostToTenantResolver BuildResolver(
+        NpgsqlDataSource dataSource, ICacheService? cache = null)
+    {
+        var clock = new FixedClock(Origin);
 
         return new CachedHostToTenantResolver(
-            new InMemoryCacheService(clock, meterFactory),
+            cache ?? NewCache(),
             new UnknownHostCache(clock, new UnknownHostCacheOptions()),
             new HostResolutionOptions(),
             new Lazy<NpgsqlDataSource>(() => dataSource));
+    }
+
+    /// <summary>
+    /// Counts what the resolver publishes, so a case can assert <b>who</b> wrote
+    /// the answer and <b>how many times</b> — neither of which a connection count
+    /// or a later cache hit can distinguish.
+    /// </summary>
+    private sealed class PublishCountingCache(ICacheService inner) : ICacheService
+    {
+        private int _count;
+
+        public int Count => Volatile.Read(ref _count);
+
+        public bool Observed => Count > 0;
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) =>
+            inner.GetAsync<T>(key, cancellationToken);
+
+        public Task SetAsync<T>(
+            string key, T value, CacheOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _count);
+            return inner.SetAsync(key, value, options, cancellationToken);
+        }
+
+        public Task<T> GetOrSetAsync<T>(
+            string key,
+            Func<CancellationToken, Task<T>> factory,
+            CacheOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            inner.GetOrSetAsync(key, factory, options, cancellationToken);
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            inner.RemoveAsync(key, cancellationToken);
     }
 
     /// <summary>
