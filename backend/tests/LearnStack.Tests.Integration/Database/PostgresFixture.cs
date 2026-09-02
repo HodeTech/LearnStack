@@ -104,19 +104,6 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary><c>BYPASSRLS</c>; only the outbox dispatcher's equivalent.</summary>
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
-    /// <summary>
-    /// The container's superuser. <b>Not for any test that asserts about isolation.</b>
-    /// </summary>
-    /// <remarks>
-    /// It exists for the one thing no four-role credential can do: change a role's own
-    /// attributes, so a test can take <c>BYPASSRLS</c> off <c>learnstack_platform</c> and
-    /// prove the guard that refuses a non-bypassing platform credential actually fires.
-    /// <c>learnstack_migration</c> cannot — it holds neither <c>CREATEROLE</c> nor
-    /// <c>ADMIN</c> on the role, which is itself the four-role model working. Any test
-    /// that <i>reads</i> tenant data through this connection would pass with every policy
-    /// inert and prove nothing, which is the rule CLAUDE.md states by hand.
-    /// </remarks>
-    public string SuperuserConnectionString => For("postgres", "postgres");
 
     public async Task InitializeAsync()
     {

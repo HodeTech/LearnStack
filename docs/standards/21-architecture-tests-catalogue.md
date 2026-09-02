@@ -2163,6 +2163,15 @@ structural test proves — and what it does not.
   then — nothing sets the flag, so nothing sets it from request input — and becomes
   non-vacuous in Phase 03.
 
+#### `The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable`
+
+- **Asserts:** `PlatformAdminScope.cs` contains none of `set_config(`, `SetTenantContextAsync` or `IUnitOfWork`, with comments and whitespace stripped first.
+- **Why it matters:** it pins the complement of two closed sets, and getting either wrong reopens a set an ADR closed. `PlatformAdminScope` is **not** a fifth writer of `ITenantContextAccessor.Current` — [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md) names it as explicitly not one, and `SetTenant_Callers_Are_The_Enumerated_Four` covers that globally. It is **not** an eighth out-of-band setter of `app.tenant_id` either: the role bypasses policies, so there is nothing to announce to, and [ADR-0040 Amendment 3](../decisions/0040-ambient-unit-of-work.md) closes that set at seven on the property that every one of them connects as `learnstack_app`. And it must not enlist on the ambient unit of work, which would put the bypass on the request's own connection and leave it there.
+- **Source:** ADR-0003; ADR-0036 § Rules; ADR-0040 Amendment 3.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7).
+- **Phase:** 02a Packet 7.
+
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
 - **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
@@ -2170,22 +2179,26 @@ structural test proves — and what it does not.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
 - **Phase:** 02a Packet 7.
-- **Note:** **conjunct A is live, conjunct B is doubly vacuous, and the difference
-  matters.** Live: the gate port exists, the registered implementation refuses everyone,
-  the scope consults it, and no second implementation has appeared beside it — which is
-  how a permissive default actually arrives, registered elsewhere for a demo. The
-  ordering — gate before the credential is touched — is behavioural and asserted in
-  `PlatformAdminGateTests`, which a structural rule cannot see. Vacuous: there is no
-  permission to hold until Phase 03 and no production caller enters the scope, so
-  nothing exercises a permitted entry.
-- **Note:** only the second conjunct is live in Packet 7 — no handler carries both
-  `[AllowsUnresolvedTenantContext]` and a platform-scope entry. The entry gate itself
-  holds as a **negative** until [Phase 03](../roadmap/phase-03-identity-admin.md):
-  `AuthorizationBehavior.Handle` is `return next()`, authentication arrives in
+- **Note:** **the permission clause is live in its mechanism and vacuous in its subject;
+  the marker clause is vacuous outright.** Two Notes previously stood here assigning
+  "live" to opposite clauses — one written when the rule was Registered and one when it
+  landed — and this replaces both.
+
+  *Mechanism, live:* the gate is a real port, the registered implementation refuses
+  everyone, `PlatformAdminScope` consults it, and no second implementation exists in any
+  production assembly — which is how a permissive default actually arrives, registered
+  elsewhere for a demo. The ordering, gate before the credential is touched, is
+  behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
+
+  *Subject, vacuous:* there is no permission to hold. `AuthorizationBehavior.Handle` is
+  `return next()`, authentication arrives in
   [Phase 02b](../roadmap/phase-02b-events-auth.md), and the Platform-scope permission
-  arrives with the Identity module
-  ([Tenancy § Permission Matrix](../modules/tenancy/permissions.md)). Packet 7 ships no
-  caller of the scope, so a gate that refuses everyone blocks nothing this packet ships.
+  with the Identity module in [Phase 03](../roadmap/phase-03-identity-admin.md). So
+  nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
+  this packet ships — Packet 9's GDPR redaction is the first real caller and inherits it.
+
+  *Marker clause, vacuous:* no handler carries both `[AllowsUnresolvedTenantContext]` and
+  a platform-scope entry, because no production request type carries either.
 
 #### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
 

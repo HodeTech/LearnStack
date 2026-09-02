@@ -17,8 +17,18 @@ namespace LearnStack.Tests.Integration.Database;
 /// test passes identically when every policy is inert — so "the scope sees both tenants"
 /// proves nothing on its own. What each case below asserts instead is <i>where the
 /// visibility comes from</i>: that the same query on an application connection sees less,
-/// on the same data, at the same moment. A dropped policy would make both sides equal and
-/// turn these red, which is the property an isolation-shaped assertion cannot offer.
+/// on the same data, at the same moment — a property an isolation-shaped assertion
+/// cannot offer.
+/// </para>
+/// <para>
+/// <b>What actually falsifies them, measured — and it is not a dropped policy.</b>
+/// Appending <c>DROP POLICY organizations_isolation ON organizations</c> leaves every case
+/// here green, because the table is under <c>FORCE ROW LEVEL SECURITY</c> and a
+/// policy-less table is default-deny: dropping it makes the application side see
+/// <i>less</i>, never more. The two mutations that do turn these red are
+/// <c>DISABLE ROW LEVEL SECURITY</c> and a second <b>permissive</b> <c>USING (true)</c>
+/// policy — the exact ADR-0003 Amendment 3 defect, where PostgreSQL combines permissive
+/// policies with <c>OR</c>. Naming the wrong falsifier is worse than naming none.
 /// </para>
 /// <para>
 /// The scope is constructed directly with a permissive gate double. The shipped gate
@@ -154,12 +164,11 @@ public sealed class PlatformAdminScopeTests
         // application one — which refuses every bypassing role — left all six cases
         // green. The shared-schema collection serializes its classes, so the window is
         // this method, and the restore is in a finally.
-        // The superuser, because no four-role credential may alter a role's attributes —
-        // learnstack_migration holds neither CREATEROLE nor ADMIN on learnstack_platform,
-        // which is the four-role model working rather than a gap. Nothing here reads
-        // tenant data through it.
-        await using var admin = NpgsqlDataSource.Create(_schema.Postgres.SuperuserConnectionString);
-        await ExecuteAsync(admin, "ALTER ROLE learnstack_platform NOBYPASSRLS");
+        // Through the fixture's existing single-statement helper, whose own remarks name
+        // ALTER ROLE … BYPASSRLS as the case it exists for. A raw superuser connection
+        // string in a fixture would be a strictly wider capability than this needs, and
+        // no four-role credential can do it: learnstack_migration owns tables, not roles.
+        await _schema.Postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_platform NOBYPASSRLS");
 
         try
         {
@@ -172,7 +181,8 @@ public sealed class PlatformAdminScopeTests
         }
         finally
         {
-            await ExecuteAsync(admin, "ALTER ROLE learnstack_platform BYPASSRLS");
+            await _schema.Postgres.ExecuteAsSuperuserAsync(
+                "ALTER ROLE learnstack_platform BYPASSRLS");
         }
 
         // And it connects again once the attribute is back, so the guard is the thing
@@ -182,21 +192,145 @@ public sealed class PlatformAdminScopeTests
         connection.State.Should().Be(System.Data.ConnectionState.Open);
     }
 
-    private static async Task ExecuteAsync(NpgsqlDataSource dataSource, string sql)
+    [Fact]
+    public async Task A_Resolved_Handle_Cannot_Be_Used_Again()
     {
-        await using var command = dataSource.CreateCommand(sql);
-        await command.ExecuteNonQueryAsync();
+        // Measured before the fence existed: after a successful commit the connection is
+        // still Open, so a plain SELECT on it returned every tenant's rows — in
+        // autocommit, on a BYPASSRLS credential, with no transaction left to undo
+        // anything. A write issued there SURVIVED DisposeAsync, which is the exact
+        // opposite of what this type's contract promises.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var handle = await Build(dataSource).EnterAsync(
+            "test:terminal", CancellationToken.None);
+
+        await handle.CommitAsync(CancellationToken.None);
+
+        var readConnection = () => handle.Connection;
+        var readTransaction = () => handle.Transaction;
+        var commitAgain = async () => await handle.CommitAsync(CancellationToken.None);
+
+        readConnection.Should().Throw<InvalidOperationException>(
+            "fencing Transaction alone would leave the autocommit hole open");
+        readTransaction.Should().Throw<InvalidOperationException>();
+        await commitAgain.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task Committing_Persists_And_Disposal_Leaves_It_Alone()
+    {
+        // The other half of the handle's contract, and the half both named Packet 9
+        // consumers need. Measured: gutting CommitAsync to a no-op left the whole suite
+        // green, because every case here only ever checked that things did NOT survive.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var scope = Build(dataSource);
+        var host = $"committed-{Guid.NewGuid():N}.example.com";
+
+        try
+        {
+            await using (var handle = await scope.EnterAsync(
+                "test:commit", CancellationToken.None))
+            {
+                await using var insert = handle.Connection.CreateCommand();
+                insert.Transaction = handle.Transaction;
+                insert.CommandText =
+                    """
+                    INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, is_publicly_live)
+                    VALUES (@host, @tenant, true, true)
+                    """;
+                insert.Parameters.Add(new NpgsqlParameter("host", host));
+                insert.Parameters.Add(new NpgsqlParameter("tenant", SchemaFixture.TenantA));
+                await insert.ExecuteNonQueryAsync(CancellationToken.None);
+
+                await handle.CommitAsync(CancellationToken.None);
+            }
+
+            await using var check = await scope.EnterAsync("test:check", CancellationToken.None);
+            (await ScalarAsync<long>(
+                check.Connection,
+                check.Transaction,
+                "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host",
+                [("host", (object)host)]))
+                .Should().Be(1, "a committed write survives the handle that made it");
+        }
+        finally
+        {
+            // The schema fixture is shared and other classes assert exact row counts.
+            await using var cleanup = await scope.EnterAsync("test:cleanup", CancellationToken.None);
+            await using var delete = cleanup.Connection.CreateCommand();
+            delete.Transaction = cleanup.Transaction;
+            delete.CommandText = "DELETE FROM platform_host_to_tenant WHERE host = @host";
+            delete.Parameters.Add(new NpgsqlParameter("host", host));
+            await delete.ExecuteNonQueryAsync(CancellationToken.None);
+            await cleanup.CommitAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task A_Faulted_Commit_Returns_The_Connection_And_Is_Left_Indeterminate()
+    {
+        // The leak. A COMMIT that faults leaves the outcome genuinely unknown — ADR-0033
+        // calls that Indeterminate — and the obvious ordering, marking the handle
+        // resolved AFTER the await, leaves the flag false. Disposal then issues ROLLBACK
+        // on a transaction that is already over, which throws, which skips both
+        // disposals, which strands the one BYPASSRLS connection in the process outside
+        // the pool.
+        //
+        // The fault is produced by terminating our own backend: a killed connection is a
+        // real failure mode, it makes both the COMMIT and the following ROLLBACK throw,
+        // and unlike a constraint violation it is deterministic. A first version tried a
+        // deferred foreign key and proved nothing — the constraint is not DEFERRABLE, so
+        // the INSERT failed and the commit was never reached.
+        var builder = new NpgsqlConnectionStringBuilder(_schema.Postgres.PlatformConnectionString)
+        {
+            MaxPoolSize = 3,
+            Timeout = 5,
+        };
+
+        await using var dataSource = PlatformSource(builder.ConnectionString);
+        var scope = Build(dataSource);
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var handle = await scope.EnterAsync("test:faulted", CancellationToken.None);
+
+            await using (handle)
+            {
+                await using (var suicide = handle.Connection.CreateCommand())
+                {
+                    suicide.Transaction = handle.Transaction;
+                    suicide.CommandText = "SELECT pg_terminate_backend(pg_backend_pid())";
+
+                    try
+                    {
+                        await suicide.ExecuteNonQueryAsync(CancellationToken.None);
+                    }
+                    catch (PostgresException)
+                    {
+                        // The server hangs up mid-statement; that is the point.
+                    }
+                    catch (NpgsqlException)
+                    {
+                    }
+                }
+
+                var commit = async () => await handle.CommitAsync(CancellationToken.None);
+                await commit.Should().ThrowAsync<Exception>(
+                    "the caller sees the connection's failure, not a bookkeeping one");
+            }
+        }
+
+        // Five entries through a pool of three: without the disposal in a finally, this
+        // line blocks until the pool timeout.
+        await using var afterwards = await scope.EnterAsync("test:after", CancellationToken.None);
+        afterwards.Connection.State.Should().Be(System.Data.ConnectionState.Open);
     }
 
     [Fact]
     public void A_Credential_Naming_Another_Role_Is_Refused_Before_Any_Connection()
     {
         // The name is not the privilege, so there are two guards and this is the cheap
-        // one — the mistake an operator actually makes, caught without a socket. The
-        // server-side half catches a correctly named role that LOST the attribute (a
-        // re-created role, a restored dump), which is the failure that looks like
-        // nothing at all: every cross-tenant query simply returns fewer rows. That half
-        // is evidenced by the cases above running green against the real credential.
+        // one — the mistake an operator actually makes, caught without a socket.
         var act = () => LearnStack.Api.Composition.PersistenceCompositionExtensions
             .BuildPlatformDataSource(_schema.Postgres.AppConnectionString);
 
@@ -208,14 +342,19 @@ public sealed class PlatformAdminScopeTests
     [Fact]
     public void An_Absent_Credential_Names_The_Key_Rather_Than_Degrading()
     {
-        // It must not fall back to the application role. A bypass that silently became a
-        // tenant-scoped read would return nothing and read as missing data — which is the
-        // degradation Database Standards rules out by name.
+        // It must not fall back to the application role: a bypass that silently became a
+        // tenant-scoped read would return nothing and read as missing data.
+        //
+        // Asserted on text unique to THIS branch, not on the key prefix both messages
+        // share — measured, deleting the blank guard let control fall into
+        // ValidatePlatformConnectionString(null), whose message also names the key, so a
+        // prefix-only assertion passed against the mutant.
         var act = () => LearnStack.Api.Composition.PersistenceCompositionExtensions
             .BuildPlatformDataSource(null);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*ConnectionStrings:PlatformAdmin*");
+            .WithMessage("*ConnectionStrings:PlatformAdmin*")
+            .And.Message.Should().Contain("is not configured").And.Contain(".env.example");
     }
 
     /// <summary>

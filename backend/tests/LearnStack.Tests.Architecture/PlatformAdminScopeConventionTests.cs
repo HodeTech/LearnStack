@@ -10,6 +10,23 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 public sealed class PlatformAdminScopeConventionTests
 {
+    /// <summary>
+    /// Every <c>LearnStack.*</c> assembly under <c>backend/src</c>, loaded without a
+    /// null filter.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the tree for the reason the sibling rules record: a listed sweep
+    /// silently stops asserting where the list stops, and a rule that counts a hole
+    /// cannot afford to. An assembly that fails to load is a missing project reference,
+    /// and the right outcome is a red build naming it rather than a smaller scan.
+    /// </remarks>
+    private static IEnumerable<Assembly> ProductionAssemblies() =>
+        Directory.EnumerateFiles(
+                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => Assembly.Load(name!));
+
     private const string ScopeFile = "LearnStack.Infrastructure/MultiTenancy/PlatformAdminScope.cs";
 
     private const string CompositionFile =
@@ -40,10 +57,13 @@ public sealed class PlatformAdminScopeConventionTests
             "the scope injects the keyed source and the composition root registers it; a "
             + "third resolver is a second path to a credential that sees every tenant");
 
-        // Leg 2 — every connection string in the solution is read in one file. A second
-        // reader of ConnectionStrings:PlatformAdmin would be a second data source, built
-        // without the initializer that asserts the role actually bypasses — and the
-        // symptom of that is not an error but fewer rows.
+        // Leg 2 — IConfiguration.GetConnectionString is called in exactly one file under
+        // backend/src. Not "every credential is read in one file": the two design-time
+        // DbContext factories read ConnectionStrings__Migration straight from the
+        // environment, deliberately, because dotnet ef builds no host. What this pins is
+        // that a second reader of ConnectionStrings:PlatformAdmin would be a second data
+        // source built without the initializer asserting the role actually bypasses —
+        // and the symptom of that is not an error but fewer rows.
         //
         // The needle is the READ, not the word "PlatformAdmin": that word is also the
         // type names, so scanning for it flagged the two SharedKernel contracts, which
@@ -53,9 +73,10 @@ public sealed class PlatformAdminScopeConventionTests
                 [CompositionFile],
                 "one file reads credentials, so one file decides what is done with them");
 
-        // Leg 3 — the scan itself found something. A two-path allow-list that matches
-        // nothing passes, which is the failure a sibling rule already records: a narrowed
-        // sweep does not fail, it passes over less code.
+        // Leg 3 — the scan itself found something. An allow-list assertion is satisfied
+        // by an empty result, so a scan that silently stopped matching would read as
+        // compliance; this is the failure a sibling rule records in its own words, that a
+        // narrowed sweep does not fail but passes over less code.
         resolvers.Should().NotBeEmpty("a scan matching nothing would satisfy leg 1 vacuously");
     }
 
@@ -97,10 +118,18 @@ public sealed class PlatformAdminScopeConventionTests
         // the scope at all. What can be asserted now is that no second gate
         // implementation has appeared to sit beside the deny-all one, because that is how
         // a permissive default arrives — registered somewhere else, for a demo.
-        var gates = typeof(IPlatformAdminGate).Assembly.GetTypes()
+        // Swept across every production assembly, not just the one declaring the
+        // interface. The first version scanned typeof(IPlatformAdminGate).Assembly —
+        // SharedKernel — so a permissive gate in Infrastructure or Api, which is exactly
+        // where "registered elsewhere for a demo" would put one, was invisible to the
+        // rule whose own message names that scenario. The mutation that was supposed to
+        // prove this leg passed only because the probe was planted in SharedKernel too.
+        var gates = ProductionAssemblies()
+            .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsAbstract: false, IsInterface: false })
             .Where(typeof(IPlatformAdminGate).IsAssignableFrom)
             .Select(type => type.Name)
+            .Distinct()
             .ToList();
 
         gates.Should().BeEquivalentTo(

@@ -110,7 +110,7 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-**The shipped set is eight files, not a family per topic.** Add yours to the one whose
+**The shipped set is ten files, not a family per topic.** Add yours to the one whose
 subject it shares:
 
 | File | What it covers |
@@ -122,6 +122,8 @@ subject it shares:
 | `TenantContextConstructionTests.cs` | How a tenant context comes into existence and who may write it: the factory's single entry point, the constructor's one call site, the enumerated accessor writers, and the composite-key organization read. |
 | `ApiConventionTests.cs` | Live majors, forwarded headers, required `Deployment:Mode`, unversioned route prefixes. |
 | `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, provider SDK exceptions). |
+| `RequestSurfaceTests.cs` | What the step-4 authority ceiling admits: the two request markers, their permitted sets, the shape of the attributes themselves, and the ban on request shapes MediatR runs with no pipeline. |
+| `PlatformAdminScopeConventionTests.cs` | The single sanctioned `BYPASSRLS` path: who may resolve the keyed platform data source, where connection strings are read, the entry gate, and what the scope must not touch. |
 | `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals` and the single-frontend-app rule. |
 
 Rules for surfaces no file covers yet — audit, permissions, entitlement, event bus,
@@ -129,7 +131,7 @@ Hub contract — are **Registered** in
 [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
 the phase that ships the code they inspect. Check its Status line before assuming a
 net is under you, and create a new file only when your rule's subject is not one of
-the eight above.
+the ten above.
 
 > **The tenancy rules live in three files, and the split is by subject, not by ADR.**
 > All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable

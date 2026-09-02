@@ -86,9 +86,10 @@ public interface IPlatformAdminScope
 /// connection by whoever needs it.
 /// </para>
 /// <para>
-/// <b>Disposing without committing rolls back.</b> The same posture the ambient unit of
-/// work takes, and it matters more here: a leaked handle holds a <c>BYPASSRLS</c> pooled
-/// connection for the life of the request.
+/// <b>Disposing without committing rolls back, and the connection is returned whatever
+/// happens.</b> The same posture the ambient unit of work takes, and it matters more
+/// here: a leaked handle holds the one <c>BYPASSRLS</c> connection in the process, and
+/// stranding it outside the pool costs the process rather than the request.
 /// </para>
 /// <para>
 /// <c>System.Data.Common</c> types rather than Npgsql ones because this assembly
@@ -104,6 +105,15 @@ public interface IPlatformAdminScopeHandle : IAsyncDisposable
     /// <summary>The transaction every command in this scope runs on.</summary>
     DbTransaction Transaction { get; }
 
-    /// <summary>Commits. Without it, disposal rolls back.</summary>
+    /// <summary>Commits, and ends the handle's usefulness.</summary>
+    /// <remarks>
+    /// An <b>abandoned</b> frame — disposed without this — is rolled back. A
+    /// <b>faulted</b> commit is not: the server-side outcome is genuinely unknown, and
+    /// ADR-0033 calls that state Indeterminate rather than failed. Either way the handle
+    /// is finished: reading <see cref="Connection"/> or <see cref="Transaction"/>
+    /// afterwards throws, because the connection is still open and a statement issued on
+    /// it would run in autocommit, on a credential that sees every tenant, with nothing
+    /// left to undo it.
+    /// </remarks>
     Task CommitAsync(CancellationToken cancellationToken = default);
 }

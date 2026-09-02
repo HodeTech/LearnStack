@@ -88,7 +88,7 @@ public sealed class PlatformAdminScope(
             LogEntered(_logger, reason, callerMember ?? "<unknown>", ShortPath(callerFile), callerLine, null);
 
             var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            return new Handle(connection, transaction);
+            return new Handle(connection, transaction, _logger);
         }
         catch
         {
@@ -130,17 +130,18 @@ public sealed class PlatformAdminScope(
             + "Cross-tenant access under learnstack_platform.");
 
     /// <summary>One entry's connection and transaction.</summary>
-    private sealed class Handle(NpgsqlConnection connection, DbTransaction transaction)
+    private sealed class Handle(
+        NpgsqlConnection connection, DbTransaction transaction, ILogger logger)
         : IPlatformAdminScopeHandle
     {
-        private bool _committed;
+        private bool _resolved;
         private bool _disposed;
 
         public DbConnection Connection
         {
             get
             {
-                ObjectDisposedException.ThrowIf(_disposed, this);
+                EnsureUsable();
                 return connection;
             }
         }
@@ -149,16 +150,35 @@ public sealed class PlatformAdminScope(
         {
             get
             {
-                ObjectDisposedException.ThrowIf(_disposed, this);
+                EnsureUsable();
                 return transaction;
             }
         }
 
         public async Task CommitAsync(CancellationToken cancellationToken = default)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            EnsureUsable();
+
+            // Marked resolved BEFORE the await. Two things depend on the ordering and
+            // only one of them is observable, which is worth saying rather than
+            // implying. A COMMIT that faults at the server —
+            // a deferred constraint, a serialization failure — leaves the outcome
+            // genuinely unknown, and ADR-0033 calls that state Indeterminate rather
+            // than failed. Setting the flag afterwards would leave it false, so
+            // disposal would issue ROLLBACK on a transaction that is already over,
+            // which throws, which skips both disposals, which strands a BYPASSRLS
+            // connection outside the pool for the life of the process — measured, and
+            // it also replaces the caller's real PostgresException with a bookkeeping
+            // one. NpgsqlUnitOfWork nulls its transaction before the same await for the
+            // same reason.
+            //
+            // The catch in DisposeAsync makes that leak impossible on its own, so with
+            // both present this ordering is not independently observable — no test here
+            // fails if it is reverted, and none pretends to. What it still buys is the
+            // semantics: a faulted commit is Indeterminate, and attempting to undo an
+            // outcome nobody knows is a different claim from declining to.
+            _resolved = true;
             await transaction.CommitAsync(cancellationToken);
-            _committed = true;
         }
 
         public async ValueTask DisposeAsync()
@@ -170,16 +190,76 @@ public sealed class PlatformAdminScope(
 
             _disposed = true;
 
-            // Transaction first, then connection, and an uncommitted transaction rolls
-            // back: a frame that ended without committing has failed, and leaving its
-            // writes to a later decision is how a partial cross-tenant mutation ships.
-            if (!_committed)
+            try
             {
-                await transaction.RollbackAsync();
-            }
+                // Only an ABANDONED frame is rolled back. A frame that ended without
+                // resolving has failed, and leaving its writes for a later decision is
+                // how a partial cross-tenant mutation ships. A faulted commit is not
+                // that case and is deliberately left alone.
+                //
+                // The explicit rollback stays rather than relying on disposal: this
+                // field is a DbTransaction, whose base DisposeAsync delegates to an
+                // empty Dispose(bool). Rolling back on dispose is NpgsqlTransaction's
+                // own override, so dropping the line would make a cross-tenant rollback
+                // depend on the runtime type behind a base-class reference.
+                if (!_resolved)
+                {
+                    try
+                    {
+                        await transaction.RollbackAsync();
+                    }
+                    catch (Exception failure) when (failure is InvalidOperationException or NpgsqlException)
+                    {
+                        // A connection already broken by the failure being cleaned up
+                        // after is the ordinary way here. Logged and swallowed, because
+                        // throwing from disposal replaces whatever the caller was
+                        // actually failing on.
+                        LogRollbackFailed(logger, failure);
+                    }
+                }
 
-            await transaction.DisposeAsync();
-            await connection.DisposeAsync();
+                await transaction.DisposeAsync();
+            }
+            finally
+            {
+                // In a finally. Nothing above may strand the one connection in this
+                // process that sees every tenant.
+                await connection.DisposeAsync();
+            }
+        }
+
+        /// <summary>
+        /// Refuses a handle that is disposed or already resolved.
+        /// </summary>
+        /// <remarks>
+        /// <b>Resolved is terminal, and fencing <c>Connection</c> is the half that
+        /// matters.</b> Measured: after a successful commit the connection is still
+        /// open, so a statement issued on it runs in <i>autocommit</i> — on a
+        /// <c>BYPASSRLS</c> connection, with no transaction to undo it. A write there
+        /// survives <c>DisposeAsync</c>, which is the exact opposite of what this
+        /// type's contract promises. Fencing only <c>Transaction</c> would leave that
+        /// hole open.
+        /// </remarks>
+        private void EnsureUsable()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            if (_resolved)
+            {
+                throw new InvalidOperationException(
+                    "This platform-admin scope has been resolved and is no longer usable. "
+                    + "A caller needing further cross-tenant work takes a fresh scope: the "
+                    + "connection bypasses Row Level Security, and a statement issued after "
+                    + "the commit runs in autocommit, so disposal cannot roll it back.");
+            }
         }
     }
+
+    private static readonly Action<ILogger, Exception?> LogRollbackFailed =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(7002, nameof(LogRollbackFailed)),
+            "Platform-admin scope could not roll back an abandoned transaction. The "
+            + "connection is still returned to the pool; the server ends the transaction "
+            + "when it closes.");
 }

@@ -743,9 +743,13 @@ separate secret path (`learnstack/{deployment}/platform/db-password`) that a dep
 needing no platform admin simply does not provision, in which case
 `EnterPlatformAdminScope` throws **on entry** — on the first call, naming the missing
 `ConnectionStrings:PlatformAdmin`, so a host that never enters the scope still boots,
-every test fixture included — rather than degrading to `learnstack_app`; and by an audit
-row written **inside** the scope before the operation runs and committed on its own, so
-an operation that later fails is still recorded. That row is written as
+every test fixture included — rather than degrading to `learnstack_app`; and, **from
+[Packet 9](../roadmap/phase-02a-kernel-tenancy.md)**, by an audit row written **inside**
+the scope before the operation runs and committed on its own, so an operation that later
+fails is still recorded. Until that packet the entry is recorded through `ILogger` at
+`Warning` with the reason and the calling site: the path is **logged, not audited**, and
+a reader deciding whether cross-tenant access is retained under audit retention today
+must not read the third mitigation as already in force. That row is written as
 `learnstack_platform` and carries the sentinel platform tenant id, because a cross-tenant
 operation has no tenant of its own and `audit_log` is itself tenant-owned.
 

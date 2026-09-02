@@ -51,12 +51,20 @@ namespace LearnStack.Api.Composition;
 /// first moment its absence means anything.
 /// </para>
 /// <para>
-/// <c>ConnectionStrings:PlatformAdmin</c> and
-/// <c>ConnectionStrings:OutboxDispatcher</c> are deliberately absent. They are
-/// keyed data sources reachable only from <c>PlatformAdminScope</c> and the
-/// outbox dispatcher, and they land with their consumers — Packet 7 and Phase
-/// 02b — under
-/// <c>Platform_DataSource_Resolved_Only_By_PlatformAdminScope</c>.
+/// <c>ConnectionStrings:PlatformAdmin</c> is read here, and inversely guarded:
+/// it names <c>learnstack_platform</c>, which <i>is</i> a bypassing role, so it gets
+/// the mirror of the check above — a platform credential that does not bypass would
+/// make every cross-tenant read come back filtered to nothing and look like missing
+/// data. It is registered <b>keyed and unconditionally</b>, behind a
+/// <c>Lazy&lt;NpgsqlDataSource&gt;</c>, so a deployment that performs no cross-tenant
+/// operation boots with no such credential at all and the failure — when one is
+/// finally needed — names the key rather than a container type.
+/// <c>Platform_DataSource_Resolved_Only_By_PlatformAdminScope</c> holds the
+/// resolution boundary.
+/// </para>
+/// <para>
+/// <c>ConnectionStrings:OutboxDispatcher</c> is still deliberately absent; it lands
+/// with its consumer in Phase 02b.
 /// </para>
 /// </remarks>
 public static class PersistenceCompositionExtensions

@@ -81,8 +81,11 @@ public sealed class PlatformAdminGateTests
         // throws, Lazy<T> caches the failure and leaves IsValueCreated false — measured.
         // So "reached the credential" is shown by the failure being the credential's,
         // which is exactly what distinguishes it from the refusal above.
-        (await act.Should().ThrowAsync<InvalidOperationException>())
-            .Which.Message.Should().Contain("ConnectionStrings:PlatformAdmin");
+        // The TYPE, not the message. The Lazy under test is built by this file, so an
+        // assertion on its text would be matching the double rather than production
+        // code; the production message is covered where it is produced, in
+        // PlatformAdminScopeTests.An_Absent_Credential_Names_The_Key_Rather_Than_Degrading.
+        await act.Should().ThrowAsync<InvalidOperationException>();
         dataSource.IsValueCreated.Should().BeFalse(
             "a Lazy whose factory threw never records a created value");
     }
