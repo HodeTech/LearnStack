@@ -73,6 +73,21 @@ public sealed class PlatformAdminScopeConventionTests
                 [CompositionFile],
                 "one file reads credentials, so one file decides what is done with them");
 
+        // Leg 2b — the OTHER way to read the same value. GetConnectionString(name) is
+        // sugar for configuration[$"ConnectionStrings:{name}"], so the indexer form
+        // carries none of Leg 2's needle — and it is not a contrived evasion: the idiom
+        // is already used four times in this solution, for Telemetry:* and for
+        // Deployment:Mode. A contributor reaching for the familiar pattern would trip
+        // none of these rules, could build a raw NpgsqlDataSourceBuilder with no
+        // RequireBypassRole initializer — so even a wrong-role credential would pass
+        // silently — and would skip the gate, the reason and the log line entirely.
+        // Asserted separately from Leg 2 so a failure names the idiom that caused it.
+        SourceScan.FilesContaining(
+            SourceScan.SourceRoot, "ConnectionStrings:PlatformAdmin", except: CompositionFile)
+            .Should().BeEmpty(
+                "the indexer form reads the same credential as GetConnectionString and "
+                + "is the one spelling the other legs cannot see");
+
         // Leg 3 — the scan itself found something. An allow-list assertion is satisfied
         // by an empty result, so a scan that silently stopped matching would read as
         // compliance; this is the failure a sibling rule records in its own words, that a

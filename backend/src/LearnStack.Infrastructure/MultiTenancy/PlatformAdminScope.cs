@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -55,12 +56,20 @@ public sealed class PlatformAdminScope(
         logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The <c>[Caller*]</c> attributes are restated here and not left to the interface.
+    /// C# fills them in from the <b>static type of the receiver</b>, so a caller holding
+    /// the concrete <see cref="PlatformAdminScope"/> — every test that constructs it
+    /// directly, and anything resolving it by implementation type — would otherwise get
+    /// the bare defaults and log <c>&lt;unknown&gt;</c> at <c>&lt;unknown&gt;:0</c>.
+    /// Losing the provenance silently is exactly what this record exists to prevent.
+    /// </remarks>
     public async Task<IPlatformAdminScopeHandle> EnterAsync(
         string reason,
         CancellationToken cancellationToken = default,
-        string? callerMember = null,
-        string? callerFile = null,
-        int callerLine = 0)
+        [CallerMemberName] string? callerMember = null,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
     {
         // The order below is load-bearing, because Packet 9 inherits this call site and
         // writes its SecurityEvent row where the log line sits.

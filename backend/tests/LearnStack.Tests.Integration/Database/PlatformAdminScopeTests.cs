@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.SharedKernel.Tenancy;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -324,6 +325,129 @@ public sealed class PlatformAdminScopeTests
         // line blocks until the pool timeout.
         await using var afterwards = await scope.EnterAsync("test:after", CancellationToken.None);
         afterwards.Connection.State.Should().Be(System.Data.ConnectionState.Open);
+    }
+
+    [Fact]
+    public async Task An_Abandoned_Handle_On_A_Dead_Connection_Still_Returns_It()
+    {
+        // The branch the fix round ADDED and nothing reached: an abandoned frame whose
+        // rollback itself fails. The only other case that kills a backend does so after
+        // CommitAsync has already resolved the handle, and the only case that abandons
+        // one rolls back a healthy connection — so the catch, its filter, and the
+        // LogRollbackFailed swallow were all unexercised. Measured: narrowing the catch
+        // filter to an unreachable type left all 1126 tests green.
+        //
+        // A connection already broken by the failure being cleaned up after is the
+        // ordinary way to reach this, which is why it is worth a case rather than a
+        // comment.
+        var builder = new NpgsqlConnectionStringBuilder(_schema.Postgres.PlatformConnectionString)
+        {
+            MaxPoolSize = 3,
+            Timeout = 5,
+        };
+
+        await using var dataSource = PlatformSource(builder.ConnectionString);
+        var logger = new CapturingLogger();
+        var scope = new PlatformAdminScope(
+            new PermissiveGate(), new Lazy<NpgsqlDataSource>(() => dataSource), logger);
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var handle = await scope.EnterAsync("test:abandoned", CancellationToken.None);
+
+            await using (var suicide = handle.Connection.CreateCommand())
+            {
+                suicide.Transaction = handle.Transaction;
+                suicide.CommandText = "SELECT pg_terminate_backend(pg_backend_pid())";
+
+                try
+                {
+                    await suicide.ExecuteNonQueryAsync(CancellationToken.None);
+                }
+                catch (Exception failure) when (failure is PostgresException or NpgsqlException)
+                {
+                }
+            }
+
+            // No commit: the frame is abandoned, so disposal attempts a rollback that
+            // cannot succeed. It must not throw, and must not keep the connection.
+            var dispose = async () => await handle.DisposeAsync();
+            await dispose.Should().NotThrowAsync(
+                "throwing from disposal replaces whatever the caller was actually failing on");
+        }
+
+        await using var afterwards = await scope.EnterAsync("test:after", CancellationToken.None);
+        afterwards.Connection.State.Should().Be(System.Data.ConnectionState.Open,
+            "every abandoned entry returned its connection through the finally");
+
+        logger.Entries.Should().Contain(entry => entry.EventId == 7002,
+            "a rollback that could not run is recorded rather than silently dropped");
+    }
+
+    [Fact]
+    public async Task Entry_Is_Recorded_At_Warning_With_The_Reason_And_The_Caller()
+    {
+        // The packet's ENTIRE record of a cross-tenant bypass until Packet 9 ships
+        // audit_log — and until now every test passed NullLogger, so demoting it to
+        // Debug, renumbering the EventId, or gutting ShortPath to a constant each left
+        // the whole suite green.
+        //
+        // Bound through the CONCRETE type deliberately. C# fills [Caller*] from the
+        // static type of the receiver, so the attributes have to be on the
+        // implementation as well as the interface — they were not, which meant every
+        // test constructing PlatformAdminScope directly logged "<unknown>" and the
+        // provenance this case exists for was never exercised.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var logger = new CapturingLogger();
+        var scope = new PlatformAdminScope(
+            new PermissiveGate(), new Lazy<NpgsqlDataSource>(() => dataSource), logger);
+
+        await using var handle = await scope.EnterAsync("test:recorded", CancellationToken.None);
+
+        var entry = logger.Entries.Should().ContainSingle(line => line.EventId == 7001).Subject;
+
+        entry.Level.Should().Be(LogLevel.Warning,
+            "an operator filtering at Information must still see a cross-tenant bypass");
+        entry.Message.Should().Contain("test:recorded");
+        entry.Message.Should().Contain(nameof(Entry_Is_Recorded_At_Warning_With_The_Reason_And_The_Caller),
+            "the calling member is how 'the caller' is known at all with no principal");
+        // The property, not a substring of one machine's layout. CallerFilePath is the
+        // COMPILING machine's absolute path, so logging it whole puts a build-agent
+        // directory tree into every forwarded line. A first version asserted
+        // NotContain("/Users/") and missed the mutation that keeps every segment, because
+        // Split drops the leading slash and the result reads "Users/cemililik/..." —
+        // the assertion has to be on the shape, which is at most two segments.
+        var logged = entry.Message.Split(" at ")[1].Split(':')[0];
+
+        logged.Should().EndWith("PlatformAdminScopeTests.cs");
+        logged.Split('/').Should().HaveCountLessThanOrEqualTo(2,
+            "the file is shortened to its last two segments");
+    }
+
+    /// <summary>Records what the scope logged, with its level and event id.</summary>
+    private sealed class CapturingLogger : ILogger<PlatformAdminScope>
+    {
+        private readonly List<Captured> _entries = [];
+
+        public IReadOnlyList<Captured> Entries => _entries;
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+            _entries.Add(new Captured(logLevel, eventId.Id, formatter(state, exception)));
+        }
+
+        internal sealed record Captured(LogLevel Level, int EventId, string Message);
     }
 
     [Fact]

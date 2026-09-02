@@ -845,33 +845,49 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
         if (await inboxGuard.IsAlreadyProcessedAsync(@event.EventId, ct)) return;
 
         // 2. learnstack_app holds no UPDATE privilege on audit_log, so the redaction runs
-        //    as learnstack_platform. Entering the scope is itself a MUST-class audit event.
-        await using (await platformScope.EnterAsync(
-            reason: $"gdpr-redaction:{@event.UserId}", ct))
+        //    as learnstack_platform — on the HANDLE's connection. The injected
+        //    AuditDbContext is bound to IUnitOfWork.Connection (ADR-0040) and stays on
+        //    the request's learnstack_app connection whatever scope surrounds it, so
+        //    issuing the UPDATE through `db` would raise 42501 rather than redact
+        //    anything. Entering the scope is recorded: at Warning today, as a
+        //    SecurityEvent row once Packet 9 ships audit_log.
+        await using var handle = await platformScope.EnterAsync(
+            reason: $"gdpr-redaction:{@event.UserId}", ct);
+
+        // 3. Actor PII only. The payload columns are NOT touched here. A blanket
+        //    jsonb_set('{redacted}', 'true') would (a) not redact anything — it adds a
+        //    flag and leaves the PII in place — and (b) raise
+        //    'cannot set path in scalar' on any snapshot that is a JSON scalar or
+        //    array. Payload redaction belongs to the per-module locator below, which
+        //    knows which JSON paths in its own snapshots reference a user.
+        await using (var redact = handle.Connection.CreateCommand())
         {
-            // 3. Actor PII only. The payload columns are NOT touched here. A blanket
-            //    jsonb_set('{redacted}', 'true') would (a) not redact anything — it adds a
-            //    flag and leaves the PII in place — and (b) raise
-            //    'cannot set path in scalar' on any snapshot that is a JSON scalar or
-            //    array. Payload redaction belongs to the per-module locator below, which
-            //    knows which JSON paths in its own snapshots reference a user.
-            await db.Database.ExecuteSqlInterpolatedAsync($@"
+            redact.Transaction = handle.Transaction;
+            redact.CommandText = @"
                 UPDATE audit_log
                 SET actor_email = '[REDACTED]',
                     ip_address  = NULL,
                     user_agent  = '[REDACTED]'
-                WHERE actor_user_id = {@event.UserId}
-                  AND tenant_id     = {@event.TenantId}", ct);
-
-            // 4. Payload references, per module. Each locator issues column-restricted
-            //    UPDATEs against before_state / after_state / changes only.
-            foreach (var locator in userReferenceLocators)
-                await locator.RedactReferencesAsync(@event.UserId, @event.TenantId, ct);
-
-            // 5. Inbox: mark processed; SaveChanges.
-            inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-            await db.SaveChangesAsync(ct);
+                WHERE actor_user_id = @actor
+                  AND tenant_id     = @tenant";
+            redact.Parameters.Add(new NpgsqlParameter("actor", @event.UserId));
+            redact.Parameters.Add(new NpgsqlParameter("tenant", @event.TenantId));
+            await redact.ExecuteNonQueryAsync(ct);
         }
+
+        // 4. Payload references, per module. Each locator issues column-restricted
+        //    UPDATEs against before_state / after_state / changes only — on the same
+        //    handle, because they need the same privilege for the same reason.
+        foreach (var locator in userReferenceLocators)
+            await locator.RedactReferencesAsync(handle, @event.UserId, @event.TenantId, ct);
+
+        await handle.CommitAsync(ct);
+
+        // 5. Inbox: mark processed; SaveChanges. Ordinary learnstack_app work on the
+        //    ambient transaction, deliberately outside the scope block — it is not part
+        //    of the cross-tenant unit and must not read as though it rides it.
+        inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
+        await db.SaveChangesAsync(ct);
 
         // 6. Meta-audit. The redaction is itself a MUST-class security event, and a log
         //    line is not an audit row — the previous version of this handler logged and
