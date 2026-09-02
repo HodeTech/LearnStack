@@ -442,8 +442,9 @@ public sealed class TenantContextFactoryTests
         // The default is null, and null is fail-closed ONLY under an allow-list. The
         // pipeline's ceiling check must ask "is this origin one of the ones permitted
         // here?" — written as `Origin != HostOnly` it passes for null and hands an
-        // unstated context the run of the API. That obligation belongs to the step
-        // that writes the check; this pins the value it will be reading.
+        // unstated context the run of the API. That check now exists;
+        // TenantContextBehaviorTests.A_Resolved_Context_That_States_No_Origin_Reaches_Nothing
+        // is what holds it to the allow-list form, and this pins the value it reads.
         ITenantContext silent = new OriginlessContext();
 
         silent.Origin.Should().BeNull();

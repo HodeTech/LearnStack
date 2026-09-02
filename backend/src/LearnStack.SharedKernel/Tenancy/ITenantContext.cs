@@ -23,7 +23,11 @@ public interface ITenantContext
     /// <c>true</c> once the resolution pipeline has populated tenant + (where
     /// applicable) organization. <c>TenantContextBehavior</c> short-circuits
     /// the request with <c>Result.Fail(tenant_mismatch)</c> when this is
-    /// <c>false</c>.
+    /// <c>false</c>, unless the request carries
+    /// <see cref="AllowsUnresolvedTenantContextAttribute"/>. A context that <i>is</i>
+    /// resolved then faces the second gate — see <see cref="Origin"/>, whose refusal
+    /// carries <c>not_found</c> rather than <c>tenant_mismatch</c> because it must be
+    /// indistinguishable from an unresolvable host.
     /// </summary>
     bool IsResolved { get; }
 
@@ -77,8 +81,9 @@ public interface ITenantContext
     /// gets no authority rather than the wrong one — but that only holds if the
     /// consumer asks "is this origin one of the ones permitted here?". A check
     /// written as <c>Origin != HostOnly</c> passes for <c>null</c> and hands an
-    /// unstated context the run of the API. The pipeline's ceiling enforcement is
-    /// the consumer that matters.
+    /// unstated context the run of the API. <c>TenantContextBehavior</c> at pipeline
+    /// step 4 is that consumer, and it is written as a <c>switch</c> over stated
+    /// origins for exactly this reason.
     /// </remarks>
     TenantContextOrigin? Origin => null;
 

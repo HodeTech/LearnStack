@@ -178,8 +178,16 @@ The set is this table and nothing else:
 Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s two
 anonymous read endpoints. Until then `PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
-([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) are vacuously
-green over an empty set — the honest state of a marker no request type carries yet.
+([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) pass over an
+empty set — the honest state of a marker no request type carries yet.
+
+**Adding a row here is half of an edit.** The rule reads this table in both directions,
+so a row naming a request type that does not carry `[PublicSurface]` fails the build:
+an entry here reads as a reviewed decision, and one with no attribute behind it is a
+decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSensitive`
+is the one to watch when the first row lands — its audit-catalogue cross-check needs
+`IAuditStore`, which arrives in Packet 9, so until then it asserts only that the set is
+empty and a row landing before that is what forces the question.
 
 ## Pagination
 

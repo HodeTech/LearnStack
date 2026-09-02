@@ -934,8 +934,16 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003; ADR-0032 § Sub-decision 2;
   [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md).
 - **Type:** xUnit + reflection over `IRequest<>` implementations. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
 - **Phase:** 02a (Packet 7).
+- **Note:** the set leg is **vacuous today** and the shape leg is not. There is not one
+  production request type in the solution, so the permitted set is literally empty;
+  `ProvisionTenantCommand` is the first to carry the marker, in Packet 7 step 9. What runs now
+  is the guard on the attribute's own `AttributeUsage`: the behavior reads it with
+  `inherit: false`, and flipping the attribute to `Inherited = true` is not an error and not a
+  widening — it is a marker the pipeline silently stops following.
+- **Note:** the permitted set is a **literal list of type names**, not a naming pattern. A rule
+  satisfied by what an author calls a class is a rule nobody reviewed.
 
 #### `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA`
 
@@ -2082,8 +2090,15 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [Standards 04 § Public surface](04-api-design.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
 - **Phase:** 02a Packet 7.
+- **Note:** the two directions are not equally vacuous, and the existing note above covers
+  only one of them. **Marked set → table** is vacuous while no type carries the marker.
+  **Table → marked set** is live from the day it ships: the table may not name a type that
+  carries no attribute, because an entry there reads as a reviewed decision and one with
+  nothing behind it is a decision the pipeline never enforces. The table ships empty, so that
+  leg asserts emptiness — and becomes an assertion about something the moment Phase 02d
+  writes its first row.
 - **Note:** the set ships **empty** in Packet 7, which registers no `[PublicSurface]`
   request type, and takes its first rows in
   [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). The rule is vacuously green
@@ -2094,9 +2109,16 @@ structural test proves — and what it does not.
 - **Asserts:** no `[PublicSurface]` request type is classified MUST-class `read-sensitive`. Otherwise an anonymous `GET` becomes a durable standalone audit write.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [Standards 04 § Public surface](04-api-design.md).
-- **Type:** xUnit + audit-catalogue cross-check. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02a Packet 7.
+- **Type:** xUnit + reflection (set-emptiness); the audit-catalogue cross-check from Packet 9. **Kind:** structural.
+- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6) — as set-emptiness only.
+- **Phase:** 02a Packet 7; the cross-check leg, Packet 9.
+- **Note:** **vacuous on both sides today, and the Type field above said otherwise.** The
+  catalogued instrument was an audit-catalogue cross-check against a catalogue that does not
+  exist in code — `IAuditStore` and the operation catalogue are Packet 9 — so the leg that
+  runs is the emptiness of the marked set, which makes the claim trivially true rather than
+  checked. It is landed rather than deferred so that a marked type arriving before Packet 9
+  turns this rule red and forces the question, instead of passing quietly under a rule whose
+  stated instrument was never built.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 

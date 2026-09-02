@@ -39,13 +39,22 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// </remarks>
 public static class TenantContextFactory
 {
-    /// <summary>The one refusal. Deliberately the same for every failing row.</summary>
+    /// <summary>
+    /// The one refusal — for every failing row, and for the pipeline's ceiling.
+    /// </summary>
     /// <remarks>
     /// One <see cref="Error"/> and not one per row: a caller who could tell row 8
     /// (a tenant that exists, claimed by a token for another) from row 10 (an
     /// organization no membership covers) would have an oracle over which tenants
     /// and organizations exist. The distinction that matters to an operator is
     /// carried by the middleware's log line, not by the response.
+    /// <para>
+    /// <b>Shared with <c>TenantContextBehavior</c>'s authority-ceiling gate</b>, which
+    /// is not a row of the matrix. The coupling is deliberate and it is to the wire
+    /// result rather than to the matrix: both refusals must be byte-identical to an
+    /// unresolvable host's <c>404</c>, and one <see cref="Error"/> makes that a
+    /// compile-time fact instead of two tests agreeing by coincidence.
+    /// </para>
     /// </remarks>
     public static Error Refused { get; } = new(new LocalizedMessage("lockey_not_found"));
 
