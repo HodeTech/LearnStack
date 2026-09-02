@@ -30,7 +30,12 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// they are compared downstream against what this produced. No host class: the
 /// three live classes are already determined by which of the two host-side
 /// identifiers are present, and the enum lives in an assembly the kernel cannot
-/// see. No module name: the resolver runs before routing has selected an endpoint.
+/// see. No module name — and <b>not</b> because routing has not run: measured, it has,
+/// since minimal hosting inserts <c>UseRouting</c> ahead of every user middleware, so
+/// the matched endpoint is already available at the resolver. The reason is a design
+/// constraint. Resolution must not vary by route; admitting the endpoint would make
+/// the matrix a function of which route matched, which is a second resolution
+/// authority.
 /// </para>
 /// <para>
 /// <c>UnknownHost</c> never arrives here either — host classification answers it
@@ -116,11 +121,53 @@ public sealed record TenantResolutionAttempt
                 || ClaimOrganizationId == HostOrganizationId));
 
     /// <summary>
+    /// Claim shapes that are no row of the matrix at all.
+    /// </summary>
+    /// <remarks>
+    /// A validated principal always carries a subject, and an organization claim is
+    /// meaningless without the tenant claim that scopes it. Neither shape appears in
+    /// the matrix, so without this the factory answered them by falling through —
+    /// measured, and both answers were too generous. An organization claim with no
+    /// tenant claim took the claim's organization <i>under the anonymous
+    /// <c>HostOnly</c> ceiling</i>, which is row 11's forbidden scope change reached
+    /// by omitting a field; and a tenant claim with no subject minted
+    /// <c>ClaimAndMembership</c> — the strongest ceiling — with a null user, a
+    /// membership attributed to no member.
+    /// <para>
+    /// Refusing here rather than narrowing <see cref="RequiresMembershipCheck"/>
+    /// alone is deliberate: that predicate is also the factory's did-anyone-answer
+    /// gate, so narrowing it would skip the refusal instead of causing one. It is
+    /// also what earns the two <c>!</c> dereferences in the resolver's port calls,
+    /// which would otherwise throw once Phase 02b populates claims.
+    /// </para>
+    /// </remarks>
+    public bool HasIncoherentClaims =>
+        (ClaimTenantId is not null && UserId is null)
+        || (ClaimOrganizationId is not null && ClaimTenantId is null);
+
+    /// <summary>
+    /// The organization membership is asked about — the same one
+    /// <c>TenantContextFactory</c> resolves.
+    /// </summary>
+    /// <remarks>
+    /// One expression, so "whether to ask" and "what to ask about" cannot drift.
+    /// They had: row 10 is an org-host with a tenant-wide claim, and the resolver
+    /// asked the strictly weaker tenant-level question — <c>organizationId: null</c> —
+    /// while the factory granted the host's organization. ADR-0036 row 10 says the
+    /// context resolves <c>(T, O)</c> <b>iff M covers <c>(T, O)</c></b>. Rows 7 and 14
+    /// were self-consistent only by coincidence, because the host names no
+    /// organization on either, which is exactly why the slip was invisible.
+    /// </remarks>
+    public OrganizationId? MembershipQuestionOrganizationId =>
+        ClaimOrganizationId ?? HostOrganizationId;
+
+    /// <summary>
     /// Rows 7, 10 and 14 — a claim that goes beyond what the host already vouches
     /// for, and nothing else.
     /// </summary>
     public bool RequiresMembershipCheck =>
-        ClaimTenantId is not null
+        !HasIncoherentClaims
+        && ClaimTenantId is not null
         && ClaimAgreesWithHost
         && (HostTenantId is null || ClaimOrganizationId != HostOrganizationId);
 
@@ -139,7 +186,8 @@ public sealed record TenantResolutionAttempt
     /// id to PostgreSQL through <c>set_config</c>.
     /// </remarks>
     public bool RequiresOrganizationScopeCheck =>
-        HostTenantId is not null
+        !HasIncoherentClaims
+        && HostTenantId is not null
         && ClaimOrganizationId is not null
         && ClaimAgreesWithHost
         && ClaimOrganizationId != HostOrganizationId;

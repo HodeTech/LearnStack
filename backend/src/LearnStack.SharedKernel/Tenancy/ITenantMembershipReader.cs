@@ -31,6 +31,6 @@ public interface ITenantMembershipReader
     Task<bool> CoversAsync(
         UserId userId,
         TenantId tenantId,
-        OrganizationId? organizationId = null,
+        OrganizationId? organizationId,
         CancellationToken cancellationToken = default);
 }

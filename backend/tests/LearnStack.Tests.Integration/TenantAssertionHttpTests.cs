@@ -161,7 +161,7 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
         // A first version echoed this back under a second header. Kestrel
         // accepts bytes in a REQUEST header that it refuses to write into a
         // RESPONSE header, so 'é', a control character or an emoji made the
-        // assignment throw: a 500 on every route, pre-auth and pre-routing,
+        // assignment throw: a 500 on every route, before authentication,
         // each one captured by IErrorTrackingProvider. One header, anonymous,
         // and the error-tracker quota is someone else's.
         using var request = Get("/api/v1/assertionprobe");

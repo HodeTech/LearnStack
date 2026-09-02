@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,10 +13,12 @@ namespace LearnStack.Api.Tenancy;
 /// <remarks>
 /// <para>
 /// <b>One of exactly four writers of <c>ITenantContextAccessor.Current</c></b>
-/// (ADR-0032 § Sub-decision 10): this for HTTP, <c>HubCorrelationMiddleware</c> for
+/// (ADR-0036 § Rules): this for HTTP, <c>HubCorrelationMiddleware</c> for
 /// <c>/api/internal/*</c>, the Hangfire <c>JobActivator</c> for jobs, and the outbox
-/// / inbox handler scope for integration events. It is the first of the four to
-/// exist, and <c>SetTenant_Callers_Are_The_Enumerated_Four</c> holds the line.
+/// / inbox handler scope for integration events. It is the <b>second</b> of the four
+/// to exist — <c>InProcessEventBus</c> has written the accessor for the handler scope
+/// since Packet 5 — and the first on an HTTP request path.
+/// <c>SetTenant_Callers_Are_The_Enumerated_Four</c> holds the line for both.
 /// </para>
 /// <para>
 /// <b>Where it sits, and why not one step earlier.</b> Host classification runs
@@ -129,11 +132,30 @@ public sealed class TenantResolverMiddleware(
         // populated a principal, so every claim field stays null and the matrix
         // collapses to its anonymous rows. Left as one place to change rather than
         // spread through the branches below.
+        //
+        // No module name, and NOT because routing has not run — measured, it has:
+        // minimal hosting inserts UseRouting ahead of every user middleware, so
+        // context.GetEndpoint() is already non-null here. The reason is a design
+        // constraint. Resolution must not vary by route; admitting the matched
+        // endpoint into the attempt would make the matrix a function of which
+        // endpoint matched, which is a second resolution authority.
         var attempt = new TenantResolutionAttempt
         {
             HostTenantId = classification.TenantId,
             HostOrganizationId = classification.OrganizationId,
-            CorrelationId = context.TraceIdentifier,
+            // Activity.Current.Id, not TraceIdentifier — the same expression
+            // CorrelationHeaderMiddleware, ProblemDetailsFactory and the L1 handler
+            // already use, and for the reason CorrelationHeaderMiddleware states by
+            // name: TraceIdentifier is a per-connection Kestrel string that appears in
+            // no response header and no error body. ITenantContext.CorrelationId is
+            // contractually the W3C traceparent, and this is the first writer of the
+            // accessor on an HTTP path — so the wrong value here is what every span,
+            // every Serilog line and every Sentry scope on the two live matrix rows
+            // would carry, correlating with nothing the caller was given. It also
+            // arms an ArgumentException at the first outbox enqueue, where
+            // IntegrationEventEnvelope validates with ActivityContext.TryParse —
+            // measured false for a TraceIdentifier.
+            CorrelationId = Activity.Current?.Id ?? context.TraceIdentifier,
         };
 
         if (attempt.RequiresMembershipCheck)
@@ -143,7 +165,7 @@ public sealed class TenantResolverMiddleware(
                 MembershipCovers = await memberships.CoversAsync(
                     attempt.UserId!.Value,
                     attempt.ClaimTenantId!.Value,
-                    attempt.ClaimOrganizationId,
+                    attempt.MembershipQuestionOrganizationId,
                     context.RequestAborted),
             };
 

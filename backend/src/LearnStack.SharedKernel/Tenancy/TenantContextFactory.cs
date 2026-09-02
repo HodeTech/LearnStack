@@ -67,6 +67,14 @@ public static class TenantContextFactory
             return Result.Fail<TenantContext>(Refused);
         }
 
+        // Neither shape is a row. Refused before the cross-check, because the
+        // cross-check reasons about signals that agree and these signals are not
+        // well-formed enough to disagree.
+        if (attempt.HasIncoherentClaims)
+        {
+            return Result.Fail<TenantContext>(Refused);
+        }
+
         // Rows 8, 11 and 12 — the cross-check. Evaluated before any port answer is
         // consulted, so a refused request never spends a database round trip.
         if (!attempt.ClaimAgreesWithHost)
@@ -95,7 +103,9 @@ public static class TenantContextFactory
 
         // The claim narrows, the host supplies the anonymous default. Row 7 takes the
         // claim's organization on a tenant-wide host; rows 3 and 9 take the host's.
-        var organizationId = attempt.ClaimOrganizationId ?? attempt.HostOrganizationId;
+        // The SAME member the resolver asks membership about, so the organization
+        // granted and the organization vouched for are one expression.
+        var organizationId = attempt.MembershipQuestionOrganizationId;
 
         return Result.Ok(new TenantContext(
             tenantId,

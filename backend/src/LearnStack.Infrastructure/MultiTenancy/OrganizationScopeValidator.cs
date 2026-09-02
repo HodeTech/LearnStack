@@ -78,6 +78,18 @@ public sealed class OrganizationScopeValidator(Lazy<NpgsqlDataSource> dataSource
         await using var transaction =
             await connection.BeginTransactionAsync(cancellationToken);
 
+        // Four carriers call this a "short READ-ONLY transaction" — the port's own
+        // doc, the Standards 11 setter table, the glossary and ADR-0040 Amendment 3 —
+        // and learnstack_app holds write grants on organizations, so nothing but this
+        // statement made it true. Read-only is the property that makes a seventh
+        // member of a closed set of app.tenant_id setters uncontroversial;
+        // set_config(..., true) is still permitted inside one.
+        await using (var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY", connection, transaction))
+        {
+            await readOnly.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         // set_config(..., true) and not SET LOCAL: PostgreSQL's SET takes no bind
         // parameter, so `SET LOCAL app.tenant_id = $1` is a syntax error and the
         // only alternative would be interpolating a caller-supplied identifier into

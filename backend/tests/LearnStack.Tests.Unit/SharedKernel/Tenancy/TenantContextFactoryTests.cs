@@ -186,15 +186,30 @@ public sealed class TenantContextFactoryTests
         // nothing. Making it a refusal also removes a durable write from a happy
         // path: nothing re-issues the token, so the disagreement would hold for the
         // whole session and every subresource fetch would re-emit the event.
-        var result = TenantContextFactory.Create(Authenticated() with
+        var attempt = Authenticated() with
         {
             HostTenantId = TenantA,
             HostOrganizationId = OrgOne,
             ClaimTenantId = TenantA,
             ClaimOrganizationId = OrgTwo,
-        });
+        };
 
-        result.IsSuccess.Should().BeFalse();
+        attempt.ClaimAgreesWithHost.Should().BeFalse(
+            "the organization term is what refuses this row — asserting only the "
+            + "outcome let the whole term be deleted, because the membership guard "
+            + "then caught the row for an unrelated reason");
+
+        TenantContextFactory.Create(attempt).IsSuccess.Should().BeFalse();
+
+        // And it stays refused once Phase 03 can answer both questions. This is the
+        // deliberated decision ADR-0036 records — a disagreeing claim is a mismatch,
+        // not a scope change — and without this line the real reader removes the
+        // coincidence that was holding it.
+        TenantContextFactory.Create(attempt with
+        {
+            MembershipCovers = true,
+            ClaimedOrganizationBelongsToTenant = true,
+        }).IsSuccess.Should().BeFalse();
     }
 
     [Fact]
@@ -224,6 +239,13 @@ public sealed class TenantContextFactoryTests
         var attempt = new TenantResolutionAttempt { HasValidatedPrincipal = authenticated };
 
         attempt.NamesNoTenant.Should().BeTrue(row);
+
+        // The middleware branches on the predicate and never calls Create for these
+        // rows — but Create must still refuse rather than throw, because its own
+        // contract says so and because a caller that ignores the note is exactly who
+        // needs the guard. Without it the tenant dereference below raises
+        // InvalidOperationException at the request edge.
+        TenantContextFactory.Create(attempt).IsSuccess.Should().BeFalse();
     }
 
     [Fact]
@@ -246,6 +268,88 @@ public sealed class TenantContextFactoryTests
         covered.Value!.TenantId.Should().Be(TenantB);
         covered.Value!.Origin.Should().Be(TenantContextOrigin.ClaimAndMembership,
             "no host named this tenant, so membership is what carried it — the one row that is");
+    }
+
+    [Fact]
+    public void Row_14_Without_An_Organization_Claim_Still_Needs_Membership()
+    {
+        // The variant that has no organization anywhere: a platform host and a
+        // tenant-wide claim. RequiresOrganizationScopeCheck is false and membership
+        // is the only thing standing between the caller and a tenant no host named.
+        var attempt = Authenticated() with { ClaimTenantId = TenantB };
+
+        attempt.RequiresMembershipCheck.Should().BeTrue();
+        attempt.RequiresOrganizationScopeCheck.Should().BeFalse();
+        TenantContextFactory.Create(attempt).IsSuccess.Should().BeFalse();
+
+        var covered = TenantContextFactory.Create(attempt with { MembershipCovers = true });
+        covered.IsSuccess.Should().BeTrue();
+        covered.Value!.Origin.Should().Be(TenantContextOrigin.ClaimAndMembership);
+        covered.Value.OrganizationId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(true, false, "an organization claim with no tenant claim to scope it")]
+    [InlineData(false, true, "a tenant claim with no subject to attribute it to")]
+    public void A_Claim_Shape_The_Matrix_Has_No_Row_For_Is_Refused(
+        bool organizationWithoutTenant, bool tenantWithoutSubject, string shape)
+    {
+        // Both were measured answering — and answering generously. The first took the
+        // claim's organization under the anonymous HostOnly ceiling, which is row 11's
+        // forbidden scope change reached by omitting a field. The second minted
+        // ClaimAndMembership, the strongest ceiling there is, with a null user: a
+        // membership attributed to no member.
+        var attempt = new TenantResolutionAttempt
+        {
+            HostTenantId = organizationWithoutTenant ? TenantA : null,
+            HostOrganizationId = organizationWithoutTenant ? OrgOne : null,
+            ClaimOrganizationId = organizationWithoutTenant ? OrgTwo : null,
+            ClaimTenantId = tenantWithoutSubject ? TenantA : null,
+            HasValidatedPrincipal = true,
+            MembershipCovers = true,
+            ClaimedOrganizationBelongsToTenant = true,
+        };
+
+        attempt.HasIncoherentClaims.Should().BeTrue(shape);
+        attempt.RequiresMembershipCheck.Should().BeFalse(
+            "an incoherent claim must not reach a port either — the two ! dereferences "
+            + "in the resolver's calls are earned by this");
+        attempt.RequiresOrganizationScopeCheck.Should().BeFalse();
+
+        // Asserted separately from the predicate: a variant that made the predicates
+        // false without refusing would pass a predicate-only assertion and fail open.
+        TenantContextFactory.Create(attempt).IsSuccess.Should().BeFalse(shape);
+    }
+
+    [Fact]
+    public void Membership_Is_Asked_About_The_Organization_That_Will_Be_Granted()
+    {
+        // Row 10, where the question and the grant drifted: the resolver asked the
+        // strictly weaker tenant-level question while the factory granted the host's
+        // organization. ADR-0036 row 10 resolves (T, O) iff M covers (T, O).
+        var row10 = Authenticated() with
+        {
+            HostTenantId = TenantA,
+            HostOrganizationId = OrgOne,
+            ClaimTenantId = TenantA,
+        };
+
+        row10.MembershipQuestionOrganizationId.Should().Be(OrgOne);
+        TenantContextFactory.Create(row10 with { MembershipCovers = true })
+            .Value!.OrganizationId.Should().Be(row10.MembershipQuestionOrganizationId);
+
+        // Rows 7 and 14 were self-consistent only because the host names no
+        // organization on either — which is exactly why the row-10 slip was invisible.
+        var row7 = Authenticated() with
+        {
+            HostTenantId = TenantA,
+            ClaimTenantId = TenantA,
+            ClaimOrganizationId = OrgOne,
+        };
+        row7.MembershipQuestionOrganizationId.Should().Be(OrgOne);
+
+        var row14 = Authenticated() with { ClaimTenantId = TenantB, ClaimOrganizationId = OrgTwo };
+        row14.MembershipQuestionOrganizationId.Should().Be(OrgTwo);
     }
 
     [Fact]
@@ -302,6 +406,56 @@ public sealed class TenantContextFactoryTests
         var act = () => TenantContextFactory.Create(null!);
 
         act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task The_Registered_Membership_Reader_Denies_Everything()
+    {
+        // Nothing in the suite instantiated this type, so the only membership
+        // behaviour the corpus exhibited was a permissive test double — and flipping
+        // the shipped reader to return true left all 1069 tests green. Its own doc
+        // says it exists "so that nobody makes the default permissive to unblock a
+        // demo"; this is the line that would notice.
+        var reader = new DenyAllTenantMembershipReader();
+
+        (await reader.CoversAsync(Actor, TenantA, OrgOne, CancellationToken.None))
+            .Should().BeFalse();
+        (await reader.CoversAsync(Actor, TenantA, null, CancellationToken.None))
+            .Should().BeFalse("the tenant-level question is denied too");
+    }
+
+    [Fact]
+    public void An_Implementation_That_States_No_Origin_Carries_None()
+    {
+        // The default is null, and null is fail-closed ONLY under an allow-list. The
+        // pipeline's ceiling check must ask "is this origin one of the ones permitted
+        // here?" — written as `Origin != HostOnly` it passes for null and hands an
+        // unstated context the run of the API. That obligation belongs to the step
+        // that writes the check; this pins the value it will be reading.
+        ITenantContext silent = new OriginlessContext();
+
+        silent.Origin.Should().BeNull();
+        // Through the interface, because Origin is a default interface member and a
+        // type that does not restate it has no such member of its own. That is the
+        // cost of the small diff, and it is worth knowing: a consumer holding the
+        // concrete type cannot read the ceiling at all.
+        ((ITenantContext)UnresolvedTenantContext.Instance).Origin.Should().BeNull(
+            "an unresolved context resolved nothing, so it carries no authority either");
+    }
+
+    private sealed class OriginlessContext : ITenantContext
+    {
+        public bool IsResolved => true;
+
+        public TenantId TenantId => TenantA;
+
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => null;
     }
 
     private static TenantResolutionAttempt Authenticated() =>

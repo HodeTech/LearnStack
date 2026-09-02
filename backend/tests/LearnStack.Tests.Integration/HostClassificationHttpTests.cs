@@ -234,6 +234,61 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
             "the row is never read, which is why it is inert rather than conflicting");
     }
 
+    [Theory]
+    [InlineData(false, HttpStatusCode.OK, "an assertion that agrees changes nothing")]
+    [InlineData(true, HttpStatusCode.NotFound, "one that disagrees is refused")]
+    public async Task An_Assertion_Is_Compared_Against_What_The_Resolver_Produced(
+        bool disagree, HttpStatusCode expected, string because)
+    {
+        // Matrix row 16, which this step's own erratum says Packet 7 makes reachable
+        // for the FIRST time: Packet 4 shipped the comparison against a context that
+        // never resolved, so every comparison took the !IsResolved branch and passed
+        // the request through.
+        //
+        // This is also the only thing pinning the pipeline ORDER. Measured: moving
+        // UseLearnStackTenantResolution back above UseLearnStackTenantAssertions
+        // leaves all 1069 tests green while silently restoring the unreachable
+        // branch — an X-Tenant-Id naming another tenant is served, and only a metric
+        // goes quiet. The existing assertion suite cannot see it, because its fixture
+        // substitutes a scoped ITenantContext stub rather than resolving one.
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/hostprobe", UriKind.Relative));
+        request.Headers.Host = HostClassificationFixture.TenantHost;
+        request.Headers.Add(
+            "X-Tenant-Id",
+            (disagree ? Guid.Parse("018f4d40-0000-7000-8000-0000000000ff")
+                      : HostClassificationFixture.Tenant).ToString());
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(expected, because);
+    }
+
+    [Fact]
+    public async Task The_Resolved_Context_Carries_The_Correlation_Id_The_Caller_Was_Given()
+    {
+        // ITenantContext.CorrelationId is contractually the W3C traceparent, and this
+        // middleware is the first writer of the accessor on an HTTP path — so every
+        // span, Serilog line and Sentry scope on the live matrix rows carries whatever
+        // it puts here. The first version put Kestrel's TraceIdentifier, which is
+        // per-connection, parses as no traceparent, and appears in neither the
+        // response header nor the error body: three sinks correlating with nothing the
+        // caller holds, and an ArgumentException armed at the first outbox enqueue.
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/hostprobe", UriKind.Relative));
+        request.Headers.Host = HostClassificationFixture.TenantHost;
+
+        var response = await _client.SendAsync(request);
+        var probe = await ReadProbeAsync(response);
+
+        probe.CorrelationId.Should().NotBeNullOrEmpty();
+        probe.CorrelationId.Should().Be(
+            response.Headers.GetValues("X-Correlation-Id").Single(),
+            "the context, the response header and the Problem Details body are one value");
+        System.Diagnostics.ActivityContext.TryParse(probe.CorrelationId, null, out _)
+            .Should().BeTrue("IntegrationEventEnvelope validates it with exactly this call");
+    }
+
     [Fact]
     public async Task An_Unclassified_Prefix_Is_Served_Whatever_Its_Host()
     {
@@ -345,7 +400,8 @@ public sealed class HostProbeController(ITenantContext tenantContext)
             tenantContext.IsResolved,
             tenantContext.IsResolved ? tenantContext.TenantId.Value : null,
             tenantContext.OrganizationId?.Value,
-            tenantContext.Origin?.ToString()));
+            tenantContext.Origin?.ToString(),
+            tenantContext.CorrelationId));
 }
 
 /// <summary>What <see cref="HostProbeController"/> reports, typed.</summary>
@@ -356,4 +412,9 @@ public sealed class HostProbeController(ITenantContext tenantContext)
 /// coincidence of spelling is the failure this packet keeps finding.
 /// </remarks>
 public sealed record HostProbe(
-    string Class, bool Resolved, Guid? TenantId, Guid? OrganizationId, string? Origin);
+    string Class,
+    bool Resolved,
+    Guid? TenantId,
+    Guid? OrganizationId,
+    string? Origin,
+    string? CorrelationId);

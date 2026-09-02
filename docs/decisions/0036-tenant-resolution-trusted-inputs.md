@@ -616,9 +616,11 @@ this ADR actually shipped.
 > column, and the paragraph immediately below this table says so — "the authenticated
 > tier is dormant before Phase 02b — there is no `UseAuthentication` to be ordered
 > after". Shown by `grep -rn UseAuthentication backend/src`, whose only hit is a comment
-> saying it does not exist yet. The rows Packet 7 makes live are **2, 3 and 13**, and it
-> makes **16** reachable for the first time — the assertion comparison shipped in Packet
-> 4 with nothing resolved to compare against. Rows 6, 9 and 10 become live in **Phase
+> saying it does not exist yet. The rows Packet 7 makes live are **1, 2, 3 and 13**, and
+> it makes **16** reachable for the first time — the assertion comparison shipped in
+> Packet 4 with nothing resolved to compare against. Row 1 is on the list because host
+> classification is itself Packet 7's; it is decided before a `TenantResolutionAttempt`
+> exists, which is why the factory's seventeen-row suite does not cover it. Rows 6, 9 and 10 become live in **Phase
 > 02b**; 7 and 14 need Phase 02b to be reachable at all and Phase 03 to stop failing
 > closed. The table's own Packet 4 row draws exactly this distinction — "unreachable in
 > traffic" — and the Packet 7 row did not. Nothing about what the rows *decide* changes;
@@ -924,8 +926,10 @@ precisely this distinction.
 in `TenantAssertionMiddleware` noting that there is none to be ordered after. The Auth
 column of rows 6, 9 and 10 reads `(T, —)`, `(T, O)` and `(T, —)` — a claim in every case.
 
-**The corrected reading.** Packet 7 makes rows **2, 3 and 13** live and row **16**
-reachable. Row 16 is the one worth naming: the assertion comparison shipped in Packet 4
+**The corrected reading.** Packet 7 makes rows **1, 2, 3 and 13** live and row **16**
+reachable. Row 1 — an unknown host, 404 at classification — is Packet 7's own: before
+this packet the pipeline ran from the OpenAPI document straight to the assertion
+comparison, with no classification step at all. Row 16 is the one worth naming: the assertion comparison shipped in Packet 4
 against a context that never resolved, so every comparison was vacuous; Packet 7 is what
 gives it a resolved value to disagree with.
 
@@ -940,7 +944,8 @@ claim.
 **Every carrier changed.** This ADR — the inline erratum beside the staging table, and
 this amendment. No other document reproduces the row list;
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) points here rather than restating it,
-and the Packet 7 delivery record states the corrected set directly.
+and the Packet 7 delivery record, when it is written at packet close, states the
+corrected set directly rather than the staging table's original.
 
 **The Decision is unchanged.** The matrix, the signals, the ceiling and the staging
 order all stand; only the claim about which rows traffic can reach in Packet 7 is

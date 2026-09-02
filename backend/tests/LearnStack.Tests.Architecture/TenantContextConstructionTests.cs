@@ -17,7 +17,7 @@ public sealed class TenantContextConstructionTests
     [Fact]
     public void TenantContext_Is_Constructed_Only_By_The_Factory()
     {
-        // Three conjuncts, and they need two different instruments — which is the
+        // Five conjuncts, and they need two different instruments — which is the
         // whole reason this test is written out rather than expressed as one
         // NetArchTest chain. A type-reference scan can see a constructor's
         // accessibility and a method's return type; it cannot see a `new` expression,
@@ -84,24 +84,37 @@ public sealed class TenantContextConstructionTests
         // `ITenantContextAccessor.Current`, and writes to it have exactly four
         // callers — TenantResolverMiddleware (HTTP), HubCorrelationMiddleware
         // (/api/internal/*), the Hangfire JobActivator (jobs) and the outbox / inbox
-        // handler scope (integration events). Only the first exists today; the rule
-        // is written over the whole set so the second one to arrive is a deliberate
-        // edit here rather than a silent addition there.
+        // handler scope (integration events). Two exist today; the rule is written
+        // over the whole set so the third to arrive is a deliberate edit here rather
+        // than a silent addition there.
+        //
+        // The needle is receiver-agnostic — a future `Activity.Current =` anywhere in
+        // backend/src would trip this, which is a false positive to exempt by path
+        // and not a reason to filter by folder.
         //
         // EnterPlatformAdminScope is deliberately NOT among them (Step 7): it opens a
         // second connection and sets no tenant context. A test that admitted it would
         // be admitting a cross-tenant path into the resolution set.
+        // Unfiltered, and that is the whole rule. The first version narrowed the scan
+        // to files whose path contained "Tenancy", which deleted the writer that had
+        // already shipped — InProcessEventBus, the integration-event handler scope,
+        // which ADR-0036 Amendment 2 names as the fourth caller — and, worse, meant a
+        // fifth writer anywhere else in the tree passed green. A rule whose whole job
+        // in this packet is the NEGATIVE cannot be scoped to the folder the positives
+        // happen to live in. If a false positive ever appears, narrow the needle or
+        // exempt the one file by path; do not re-narrow by folder.
         var writers = SourceScan.FilesContaining(
-            SourceScan.SourceRoot, ".Current =", except: null)
-            .Where(file => file.Contains("Tenancy", StringComparison.Ordinal)
-                || file.Contains("MultiTenancy", StringComparison.Ordinal))
-            .ToList();
+            SourceScan.SourceRoot, ".Current =", except: null);
 
         writers.Should().BeEquivalentTo(
-            ["LearnStack.Api/Tenancy/TenantResolverMiddleware.cs"],
-            "the four writers are enumerated in ADR-0032 § Sub-decision 10 and only the "
-            + "HTTP one has landed; a fifth writer is how a request runs under a tenant "
-            + "nothing resolved");
+            [
+                "LearnStack.Api/Tenancy/TenantResolverMiddleware.cs",
+                "LearnStack.Infrastructure/Messaging/InProcessEventBus.cs",
+            ],
+            "two of the four enumerated writers have landed — the HTTP one and the "
+            + "integration-event handler scope. HubCorrelationMiddleware and the "
+            + "Hangfire JobActivator are later phases, and a fifth writer is how a "
+            + "request runs under a tenant nothing resolved");
     }
 
     [Fact]

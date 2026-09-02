@@ -17,9 +17,9 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// ADR's wording is satisfied exactly by <c>internal</c>: the assembly carries no
 /// <c>InternalsVisibleTo</c>, so every module project, both infrastructure
 /// assemblies, the API and all four test assemblies are blocked by the compiler.
-/// The residual — a second caller inside this one assembly — is what
-/// <c>TenantContext_Is_Constructed_Only_By_The_Factory</c> covers, with a source
-/// scan, because a type-reference test cannot see a call site.
+/// The residual — a second caller inside this one assembly — is covered by the
+/// separate <c>TenantContext_Is_Instantiated_In_One_File</c>, which is a source scan:
+/// its sibling is reflection-only, and no type-reference test can see a call site.
 /// </para>
 /// <para>
 /// <b>Every instance is complete.</b> There is no setter, no builder and no partial
@@ -65,8 +65,11 @@ public sealed class TenantContext : ITenantContext
     public string? CorrelationId { get; }
 
     /// <summary>
-    /// Always <c>null</c> here: the resolver runs before routing has selected an
-    /// endpoint, so nothing at the request edge knows which module owns the request.
+    /// Always <c>null</c> here. Not for want of routing — it has already run by the
+    /// time the resolver executes — but because no endpoint metadata names an owning
+    /// module, so an HTTP-resolved context has nothing truthful to put here. The
+    /// consumers that do know theirs set it: <c>EventTenantContext</c> takes it from
+    /// the subscription.
     /// </summary>
     public string? ModuleName => null;
 }

@@ -110,14 +110,16 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-**The shipped set is six files, not a family per topic.** Add yours to the one whose
+**The shipped set is eight files, not a family per topic.** Add yours to the one whose
 subject it shares:
 
 | File | What it covers |
 |------|----------------|
 | `ModuleDependencyTests.cs` | Dependency direction between module packages, plus a planted-violation meta test that proves the scanner still detects one. |
 | `PersistenceConventionTests.cs` | `row_version` mapping, ambient-unit-of-work enlistment, the Docker trait, and the `migrate` recipe's chain coverage and credential redaction. |
-| `TenancyConventionTests.cs` | The ADR-0036 tenancy-edge rules, as source scans until Packet 7 gives them a resolver to inspect. |
+| `TenancyConventionTests.cs` | The ADR-0036 **request-edge** rules — what may read a host, where the effective host and `app.resolving_host` are computed, and the assertion budget's independence from `ICacheService`. Source scans, because three of the four banned inputs appear only as string literals. |
+| `TenantScopingTests.cs` | The correspondence between the `[TenantOwned]` / `[OrganizationScoped]` markers, the EF global query filters, and the Row Level Security policies. |
+| `TenantContextConstructionTests.cs` | How a tenant context comes into existence and who may write it: the factory's single entry point, the constructor's one call site, the enumerated accessor writers, and the composite-key organization read. |
 | `ApiConventionTests.cs` | Live majors, forwarded headers, required `Deployment:Mode`, unversioned route prefixes. |
 | `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, provider SDK exceptions). |
 | `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals` and the single-frontend-app rule. |
@@ -127,7 +129,14 @@ Hub contract — are **Registered** in
 [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
 the phase that ships the code they inspect. Check its Status line before assuming a
 net is under you, and create a new file only when your rule's subject is not one of
-the six above.
+the eight above.
+
+> **The tenancy rules live in three files, and the split is by subject, not by ADR.**
+> All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable
+> instruction. Ask what the rule is *about*: the request edge and what may be read from
+> it (`TenancyConventionTests`), the marker-to-filter-to-policy correspondence
+> (`TenantScopingTests`), or the construction and writing of the context itself
+> (`TenantContextConstructionTests`).
 
 ### Step 5: Stability of the test
 

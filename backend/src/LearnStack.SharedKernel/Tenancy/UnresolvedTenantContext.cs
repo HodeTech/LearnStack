@@ -11,8 +11,10 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// </summary>
 /// <remarks>
 /// The real population sites (per ADR-0032 § Sub-decision 10) overwrite the
-/// scoped instance once they resolve. <c>TenantResolverMiddleware</c> is the first
-/// of them and now writes this instance <b>explicitly</b> on the requests that
+/// scoped instance once they resolve. <c>TenantResolverMiddleware</c> is the first of
+/// them <b>on an HTTP request</b> — <c>InProcessEventBus</c> has written the accessor
+/// for the integration-event handler scope since Packet 5 — and it writes this instance
+/// <b>explicitly</b> on the requests that
 /// legitimately have no tenant — a platform host, matrix rows 13 and 15. That is not
 /// a refusal: the pipeline decides what may run without a tenant. Every request that
 /// classification never classified, and every non-HTTP entry point until Phase 02b
