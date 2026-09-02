@@ -72,6 +72,8 @@ public sealed class NpgsqlUnitOfWork(
 
     private bool _rollbackOnly;
     private bool _commitRequested;
+
+    private bool _tenantContextIssued;
     private bool _disposed;
 
     public DbConnection Connection
@@ -130,6 +132,13 @@ public sealed class NpgsqlUnitOfWork(
             // frame nobody had opened — over whatever exception was already in
             // flight.
             _commitRequested = false;
+
+            // Same reasoning, same block. This is the one place that runs exactly once
+            // per PHYSICAL transaction, so it is where per-transaction state is cleared —
+            // and nothing clears it on commit, rollback or dispose because those null
+            // _transaction, after which the reference check below fails for every
+            // argument.
+            _tenantContextIssued = false;
         }
 
         return new Frame(this, ++_depth, _generation);
@@ -209,7 +218,25 @@ public sealed class NpgsqlUnitOfWork(
             cancellationToken,
             ("tenant", tenant),
             ("organization", organization));
+
+        // After the round trip, never before: the flag means the announcement actually
+        // reached PostgreSQL, so a setter that threw leaves the transaction unmarked and
+        // the guard refuses the commands that would have run under it.
+        //
+        // Not independently observable, and said so rather than implied. Making the
+        // announcement fail means breaking the connection under it, and this unit's
+        // disposal then throws on the dead transaction before any assertion is reached —
+        // a pre-existing shape, not this flag's. What the ordering buys is that a
+        // half-announced transaction is refused rather than trusted; no test here fails
+        // if the line moves, and none pretends to.
+        _tenantContextIssued = true;
     }
+
+    /// <inheritdoc />
+    public bool IsTenantContextIssuedOn(DbTransaction? transaction) =>
+        transaction is not null
+        && ReferenceEquals(transaction, _transaction)
+        && _tenantContextIssued;
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
         LoggerMessage.Define<string>(

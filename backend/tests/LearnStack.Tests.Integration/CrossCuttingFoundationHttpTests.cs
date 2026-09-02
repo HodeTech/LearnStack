@@ -279,6 +279,12 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
     public Task SetTenantContextAsync(
         ITenantContext context, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    // False, and not "true because nothing here has a database". This host has none, so
+    // no transaction is ever announced, and vouching for one would let the guard pass a
+    // command on a connection that does not exist. AddModuleDbContext refuses to build a
+    // context here anyway, so nothing asks — but the honest answer is the safe one.
+    public bool IsTenantContextIssuedOn(System.Data.Common.DbTransaction? transaction) => false;
+
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
         HasActiveTransaction = false;

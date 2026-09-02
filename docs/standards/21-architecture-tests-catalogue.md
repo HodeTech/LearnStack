@@ -998,19 +998,30 @@ the request path.
 
 #### `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`
 
-- **Asserts:** both arms of the `DbCommandInterceptor` guard. A command against a
-  `[TenantOwned]` table on a transaction no sanctioned setter stamped throws
-  `TenantContextMissingException`; the same command on a transaction opened by any of
-  the seven sanctioned setters runs. One arm is not the rule: a guard keyed on
-  `TransactionBehavior` instead of on the marker passes the first arm and rejects the
-  writes the idempotency store and the audit store legitimately make on their own short
-  transactions.
+- **Asserts:** both arms of the `DbCommandInterceptor` guard. A command a module `DbContext` issues on a transaction no sanctioned setter announced throws `TenantContextMissingException`; the same command on an announced transaction runs. One arm is not the rule: a guard keyed on `TransactionBehavior` instead of on the marker passes the first arm and rejects the writes the idempotency store and the audit store legitimately make on their own short transactions.
+- **Keyed on the transaction, not on the table.** An earlier wording said "a command against a `[TenantOwned]` table", and the rule's own name says otherwise. What shipped is the name: matching table names would put a parser between every query and the database, wrong on the first CTE, to decide something every command from a module context already answers — such a command belongs to a request that had a tenant to announce. Nothing is lost, because a platform-scoped read from a module context is exactly as much of a wiring bug as a tenant-owned one.
 - **Runs as `learnstack_app`.**
 - **Source:** [11-security.md § The out-of-band setters](11-security.md);
   [05-database.md § Connection Management](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`TenantContextGuardTests`, Packet 7 step 8).
 - **Phase:** 02a Packet 7.
+- **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
+  ADR-0040 Amendment 5 adds. **Only one of the seven sanctioned setters stamps it**, and
+  that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the other
+  six, four do not exist in code yet and two — `CachedHostToTenantResolver` and
+  `IOrganizationScopeValidator` — issue raw `NpgsqlCommand`s, which EF interception cannot
+  see, so they need neither a mark nor an exemption. The exemption list is empty for the
+  same reason, which is why `PlatformAdminScope` — a `BYPASSRLS` connection that announces
+  no tenant by design — is invisible here by construction rather than by a hand-written
+  exception someone later widens.
+- **Note:** the guard is a **diagnostic above Row Level Security, never the boundary**.
+  `Without_The_Guard_An_Unannounced_Read_Is_Silent_And_Empty` asserts the state it exists
+  to make visible: safe already, because the predicate is `NULL`, and silent, which is the
+  outage. It also does **not** close the unresolved-context case: `SetTenantContextAsync`
+  writes the empty string for an unresolved context by design, so such a transaction is
+  announced, passes the guard, and still reads nothing. `TenantContextBehavior` at pipeline
+  step 4 is what refuses that, and remains the only thing in front of it.
 
 #### `Db_Connection_String_Is_TransactionPooled`
 

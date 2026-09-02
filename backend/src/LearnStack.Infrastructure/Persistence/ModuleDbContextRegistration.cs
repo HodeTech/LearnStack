@@ -135,9 +135,21 @@ public static class ModuleDbContextRegistration
                 // context this helper registers — on a seam whose whole premise is
                 // that a misconfigured context fails invisibly. Measured: the
                 // model-validation warnings and the command-error lines carrying
-                // the failing SQL both disappear. It is also what lets a
-                // DI-registered interceptor be found, which Packet 9 needs.
+                // the failing SQL both disappear.
+                //
+                // It does NOT make a DI-registered interceptor discoverable — an
+                // earlier version of this comment said it did, and measured on EF
+                // Core 10 that is false for both interceptor kinds, whether
+                // registered as IInterceptor or by its own type. An interceptor
+                // reaches a context by AddInterceptors on the options, which is the
+                // line below.
                 .UseApplicationServiceProvider(provider)
+                // Every module context, no opt-out: this is the single site that
+                // builds them, which is why the guard goes here rather than in each
+                // module's registration. The interceptor takes THIS scope's unit of
+                // work, so it compares each command's transaction against the one
+                // this request actually announced a tenant on.
+                .AddInterceptors(new TenantContextGuardInterceptor(unitOfWork))
                 .Options;
 
             // ActivatorUtilities, not Activator: a module context takes its

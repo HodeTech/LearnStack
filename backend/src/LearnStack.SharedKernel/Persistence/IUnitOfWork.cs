@@ -98,6 +98,34 @@ public interface IUnitOfWork : IAsyncDisposable
     Task SetTenantContextAsync(ITenantContext context, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Whether a sanctioned setter has announced the tenant on
+    /// <paramref name="transaction"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read by <c>TenantContextGuardInterceptor</c>, which refuses any command a module
+    /// <c>DbContext</c> issues on an unannounced transaction. Without it the failure is
+    /// an empty result set — safe, because the policy predicate is <c>NULL</c>, and
+    /// silent, which is the outage.
+    /// </para>
+    /// <para>
+    /// <b>It takes the command's transaction rather than returning a bare flag</b>, and
+    /// the reference check against this unit's own live transaction is the load-bearing
+    /// half. Measured on Npgsql 10: a pooled data source hands back the <i>same</i>
+    /// <c>NpgsqlTransaction</c> instance across sequential open/begin/dispose cycles, so
+    /// anything keyed on the transaction object would vouch for a later transaction on
+    /// the strength of an earlier one's announcement.
+    /// </para>
+    /// <para>
+    /// There is deliberately no writer on this interface. The only thing that may mark a
+    /// transaction is the code that issues the <c>set_config</c> pair, and it does so
+    /// after the round trip returns — a failed announcement leaves the transaction
+    /// unmarked. A module that could set the flag could silence the guard.
+    /// </para>
+    /// </remarks>
+    bool IsTenantContextIssuedOn(DbTransaction? transaction);
+
+    /// <summary>
     /// Resolves the innermost open frame. On the outermost frame this commits —
     /// unless the unit is marked rollback-only, in which case it throws rather
     /// than committing a partial unit.

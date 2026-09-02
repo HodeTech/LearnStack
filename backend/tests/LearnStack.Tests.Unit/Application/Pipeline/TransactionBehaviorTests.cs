@@ -313,6 +313,11 @@ public sealed class TransactionBehaviorTests
 
         public DbTransaction? Transaction => null;
 
+        // This double records the context it was handed rather than announcing anything,
+        // and its Transaction is always null — so the honest answer tracks whether the
+        // announcement was made, which is what the behaviour under test drives.
+        public bool IsTenantContextIssuedOn(DbTransaction? transaction) => TenantContext is not null;
+
         public bool HasActiveTransaction => _depth > 0;
 
         public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default)

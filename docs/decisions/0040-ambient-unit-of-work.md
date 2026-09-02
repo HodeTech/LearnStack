@@ -517,6 +517,39 @@ Nothing else changes. Cross-**module** writes remain forbidden with no exception
 which is the property ADR-0010's outbox boundary exists to protect, and the
 exception's holder is a literal allow-list of one.
 
+### Amendment 5 — the seam gains a read member for the tenant-context guard (2026-09-02)
+
+**What changed.** § Decision enumerates the `IUnitOfWork` seam member by member. Packet 7
+step 8 adds one: `bool IsTenantContextIssuedOn(DbTransaction? transaction)`. Recorded
+here for the same reason Amendment 1 exists — that sketch is the contract, and an
+addition to it that goes unrecorded is an addition nobody reviewed.
+
+**Why it belongs on the seam and not beside it.** The guard —
+`TenantContextGuardInterceptor`, registered on every module `DbContext` — has to ask
+whether a sanctioned setter announced the transaction a command is about to run on. Put
+on a side interface, a future `IUnitOfWork` implementation could omit it and be silently
+unguarded; on the seam, the compiler makes every implementation answer, which is what the
+addition buys.
+
+**Why it takes the transaction rather than returning a flag.** The check is
+`ReferenceEquals(transaction, _transaction) && _tenantContextIssued`, and the reference
+half is load-bearing: measured on Npgsql 10, a pooled data source hands back the **same**
+`NpgsqlTransaction` instance across sequential open/begin/dispose cycles, so a bare flag —
+or anything keyed on the transaction object — would vouch for a later transaction on the
+strength of an earlier one's announcement. Keeping the comparison inside the type that
+owns `_transaction` is what makes that impossible to get wrong at the call site.
+
+**There is deliberately no writer.** The only code that may mark a transaction is
+`SetTenantContextAsync`, which sets the flag after the `set_config` round trip returns —
+so a failed announcement vouches for nothing — and the flag is cleared in the one block
+that runs once per physical transaction. A module able to set it could silence the guard.
+
+**The setter set is unchanged.** This adds a reader, not an eighth setter; Amendment 3's
+seven stand.
+
+**The Decision is unchanged.** One connection per scope, owned by `IUnitOfWork`, with
+every context and cross-cutting writer enlisted on it.
+
 ## References
 
 - [ADR-0002 — Initial Architecture](0002-initial-architecture.md)

@@ -309,13 +309,26 @@ names by hand.
 Because every `current_setting` read is called with its missing-OK argument (`true`)
 **and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
 the policy predicate filters the row out. The failure mode is an empty result set, not a
-leak — but an empty result set arriving from production is an outage, so a
-`DbCommandInterceptor` is to assert that **a sanctioned setter** has already
-issued the `SET LOCAL` pair on this transaction before any command against a
-`[TenantOwned]` table runs — `TransactionBehavior` in the general case, or any of the
-out-of-band setters above, each of which stamps the same marker on the transaction it
-opens. Naming `TransactionBehavior` alone would make the guard reject every write the
-idempotency store and the audit store legitimately make. It throws
+leak — but an empty result set arriving from production is an outage, so
+`TenantContextGuardInterceptor` asserts that **a sanctioned setter** has already issued
+the `SET LOCAL` pair on this transaction before any command a module `DbContext` issues
+runs on it.
+
+**Keyed on the transaction, not on the table**, and marked by one setter rather than
+seven — both narrower than an earlier wording here, and both for reasons the shipped
+mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
+every query and the database to decide something the transaction already answers.
+And of the seven out-of-band setters only `TransactionBehavior`, through
+`IUnitOfWork.SetTenantContextAsync`, needs to mark anything: four do not exist in code
+yet, and the two that do — `CachedHostToTenantResolver` and `IOrganizationScopeValidator`
+— issue raw `NpgsqlCommand`s, which EF interception never sees. That is also why the
+exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
+announces no tenant by design, is invisible to the guard by construction rather than by a
+hand-written exception. The concern the earlier wording had — that naming
+`TransactionBehavior` alone would reject the writes the idempotency store and the audit
+store legitimately make on their own short transactions — is real, and is answered by the
+guard reading a marker rather than a behavior's name: when those setters land, each marks
+the transaction it opens if and only if it reaches EF. It throws
 `TenantContextMissingException` when it has not, which
 [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
 asserts in both directions. **Packet 7 owns it**: Packet 6 ships

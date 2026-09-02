@@ -1166,8 +1166,8 @@ Forbidden: string interpolation with non-constant values.
   enforces this in the deployment config; deviation requires an ADR.
 - `app.tenant_id` (and `app.organization_id` when relevant) set **within the same
   transaction** as the work (`SET LOCAL ...`).
-- A `DbCommandInterceptor` — **not** a connection-checkout interceptor — is to guard
-  the context. **Packet 7 ships it**: Packet 6 ships the setter and the policies it
+- A `DbCommandInterceptor` — **not** a connection-checkout interceptor — guards
+  the context. **Packet 7 step 8 ships it**, as `TenantContextGuardInterceptor`: Packet 6 ships the setter and the policies it
   backs up, and the first tenant-owned read on a request path is Packet 7's, which is
   where the guard belongs. Checkout happens before `TransactionBehavior` opens the transaction that
   carries the `SET LOCAL` values, so a checkout hook would read an unset
@@ -1175,8 +1175,11 @@ Forbidden: string interpolation with non-constant values.
   pooling it would sometimes read a *previous* transaction's leftover value, which is
   worse than throwing. The command interceptor instead checks the in-process marker
   **a sanctioned setter** stamps on the transaction it opens, once the `SET LOCAL`
-  pair is issued, and throws `TenantContextMissingException` when a command against a
-  `[TenantOwned]` table runs without it — no extra round trip. Both arms are asserted by
+  pair is issued, and throws `TenantContextMissingException` when any command a module
+  `DbContext` issues runs on an unmarked transaction — no extra round trip, and keyed on
+  the transaction rather than on the table, because deciding per table would mean parsing
+  command text and every command from a module context belongs to a request that had a
+  tenant to announce. Both arms are asserted by
   [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md). The setters are a closed
   set, named in [Security Standards § The out-of-band setters](11-security.md), which is
   the placement authority: a guard keyed on `TransactionBehavior` alone would reject the
