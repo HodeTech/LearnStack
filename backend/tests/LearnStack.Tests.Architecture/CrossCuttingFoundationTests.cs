@@ -550,17 +550,24 @@ public sealed class CrossCuttingFoundationTests
             || ModuleAssemblyShapes.Contains(
                 member.DeclaringType.Assembly.GetName().Name, StringComparer.Ordinal);
 
+        // Through wrappers, not only at the surface. `IEventBus.IsAssignableFrom` is false
+        // for `Lazy<IEventBus>`, `Func<IEventBus>`, `IEnumerable<IEventBus>` and
+        // `Task<IEventBus>` — each of which injects the port just as effectively, and the
+        // first of them is a shape this codebase already uses (`Lazy<NpgsqlDataSource>`).
+        // A rule that only looked at the declared type was satisfied by one type argument.
+        bool Banned(Type declared) =>
+            Unwrap(declared).Any(inner =>
+                forbidden.Any(candidate => candidate.IsAssignableFrom(inner)));
+
         return type.GetConstructors(members).Where(InScope).Any(constructor =>
-                   constructor.GetParameters().Any(parameter =>
-                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+                   constructor.GetParameters().Any(parameter => Banned(parameter.ParameterType)))
                || type.GetMethods(members).Where(InScope).Any(method =>
-                   forbidden.Any(candidate => candidate.IsAssignableFrom(method.ReturnType))
-                   || method.GetParameters().Any(parameter =>
-                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+                   Banned(method.ReturnType)
+                   || method.GetParameters().Any(parameter => Banned(parameter.ParameterType)))
                || type.GetFields(members).Where(InScope).Any(field =>
-                   forbidden.Any(candidate => candidate.IsAssignableFrom(field.FieldType)))
+                   Banned(field.FieldType))
                || type.GetProperties(members).Where(InScope).Any(property =>
-                   forbidden.Any(candidate => candidate.IsAssignableFrom(property.PropertyType)));
+                   Banned(property.PropertyType));
     }
 
     /// <summary>A type that breaks the rule, so the checker can be shown to catch it.</summary>
@@ -650,6 +657,30 @@ public sealed class CrossCuttingFoundationTests
         catch (FileNotFoundException)
         {
             return null;
+        }
+    }
+
+    /// <summary>A declared type and every type argument reachable through it.</summary>
+    /// <remarks>
+    /// Transitive, because the wrappers nest: <c>Func&lt;Lazy&lt;IEventBus&gt;&gt;</c> is
+    /// two layers and injects the port at the bottom of both. Open generics are skipped —
+    /// a type parameter names no port.
+    /// </remarks>
+    private static IEnumerable<Type> Unwrap(Type declared)
+    {
+        yield return declared;
+
+        if (!declared.IsGenericType || declared.IsGenericTypeDefinition)
+        {
+            yield break;
+        }
+
+        foreach (var argument in declared.GetGenericArguments())
+        {
+            foreach (var inner in Unwrap(argument))
+            {
+                yield return inner;
+            }
         }
     }
 }

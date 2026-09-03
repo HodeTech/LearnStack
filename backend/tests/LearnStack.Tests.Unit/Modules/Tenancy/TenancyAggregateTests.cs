@@ -33,6 +33,40 @@ public sealed class TenancyAggregateTests
         TenantDomainId.From(Guid.Parse("dddddddd-1111-7111-8111-111111111111"));
 
     [Fact]
+    public void A_disabled_locale_cannot_be_the_default()
+    {
+        // The index guarantees at most one default and says nothing about whether it is
+        // enabled, so both entry points could produce a tenant whose fallback language is
+        // switched off — and every reader of "the tenant's default locale" then holds a
+        // row that answers the question and cannot serve it.
+        var tenant = TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+        var addDisabledDefault = () =>
+            tenant.AddLocale("tr-TR", isDefault: true, Clock, Actor, isEnabled: false);
+
+        addDisabledDefault.Should().Throw<InvalidOperationException>()
+            .WithMessage("*disabled*");
+
+        // And it left nothing behind: PromoteDefault raises after the row is in the
+        // collection, so a guard placed only there would have added the locale and
+        // stamped the root for a call that threw.
+        tenant.Locales.Should().BeEmpty("a refused add adds nothing");
+        tenant.Version.Should().Be(0, "and does not move the root's concurrency token");
+
+        // And the same through the other door: added disabled, promoted later.
+        tenant.AddLocale("tr-TR", isDefault: false, Clock, Actor);
+        tenant.AddLocale("en-US", isDefault: false, Clock, Actor, isEnabled: false);
+
+        var promoteDisabled = () => tenant.SetDefaultLocale("en-US", Clock, Actor);
+
+        promoteDisabled.Should().Throw<InvalidOperationException>()
+            .WithMessage("*disabled*");
+
+        tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("tr-TR",
+            "the refused promotion left the incumbent in place");
+    }
+
+    [Fact]
     public void The_first_locale_is_the_default_whether_or_not_it_was_asked_for()
     {
         // ux_tenant_locales_tenant_id_is_default guarantees AT MOST one default. Nothing

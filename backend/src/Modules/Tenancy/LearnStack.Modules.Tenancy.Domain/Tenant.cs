@@ -197,6 +197,18 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
                 + "rather than a second locale.");
         }
 
+        // Refused before anything is added or stamped. PromoteDefault below raises on a
+        // disabled default, and it runs AFTER the row is in the collection — so without
+        // this check a refused AddLocale left the locale added and the root stamped for a
+        // call that threw. Same shape as SetFeatureFlag's ordering: every guard runs
+        // before the first mutation.
+        if (isDefault && !isEnabled)
+        {
+            throw new InvalidOperationException(
+                $"'{added.Locale}' cannot be added as a disabled default: a default nobody "
+                + "serves is not a default. Add it enabled, or add it non-default.");
+        }
+
         MarkUpdated(clock.UtcNow, updatedBy);
         _locales.Add(added);
 
@@ -206,7 +218,7 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         // non-empty locale set and no default — a state every reader of "the tenant's
         // default locale" has to handle and none of them expects. Promoting is the only
         // answer that leaves the aggregate in a state the schema can also express.
-        if (isDefault || _locales.Count == 1)
+        if (isDefault || (_locales.Count == 1 && isEnabled))
         {
             PromoteDefault(added);
         }
@@ -312,6 +324,20 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     /// </remarks>
     private void PromoteDefault(TenantLocale target)
     {
+        // A disabled default is a default nobody serves. The partial unique index says at
+        // most one locale is default and says nothing about whether it is enabled, so both
+        // entry points could produce a tenant whose fallback language is switched off —
+        // AddLocale(isDefault: true, isEnabled: false) directly, and SetDefaultLocale by
+        // promoting a locale that was added disabled. Every reader of "the tenant's
+        // default locale" then has a row that answers the question and cannot serve it.
+        if (!target.IsEnabled)
+        {
+            throw new InvalidOperationException(
+                $"'{target.Locale}' is disabled, so it cannot be this tenant's default. "
+                + "Enable it first, or choose a locale that is enabled.");
+        }
+
+
         foreach (var incumbent in _locales.Where(locale => locale.IsDefault))
         {
             incumbent.ClearDefault();

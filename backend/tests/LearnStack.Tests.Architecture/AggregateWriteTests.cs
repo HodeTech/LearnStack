@@ -52,6 +52,49 @@ public sealed class AggregateWriteTests
             + "operation — a second name here is a decision that needs its own record");
     }
 
+    [Fact]
+    public void Every_Write_Port_Is_Countable_Or_Enumerated()
+    {
+        // The rule above counts IAggregateWriteStore derivations. A port that does not
+        // derive is therefore invisible to it — and one already exists:
+        // IPlatformHostMappingStore, deliberately, because PlatformHostMapping is a
+        // projection with a string key rather than an aggregate root.
+        //
+        // That exemption is fine; being SILENT about it is not. A second non-deriving port
+        // would join the first with nothing to notice it, and the census that keeps
+        // ADR-0042's exception at one entry would stop describing the system. So the
+        // non-deriving ports are enumerated, and adding one is a reviewed diff.
+        //
+        // Detected by shape, not by name: an interface whose method takes a type from a
+        // module's Domain assembly is a port that writes domain objects, whatever it is
+        // called. A rule keyed on "ends in Store" is satisfied by renaming.
+        var domainAssemblies = ProductionAssemblies()
+            .Select(Assembly.Load)
+            .Where(assembly => assembly.GetName().Name?.EndsWith(".Domain", StringComparison.Ordinal)
+                is true)
+            .ToHashSet();
+
+        var writePorts = ProductionAssemblies()
+            .Select(Assembly.Load)
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type.IsInterface)
+            .Where(type => type.GetMethods().Any(method =>
+                method.GetParameters().Any(parameter =>
+                    domainAssemblies.Contains(parameter.ParameterType.Assembly))))
+            .Where(type => !WriteStoreConstructions(type).Any())
+            .Select(type => type.Name)
+            .Distinct()
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        writePorts.Should().BeEquivalentTo(
+            ["IPlatformHostMappingStore"],
+            "a port that takes a domain object and does not derive from "
+            + "IAggregateWriteStore is invisible to the cross-aggregate census — "
+            + "PlatformHostMapping is a projection with a string key and is the one "
+            + "sanctioned case, and a second name here needs its own decision");
+    }
+
     /// <summary>
     /// The distinct aggregate roots a constructor's write ports reach.
     /// </summary>
