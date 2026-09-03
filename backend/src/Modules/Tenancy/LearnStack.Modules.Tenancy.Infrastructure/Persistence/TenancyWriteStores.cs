@@ -81,7 +81,24 @@ public sealed class OrganizationWriteStore(TenancyDbContext db) : IOrganizationW
     }
 }
 
-/// <summary>Shared by both stores; see <see cref="TenantWriteStore"/> for why.</summary>
+/// <summary>The host-resolution index's writes.</summary>
+/// <remarks>
+/// Add-only for now: nothing in the corpus updates a mapping in place — activation and
+/// the publicly-live flip arrive with the Hub-side custom-domain lifecycle in
+/// [Phase 02c](../../../../../../docs/roadmap/phase-02c-hub-foundation.md), which owns
+/// that transaction and the cache invalidation that goes with it.
+/// </remarks>
+public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHostMappingStore
+{
+    public Task AddAsync(
+        PlatformHostMapping mapping, CancellationToken cancellationToken = default)
+    {
+        db.PlatformHostMappings.Add(mapping);
+        return SaveTranslatingConflictsAsync(db, cancellationToken);
+    }
+}
+
+/// <summary>Shared by the stores; see <see cref="TenantWriteStore"/> for why.</summary>
 internal static class WriteStoreTracking
 {
     /// <summary>

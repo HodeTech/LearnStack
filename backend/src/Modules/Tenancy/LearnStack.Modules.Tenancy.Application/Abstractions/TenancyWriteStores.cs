@@ -19,3 +19,16 @@ public interface ITenantWriteStore : IAggregateWriteStore<Domain.Tenant, TenantI
 /// combined port would hide the very thing ADR-0042 exists to enumerate.
 /// </remarks>
 public interface IOrganizationWriteStore : IAggregateWriteStore<Organization, OrganizationId>;
+
+/// <summary>The write side of <c>platform_host_to_tenant</c>.</summary>
+/// <remarks>
+/// Not an <see cref="IAggregateWriteStore{TRoot,TId}"/>, and the reason is the key:
+/// <c>PlatformHostMapping</c> is identified by its host, a string, not by a strongly-typed
+/// id — one answer per host, globally. It is also not an aggregate root: it is the
+/// projection the resolver reads before any tenant is known. A port of its own keeps both
+/// facts visible rather than forcing the shape.
+/// </remarks>
+public interface IPlatformHostMappingStore
+{
+    Task AddAsync(PlatformHostMapping mapping, CancellationToken cancellationToken = default);
+}

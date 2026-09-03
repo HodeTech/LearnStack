@@ -8,12 +8,16 @@
 # the two Keycloak realms are imported (`learnstack` + `learnstack-hub`),
 # print a session summary with the demo credentials.
 #
-# Phase 02a scope (NOT YET WIRED): provision two application-level demo
-# tenants + one platform-admin user via the `LearnStack.Tools.Seeder`
-# console project against the real Tenancy module schema. The placeholder
-# section at the bottom of this file lists the exact commands Phase 02a
-# will swap the deferral notice for — leave it intact so the activation
-# is a one-shot find-and-replace.
+# Phase 02a Packet 7 scope (wired): provision the two demo tenants through
+# `LearnStack.Tools.Seeder`, which sends the same commands a request sends —
+# ProvisionTenantCommand, then CreateOrganizationCommand and
+# MapHostToTenantCommand under each tenant's own announcement. Idempotent: a
+# second run recognises its own first by the uniqueness refusal and exits 0.
+#
+# There is no platform-admin user to seed. This packet creates no `users`
+# table — Phase 03's Identity migration owns it — and `UserId.SystemActor` is
+# a CLR constant with no row behind it, deliberately, because the audit
+# subsystem depends on an erased actor becoming an orphan surrogate.
 
 set -eu -o pipefail
 
@@ -187,36 +191,43 @@ wait_for_realm() {
 wait_for_realm "$KEYCLOAK_REALM_TENANT" || exit 1
 wait_for_realm "$KEYCLOAK_REALM_HUB" || exit 1
 
-# ─── Step 3: Packet 7 deferral notice ────────────────────────────────────
-cyan "▶ Step 3/3: application-level tenant seeding (deferred to Phase 02a Packet 7)"
+# ─── Step 3: application-level tenant seeding ────────────────────────────
+cyan "▶ Step 3/3: seeding the two demo tenants"
 
-cat <<'NOTICE'
+# The application role, not the migration role. The seeder writes through the
+# same policies a request does, so a seed that succeeds is evidence the request
+# path works — and a seed run as the owner would pass with every policy inert.
+SEED_CONNECTION="${ConnectionStrings__Default:-}"
 
-  Packet 6 shipped the schema: the four database roles, both migration chains
-  and the Tenant + Organization aggregates. `make migrate` applies them, and
-  this script does not — it verifies the stack and prints credentials.
+if [[ -z "$SEED_CONNECTION" ]]; then
+    red "seed: ConnectionStrings__Default is not set."
+    red "  It lives in .env — copy .env.example to .env and re-run, or export it."
+    exit 1
+fi
 
-  What is still missing is a SEEDER: nothing writes the two demo tenants, and
-  the aggregates alone cannot be reached from a shell. Packet 7 ships the two
-  seed tenants (docs/roadmap/phase-02a-kernel-tenancy.md), and Phase 02d
-  renders both of them in a browser.
+# --nologo keeps the build banner out of a script whose output is read as a
+# report; the exit code is what gates the step either way.
+if ! dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo -- \
+        --connection-string "$SEED_CONNECTION"; then
+    red "seed: tenant seeding failed."
+    red "  Has the schema been applied? → make migrate"
+    exit 1
+fi
 
-  Phase 01 seeding therefore still stops at:
+green "  ✓ demo-english and demo-yoga present."
 
-    - Keycloak realms imported (done at compose boot, verified above)
-    - Demo users present in each realm (seeded by the realm JSON files)
+cat <<'HOSTS'
 
-  Packet 7 swaps this section for:
+  Both tenants resolve by host. Add them to /etc/hosts to reach either in a
+  browser — Phase 02d is what renders them:
 
-    dotnet run --project backend/src/LearnStack.Tools.Seeder -- \
-      --tenants demo-english,demo-yoga                            \
-      --platform-admin demo-admin@learnstack.test                 \
-      --connection-string "$ConnectionStrings__Default"
+    127.0.0.1  demo-english.learnstack.local
+    127.0.0.1  demo-yoga.learnstack.local
 
-  The console project does not exist yet; the path is reserved so that packet
-  can drop the executable and edit this stub in one PR.
+  demo-english's host maps to its default organization; demo-yoga's maps to
+  the tenant as a whole, so both live host classifications are exercised.
 
-NOTICE
+HOSTS
 
 cyan "▶ Demo identities ready"
 cat <<'IDENTITIES'
@@ -232,4 +243,4 @@ cat <<'IDENTITIES'
 
 IDENTITIES
 
-green "✓ Seed complete (Phase 01 scope)."
+green "✓ Seed complete."

@@ -15,6 +15,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <!-- The two seed tenants are a Packet 7 deliverable, and what the seeder writes has
+         to be asserted against the real schema rather than taken on trust. -->
+    <ProjectReference Include="..\..\src\LearnStack.Tools.Seeder\LearnStack.Tools.Seeder.csproj" />
     <!-- The tenancy schema tests apply the module's own migration and assert its
          policies, so they need the migration assembly and the persistence model
          directly — not the DI registration. AddLearnStackPersistence does register

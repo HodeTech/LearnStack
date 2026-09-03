@@ -145,11 +145,12 @@ public sealed class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Four files under backend/src may reach for a connection at all: the two
+        // Five files under backend/src may reach for a connection at all: the two
         // design-time factories, where a connection string is the point; the
         // shared helper, which passes a connection rather than a string; and the
-        // composition root, which builds the one application data source behind
-        // its credential guard. A fifth is a new decision.
+        // two composition roots — the API's, which builds the one application data
+        // source behind its credential guard, and the seeder's, which is the same act
+        // for a host with no HTTP surface. A sixth is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -162,16 +163,27 @@ public sealed class PersistenceConventionTests
                        StringComparison.Ordinal))
             .Where(file => ProviderTokens.Any(token =>
                 StripComments(File.ReadAllText(file)).Contains(token, StringComparison.Ordinal)))
-            .Select(Path.GetFileName)
+            // Qualified by the directory above the file, not the bare filename. There
+            // are now two `Program.cs` under backend/src — the API's and the seeder's —
+            // and a set keyed on filenames alone would let one of them acquire a
+            // connection under cover of the other's entry.
+            .Select(file => $"{Path.GetFileName(Path.GetDirectoryName(file))}/{Path.GetFileName(file)}")
             .Order(StringComparer.Ordinal)
             .ToList();
 
         callSites.Should().BeEquivalentTo(
         [
-            "ModuleDbContextRegistration.cs",
-            "PersistenceCompositionExtensions.cs",
-            "PlatformDbContextFactory.cs",
-            "TenancyDbContextFactory.cs",
+            "Persistence/ModuleDbContextRegistration.cs",
+            "Composition/PersistenceCompositionExtensions.cs",
+            "Persistence/PlatformDbContextFactory.cs",
+            "Persistence/TenancyDbContextFactory.cs",
+
+            // The fifth, and a deliberate entry rather than a discovered one: the seeder
+            // is a second composition root, and building the one application data source
+            // is the same act PersistenceCompositionExtensions performs for the API. It
+            // is in the set — not exempted from it — so the next tool that reaches for a
+            // connection is still a reviewed diff.
+            "LearnStack.Tools.Seeder/Program.cs",
         ]);
     }
 
