@@ -272,6 +272,20 @@ internal sealed partial class IdempotencyFilter(
         Guid token,
         CancellationToken cancellationToken)
     {
+        // KNOWN GAP — this buffer is unbounded, and MaxStoredResponseBytes is applied to
+        // `buffer.Length` further down, AFTER the action has written all of it. So a
+        // response far over the cap is materialised in full before being judged too large
+        // to store: the limit bounds what is RECORDED, never what is held in memory to
+        // decide it.
+        //
+        // Capping the stream is not the whole fix, because this buffer serves two
+        // purposes — capture for replay, and holding the body back until the outcome is
+        // recorded. Delivering past the cap while capturing only the first 256 KiB means
+        // streaming to `original` as the action writes, which reverses the
+        // "record BEFORE delivering" ordering ADR-0037 chose deliberately and reasons
+        // about at length. That ordering is the decision to revisit, not this line, and it
+        // belongs with the endpoints that return large bodies — none exist yet; every
+        // idempotent surface today answers with an identifier, a receipt or a status.
         var response = context.HttpContext.Response;
         var original = response.Body;
         using var buffer = new MemoryStream();

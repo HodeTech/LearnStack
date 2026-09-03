@@ -103,6 +103,20 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         // protect. Refusing a NEW key costs the caller a retry and costs the
         // guarantee nothing. An existing key is always served, so a client
         // holding one is never locked out by another's flood.
+        // KNOWN GAP — the census this reads is refreshed at most once per SweepInterval,
+        // so admission decides on a snapshot up to a second old. Within that window the
+        // nominal caps do not bound anything: every new key is admitted because the count
+        // they are compared against has not moved. What limits the damage is throughput
+        // and the anonymous rate limiter, not this check, so the caps are a soft ceiling
+        // rather than the hard one their names suggest.
+        //
+        // Closing it means live counters — incremented on insert, decremented on every
+        // removal path including the sweep, the abandon and the completion expiry — which
+        // is a change to a concurrent structure where getting the decrements wrong is
+        // worse than the current softness. It belongs with the durable store, whose
+        // trigger [ADR-0037 Amendment 1](../../../../docs/decisions/0037-idempotency-key-contract.md)
+        // sets: once claims live in Postgres the in-memory ceiling stops being the thing
+        // that bounds a production host at all.
         if (!_entries.ContainsKey(composite) && _census.IsFull(tenantId))
         {
             return Result(new IdempotencyClaimResult(
