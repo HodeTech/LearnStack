@@ -6,6 +6,8 @@
 (Amendment 1: outbox dispatch via Dapr pub/sub),
 [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md)
 (scheduled by [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)),
+[ADR-0042 Tenant Provisioning as a Bounded Cross-Aggregate Transaction](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+(§ Aggregate Ownership's carve-out),
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md)),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),

@@ -154,9 +154,9 @@ Architecture tests are **non-skippable**. That means:
 When the rule is about migration content (RLS, partition):
 
 ```csharp
-/// <summary>The migration-scan arm of the rule; see ADR-0003 Amendment 3.</summary>
+/// <summary>A migration-scan sketch. NOT the shipped rule — see the note below.</summary>
 [Fact]
-public void Every_TenantOwned_Entity_HasFilterAndRlsPolicy()
+public void Migration_Files_Creating_Tenant_Owned_Tables_Carry_A_Policy_Block()
 {
     // RepositoryPaths.BackendSrc() — the shipped helper. A relative "backend/src"
     // is resolved against the TEST HOST's working directory (bin/Debug/net10.0),
@@ -216,13 +216,23 @@ public void Every_TenantOwned_Entity_HasFilterAndRlsPolicy()
 }
 ```
 
-File granularity is what makes the predicate above safe: the two **table classes**
-that key their policy on something else — `tenants` on `id`, `platform_host_to_tenant`
-on `app.resolving_host` — ship in a file that also creates ordinary tenant-owned
-tables, so the file-level `tenant_id` assertion holds. A per-table version of this
-scan needs the table classes from
-[Database Standards § Table classes](../../../docs/standards/05-database.md) before
-it is correct.
+**This sketch is deliberately not the canonical rule, and does not carry its name.**
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` ships in
+`LearnStack.Tests.Architecture/TenantScopingTests.cs` and verifies **per entity**
+against the EF model — every marked type has a filter, and the migration carries that
+table's policy. The scan above is file-granular: delete one table's policy block from a
+migration that creates eight and it stays green, because a sibling table's block
+satisfies the `Contains`. Read it as an illustration of the mechanics — path resolution,
+the two `CREATE TABLE` spellings, the empty-classification guard — not as a rule to
+copy.
+
+File granularity is what makes the predicate above safe *as an illustration*: the two
+**table classes** that key their policy on something else — `tenants` on `id`,
+`platform_host_to_tenant` on `app.resolving_host` — ship in a file that also creates
+ordinary tenant-owned tables, so the file-level `tenant_id` assertion holds. A per-table
+version needs the table classes from
+[Database Standards § Table classes](../../../docs/standards/05-database.md), which is
+what the shipped rule uses.
 
 ### Step 7: Test the test
 

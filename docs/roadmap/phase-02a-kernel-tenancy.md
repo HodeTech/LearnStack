@@ -420,7 +420,7 @@ exists: unit-of-work begin, commit on success-`Result`, rollback on failure,
 preserving the `ExceptionDispatchInfo` rethrow `AuditLogBehavior` owns one
 frame out.
 
-**Packet 7 — Tenant and organization resolution, isolation, two tenants ⏳**
+**Packet 7 — Tenant and organization resolution, isolation, two tenants ✅**
 `IHostToTenantResolver` backed by `platform_host_to_tenant` and **nothing
 else** — never the Hub, per
 [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); an anonymous
@@ -526,14 +526,19 @@ not the containment
 [the module spec's ERD](../modules/tenancy/README.md) described — and the two
 halves do not resolve the same way: the first pair is root-shaped already, the
 second cannot be a root at all under `IAggregateRoot<TId>`. Packet 7 writes the
-first command that touches any of them, which is the first evidence either reading
-has, and it resolves as **promotion**: `TenantDomain` and `TenantSetting` become
+first code that has to take a position on any of them, which is the first evidence
+either reading has, and it resolves as **promotion**: `TenantDomain` and `TenantSetting` become
 aggregate roots in their own right — each already carries a surrogate Vogen id, an
 `AuditableEntity` base, a `row_version` and its own Row Level Security policy — while
 `TenantLocale` and `TenantFeatureFlag` become navigations inside the `Tenant`
 aggregate, because a composite natural key and no surrogate id is not an
 `IAggregateRoot<TId>` under any reading. Tenancy therefore has four roots: `Tenant`,
-`Organization`, `TenantDomain` and `TenantSetting`. A write to `TenantLocale` or
+`Organization`, `TenantDomain` and `TenantSetting`. **Two of them are written by a
+command; two are not.** Packet 7 ships `ProvisionTenantCommand`,
+`CreateOrganizationCommand` and `MapHostToTenantCommand` — nothing writes a
+`TenantDomain` or a `TenantSetting` yet, and the promotion is a statement about the
+model (`Tenant` gained the two navigations, `TenantLocale` and `TenantFeatureFlag` lost
+their public factories) rather than about a command that exists. A write to `TenantLocale` or
 `TenantFeatureFlag` bumps `Tenant.row_version`; `TenantDomain` and `TenantSetting`
 carry their own. Provisioning writes two of those roots in one transaction, which
 [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)

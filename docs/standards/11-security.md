@@ -8,6 +8,10 @@ model, and session-variable placement**),
 (Amendment 1: `learnstack-hub` realm),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[ADR-0036 Tenant Resolution and Trusted Inputs](../decisions/0036-tenant-resolution-trusted-inputs.md)
+(the resolution matrix and the authority ceiling),
+[ADR-0040 The Ambient Unit of Work](../decisions/0040-ambient-unit-of-work.md)
+(§ Tenant Context's closed setter set),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md),

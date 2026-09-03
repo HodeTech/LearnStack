@@ -93,11 +93,13 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Thirty-six test methods exist in
+Fifty-nine test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4 and
-Packet 6 — 55 cases once the theories expand. Methods are not rows: a `[Theory]`
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
+Packet 6 and Packet 7 — 77 cases once the theories expand. Counted from a run at
+Packet 7's close; the previous figures were Packet 6's and were not updated when
+Packet 7 added its rules. Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
 assertion that stops it passing vacuously.
 

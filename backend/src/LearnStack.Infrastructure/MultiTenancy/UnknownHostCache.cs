@@ -30,12 +30,12 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// <para>
 /// <b>Eviction is oldest-first down to a low-water mark, and entries expire.</b>
 /// Bounded so a flood cannot grow it without limit; expiring so a host that becomes
-/// live is not denied for the life of the process. <b>Nothing calls
-/// <see cref="Forget"/> yet</b>, so the TTL is the whole of it today: the
-/// invalidation ADR-0036 asks for on the transaction that flips either flag needs
-/// a writer of <c>platform_host_to_tenant</c>, and the Hub-side lifecycle that
-/// owns one is [Phase 02c](../../../../docs/roadmap/phase-02c-hub-foundation.md).
-/// Until then a host activated inside the TTL keeps its 404 for the rest of it.
+/// live is not denied for the life of the process. <b><see cref="Forget"/> is called by
+/// the host-mapping writer</b> as of Packet 7 — <c>MapHostToTenantCommandHandler</c>,
+/// through <c>IHostResolutionInvalidator</c> — so the TTL is the backstop rather than the
+/// whole of it. The Hub-side custom-domain lifecycle in
+/// [Phase 02c](../../../../docs/roadmap/phase-02c-hub-foundation.md) is the second
+/// caller, for the activation half this packet does not write.
 /// A trim sweeps the lapsed entries on the way past,
 /// because nothing else does: a read only drops the one entry it looked at, so the
 /// map otherwise ratchets to its cap and stays there for the life of the process.

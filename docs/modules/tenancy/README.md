@@ -50,8 +50,8 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 ## Entity-relationship diagram
 
 Aggregate roots in the shipped code are `Tenant` and `Organization` — the two
-that implement `IAggregateRoot<TId>`; the promotion below adds two more with
-Packet 7's first command. `PlatformHostMapping` and `PlatformEntitlement` are
+that implement `IAggregateRoot<TId>`; the promotion below adds `TenantDomain` and
+`TenantSetting`, which carry the shape of a root but which no command writes yet. `PlatformHostMapping` and `PlatformEntitlement` are
 projections rather than aggregates: nothing in this module mutates them through
 a root.
 

@@ -113,10 +113,12 @@ public sealed class CachedHostToTenantResolver(
     /// simultaneous first requests for one cold host would be N transactions. The
     /// flight runs on <see cref="CancellationToken.None"/>: one caller hanging up
     /// must not cancel the lookup the others are waiting on.
-    /// <c>WaitAsync(cancellationToken)</c> stops only <i>this</i> caller waiting,
-    /// and a caller that stops waiting never reaches the negative-cache write above
-    /// — so that structure is populated only by a request that survived its own
-    /// lookup.
+    /// <c>WaitAsync(cancellationToken)</c> stops only <i>this</i> caller waiting; the
+    /// flight itself runs to completion and publishes its answer — the positive cache or
+    /// the negative one — from inside, precisely so a hung-up caller does not throw away
+    /// a round trip the next request would repeat. An earlier version of this sentence
+    /// said the negative cache is "populated only by a request that survived its own
+    /// lookup", which the publication block below contradicts in the same file.
     /// </remarks>
     private async Task<HostResolution?> ReadCoalescedAsync(
         string host, string key, CancellationToken cancellationToken)

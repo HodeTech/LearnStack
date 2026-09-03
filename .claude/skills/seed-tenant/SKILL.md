@@ -126,25 +126,41 @@ default_organization_id` → `COMMIT`:
   itself, so the allow-list stays at one entry and the seed exercises the same
   path production does.
 
-**The follow-on writes**, each its own command in its own transaction:
+**The follow-on writes**, each its own command in its own transaction. Packet 7 ships
+two of them; the rest are what a later packet adds, and this list says which is which.
 
-- The second row in `organizations`. It is a third aggregate root, and the
-  exception covers the two named above and nothing else.
-- Rows in `tenant_domains` and `tenant_settings`. Under Packet 7's promotion
-  `TenantDomain` and `TenantSetting` are aggregate roots in their own right, so
-  each is written the way any other root is.
-- Rows in `tenant_locales` (exactly one `is_default`) and `tenant_feature_flags`.
-  These are navigations inside `Tenant` rather than roots, and ADR-0042's
-  enumeration names them among the rows it does **not** cover: neither carries an
-  atomicity invariant against the tenant row.
-- One row in `platform_host_to_tenant` — **per tenant, not per organization**. It
+**Shipped:**
+
+- The second row in `organizations`, through `CreateOrganizationCommand`. It is a third
+  aggregate root, and ADR-0042's exception covers the two written together above and
+  nothing else.
+- One row in `platform_host_to_tenant`, through `MapHostToTenantCommand` — **per tenant,
+  not per organization**. It
   is a projection rather than an aggregate, outside the rule entirely, and it does
   not share the provisioning transaction. `demo-english` leaves `organization_id`
   NULL (a `TenantHost`); `demo-yoga` sets it (an `OrgHost`), so both live
   classification classes from
   [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md) are
   exercised by the seed and not only by a fixture. Neither host belongs in
-  `Tenancy:PlatformHosts`, which lists hosts that map to **no** tenant.
+  `Tenancy:PlatformHosts`, which lists hosts that map to **no** tenant — and
+`MapHostToTenantCommand` refuses one that does, rather than writing a row the resolver
+would never read.
+
+**Not shipped, and owned by the packet that needs them:**
+
+- Rows in `tenant_domains` and `tenant_settings`. Under Packet 7's promotion
+  `TenantDomain` and `TenantSetting` are aggregate roots in their own right, so each
+  will be written the way any other root is — but no command writes either yet, and
+  the seeder writes neither.
+- Rows in `tenant_locales` and `tenant_feature_flags`. These are navigations inside
+  `Tenant` rather than roots, and ADR-0042's enumeration names them among the rows it
+  does **not** cover: neither carries an atomicity invariant against the tenant row.
+  `Tenant` exposes mutators for both; nothing calls them outside tests.
+
+A seed that needs any of those today writes them as SQL in a fixture, which is what
+`TenantIsolationHttpTests` does for `tenant_settings` — deliberately, because inventing
+a seeder path to serve a test would put fixture data in front of every developer running
+`make seed`.
 
 Two mechanics the seeder cannot skip:
 
@@ -256,8 +272,7 @@ normal repair; a genuine reset drops the volumes and starts over:
 ```bash
 make clean      # stops the stack and drops named volumes — destructive
 make dev        # brings the stack back up
-make migrate    # applies both migration chains — `make seed` does not
-make seed       # reseeds
+make seed       # depends on `migrate`, so both chains are applied first
 ```
 
 ### Step 8: Authoring a new showcase
