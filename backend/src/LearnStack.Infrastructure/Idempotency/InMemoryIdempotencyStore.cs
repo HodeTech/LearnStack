@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.Identifiers;
 using System.Collections.Concurrent;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Time;
@@ -79,13 +80,13 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     /// </summary>
     public const int MaxEntriesPerTenant = 1_000;
 
-    private readonly ConcurrentDictionary<(Guid Tenant, string Key), Entry> _entries = new();
+    private readonly ConcurrentDictionary<(TenantId Tenant, string Key), Entry> _entries = new();
 
     private long _lastSweepTicks;
     private Census _census = Census.Empty;
 
     public Task<IdempotencyClaimResult> TryClaimAsync(
-        Guid tenantId, string key, string fingerprint, CancellationToken cancellationToken)
+        TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
     {
         Guard(tenantId, key);
         ArgumentNullException.ThrowIfNull(fingerprint);
@@ -141,7 +142,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     }
 
     public Task<bool> CompleteAsync(
-        Guid tenantId,
+        TenantId tenantId,
         string key,
         Guid token,
         IdempotentResponse? response,
@@ -176,7 +177,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     }
 
     public Task<bool> AbandonAsync(
-        Guid tenantId, string key, Guid token, CancellationToken cancellationToken)
+        TenantId tenantId, string key, Guid token, CancellationToken cancellationToken)
     {
         Guard(tenantId, key);
 
@@ -186,23 +187,29 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         if (_entries.TryGetValue((tenantId, key), out var current) && current.Token == token)
         {
             return Task.FromResult(
-                _entries.TryRemove(new KeyValuePair<(Guid, string), Entry>((tenantId, key), current)));
+                _entries.TryRemove(new KeyValuePair<(TenantId, string), Entry>((tenantId, key), current)));
         }
 
         return Task.FromResult(false);
     }
 
-    private static void Guard(Guid tenantId, string key)
+    private static void Guard(TenantId tenantId, string key)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        // The tenant is the key space. An empty one is not a tenant — it is a
-        // call site that forgot to scope, and accepting it would build exactly
-        // the flat space this store's contract exists to prevent.
-        if (tenantId == Guid.Empty)
+        // The tenant is the key space. An unassigned one is not a tenant — it is a call
+        // site that forgot to scope, and accepting it would build exactly the flat space
+        // this store's contract exists to prevent.
+        //
+        // IsInitialized() first: reading Value on an unset Vogen id throws from inside the
+        // id type, which is neither this guard's contract nor a message a caller can act
+        // on. Both sentinels are refused, because a struct nobody assigned and one
+        // assigned the all-zero Guid are the same mistake.
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
         {
             throw new ArgumentException(
-                "An idempotency key is scoped to a tenant; Guid.Empty is not one.", nameof(tenantId));
+                "An idempotency key is scoped to a tenant; an unassigned id is not one.",
+                nameof(tenantId));
         }
     }
 
@@ -238,7 +245,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
             return;
         }
 
-        var counts = new Dictionary<Guid, int>();
+        var counts = new Dictionary<TenantId, int>();
         var total = 0;
 
         foreach (var pair in _entries)
@@ -274,11 +281,11 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     /// claims — a soft ceiling, which is what a ceiling that must never evict a
     /// live record has to be.
     /// </remarks>
-    private sealed record Census(IReadOnlyDictionary<Guid, int> PerTenant, int Total)
+    private sealed record Census(IReadOnlyDictionary<TenantId, int> PerTenant, int Total)
     {
-        public static readonly Census Empty = new(new Dictionary<Guid, int>(), 0);
+        public static readonly Census Empty = new(new Dictionary<TenantId, int>(), 0);
 
-        public bool IsFull(Guid tenantId) =>
+        public bool IsFull(TenantId tenantId) =>
             Total >= MaxEntries || PerTenant.GetValueOrDefault(tenantId) >= MaxEntriesPerTenant;
     }
 

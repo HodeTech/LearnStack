@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Idempotency;
 using LearnStack.SharedKernel.Idempotency;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using Xunit;
 
@@ -22,8 +23,14 @@ public sealed class InMemoryIdempotencyStoreTests
     private static readonly DateTimeOffset Origin =
         new(2026, 8, 20, 9, 0, 0, TimeSpan.Zero);
 
-    private static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
-    private static readonly Guid OtherTenant = Guid.Parse("018f4d40-0000-7000-8000-00000000000b");
+    // Typed, as of Packet 7: the port's key space is (TenantId, string), which is what
+    // ADR-0037 promised when it said the raw Guid and ITenantContext.TenantId "both move
+    // together". A raw Guid no longer compiles here, which is the point of the change.
+    private static readonly TenantId Tenant =
+        TenantId.From(Guid.Parse("018f4d40-0000-7000-8000-00000000000a"));
+
+    private static readonly TenantId OtherTenant =
+        TenantId.From(Guid.Parse("018f4d40-0000-7000-8000-00000000000b"));
 
     private const string Key = "01HXIDEMPOTENT0001";
     private const string Fingerprint = "fingerprint-a";
@@ -94,10 +101,19 @@ public sealed class InMemoryIdempotencyStoreTests
     {
         var (store, _) = NewStore();
 
-        var claim = async () => await store.TryClaimAsync(Guid.Empty, Key, Fingerprint, default);
+        // default(TenantId) does not compile — Vogen's VOG009 analyzer prohibits it — so
+        // the unassigned value comes from an array element, which the analyzer cannot see
+        // and the runtime leaves zeroed. That is also how one reaches production: a struct
+        // field nobody assigned, a default(T) in a generic, a deserializer that skipped a
+        // member. Typing the port did not remove this guard's job; it changed the shape of
+        // the sentinel it has to refuse.
+        var slot = new TenantId[1];
+        var unassigned = slot[0];
+
+        var claim = async () => await store.TryClaimAsync(unassigned, Key, Fingerprint, default);
 
         await claim.Should().ThrowAsync<ArgumentException>(
-            "Guid.Empty is not a tenant — it is a call site that forgot to scope");
+            "an unassigned id is not a tenant — it is a call site that forgot to scope");
     }
 
     // ---- fingerprint -------------------------------------------------------

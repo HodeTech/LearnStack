@@ -1,3 +1,4 @@
+using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
@@ -944,6 +945,63 @@ public sealed class UnitOfWorkTests
                 $"{variable} was transaction-local, and the next borrower of this "
                 + "connection is another tenant's request");
         }
+    }
+
+    [Fact]
+    public async Task A_reset_tenant_context_reads_nothing_rather_than_everything()
+    {
+        // The case the Phase Exit Decision names: a read with `app.tenant_id` RESET
+        // rather than merely unset. The distinction is the whole reason the policies are
+        // written with NULLIF.
+        //
+        // Never-set and reset are different values. `current_setting(name, true)` returns
+        // NULL for a variable that was never set, and the EMPTY STRING for one that was
+        // set and then reset — which is the state a pooled connection is in after
+        // DISCARD ALL, and the state every request leaves behind. `''::uuid` raises
+        // 22P02, so a policy that cast without NULLIF would not filter: it would error
+        // on the first read of every reused connection. With NULLIF the empty string
+        // becomes NULL, the predicate is NULL, and NULL is false for both USING and
+        // WITH CHECK — the table returns nothing.
+        //
+        // Driven on one physical connection, because that is the only way the two states
+        // are distinguishable: set a real tenant, observe rows, reset, observe none.
+        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        builder.ConnectionStringBuilder.MaxPoolSize = 1;
+        builder.ConnectionStringBuilder.NoResetOnClose = true;
+        await using var dataSource = builder.Build();
+
+        await using var connection = await dataSource.OpenConnectionAsync();
+
+        await ExecuteOnAsync(connection,
+            $"SELECT set_config('app.tenant_id', '{SchemaFixture.TenantA}', false)");
+
+        (await ScalarOnAsync(connection, "SELECT count(*) FROM organizations"))
+            .Should().NotBe("0", "the tenant is set, so its rows are visible");
+
+        // RESET, not "never set" — the variable exists and now holds ''.
+        await ExecuteOnAsync(connection, "RESET app.tenant_id");
+
+        (await ScalarOnAsync(connection, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty(
+                "a reset GUC reads back as the empty string, which is exactly the value "
+                + "NULLIF exists to turn into NULL");
+
+        (await ScalarOnAsync(connection, "SELECT count(*) FROM organizations"))
+            .Should().Be("0",
+                "and the read fails closed — it returns nothing rather than everything, "
+                + "and does not raise 22P02 on the way");
+    }
+
+    private static async Task ExecuteOnAsync(DbConnection connection, string sql)
+    {
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<string?> ScalarOnAsync(DbConnection connection, string sql)
+    {
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        return (await command.ExecuteScalarAsync())?.ToString();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

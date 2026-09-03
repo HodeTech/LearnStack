@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Idempotency;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -197,11 +198,11 @@ internal sealed partial class IdempotencyFilter(
             return;
         }
 
-        // Value once, here: IIdempotencyStore's key space is (Guid, string) and
-        // that port is not part of this conversion, so the seam is crossed at a
-        // single site rather than at each of its five call sites. Safe — the
-        // IsResolved gate above has already returned.
-        var tenantId = tenantContext.TenantId.Value;
+        // No unwrapping: the port's key space is (TenantId, string) as of Packet 7, which
+        // is what ADR-0037 § What we punted on promised when it said the raw Guid and
+        // ITenantContext.TenantId "both move together". The IsResolved gate above has
+        // already returned, so this id is a real one.
+        var tenantId = tenantContext.TenantId;
         var cancellationToken = context.HttpContext.RequestAborted;
         var fingerprint = await ComputeFingerprintAsync(context.HttpContext, cancellationToken)
             .ConfigureAwait(false);
@@ -266,7 +267,7 @@ internal sealed partial class IdempotencyFilter(
     private async Task RunAndRecordAsync(
         ResourceExecutingContext context,
         ResourceExecutionDelegate next,
-        Guid tenantId,
+        TenantId tenantId,
         string key,
         Guid token,
         CancellationToken cancellationToken)
@@ -387,7 +388,7 @@ internal sealed partial class IdempotencyFilter(
         return Outcome.Record;
     }
 
-    private Task<bool> AbandonAsync(Guid tenantId, string key, Guid token) =>
+    private Task<bool> AbandonAsync(TenantId tenantId, string key, Guid token) =>
         store.AbandonAsync(tenantId, key, token, CancellationToken.None);
 
     /// <summary>

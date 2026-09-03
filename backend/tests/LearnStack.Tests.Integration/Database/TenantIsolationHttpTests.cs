@@ -343,7 +343,11 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
     }
 
     /// <summary>The registry-assigned actor; every seeded row is attributed to it.</summary>
-    private static readonly Guid Actor = Guid.Parse("00000000-0000-7000-8000-000000000001");
+    /// <remarks>
+    /// Read from <see cref="UserId.SystemActor"/> rather than repeating the literal. The
+    /// value already has a home, and a second copy is a second thing to keep true.
+    /// </remarks>
+    private static readonly Guid Actor = UserId.SystemActor.Value;
 
     /// <summary>A client whose requests arrive on <paramref name="host"/>.</summary>
     /// <remarks>
@@ -437,6 +441,12 @@ public sealed class IsolationProbeController(MediatR.ISender sender)
 }
 
 /// <summary>What the probe reads.</summary>
+/// <remarks>
+/// The unresolved-context read is a separate request type rather than a third member here,
+/// and the asymmetry is deliberate: what distinguishes it is not which rows it wants but
+/// which marker it carries, and a marker is a property of the type. Folding it in would
+/// mean one request type wearing two ceilings.
+/// </remarks>
 public enum ProbeSubject
 {
     Organizations,
@@ -558,8 +568,7 @@ public sealed class ForeignWriteHandler(IUnitOfWork unitOfWork)
             VALUES (uuidv7(), @tenant, NULL, 'smuggled', '"x"', now(), @actor, 0)
             """;
         command.Parameters.AddWithValue("tenant", request.TenantId);
-        command.Parameters.AddWithValue(
-            "actor", Guid.Parse("00000000-0000-7000-8000-000000000001"));
+        command.Parameters.AddWithValue("actor", UserId.SystemActor.Value);
 
         try
         {
