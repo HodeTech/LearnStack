@@ -32,6 +32,29 @@ public sealed class TenancyAggregateTests
     private static readonly TenantDomainId DomainId =
         TenantDomainId.From(Guid.Parse("dddddddd-1111-7111-8111-111111111111"));
 
+    [Fact]
+    public void The_first_locale_is_the_default_whether_or_not_it_was_asked_for()
+    {
+        // ux_tenant_locales_tenant_id_is_default guarantees AT MOST one default. Nothing
+        // guarantees at least one — so a tenant whose only locale was added with
+        // isDefault:false published in a language and had no default, a state every
+        // reader of "the tenant's default locale" has to handle and none expects.
+        var tenant = TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+        tenant.AddLocale("tr-TR", isDefault: false, Clock, Actor);
+
+        tenant.Locales.Should().ContainSingle().Which.IsDefault.Should().BeTrue(
+            "the first locale is the default by construction");
+
+        // And a second one is not promoted, or the promotion would be unconditional and
+        // the caller's answer would never matter.
+        tenant.AddLocale("en-US", isDefault: false, Clock, Actor);
+
+        tenant.Locales.Should().HaveCount(2);
+        tenant.Locales.Count(locale => locale.IsDefault).Should().Be(1);
+        tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("tr-TR");
+    }
+
     [Theory]
     [InlineData(true, "a flag that does not exist yet")]
     [InlineData(false, "one that does")]

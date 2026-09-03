@@ -269,6 +269,56 @@ public sealed class SeederTests : IAsyncLifetime
             .Should().Be(0L, "and the row was never written");
     }
 
+    [Fact]
+    public async Task A_seed_host_another_tenant_already_holds_stops_the_run()
+    {
+        // "Taken" is not "taken by us". platform_host_to_tenant's primary key is the host,
+        // globally, so a conflict is equally consistent with our own prior run and with a
+        // different tenant holding the name — and the seeder treated both as "already
+        // present", exited 0, and left the demo host pointing at somebody else's data.
+        //
+        // RLS is what makes the discrimination cheap: under demo-english's own
+        // announcement the row is visible only if the row is demo-english's.
+        await using var dataSource = DataSource();
+
+        // The fixture's tenant A claims the seed host first, on its own announcement.
+        await using (var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.AppConnectionString))
+        await using (var claim = new NpgsqlCommand(
+            $"""
+             BEGIN;
+             SELECT set_config('app.tenant_id', '{SchemaFixture.TenantA}', true);
+             INSERT INTO platform_host_to_tenant
+                 (host, tenant_id, organization_id, is_active, is_publicly_live)
+             VALUES ('{SeedData.English.Host}', '{SchemaFixture.TenantA}', NULL, true, true);
+             COMMIT;
+             """,
+            (NpgsqlConnection)connection))
+        {
+            await claim.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var seed = async () => await Runner(dataSource)
+                .RunAsync(CancellationToken.None, [SeedData.English]);
+
+            (await seed.Should().ThrowAsync<InvalidOperationException>(
+                "a host held by another tenant is not this seed's prior run"))
+                .WithMessage("*not this tenant's*");
+        }
+        finally
+        {
+            await using var platform = await PostgresFixture.OpenAsync(
+                _schema.Postgres.PlatformConnectionString);
+            await using var cleanup = new NpgsqlCommand(
+                "DELETE FROM platform_host_to_tenant WHERE host = @host",
+                (NpgsqlConnection)platform);
+            cleanup.Parameters.AddWithValue("host", SeedData.English.Host);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
     // ── Harness ──────────────────────────────────────────────────────────────
 
     /// <summary>

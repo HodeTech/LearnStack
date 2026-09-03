@@ -8,19 +8,20 @@ using Npgsql;
 // seeder inserting the tenant and its default organization itself would be a second copy
 // of the one sanctioned cross-aggregate write.
 
-// Read from the flag or the environment, and NOT through IConfiguration's
-// GetConnectionString: exactly one file in the solution reads credentials that way, and
-// Platform_DataSource_Resolved_Only_By_PlatformAdminScope keeps it that way so one file
-// decides what is done with them. `make seed` passes it in the environment, because an
-// argument carrying a database password is visible to any local user through `ps`.
-var connectionString = ConnectionStringFrom(args)
-    ?? Environment.GetEnvironmentVariable("ConnectionStrings__Default");
+// The environment only. There is no --connection-string flag: the value carries a
+// database password, and an argument is visible to every local user through `ps` for as
+// long as the process runs. `make seed` already passes it this way.
+//
+// And NOT through IConfiguration's GetConnectionString: exactly one file in the solution
+// reads credentials that way, and Platform_DataSource_Resolved_Only_By_PlatformAdminScope
+// keeps it that way so one file decides what is done with them.
+var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     Console.Error.WriteLine(
-        "seed: no connection string. Pass --connection-string, or set "
-        + "ConnectionStrings__Default (see .env.example).");
+        "seed: ConnectionStrings__Default is not set. Run `make seed`, which reads it "
+        + "from .env and checks the role, or export it yourself (see .env.example).");
     return 2;
 }
 
@@ -46,8 +47,3 @@ catch (Exception failure)
     return 1;
 }
 
-static string? ConnectionStringFrom(string[] args)
-{
-    var flag = Array.IndexOf(args, "--connection-string");
-    return flag >= 0 && flag + 1 < args.Length ? args[flag + 1] : null;
-}

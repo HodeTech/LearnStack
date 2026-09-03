@@ -200,7 +200,13 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         MarkUpdated(clock.UtcNow, updatedBy);
         _locales.Add(added);
 
-        if (isDefault)
+        // The FIRST locale is the default whether the caller asked for it or not. The
+        // partial unique index guarantees at most one default; nothing guarantees at
+        // least one, so a tenant whose only locale arrived with isDefault:false has a
+        // non-empty locale set and no default — a state every reader of "the tenant's
+        // default locale" has to handle and none of them expects. Promoting is the only
+        // answer that leaves the aggregate in a state the schema can also express.
+        if (isDefault || _locales.Count == 1)
         {
             PromoteDefault(added);
         }

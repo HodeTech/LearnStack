@@ -234,7 +234,7 @@ fi
 
 # Passed in the environment, not on argv: the value carries the database
 # password, and an argument is visible to any local user through `ps`. The
-# seeder reads this variable when no --connection-string flag is given.
+# seeder reads this variable and takes no flag for it.
 if ! ConnectionStrings__Default="$seed_cs" \
         dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo; then
     red "seed: tenant seeding failed."

@@ -91,8 +91,9 @@ ConnectionStrings__Default="<the learnstack_app string>" \
 **What the tenants are is data, not arguments.** The two live in `SeedData.cs`,
 so there is no `--tenants` flag and nothing to keep in step between a script and
 a source file. The connection string is the only input, and it arrives in the
-environment rather than on `argv` because it carries a password that `ps` would
-show; `--connection-string` exists for a caller running the tool by hand.
+environment rather than on `argv` because it carries a password that `ps` would show for
+as long as the process runs. There is no flag for it — a caller running the tool by hand
+exports the variable too.
 
 `scripts/seed.sh` reads it from `ConnectionStrings__Default`, falling back to
 `.env` — the Makefile does not export `.env` into a recipe's environment — and

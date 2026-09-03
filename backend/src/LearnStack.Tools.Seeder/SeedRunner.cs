@@ -1,7 +1,10 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
+using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
+using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -111,7 +114,7 @@ public sealed class SeedRunner(
                 tenant.SecondOrganization.OrganizationId,
                 tenant.SecondOrganization.Slug,
                 tenant.SecondOrganization.DisplayName),
-            "second organization",
+            SecondOrganizationAct,
             cancellationToken);
 
         await SendAsync(
@@ -124,7 +127,7 @@ public sealed class SeedRunner(
                     : null,
                 IsActive: true,
                 IsPubliclyLive: true),
-            "host mapping",
+            HostMappingAct,
             cancellationToken);
     }
 
@@ -171,8 +174,24 @@ public sealed class SeedRunner(
         // outcome of one. Anything else — a validation failure, a policy denial, an
         // organization that is not this tenant's — is a seed that did not do its job, and
         // the process exits non-zero on it.
+        //
+        // "Taken" is not the same as "taken by us", and the difference matters most for
+        // the host: `platform_host_to_tenant`'s primary key is the host, globally, so a
+        // conflict is equally consistent with our own prior run and with another tenant
+        // holding the name. Verified rather than assumed — and RLS is what makes the
+        // verification cheap, because under this tenant's own announcement the row is
+        // visible only if the row is this tenant's.
         if (IsAlreadySeeded(result.Error!))
         {
+            if (!await OwnsWhatConflictedAsync(tenant, context, what, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"Seeding the {what} for '{tenant.Slug}' hit a uniqueness conflict, and "
+                    + "the row that holds the name is not this tenant's. The seed would "
+                    + "report success while pointing at somebody else's data; fix the "
+                    + "conflict and re-run.");
+            }
+
             SeedRunnerLog.AlreadyPresent(logger, what, tenant.Slug);
             return;
         }
@@ -180,6 +199,71 @@ public sealed class SeedRunner(
         throw new InvalidOperationException(
             $"Seeding the {what} for '{tenant.Slug}' failed with '{result.Error.Code}'. "
             + "The seed is not idempotent past this point; fix the cause and re-run.");
+    }
+
+    /// <summary>The label for the act that adds a tenant's second organization.</summary>
+    private const string SecondOrganizationAct = "second organization";
+
+    /// <summary>The label for the act that points a host at the tenant.</summary>
+    private const string HostMappingAct = "host mapping";
+
+    /// <summary>
+    /// Whether the rows that conflicted belong to <paramref name="tenant"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read under the tenant's own announcement, which is the whole trick: every table
+    /// this checks is tenant-owned or, for the host index, admits a row on
+    /// <c>tenant_id = app.tenant_id</c>. So "can I see it?" and "is it mine?" are the same
+    /// question, and the policies answer it without the seeder needing a cross-tenant
+    /// credential it should not have.
+    /// </para>
+    /// <para>
+    /// The provisioning act runs unresolved and cannot ask — but it does not need to: it
+    /// conflicts on its own registry-assigned id, which is a fixed literal in
+    /// <see cref="SeedData"/>, so a primary-key conflict there IS the prior run. Only the
+    /// acts that run as the tenant reach this.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> OwnsWhatConflictedAsync(
+        SeedTenant tenant, ITenantContext? context, string what, CancellationToken cancellationToken)
+    {
+        if (context is null)
+        {
+            return true;
+        }
+
+        await using var provider = compose(context);
+        await using var scope = provider.CreateAsyncScope();
+
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var frame = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await unitOfWork.SetTenantContextAsync(context, cancellationToken);
+
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        // The act that conflicted, and only that act. An earlier version asked "do we own
+        // either?" and the OR let the organization we had just created vouch for a host
+        // another tenant held — the verification passing on the strength of an unrelated
+        // row is exactly the failure it exists to prevent.
+        var owned = what switch
+        {
+            HostMappingAct => await db.PlatformHostMappings
+                .AnyAsync(mapping => mapping.Host == tenant.Host, cancellationToken),
+
+            SecondOrganizationAct => await db.Organizations
+                .AnyAsync(
+                    organization => organization.Slug == tenant.SecondOrganization.Slug,
+                    cancellationToken),
+
+            // No other act runs with a resolved context, so nothing else reaches here.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(what), what, "No ownership check is defined for that act."),
+        };
+
+        await frame.FailAsync(CancellationToken.None);
+
+        return owned;
     }
 
     /// <summary>
