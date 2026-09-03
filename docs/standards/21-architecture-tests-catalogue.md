@@ -2229,8 +2229,10 @@ structural test proves — and what it does not.
   nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
   this packet ships — Packet 9's GDPR redaction is the first real caller and inherits it.
 
-  *Marker clause, vacuous:* no handler carries both `[AllowsUnresolvedTenantContext]` and
-  a platform-scope entry, because no production request type carries either.
+  *Marker clause, still vacuous — but for a narrower reason since Packet 7 step 9:* no
+  handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
+  `ProvisionTenantCommand` now carries the first, and nothing carries the second, so the
+  conjunction is empty because one half of it is — not because both are.
 
 #### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
 

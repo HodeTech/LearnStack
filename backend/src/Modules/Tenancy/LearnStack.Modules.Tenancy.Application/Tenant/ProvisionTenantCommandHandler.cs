@@ -71,11 +71,23 @@ internal sealed class ProvisionTenantCommandHandler(
         }
         catch (AggregateConflictException conflict)
         {
-            // The transaction is aborted at this point, so nothing may be issued on it —
-            // returning a failure is what makes TransactionBehavior roll it back rather
-            // than try to commit.
+            // The transaction is still usable, not aborted: EF wraps every SaveChanges
+            // that runs inside a supplied transaction in a real SAVEPOINT, so a failed one
+            // rolls back to its savepoint and leaves the ambient transaction alive —
+            // [ADR-0040 § Frames, not savepoints](../../../../../../docs/decisions/0040-ambient-unit-of-work.md),
+            // confirmed by issuing a statement on it after this catch. Returning a failure
+            // is nonetheless the whole of what happens here: TransactionBehavior calls
+            // FailAsync on a failure response, and a partially provisioned tenant must not
+            // survive on the strength of the transaction still being open.
+            var (field, reason) = ConflictFor(conflict.ConstraintName);
+
             return Result.FailFor<Result<ProvisionedTenantDto>>(
-                new Error(new LocalizedMessage(ConflictKeyFor(conflict.ConstraintName))));
+                new Error(
+                    new LocalizedMessage("lockey_business_rule_violation"),
+                    new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+                    {
+                        [field] = [new LocalizedMessage(reason)],
+                    }));
         }
     }
 
@@ -115,22 +127,45 @@ internal sealed class ProvisionTenantCommandHandler(
     }
 
     /// <summary>
-    /// Which uniqueness the caller collided with, as a localization key.
+    /// Which field collided, and why, as an RFC 7807 <c>errors</c> entry.
     /// </summary>
     /// <remarks>
-    /// By constraint name rather than by a generic "already exists", because the two
-    /// halves of this command fail for different reasons and a caller retrying blindly on
-    /// the wrong one never succeeds: a taken slug needs a different slug, a duplicate id
-    /// needs a different id. An unrecognised constraint falls back to the generic key
-    /// rather than to a 500 — a new unique index is not a reason to start crashing.
+    /// <para>
+    /// <b>The top-level code stays <c>business_rule_violation</c>, and the specificity
+    /// lives in the details.</b> That is the shape <c>ValidationBehavior</c> already
+    /// uses — one canonical code plus a per-field map — and the reason is not symmetry:
+    /// <c>HttpStatusMap</c> is a closed table of cross-cutting codes, and a code missing
+    /// from it falls through to <c>500</c>. Four module-specific keys at the top level
+    /// were measured doing exactly that, which made a "slug taken" answer *worse* than
+    /// the generic one it replaced — <c>business_rule_violation</c> maps to <c>409</c>.
+    /// A module does not get to grow the global status table for its own vocabulary.
+    /// </para>
+    /// <para>
+    /// By constraint name rather than a bare "already exists", because the two halves of
+    /// this command fail for different reasons and a caller retrying blindly on the wrong
+    /// one never succeeds: a taken slug needs a different slug, a duplicate id a different
+    /// id. An unrecognised constraint names no field and says only that something is
+    /// taken — a new unique index is not a reason to start crashing.
+    /// </para>
     /// </remarks>
-    private static string ConflictKeyFor(string? constraintName) => constraintName switch
-    {
-        "ux_tenants_slug" => "lockey_tenant_slug_taken",
-        "pk_tenants" => "lockey_tenant_already_exists",
-        "ux_organizations_tenant_id_slug" => "lockey_organization_slug_taken",
-        "pk_organizations" or "ux_organizations_tenant_id_id" =>
-            "lockey_organization_already_exists",
-        _ => "lockey_business_rule_violation",
-    };
+    private static (string Field, string Reason) ConflictFor(string? constraintName) =>
+        constraintName switch
+        {
+            "ux_tenants_slug" =>
+                (nameof(ProvisionTenantCommand.Slug), "lockey_slug_taken"),
+            "pk_tenants" =>
+                (nameof(ProvisionTenantCommand.TenantId), "lockey_identifier_taken"),
+            "pk_organizations" or "ux_organizations_tenant_id_id" =>
+                (nameof(ProvisionTenantCommand.DefaultOrganizationId), "lockey_identifier_taken"),
+
+            // Unreachable on this command's own write order — the organization is inserted
+            // under a tenant created moments earlier in the same transaction, so the
+            // composite key's tenant half is always fresh. Kept because the port it goes
+            // through is shared: the second caller of IOrganizationWriteStore.AddAsync
+            // will not be provisioning, and this is the arm it needs.
+            "ux_organizations_tenant_id_slug" =>
+                (nameof(ProvisionTenantCommand.DefaultOrganizationSlug), "lockey_slug_taken"),
+
+            _ => ("$", "lockey_business_rule_violation"),
+        };
 }

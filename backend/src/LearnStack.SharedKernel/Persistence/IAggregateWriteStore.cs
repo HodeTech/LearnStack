@@ -46,7 +46,6 @@ public interface IAggregateWriteStore<TRoot, TId>
     /// <summary>Persists a newly created aggregate.</summary>
     Task AddAsync(TRoot aggregate, CancellationToken cancellationToken = default);
 
-    /// <summary>Persists a change to an aggregate already stored.</summary>
     /// <summary>Persists changes to an aggregate this scope already tracks.</summary>
     /// <remarks>
     /// <b>Tracked, and an implementation may refuse anything else.</b> Under

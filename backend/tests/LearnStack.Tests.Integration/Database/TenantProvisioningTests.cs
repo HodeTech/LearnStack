@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Api.Composition;
+using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -12,6 +13,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -118,9 +120,11 @@ public sealed class TenantProvisioningTests
             var result = await ProvisionAsync(command);
 
             result.IsFailure.Should().BeTrue();
-            result.Error!.Message.Key.Should().Be("lockey_organization_already_exists",
+            result.Error!.Details.Should().ContainKey(
+                nameof(ProvisionTenantCommand.DefaultOrganizationId),
                 "the collision is on the organization's key, which proves the tenant "
                 + "insert had already gone through when the second write was refused");
+            HttpStatusMap.For(result.Error.Code).Should().Be(StatusCodes.Status409Conflict);
 
             (await ScalarAsPlatformAsync(
                 "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
@@ -135,10 +139,10 @@ public sealed class TenantProvisioningTests
     }
 
     [Theory]
-    [InlineData("slug", "lockey_tenant_slug_taken")]
-    [InlineData("id", "lockey_tenant_already_exists")]
+    [InlineData("slug", "Slug", "lockey_slug_taken")]
+    [InlineData("id", "TenantId", "lockey_identifier_taken")]
     public async Task A_name_already_taken_is_an_answer_rather_than_a_crash(
-        string collideOn, string expectedKey)
+        string collideOn, string expectedField, string expectedReason)
     {
         // Reusing a slug is an ordinary thing a caller does, and untranslated it is a 500:
         // neither DbUpdateException nor PostgresException has an arm in HttpStatusMap, so
@@ -161,11 +165,21 @@ public sealed class TenantProvisioningTests
             var result = await ProvisionAsync(second);
 
             result.IsFailure.Should().BeTrue("a taken name is a refusal, not a fault");
-            result.Error!.Message.Key.Should().Be(expectedKey,
-                "a caller retrying blindly on the wrong half never succeeds — a taken slug "
-                + "needs a different slug, a duplicate id a different id");
-            result.Error.Code.Should().Be(
-                collideOn == "slug" ? "tenant_slug_taken" : "tenant_already_exists");
+
+            // The top-level code is what decides the HTTP status, and this is the leg
+            // nothing checked before: four module-specific keys at the top level were
+            // measured falling through HttpStatusMap's closed table to 500, which made a
+            // "slug taken" answer worse than the generic one it replaced.
+            HttpStatusMap.For(result.Error!.Code).Should().Be(
+                StatusCodes.Status409Conflict,
+                "a code absent from the map falls through to 500, and a module does not "
+                + "grow the global table for its own vocabulary");
+
+            // The specificity lives in the details, keyed by the field that collided —
+            // a caller retrying blindly on the wrong half never succeeds.
+            result.Error.Details.Should().ContainKey(expectedField)
+                .WhoseValue.Should().ContainSingle()
+                .Which.Key.Should().Be(expectedReason);
 
             (await ScalarAsPlatformAsync(
                 "SELECT count(*) FROM tenants WHERE id = @id", second.TenantId.Value))

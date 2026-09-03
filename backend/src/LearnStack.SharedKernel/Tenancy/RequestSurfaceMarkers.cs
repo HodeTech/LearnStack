@@ -23,10 +23,11 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// hostname.
 /// </para>
 /// <para>
-/// <b>It ships with no users.</b> The first is <c>ProvisionTenantCommand</c>, in
-/// Packet 7 step 9 — there is not one production request type in the solution today.
-/// The marker lands ahead of it because the behavior that reads it lands now, and a
-/// predicate with no attribute to look for is the stub this replaces.
+/// <b>It has exactly one user.</b> <c>ProvisionTenantCommand</c>, from Packet 7 step 9,
+/// and <c>AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands</c> holds the
+/// allow-list at that one name. The marker shipped ahead of it, in the packet that
+/// wrote the behavior reading it, because a predicate with no attribute to look for is
+/// the stub this replaces.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
