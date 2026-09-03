@@ -223,7 +223,7 @@ public sealed class TenancyAggregateTests
     [InlineData("yes", false)]
     public void A_feature_flag_value_must_be_well_formed_json(string value, bool accepted)
     {
-        var create = () => TenantFeatureFlag.Create(Tenant, "live-classroom", value, Clock.UtcNow, Actor);
+        var create = () => NewTenant().SetFeatureFlag("live-classroom", value, Clock, Actor);
 
         if (accepted)
         {
@@ -377,7 +377,7 @@ public sealed class TenancyAggregateTests
         var at = sentinelClock ? default : Clock.UtcNow;
         var by = emptyActor ? UserId.From(Guid.Empty) : Actor;
 
-        var create = () => TenantFeatureFlag.Create(Tenant, "beta", "true", at, by);
+        var create = () => NewTenant().SetFeatureFlag("beta", "true", new FixedClock(at), by);
 
         create.Should().Throw<ArgumentException>();
     }
@@ -385,9 +385,11 @@ public sealed class TenancyAggregateTests
     [Fact]
     public void Setting_a_feature_flag_refuses_them_too()
     {
-        var flag = TenantFeatureFlag.Create(Tenant, "beta", "true", Clock.UtcNow, Actor);
+        var tenant = NewTenant();
+        tenant.SetFeatureFlag("beta", "true", Clock, Actor);
+        var flag = tenant.FeatureFlags.Single();
 
-        var set = () => flag.SetValue("false", default, Actor);
+        var set = () => tenant.SetFeatureFlag("false", "x", new FixedClock(default), Actor);
 
         set.Should().Throw<ArgumentException>();
     }
@@ -477,7 +479,7 @@ public sealed class TenancyAggregateTests
     [InlineData("en-Latn-US-scouse-scouse-scouse-scouse", false)]
     public void A_locale_is_bounded_by_the_length_its_column_holds(string locale, bool accepted)
     {
-        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+        var create = () => NewTenant().AddLocale(locale, isDefault: true, Clock, Actor);
 
         if (accepted)
         {
@@ -501,8 +503,10 @@ public sealed class TenancyAggregateTests
     [InlineData("tr", "tr")]
     public void A_locale_is_stored_in_canonical_case(string input, string expected)
     {
-        TenantLocale.Create(Tenant, input, isDefault: true)
-            .Locale.Should().Be(expected);
+        var tenant = NewTenant();
+        tenant.AddLocale(input, isDefault: true, Clock, Actor);
+
+        tenant.Locales.Should().ContainSingle().Which.Locale.Should().Be(expected);
     }
 
     [Theory]
@@ -512,7 +516,7 @@ public sealed class TenancyAggregateTests
     [InlineData("zh-Hans-CN")]
     public void A_well_formed_locale_tag_is_accepted(string locale)
     {
-        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+        var create = () => NewTenant().AddLocale(locale, isDefault: true, Clock, Actor);
 
         create.Should().NotThrow();
     }
@@ -530,7 +534,7 @@ public sealed class TenancyAggregateTests
     [InlineData("123")]
     public void A_locale_that_is_not_a_bcp47_tag_is_refused(string locale)
     {
-        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+        var create = () => NewTenant().AddLocale(locale, isDefault: true, Clock, Actor);
 
         create.Should().Throw<ArgumentException>().WithMessage("*BCP-47*");
     }
@@ -560,8 +564,8 @@ public sealed class TenancyAggregateTests
     [InlineData(201, false)]
     public void A_feature_flag_key_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
     {
-        var create = () => TenantFeatureFlag.Create(
-            Tenant, new string('k', length), "true", Clock.UtcNow, Actor);
+        var create = () => NewTenant().SetFeatureFlag(
+            new string('k', length), "\"v\"", Clock, Actor);
 
         if (accepted)
         {

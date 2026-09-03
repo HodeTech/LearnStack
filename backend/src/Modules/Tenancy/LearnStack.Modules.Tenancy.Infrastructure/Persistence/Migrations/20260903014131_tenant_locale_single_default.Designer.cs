@@ -3,6 +3,7 @@ using System;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TenancyDbContext))]
-    partial class TenancyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903014131_tenant_locale_single_default")]
+    partial class tenant_locale_single_default
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

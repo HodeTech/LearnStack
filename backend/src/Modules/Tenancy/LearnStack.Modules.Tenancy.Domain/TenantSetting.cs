@@ -32,7 +32,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// </remarks>
 [TenantOwned]
 [OrganizationScoped]
-public sealed class TenantSetting : AuditableEntity<TenantSettingId>, IOrganizationScoped
+public sealed class TenantSetting
+    : AuditableEntity<TenantSettingId>, IOrganizationScoped, IAggregateRoot<TenantSettingId>
 {
     private TenantSetting(TenantSettingId id)
         : base(id)

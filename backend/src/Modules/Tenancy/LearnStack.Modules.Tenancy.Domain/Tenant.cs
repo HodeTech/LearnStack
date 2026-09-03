@@ -148,6 +148,159 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     /// aggregate — "the schema would not object, so the aggregate is where the
     /// invariant lives".
     /// </remarks>
+    private readonly List<TenantLocale> _locales = [];
+
+    /// <summary>
+    /// The locales this tenant publishes in.
+    /// </summary>
+    /// <remarks>
+    /// A navigation rather than its own aggregate: a locale row is
+    /// <c>PRIMARY KEY (tenant_id, locale)</c> with no surrogate id, and a composite
+    /// natural key is not an <c>IAggregateRoot&lt;TId&gt;</c> under any reading. It is
+    /// read-only here because the root is the only way in — see the mutators below, and
+    /// the reason they exist.
+    /// </remarks>
+    public IReadOnlyCollection<TenantLocale> Locales => _locales.AsReadOnly();
+
+    private readonly List<TenantFeatureFlag> _featureFlags = [];
+
+    /// <summary>This tenant's feature-flag overrides.</summary>
+    public IReadOnlyCollection<TenantFeatureFlag> FeatureFlags => _featureFlags.AsReadOnly();
+
+    /// <summary>Adds a locale this tenant publishes in.</summary>
+    /// <remarks>
+    /// <b>Every child write goes through a root method, and that is what bumps
+    /// <c>row_version</c>.</b> The version advances only inside
+    /// <c>AuditableEntity.Touch</c>, which nothing but <c>MarkUpdated</c> and
+    /// <c>SoftDelete</c> reach — so the bump the roadmap requires for a locale or flag
+    /// write is a consequence of containment rather than a second mechanism someone has
+    /// to remember. A caller holding a locale directly could not have produced it.
+    /// </remarks>
+    public void AddLocale(
+        string locale,
+        bool isDefault,
+        IClock clock,
+        UserId updatedBy,
+        bool isEnabled = true,
+        short sort = 0)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+
+        var added = TenantLocale.Create(Id, locale, isDefault: false, isEnabled, sort);
+
+        if (_locales.Any(existing => string.Equals(
+                existing.Locale, added.Locale, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"This tenant already publishes in '{added.Locale}'. A locale row is "
+                + "identified by (tenant_id, locale), so a second one is a duplicate "
+                + "rather than a second locale.");
+        }
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        _locales.Add(added);
+
+        if (isDefault)
+        {
+            PromoteDefault(added);
+        }
+    }
+
+    /// <summary>Makes an existing locale this tenant's default.</summary>
+    public void SetDefaultLocale(string locale, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+
+        var canonical = LocaleTag.Canonicalize(locale);
+        var target = _locales.FirstOrDefault(existing => string.Equals(
+                         existing.Locale, canonical, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"This tenant does not publish in '{canonical}', so it cannot be the default.");
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        PromoteDefault(target);
+    }
+
+    /// <summary>Removes a locale, which must not be the default.</summary>
+    public void RemoveLocale(string locale, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+
+        var canonical = LocaleTag.Canonicalize(locale);
+        var target = _locales.FirstOrDefault(existing => string.Equals(
+                         existing.Locale, canonical, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"This tenant does not publish in '{canonical}'.");
+
+        if (target.IsDefault)
+        {
+            throw new InvalidOperationException(
+                $"'{canonical}' is this tenant's default locale. Promote another locale "
+                + "first: a tenant that publishes in nothing has no fallback to render.");
+        }
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        _locales.Remove(target);
+    }
+
+    /// <summary>Sets a feature-flag override, adding it when it is new.</summary>
+    public void SetFeatureFlag(string key, string value, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+
+        var existing = _featureFlags.FirstOrDefault(
+            flag => string.Equals(flag.Key, key, StringComparison.Ordinal));
+
+        if (existing is null)
+        {
+            _featureFlags.Add(
+                TenantFeatureFlag.Create(Id, key, value, clock.UtcNow, updatedBy));
+            return;
+        }
+
+        existing.SetValue(value, clock.UtcNow, updatedBy);
+    }
+
+    /// <summary>Removes a feature-flag override.</summary>
+    public void RemoveFeatureFlag(string key, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        var target = _featureFlags.FirstOrDefault(
+                         flag => string.Equals(flag.Key, key, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"No feature flag '{key}' is set.");
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        _featureFlags.Remove(target);
+    }
+
+    /// <summary>
+    /// Clears the incumbent default before setting the new one.
+    /// </summary>
+    /// <remarks>
+    /// <b>The order is not cosmetic.</b> A partial unique index
+    /// <c>UNIQUE (tenant_id) WHERE is_default</c> backs this invariant in the database,
+    /// and EF emits one UPDATE per changed row: measured, setting the new default first
+    /// fails 23505, and clearing the incumbent first succeeds. The guard here exists for
+    /// the error message; the index exists because an aggregate invariant does not hold
+    /// across concurrent transactions.
+    /// </remarks>
+    private void PromoteDefault(TenantLocale target)
+    {
+        foreach (var incumbent in _locales.Where(locale => locale.IsDefault))
+        {
+            incumbent.ClearDefault();
+        }
+
+        target.MakeDefault();
+    }
+
     public void ChangeStatus(TenantStatus status, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);

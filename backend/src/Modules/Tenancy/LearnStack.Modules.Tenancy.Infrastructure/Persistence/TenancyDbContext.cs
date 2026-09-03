@@ -47,11 +47,9 @@ public sealed class TenancyDbContext(
 
     public DbSet<TenantDomain> TenantDomains => Set<TenantDomain>();
 
-    public DbSet<TenantLocale> TenantLocales => Set<TenantLocale>();
 
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
 
-    public DbSet<TenantFeatureFlag> TenantFeatureFlags => Set<TenantFeatureFlag>();
 
     public DbSet<PlatformEntitlement> PlatformEntitlements => Set<PlatformEntitlement>();
 

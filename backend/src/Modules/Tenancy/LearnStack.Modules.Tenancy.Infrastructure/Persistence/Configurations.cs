@@ -112,6 +112,37 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasIndex(x => x.Slug).IsUnique().HasDatabaseName("ux_tenants_slug");
 
         builder.MapAuditColumns<Tenant, TenantId>();
+
+        // The containment the aggregate boundary decides, expressed for EF — and NOT as
+        // owned types. An owned mapping looks like the natural way to say "part of the
+        // root" and silently removes both query filters: the filter builder skips
+        // entityType.IsOwned(), so the rows would lose the EF half of the four-layer
+        // isolation and the correspondence test would fail looking for a type that is no
+        // longer in the model on its own.
+        //
+        // OnDelete is explicit because EF defaults a required relationship to Cascade
+        // while the shipped DDL is ON DELETE RESTRICT; the constraint names match what
+        // the first migration already created as raw SQL, so no foreign key is scaffolded
+        // twice.
+        builder.HasMany(t => t.Locales)
+            .WithOne()
+            .HasForeignKey(l => l.TenantId)
+            .HasConstraintName("fk_tenant_locales_tenant")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(t => t.FeatureFlags)
+            .WithOne()
+            .HasForeignKey(f => f.TenantId)
+            .HasConstraintName("fk_tenant_feature_flags_tenant")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Through the backing fields, not the read-only views: the views are
+        // AsReadOnly() wrappers EF cannot add to, and materialising into them would throw
+        // at the first query that loads a tenant with locales.
+        builder.Metadata.FindNavigation(nameof(Tenant.Locales))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
+        builder.Metadata.FindNavigation(nameof(Tenant.FeatureFlags))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -228,6 +259,19 @@ internal sealed class TenantLocaleConfiguration : IEntityTypeConfiguration<Tenan
         builder.Property(x => x.IsDefault).IsRequired();
         builder.Property(x => x.IsEnabled).HasDefaultValue(true).IsRequired();
         builder.Property(x => x.Sort).HasDefaultValue((short)0).IsRequired();
+
+        // The single-default invariant, in the one place it holds across concurrent
+        // transactions. The aggregate guard on Tenant produces the error message; this
+        // produces the guarantee — two transactions each promoting a different locale
+        // both pass an in-memory check and one of them must lose here.
+        //
+        // The filter is raw SQL evaluated after the snake-case convention runs, so it is
+        // spelled is_default and not IsDefault — the same spelling the three shipped
+        // HasFilter("deleted_at IS NULL") calls use.
+        builder.HasIndex(x => x.TenantId)
+            .IsUnique()
+            .HasFilter("is_default")
+            .HasDatabaseName("ux_tenant_locales_tenant_id_is_default");
     }
 }
 

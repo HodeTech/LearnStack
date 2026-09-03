@@ -28,7 +28,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// </para>
 /// </remarks>
 [TenantOwned]
-public sealed class TenantDomain : AuditableEntity<TenantDomainId>, ITenantOwned
+public sealed class TenantDomain
+    : AuditableEntity<TenantDomainId>, ITenantOwned, IAggregateRoot<TenantDomainId>
 {
     private TenantDomain(TenantDomainId id)
         : base(id) => Host = null!;

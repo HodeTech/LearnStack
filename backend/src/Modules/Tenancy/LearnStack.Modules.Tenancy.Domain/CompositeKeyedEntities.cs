@@ -54,7 +54,19 @@ public sealed class TenantLocale : ITenantOwned
     /// <summary>Display order in a language switcher.</summary>
     public short Sort { get; private set; }
 
-    public static TenantLocale Create(
+    /// <summary>Makes this the tenant's default locale.</summary>
+    /// <remarks>
+    /// <c>internal</c>, and reached only from <c>Tenant.PromoteDefault</c>, which clears
+    /// the incumbent first. Exposed publicly it would be the one call that can put two
+    /// rows past the aggregate guard and into the partial unique index, where the failure
+    /// is a 23505 nobody wrote a message for.
+    /// </remarks>
+    internal void MakeDefault() => IsDefault = true;
+
+    /// <summary>Stops this being the default.</summary>
+    internal void ClearDefault() => IsDefault = false;
+
+    internal static TenantLocale Create(
         TenantId tenantId, string locale, bool isDefault, bool isEnabled = true, short sort = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
@@ -113,7 +125,7 @@ public sealed class TenantFeatureFlag : ITenantOwned
 
     public UserId UpdatedBy { get; private set; }
 
-    public static TenantFeatureFlag Create(
+    internal static TenantFeatureFlag Create(
         TenantId tenantId, string key, string value, DateTimeOffset at, UserId by)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -140,7 +152,7 @@ public sealed class TenantFeatureFlag : ITenantOwned
         };
     }
 
-    public void SetValue(string value, DateTimeOffset at, UserId by)
+    internal void SetValue(string value, DateTimeOffset at, UserId by)
     {
         JsonValue.EnsureWellFormed(value, nameof(value));
         AuditInput.EnsureValid(at, by);
