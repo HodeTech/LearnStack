@@ -22,7 +22,15 @@ namespace LearnStack.SharedKernel.Tenancy;
 public interface IHostResolutionInvalidator
 {
     /// <summary>Forgets any cached answer for <paramref name="normalizedHost"/>.</summary>
-    void Invalidate(string normalizedHost);
+    /// <remarks>
+    /// <b>Any</b> answer — the negative one and the positive one. Clearing only the
+    /// negative side covers activation, which is the harmless direction: a host that
+    /// starts resolving. The direction that matters is the other one — a host
+    /// deactivated, released, or re-pointed at a different tenant keeps serving the old
+    /// tenant's content for the whole positive TTL, which is a cross-tenant answer from a
+    /// cache rather than from a policy.
+    /// </remarks>
+    Task InvalidateAsync(string normalizedHost, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The invalidator for a host with nothing to invalidate.</summary>
@@ -30,8 +38,8 @@ public sealed class NullHostResolutionInvalidator : IHostResolutionInvalidator
 {
     public static NullHostResolutionInvalidator Instance { get; } = new();
 
-    public void Invalidate(string normalizedHost)
-    {
+    public Task InvalidateAsync(
+        string normalizedHost, CancellationToken cancellationToken = default) =>
         // Nothing is cached, so nothing is stale.
-    }
+        Task.CompletedTask;
 }

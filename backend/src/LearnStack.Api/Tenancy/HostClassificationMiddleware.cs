@@ -1,3 +1,4 @@
+using LearnStack.Api.Versioning;
 using System.Diagnostics.Metrics;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Http;
@@ -28,8 +29,18 @@ namespace LearnStack.Api.Tenancy;
 /// </remarks>
 public sealed class HostClassificationMiddleware
 {
-    /// <summary>The one prefix classification applies to.</summary>
-    public const string ClassifiedPrefix = "/api/v1";
+    /// <summary>The prefixes classification applies to — one per live API major.</summary>
+    /// <remarks>
+    /// <b>Derived from <see cref="ApiVersioningExtensions.LiveMajors"/>, not written
+    /// here.</b> A hardcoded <c>/api/v1</c> silently stopped classifying the moment a
+    /// second major went live: every request to <c>/api/v2</c> would skip host
+    /// classification, so an unknown host would reach a handler instead of the bodyless
+    /// 404, and a tenant-facing route would run with no <c>HostClassification</c> feature
+    /// at all. The versioning list is the one place a major is declared live, and this
+    /// follows it.
+    /// </remarks>
+    public static readonly IReadOnlyList<string> ClassifiedPrefixes =
+        [.. ApiVersioningExtensions.LiveMajors.Select(major => $"/api/v{major}")];
 
     /// <summary>
     /// Prefixes classification does not apply to.
@@ -151,7 +162,8 @@ public sealed class HostClassificationMiddleware
             }
         }
 
-        return path.StartsWithSegments(ClassifiedPrefix, StringComparison.OrdinalIgnoreCase);
+        return ClassifiedPrefixes.Any(
+            prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task RejectAsync(HttpContext context, string host)

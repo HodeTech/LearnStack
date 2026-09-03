@@ -138,7 +138,7 @@ internal sealed class MapHostToTenantCommandHandler(
         // obligation; this call joins it there. Until then the residual window is bounded
         // by the same TTL it exists to shorten, so the failure mode is the old one for a
         // few milliseconds rather than a new one.
-        resolutionCache.Invalidate(mapping.Host);
+        await resolutionCache.InvalidateAsync(mapping.Host, cancellationToken);
 
         return Result.Ok(new HostMappingDto(
             mapping.Host,

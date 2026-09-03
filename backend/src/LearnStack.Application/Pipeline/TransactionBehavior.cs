@@ -116,6 +116,16 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             // every statement in it silently fail-closed — and would hand every handler
             // in the solution the ability to move the ambient tenant. This stays the
             // only caller, which is what keeps ADR-0040's setter set closed at seven.
+            //
+            // WRITE-ONLY, and the asymmetry is the reason. This announces the tenant to
+            // PostgreSQL; it does not touch ITenantContextAccessor, which is what the EF
+            // query filters read. So inside a provisioning transaction the policies see
+            // the new tenant and the filters see the all-zero one, and any EF READ here
+            // returns zero rows — silently, the way a context on its own connection would.
+            // Nothing reads today: ADR-0042 enumerates the operation as three writes, and
+            // inserts are not filtered. A read added here needs the accessor set too,
+            // which would make this a fifth writer of a member ADR-0036 Amendment 2 closes
+            // at four — so it is a decision, not an edit.
             if (!tenantContext.IsResolved && request is IProvisionsTenant provisioning)
             {
                 await unitOfWork.SetProvisioningTenantContextAsync(

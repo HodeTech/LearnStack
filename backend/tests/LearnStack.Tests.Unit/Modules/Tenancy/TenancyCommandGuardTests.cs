@@ -199,7 +199,12 @@ public sealed class TenancyCommandGuardTests
     {
         public List<string> Hosts { get; } = [];
 
-        public void Invalidate(string normalizedHost) => Hosts.Add(normalizedHost);
+        public Task InvalidateAsync(
+            string normalizedHost, CancellationToken cancellationToken = default)
+        {
+            Hosts.Add(normalizedHost);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ResolvedContext(TenantId tenantId) : ITenantContext

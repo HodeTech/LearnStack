@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
+using LearnStack.Api.Versioning;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Http;
 using Xunit;
@@ -44,6 +45,27 @@ public sealed class HostClassificationScopeTests
     {
         HostClassificationMiddleware.ClassifiesPath(new PathString(path))
             .Should().BeFalse();
+    }
+
+    [Fact]
+    public void Classification_Follows_Every_Live_Api_Major()
+    {
+        // The prefix was the literal "/api/v1". A second live major would have skipped
+        // host classification entirely on its whole surface: an unknown host reaching a
+        // handler instead of the bodyless 404, and a tenant-facing route running with no
+        // HostClassification feature at all. ApiVersioningExtensions.LiveMajors is the one
+        // place a major is declared live, so the prefixes follow it rather than restating
+        // it — and this asserts the correspondence, not the current contents.
+        HostClassificationMiddleware.ClassifiedPrefixes.Should().BeEquivalentTo(
+            ApiVersioningExtensions.LiveMajors.Select(major => $"/api/v{major}"),
+            "one classified prefix per live major, and no other source of truth");
+
+        foreach (var major in ApiVersioningExtensions.LiveMajors)
+        {
+            HostClassificationMiddleware
+                .ClassifiesPath(new PathString($"/api/v{major}/courses"))
+                .Should().BeTrue($"v{major} is live, so its surface is classified");
+        }
     }
 
     [Fact]

@@ -34,7 +34,7 @@ public sealed class CachedHostToTenantResolver(
     ICacheService cache,
     UnknownHostCache unknownHosts,
     HostResolutionOptions options,
-    Lazy<NpgsqlDataSource> dataSource) : IHostToTenantResolver
+    Lazy<NpgsqlDataSource> dataSource) : IHostToTenantResolver, IHostResolutionInvalidator
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<HostResolution?>>> _flights =
         new(StringComparer.Ordinal);
@@ -183,6 +183,26 @@ public sealed class CachedHostToTenantResolver(
         {
             _flights.TryRemove(host, out _);
         }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Both sides, because this type owns both. The negative cache covers activation — a
+    /// host that starts resolving — and the positive entry covers the direction that
+    /// actually matters: a host deactivated, released or re-pointed keeps serving the
+    /// previous tenant's answer for the whole positive TTL otherwise, which is a
+    /// cross-tenant answer coming from a cache rather than from a policy.
+    ///
+    /// The key is composed by the same factory the read path uses, never interpolated, so
+    /// the entry cleared here is provably the entry written there.
+    /// </remarks>
+    public async Task InvalidateAsync(
+        string normalizedHost, CancellationToken cancellationToken = default)
+    {
+        _unknownHosts.Forget(normalizedHost);
+
+        await _cache.RemoveAsync(
+            CacheKey.ForHostMapping(normalizedHost), cancellationToken);
     }
 
     private async Task<HostResolution?> ReadAsync(string host, CancellationToken cancellationToken)

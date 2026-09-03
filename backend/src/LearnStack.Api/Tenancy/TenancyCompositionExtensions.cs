@@ -173,10 +173,13 @@ public static class TenancyCompositionExtensions
         // cannot reference this file.
         services.AddSingleton<IReservedHostRegistry, PlatformHostOptions.Registry>();
 
-        // The negative cache is the invalidator: the same instance, reached through the
-        // port a module is allowed to name.
+        // The RESOLVER is the invalidator, not the negative cache: it owns both sides,
+        // and clearing only the negative one covers activation while leaving a
+        // deactivated or re-pointed host serving its previous tenant for the positive
+        // TTL. Same instance, reached through the port a module is allowed to name.
         services.AddSingleton<IHostResolutionInvalidator>(
-            provider => provider.GetRequiredService<UnknownHostCache>());
+            provider => (CachedHostToTenantResolver)provider
+                .GetRequiredService<IHostToTenantResolver>());
 
         // Singleton, so the resolver's in-flight map is process-wide: a scoped one
         // gives every request its own and coalesces nothing.

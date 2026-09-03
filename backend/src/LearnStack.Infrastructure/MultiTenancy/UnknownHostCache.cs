@@ -42,7 +42,6 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// </para>
 /// </remarks>
 public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions options)
-    : IHostResolutionInvalidator
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _seen =
         new(StringComparer.Ordinal);
@@ -103,8 +102,6 @@ public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions optio
     /// </remarks>
     public void Forget(string host) => _seen.TryRemove(host, out _);
 
-    /// <inheritdoc />
-    void IHostResolutionInvalidator.Invalidate(string normalizedHost) => Forget(normalizedHost);
 
     private void Trim()
     {

@@ -133,6 +133,55 @@ public sealed class HostResolutionTests
     }
 
     [Fact]
+    public async Task Invalidation_Clears_The_Positive_Entry_Not_Only_The_Negative_One()
+    {
+        // The direction that matters. Clearing only the negative cache covers activation —
+        // a host that starts resolving — which is the harmless half. A host deactivated,
+        // released, or re-pointed at a different tenant keeps serving the PREVIOUS
+        // tenant's answer for the whole positive TTL otherwise: a cross-tenant answer
+        // coming from a cache rather than from a policy.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var resolver = BuildResolver(dataSource);
+
+        (await resolver.ResolveAsync(SchemaFixture.HostA)).Should().NotBeNull();
+
+        // Cached now: a second lookup must not reach the database, which is what the
+        // sibling case pins. Re-point the row underneath it, as a host lifecycle would.
+        await using (var platform = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString))
+        await using (var repoint = new NpgsqlCommand(
+            "UPDATE platform_host_to_tenant SET is_publicly_live = false WHERE host = @host",
+            (NpgsqlConnection)platform))
+        {
+            repoint.Parameters.AddWithValue("host", SchemaFixture.HostA);
+            await repoint.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            // Still served from the positive cache — the row changed, the answer did not.
+            (await resolver.ResolveAsync(SchemaFixture.HostA)).Should().NotBeNull(
+                "the positive entry is still warm, which is what makes invalidation matter");
+
+            await ((IHostResolutionInvalidator)resolver).InvalidateAsync(SchemaFixture.HostA);
+
+            (await resolver.ResolveAsync(SchemaFixture.HostA)).Should().BeNull(
+                "invalidation cleared the positive entry, so the next lookup re-read the "
+                + "row and found it no longer publicly live");
+        }
+        finally
+        {
+            await using var platform = await PostgresFixture.OpenAsync(
+                _schema.Postgres.PlatformConnectionString);
+            await using var restore = new NpgsqlCommand(
+                "UPDATE platform_host_to_tenant SET is_publicly_live = true WHERE host = @host",
+                (NpgsqlConnection)platform);
+            restore.Parameters.AddWithValue("host", SchemaFixture.HostA);
+            await restore.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
     public async Task An_Unmapped_Host_Resolves_To_Nothing()
     {
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
