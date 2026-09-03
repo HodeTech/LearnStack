@@ -281,6 +281,46 @@ public sealed class ProvisionTenantCommandTests
         refuse().IsValid.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("organization")]
+    public void An_id_nobody_assigned_is_refused_rather_than_thrown_on(string which)
+    {
+        // Reading .Value on an uninitialized Vogen id raises from inside the id type. The
+        // cross-field rule below compares both ids, so without a guard ahead of it a
+        // client's malformed id became an exception inside the validator — a 500 for an
+        // input the caller can fix, which is the defect this file's remarks were written
+        // about in the first place.
+        //
+        // default(TenantId) does not compile — VOG009 prohibits it — so the unassigned
+        // value comes from an array element, which is also how it reaches production: a
+        // struct field nobody assigned, a default(T) in a generic, a deserializer that
+        // skipped a member.
+        var unassignedTenant = new TenantId[1];
+        var unassignedOrganization = new OrganizationId[1];
+
+        var command = which == "tenant"
+            ? Command() with { TenantId = unassignedTenant[0] }
+            : Command() with { DefaultOrganizationId = unassignedOrganization[0] };
+
+        var validate = () => Validator().Validate(command);
+
+        validate.Should().NotThrow("an unassigned id is refused, not dereferenced");
+        validate().IsValid.Should().BeFalse();
+        validate().Errors.Should().Contain(failure =>
+            failure.ErrorCode == "lockey_identifier_required");
+    }
+
+    [Fact]
+    public void An_all_zero_id_is_refused_too()
+    {
+        // The second sentinel. It constructs cleanly, so nothing throws — it simply means
+        // nothing, and TenantOwnership.EnsureRealTenant would reject it three layers later
+        // as an ArgumentException, which has no HttpStatusMap entry.
+        Refuse(command => command with { TenantId = TenantId.From(Guid.Empty) })
+            .Should().Be("lockey_identifier_required");
+    }
+
     [Fact]
     public void A_tenant_and_its_default_organization_may_not_share_an_id()
     {

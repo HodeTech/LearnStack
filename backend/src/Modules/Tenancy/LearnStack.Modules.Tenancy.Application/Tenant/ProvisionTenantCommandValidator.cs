@@ -45,6 +45,13 @@ internal sealed class ProvisionTenantCommandValidator : AbstractValidator<Provis
 {
     public ProvisionTenantCommandValidator()
     {
+        // Before anything reads .Value. The cross-field rule below compares both ids, and
+        // reading Value on an uninitialized Vogen id raises from inside the id type — so
+        // without these a client's malformed id is a 500 raised inside the validator, not
+        // a refusal.
+        RuleFor(command => command.TenantId).MustBeAssigned();
+        RuleFor(command => command.DefaultOrganizationId).MustBeAssigned();
+
         // Cascade(Stop), because the rules are not independent of the first: the shape
         // predicate runs a regex, and a regex against a null slug throws
         // ArgumentNullException out of the validator itself — which is the 500 this file
@@ -67,7 +74,10 @@ internal sealed class ProvisionTenantCommandValidator : AbstractValidator<Provis
         // yields the empty string, and an error under a "" key names nothing a client
         // can highlight.
         RuleFor(command => command.DefaultOrganizationId)
-            .Must((command, organizationId) => command.TenantId.Value != organizationId.Value)
+            .Must((command, organizationId) =>
+                !command.TenantId.IsInitialized()
+                || !organizationId.IsInitialized()
+                || command.TenantId.Value != organizationId.Value)
             .WithErrorCode("lockey_tenant_and_organization_share_an_id");
     }
 

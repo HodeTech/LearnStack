@@ -92,6 +92,25 @@ public static class TenantContextFactory
             return Result.Fail<TenantContext>(Refused);
         }
 
+        // A claim without a validated principal is not a claim. HasValidatedPrincipal is
+        // declared as the bit that separates rows 13 and 15 — "both resolve no tenant, and
+        // only one of them has a principal" — and until now nothing read it, so an attempt
+        // carrying ClaimTenantId with the bit clear produced a HostAndClaim context and the
+        // matrix's own trust distinction was decorative.
+        //
+        // Unreachable today: authentication registers in Phase 02b and the bit is constant
+        // false, so no caller populates a claim at all. That is exactly why it is worth
+        // closing now — the first caller that populates one will populate both or neither,
+        // and this decides which of those is a mistake rather than leaving it to whoever
+        // writes the middleware.
+        if (!attempt.HasValidatedPrincipal
+            && (attempt.ClaimTenantId is not null
+                || attempt.ClaimOrganizationId is not null
+                || attempt.UserId is not null))
+        {
+            return Result.Fail<TenantContext>(Refused);
+        }
+
         // Rows 8, 11 and 12 — the cross-check. Evaluated before any port answer is
         // consulted, so a refused request never spends a database round trip.
         if (!attempt.ClaimAgreesWithHost)

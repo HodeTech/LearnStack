@@ -86,6 +86,47 @@ public sealed class TenantContextFactoryTests
         result.Value!.UserId.Should().Be(Actor);
     }
 
+    [Theory]
+    [InlineData("tenant", "a claim naming a tenant")]
+    [InlineData("organization", "a claim naming an organization")]
+    [InlineData("user", "an actor")]
+    public void A_claim_without_a_validated_principal_is_not_a_claim(string signal, string what)
+    {
+        // HasValidatedPrincipal is declared as the bit that separates rows 13 and 15 —
+        // "both resolve no tenant, and only one of them has a principal" — and the factory
+        // did not read it. So an attempt carrying claim fields with the bit clear produced
+        // a HostAndClaim context, and the matrix's own trust distinction was decorative.
+        //
+        // Not reachable in traffic: authentication registers in Phase 02b and the bit is
+        // constant false, so nothing populates a claim yet. That is the reason to pin it
+        // now rather than later — the first caller to populate one will populate both or
+        // neither, and this says which of those is the mistake.
+        var attempt = new TenantResolutionAttempt { HostTenantId = TenantA };
+
+        attempt = signal switch
+        {
+            "tenant" => attempt with { ClaimTenantId = TenantA },
+            "organization" => attempt with { ClaimOrganizationId = OrgOne },
+            _ => attempt with { UserId = Actor },
+        };
+
+        TenantContextFactory.Create(attempt).IsFailure.Should().BeTrue(
+            $"{what} without a validated principal is a signal nothing vouched for");
+
+        // The positive control is row 6's shape, which is the one combination known to
+        // resolve on its own: host and an agreeing tenant claim, with the principal set.
+        // The other two signals are refused for reasons of their own even when validated —
+        // an organization claim with no tenant claim is incoherent, a bare actor names no
+        // tenant — so asserting they resolve would be asserting the matrix wrong.
+        TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HostTenantId = TenantA,
+            ClaimTenantId = TenantA,
+            UserId = Actor,
+            HasValidatedPrincipal = true,
+        }).IsFailure.Should().BeFalse("the bit is what the three refusals above turn on");
+    }
+
     [Fact]
     public void Row_7_A_claim_reaching_past_the_host_needs_both_answers()
     {

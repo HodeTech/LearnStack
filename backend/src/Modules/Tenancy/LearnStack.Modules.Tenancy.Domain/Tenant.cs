@@ -251,19 +251,32 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        MarkUpdated(clock.UtcNow, updatedBy);
-
         var existing = _featureFlags.FirstOrDefault(
             flag => string.Equals(flag.Key, key, StringComparison.Ordinal));
 
-        if (existing is null)
+        // Every guard the child would run, run here first — key width and JSON
+        // well-formedness for both paths, and the audit pair for the new-flag path via
+        // Create below. The stamp comes after, and that ordering is the point: an earlier
+        // version stamped first, matching ChangeStatus, whose comment explains that
+        // MarkUpdated is the only statement in it that can throw. That is not true here —
+        // the child validates too — so a rejected value left the tenant's UpdatedAt,
+        // UpdatedBy and row_version moved for a change that never happened.
+        MappedLength.EnsureAtMost(key, 200, nameof(key));
+        JsonValue.EnsureWellFormed(value, nameof(value));
+
+        var created = existing is null
+            ? TenantFeatureFlag.Create(Id, key, value, clock.UtcNow, updatedBy)
+            : null;
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+
+        if (created is not null)
         {
-            _featureFlags.Add(
-                TenantFeatureFlag.Create(Id, key, value, clock.UtcNow, updatedBy));
+            _featureFlags.Add(created);
             return;
         }
 
-        existing.SetValue(value, clock.UtcNow, updatedBy);
+        existing!.SetValue(value, clock.UtcNow, updatedBy);
     }
 
     /// <summary>Removes a feature-flag override.</summary>

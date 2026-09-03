@@ -1,6 +1,7 @@
 using FluentValidation;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Modules.Tenancy.Application.Tenant;
@@ -20,6 +21,8 @@ internal sealed class CreateOrganizationCommandValidator
 {
     public CreateOrganizationCommandValidator()
     {
+        RuleFor(command => command.OrganizationId).MustBeAssigned();
+
         // Cascade(Stop) keeps the shape regex off a null a deserializer could supply;
         // Pattern().IsMatch(null) throws out of the validator itself.
         RuleFor(command => command.Slug)
@@ -56,6 +59,11 @@ internal sealed class MapHostToTenantCommandValidator : AbstractValidator<MapHos
 {
     public MapHostToTenantCommandValidator()
     {
+        // Optional by contract — a tenant-wide host carries none — but an id that IS
+        // supplied must be real, or PlatformHostMapping.Create throws where a refusal
+        // belongs.
+        RuleFor(command => command.OrganizationId).MustBeAssignedWhenPresent();
+
         RuleFor(command => command.Host)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrorCode("lockey_host_required")
@@ -67,4 +75,36 @@ internal sealed class MapHostToTenantCommandValidator : AbstractValidator<MapHos
             .WithErrorCode("lockey_host_live_before_active")
             .OverridePropertyName(nameof(MapHostToTenantCommand.IsPubliclyLive));
     }
+}
+
+/// <summary>
+/// The rule every client-supplied strongly-typed id needs before anything reads it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Two sentinels, and reading <c>.Value</c> on the first throws.</b> A Vogen id nobody
+/// constructed is uninitialized, and touching <c>Value</c> raises from inside the id type
+/// — so a validator that compares ids, or an aggregate factory that stores one, turns a
+/// client's malformed input into a <c>500</c> rather than a refusal. The all-zero
+/// <c>Guid</c> is the second sentinel: it constructs cleanly and means nothing.
+/// </para>
+/// <para>
+/// <c>Cascade(Stop)</c> on every caller, because the rules that follow read the value.
+/// </para>
+/// </remarks>
+internal static class IdentifierRules
+{
+    internal static IRuleBuilderOptions<TCommand, TId> MustBeAssigned<TCommand, TId>(
+        this IRuleBuilderInitial<TCommand, TId> rule)
+        where TId : struct, IStronglyTypedId<Guid> =>
+        rule.Cascade(CascadeMode.Stop)
+            .Must(id => id.IsInitialized() && id.Value != Guid.Empty)
+            .WithErrorCode("lockey_identifier_required");
+
+    internal static IRuleBuilderOptions<TCommand, TId?> MustBeAssignedWhenPresent<TCommand, TId>(
+        this IRuleBuilderInitial<TCommand, TId?> rule)
+        where TId : struct, IStronglyTypedId<Guid> =>
+        rule.Cascade(CascadeMode.Stop)
+            .Must(id => id is not { } value || (value.IsInitialized() && value.Value != Guid.Empty))
+            .WithErrorCode("lockey_identifier_required");
 }

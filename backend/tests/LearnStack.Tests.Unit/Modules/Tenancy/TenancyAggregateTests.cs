@@ -32,6 +32,33 @@ public sealed class TenancyAggregateTests
     private static readonly TenantDomainId DomainId =
         TenantDomainId.From(Guid.Parse("dddddddd-1111-7111-8111-111111111111"));
 
+    [Theory]
+    [InlineData(true, "a flag that does not exist yet")]
+    [InlineData(false, "one that does")]
+    public void A_refused_feature_flag_leaves_the_tenant_untouched(bool isNew, string what)
+    {
+        // The root's audit state is a claim about what changed. An earlier version stamped
+        // it before the child validated, so a malformed JSON value moved UpdatedAt,
+        // UpdatedBy and row_version for a change that never happened — and row_version is
+        // the concurrency token, so the next writer would lose an update to a write that
+        // was rejected.
+        var tenant = TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+        if (!isNew)
+        {
+            tenant.SetFeatureFlag("beta", "true", Clock, Actor);
+        }
+
+        var before = (tenant.Version, tenant.UpdatedAt, Count: tenant.FeatureFlags.Count);
+
+        var refused = () => tenant.SetFeatureFlag("beta", "not json at all", Clock, Actor);
+
+        refused.Should().Throw<ArgumentException>($"the value is malformed for {what}");
+
+        (tenant.Version, tenant.UpdatedAt, Count: tenant.FeatureFlags.Count)
+            .Should().Be(before, "a rejected write changes nothing, root included");
+    }
+
     [Fact]
     public void A_subdomain_is_verified_by_construction()
     {
