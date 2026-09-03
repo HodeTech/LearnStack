@@ -6,7 +6,7 @@ This directory contains LearnStack ADRs. Each ADR captures a one-time decision w
 
 - **Proposed** — Drafted, not yet accepted.
 - **Accepted** — Active. New code should comply.
-- **Superseded** — Replaced by a newer ADR. Kept as a redirect.
+- **Superseded** — Replaced by a newer ADR. Kept either **in place** with this status, when the record still explains why the decision was made and what replaced it ([0014](0014-adopt-dapr.md), [0016](0016-audit-log-subsystem.md)), or as a **redirect stub** under [`_redirects/`](_redirects/) when the number was reassigned and only the pointer is worth keeping. Both are readable at their original path; neither is deleted.
 - **Deprecated** — No longer applies. Kept for history.
 
 Accepted ADRs are not rewritten. A new decision is a new ADR, possibly superseding the old one. Dated Amendments, appended at the bottom, are how an accepted record is added to.
