@@ -1,4 +1,5 @@
 using System.Data.Common;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.Logging;
 using LearnStack.SharedKernel.Tenancy;
@@ -229,6 +230,65 @@ public sealed class NpgsqlUnitOfWork(
         // a pre-existing shape, not this flag's. What the ordering buys is that a
         // half-announced transaction is refused rather than trusted; no test here fails
         // if the line moves, and none pretends to.
+        _tenantContextIssued = true;
+    }
+
+    /// <inheritdoc />
+    public async Task SetProvisioningTenantContextAsync(
+        TenantId tenantId, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_transaction is null)
+        {
+            throw new InvalidOperationException(
+                "SetProvisioningTenantContextAsync requires an open transaction, for the "
+                + "reason its sibling does: set_config(..., true) is transaction-local.");
+        }
+
+        // A throw, not the ambient setter's silent early return. That return exists so an
+        // inner frame cannot retarget an outer frame's tenant; here the caller believes it
+        // announced a tenant, and a joiner that quietly announced nothing surfaces as
+        // 42501 three frames away, on an INSERT that reads as a permissions problem.
+        if (_depth > 1)
+        {
+            throw new InvalidOperationException(
+                "A joining frame cannot provision. The tenant a provisioning request "
+                + "creates must be announced on the transaction that carries the write, "
+                + "and an inner frame joins a transaction another announcement already "
+                + "owns. Provisioning opens its own unit of work.");
+        }
+
+        if (_tenantContextIssued)
+        {
+            throw new InvalidOperationException(
+                "This transaction has already been announced. The only transition this "
+                + "method permits is unannounced to the tenant being created; allowing a "
+                + "second announcement would let any caller move the ambient tenant "
+                + "mid-request, which is a wider capability than provisioning needs.");
+        }
+
+        // Value under an IsInitialized() gate, never ToString(): measured on Vogen 7, an
+        // uninitialized id renders as "[UNINITIALIZED]" and reaches PostgreSQL as
+        // '[UNINITIALIZED]'::uuid, which raises 22P02 rather than filtering. Guid.Empty is
+        // refused beside it because Vogen validates the shape of a value, not that it
+        // names anything, and the domain refuses the all-zero tenant by hand.
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A provisioning tenant id must be a real, registry-assigned id.",
+                nameof(tenantId));
+        }
+
+        // app.organization_id is written explicitly as the empty string rather than left
+        // alone: a pooled connection must not carry a previous transaction's organization
+        // into a provisioning write.
+        await ExecuteAsync(
+            "SELECT set_config('app.tenant_id', @tenant, true), "
+            + "set_config('app.organization_id', '', true)",
+            cancellationToken,
+            ("tenant", tenantId.Value.ToString()));
+
         _tenantContextIssued = true;
     }
 

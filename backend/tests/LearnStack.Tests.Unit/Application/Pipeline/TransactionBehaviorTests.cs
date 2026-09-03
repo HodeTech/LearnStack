@@ -2,6 +2,7 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -317,6 +318,17 @@ public sealed class TransactionBehaviorTests
         // and its Transaction is always null — so the honest answer tracks whether the
         // announcement was made, which is what the behaviour under test drives.
         public bool IsTenantContextIssuedOn(DbTransaction? transaction) => TenantContext is not null;
+
+        /// <summary>What a provisioning request announced, if it announced one.</summary>
+        public TenantId? ProvisionedTenantId { get; private set; }
+
+        public Task SetProvisioningTenantContextAsync(
+            TenantId tenantId, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("provision");
+            ProvisionedTenantId = tenantId;
+            return Task.CompletedTask;
+        }
 
         public bool HasActiveTransaction => _depth > 0;
 

@@ -285,6 +285,10 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
     // context here anyway, so nothing asks — but the honest answer is the safe one.
     public bool IsTenantContextIssuedOn(System.Data.Common.DbTransaction? transaction) => false;
 
+    public Task SetProvisioningTenantContextAsync(
+        LearnStack.SharedKernel.Identifiers.TenantId tenantId,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
         HasActiveTransaction = false;
