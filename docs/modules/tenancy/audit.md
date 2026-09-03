@@ -3,13 +3,25 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-Two of the operations below now exist — `Tenant` create and `Organization`
+Four of the operations below now exist. `Tenant` create and `Organization`
 create, written together by `ProvisionTenantCommand`
 ([ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md))
-— and the rest are still classification ahead of code. Both are **MUST**, both
-are written on the one transaction that provisioning is, so
+; a second `Organization` create, written alone by `CreateOrganizationCommand`;
+and `platform_host_to_tenant` write, by `MapHostToTenantCommand`. The rest are
+still classification ahead of code.
+
+All four are **MUST**. The two provisioning writes share one transaction, so
 [ADR-0033](../../decisions/0033-audit-durability-model.md)'s guarantee for them is
-the ordinary one: the two rows commit with the two aggregates or nothing does.
+the ordinary one — the rows commit with the aggregates or nothing does. The other
+two are each their own transaction, and the guarantee is the same shape for each.
+
+**All four are unaudited today**, and the host mapping is the one that matters
+most: it is described in the matrix below as "the row that decides whose data an
+anonymous request sees", and nothing records who pointed a hostname where.
+`AuditLogBehavior` lights up in
+[Packet 9](../../roadmap/phase-02a-kernel-tenancy.md), and `TransactionBehavior`
+carries the `TODO(2026-08-28, @platform, phase-02a-packet-9)` marking the line the
+MUST-class write goes on, immediately before the commit.
 This matrix is not the floor — [Audit Coverage § Baseline Coverage](../../standards/18-audit-coverage.md)
 is, and a module matrix "cannot remove anything in this list". This file adds rows
 beneath that baseline and classifies what the baseline leaves open; a tenant
@@ -42,7 +54,4 @@ optional.
 
 The classification is inert until [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md)
 lights up `AuditLogBehavior`, and Packet 9 transcribes its in-process catalogue
-from this file. **Provisioning is therefore unaudited today**, and that is a gap
-with an owner rather than an accepted state: `TransactionBehavior` carries the
-`TODO(2026-08-28, @platform, phase-02a-packet-9)` marking the line the MUST-class
-write goes on, immediately before the commit.
+from this file.

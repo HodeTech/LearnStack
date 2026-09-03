@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Infrastructure.MultiTenancy;
@@ -41,6 +42,7 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// </para>
 /// </remarks>
 public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions options)
+    : IHostResolutionInvalidator
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _seen =
         new(StringComparer.Ordinal);
@@ -91,14 +93,18 @@ public sealed class UnknownHostCache(IClock clock, UnknownHostCacheOptions optio
     /// Forgets <paramref name="host"/>, so the next request re-reads the table.
     /// </summary>
     /// <remarks>
-    /// <b>Nothing calls this yet.</b> It exists because the alternative to an
-    /// explicit invalidation is waiting out the TTL, and ADR-0036 asks for the
-    /// cache window to be closed on the transaction that flips either flag rather
-    /// than by expiry. The caller is the host-mapping writer, which arrives with
-    /// the Hub-side custom-domain lifecycle in
-    /// [Phase 02c](../../../../docs/roadmap/phase-02c-hub-foundation.md).
+    /// <b>Called by the host-mapping writer</b> — <c>MapHostToTenantCommandHandler</c>,
+    /// through <see cref="IHostResolutionInvalidator"/>, as of Packet 7. Until that writer
+    /// existed the TTL was the whole mechanism and a host activated inside it kept its 404
+    /// for the rest of the window; ADR-0036 asks for the window to be closed on the
+    /// transaction that flips either flag instead. The Hub-side custom-domain lifecycle in
+    /// [Phase 02c](../../../../docs/roadmap/phase-02c-hub-foundation.md) is the second
+    /// caller, for the activation half this packet does not write.
     /// </remarks>
     public void Forget(string host) => _seen.TryRemove(host, out _);
+
+    /// <inheritdoc />
+    void IHostResolutionInvalidator.Invalidate(string normalizedHost) => Forget(normalizedHost);
 
     private void Trim()
     {

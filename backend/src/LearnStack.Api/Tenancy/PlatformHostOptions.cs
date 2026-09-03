@@ -67,4 +67,20 @@ public sealed class PlatformHostOptions
 
         return new HashSet<string>(Hosts, StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// The validated set, as the port a module writes host mappings through.
+    /// </summary>
+    /// <remarks>
+    /// The list is application configuration and a module may not reference the
+    /// composition root, so the check ADR-0036 assigns to the host-mapping writer needs a
+    /// port. This is its one implementation; a deployment with no configured hosts gets
+    /// an empty set, which answers false for everything — correct, not degraded.
+    /// </remarks>
+    internal sealed class Registry(PlatformHostOptions options) : IReservedHostRegistry
+    {
+        private readonly HashSet<string> _hosts = options.Validate();
+
+        public bool IsReserved(string normalizedHost) => _hosts.Contains(normalizedHost);
+    }
 }

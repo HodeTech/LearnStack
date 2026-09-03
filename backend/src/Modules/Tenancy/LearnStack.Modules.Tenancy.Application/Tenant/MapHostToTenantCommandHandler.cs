@@ -30,6 +30,9 @@ namespace LearnStack.Modules.Tenancy.Application.Tenant;
 /// </remarks>
 internal sealed class MapHostToTenantCommandHandler(
     IPlatformHostMappingStore hosts,
+    IOrganizationScopeValidator organizations,
+    IReservedHostRegistry reservedHosts,
+    IHostResolutionInvalidator resolutionCache,
     ITenantContext tenantContext)
     : IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>
 {
@@ -38,10 +41,35 @@ internal sealed class MapHostToTenantCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // TenantContextBehavior has already refused an unresolved context for this
+        // command — it carries no marker — so this is a backstop against a future wiring
+        // change, not a reachable state. `tenant_mismatch` rather than a key of its own:
+        // it is the code the pipeline itself returns for this condition, it is in
+        // HttpStatusMap, and a module-specific key would fall through that closed table
+        // to a 500 — which is what a fail-closed guard must not answer.
         if (!tenantContext.IsResolved)
         {
+            return Result.FailFor<Result<HostMappingDto>>(TenantContextMissing);
+        }
+
+        // The organization must be one of this tenant's. Nothing else checks it before
+        // the insert: the composite foreign key does, but it raises 23503, which has no
+        // arm in HttpStatusMap and therefore answers 500 — after the transaction opened
+        // and the tenant was announced. Reading it here turns a caller's mistake into a
+        // refusal they can act on, and the foreign key stays as the layer that makes the
+        // race impossible rather than merely unlikely.
+        if (request.OrganizationId is { } organizationId
+            && !await organizations.BelongsToTenantAsync(
+                tenantContext.TenantId, organizationId, cancellationToken))
+        {
             return Result.FailFor<Result<HostMappingDto>>(
-                new Error(new LocalizedMessage("lockey_tenant_context_missing")));
+                new Error(
+                    new LocalizedMessage("lockey_business_rule_violation"),
+                    new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+                    {
+                        [nameof(MapHostToTenantCommand.OrganizationId)] =
+                            [new LocalizedMessage("lockey_organization_not_in_tenant")],
+                    }));
         }
 
         var mapping = PlatformHostMapping.Create(
@@ -50,6 +78,24 @@ internal sealed class MapHostToTenantCommandHandler(
             request.OrganizationId,
             request.IsActive,
             request.IsPubliclyLive);
+
+        // A host on Tenancy:PlatformHosts is classified before the resolver is called at
+        // all, so a row naming it would be inert — never read, never logged, never
+        // counted. ADR-0036 states that precedence is correct and that the losing row is
+        // SILENT, and assigns the check to whichever packet builds this writer. Checked
+        // after Create, because the comparison is against normalized hosts and Create is
+        // what normalizes.
+        if (reservedHosts.IsReserved(mapping.Host))
+        {
+            return Result.FailFor<Result<HostMappingDto>>(
+                new Error(
+                    new LocalizedMessage("lockey_business_rule_violation"),
+                    new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
+                    {
+                        [nameof(MapHostToTenantCommand.Host)] =
+                            [new LocalizedMessage("lockey_host_reserved")],
+                    }));
+        }
 
         try
         {
@@ -72,7 +118,28 @@ internal sealed class MapHostToTenantCommandHandler(
                     }));
         }
 
+        // The negative cache remembers hosts that resolved to nothing, and this host just
+        // stopped being one. Without it the TTL is the whole mechanism and a host loaded
+        // once before it existed keeps its 404 for the rest of that window — which is
+        // exactly what a developer meets after seeding.
+        //
+        // After the write, and deliberately not inside a transaction hook: the row is not
+        // visible to another connection until the commit, so forgetting earlier would let
+        // a concurrent request re-cache the miss it was about to fix. Forgetting a host
+        // that then fails to commit costs one extra database read.
+        resolutionCache.Invalidate(mapping.Host);
+
         return Result.Ok(new HostMappingDto(
-            mapping.Host, mapping.TenantId, mapping.OrganizationId, mapping.IsPubliclyLive));
+            mapping.Host,
+            mapping.TenantId,
+            mapping.OrganizationId,
+            mapping.IsActive,
+            mapping.IsPubliclyLive));
     }
+
+    /// <summary>
+    /// The pipeline's own answer for an unresolved context, reused rather than restated.
+    /// </summary>
+    private static readonly Error TenantContextMissing =
+        new(new LocalizedMessage("lockey_tenant_mismatch"));
 }

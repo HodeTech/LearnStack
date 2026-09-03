@@ -28,8 +28,12 @@ namespace LearnStack.Tools.Seeder;
 /// </para>
 /// <para>
 /// <b>One host row each, and deliberately of different classes.</b> `demo-english` maps
-/// host → organization and `demo-yoga` maps host → tenant with a null organization, so both
-/// live classifications are exercised by the seed rather than only by a test.
+/// host → tenant with a null organization and `demo-yoga` maps host → organization, so both
+/// live classifications are exercised by the seed rather than only by a test. Which tenant
+/// takes which is arbitrary on the merits and therefore settled by the corpus:
+/// [the seed-tenant skill](../../../.claude/skills/seed-tenant/SKILL.md) named this pairing
+/// before the code existed, and two documents disagreeing about a seeded row is how a
+/// Phase 02d assertion ends up chasing the wrong host.
 /// </para>
 /// </remarks>
 public static class SeedData
@@ -47,7 +51,7 @@ public static class SeedData
             "besiktas",
             "Beşiktaş Branch"),
         "demo-english.learnstack.local",
-        MapHostToDefaultOrganization: true);
+        MapHostToDefaultOrganization: false);
 
     public static readonly SeedTenant Yoga = new(
         TenantId.From(Guid.Parse("01930000-0000-7000-8000-000000000002")),
@@ -62,7 +66,7 @@ public static class SeedData
             "studio-two",
             "Studio Two"),
         "demo-yoga.learnstack.local",
-        MapHostToDefaultOrganization: false);
+        MapHostToDefaultOrganization: true);
 
     public static readonly IReadOnlyList<SeedTenant> All = [English, Yoga];
 }

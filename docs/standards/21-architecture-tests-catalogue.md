@@ -795,16 +795,23 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly three files may mention
-  `UseNpgsql` or `AddDbContext` at all: the two design-time factories, where a
-  connection string is the point, and the shared helper, which passes a
-  *connection*. A fourth is a new decision. A context on its own connection never
-  saw `SET LOCAL`, so every read through it returns zero rows under the corrected
-  policy — silently.
+  its own connection. And under `backend/src`, exactly **five** files may reach for a
+  connection at all: the two design-time factories, where a connection string is the
+  point; the shared helper, which passes a *connection*; and the two composition roots —
+  `LearnStack.Api`'s, which builds the one application data source behind its credential
+  guard, and `LearnStack.Tools.Seeder`'s, which is the same act for a host with no HTTP
+  surface. A sixth is a new decision. A context on its own connection never saw the
+  announcement, so every read through it returns zero rows under the corrected policy —
+  silently.
+
+  The set is keyed on `directory/filename`, not the bare filename: two `Program.cs` now
+  exist under `backend/src`, and a bare-name set would let the API's silently take the
+  seeder's slot.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 6 step 6,
-  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+- **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
+  keyed by directory in Packet 7 step 10, `LearnStack.Tests.Architecture`,
+  `PersistenceConventionTests`).
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 

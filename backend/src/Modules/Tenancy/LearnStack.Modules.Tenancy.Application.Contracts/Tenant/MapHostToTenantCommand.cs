@@ -40,5 +40,14 @@ public sealed record MapHostToTenantCommand(
     bool IsPubliclyLive = false) : IRequest<Result<HostMappingDto>>;
 
 /// <summary>The stored mapping, with the host in the spelling the resolver compares.</summary>
+/// <remarks>
+/// Both flags, not just the second. They are a pair — a row exists before DNS points
+/// anywhere — and a response carrying only <c>IsPubliclyLive</c> would let a caller read
+/// "false" as "not mine yet" when it means "mine, and not serving".
+/// </remarks>
 public sealed record HostMappingDto(
-    string Host, TenantId TenantId, OrganizationId? OrganizationId, bool IsPubliclyLive);
+    string Host,
+    TenantId TenantId,
+    OrganizationId? OrganizationId,
+    bool IsActive,
+    bool IsPubliclyLive);

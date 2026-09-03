@@ -1,12 +1,17 @@
 using FluentAssertions;
+using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
+using MediatR;
 using LearnStack.SharedKernel.Time;
 using LearnStack.Tools.Seeder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -51,35 +56,30 @@ public sealed class SeederTests : IAsyncLifetime
     [Fact]
     public async Task The_seed_writes_two_tenants_each_with_two_organizations_and_one_host()
     {
-        var exitCode = await Runner().RunAsync(CancellationToken.None);
+        await using var dataSource = DataSource();
+
+        var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None);
 
         exitCode.Should().Be(0);
 
         foreach (var tenant in SeedData.All)
         {
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM tenants WHERE id = @tenant", tenant.TenantId.Value))
+            (await ScalarAsPlatformAsync("SELECT count(*) FROM tenants WHERE id = @tenant", "tenant", tenant.TenantId.Value))
                 .Should().Be(1L, "each seed tenant is provisioned once");
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM organizations WHERE tenant_id = @tenant",
-                tenant.TenantId.Value))
+            (await ScalarAsPlatformAsync("SELECT count(*) FROM organizations WHERE tenant_id = @tenant", "tenant", tenant.TenantId.Value))
                 .Should().Be(2L,
                     "the default organization comes from provisioning and the second from "
                     + "an ordinary command — one organization would make "
                     + "organization-scoped isolation unobservable in the seed");
 
-            (await ScalarAsPlatformAsync(
-                """
+            (await ScalarAsPlatformAsync("""
                 SELECT count(*) FROM tenants
                 WHERE id = @tenant AND default_organization_id IS NOT NULL
-                """,
-                tenant.TenantId.Value))
+                """, "tenant", tenant.TenantId.Value))
                 .Should().Be(1L, "a tenant without a default organization serves nothing");
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM platform_host_to_tenant WHERE tenant_id = @tenant",
-                tenant.TenantId.Value))
+            (await ScalarAsPlatformAsync("SELECT count(*) FROM platform_host_to_tenant WHERE tenant_id = @tenant", "tenant", tenant.TenantId.Value))
                 .Should().Be(1L, "one row per tenant, not one per organization");
         }
     }
@@ -92,18 +92,26 @@ public sealed class SeederTests : IAsyncLifetime
         // the factory, and a seed that produced only one of them would leave the other
         // exercised by fixtures alone — which is what Packet 7 moved the seed earlier to
         // avoid.
-        await Runner().RunAsync(CancellationToken.None);
-
-        (await TextAsPlatformAsync(
-            "SELECT organization_id::text FROM platform_host_to_tenant WHERE host = @host",
-            SeedData.English.Host))
-            .Should().Be(SeedData.English.DefaultOrganization.OrganizationId.Value.ToString(),
-                "one seed host resolves to an organization");
+        await using var dataSource = DataSource();
+        await Runner(dataSource).RunAsync(CancellationToken.None);
 
         (await TextAsPlatformAsync(
             "SELECT organization_id::text FROM platform_host_to_tenant WHERE host = @host",
             SeedData.Yoga.Host))
-            .Should().BeNull("and the other resolves to the tenant as a whole");
+            .Should().Be(SeedData.Yoga.DefaultOrganization.OrganizationId.Value.ToString(),
+                "one seed host resolves to an organization");
+
+        // Existence AND nullity, in one count. `SELECT organization_id` returning null is
+        // ambiguous between "the column is NULL" and "there is no row", and the ambiguous
+        // form was measured passing with demo-yoga never seeded at all — which is the
+        // exact scenario this case exists to catch.
+        (await CountAsPlatformAsync(
+            """
+            SELECT count(*) FROM platform_host_to_tenant
+            WHERE host = @host AND organization_id IS NULL
+            """,
+            SeedData.English.Host))
+            .Should().Be(1L, "and the other resolves to the tenant as a whole");
 
         foreach (var tenant in SeedData.All)
         {
@@ -126,54 +134,116 @@ public sealed class SeederTests : IAsyncLifetime
         // The second run cannot pre-check: under the provisioning announcement a SELECT
         // over `tenants` returns no rows by policy, so idempotency is a uniqueness
         // refusal recognised as "already seeded" rather than a query.
-        (await Runner().RunAsync(CancellationToken.None)).Should().Be(0);
-        (await Runner().RunAsync(CancellationToken.None)).Should().Be(0,
+        await using var dataSource = DataSource();
+
+        (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
+        (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0,
             "a second run is the ordinary case, not an error");
 
-        (await ScalarAsPlatformAsync(
-            "SELECT count(*) FROM tenants WHERE id = ANY(@ids)",
-            SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM tenants WHERE id = ANY(@ids)", "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
             .Should().Be(2L, "and it did not double anything");
-        (await ScalarAsPlatformAsync(
-            "SELECT count(*) FROM organizations WHERE tenant_id = ANY(@ids)",
-            SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM organizations WHERE tenant_id = ANY(@ids)", "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
             .Should().Be(4L);
+    }
+
+    [Fact]
+    public async Task A_failure_that_is_not_a_conflict_stops_the_run()
+    {
+        // The seed's whole claim is that it is evidence about the request path, and that
+        // is only true if a refusal stops it. `make seed` gates on the exit code, so a
+        // seeder that swallowed a policy denial would hand the next step a database it
+        // cannot use while reporting success.
+        //
+        // Measured before this case existed: replacing the throw with a log-and-return —
+        // every failure swallowed, every run exiting 0 — left all three other cases green.
+        // A seeder that silently ignores a 42501 was indistinguishable from a correct one.
+        //
+        // Provoked by composing every act unresolved. Provisioning still succeeds, because
+        // it is the one command marked [AllowsUnresolvedTenantContext]; the second
+        // organization is then refused by the pipeline with a code that is NOT
+        // business_rule_violation, which is the only code the runner treats as
+        // "already seeded".
+        await using var dataSource = DataSource();
+
+        var alwaysUnresolved = new SeedRunner(
+            _ => SeedComposition.Build(dataSource, context: null, NullLoggerFactory.Instance),
+            NullLogger<SeedRunner>.Instance);
+
+        var seed = async () => await alwaysUnresolved.RunAsync(CancellationToken.None);
+
+        (await seed.Should().ThrowAsync<InvalidOperationException>(
+            "a refusal that is not a conflict means the seed did not do its job"))
+            .WithMessage("*second organization*");
+
+        // And it stopped where it failed rather than carrying on: the host row for the
+        // first tenant was never written.
+        (await CountAsPlatformAsync(
+            "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host",
+            SeedData.English.Host))
+            .Should().Be(0L);
+    }
+
+    [Fact]
+    public async Task A_host_naming_another_tenants_organization_is_refused_not_crashed()
+    {
+        // The most consequential write in the module: `platform_host_to_tenant` is the row
+        // that decides whose data an anonymous request sees. The organization id is
+        // caller-supplied, and the only thing that checked it was the composite foreign
+        // key — which raises 23503, has no arm in HttpStatusMap, and therefore answered
+        // 500 after the transaction opened and the tenant was announced. Measured.
+        //
+        // The foreign key stays; it is what makes the race impossible rather than merely
+        // unlikely. What this adds is an answer the caller can act on.
+        await using var dataSource = DataSource();
+
+        (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
+
+        var provider = SeedComposition.Build(
+            dataSource,
+            new SeedTenantContext(
+                SeedData.English.TenantId, SeedData.English.DefaultOrganization.OrganizationId),
+            NullLoggerFactory.Instance);
+
+        await using (provider)
+        {
+            // SchemaFixture's OrgA1 belongs to a different tenant entirely.
+            var result = await provider.GetRequiredService<ISender>().Send(
+                new MapHostToTenantCommand(
+                    "smuggled.learnstack.local",
+                    OrganizationId.From(SchemaFixture.OrgA1),
+                    IsActive: true,
+                    IsPubliclyLive: true));
+
+            result.IsFailure.Should().BeTrue("the organization is not this tenant's");
+            HttpStatusMap.For(result.Error!.Code).Should().Be(StatusCodes.Status409Conflict,
+                "a 500 here is the defect; the caller can fix this input");
+            result.Error.Details.Should().ContainKey(
+                nameof(MapHostToTenantCommand.OrganizationId));
+        }
+
+        (await CountAsPlatformAsync(
+            "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host",
+            "smuggled.learnstack.local"))
+            .Should().Be(0L, "and nothing was written");
     }
 
     // ── Harness ──────────────────────────────────────────────────────────────
 
-    private SeedRunner Runner() =>
-        new(Compose, NullLogger<SeedRunner>.Instance);
-
     /// <summary>
-    /// The seeder's own composition, on the fixture's container.
+    /// The seeder, composed exactly as <c>Program.cs</c> composes it.
     /// </summary>
     /// <remarks>
-    /// A provider per act, around a <c>StaticTenantContextAccessor</c> — the same shape
-    /// <c>Program.cs</c> builds, and the reason the seeder never writes
-    /// <c>ITenantContextAccessor.Current</c>. Kept in step with it by hand; running the
-    /// executable instead would put a process boundary between the assertion and the
-    /// failure.
+    /// Through <see cref="SeedComposition"/> rather than a hand-copy of its registrations.
+    /// The copy this replaced had already drifted on the axis that mattered — it built a
+    /// data source per act where the entry point shares one — so the case that claimed to
+    /// exercise "the same shape Program.cs builds" was exercising a different one.
     /// </remarks>
-    private ServiceProvider Compose(ITenantContext? context)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
-        services.AddLogging();
-        services.AddSingleton<IClock, SystemClock>();
-        services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(context));
-        services.AddTransient<ITenantContext>(provider =>
-            provider.GetRequiredService<ITenantContextAccessor>().Current
-            ?? UnresolvedTenantContext.Instance);
-        services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
-        services.AddModuleDbContext<TenancyDbContext>();
-        services.AddScoped<ITenantWriteStore, TenantWriteStore>();
-        services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
-        services.AddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
-        services.AddLearnStackMediatRPipeline(typeof(ITenantWriteStore).Assembly);
+    private static SeedRunner Runner(NpgsqlDataSource dataSource) =>
+        new(context => SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance),
+            NullLogger<SeedRunner>.Instance);
 
-        return services.BuildServiceProvider();
-    }
+    private NpgsqlDataSource DataSource() =>
+        NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
 
     private async Task CleanUpAsync()
     {
@@ -196,12 +266,29 @@ public sealed class SeederTests : IAsyncLifetime
         }
     }
 
-    private async Task<long> ScalarAsPlatformAsync(string sql, object parameter)
+    /// <summary>A count, under the platform role, with one named parameter.</summary>
+    /// <remarks>
+    /// The name is passed rather than inferred from the value's type. Inferring it bound
+    /// every shape but <c>Guid[]</c> as <c>"tenant"</c>, so a caller adding a third
+    /// parameter shape got a silent mis-binding instead of a compile error.
+    /// </remarks>
+    private async Task<long> ScalarAsPlatformAsync(
+        string sql, string parameterName, object value)
     {
         await using var platform = await PostgresFixture.OpenAsync(
             _schema.Postgres.PlatformConnectionString);
         await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
-        query.Parameters.AddWithValue(parameter is Guid[]? "ids" : "tenant", parameter);
+        query.Parameters.AddWithValue(parameterName, value);
+
+        return (long)(await query.ExecuteScalarAsync())!;
+    }
+
+    private async Task<long> CountAsPlatformAsync(string sql, string host)
+    {
+        await using var platform = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
+        query.Parameters.AddWithValue("host", host);
 
         return (long)(await query.ExecuteScalarAsync())!;
     }

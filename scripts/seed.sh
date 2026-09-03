@@ -196,19 +196,47 @@ cyan "▶ Step 3/3: seeding the two demo tenants"
 
 # The application role, not the migration role. The seeder writes through the
 # same policies a request does, so a seed that succeeds is evidence the request
-# path works — and a seed run as the owner would pass with every policy inert.
-SEED_CONNECTION="${ConnectionStrings__Default:-}"
+# path works — and a seed run as the owner would pass with every policy inert,
+# which is the failure mode ADR-0003 Amendment 3 names by role.
+#
+# Read from the environment, then from `.env`. The Makefile does not export
+# `.env` into the recipe's environment — `--env-file` feeds docker compose's own
+# variable substitution and nothing else — so on the documented first-run path
+# (`make install` → `make dev` → `make migrate` → `make seed`) the variable is
+# unset and only this fallback finds it. `make migrate` learned the same lesson
+# and this mirrors its reader, CR-strip and quote-strip included: .env.example
+# single-quotes the values.
+seed_cs="${ConnectionStrings__Default:-}"
+if [[ -z "$seed_cs" && -f .env ]]; then
+    seed_cs=$(sed -n "s/^ConnectionStrings__Default=//p" .env \
+        | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
+fi
 
-if [[ -z "$SEED_CONNECTION" ]]; then
-    red "seed: ConnectionStrings__Default is not set."
-    red "  It lives in .env — copy .env.example to .env and re-run, or export it."
+if [[ -z "$seed_cs" ]]; then
+    red "seed: ConnectionStrings__Default is not set and .env does not carry it."
+    red "  It arrives with the four-role model in Phase 02a Packet 6: copy the"
+    red "  'four connection strings' block out of .env.example into your .env"
+    red "  and re-run. A .env written before that packet has neither."
     exit 1
 fi
 
-# --nologo keeps the build banner out of a script whose output is read as a
-# report; the exit code is what gates the step either way.
-if ! dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo -- \
-        --connection-string "$SEED_CONNECTION"; then
+seed_role=$(printf '%s' "$seed_cs" | awk -f scripts/connection-string.awk -v field=user)
+seed_redacted=$(printf '%s' "$seed_cs" | awk -f scripts/connection-string.awk -v field=redacted)
+
+if [[ "$seed_role" != "learnstack_app" ]]; then
+    red "seed: ConnectionStrings__Default names Username='$seed_role', not learnstack_app:"
+    red "  $seed_redacted"
+    red "Seeding runs through the runtime role on purpose. As learnstack_migration"
+    red "or learnstack_platform every policy is bypassed, the seed succeeds without"
+    red "proving anything, and the first real request is where you find out."
+    exit 1
+fi
+
+# Passed in the environment, not on argv: the value carries the database
+# password, and an argument is visible to any local user through `ps`. The
+# seeder reads this variable when no --connection-string flag is given.
+if ! ConnectionStrings__Default="$seed_cs" \
+        dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo; then
     red "seed: tenant seeding failed."
     red "  Has the schema been applied? → make migrate"
     exit 1
@@ -224,8 +252,8 @@ cat <<'HOSTS'
     127.0.0.1  demo-english.learnstack.local
     127.0.0.1  demo-yoga.learnstack.local
 
-  demo-english's host maps to its default organization; demo-yoga's maps to
-  the tenant as a whole, so both live host classifications are exercised.
+  demo-english's host maps to the tenant as a whole; demo-yoga's maps to its
+  default organization, so both live host classifications are exercised.
 
 HOSTS
 

@@ -167,6 +167,17 @@ public static class TenancyCompositionExtensions
         platformHosts.Validate();
         services.AddSingleton(platformHosts);
 
+        // The same list, as the port the host-mapping writer checks against. ADR-0036
+        // makes that check the writer's job because the list is configuration and the
+        // mapping is a table: a database constraint cannot see the first, and a module
+        // cannot reference this file.
+        services.AddSingleton<IReservedHostRegistry, PlatformHostOptions.Registry>();
+
+        // The negative cache is the invalidator: the same instance, reached through the
+        // port a module is allowed to name.
+        services.AddSingleton<IHostResolutionInvalidator>(
+            provider => provider.GetRequiredService<UnknownHostCache>());
+
         // Singleton, so the resolver's in-flight map is process-wide: a scoped one
         // gives every request its own and coalesces nothing.
         services.AddSingleton(new UnknownHostCacheOptions());

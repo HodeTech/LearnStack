@@ -259,9 +259,9 @@ resolver reads `platform_host_to_tenant` and nothing else.
 flowchart LR
     subgraph Tenancy
         DOM[Domain<br/>Tenant, Organization]
-        CON[Application.Contracts<br/>ProvisionTenantCommand]
-        APP[Application<br/>handler, validator,<br/>ITenantWriteStore, IOrganizationWriteStore]
-        INF[Infrastructure<br/>TenancyDbContext,<br/>TenantWriteStore, OrganizationWriteStore]
+        CON[Application.Contracts<br/>ProvisionTenant, CreateOrganization,<br/>MapHostToTenant]
+        APP[Application<br/>3 handlers + validators,<br/>ITenantWriteStore, IOrganizationWriteStore,<br/>IPlatformHostMappingStore]
+        INF[Infrastructure<br/>TenancyDbContext,<br/>3 write stores]
     end
     SK[SharedKernel<br/>TenantId, OrganizationId, IUnitOfWork]
     CORE[Core Infrastructure<br/>TenantScopedDbContext]
@@ -281,10 +281,11 @@ flowchart LR
 ```
 
 Text fallback — **components**: Tenancy is four assemblies — `Domain` (the
-`Tenant` and `Organization` aggregates), `Application.Contracts`
-(`ProvisionTenantCommand`, the first type to land there), `Application` (its
-handler, its validator, and the `ITenantWriteStore` / `IOrganizationWriteStore`
-ports) and `Infrastructure` (`TenancyDbContext` and the two write stores). `Domain` depends on `SharedKernel` for `TenantId`,
+`Tenant` and `Organization` aggregates), `Application.Contracts` (three commands —
+`ProvisionTenant`, `CreateOrganization`, `MapHostToTenant`), `Application` (their
+handlers and validators, and the `ITenantWriteStore` / `IOrganizationWriteStore` /
+`IPlatformHostMappingStore` ports) and `Infrastructure` (`TenancyDbContext` and the
+three write stores). `Domain` depends on `SharedKernel` for `TenantId`,
 `OrganizationId` and `IUnitOfWork`; `Application` on `Domain`; `Infrastructure`
 on `Application`, on core `LearnStack.Infrastructure` — where
 `TenantScopedDbContext`, the base `TenancyDbContext` derives from, applies the

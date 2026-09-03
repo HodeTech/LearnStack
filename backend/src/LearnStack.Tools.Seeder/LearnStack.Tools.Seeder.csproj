@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- For the concrete ServiceProvider and console logger, not for IHost: this is a
+         one-shot process and builds neither a host nor a configuration stack. The
+         referenced projects carry only the *Abstractions* packages, which is why the
+         implementations have to come from somewhere, and this is the one meta-package
+         Directory.Packages.props already versions that carries both. -->
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Npgsql" />
   </ItemGroup>

@@ -555,8 +555,15 @@ tenants for isolation testing — the marginal cost is the second tenant's
 customization data, and the marginal benefit is that every phase from
 [Phase 02d](phase-02d-walking-skeleton.md) onward is tested against two shapes
 instead of one. Picks up the application-level seed drop-in deferred from
-[Phase 01 Packet 8](phase-01-repository-tooling.md), wired through the Tenancy
-module `DbContext` rather than the placeholder `scripts/seed.sh`.
+[Phase 01 Packet 8](phase-01-repository-tooling.md). Shipped one layer above what
+this sentence originally asked for: `LearnStack.Tools.Seeder` sends
+`ProvisionTenantCommand`, `CreateOrganizationCommand` and `MapHostToTenantCommand`
+rather than reaching for the module `DbContext`, because
+[ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+requires it — a seeder writing the tenant and its default organization itself
+would be a second copy of the one sanctioned cross-aggregate write. `scripts/seed.sh`
+is no longer a placeholder; it invokes the tool and refuses any role but
+`learnstack_app`.
 
 The two are `demo-english` ("English Hero") and `demo-yoga` ("Anatolia Yoga"), on
 `demo-english.learnstack.local` and `demo-yoga.learnstack.local`. **Packet 7 writes
@@ -1248,7 +1255,9 @@ land in Phase 02b.
   PostgreSQL Row Level Security template, and the four-role database model active for
   both dimensions.
 - **Two seed tenants in unrelated domains** (an English school and a yoga studio), each
-  with two organizations, seeded through the Tenancy module's `DbContext`.
+  with two organizations, seeded through the Tenancy module's **commands** — see the
+  Packet 7 entry above for why the command path replaced the `DbContext` this line
+  originally named.
 - `LearnStack.Modules.Customization` with `TenantContentType` and
   `TenantLevelTaxonomy` plus their runtime read paths.
 - `LearnStack.Modules.Audit` aggregates + `LearnStack.Infrastructure.Audit` pipeline
@@ -1310,9 +1319,11 @@ land in Phase 02b.
   `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
 - All ten tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
   `pg_class`, with no exception list.
-- `make dev`, `make seed` and `make test` succeed on a clean checkout — `make seed`
-  currently exits non-zero on every run, and that is a completion blocker, not a
-  nuisance.
+- `make dev`, `make seed` and `make test` succeed on a clean checkout. `make seed` now
+  writes the two demo tenants; it reads `ConnectionStrings__Default` from the
+  environment or `.env` — the Makefile exports neither into a recipe — and refuses any
+  role but `learnstack_app`, because seeding as the owner would succeed with every
+  policy inert and prove nothing.
 - Architecture tests for tenant + org ownership, RLS structure, module-boundary
   direction, domain-neutral module naming, and the audit pipeline are not skippable.
 

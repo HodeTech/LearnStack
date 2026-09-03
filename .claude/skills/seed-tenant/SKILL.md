@@ -81,18 +81,28 @@ make seed
 ```
 
 The target brings the stack up and runs `scripts/seed.sh`, which verifies compose
-health and the two Keycloak realms, then, from Packet 7, invokes the seeder:
+health and the two Keycloak realms, then invokes the seeder:
 
 ```bash
-dotnet run --project backend/src/LearnStack.Tools.Seeder -- \
-    --tenants demo-english,demo-yoga \
-    --platform-admin demo-admin@learnstack.test \
-    --connection-string "$ConnectionStrings__Default"
+ConnectionStrings__Default="<the learnstack_app string>" \
+    dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo
 ```
 
-`backend/src/LearnStack.Tools.Seeder` is the **reserved path** —
-`scripts/seed.sh` names it in the placeholder section Packet 7 replaces. There is
-no `make seed-tenant` and no `infra/seed/` tree.
+**What the tenants are is data, not arguments.** The two live in `SeedData.cs`,
+so there is no `--tenants` flag and nothing to keep in step between a script and
+a source file. The connection string is the only input, and it arrives in the
+environment rather than on `argv` because it carries a password that `ps` would
+show; `--connection-string` exists for a caller running the tool by hand.
+
+`scripts/seed.sh` reads it from `ConnectionStrings__Default`, falling back to
+`.env` — the Makefile does not export `.env` into a recipe's environment — and
+**refuses any role but `learnstack_app`**: seeding as the owner would succeed
+with every policy inert and prove nothing.
+
+There is no platform-admin user to seed. Packet 7 creates no `users` table —
+Phase 03's Identity migration owns it — and `UserId.SystemActor` is a CLR
+constant with no row behind it. There is no `make seed-tenant` and no
+`infra/seed/` tree.
 
 The seed is **idempotent** — running it twice produces the same state.
 

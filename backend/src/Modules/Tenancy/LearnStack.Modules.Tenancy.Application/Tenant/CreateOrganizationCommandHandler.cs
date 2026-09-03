@@ -45,8 +45,12 @@ internal sealed class CreateOrganizationCommandHandler(
         // an organization under the all-zero tenant.
         if (!tenantContext.IsResolved)
         {
+            // `tenant_mismatch`, which is what TenantContextBehavior returns for this
+            // condition and what HttpStatusMap maps. A key of this module's own would
+            // fall through that closed table to a 500 — the one answer a fail-closed
+            // guard must not give.
             return Result.FailFor<Result<OrganizationDto>>(
-                new Error(new LocalizedMessage("lockey_tenant_context_missing")));
+                new Error(new LocalizedMessage("lockey_tenant_mismatch")));
         }
 
         var organization = Organization.Create(
