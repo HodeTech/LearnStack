@@ -123,9 +123,12 @@ public sealed class ProvisionTenantCommandTests
     public async Task Provisioning_is_attributed_to_the_system_actor()
     {
         // There is nobody in the tenant to attribute it to: provisioning runs before
-        // any membership exists. `created_by` is NOT NULL with a foreign key to
-        // `users`, so the alternative to the registry-assigned actor is a 23503 on
-        // the first insert.
+        // any membership exists. `created_by` is `NOT NULL` and carries no foreign
+        // key — deliberately, so an erased actor stays an orphan surrogate rather
+        // than becoming unreachable — so nothing in the database would object to a
+        // zeroed actor. What objects is `AuditableEntity.EnsureValidAuditInput`,
+        // which refuses `default(UserId)` and `Guid.Empty` alike, and the constant
+        // is what lets a non-request execution create an aggregate at all.
         var (sender, _) = Build(out var stores);
 
         await sender.Send(Command());
