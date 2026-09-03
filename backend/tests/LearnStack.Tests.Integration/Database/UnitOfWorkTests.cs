@@ -174,8 +174,9 @@ public sealed class UnitOfWorkTests
     [Fact]
     public async Task An_unresolved_context_leaves_every_tenant_owned_table_empty()
     {
-        // Between Packet 6 and Packet 7 every request runs against
-        // UnresolvedTenantContext, and this is what that costs: the GUCs are set
+        // A request no resolver touched runs against UnresolvedTenantContext — before
+        // Packet 7 that was every request, and it is still what a PlatformHost request
+        // gets — and this is what that costs: the GUCs are set
         // to the empty string, NULLIF turns them into NULL, and a NULL predicate
         // is false for USING and WITH CHECK alike. Fail-closed by construction,
         // not by a filter that does not exist yet.
@@ -1151,8 +1152,9 @@ public sealed class UnitOfWorkTests
     public sealed record Probe : MediatR.IRequest<Result<string>>;
 
     /// <summary>
-    /// A resolved context, standing in for what Packet 7's
-    /// <c>TenantResolverMiddleware</c> will populate.
+    /// A resolved context, standing in for what <c>TenantResolverMiddleware</c> populates
+    /// in traffic. The real one answers in <c>TenantIsolationHttpTests</c>; here the point
+    /// is the unit of work, and a stub keeps a database out of the question.
     /// </summary>
     private sealed class StubTenantContext(Guid tenant, Guid organization) : ITenantContext
     {
