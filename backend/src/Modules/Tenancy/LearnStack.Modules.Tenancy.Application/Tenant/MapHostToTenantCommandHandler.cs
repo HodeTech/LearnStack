@@ -119,14 +119,25 @@ internal sealed class MapHostToTenantCommandHandler(
         }
 
         // The negative cache remembers hosts that resolved to nothing, and this host just
-        // stopped being one. Without it the TTL is the whole mechanism and a host loaded
-        // once before it existed keeps its 404 for the rest of that window — which is
-        // exactly what a developer meets after seeding.
+        // stopped being one. Without this call the TTL is the whole mechanism and a host
+        // loaded once before it existed keeps its 404 for the rest of that window — which
+        // is exactly what a developer meets after seeding.
         //
-        // After the write, and deliberately not inside a transaction hook: the row is not
-        // visible to another connection until the commit, so forgetting earlier would let
-        // a concurrent request re-cache the miss it was about to fix. Forgetting a host
-        // that then fails to commit costs one extra database read.
+        // It runs BEFORE the commit, and the guarantee is correspondingly narrower than
+        // "the window is closed". TransactionBehavior commits after the handler returns,
+        // so a concurrent request arriving between this line and that COMMIT still misses
+        // the uncommitted row and re-caches the miss with a fresh TTL. What this does
+        // guarantee is the case that actually happens: the request AFTER the write, which
+        // is the seeded-host-in-a-browser one.
+        //
+        // Closing the remainder needs a post-commit seam on IUnitOfWork, whose surface
+        // [ADR-0040](../../../../../../docs/decisions/0040-ambient-unit-of-work.md)
+        // governs — so it is an amendment, not an edit, and it is owed by the first
+        // obligation that cannot tolerate the gap. The outbox dispatch in
+        // [Phase 02b](../../../../../../docs/roadmap/phase-02b-events-auth.md) is that
+        // obligation; this call joins it there. Until then the residual window is bounded
+        // by the same TTL it exists to shorten, so the failure mode is the old one for a
+        // few milliseconds rather than a new one.
         resolutionCache.Invalidate(mapping.Host);
 
         return Result.Ok(new HostMappingDto(

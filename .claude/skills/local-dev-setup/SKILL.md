@@ -196,10 +196,9 @@ docker compose --env-file .env -f infra/compose/dev.yml config --format json
 
 ### Step 4: First-run bootstrap
 
-`make seed` verifies the stack is healthy, checks the two Keycloak realms, and —
-since Phase 02a Packet 7 — writes the two demo tenants. It does **not** apply
-migrations: run `make migrate` first, or the seeder exits non-zero against a
-database with no schema.
+`make seed` brings the stack up, applies migrations (it depends on `migrate`),
+checks the two Keycloak realms, and — since Phase 02a Packet 7 — writes the two
+demo tenants. One command from a clean checkout.
 
 What it writes today:
 
@@ -226,7 +225,8 @@ What it does not write yet, and which phase owns each:
 
 The seed is idempotent: a second run recognises its own first by the uniqueness
 refusal and exits 0. There is no separate reset target — for fresh local data use
-the destructive `make clean`, then `make migrate` and `make seed`.
+the destructive `make clean`, then `make seed`, which re-applies the migrations on
+its way through.
 
 ### Step 5: Verify
 
@@ -286,7 +286,7 @@ dotnet run --project backend/src/LearnStack.Api
 | `Bind for 127.0.0.1:5432 failed: port is already allocated` | Stop your local Postgres, or stop the other compose project holding the port — host ports are fixed in `dev.yml`, so two projects cannot both bind them. |
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
-| Keycloak realm not found | Recreate local data with destructive `make clean`, then `make migrate` and `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
+| Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
 | Web app shows raw i18n keys | i18n bundle build skipped; `pnpm build:i18n`. |
 | Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |

@@ -49,13 +49,33 @@ namespace LearnStack.Tools.Seeder;
 /// by policy. So the seeder writes and treats a uniqueness refusal as "already seeded",
 /// which is the same answer with one fewer round trip and no race.
 /// </para>
+/// <para>
+/// <b>A <i>uniqueness</i> refusal, read from the field-level reason — not from the
+/// top-level code.</b> <c>business_rule_violation</c> was a safe proxy while provisioning
+/// was the only command: every cause of it really was "this row exists". It stopped being
+/// one when <c>MapHostToTenantCommand</c> landed, which returns the same top-level code
+/// for a host already taken, an organization that is not this tenant's, and a host the
+/// deployment reserved. Only the first is "already seeded". Measured: with the proxy in
+/// place, a wrong organization id in <c>SeedData</c> — a plausible copy-paste between two
+/// tenants declared side by side — made the seeder log "already present", exit 0, and
+/// never write the row that decides whose data an anonymous request sees.
+/// </para>
 /// </remarks>
 public sealed class SeedRunner(
     Func<ITenantContext?, ServiceProvider> compose, ILogger<SeedRunner> logger)
 {
-    public async Task<int> RunAsync(CancellationToken cancellationToken)
+    /// <summary>Seeds <paramref name="tenants"/>, defaulting to the two demo tenants.</summary>
+    /// <remarks>
+    /// The list is a parameter rather than a direct read of <see cref="SeedData.All"/> so
+    /// the classification below can be driven with data that fails for a reason other
+    /// than uniqueness. Without it the only way to reach that branch was to edit the
+    /// shipped seed, and the branch went untested — which is how the masking defect it
+    /// now guards against survived a review round.
+    /// </remarks>
+    public async Task<int> RunAsync(
+        CancellationToken cancellationToken, IReadOnlyList<SeedTenant>? tenants = null)
     {
-        foreach (var tenant in SeedData.All)
+        foreach (var tenant in tenants ?? SeedData.All)
         {
             await SeedTenantAsync(tenant, cancellationToken);
         }
@@ -148,9 +168,10 @@ public sealed class SeedRunner(
         }
 
         // A uniqueness refusal is what a second run looks like, and it is the expected
-        // outcome of one. Anything else — a validation failure, a policy denial — is a
-        // seed that did not do its job, and the process exits non-zero on it.
-        if (result.Error!.Code == "business_rule_violation")
+        // outcome of one. Anything else — a validation failure, a policy denial, an
+        // organization that is not this tenant's — is a seed that did not do its job, and
+        // the process exits non-zero on it.
+        if (IsAlreadySeeded(result.Error!))
         {
             SeedRunnerLog.AlreadyPresent(logger, what, tenant.Slug);
             return;
@@ -160,6 +181,28 @@ public sealed class SeedRunner(
             $"Seeding the {what} for '{tenant.Slug}' failed with '{result.Error.Code}'. "
             + "The seed is not idempotent past this point; fix the cause and re-run.");
     }
+
+    /// <summary>
+    /// Whether <paramref name="error"/> says the row this act writes already exists.
+    /// </summary>
+    /// <remarks>
+    /// Read from the field-level reasons rather than the top-level code, because the top
+    /// level says only <c>business_rule_violation</c> and three different conditions
+    /// produce it. These three are the uniqueness ones; a fourth reason under the same
+    /// code — <c>lockey_organization_not_in_tenant</c>, <c>lockey_host_reserved</c> —
+    /// deliberately falls through to the throw.
+    /// </remarks>
+    private static bool IsAlreadySeeded(Error error) =>
+        error.Details is { } details
+        && details.Values.SelectMany(reasons => reasons).Any(reason =>
+            AlreadyExists.Contains(reason.Key));
+
+    private static readonly HashSet<string> AlreadyExists = new(StringComparer.Ordinal)
+    {
+        "lockey_slug_taken",
+        "lockey_identifier_taken",
+        "lockey_host_taken",
+    };
 }
 
 /// <summary>Source-generated logging, per the house CA1848 rule.</summary>

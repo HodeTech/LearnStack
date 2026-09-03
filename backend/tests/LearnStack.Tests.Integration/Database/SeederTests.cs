@@ -227,6 +227,48 @@ public sealed class SeederTests : IAsyncLifetime
             .Should().Be(0L, "and nothing was written");
     }
 
+    [Fact]
+    public async Task A_conflict_that_is_not_a_uniqueness_refusal_still_stops_the_run()
+    {
+        // The sharp edge of idempotency-by-conflict. `business_rule_violation` was a safe
+        // proxy for "already seeded" while provisioning was the only command: every cause
+        // of it really was "this row exists". MapHostToTenantCommand broke that — it
+        // returns the same top-level code for a host already taken, an organization that
+        // is not this tenant's, and a host the deployment reserved — and only the first
+        // means there is nothing to do.
+        //
+        // Driven with a seed tenant whose host names an organization belonging to somebody
+        // else, which is the plausible mistake: the two tenants' organizations are
+        // declared side by side in SeedData, so a copy-paste puts one tenant's id under
+        // the other. With the top-level code as the test, the run logged "already
+        // present", exited 0, and never wrote the row that decides whose data an anonymous
+        // request sees.
+        await using var dataSource = DataSource();
+
+        // Driven through the reserved-host path, which reaches the same classification
+        // without breaking an earlier act: provisioning and the second organization both
+        // succeed, and only the host mapping is refused — with `lockey_host_reserved`,
+        // which is a `business_rule_violation` that emphatically does not mean the row is
+        // already there.
+        var runner = new SeedRunner(
+            context => SeedComposition.Build(
+                dataSource, context, NullLoggerFactory.Instance,
+                new OneReservedHost(SeedData.English.Host)),
+            NullLogger<SeedRunner>.Instance);
+
+        var seed = async () =>
+            await runner.RunAsync(CancellationToken.None, [SeedData.English]);
+
+        (await seed.Should().ThrowAsync<InvalidOperationException>(
+            "a conflict that is not a uniqueness refusal means the seed did not do its job"))
+            .WithMessage("*host mapping*");
+
+        (await CountAsPlatformAsync(
+            "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host",
+            SeedData.English.Host))
+            .Should().Be(0L, "and the row was never written");
+    }
+
     // ── Harness ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -303,4 +345,11 @@ public sealed class SeederTests : IAsyncLifetime
         return (await query.ExecuteScalarAsync()) as string;
     }
 
+
+    /// <summary>A deployment that has reserved exactly one host.</summary>
+    private sealed class OneReservedHost(string host) : IReservedHostRegistry
+    {
+        public bool IsReserved(string normalizedHost) =>
+            string.Equals(normalizedHost, host, StringComparison.Ordinal);
+    }
 }

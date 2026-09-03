@@ -39,8 +39,16 @@ namespace LearnStack.Tools.Seeder;
 /// </remarks>
 public static class SeedComposition
 {
+    /// <param name="reservedHosts">
+    /// The deployment's own hosts, which no tenant may map. Defaults to none: a one-shot
+    /// process binds no configuration, and a seeder that guessed at the API's list would
+    /// be asserting something it cannot know. A caller that does know passes it.
+    /// </param>
     public static ServiceProvider Build(
-        NpgsqlDataSource dataSource, ITenantContext? context, ILoggerFactory loggerFactory)
+        NpgsqlDataSource dataSource,
+        ITenantContext? context,
+        ILoggerFactory loggerFactory,
+        IReservedHostRegistry? reservedHosts = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -69,10 +77,9 @@ public static class SeedComposition
         services.AddSingleton(new Lazy<NpgsqlDataSource>(() => dataSource));
         services.AddSingleton<IOrganizationScopeValidator, OrganizationScopeValidator>();
 
-        // The seeder reserves no hosts and fronts no cache: it is a one-shot process with
-        // no configuration bound and nothing in memory to go stale. Both defaults answer
-        // truthfully for that host rather than approximating the API's.
-        services.AddSingleton<IReservedHostRegistry>(NoReservedHosts.Instance);
+        // Fronts no cache: a one-shot process has nothing in memory to go stale, and the
+        // default answers truthfully for that host rather than approximating the API's.
+        services.AddSingleton(reservedHosts ?? NoReservedHosts.Instance);
         services.AddSingleton<IHostResolutionInvalidator>(NullHostResolutionInvalidator.Instance);
         services.AddLearnStackMediatRPipeline(typeof(ITenantWriteStore).Assembly);
 
