@@ -194,6 +194,44 @@ public sealed class PlatformAdminScopeTests
     }
 
     [Fact]
+    public async Task A_Role_Promoted_To_Superuser_Is_Refused_On_Connect()
+    {
+        // The mirror failure, and the one the guard used to admit. A superuser DOES bypass
+        // Row Level Security, so `rolbypassrls OR rolsuper` answered the literal question
+        // correctly — and that was the trap: a superuser also bypasses the table and
+        // schema GRANT matrix, which is what actually BOUNDS this role. Its own creation
+        // script writes it `BYPASSRLS NOSUPERUSER` on purpose.
+        //
+        // So a deployment that promoted learnstack_platform — a restored dump, a hurried
+        // ALTER ROLE during an incident — widened the one credential the platform path
+        // uses from "reads across tenants" to "does anything", and the startup guard said
+        // nothing. The role keeps BYPASSRLS throughout, so nothing but the superuser term
+        // can account for the refusal.
+        await _schema.Postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_platform SUPERUSER");
+
+        try
+        {
+            await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+
+            var act = async () => await dataSource.OpenConnectionAsync(CancellationToken.None);
+
+            (await act.Should().ThrowAsync<InvalidOperationException>())
+                .Which.Message.Should().Contain("does not bypass Row Level Security");
+        }
+        finally
+        {
+            await _schema.Postgres.ExecuteAsSuperuserAsync(
+                "ALTER ROLE learnstack_platform NOSUPERUSER");
+        }
+
+        // And it connects again once the promotion is undone, so the guard refused rather
+        // than the credential being broken by this test.
+        await using var restored = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var connection = await restored.OpenConnectionAsync(CancellationToken.None);
+        connection.State.Should().Be(System.Data.ConnectionState.Open);
+    }
+
+    [Fact]
     public async Task A_Resolved_Handle_Cannot_Be_Used_Again()
     {
         // Measured before the fence existed: after a successful commit the connection is

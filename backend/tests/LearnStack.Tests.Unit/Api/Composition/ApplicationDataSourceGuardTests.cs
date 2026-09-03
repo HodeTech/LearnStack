@@ -112,6 +112,14 @@ public sealed class ApplicationDataSourceGuardTests
             // first version of the redaction echoed it whole.
             "postgres://learnstack_app:hunter2@localhost:5432/learnstack", // leakwatch:ignore
             "postgresql://learnstack_app:hunter2@localhost/learnstack?sslmode=require", // leakwatch:ignore
+
+            // The two shapes the userinfo pattern could not span. It was
+            // `(://)[^/@\s]*@`, and a character class excluding '/' and '@' stops at
+            // the first one inside the password — so a password containing either
+            // reached the message whole. Reserved characters in a password are legal
+            // and common; these are the canaries for it.
+            "postgres://learnstack_app:hunter2/extra@localhost:5432/learnstack", // leakwatch:ignore
+            "postgres://learnstack_app:hunter2@more@localhost:5432/learnstack", // leakwatch:ignore
         })
         {
             try
@@ -124,9 +132,16 @@ public sealed class ApplicationDataSourceGuardTests
             }
         }
 
-        messages.Should().HaveCount(7, "every value is refused");
+        messages.Should().HaveCount(9, "every value is refused");
         messages.Should().OnlyContain(message => !message.Contains("hunter2", StringComparison.Ordinal));
-        messages.Should().OnlyContain(message => message.Contains("***", StringComparison.Ordinal));
+
+        // No "***" assertion any more, and its absence is the fix. A redacted echo is
+        // only as good as the pattern that redacts it, and two of the values above
+        // defeated the pattern. The unparseable branch now repeats nothing at all —
+        // there is no field to be confident about — so what the message must carry is
+        // the key and the expected form, not a masked version of the secret.
+        messages.Should().OnlyContain(
+            message => message.Contains("ConnectionStrings:Default", StringComparison.Ordinal));
     }
 
     [Theory]

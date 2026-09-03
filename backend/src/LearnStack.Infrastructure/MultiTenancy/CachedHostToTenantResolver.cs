@@ -185,6 +185,19 @@ public sealed class CachedHostToTenantResolver(
         await using var transaction =
             await connection.BeginTransactionAsync(cancellationToken);
 
+        // READ ONLY first, before the announcement. This is a member of the closed set of
+        // app.tenant_id / app.resolving_host setters, and read-only is the property that
+        // makes an out-of-band setter uncontroversial: learnstack_app holds write grants
+        // on the tables this connection can reach, so nothing but this statement stops a
+        // future edit here from writing under an announcement no request made.
+        // OrganizationScopeValidator — the sibling setter — has carried it since Packet 6;
+        // this one shipped without it, and the corpus described both the same way.
+        await using (var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY", connection, transaction))
+        {
+            await readOnly.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         // set_config(..., true) is SET LOCAL's function form and is
         // transaction-local for the same reason. It has to be this form:
         // `SET LOCAL app.resolving_host = $1` is a syntax error — PostgreSQL's SET

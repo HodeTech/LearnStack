@@ -46,6 +46,53 @@ public sealed class TenancyConventionTests
     }
 
     [Fact]
+    public void Out_Of_Band_Setters_Open_Read_Only_Transactions()
+    {
+        // The two components that announce a session variable outside the ambient unit of
+        // work — the host resolver and the organization-scope validator. Four carriers
+        // describe both as a "short READ-ONLY transaction": Database Standards, Security
+        // Standards, the glossary and ADR-0040. Read-only is not decoration there; it is
+        // the property that makes an out-of-band setter of app.tenant_id / app.resolving_host
+        // acceptable at all, because `learnstack_app` holds write grants on the tables
+        // these connections reach.
+        //
+        // Measured: the resolver shipped without the statement while every carrier said it
+        // had one, and the validator two files away had carried it since Packet 6. A
+        // behavioural test cannot catch that — the transaction is opened, used and
+        // disposed inside one method, so nothing outside can observe its settings — which
+        // is why this is a scan.
+        //
+        // The ORDER matters as much as the presence: SET TRANSACTION must precede the
+        // first statement of the transaction or PostgreSQL refuses it outright, so a
+        // setter that issued it after its announcement would fail at runtime rather than
+        // quietly. Both positions are checked.
+        foreach (var file in new[]
+        {
+            Path.Combine("MultiTenancy", "CachedHostToTenantResolver.cs"),
+            Path.Combine("MultiTenancy", "OrganizationScopeValidator.cs"),
+        })
+        {
+            // Comments stripped first, or the doc-comment that EXPLAINS set_config counts
+            // as its first use and the order check compares against prose.
+            var source = SourceText.WithoutComments(File.ReadAllText(
+                Directory.EnumerateFiles(
+                        RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+                    .Single(candidate => candidate.EndsWith(file, StringComparison.Ordinal))));
+
+            var readOnly = source.IndexOf("SET TRANSACTION READ ONLY", StringComparison.Ordinal);
+            var announce = source.IndexOf("set_config(", StringComparison.Ordinal);
+
+            readOnly.Should().BeGreaterThan(-1,
+                $"{file} announces a session variable on its own connection, and every "
+                + "carrier in the corpus calls that transaction READ ONLY");
+            announce.Should().BeGreaterThan(-1, $"{file} is expected to announce something");
+            readOnly.Should().BeLessThan(announce,
+                $"{file} must issue SET TRANSACTION before its first statement — after it, "
+                + "PostgreSQL refuses the statement outright");
+        }
+    }
+
+    [Fact]
     public void Tenant_Headers_Are_Never_A_Resolution_Source()
     {
         // The header is an assertion the API compares against its own answer.

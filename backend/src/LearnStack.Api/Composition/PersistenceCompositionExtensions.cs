@@ -290,11 +290,16 @@ public static class PersistenceCompositionExtensions
             // operator who pasted a URI-style DSN — the form DATABASE_URL carries
             // on several hosts — otherwise gets a bare ArgumentException out of
             // System.Data.Common.
+            // The value is NOT echoed, redacted or otherwise. It failed to parse, so
+            // there is no field to be confident about: the userinfo pattern could not
+            // cross a '/' or a second '@' inside a password, and either one put the
+            // secret in a startup log. The message's job is to name the key and the
+            // expected form, and it does that without quoting anything.
             throw new InvalidOperationException(
-                $"ConnectionStrings:Default is not a valid connection string: "
-                + $"{RedactUnparsed(connectionString)}. "
-                + "The expected form is a semicolon-separated key/value list — Host, Port, "
-                + "Database, Username, Password — not a URI. See .env.example.",
+                "ConnectionStrings:Default is not a valid connection string. The expected "
+                + "form is a semicolon-separated key/value list — Host, Port, Database, "
+                + "Username, Password — not a URI. The value is not repeated here because "
+                + "an unparseable one cannot be reliably redacted. See .env.example.",
                 exception);
         }
 
@@ -357,6 +362,16 @@ public static class PersistenceCompositionExtensions
     /// the failure that looks like nothing at all, because every cross-tenant query
     /// simply returns fewer rows.
     /// </remarks>
+    /// <remarks>
+    /// <b><c>AND NOT rolsuper</c>, not <c>OR rolsuper</c>.</b> A superuser does bypass
+    /// RLS, so accepting it satisfies the literal question this guard asks — and that is
+    /// the trap. A superuser also bypasses the table and schema GRANT matrix that is what
+    /// BOUNDS this role: `02-create-roles.sql` writes it <c>BYPASSRLS NOSUPERUSER</c>
+    /// deliberately, and a deployment that promoted it would have widened the one
+    /// credential the platform path uses from "reads across tenants" to "does anything".
+    /// Refusing it here is how that misconfiguration fails at startup rather than at the
+    /// first incident.
+    /// </remarks>
     private static async Task RequireBypassRole(NpgsqlConnection connection, bool async)
     {
         await using var command = connection.CreateCommand();
@@ -364,7 +379,7 @@ public static class PersistenceCompositionExtensions
             """
             SELECT EXISTS (
                 SELECT 1 FROM pg_roles r
-                WHERE r.rolname = current_user AND (r.rolbypassrls OR r.rolsuper))
+                WHERE r.rolname = current_user AND r.rolbypassrls AND NOT r.rolsuper)
             """;
 
         var bypasses = async
@@ -405,40 +420,4 @@ public static class PersistenceCompositionExtensions
         return redacted.ConnectionString;
     }
 
-    /// <summary>
-    /// The same, for a value Npgsql could not parse — so there is no builder to
-    /// clear a field on.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// A regex is the only tool left here, so it covers both forms a rejected value
-    /// arrives in. The keyword pass knows every alias Npgsql accepts —
-    /// <c>Password</c>, <c>PSW</c>, <c>PWD</c>, measured, not the canonical
-    /// spelling alone.
-    /// </para>
-    /// <para>
-    /// The second pass is the one this branch exists for. Npgsql <b>rejects</b> a
-    /// URI-style DSN outright — measured — so <c>postgres://user:secret@host/db</c>
-    /// is not some exotic input here, it is the input, and it carries its password
-    /// in the userinfo where no <c>password=</c> appears. The first version of this
-    /// method echoed it whole into an exception message that a startup failure puts
-    /// in the log.
-    /// </para>
-    /// </remarks>
-    private static string RedactUnparsed(string connectionString)
-    {
-        var byKeyword = System.Text.RegularExpressions.Regex.Replace(
-            connectionString,
-            "(?i)\\b(password|pwd|psw)(\\s*=)[^;]*",
-            "$1$2***");
-
-        // The whole userinfo, not the password half: a value shaped like a URI
-        // failed to parse, so there is no field to be confident about, and the
-        // username is not what the operator needs from this message anyway — the
-        // message tells them the form is wrong, not which role they named.
-        return System.Text.RegularExpressions.Regex.Replace(
-            byKeyword,
-            "(?i)(://)[^/@\\s]*@",
-            "$1***@");
-    }
 }

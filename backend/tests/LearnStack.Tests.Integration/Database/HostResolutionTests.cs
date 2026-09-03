@@ -65,6 +65,74 @@ public sealed class HostResolutionTests
     }
 
     [Fact]
+    public async Task A_Read_Only_Transaction_Admits_The_Announcement_And_Refuses_A_Write()
+    {
+        // Why the resolver's lookup can be read-only at all, which is not obvious: it
+        // announces `app.resolving_host`, and an announcement looks like a write. It is
+        // not — `set_config(..., true)` is permitted inside a READ ONLY transaction — so
+        // the resolver gives up nothing by taking the restriction, and `learnstack_app`
+        // keeps write grants on this table, so the transaction is what refuses.
+        //
+        // This is the PostgreSQL fact the design rests on, driven on a transaction built
+        // the way the resolver builds its own. What it deliberately does NOT claim is
+        // that the resolver issues the statement: a replica cannot say that about the
+        // original, and asserting it here would be a test agreeing with itself. The
+        // source scan `Out_Of_Band_Setters_Open_Read_Only_Transactions` carries that half.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var probe = await dataSource.OpenConnectionAsync();
+        await using var transaction = await probe.BeginTransactionAsync();
+
+        // First statement, before the announcement. SET TRANSACTION must precede any
+        // other statement or PostgreSQL refuses it outright, which is why the order in
+        // the resolver is part of what the scan checks.
+        await using (var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY", probe, transaction))
+        {
+            await readOnly.ExecuteNonQueryAsync();
+        }
+
+        await using (var announce = new NpgsqlCommand(
+            "SELECT set_config('app.resolving_host', @host, true)", probe, transaction))
+        {
+            announce.Parameters.AddWithValue("host", SchemaFixture.HostA);
+            await announce.ExecuteNonQueryAsync();
+        }
+
+        await using (var setting = new NpgsqlCommand(
+            "SELECT current_setting('transaction_read_only')", probe, transaction))
+        {
+            (await setting.ExecuteScalarAsync()).Should().Be("on",
+                "the announcement did not force the transaction to be writable");
+        }
+
+        // And the read the resolver actually performs still succeeds under it.
+        await using (var read = new NpgsqlCommand(
+            "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host", probe, transaction))
+        {
+            read.Parameters.AddWithValue("host", SchemaFixture.HostA);
+            (await read.ExecuteScalarAsync()).Should().Be(1L);
+        }
+
+        var write = async () =>
+        {
+            await using var refused = new NpgsqlCommand(
+                "INSERT INTO platform_host_to_tenant (host, tenant_id, is_active, "
+                + "is_publicly_live) VALUES ('x.example.com', @tenant, true, true)",
+                probe,
+                transaction);
+            refused.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            await refused.ExecuteNonQueryAsync();
+        };
+
+        (await write.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be("25006",
+                "read_only_sql_transaction — learnstack_app still holds the grant, so the "
+                + "restriction is what refuses rather than the privilege");
+
+        await transaction.RollbackAsync();
+    }
+
+    [Fact]
     public async Task An_Unmapped_Host_Resolves_To_Nothing()
     {
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
