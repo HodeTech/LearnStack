@@ -8,6 +8,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -413,6 +414,61 @@ public sealed class TenantProvisioningTests
             unitOfWork,
             $"SELECT status FROM tenants WHERE id = '{SchemaFixture.TenantA}'"))
             .Should().Be(nameof(TenantStatus.Trial));
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_refused_write_does_not_ride_along_on_the_next_save()
+    {
+        // EF keeps a failed entry in the state it had, so an Added row the database
+        // refused stays Added. A caller that turns the conflict into Result.Fail and
+        // carries on writing therefore has the rejected INSERT still queued, and the next
+        // SaveChanges on the same context re-sends it — the row is gone from the database,
+        // and the tracker is a claim that outlived its subject.
+        //
+        // Reachable through nesting, which ADR-0040 permits: an outer handler may absorb
+        // an inner failure and keep going on the same scope, and the scope is one
+        // DbContext. Driven directly here, because what is under test is the store's
+        // cleanup and not the pipeline that would carry it.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        services.GetRequiredService<ITenantContextAccessor>().Current =
+            new ResolvedContext(SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+
+        var organizations = services.GetRequiredService<IOrganizationWriteStore>();
+
+        // Refused: OrgA1 already exists under this tenant.
+        var refused = Organization.Create(
+            OrganizationId.From(SchemaFixture.OrgA1),
+            TenantId.From(SchemaFixture.TenantA),
+            "collides",
+            "Collides",
+            Clock,
+            UserId.SystemActor);
+
+        var conflict = async () => await organizations.AddAsync(refused);
+        await conflict.Should().ThrowAsync<AggregateConflictException>();
+
+        // The caller absorbs it and writes something else on the same context.
+        var accepted = Organization.Create(
+            OrganizationId.From(Guid.CreateVersion7()),
+            TenantId.From(SchemaFixture.TenantA),
+            $"after-{Guid.CreateVersion7():N}"[..20],
+            "After",
+            Clock,
+            UserId.SystemActor);
+
+        var second = async () => await organizations.AddAsync(accepted);
+
+        await second.Should().NotThrowAsync(
+            "the refused row was detached, so the second save carries only the new one");
 
         await unitOfWork.RollbackAsync();
     }

@@ -125,6 +125,28 @@ internal static class WriteStoreTracking
         catch (DbUpdateException failure)
             when (failure.InnerException is PostgresException { SqlState: "23505" } conflict)
         {
+            // Detach what the database refused, before the exception leaves. EF keeps a
+            // failed entry in the state it had — an Added row stays Added — so a caller
+            // that turns this into Result.Fail and carries on writing has the rejected
+            // INSERT still queued, and the NEXT SaveChanges on this context re-sends it.
+            //
+            // Reachable through nesting, which is the shape ADR-0040 permits: an outer
+            // handler may absorb an inner failure and keep going on the same scope, and
+            // the scope is one DbContext. The row is gone from the database either way —
+            // the statement was refused — so the tracker holding it is a claim that
+            // outlived its subject.
+            //
+            // Added only. A Modified entry's original values are what the database still
+            // holds, so leaving it tracked is correct; detaching it would discard a change
+            // the caller may legitimately retry.
+            foreach (var entry in failure.Entries)
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    entry.State = EntityState.Detached;
+                }
+            }
+
             throw new AggregateConflictException(
                 conflict.MessageText, conflict.ConstraintName, failure);
         }

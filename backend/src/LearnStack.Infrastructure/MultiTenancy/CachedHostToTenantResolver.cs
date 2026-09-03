@@ -119,6 +119,17 @@ public sealed class CachedHostToTenantResolver(
     /// a round trip the next request would repeat. An earlier version of this sentence
     /// said the negative cache is "populated only by a request that survived its own
     /// lookup", which the publication block below contradicts in the same file.
+    ///
+    /// <b>What bounds the flights.</b> The dictionary does not: a flight is registered
+    /// per host and retired in the read's <c>finally</c>, so its size is the number of
+    /// lookups in flight, never the number of hosts ever seen. The ceiling is the Npgsql
+    /// pool — each cold lookup takes a connection, and past the pool maximum the rest
+    /// queue in <c>OpenConnectionAsync</c> rather than opening more. A distributed flood
+    /// of novel hostnames therefore degrades into queueing on that pool: the anonymous
+    /// rate limiter bounds one peer, the negative cache bounds repeats, and neither
+    /// bounds first sight. A process-wide admission gate for cold lookups is the remedy
+    /// if that shows up; it is not built, because the trigger for it is a measurement
+    /// nobody has taken.
     /// </remarks>
     private async Task<HostResolution?> ReadCoalescedAsync(
         string host, string key, CancellationToken cancellationToken)
