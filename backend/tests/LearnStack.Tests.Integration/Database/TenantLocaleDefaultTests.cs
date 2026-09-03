@@ -1,4 +1,14 @@
 using FluentAssertions;
+using LearnStack.Api.Composition;
+using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
 
@@ -29,6 +39,53 @@ public sealed class TenantLocaleDefaultTests
     private readonly SchemaFixture _schema;
 
     public TenantLocaleDefaultTests(SchemaFixture schema) => _schema = schema;
+
+    [Fact]
+    public async Task Promoting_A_Default_Through_The_Aggregate_Survives_The_Index()
+    {
+        // The path the shipped code actually takes, which nothing exercised: the other
+        // cases here drive raw SQL in an order they choose, so they pin what PostgreSQL
+        // does with two statements — not what EF emits for one SaveChanges.
+        //
+        // PromoteDefault clears the incumbent and then sets the target, in that order, in
+        // memory. EF does not have to preserve it: ModificationCommandComparer orders
+        // same-table commands, so the UPDATE that SETS the new default can precede the
+        // one that CLEARS the old, and the partial unique index refuses the pair.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        services.GetRequiredService<ITenantContextAccessor>().Current =
+            new LocaleProbeContext(SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+
+        var db = services.GetRequiredService<TenancyDbContext>();
+        var tenant = await db.Tenants
+            .Include(candidate => candidate.Locales)
+            .SingleAsync(candidate => candidate.Id == TenantId.From(SchemaFixture.TenantA));
+
+        // The fixture seeds tr-TR as the default. en-US is the challenger, and its
+        // composite primary key (tenant_id, locale) sorts BEFORE tr-TR — which is the
+        // whole point: if EF orders by key, the challenger is written first.
+        tenant.AddLocale("en-US", isDefault: false, Clock, UserId.SystemActor);
+        await services.GetRequiredService<ITenantWriteStore>().UpdateAsync(tenant);
+
+        tenant.SetDefaultLocale("en-US", Clock, UserId.SystemActor);
+
+        var promote = async () =>
+            await services.GetRequiredService<ITenantWriteStore>().UpdateAsync(tenant);
+
+        await promote.Should().NotThrowAsync(
+            "clearing the incumbent and setting the challenger is one SaveChanges, and the "
+            + "partial unique index refuses the pair if EF emits them in key order");
+
+        (await ReadDefaultAsync(unitOfWork)).Should().Be("en-US");
+
+        await unitOfWork.RollbackAsync();
+    }
 
     [Fact]
     public async Task A_Second_Default_For_One_Tenant_Is_Refused()
@@ -172,5 +229,59 @@ public sealed class TenantLocaleDefaultTests
         parameter.Value = tenant;
         command.Parameters.Add(parameter);
         return (T)(await command.ExecuteScalarAsync(CancellationToken.None))!;
+    }
+
+    private static readonly FixedClock Clock = new(
+        new DateTimeOffset(2026, 9, 3, 9, 0, 0, TimeSpan.Zero));
+
+    private ServiceProvider BuildProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        services.AddLogging();
+        services.AddSingleton<IClock>(Clock);
+        services.AddSingleton<ITenantContextAccessor, MutableAccessor>();
+        services.AddTransient<ITenantContext>(provider =>
+            provider.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
+        services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
+        services.AddModuleDbContext<TenancyDbContext>();
+        services.AddScoped<ITenantWriteStore, TenantWriteStore>();
+
+        return services.BuildServiceProvider();
+    }
+
+    private static async Task<string?> ReadDefaultAsync(IUnitOfWork unitOfWork)
+    {
+        await using var command = (NpgsqlCommand)unitOfWork.Connection.CreateCommand();
+        command.CommandText =
+            "SELECT locale FROM tenant_locales WHERE tenant_id = @tenant AND is_default";
+        command.Transaction = (NpgsqlTransaction?)unitOfWork.Transaction;
+        command.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+
+        return (await command.ExecuteScalarAsync()) as string;
+    }
+
+    private sealed class MutableAccessor : ITenantContextAccessor
+    {
+        public ITenantContext? Current { get; set; }
+    }
+
+    private sealed class LocaleProbeContext(Guid tenant, Guid organization) : ITenantContext
+    {
+        public bool IsResolved => true;
+
+        public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
+
+        public TenantId TenantId => SharedKernel.Identifiers.TenantId.From(tenant);
+
+        public OrganizationId? OrganizationId =>
+            SharedKernel.Identifiers.OrganizationId.From(organization);
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "locale-probe";
     }
 }

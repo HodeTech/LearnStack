@@ -53,10 +53,10 @@ public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
         return SaveTranslatingConflictsAsync(db, cancellationToken);
     }
 
-    public Task UpdateAsync(Tenant aggregate, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(Tenant aggregate, CancellationToken cancellationToken = default)
     {
         EnsureTracked(db, aggregate);
-        return SaveTranslatingConflictsAsync(db, cancellationToken);
+        await SaveDefaultLocaleInTwoPassesAsync(db, cancellationToken);
     }
 }
 
@@ -101,6 +101,70 @@ public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHos
 /// <summary>Shared by the stores; see <see cref="TenantWriteStore"/> for why.</summary>
 internal static class WriteStoreTracking
 {
+    /// <summary>
+    /// Saves, clearing an outgoing default locale before setting the incoming one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The aggregate cannot order this, and it was wrong to assume it could.</b>
+    /// <c>Tenant.PromoteDefault</c> clears the incumbent and then sets the target, in that
+    /// order, in memory — and EF does not preserve it. Same-table commands go out in the
+    /// order EF's comparer produces, so the <c>UPDATE</c> that SETS the new default can
+    /// precede the one that CLEARS the old, and
+    /// <c>ux_tenant_locales_tenant_id_is_default</c> refuses the pair with 23505.
+    /// </para>
+    /// <para>
+    /// Measured against the real schema: promoting <c>en-US</c> over a seeded <c>tr-TR</c>
+    /// through the aggregate raised 23505 every time, because the composite key
+    /// <c>(tenant_id, locale)</c> sorts the challenger first. Nothing caught it — the
+    /// cases that cover this index drive raw SQL in an order they choose, so they pin what
+    /// PostgreSQL does with two statements rather than what EF emits for one save.
+    /// </para>
+    /// <para>
+    /// <b>Two passes, and the intermediate state is legal.</b> The promotions are held
+    /// back with EF's own <c>IsModified</c> flag, the clears are saved, then the
+    /// promotions are released and saved. A partial unique index permits ZERO defaults —
+    /// it forbids two — so the state between the two saves is one the schema allows, and
+    /// both saves are inside the caller's transaction, so no one else observes it.
+    /// Domain state is never touched: only which properties EF considers pending.
+    /// </para>
+    /// </remarks>
+    internal static async Task SaveDefaultLocaleInTwoPassesAsync(
+        TenancyDbContext db, CancellationToken cancellationToken)
+    {
+        var promotions = db.ChangeTracker.Entries<TenantLocale>()
+            .Where(entry => entry.State == EntityState.Modified
+                && entry.Property(locale => locale.IsDefault).IsModified
+                && entry.Property(locale => locale.IsDefault).CurrentValue)
+            .ToList();
+
+        if (promotions.Count == 0)
+        {
+            await SaveTranslatingConflictsAsync(db, cancellationToken);
+            return;
+        }
+
+        // Lowered, saved, raised, saved. The value is put back to false so the FIRST save
+        // carries a real delta for the incumbent and none for the challenger; raising it
+        // afterwards gives the SECOND save a real delta of its own. Holding the property
+        // back with IsModified alone does not work: SaveChanges accepts current values, so
+        // by the second pass EF believes the database already holds `true` and writes
+        // nothing — measured, and the row ended with no default at all.
+        foreach (var promotion in promotions)
+        {
+            promotion.Property(locale => locale.IsDefault).CurrentValue = false;
+        }
+
+        await SaveTranslatingConflictsAsync(db, cancellationToken);
+
+        foreach (var promotion in promotions)
+        {
+            promotion.Property(locale => locale.IsDefault).CurrentValue = true;
+        }
+
+        await SaveTranslatingConflictsAsync(db, cancellationToken);
+    }
+
     /// <summary>
     /// Saves, turning a uniqueness violation into the port's own conflict type.
     /// </summary>

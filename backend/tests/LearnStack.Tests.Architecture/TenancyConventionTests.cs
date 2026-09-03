@@ -37,9 +37,25 @@ public sealed class TenancyConventionTests
         // predicate, header, normalization, all of it. A second reader of
         // Request.Host is a second answer, and the one that skips the accessor
         // is the one that skips the trust check.
+        // The banned list names the headers this code ACTUALLY uses, not only the
+        // conventional one. `X-Forwarded-Host` appears nowhere in the source — banning it
+        // alone made the rule green over the real hole: `TrustedHopOptions.HostHeaderName`
+        // is a public const carrying `X-LearnStack-Host`, and a second file reading it
+        // reads the forwarded host WITHOUT `IsTrustedHop`'s CIDR check and constant-time
+        // secret comparison. Both the literal and the const are banned, because either
+        // spelling reaches the same header.
         Offenders(
                 except: Path.Combine("Tenancy", "EffectiveHostAccessor.cs"),
-                banned: ["Request.Host", "GetDisplayUrl", "GetEncodedUrl", "X-Forwarded-Host"])
+                banned:
+                [
+                    "Request.Host",
+                    "GetDisplayUrl",
+                    "GetEncodedUrl",
+                    "X-Forwarded-Host",
+                    "X-LearnStack-Host",
+                    "TrustedHopOptions.HostHeaderName",
+                ],
+                alsoExcept: [Path.Combine("Tenancy", "TrustedHopOptions.cs")])
             .Should().BeEmpty(
                 "only EffectiveHostAccessor reads a request host (ADR-0036 § Effective "
                 + "host and the trusted hop)");
@@ -240,7 +256,10 @@ public sealed class TenancyConventionTests
     /// literal it is forbidden to write.
     /// </remarks>
     private static List<string> Offenders(
-        string? except, IReadOnlyList<string> banned, string? folder = null)
+        string? except,
+        IReadOnlyList<string> banned,
+        string? folder = null,
+        IReadOnlyList<string>? alsoExcept = null)
     {
         var root = Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api");
         if (folder is not null)
@@ -265,6 +284,16 @@ public sealed class TenancyConventionTests
             // a rule quietly stops covering half of what it names.
             if (except is not null
                 && relative.Equals(except, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // A second exemption list, for the file that DECLARES a banned spelling as
+            // opposed to reading it. `TrustedHopOptions` owns the header names; banning
+            // the name without exempting its own declaration would make the rule
+            // unsatisfiable rather than strict.
+            if (alsoExcept is not null
+                && alsoExcept.Any(allowed => relative.Equals(allowed, StringComparison.Ordinal)))
             {
                 continue;
             }
@@ -301,13 +330,21 @@ public sealed class TenancyConventionTests
         // fails on the migration's own policy DDL, which must name the variable in
         // order to read it.
         const string Setter = "set_config('app.resolving_host'";
-        const string SoleSetter = "CachedHostToTenantResolver.cs";
+        var SoleSetter = Path.Combine(
+            "LearnStack.Infrastructure", "MultiTenancy", "CachedHostToTenantResolver.cs");
 
         var offenders = Directory
             .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .Where(file => !file.EndsWith(SoleSetter, StringComparison.Ordinal))
+            // The full relative path, not a filename suffix. `EndsWith` on the bare name
+            // exempts anything ending in it — `NoopCachedHostToTenantResolver.cs`,
+            // `TestCachedHostToTenantResolver.cs` — so a second setter could be added in a
+            // file the rule silently treats as the sole one.
+            .Where(file => !string.Equals(
+                Path.GetRelativePath(RepositoryPaths.BackendSrc(), file),
+                SoleSetter,
+                StringComparison.Ordinal))
             .Where(file => SourceText.WithoutComments(File.ReadAllText(file))
                 .Contains(Setter, StringComparison.Ordinal))
             .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file))

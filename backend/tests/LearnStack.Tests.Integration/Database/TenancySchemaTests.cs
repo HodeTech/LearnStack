@@ -523,6 +523,36 @@ public sealed class TenancySchemaTests
             ("tenant", SchemaFixture.TenantB), ("host", Host), ("actor", SchemaFixture.Actor));
 
         await reclaim.Should().NotThrowAsync();
+
+        // The other half, and without it this case passes with the uniqueness dropped
+        // entirely: `unique: false` on ux_tenant_domains_host leaves everything above
+        // green, because nothing here ever asks for a CONFLICT. A live claim must still
+        // block a second one — that index is the schema's only guarantee that two tenants
+        // cannot hold the same hostname at once, and RLS hides the collision from both
+        // sides, so nothing else would notice it was gone.
+        const string Contested = "contested.example.com";
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.ExecuteAsync(connection, transaction,
+            """
+            INSERT INTO tenant_domains
+                (id, tenant_id, host, kind, status, verification_attempts, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, @host, 'Custom', 'Requested', 0, now(), @actor, 0)
+            """,
+            ("tenant", SchemaFixture.TenantA), ("host", Contested), ("actor", SchemaFixture.Actor));
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);
+        var contest = async () => await SchemaQueries.ExecuteAsync(connection, transaction,
+            """
+            INSERT INTO tenant_domains
+                (id, tenant_id, host, kind, status, verification_attempts, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, @host, 'Custom', 'Requested', 0, now(), @actor, 0)
+            """,
+            ("tenant", SchemaFixture.TenantB), ("host", Contested), ("actor", SchemaFixture.Actor));
+
+        (await contest.Should().ThrowAsync<PostgresException>(
+            "a hostname that is live for one tenant is not available to another"))
+            .Which.SqlState.Should().Be("23505");
     }
 
     [Fact]
