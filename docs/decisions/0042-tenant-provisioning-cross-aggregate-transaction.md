@@ -231,6 +231,12 @@ containment either.
   implements `IAggregateRoot<TId>`, and holds a literal allow-list of exactly one
   handler type.
 
+  > **Erratum (2026-09-03, Amendment 1).** The scan described in the sentence
+  > above cannot fire, and could not on the day this was written: `Application`
+  > may not reference `Infrastructure`, so no handler can name a `DbSet`. The
+  > shipped rule counts constructor parameters deriving from
+  > `IAggregateWriteStore<TRoot, TId>` instead. See § Amendments.
+
   **What it proves and what it does not.** It catches the direct form, which is
   the form a handler is written in. It does not catch a write routed through a
   repository, a helper or a second `DbContext` reached indirectly — the same
@@ -245,7 +251,34 @@ containment either.
 
 ## Amendments
 
-None yet.
+### Amendment 1 (2026-09-03): the rule counts ports, not `DbSet` use
+
+**What was false when it entered the record.** § Implementation Notes specifies
+`Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` as a source scan for
+`Add` / `AddRange` / `Update` / `Remove` against more than one `DbSet`. That scan
+can never fire. `Application` may not reference `Infrastructure` — a shipped
+dependency rule that predates this ADR — so no handler can name a `DbSet` at all,
+and a rule that cannot fire while carrying Status **Implemented** claims coverage
+the suite does not have. An inline erratum marks the sentence; the rationale, the
+carve-out and everything else in the record stand.
+
+**What ships.** The rule reflects over the production assemblies and counts, per
+`IRequestHandler<,>` implementation, the constructor parameters deriving from
+`IAggregateWriteStore<TRoot, TId>`. More than one is the cross-aggregate write,
+and the literal allow-list holds exactly one name:
+`ProvisionTenantCommandHandler`. Counting a **type** rather than a name means
+renaming a port does not escape the rule, and fusing the two ports into one to
+hide the write is itself caught — measured, as one of three mutations that each
+turn the rule red.
+
+**Why two ports rather than one.** `ITenantWriteStore` and
+`IOrganizationWriteStore` are separate interfaces deliberately. A single fused
+port would have been less code and would have hidden the very thing this ADR
+exists to enumerate.
+
+**What did not change.** The sanctioned operation, its three statements, the
+one-entry allow-list, and the seeder's obligation to invoke the command rather
+than write the two aggregates itself.
 
 ## References
 

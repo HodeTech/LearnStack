@@ -3,8 +3,14 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-The operations do not exist yet; the classification does. This matrix is not the
-floor — [Audit Coverage § Baseline Coverage](../../standards/18-audit-coverage.md)
+Two of the operations below now exist — `Tenant` create and `Organization`
+create, written together by `ProvisionTenantCommand`
+([ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md))
+— and the rest are still classification ahead of code. Both are **MUST**, both
+are written on the one transaction that provisioning is, so
+[ADR-0033](../../decisions/0033-audit-durability-model.md)'s guarantee for them is
+the ordinary one: the two rows commit with the two aggregates or nothing does.
+This matrix is not the floor — [Audit Coverage § Baseline Coverage](../../standards/18-audit-coverage.md)
 is, and a module matrix "cannot remove anything in this list". This file adds rows
 beneath that baseline and classifies what the baseline leaves open; a tenant
 `AuditConfig` may then narrow SHOULD/MAY at runtime. Neither touches a baseline
@@ -36,4 +42,7 @@ optional.
 
 The classification is inert until [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md)
 lights up `AuditLogBehavior`, and Packet 9 transcribes its in-process catalogue
-from this file.
+from this file. **Provisioning is therefore unaudited today**, and that is a gap
+with an owner rather than an accepted state: `TransactionBehavior` carries the
+`TODO(2026-08-28, @platform, phase-02a-packet-9)` marking the line the MUST-class
+write goes on, immediately before the commit.

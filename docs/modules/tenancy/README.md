@@ -160,38 +160,59 @@ Text fallback — **TenantDomain lifecycle**:
 ```mermaid
 sequenceDiagram
     participant R as Registry (Hub / config / fixture)
+    participant T as TransactionBehavior
     participant H as Handler
     participant U as IUnitOfWork
     participant D as TenancyDbContext
     participant P as PostgreSQL
 
-    R->>H: tenant id, slug, display name
-    H->>U: BeginTransactionAsync
+    R->>T: ProvisionTenantCommand (tenant id, slug, names)
+    T->>U: BeginTransactionAsync
     U->>P: BEGIN
-    H->>U: SetTenantContextAsync(id)
-    U->>P: SET LOCAL app.tenant_id = <id>
+    T->>U: SetProvisioningTenantContextAsync(command.TenantId)
+    U->>P: SELECT set_config('app.tenant_id', <id>, true)
+    T->>H: next()
     H->>D: INSERT tenants
     D->>P: WITH CHECK passes — app.tenant_id already equals id
     H->>D: INSERT organizations (default)
     H->>D: UPDATE tenants SET default_organization_id
-    H->>U: CommitAsync
+    T->>U: CompleteAsync
     U->>P: COMMIT
 ```
 
 Text fallback — **provisioning a tenant**: the registry (Hub, config or fixture)
-supplies the tenant id, slug and display name; the handler opens the ambient
-transaction through `IUnitOfWork`, sets `app.tenant_id` to that id as the first
-statement inside it, inserts `tenants`, inserts the default `organizations` row,
-updates `tenants.default_organization_id`, and commits. One transaction, one
-connection, one commit point.
+sends a `ProvisionTenantCommand`; `TransactionBehavior` opens the ambient
+transaction, announces `app.tenant_id` as the tenant being created — the first
+statement inside it — and calls the handler; the handler inserts `tenants`,
+inserts the default `organizations` row, updates
+`tenants.default_organization_id`, and returns; the behavior commits. One
+transaction, one connection, one commit point.
+
+**The handler opens nothing and announces nothing.** Both belong to
+`TransactionBehavior`, and the distinction is not stylistic. A
+`BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)
+returns a nested frame on the same transaction, so it would be a no-op that
+reads like a boundary. An announcement from inside a handler would be an eighth
+setter of `app.tenant_id` against a set two ADRs close at seven, and would hand
+every handler in the solution the ability to move the ambient tenant.
 
 Three statements, one transaction. The tenant id is **never minted in the
-handler**: the registry assigns it and the transaction sets `app.tenant_id` to
-that value *before* the insert, so the self-keyed policy's `WITH CHECK` passes. A
-handler that generated its own could not satisfy its own policy. The
-`default_organization_id` update is separate because the composite foreign key
-has nothing to reference until the organization exists; `MATCH SIMPLE` skips the
-check while the column is null, which is what makes the ordering legal.
+handler**: the registry assigns it, and the behavior announces it *before* the
+insert by reading `IProvisionsTenant` off the request, so the self-keyed policy's
+`WITH CHECK` passes. A handler that generated its own could not satisfy its own
+policy. Measured against the shipped policies: with `app.tenant_id` unset or set
+to the empty string the `tenants` insert raises `42501` identically, and only
+the new tenant's own id lets the sequence commit.
+
+The announcement requires an **unresolved** context, which is what closes the
+confused deputy: a caller already authenticated for tenant A who sends a
+provisioning command naming tenant B takes the ordinary path, the transaction
+carries A, and B's insert is refused by the database rather than by a check
+somebody has to remember to write.
+
+The `default_organization_id` update is separate because the composite foreign
+key has nothing to reference until the organization exists; `MATCH SIMPLE` skips
+the check while the column is null, which is what makes the ordering legal.
 
 ### Primary integration-event flow: host mapping changed
 

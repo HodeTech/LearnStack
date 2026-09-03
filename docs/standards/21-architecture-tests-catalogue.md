@@ -668,20 +668,31 @@ otherwise).
 
 #### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
 
-- **Asserts:** no MediatR handler issues `Add` / `AddRange` / `Update` / `Remove`
-  against more than one `DbSet` whose entity implements `IAggregateRoot<TId>`, except
-  the single handler on a literal allow-list — the handler for `ProvisionTenantCommand`,
-  which writes `Tenant` and its default `Organization` in one transaction per ADR-0042.
+- **Asserts:** no MediatR handler takes more than one constructor parameter deriving
+  from `IAggregateWriteStore<TRoot, TId>`, except the single handler on a literal
+  allow-list — `ProvisionTenantCommandHandler`, which writes `Tenant` and its default
+  `Organization` in one transaction per ADR-0042.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
-- **Type:** xUnit + source scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented.**
 - **Phase:** 02a Packet 7.
-- **Note:** the scan catches the direct form, which is the form a handler is written
-  in. It does not catch a write routed through a repository, a helper, or a second
-  `DbContext` reached indirectly. The binding control is that the allow-list has one
-  entry and growing it is a reviewed diff; the scan is what makes the ordinary mistake
-  loud.
+- **Note:** the rule counts **ports**, not `DbSet` use, and the change is not
+  cosmetic. ADR-0042 § Implementation Notes specified a source scan for `Add` /
+  `Update` / `Remove` against more than one `DbSet`; under the shipped dependency
+  rules that scan can never fire, because `Application` may not reference
+  `Infrastructure` and so no handler can name a `DbSet` at all. A rule at
+  **Implemented** that cannot fire is worse than one at **Registered**, because the
+  catalogue then claims coverage the suite does not have. Counting a type also
+  survives renaming: `ITenantWriteStore` and `IOrganizationWriteStore` are matched by
+  their derivation, not their names.
+- **What it does not catch:** a write routed through a helper that itself holds two
+  ports, or through a second `DbContext` reached indirectly — the same limit
+  [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not) states for every
+  structural rule. The binding control is that the allow-list has one entry and
+  growing it is a reviewed diff.
+- **Mutation-checked.** Three mutations, three failures: a second handler taking two
+  write ports, the sanctioned handler renamed, and the two ports fused into one.
 
 ### Persistence: concurrency and the unit of work
 
