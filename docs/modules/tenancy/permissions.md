@@ -31,9 +31,12 @@ refuses the write.
 
 **`MapHostToTenantCommand` is the one to gate first.** It writes the row that
 decides whose data an anonymous request sees, which makes it the highest-value
-write in the module and the reason `tenancy.tenant.admin` — not
-`tenancy.tenant.write` — is the key that will govern it. The three keys are
-registered with the rest in Phase 03.
+write in the module — and the reason the matrix above gives `HostMapping` its own
+resource with **no `write`**: pointing a hostname at a tenant is an admin-scope
+act, so `tenancy.hostmapping.admin` is the key that will govern it rather than any
+grant inside the everyday tenant-admin role. `tenancy.tenant.admin` governs
+provisioning and `tenancy.organization.write` the second organization. All three
+are registered with the rest in Phase 03.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|

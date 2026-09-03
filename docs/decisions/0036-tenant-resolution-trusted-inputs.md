@@ -174,6 +174,16 @@ Load-bearing details:
   token and does not carry bare `key`, so existing Serilog and error-tracker redaction
   covers the header for free.
 
+> **Erratum — 2026-09-04.** The order in the paragraph below rejects IPv4 literals
+> *before* stripping a port, and that is the order Packet 4 measured as wrong: it
+> lets `1.2.3.4:8080` through, because `IPAddress.TryParse` fails on the
+> port-bearing string and the check never runs again after the port is stripped.
+> The corrected order strips the port first and rejects the literal after; shown by
+> § Amendments, Amendment 1, and narrowed further by its own 2026-09-02 erratum.
+> The Decision is unchanged. Current authority:
+> [Amendment 1](#2026-08-20--amendment-1-the-normalization-order-corrected-by-measurement)
+> and `EffectiveHost.Normalize`.
+
 **Normalization is a total pure function.** `EffectiveHost.Normalize(string) → string?`
 is the sole producer of both the lookup key and the `app.resolving_host` value. Every
 failure returns `null` (⇒ unresolved ⇒ 404); nothing throws. Do **not** use

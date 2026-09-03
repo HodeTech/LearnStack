@@ -26,9 +26,12 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// <b>The global query filters come from the base.</b>
 /// <c>TenantScopedDbContext</c> owns the two members they close over and applies
 /// one to every entity implementing <c>ITenantOwned</c>; this context adds none
-/// of its own. Two of its eight entity types deliberately get no filter:
-/// <see cref="Tenants"/>, which is tenant-owned <b>self-keyed</b> — its <c>id</c>
-/// is the tenant id, and its policy says so — and
+/// of its own. <see cref="Tenants"/> gets a filter of a different SHAPE, not none:
+/// it is tenant-owned <b>self-keyed</b> — its <c>id</c> is the tenant id, and its
+/// policy says so — so the predicate compares <c>Id</c> rather than a
+/// <c>TenantId</c> column. An earlier version of this paragraph said it got no
+/// filter at all, which the self-keyed branch in <c>TenantQueryFilters</c>
+/// contradicts. One of the eight entity types genuinely gets none:
 /// <see cref="PlatformHostMappings"/>, which is <b>platform-scoped</b> and read
 /// in order to determine the tenant, so a tenant-keyed predicate on it would make
 /// host resolution return zero rows forever. Row Level Security remains the
