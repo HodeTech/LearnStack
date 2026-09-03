@@ -398,10 +398,7 @@ public sealed class TenantMiddleware
 }
 ```
 
-`_hostToTenantResolver` is backed by `ICacheService` — `InMemoryCacheService` today,
-with the Valkey-via-Dapr adapter demand-gated to
-[Phase 11](../roadmap/phase-11-production-hardening.md) per
-[ADR-0035](0035-demand-gated-infrastructure.md); cache key
+`_hostToTenantResolver` is backed by `ICacheService` (Dapr State / Valkey); cache key
 `hub:host:{host}` invalidated on `CustomDomainActivatedEvent` / `CustomDomainRevokedEvent`.
 
 ### Public suffix list validation
@@ -579,6 +576,31 @@ gap rather than reopening it. The mechanism's live description is
 **The Decision is unchanged.** A custom domain resolves to a tenant at the edge, by host,
 before any tenant context exists; certificate material moves by secret-store replication
 and is referenced by path.
+
+### 2026-09-03 — the cache adapter behind `ICacheService`, and where the resolver now lives
+
+**Nothing above is wrong; it is history.** § Implementation notes says
+`_hostToTenantResolver` is backed by `ICacheService` "(Dapr State / Valkey)", which was
+the plan when this ADR was accepted. [ADR-0035](0035-demand-gated-infrastructure.md) later
+demand-gated that adapter, so the sentence became stale rather than false — and a stale
+statement gets an amendment, never a rewrite
+([Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md)).
+An earlier draft of this packet edited the sentence in place; this records it instead.
+
+**What is true now.** `ICacheService` is the port, `InMemoryCacheService` is the registered
+implementation, and the Valkey-via-Dapr adapter lands in
+[Phase 11](../roadmap/phase-11-production-hardening.md) against ADR-0035's written trigger.
+The cache key and its invalidation events are unchanged.
+
+**Where the resolver lives.** Packet 7 shipped `CachedHostToTenantResolver`, which reads
+`platform_host_to_tenant` directly and never calls the Hub — an anonymous page load must
+not depend on a control plane being reachable
+([ADR-0034](0034-hub-contract-surface-invariant.md)). The worked example above predates it;
+[ADR-0036](0036-tenant-resolution-trusted-inputs.md) and
+[architecture/27 § Tenant runtime](../architecture/27-custom-domain-tls.md) are the current
+authority for the mechanism.
+
+**The Decision is unchanged:** a custom domain resolves to a tenant at the edge, by host.
 
 ## References
 

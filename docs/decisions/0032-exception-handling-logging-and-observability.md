@@ -7,136 +7,6 @@ Accepted
 **Date:** 2026-05-20
 **Deciders:** @platform
 
-## Amendments
-
-### Amendment 3 — `ITenantContext` is registered transient, not scoped (2026-09-01)
-
-Not a correction. § Sub-decision 10 and the `TenantContextSpanProcessor` code block both
-call `ITenantContext` **request-scoped**, and § Sub-decision 10 adds that injecting it
-into the singleton processor "would fail at startup with *Cannot consume scoped service
-`ITenantContext` from singleton*". Both were true when written. Packet 5 changed the
-registration, so the wording is now history rather than description.
-
-**What changed and why.** Commit `3c18f88` (2026-08-26) registers the default as
-`TryAddTransient<ITenantContext>(sp => sp.GetRequiredService<ITenantContextAccessor>().Current
-?? UnresolvedTenantContext.Instance)`. A *scoped* factory caches the first value it
-produced for the rest of the scope, so a write to the accessor after a handler had
-already resolved the context would never reach that handler — which is exactly what the
-integration-event transport does when it restores a consumer's tenant. `Transient` makes
-every access re-read the accessor.
-`DeploymentModeCompositionTests.Tenant_Context_Resolution_Forwards_Each_Access_To_The_Accessor`
-pins it, and the composition root carries a comment saying not to restore it to `Scoped`.
-
-**What does not change.** The decision — cross-cutting singletons read the tenant through
-`ITenantContextAccessor` and never inject `ITenantContext` — is unchanged, and the
-transient registration makes it *more* load-bearing rather than less. Under `Scoped` the
-container refused the mistake at startup. Under `Transient` it does not: a singleton that
-injects `ITenantContext` gets one instance captured for the life of the process, reading
-whatever the accessor held at construction. The rule now has no container-level backstop,
-so the accessor is the whole of it.
-
-**A second stale shape, same section.** § Sub-decision 10's
-`TenantContextSpanProcessor` sketch writes `SetTag("tenant.id", context.TenantId)`
-and `SetTag("organization.id", orgId)`. Both were correct when written on
-2026-05-20, when those members were `Guid` and `Guid?`. Packet 7 step 2 made them
-Vogen value objects, and the shipped processor now writes
-`context.TenantId.Value.ToString()` under an `IsInitialized()` gate — because an
-id's own `ToString()` renders `"[UNINITIALIZED]"` for an unassigned value and is
-therefore not a wire format ([ADR-0023 Amendment 7](0023-strongly-typed-id-source-generator.md)).
-The **decision** the sketch illustrates is untouched: cross-cutting singletons read
-the tenant through the accessor and never inject `ITenantContext`.
-
-**Every carrier changed.** This amendment. The two "request-scoped" phrasings in
-§ Sub-decision 10 and its code-block commentary stand as written, read against this
-amendment. The carriers that state the lifetime and state it correctly are
-`CrossCuttingFoundationExtensions` (the registration and the comment above it), the
-Phase 02a and [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) roadmaps, and the
-glossary's `ITenantContextAccessor` entry. Not
-[Security Standards § Tenant Context](../standards/11-security.md): that section declares
-itself the authority for session-variable **placement** only, and a container lifetime is
-not a `SET LOCAL` concern.
-
-### Amendment 2 — Three corrections from the 2026-08-08 restructure
-
-None of the three changes a sub-decision; all three correct text that would mislead an implementer.
-
-1. **The `IProviderResilience<TPort>` registration example did not compile.**
-   § Implementation Notes → `IProviderResilience<TPort>` shape showed
-   `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;
-   C# forbids using a type parameter as a base type, so `ResilientProviderAdapter<TPort>`
-   cannot satisfy `: TPort`. The **shipped** registration in
-   `LearnStack.Infrastructure.Resilience` is correct — it registers
-   `IProviderResilience<TPort>` as a singleton that adapters take as a collaborator
-   rather than decorating the port itself. The example is corrected in place to the
-   shipped shape. [Documentation Standards](../standards/13-documentation.md)
-   allows an accepted ADR only typo fixes and dated Amendments, and a rewritten
-   registration example is neither — so the correction is recorded here, in this
-   Amendment, which is what carries it. The Decision section is untouched. Its
-   copy in `.claude/skills/wire-cross-cutting-foundation/SKILL.md` is corrected with
-   it — that copy is an executable instruction, so it was the one that would have
-   produced non-compiling code. The same § Implementation Notes `Resilience:`
-   sample carried `retry.maxAttempts`; the shipped option is
-   `ResilienceOptions.Retry.MaxRetryAttempts`, which maps 1:1 onto Polly v8's
-   retry count. `maxAttempts` read as a total and behaved as a retry count, so
-   every configured value issued one more call than the name promised. The
-   sample now uses the shipped key.
-2. **The "Hub HTTPS contract is closed at four endpoints" decision driver is
-   superseded** by [ADR-0034](0034-hub-contract-surface-invariant.md), which replaces
-   the count with two invariants (the Hub stores no tenant content; every crossing goes
-   through a named adapter). The driver's substantive point is unaffected: inbound
-   `/api/internal/*` calls carry no tenant JWT, so their correlation comes from
-   `traceparent` plus the request envelope rather than from `ITenantContext`.
-3. **Sub-decision 2's diagram puts the Row Level Security session variables one step
-   too early.** The step-4 annotation reads
-   `TenantContextBehavior (assert resolved; set RLS GUC)`. `SET LOCAL` /
-   `set_config(…, true)` is transaction-local, and step 4 runs before
-   `TransactionBehavior` opens the transaction at step 6 — so a value set at step 4 is
-   discarded before the query it protects ever runs. Step 4 asserts the context and
-   carries it forward; step 6 issues the `SET LOCAL` pair as the first statement inside
-   the transaction. The pipeline **order** this ADR fixes is unchanged; only the
-   annotation was wrong.
-   [Security Standards § Tenant Context](../standards/11-security.md) is the single
-   authority for the placement.
-
-Separately, note that the **audit durability contract** referenced throughout this ADR
-now comes from [ADR-0033](0033-audit-durability-model.md), which supersedes ADR-0016.
-The pipeline order fixed by this ADR is unchanged. What changed is where durability comes
-from: `AuditLogBehavior` (step 3) classifies and declares a MUST-class intent on the way
-in; `TransactionBehavior` (step 6) writes the complete row on the ambient transaction
-immediately before `COMMIT` and then reports whether the commit succeeded; and
-`AuditLogBehavior` re-writes the row standalone on the way out whenever the transaction
-did not commit. The `AuditChangeTrackerInterceptor` captures ChangeTracker snapshots and
-writes nothing — an earlier draft of this amendment named it as the writer, which was
-never true of the component as specified.
-
-### Amendment 1 — Roslyn diagnostic id + CI severity (2026-05-22)
-
-Sub-decision 4 and the Standards 21 naming convention referred to the
-analyzer's identifier as `LearnStackException-DomainExceptionThrow`. Roslyn
-**diagnostic ids must be valid identifiers** (letters/digits, no hyphens);
-reporting a hyphenated id throws `AD0001` at analysis time, which under CI's
-`TreatWarningsAsErrors` would break the build the first time a
-`DomainException` is thrown. This amendment clarifies, without changing the
-intent of Sub-decision 4:
-
-- The analyzer's Roslyn **diagnostic id is `LS0001`**. The hyphenated
-  `LearnStackException-DomainExceptionThrow` is retained as the
-  human-readable **rule name** (analyzer title / help text), and remains the
-  catalogue/cross-link handle.
-- The analyzer is referenced by the consuming `Domain` + `Application`
-  projects as an in-tree analyzer
-  (`<ProjectReference ... OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`),
-  not via a packed `<PackageReference>`.
-- The "Warning in Phase 02a, Error after Phase 03 exit" escalation is
-  honoured against CI by listing `LS0001` in `WarningsNotAsErrors`
-  (Directory.Build.props) until the Phase 03 exit gate, so a legitimate
-  aggregate-invariant throw does not fail CI before the documented
-  escalation point. At Phase 03 exit the analyzer's default severity flips
-  to Error and `LS0001` is removed from `WarningsNotAsErrors`.
-
-The Decision section below is unchanged; this amendment records the
-implementation-level correction.
-
 ## Decision Drivers
 
 - **Standards 09 ↔ Standards 02 ↔ ADR-0016 are out of step.** Standards 02 §
@@ -824,3 +694,133 @@ SDK creates and disposes warm-up `Activity` instances during startup).
 - W3C Trace Context — <https://www.w3.org/TR/trace-context/>
 - Polly v8 documentation — <https://www.pollydocs.org/>
 - OpenTelemetry .NET — <https://opentelemetry.io/docs/instrumentation/net/>
+
+## Amendments
+
+### Amendment 1 — Roslyn diagnostic id + CI severity (2026-05-22)
+
+Sub-decision 4 and the Standards 21 naming convention referred to the
+analyzer's identifier as `LearnStackException-DomainExceptionThrow`. Roslyn
+**diagnostic ids must be valid identifiers** (letters/digits, no hyphens);
+reporting a hyphenated id throws `AD0001` at analysis time, which under CI's
+`TreatWarningsAsErrors` would break the build the first time a
+`DomainException` is thrown. This amendment clarifies, without changing the
+intent of Sub-decision 4:
+
+- The analyzer's Roslyn **diagnostic id is `LS0001`**. The hyphenated
+  `LearnStackException-DomainExceptionThrow` is retained as the
+  human-readable **rule name** (analyzer title / help text), and remains the
+  catalogue/cross-link handle.
+- The analyzer is referenced by the consuming `Domain` + `Application`
+  projects as an in-tree analyzer
+  (`<ProjectReference ... OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`),
+  not via a packed `<PackageReference>`.
+- The "Warning in Phase 02a, Error after Phase 03 exit" escalation is
+  honoured against CI by listing `LS0001` in `WarningsNotAsErrors`
+  (Directory.Build.props) until the Phase 03 exit gate, so a legitimate
+  aggregate-invariant throw does not fail CI before the documented
+  escalation point. At Phase 03 exit the analyzer's default severity flips
+  to Error and `LS0001` is removed from `WarningsNotAsErrors`.
+
+The Decision section below is unchanged; this amendment records the
+implementation-level correction.
+
+### Amendment 2 — Three corrections from the 2026-08-08 restructure
+
+None of the three changes a sub-decision; all three correct text that would mislead an implementer.
+
+1. **The `IProviderResilience<TPort>` registration example did not compile.**
+   § Implementation Notes → `IProviderResilience<TPort>` shape showed
+   `services.Decorate<TPort, ResilientProviderAdapter<TPort>>()`;
+   C# forbids using a type parameter as a base type, so `ResilientProviderAdapter<TPort>`
+   cannot satisfy `: TPort`. The **shipped** registration in
+   `LearnStack.Infrastructure.Resilience` is correct — it registers
+   `IProviderResilience<TPort>` as a singleton that adapters take as a collaborator
+   rather than decorating the port itself. The example is corrected in place to the
+   shipped shape. [Documentation Standards](../standards/13-documentation.md)
+   allows an accepted ADR only typo fixes and dated Amendments, and a rewritten
+   registration example is neither — so the correction is recorded here, in this
+   Amendment, which is what carries it. The Decision section is untouched. Its
+   copy in `.claude/skills/wire-cross-cutting-foundation/SKILL.md` is corrected with
+   it — that copy is an executable instruction, so it was the one that would have
+   produced non-compiling code. The same § Implementation Notes `Resilience:`
+   sample carried `retry.maxAttempts`; the shipped option is
+   `ResilienceOptions.Retry.MaxRetryAttempts`, which maps 1:1 onto Polly v8's
+   retry count. `maxAttempts` read as a total and behaved as a retry count, so
+   every configured value issued one more call than the name promised. The
+   sample now uses the shipped key.
+2. **The "Hub HTTPS contract is closed at four endpoints" decision driver is
+   superseded** by [ADR-0034](0034-hub-contract-surface-invariant.md), which replaces
+   the count with two invariants (the Hub stores no tenant content; every crossing goes
+   through a named adapter). The driver's substantive point is unaffected: inbound
+   `/api/internal/*` calls carry no tenant JWT, so their correlation comes from
+   `traceparent` plus the request envelope rather than from `ITenantContext`.
+3. **Sub-decision 2's diagram puts the Row Level Security session variables one step
+   too early.** The step-4 annotation reads
+   `TenantContextBehavior (assert resolved; set RLS GUC)`. `SET LOCAL` /
+   `set_config(…, true)` is transaction-local, and step 4 runs before
+   `TransactionBehavior` opens the transaction at step 6 — so a value set at step 4 is
+   discarded before the query it protects ever runs. Step 4 asserts the context and
+   carries it forward; step 6 issues the `SET LOCAL` pair as the first statement inside
+   the transaction. The pipeline **order** this ADR fixes is unchanged; only the
+   annotation was wrong.
+   [Security Standards § Tenant Context](../standards/11-security.md) is the single
+   authority for the placement.
+
+Separately, note that the **audit durability contract** referenced throughout this ADR
+now comes from [ADR-0033](0033-audit-durability-model.md), which supersedes ADR-0016.
+The pipeline order fixed by this ADR is unchanged. What changed is where durability comes
+from: `AuditLogBehavior` (step 3) classifies and declares a MUST-class intent on the way
+in; `TransactionBehavior` (step 6) writes the complete row on the ambient transaction
+immediately before `COMMIT` and then reports whether the commit succeeded; and
+`AuditLogBehavior` re-writes the row standalone on the way out whenever the transaction
+did not commit. The `AuditChangeTrackerInterceptor` captures ChangeTracker snapshots and
+writes nothing — an earlier draft of this amendment named it as the writer, which was
+never true of the component as specified.
+
+### Amendment 3 — `ITenantContext` is registered transient, not scoped (2026-09-01)
+
+Not a correction. § Sub-decision 10 and the `TenantContextSpanProcessor` code block both
+call `ITenantContext` **request-scoped**, and § Sub-decision 10 adds that injecting it
+into the singleton processor "would fail at startup with *Cannot consume scoped service
+`ITenantContext` from singleton*". Both were true when written. Packet 5 changed the
+registration, so the wording is now history rather than description.
+
+**What changed and why.** Commit `3c18f88` (2026-08-26) registers the default as
+`TryAddTransient<ITenantContext>(sp => sp.GetRequiredService<ITenantContextAccessor>().Current
+?? UnresolvedTenantContext.Instance)`. A *scoped* factory caches the first value it
+produced for the rest of the scope, so a write to the accessor after a handler had
+already resolved the context would never reach that handler — which is exactly what the
+integration-event transport does when it restores a consumer's tenant. `Transient` makes
+every access re-read the accessor.
+`DeploymentModeCompositionTests.Tenant_Context_Resolution_Forwards_Each_Access_To_The_Accessor`
+pins it, and the composition root carries a comment saying not to restore it to `Scoped`.
+
+**What does not change.** The decision — cross-cutting singletons read the tenant through
+`ITenantContextAccessor` and never inject `ITenantContext` — is unchanged, and the
+transient registration makes it *more* load-bearing rather than less. Under `Scoped` the
+container refused the mistake at startup. Under `Transient` it does not: a singleton that
+injects `ITenantContext` gets one instance captured for the life of the process, reading
+whatever the accessor held at construction. The rule now has no container-level backstop,
+so the accessor is the whole of it.
+
+**A second stale shape, same section.** § Sub-decision 10's
+`TenantContextSpanProcessor` sketch writes `SetTag("tenant.id", context.TenantId)`
+and `SetTag("organization.id", orgId)`. Both were correct when written on
+2026-05-20, when those members were `Guid` and `Guid?`. Packet 7 step 2 made them
+Vogen value objects, and the shipped processor now writes
+`context.TenantId.Value.ToString()` under an `IsInitialized()` gate — because an
+id's own `ToString()` renders `"[UNINITIALIZED]"` for an unassigned value and is
+therefore not a wire format ([ADR-0023 Amendment 7](0023-strongly-typed-id-source-generator.md)).
+The **decision** the sketch illustrates is untouched: cross-cutting singletons read
+the tenant through the accessor and never inject `ITenantContext`.
+
+**Every carrier changed.** This amendment. The two "request-scoped" phrasings in
+§ Sub-decision 10 and its code-block commentary stand as written, read against this
+amendment. The carriers that state the lifetime and state it correctly are
+`CrossCuttingFoundationExtensions` (the registration and the comment above it), the
+Phase 02a and [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) roadmaps, and the
+glossary's `ITenantContextAccessor` entry. Not
+[Security Standards § Tenant Context](../standards/11-security.md): that section declares
+itself the authority for session-variable **placement** only, and a container lifetime is
+not a `SET LOCAL` concern.

@@ -286,17 +286,6 @@ host to disagree with — which grants only their own tenant. This is stated so 
 reader does not treat a passing cross-check as evidence of attacker containment. The
 control is that no signal outside the intersection can select a tenant.
 
-**`Tenancy:PlatformHosts` is checked first and wins outright.** A host on the static
-list classifies `PlatformHost` before the resolver is called at all, so a row in
-`platform_host_to_tenant` naming the same host is inert — never read, never logged,
-never counted. The precedence is the right way round: the list is the operator's own
-entry point, and a tenant that acquired that hostname must not be able to take it over.
-What is worth stating is that the losing row is *silent*, so a deployment that creates
-one gets no signal. There is no startup cross-check and no constraint, because the two
-live in different places — one is application configuration, the other a table — and a
-database constraint cannot see the first. Whichever packet builds the host-mapping
-writer owns the check; until then the behaviour is pinned by a test.
-
 **The anonymous organization scope is the host-mapping row**, not the tenant's
 organization count. A tenant that wants its default organization's content on its public
 site seeds `organization_id` into its `platform_host_to_tenant` row. That removes a code
@@ -958,6 +947,32 @@ corrected set directly rather than the staging table's original.
 **The Decision is unchanged.** The matrix, the signals, the ceiling and the staging
 order all stand; only the claim about which rows traffic can reach in Packet 7 is
 corrected.
+
+### 2026-09-03 — Amendment 6: `Tenancy:PlatformHosts` precedence, and who owns the check
+
+**Why this is an amendment and not body text.** An earlier draft of Packet 7 wrote this
+into § Decision directly. It does not merely explain the decision — it assigns an
+obligation, and code now enforces it — so it is a change to what this ADR requires, and
+Accepted ADRs take those as dated amendments
+([Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md)).
+
+**The precedence.** A host on the static `Tenancy:PlatformHosts` list classifies
+`PlatformHost` before the resolver is called at all, so a row in `platform_host_to_tenant`
+naming the same host is inert — never read, never logged, never counted. That is the right
+way round: the list is the operator's own entry point, and a tenant that acquired the
+hostname must not be able to take it over.
+
+**The problem it leaves.** The losing row is *silent*, so a deployment that creates one
+gets no signal. There is no startup cross-check and no constraint, because the two live in
+different places — one is application configuration, the other a table — and a database
+constraint cannot see the first.
+
+**Who owns the check.** Whichever packet builds the host-mapping writer. Packet 7 built it:
+`MapHostToTenantCommandHandler` refuses a reserved host through `IReservedHostRegistry` — a
+port, because the list is bound in the composition root and a module may not reference it —
+and answers `lockey_host_reserved` rather than writing a row that would do nothing.
+
+**The Decision is unchanged.** The matrix, the signals and the ceiling all stand.
 
 ## References
 
