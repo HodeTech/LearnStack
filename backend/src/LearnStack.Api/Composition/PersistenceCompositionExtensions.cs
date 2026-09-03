@@ -1,5 +1,6 @@
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -141,6 +142,13 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+
+        // The write side of the two Tenancy roots, beside the context they run on. A
+        // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge
+        // and the reverse reference is already a cycle — so these ports are how the first
+        // production handler reaches persistence at all.
+        services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
+        services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
 
         return services;
     }

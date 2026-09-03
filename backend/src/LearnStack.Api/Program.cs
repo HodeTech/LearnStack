@@ -28,7 +28,14 @@ var deploymentMode = builder.Configuration.RequireDeploymentMode();
 // X-Forwarded-For.
 builder.Configuration.RefuseAmbientForwardedHeaders();
 
-builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
+// The module assemblies MediatR scans for handlers. Empty until Packet 7 step 9, which
+// ships the first production request type — and the parameter existed all along, so the
+// change is one argument rather than a new seam. A module whose assembly is missing here
+// has handlers nothing dispatches, which fails as "no handler for request" at the call
+// site rather than at startup.
+builder.AddLearnStackCrossCuttingFoundation(
+    deploymentMode,
+    typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();

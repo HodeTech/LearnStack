@@ -5,6 +5,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- A request type is an IRequest<Result<T>>, and Contracts is where request types
+         live: the marker rules sweep every production assembly, so placement is
+         load-bearing rather than stylistic. -->
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
   </ItemGroup>
 

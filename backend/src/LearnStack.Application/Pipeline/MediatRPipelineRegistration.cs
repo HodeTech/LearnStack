@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -63,6 +64,14 @@ public static class MediatRPipelineRegistration
                 cfg.AddBehavior(typeof(IPipelineBehavior<,>), behaviorType);
             }
         });
+
+        // The same assemblies, for the same reason, and it was missing. ValidationBehavior
+        // resolves IEnumerable<IValidator<TRequest>> from the container, so without this
+        // every validator in the solution is a class nothing constructs — the behavior
+        // sees an empty array, short-circuits, and a command with a validator is refused
+        // by nothing. It shipped that way only because no validator existed yet; the
+        // first one would have been silently inert.
+        services.AddValidatorsFromAssemblies(assembliesToScan, includeInternalTypes: true);
 
         return services;
     }

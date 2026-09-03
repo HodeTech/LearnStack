@@ -95,8 +95,8 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        MappedLength.EnsureAtMost(slug, 63, nameof(slug));
-        MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
+        MappedLength.EnsureAtMost(slug, UrlSlug.MaxLength, nameof(slug));
+        MappedLength.EnsureAtMost(displayName, MappedLength.DisplayName, nameof(displayName));
         UrlSlug.EnsureUrlSafe(slug, nameof(slug));
 
         TenantOwnership.EnsureRealTenant(

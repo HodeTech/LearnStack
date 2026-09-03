@@ -172,8 +172,18 @@ public sealed class TenantFeatureFlag : ITenantOwned
 /// it. The numbers here are the ones the EF configurations map; asserting them at
 /// the factory is what makes the failure say which field is wrong.
 /// </remarks>
-internal static class MappedLength
+public static class MappedLength
 {
+    /// <summary>
+    /// The width the Tenancy schema maps for a human-facing display name.
+    /// </summary>
+    /// <remarks>
+    /// Public for the same reason as <see cref="UrlSlug.MaxLength"/>: the validator
+    /// refuses at this bound and the factories throw at it, and one number is what keeps
+    /// the two answers the same.
+    /// </remarks>
+    public const int DisplayName = 200;
+
     public static void EnsureAtMost(string value, int maximum, string parameterName)
     {
         if (value.Length > maximum)
@@ -249,11 +259,34 @@ internal static class TenantOwnership
 /// normalization constraint, the slug tables do not — so a slug with a slash or
 /// an uppercase letter reached a hostname unchallenged.
 /// </remarks>
-internal static partial class UrlSlug
+public static partial class UrlSlug
 {
+    /// <summary>
+    /// The width every slug column in the Tenancy schema maps — a DNS label.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than written at each call site because two layers read it: the
+    /// factories below, which throw, and <c>ProvisionTenantCommandValidator</c>, which
+    /// refuses. A number in both places is a number that drifts in one of them, and the
+    /// drift is invisible until a caller sends a 64-character slug and gets whichever
+    /// answer the two disagree on.
+    /// </remarks>
+    public const int MaxLength = 63;
+
+    /// <summary>Whether <paramref name="value"/> is a URL-safe slug.</summary>
+    /// <remarks>
+    /// The predicate form exists so a validator can refuse the same shape this class
+    /// throws on. Application code cannot use the throwing form: an
+    /// <c>ArgumentException</c> escaping a handler has no entry in <c>HttpStatusMap</c>
+    /// and becomes a 500, which is the wrong answer for a caller who mistyped a slug —
+    /// and one that arrives only after the transaction was opened and the tenant
+    /// announced.
+    /// </remarks>
+    public static bool IsUrlSafe(string value) => Pattern().IsMatch(value);
+
     public static void EnsureUrlSafe(string value, string parameterName)
     {
-        if (!Pattern().IsMatch(value))
+        if (!IsUrlSafe(value))
         {
             throw new ArgumentException(
                 $"'{value}' is not a URL-safe slug: lowercase letters, digits and single "

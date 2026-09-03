@@ -897,16 +897,67 @@ public sealed class UnitOfWorkTests
         }
     }
 
+    [Fact]
+    public async Task The_session_variables_do_not_survive_the_transaction_that_set_them()
+    {
+        // The setter every request goes through, and the property that makes it safe to
+        // reuse a connection. Measured: with set_config's third argument flipped to
+        // false, all 292 integration cases passed — this is the one that fails.
+        //
+        // NoResetOnClose and a pool of one are what give it teeth. Npgsql sends
+        // DISCARD ALL when a connection returns to the pool, which cleans up after the
+        // bug and hides it; a PgBouncer in transaction-pooling mode — the deployment the
+        // corpus keeps naming — does not. With the reset suppressed the second borrow is
+        // provably the same physical connection, in the state the first left it, and a
+        // session-scoped write shows up as tenant A's id greeting whoever draws it next.
+        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        builder.ConnectionStringBuilder.MaxPoolSize = 1;
+        builder.ConnectionStringBuilder.NoResetOnClose = true;
+        await using var dataSource = builder.Build();
+
+        await using (var provider = BuildProvider(dataSource))
+        {
+            await using var scope = provider.CreateAsyncScope();
+            var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+            await unitOfWork.BeginTransactionAsync();
+            await unitOfWork.SetTenantContextAsync(
+                Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+
+            // The value is there while the transaction is, or the case below would pass
+            // against a setter that never ran.
+            (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+                .Should().Be(SchemaFixture.TenantA.ToString());
+
+            await unitOfWork.CommitAsync();
+        }
+
+        await using var connection = await dataSource.OpenConnectionAsync();
+
+        foreach (var variable in new[] { "app.tenant_id", "app.organization_id" })
+        {
+            await using var read = new NpgsqlCommand(
+                $"SELECT NULLIF(current_setting('{variable}', true), '')", connection);
+
+            (await read.ExecuteScalarAsync() is null or DBNull).Should().BeTrue(
+                $"{variable} was transaction-local, and the next borrower of this "
+                + "connection is another tenant's request");
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private ServiceProvider BuildProvider()
+    private ServiceProvider BuildProvider(NpgsqlDataSource? dataSource = null)
     {
         // The real registration path: the shared helper, the real
         // NpgsqlUnitOfWork, and the application role's data source. Only the
         // connection string differs from the composition root, because the
         // fixture's container is not the one appsettings names.
         var services = new ServiceCollection();
-        services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        // A caller-owned data source when a case needs to control pooling; otherwise one
+        // per provider.
+        services.AddSingleton(
+            dataSource ?? NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
         services.AddLogging();
         // The composition root's shape, not a shortcut: a singleton accessor and
         // a transient ITenantContext resolved from it on every access. The module

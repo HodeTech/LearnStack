@@ -156,13 +156,14 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     }
 
     /// <summary>
-    /// The two bounds <c>OrganizationConfiguration</c> maps: 63 for the slug,
-    /// which is a DNS label, and 200 for the display name.
+    /// The two bounds <c>OrganizationConfiguration</c> maps, named once each so the
+    /// validator that refuses at them and the factory that throws at them read the same
+    /// number.
     /// </summary>
     private static void EnsureWithinMappedLengths(string slug, string displayName)
     {
-        MappedLength.EnsureAtMost(slug, 63, nameof(slug));
-        MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
+        MappedLength.EnsureAtMost(slug, UrlSlug.MaxLength, nameof(slug));
+        MappedLength.EnsureAtMost(displayName, MappedLength.DisplayName, nameof(displayName));
     }
 
     /// <summary>Moves the organization to a new lifecycle state.</summary>

@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Xunit;
@@ -159,6 +160,54 @@ public sealed class RequestSurfaceTests
     private sealed record ProbeNotARequest;
 
     [Fact]
+    public void Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning()
+    {
+        // ADR-0042 sanctions ONE operation to write two aggregate roots in one
+        // transaction, by enumeration rather than by principle — a tenant whose default
+        // organization failed to commit is a tenant no request can serve, and a second
+        // transaction is a window in which exactly that state exists.
+        //
+        // Counted by PORT TYPE, not by name. The catalogue registered this as a scan for
+        // DbSet use in handlers, and under the shipped dependency rules that scan can
+        // never fire: Application → Infrastructure is forbidden, so no handler can name a
+        // DbSet at all. A rule at Implemented status that cannot fire is worse than one
+        // at Registered, because the catalogue then claims coverage it does not have.
+        // IAggregateWriteStore is a type, so renaming a port does not escape this.
+        var offenders = ProductionAssemblies()
+            .Select(Assembly.Load)
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type is { IsAbstract: false, IsInterface: false })
+            .Where(type => type.GetInterfaces().Any(contract =>
+                contract.IsGenericType
+                && contract.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)))
+            .Where(type => type.GetConstructors()
+                .Any(constructor => constructor.GetParameters()
+                    .Count(parameter => WritesAnAggregate(parameter.ParameterType)) > 1))
+            .Select(type => type.Name)
+            .Distinct()
+            .ToList();
+
+        offenders.Should().BeEquivalentTo(
+            ["ProvisionTenantCommandHandler"],
+            "a handler taking two aggregate write ports writes across an aggregate "
+            + "boundary in one transaction, which ADR-0042 sanctions for exactly one "
+            + "operation — a second name here is a decision that needs its own record");
+    }
+
+    /// <summary>Whether a constructor parameter is a write port for some aggregate.</summary>
+    /// <remarks>
+    /// Walks the interface's own hierarchy rather than matching a name: the ports modules
+    /// declare — <c>ITenantWriteStore</c>, <c>IOrganizationWriteStore</c> — derive from
+    /// the generic, and it is the derivation the rule counts.
+    /// </remarks>
+    private static bool WritesAnAggregate(Type parameterType) =>
+        IsAggregateWriteStore(parameterType)
+        || parameterType.GetInterfaces().Any(IsAggregateWriteStore);
+
+    private static bool IsAggregateWriteStore(Type type) =>
+        type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IAggregateWriteStore<,>);
+
+    [Fact]
     public void The_Sweep_Covers_Every_Production_Assembly()
     {
         // The rules above are only as wide as this. Asserted separately because a
@@ -199,11 +248,15 @@ public sealed class RequestSurfaceTests
     /// The literal set of request types permitted to run before a tenant is resolved.
     /// </summary>
     /// <remarks>
-    /// Empty, because no production request type exists yet. <c>ProvisionTenantCommand</c>
-    /// is the first, in Packet 7 step 9, per
+    /// One entry. <c>ProvisionTenantCommand</c> creates the tenant it names, so it
+    /// legitimately runs before any tenant is resolved — there is none until it succeeds.
+    /// It is emphatically not anonymous: what gates it is Phase 03's permission check,
+    /// and until then its only callers are the seeder and the tests. Adding a second
+    /// entry is an edit somebody reviews, which is the whole value of the list; the rule
+    /// went red the moment this command landed, which is the list working. See
     /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>.
     /// </remarks>
-    private static readonly string[] PermittedUnresolved = [];
+    private static readonly string[] PermittedUnresolved = ["ProvisionTenantCommand"];
 
     /// <summary>
     /// The request types named in
