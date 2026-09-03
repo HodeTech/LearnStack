@@ -9,7 +9,7 @@ namespace LearnStack.SharedKernel.Persistence;
 /// <remarks>
 /// <para>
 /// <b>It exists because the dependency rules leave no alternative.</b>
-/// <see href="../../../../docs/standards/01-architecture.md">Standards 01</see> lists
+/// <see href="../../../../docs/standards/01-architecture-standards.md">Standards 01</see> lists
 /// <c>Application → Infrastructure</c> under forbidden edges, every module's
 /// <c>DbContext</c> and its <c>DbSet</c>s live in that module's Infrastructure project,
 /// and Infrastructure already references Application — so the reverse reference is a
@@ -47,5 +47,16 @@ public interface IAggregateWriteStore<TRoot, TId>
     Task AddAsync(TRoot aggregate, CancellationToken cancellationToken = default);
 
     /// <summary>Persists a change to an aggregate already stored.</summary>
+    /// <summary>Persists changes to an aggregate this scope already tracks.</summary>
+    /// <remarks>
+    /// <b>Tracked, and an implementation may refuse anything else.</b> Under
+    /// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040</see> a
+    /// scope holds one connection, one transaction and one module context, so an aggregate
+    /// is loaded and saved on the same context by construction. A detached aggregate has no
+    /// correct silent handling: attaching the graph re-writes every child from a stale
+    /// in-memory copy, and marking only the root gets the concurrency token's original
+    /// value from its current one and fails the next save. Implementations therefore throw
+    /// rather than guess.
+    /// </remarks>
     Task UpdateAsync(TRoot aggregate, CancellationToken cancellationToken = default);
 }

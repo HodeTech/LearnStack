@@ -71,7 +71,14 @@ public static class MediatRPipelineRegistration
         // sees an empty array, short-circuits, and a command with a validator is refused
         // by nothing. It shipped that way only because no validator existed yet; the
         // first one would have been silently inert.
-        services.AddValidatorsFromAssemblies(assembliesToScan, includeInternalTypes: true);
+        //
+        // The kernel assembly is always in the list, not only in the fallback: a shared
+        // validator placed beside the behavior that consumes it would otherwise be as
+        // inert as the ones this line exists to register, and inert in the one place
+        // nobody would think to check.
+        services.AddValidatorsFromAssemblies(
+            assembliesToScan.Append(typeof(AssemblyMarker).Assembly).Distinct(),
+            includeInternalTypes: true);
 
         return services;
     }

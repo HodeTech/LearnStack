@@ -98,7 +98,10 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             // `tenants` is self-keyed and its policy is WITH CHECK (id = app.tenant_id),
             // so creating a tenant means announcing the tenant being created — an id
             // that names nothing resolvable, because it does not exist yet. Measured
-            // against the shipped policy: unset and empty-string both fail 42501, and
+            // against the shipped policy on a throwaway container: unset and empty-string
+            // both fail 42501 — the empty-string half is the one a case pins, in
+            // A_request_that_does_not_provision_still_fails_closed_when_unresolved, since
+            // that is the state this pipeline can actually produce — and
             // the new tenant's own id lets the whole provisioning sequence commit.
             //
             // The !IsResolved term is the load-bearing half, not a defensive one. A

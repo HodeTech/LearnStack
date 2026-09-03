@@ -163,6 +163,7 @@ sequenceDiagram
     participant T as TransactionBehavior
     participant H as Handler
     participant U as IUnitOfWork
+    participant S as IUnitOfWorkScope
     participant D as TenancyDbContext
     participant P as PostgreSQL
 
@@ -170,23 +171,24 @@ sequenceDiagram
     T->>U: BeginTransactionAsync
     U->>P: BEGIN
     T->>U: SetProvisioningTenantContextAsync(command.TenantId)
-    U->>P: SELECT set_config('app.tenant_id', <id>, true)
+    U->>P: SELECT set_config('app.tenant_id', <id>, true),<br/>set_config('app.organization_id', '', true)
     T->>H: next()
     H->>D: INSERT tenants
     D->>P: WITH CHECK passes — app.tenant_id already equals id
     H->>D: INSERT organizations (default)
     H->>D: UPDATE tenants SET default_organization_id
-    T->>U: CompleteAsync
-    U->>P: COMMIT
+    T->>S: CompleteAsync
+    S->>P: COMMIT
 ```
 
 Text fallback — **provisioning a tenant**: the registry (Hub, config or fixture)
 sends a `ProvisionTenantCommand`; `TransactionBehavior` opens the ambient
-transaction, announces `app.tenant_id` as the tenant being created — the first
-statement inside it — and calls the handler; the handler inserts `tenants`,
+transaction, announces `app.tenant_id` as the tenant being created and blanks
+`app.organization_id` in the same statement — the first inside the transaction —
+and calls the handler; the handler inserts `tenants`,
 inserts the default `organizations` row, updates
-`tenants.default_organization_id`, and returns; the behavior commits. One
-transaction, one connection, one commit point.
+`tenants.default_organization_id`, and returns; the behavior completes the scope,
+which commits. One transaction, one connection, one commit point.
 
 **The handler opens nothing and announces nothing.** Both belong to
 `TransactionBehavior`, and the distinction is not stylistic. A
@@ -200,15 +202,24 @@ Three statements, one transaction. The tenant id is **never minted in the
 handler**: the registry assigns it, and the behavior announces it *before* the
 insert by reading `IProvisionsTenant` off the request, so the self-keyed policy's
 `WITH CHECK` passes. A handler that generated its own could not satisfy its own
-policy. Measured against the shipped policies: with `app.tenant_id` unset or set
-to the empty string the `tenants` insert raises `42501` identically, and only
-the new tenant's own id lets the sequence commit.
+policy. Measured against the shipped policies on a throwaway container: with
+`app.tenant_id` unset or set to the empty string the `tenants` insert raises
+`42501` identically, and only the new tenant's own id lets the sequence commit.
+Of the two, the empty-string case is the one a test pins —
+`A_request_that_does_not_provision_still_fails_closed_when_unresolved` — because
+it is the state this pipeline actually produces; nothing in the request path
+leaves the variable unset.
 
 The announcement requires an **unresolved** context, which is what closes the
 confused deputy: a caller already authenticated for tenant A who sends a
 provisioning command naming tenant B takes the ordinary path, the transaction
 carries A, and B's insert is refused by the database rather than by a check
-somebody has to remember to write.
+somebody has to remember to write. Nothing verifies that the requested id is
+unused, and the guarantee does not need it to be: the only statement the
+announcement authorises is an `INSERT` the primary key rejects when the tenant
+already exists. Anything later added inside that transaction — the MUST-class
+audit write, the outbox flush — inherits that assumption and must not rely on
+the announced tenant being new.
 
 The `default_organization_id` update is separate because the composite foreign
 key has nothing to reference until the organization exists; `MATCH SIMPLE` skips
@@ -248,8 +259,9 @@ resolver reads `platform_host_to_tenant` and nothing else.
 flowchart LR
     subgraph Tenancy
         DOM[Domain<br/>Tenant, Organization]
-        APP[Application]
-        INF[Infrastructure<br/>TenancyDbContext]
+        CON[Application.Contracts<br/>ProvisionTenantCommand]
+        APP[Application<br/>handler, validator,<br/>ITenantWriteStore, IOrganizationWriteStore]
+        INF[Infrastructure<br/>TenancyDbContext,<br/>TenantWriteStore, OrganizationWriteStore]
     end
     SK[SharedKernel<br/>TenantId, OrganizationId, IUnitOfWork]
     CORE[Core Infrastructure<br/>TenantScopedDbContext]
@@ -258,17 +270,21 @@ flowchart LR
     OTHER[Other modules]
 
     DOM --> SK
+    CON --> SK
+    APP --> CON
     APP --> DOM
     INF --> APP
     INF --> CORE
     INF --> PG
     HUB -.-> APP
-    OTHER -.->|application contract only| APP
+    OTHER -.->|application contract only| CON
 ```
 
-Text fallback — **components**: Tenancy is three assemblies — `Domain` (the
-`Tenant` and `Organization` aggregates), `Application`, and `Infrastructure`
-(`TenancyDbContext`). `Domain` depends on `SharedKernel` for `TenantId`,
+Text fallback — **components**: Tenancy is four assemblies — `Domain` (the
+`Tenant` and `Organization` aggregates), `Application.Contracts`
+(`ProvisionTenantCommand`, the first type to land there), `Application` (its
+handler, its validator, and the `ITenantWriteStore` / `IOrganizationWriteStore`
+ports) and `Infrastructure` (`TenancyDbContext` and the two write stores). `Domain` depends on `SharedKernel` for `TenantId`,
 `OrganizationId` and `IUnitOfWork`; `Application` on `Domain`; `Infrastructure`
 on `Application`, on core `LearnStack.Infrastructure` — where
 `TenantScopedDbContext`, the base `TenancyDbContext` derives from, applies the

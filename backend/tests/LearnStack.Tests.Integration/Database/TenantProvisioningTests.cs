@@ -4,6 +4,7 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -11,6 +12,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -24,7 +26,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <remarks>
 /// <para>
 /// <b>Why this cannot be a unit test.</b> The whole of
-/// <see href="../../../../docs/decisions/0042-cross-aggregate-provisioning-transaction.md">ADR-0042</see>
+/// <see href="../../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
 /// is a claim about what one transaction may write under Row Level Security. Against
 /// fakes, every case below passes with the announcement deleted, with the writes split
 /// across two transactions, and with the policies disabled.
@@ -94,16 +96,31 @@ public sealed class TenantProvisioningTests
         // The reason a second transaction was not an option. A tenant whose default
         // organization failed to commit is a tenant no request can serve: every
         // organization-scoped read filters on a column that is null, and nothing in the
-        // schema would ever repair it. Measured here by colliding the organization's id
-        // with a seeded row — the unique index fires regardless of RLS, so the second
-        // write raises 23505 while the first has already succeeded.
-        var command = Command() with { DefaultOrganizationId = OrganizationId.From(SchemaFixture.OrgA1) };
+        // schema would ever repair it.
+        //
+        // The failure is provoked by colliding the organization's id with a seeded row —
+        // the unique index fires regardless of RLS, so the second write is refused while
+        // the first has already succeeded. That is the state ADR-0042 exists to make
+        // unobservable.
+        //
+        // It arrives as a Result rather than a throw, and that is the path worth testing:
+        // TransactionBehavior calls FailAsync on a failure response, so the rollback here
+        // is the one a business refusal takes, not the one an exception takes. A handler
+        // that had written the tenant and then returned Result.Fail without the behavior
+        // rolling back would leave exactly the orphan this ADR forbids.
+        var command = Command() with
+        {
+            DefaultOrganizationId = OrganizationId.From(SchemaFixture.OrgA1),
+        };
 
         try
         {
-            var provision = () => ProvisionAsync(command);
+            var result = await ProvisionAsync(command);
 
-            await provision.Should().ThrowAsync<Exception>();
+            result.IsFailure.Should().BeTrue();
+            result.Error!.Message.Key.Should().Be("lockey_organization_already_exists",
+                "the collision is on the organization's key, which proves the tenant "
+                + "insert had already gone through when the second write was refused");
 
             (await ScalarAsPlatformAsync(
                 "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
@@ -114,6 +131,53 @@ public sealed class TenantProvisioningTests
         finally
         {
             await CleanUpAsync(command);
+        }
+    }
+
+    [Theory]
+    [InlineData("slug", "lockey_tenant_slug_taken")]
+    [InlineData("id", "lockey_tenant_already_exists")]
+    public async Task A_name_already_taken_is_an_answer_rather_than_a_crash(
+        string collideOn, string expectedKey)
+    {
+        // Reusing a slug is an ordinary thing a caller does, and untranslated it is a 500:
+        // neither DbUpdateException nor PostgresException has an arm in HttpStatusMap, so
+        // every one falls to InternalServerError — raised after ValidationBehavior passed
+        // the command, after the transaction opened and after the tenant was announced.
+        //
+        // It cannot be pre-checked, either. Under the provisioning announcement a SELECT
+        // over `tenants` returns zero rows by policy, so the database's answer is the only
+        // one there is; the adapter translates it and the handler turns it into a Result.
+        var first = Command();
+
+        try
+        {
+            (await ProvisionAsync(first)).IsSuccess.Should().BeTrue();
+
+            var second = collideOn == "slug"
+                ? Command() with { Slug = first.Slug }
+                : Command() with { TenantId = first.TenantId };
+
+            var result = await ProvisionAsync(second);
+
+            result.IsFailure.Should().BeTrue("a taken name is a refusal, not a fault");
+            result.Error!.Message.Key.Should().Be(expectedKey,
+                "a caller retrying blindly on the wrong half never succeeds — a taken slug "
+                + "needs a different slug, a duplicate id a different id");
+            result.Error.Code.Should().Be(
+                collideOn == "slug" ? "tenant_slug_taken" : "tenant_already_exists");
+
+            (await ScalarAsPlatformAsync(
+                "SELECT count(*) FROM tenants WHERE id = @id", second.TenantId.Value))
+                .Should().Be(collideOn == "slug" ? 0L : 1L,
+                    "the second provisioning rolled back; on the id collision the row that "
+                    + "remains is the FIRST tenant's");
+
+            await CleanUpAsync(second);
+        }
+        finally
+        {
+            await CleanUpAsync(first);
         }
     }
 
@@ -282,6 +346,63 @@ public sealed class TenantProvisioningTests
         }
     }
 
+    [Fact]
+    public async Task Updating_a_detached_aggregate_is_refused_rather_than_guessed_at()
+    {
+        // `DbSet.Update` traverses the graph and marks what it reaches: on a detached
+        // aggregate every child with a set key becomes Modified and every child with an
+        // unset key becomes Added. `Tenant` carries Locales and FeatureFlags, so the
+        // obvious spelling of UpdateAsync re-UPDATEs every one of them from a stale
+        // in-memory copy — overwriting anything written since the load.
+        //
+        // Marking only the detached root is no better, and this is the measurement that
+        // settled it: `Version` is the concurrency token, EF takes a detached entity's
+        // original values from its current ones, so a caller that mutated the root first
+        // issues WHERE row_version = <the value it just incremented to>, matches nothing,
+        // and gets DbUpdateConcurrencyException. There is no correct silent handling, so
+        // the store refuses — loudly, at the call, naming the fix.
+        //
+        // Provisioning never hits this: its aggregate is tracked from the Add. The port is
+        // the one six modules inherit, and this is the contract they inherit with it.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        services.GetRequiredService<ITenantContextAccessor>().Current =
+            new ResolvedContext(SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+
+        var db = services.GetRequiredService<TenancyDbContext>();
+        var tenant = await db.Tenants
+            .Include(candidate => candidate.Locales)
+            .SingleAsync(candidate => candidate.Id == TenantId.From(SchemaFixture.TenantA));
+
+        tenant.Locales.Should().NotBeEmpty(
+            "a tenant with no children could not show the graph walk at all");
+
+        // The graph goes detached — a request that loaded in one scope and saved in
+        // another, or anything that round-tripped the aggregate.
+        db.ChangeTracker.Clear();
+        tenant.ChangeStatus(TenantStatus.Suspended, Clock, UserId.SystemActor);
+
+        var save = () => services.GetRequiredService<ITenantWriteStore>().UpdateAsync(tenant);
+
+        (await save.Should().ThrowAsync<InvalidOperationException>(
+            "a detached aggregate is a programmer error with no safe default"))
+            .WithMessage("*not tracked by this scope's context*");
+
+        // And nothing was written on the way to the refusal.
+        (await ReadAsync(
+            unitOfWork,
+            $"SELECT status FROM tenants WHERE id = '{SchemaFixture.TenantA}'"))
+            .Should().Be(nameof(TenantStatus.Trial));
+
+        await unitOfWork.RollbackAsync();
+    }
+
     // ── Harness ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -371,8 +492,8 @@ public sealed class TenantProvisioningTests
     }
 
     private static ProvisionedTenantDto Provisioned(ProvisionTenantCommand command) =>
-        new(command.TenantId.Value, command.Slug,
-            command.DefaultOrganizationId.Value, command.DefaultOrganizationSlug);
+        new(command.TenantId, command.Slug,
+            command.DefaultOrganizationId, command.DefaultOrganizationSlug);
 
     /// <summary>The innermost exception, since EF wraps a failing SaveChanges.</summary>
     private static Exception Unwrap(Exception exception)

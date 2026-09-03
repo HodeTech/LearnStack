@@ -11,13 +11,14 @@ using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using OrganizationAggregate = LearnStack.Modules.Tenancy.Domain.Organization;
 using TenantAggregate = LearnStack.Modules.Tenancy.Domain.Tenant;
 
 namespace LearnStack.Tests.Unit.Modules.Tenancy;
 
 /// <summary>
 /// The one operation
-/// <see href="../../../../docs/decisions/0042-cross-aggregate-provisioning-transaction.md">ADR-0042</see>
+/// <see href="../../../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
 /// sanctions to write two aggregate roots on one transaction: what it writes, in
 /// what order, and what it refuses before a transaction is ever opened.
 /// </summary>
@@ -113,9 +114,9 @@ public sealed class ProvisionTenantCommandTests
 
         result.IsSuccess.Should().BeTrue();
         var provisioned = result.Value!;
-        provisioned.TenantId.Should().Be(Tenant.Value);
+        provisioned.TenantId.Should().Be(Tenant);
         provisioned.Slug.Should().Be("demo-english");
-        provisioned.DefaultOrganizationId.Should().Be(Organization.Value);
+        provisioned.DefaultOrganizationId.Should().Be(Organization);
         provisioned.DefaultOrganizationSlug.Should().Be("hq");
     }
 
@@ -133,8 +134,14 @@ public sealed class ProvisionTenantCommandTests
 
         await sender.Send(Command());
 
+        // Both roots, because only the organization was captured at first and a tenant
+        // attributed to an arbitrary user id survived the entire 1166-case suite.
+        stores.AddedTenants.Should().ContainSingle().Which
+            .CreatedBy.Should().Be(UserId.SystemActor);
         stores.Added.Should().ContainSingle().Which
             .CreatedBy.Should().Be(UserId.SystemActor);
+        stores.Updated.Should().ContainSingle().Which
+            .UpdatedBy.Should().Be(UserId.SystemActor);
     }
 
     [Theory]
@@ -149,7 +156,7 @@ public sealed class ProvisionTenantCommandTests
             DefaultOrganizationSlug = organizationSlug,
         };
 
-        new ProvisionTenantCommandValidator().Validate(command)
+        Validator().Validate(command)
             .IsValid.Should().BeFalse(because);
     }
 
@@ -167,15 +174,26 @@ public sealed class ProvisionTenantCommandTests
         // command, after TransactionBehavior opened a transaction, and after the tenant
         // was announced on the connection. The shape lives in one place and both layers
         // read it; this is the layer that answers the caller.
-        new ProvisionTenantCommandValidator().Validate(Command() with { Slug = slug })
-            .IsValid.Should().BeFalse(because);
+        //
+        // BOTH slugs, because a rule is only as wide as the field it is written on:
+        // measured, with the organization's shape and width rules deleted the whole
+        // solution stayed green, and the defect was silently reintroduced for half the
+        // command.
+        Refuse(command => command with { Slug = slug })
+            .Should().Be("lockey_slug_not_url_safe", because);
+        Refuse(command => command with { DefaultOrganizationSlug = slug })
+            .Should().Be("lockey_slug_not_url_safe", because);
 
-        // And the aggregate still refuses it, so the validator is the first layer rather
+        // And the aggregates still refuse it, so the validator is the first layer rather
         // than the only one. A test that checked only the validator would pass with the
-        // factory guard deleted.
-        var direct = () => TenantAggregate.Create(
+        // factory guards deleted.
+        var createTenant = () => TenantAggregate.Create(
             Tenant, slug, "Demo English", Clock, UserId.SystemActor);
-        direct.Should().Throw<ArgumentException>();
+        createTenant.Should().Throw<ArgumentException>();
+
+        var createOrganization = () => OrganizationAggregate.Create(
+            Organization, Tenant, slug, "Head Office", Clock, UserId.SystemActor);
+        createOrganization.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -184,19 +202,70 @@ public sealed class ProvisionTenantCommandTests
         // Same shape of defect, different guard: over the mapped width the factory
         // throws, and without a rule here that throw is a 500 raised after the
         // announcement. The two layers read one constant, so this cannot drift.
-        var validator = new ProvisionTenantCommandValidator();
+        var wideSlug = new string('a', UrlSlug.MaxLength + 1);
+        var wideName = new string('a', MappedLength.DisplayName + 1);
 
-        validator.Validate(Command() with { Slug = new string('a', UrlSlug.MaxLength + 1) })
-            .IsValid.Should().BeFalse();
-        validator.Validate(Command() with
-        {
-            DisplayName = new string('a', MappedLength.DisplayName + 1),
-        }).IsValid.Should().BeFalse();
+        Refuse(command => command with { Slug = wideSlug })
+            .Should().Be("lockey_slug_too_long");
+        Refuse(command => command with { DefaultOrganizationSlug = wideSlug })
+            .Should().Be("lockey_slug_too_long");
+        Refuse(command => command with { DisplayName = wideName })
+            .Should().Be("lockey_display_name_too_long");
+        Refuse(command => command with { DefaultOrganizationDisplayName = wideName })
+            .Should().Be("lockey_display_name_too_long");
 
         // The bound itself is legal — an off-by-one here would refuse a value the
         // column holds, which no test asserting only the refusal would catch.
-        validator.Validate(Command() with { Slug = new string('a', UrlSlug.MaxLength) })
+        Validator().Validate(Command() with { Slug = new string('a', UrlSlug.MaxLength) })
             .IsValid.Should().BeTrue();
+        Validator().Validate(Command() with
+        {
+            DisplayName = new string('a', MappedLength.DisplayName),
+        }).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Each_refusal_reaches_the_caller_as_its_own_key()
+    {
+        // ValidationBehavior builds the response from `failure.ErrorCode ??
+        // failure.ErrorMessage`, and FluentValidation ALWAYS populates ErrorCode with the
+        // validator's own name. Measured on the first shape of this validator: a
+        // malformed slug and a tenant sharing its organization's id both arrived as
+        // `lockey_predicatevalidator`, and every string passed to WithMessage was
+        // discarded unread. Distinct keys are the whole of what a caller can act on.
+        var keys = new[]
+        {
+            Refuse(command => command with { Slug = "" }),
+            Refuse(command => command with { Slug = new string('a', UrlSlug.MaxLength + 1) }),
+            Refuse(command => command with { Slug = "Demo-English" }),
+            Refuse(command => command with { DisplayName = "" }),
+            Refuse(command => command with
+            {
+                DisplayName = new string('a', MappedLength.DisplayName + 1),
+            }),
+            Refuse(command => command with
+            {
+                DefaultOrganizationId = OrganizationId.From(Tenant.Value),
+            }),
+        };
+
+        keys.Should().OnlyHaveUniqueItems("two refusals a caller must tell apart");
+        keys.Should().AllSatisfy(key => key.Should().StartWith("lockey_")
+            .And.NotBe("lockey_predicatevalidator"));
+    }
+
+    [Fact]
+    public void A_cross_field_refusal_names_a_field()
+    {
+        // `RuleFor(command => command)` yields the empty property name, and the
+        // RFC 7807 `errors` map is keyed on it — an error under a "" key names nothing a
+        // client can highlight.
+        var failure = Validator().Validate(Command() with
+        {
+            DefaultOrganizationId = OrganizationId.From(Tenant.Value),
+        }).Errors.Should().ContainSingle().Subject;
+
+        failure.PropertyName.Should().Be(nameof(ProvisionTenantCommand.DefaultOrganizationId));
     }
 
     [Fact]
@@ -206,8 +275,7 @@ public sealed class ProvisionTenantCommandTests
         // that. Without Cascade(Stop) the shape predicate runs anyway and the regex
         // throws ArgumentNullException out of the validator — the same 500, moved one
         // step earlier.
-        var refuse = () => new ProvisionTenantCommandValidator()
-            .Validate(Command() with { Slug = null! });
+        var refuse = () => Validator().Validate(Command() with { Slug = null! });
 
         refuse.Should().NotThrow();
         refuse().IsValid.Should().BeFalse();
@@ -228,7 +296,7 @@ public sealed class ProvisionTenantCommandTests
             DefaultOrganizationId = OrganizationId.From(shared),
         };
 
-        new ProvisionTenantCommandValidator().Validate(command)
+        Validator().Validate(command)
             .IsValid.Should().BeFalse();
     }
 
@@ -237,7 +305,7 @@ public sealed class ProvisionTenantCommandTests
     {
         // Every case above is a refusal, and a validator that refused everything would
         // satisfy all of them.
-        new ProvisionTenantCommandValidator().Validate(Command())
+        Validator().Validate(Command())
             .IsValid.Should().BeTrue();
     }
 
@@ -248,11 +316,25 @@ public sealed class ProvisionTenantCommandTests
         // registration is an assembly scan with `includeInternalTypes`. A validator
         // that exists but is not found is silence: the command runs unvalidated and
         // the cross-field rule above never executes in production.
-        Build().Sender.Should().NotBeNull();
-
         BuildProvider().GetService<IValidator<ProvisionTenantCommand>>()
-            .Should().BeOfType<ProvisionTenantCommandValidator>();
+            .Should().NotBeNull()
+            .And.Subject.GetType().Name.Should().Be("ProvisionTenantCommandValidator",
+                "the scan passes includeInternalTypes, and the validator is internal for "
+                + "the same reason the handler is");
     }
+
+    /// <summary>The single error code one refused command produces.</summary>
+    private static string Refuse(
+        Func<ProvisionTenantCommand, ProvisionTenantCommand> mutate)
+    {
+        var result = Validator().Validate(mutate(Command()));
+
+        result.IsValid.Should().BeFalse();
+        return result.Errors.Should().ContainSingle().Subject.ErrorCode;
+    }
+
+    private static IValidator<ProvisionTenantCommand> Validator() =>
+        BuildProvider().GetRequiredService<IValidator<ProvisionTenantCommand>>();
 
     private static (ISender Sender, IReadOnlyList<string> Writes) Build() =>
         Build(out _);
@@ -272,7 +354,7 @@ public sealed class ProvisionTenantCommandTests
         // MediatR and FluentValidation scan the same assembly the composition root
         // hands them, so a handler or validator this container cannot find is one the
         // application cannot find either.
-        var applicationAssembly = typeof(ProvisionTenantCommandValidator).Assembly;
+        var applicationAssembly = typeof(ITenantWriteStore).Assembly;
         var recording = new RecordingStores();
         stores = recording;
 
@@ -304,12 +386,15 @@ public sealed class ProvisionTenantCommandTests
 
         public List<Organization> Added { get; } = [];
 
+        public List<TenantAggregate> AddedTenants { get; } = [];
+
         public List<TenantAggregate> Updated { get; } = [];
 
         Task IAggregateWriteStore<TenantAggregate, TenantId>.AddAsync(
             TenantAggregate aggregate, CancellationToken cancellationToken)
         {
             _writes.Add("tenant:add");
+            AddedTenants.Add(aggregate);
             return Task.CompletedTask;
         }
 

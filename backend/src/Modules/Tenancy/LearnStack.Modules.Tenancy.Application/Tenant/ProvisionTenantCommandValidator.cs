@@ -26,55 +26,64 @@ namespace LearnStack.Modules.Tenancy.Application.Tenant;
 /// place to drift; a shared constant is neither.
 /// </para>
 /// <para>
+/// <b>Every rule carries an explicit error code, and that is the whole of what a caller
+/// receives.</b> <c>ValidationBehavior</c> builds the response from
+/// <c>failure.ErrorCode ?? failure.ErrorMessage</c>, and FluentValidation always
+/// populates <c>ErrorCode</c> with the validator's own name — so a rule left to its
+/// defaults reaches the caller as <c>lockey_predicatevalidator</c>, and anything passed
+/// to <c>WithMessage</c> is never read at all. Without the codes below, a malformed slug
+/// and a tenant sharing its organization's id were byte-identical on the wire. Hardcoded
+/// English would have been worse than useless here: it would have been invisible.
+/// </para>
+/// <para>
 /// The pipeline runs this at step 1, so a refusal costs no transaction and no
 /// announcement. A failure here is <c>Result.Fail(validation_failed)</c> and never an
 /// exception, per the shipped behavior's contract.
 /// </para>
 /// </remarks>
-public sealed class ProvisionTenantCommandValidator : AbstractValidator<ProvisionTenantCommand>
+internal sealed class ProvisionTenantCommandValidator : AbstractValidator<ProvisionTenantCommand>
 {
     public ProvisionTenantCommandValidator()
     {
-        // Cascade(Stop), because the rules below are not independent of the first: the
-        // shape predicate runs a regex, and a regex against a null slug throws
+        // Cascade(Stop), because the rules are not independent of the first: the shape
+        // predicate runs a regex, and a regex against a null slug throws
         // ArgumentNullException out of the validator itself — which is the 500 this file
         // exists to prevent, relocated one step earlier. `string` being non-nullable in
         // the command is a compile-time promise, and a deserializer is not bound by it.
-        RuleFor(command => command.Slug)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty()
-            .MaximumLength(UrlSlug.MaxLength)
-            .Must(UrlSlug.IsUrlSafe!)
-            .WithMessage(SlugShape);
+        RuleForSlug(command => command.Slug);
+        RuleForSlug(command => command.DefaultOrganizationSlug);
 
-        RuleFor(command => command.DefaultOrganizationSlug)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty()
-            .MaximumLength(UrlSlug.MaxLength)
-            .Must(UrlSlug.IsUrlSafe!)
-            .WithMessage(SlugShape);
-
-        RuleFor(command => command.DisplayName)
-            .NotEmpty()
-            .MaximumLength(MappedLength.DisplayName);
-
-        RuleFor(command => command.DefaultOrganizationDisplayName)
-            .NotEmpty()
-            .MaximumLength(MappedLength.DisplayName);
+        RuleForDisplayName(command => command.DisplayName);
+        RuleForDisplayName(command => command.DefaultOrganizationDisplayName);
 
         // The one cross-field rule, and the reason it is here rather than in an
         // aggregate: neither Tenant nor Organization can see the other's id, so neither
         // can notice that a caller sent the same Guid for both. The two rows are
         // different things in different tables and a shared id would read as a
         // relationship that does not exist.
-        RuleFor(command => command)
-            .Must(command => command.TenantId.Value != command.DefaultOrganizationId.Value)
-            .WithMessage(
-                "A tenant and its default organization are separate rows and must not "
-                + "share an id.");
+        //
+        // Hung off the organization id rather than off the command, because the property
+        // name is what keys the RFC 7807 `errors` map — `RuleFor(command => command)`
+        // yields the empty string, and an error under a "" key names nothing a client
+        // can highlight.
+        RuleFor(command => command.DefaultOrganizationId)
+            .Must((command, organizationId) => command.TenantId.Value != organizationId.Value)
+            .WithErrorCode("lockey_tenant_and_organization_share_an_id");
     }
 
-    private const string SlugShape =
-        "'{PropertyValue}' is not a URL-safe slug: lowercase letters, digits and single "
-        + "interior hyphens only.";
+    private void RuleForSlug(
+        System.Linq.Expressions.Expression<Func<ProvisionTenantCommand, string>> slug) =>
+        RuleFor(slug)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrorCode("lockey_slug_required")
+            .MaximumLength(UrlSlug.MaxLength).WithErrorCode("lockey_slug_too_long")
+            .Must(value => UrlSlug.IsUrlSafe(value)).WithErrorCode("lockey_slug_not_url_safe");
+
+    private void RuleForDisplayName(
+        System.Linq.Expressions.Expression<Func<ProvisionTenantCommand, string>> displayName) =>
+        RuleFor(displayName)
+            .Cascade(CascadeMode.Stop)
+            .NotEmpty().WithErrorCode("lockey_display_name_required")
+            .MaximumLength(MappedLength.DisplayName)
+            .WithErrorCode("lockey_display_name_too_long");
 }

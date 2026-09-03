@@ -38,8 +38,9 @@
 
     <!-- Cross-cutting foundation (ADR-0032). Serilog wires through the
          OpenTelemetry OTLP sink; the OTel SDK runs traces + metrics.
-         FluentValidation.DependencyInjectionExtensions lets the composition
-         root scan validator types from module assemblies. -->
+         FluentValidation.DependencyInjectionExtensions is kept for the composition
+         root's own use; the assembly scan itself lives in LearnStack.Application,
+         beside the ValidationBehavior that consumes what it registers. -->
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
     <PackageReference Include="Serilog.Formatting.Compact" />

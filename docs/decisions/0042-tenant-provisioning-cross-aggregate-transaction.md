@@ -219,6 +219,20 @@ containment either.
 - **The carve-out** is one line in
   [Architecture Standards § Aggregate Ownership](../standards/01-architecture-standards.md),
   citing this ADR. The rule text itself is unchanged.
+> **Erratum — 2026-09-03.** The bullet below says the test "scans MediatR handler
+> sources for write calls (`Add`/`AddRange`/`Update`/`Remove`) against more than
+> one `DbSet`". That scan cannot fire, and could not on the day this was written:
+> a module's `Application` project may not reference its `Infrastructure` project,
+> so no handler can name a `DbSet` at all. Shown by
+> [Architecture Standards § Dependency direction](../standards/01-architecture-standards.md),
+> which lists the edge as forbidden, and by the project graph — `Infrastructure`
+> references `Application`, so the reverse is a cycle the compiler refuses. The
+> shipped rule counts the distinct aggregate roots reachable through a handler's
+> `IAggregateWriteStore<TRoot, TId>` constructor parameters. The Decision is
+> unchanged. Current authority:
+> [the catalogue row](../standards/21-architecture-tests-catalogue.md). Recorded in
+> Amendment 1.
+
 - **The architecture test** is
   `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`. The **rule** is
   registered in [the catalogue](../standards/21-architecture-tests-catalogue.md)
@@ -230,12 +244,6 @@ containment either.
   (`Add`/`AddRange`/`Update`/`Remove`) against more than one `DbSet` whose entity
   implements `IAggregateRoot<TId>`, and holds a literal allow-list of exactly one
   handler type.
-
-  > **Erratum (2026-09-03, Amendment 1).** The scan described in the sentence
-  > above cannot fire, and could not on the day this was written: `Application`
-  > may not reference `Infrastructure`, so no handler can name a `DbSet`. The
-  > shipped rule counts constructor parameters deriving from
-  > `IAggregateWriteStore<TRoot, TId>` instead. See § Amendments.
 
   **What it proves and what it does not.** It catches the direct form, which is
   the form a handler is written in. It does not catch a write routed through a
@@ -251,30 +259,50 @@ containment either.
 
 ## Amendments
 
-### Amendment 1 (2026-09-03): the rule counts ports, not `DbSet` use
+### Amendment 1 (2026-09-03): the rule counts aggregate roots, not `DbSet` use
 
 **What was false when it entered the record.** § Implementation Notes specifies
 `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` as a source scan for
 `Add` / `AddRange` / `Update` / `Remove` against more than one `DbSet`. That scan
-can never fire. `Application` may not reference `Infrastructure` — a shipped
-dependency rule that predates this ADR — so no handler can name a `DbSet` at all,
-and a rule that cannot fire while carrying Status **Implemented** claims coverage
-the suite does not have. An inline erratum marks the sentence; the rationale, the
-carve-out and everything else in the record stand.
+can never fire: a module's `Application` project may not reference its
+`Infrastructure` project — a forbidden edge that predates this ADR, and a project
+cycle besides — so no handler can name a `DbSet` at all. A rule that cannot fire
+while carrying Status **Implemented** claims coverage the suite does not have. An
+inline erratum marks the bullet; the rationale, the carve-out and everything else
+in the record stand.
 
-**What ships.** The rule reflects over the production assemblies and counts, per
-`IRequestHandler<,>` implementation, the constructor parameters deriving from
-`IAggregateWriteStore<TRoot, TId>`. More than one is the cross-aggregate write,
-and the literal allow-list holds exactly one name:
-`ProvisionTenantCommandHandler`. Counting a **type** rather than a name means
-renaming a port does not escape the rule, and fusing the two ports into one to
-hide the write is itself caught — measured, as one of three mutations that each
-turn the rule red.
+**What ships.** The rule reflects over the production assemblies and, for each
+type implementing `IRequestHandler<,>`, `IRequestHandler<>` or
+`INotificationHandler<>`, counts the **distinct aggregate roots** reachable
+through its constructor parameters' `IAggregateWriteStore<TRoot, TId>`
+derivations. More than one is the cross-aggregate write, and the literal
+allow-list holds exactly one name: `ProvisionTenantCommandHandler`.
+
+Each element of that sentence closes an escape that was measured by putting the
+shape into a production assembly and watching all 76 architecture cases pass:
+
+- **Distinct roots, not parameters.** One interface deriving from the generic
+  twice — `IFused : IAggregateWriteStore<Tenant, TenantId>,
+  IAggregateWriteStore<Organization, OrganizationId>` — is a single constructor
+  parameter. Counting parameters, a handler taking it wrote both roots and the
+  rule stayed green.
+- **`INotificationHandler` is in the set.** An intra-module domain event is one of
+  ADR-0010's four sanctioned mechanisms and its handler runs *inside* the ambient
+  transaction, so two write ports there are the same cross-aggregate write — and
+  the likelier one to be written by someone who has not read this ADR, because a
+  domain-event handler does not look like a write boundary.
+- **Non-public constructors count.** `Type.GetConstructors()` is public-only.
 
 **Why two ports rather than one.** `ITenantWriteStore` and
 `IOrganizationWriteStore` are separate interfaces deliberately. A single fused
-port would have been less code and would have hidden the very thing this ADR
-exists to enumerate.
+port would have been less code, and while the rule now sees through it, the
+separation is what makes the sanctioned write legible at the constructor.
+
+**What it still does not catch.** A write routed through a helper that itself
+holds two ports, or through a second `DbContext` reached indirectly — the same
+limit [the catalogue](../standards/21-architecture-tests-catalogue.md) states for
+every structural rule. The binding control remains that the allow-list has one
+entry and growing it is a reviewed diff.
 
 **What did not change.** The sanctioned operation, its three statements, the
 one-entry allow-list, and the seeder's obligation to invoke the command rather

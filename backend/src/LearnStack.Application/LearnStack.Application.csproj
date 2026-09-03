@@ -20,10 +20,11 @@
   <ItemGroup>
     <PackageReference Include="MediatR" />
     <PackageReference Include="FluentValidation" />
-    <!-- AddValidatorsFromAssemblies. Versioned in Directory.Packages.props since the
-         pipeline was written and never referenced, which is why every validator in the
-         solution was inert: ValidationBehavior resolves IValidator<TRequest> from the
-         container and nothing put one there. -->
+    <!-- AddValidatorsFromAssemblies. The package was referenced by LearnStack.Api since
+         the pipeline was written; what was never CALLED was AddValidatorsFrom*, which is
+         why every validator in the solution was inert: ValidationBehavior resolves
+         IValidator<TRequest> from the container and nothing put one there. The call
+         belongs here, beside the pipeline that needs it. -->
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <!-- Pipeline behaviors require logging + DI abstractions; the concrete
          implementations are wired by the composition root in LearnStack.Api. -->
