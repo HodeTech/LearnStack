@@ -129,18 +129,29 @@ CREATE POLICY courses_isolation ON courses
 -- selects the rows an UPDATE may target, and for DELETE it is the ONLY gate
 -- (PostgreSQL has no WITH CHECK for DELETE). Without the restrictive policy
 -- below, a tenant-scope session could delete another organization's rows, or
--- reassign them to itself.
+-- reassign them to itself. Each guard's first arm is AND-ed with "the session has no
+-- organization", because the bare `organization_id IS NULL` admitted the reverse: an
+-- ORG-scoped session rewriting the tenant-wide fallback every other organization reads.
+-- Measured on the shipped schema before the correction.
 CREATE POLICY courses_org_write_guard ON courses
     AS RESTRICTIVE FOR UPDATE
     USING (
-        organization_id IS NULL
+        -- A tenant-wide row (organization_id IS NULL) belongs to no organization, so a
+        -- session that HAS one is writing outside its own when it touches one. The
+        -- first arm therefore requires the session to be tenant-scope as well.
+        (organization_id IS NULL
+         AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
         OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
     );
 
 CREATE POLICY courses_org_delete_guard ON courses
     AS RESTRICTIVE FOR DELETE
     USING (
-        organization_id IS NULL
+        -- A tenant-wide row (organization_id IS NULL) belongs to no organization, so a
+        -- session that HAS one is writing outside its own when it touches one. The
+        -- first arm therefore requires the session to be tenant-scope as well.
+        (organization_id IS NULL
+         AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
         OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
     );
 
