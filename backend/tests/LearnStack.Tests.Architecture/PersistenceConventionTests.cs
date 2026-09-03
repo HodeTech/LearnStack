@@ -496,9 +496,18 @@ public sealed class PersistenceConventionTests
 
         using var _ = process;
 
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+        // Both pipes drained concurrently, then the wait. Reading one to the end and only
+        // then the other deadlocks whenever the child fills the second pipe's buffer while
+        // this side is blocked on the first — the classic Process pitfall. The role check
+        // is terse enough that it has never happened here, which is exactly why it would
+        // land on whoever makes the target chattier.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+
         process.WaitForExit(milliseconds: 60_000).Should().BeTrue("the role check exits immediately");
+
+        var stdout = stdoutTask.GetAwaiter().GetResult();
+        var stderr = stderrTask.GetAwaiter().GetResult();
 
         return (process.ExitCode, stdout + stderr);
     }

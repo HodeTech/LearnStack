@@ -120,6 +120,38 @@ public sealed class CrossCuttingFoundationTests
     }
 
     [Fact]
+    public void Registering_The_Pipeline_Twice_Registers_It_Once()
+    {
+        // A doubled TransactionBehavior would be a nested frame on every request — the
+        // joiner path, taken for no reason, on the hot path — and a doubled
+        // AuditLogBehavior would catch and rethrow the same exception twice.
+        //
+        // The property holds, and it is MediatR's, not ours: `AddBehavior` deduplicates,
+        // so a second call adds nothing. Measured — seven behaviours and eleven total
+        // registrations either way. This pins it because it is a property we depend on
+        // and did not write: every test fixture in the repository registers its probe
+        // handler by hand specifically to avoid re-running AddMediatR, and if this ever
+        // stopped holding, that workaround would be load-bearing rather than cautious.
+        //
+        // A guard of our own was written for this and then removed: it changed nothing,
+        // and a guard no test can kill is a comment.
+        var once = new ServiceCollection();
+        once.AddLearnStackMediatRPipeline();
+
+        var twice = new ServiceCollection();
+        twice.AddLearnStackMediatRPipeline();
+        twice.AddLearnStackMediatRPipeline();
+
+        static int Behaviors(IServiceCollection services) => services.Count(descriptor =>
+            descriptor.ServiceType.IsGenericType
+            && descriptor.ServiceType.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>));
+
+        Behaviors(twice).Should().Be(Behaviors(once),
+            "the second call is a no-op, not a second pipeline");
+        twice.Count.Should().Be(once.Count, "and it adds no other registration either");
+    }
+
+    [Fact]
     public void IExceptionHandler_Registered_AtStartup()
     {
         // ADR-0032 § Sub-decision 1 — every host registers

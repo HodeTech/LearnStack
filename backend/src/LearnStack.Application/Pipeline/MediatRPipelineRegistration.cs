@@ -82,4 +82,5 @@ public static class MediatRPipelineRegistration
 
         return services;
     }
+
 }
