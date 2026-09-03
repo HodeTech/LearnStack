@@ -214,9 +214,10 @@ public sealed class TransactionBehaviorTests
     [Fact]
     public async Task Passes_The_Ambient_Tenant_Context_Through()
     {
-        // Not a context of its own. Whatever the resolution stage populated is
-        // what reaches SET LOCAL — which, until Packet 7, is
-        // UnresolvedTenantContext, and that is correct and fail-closed.
+        // Not a context of its own. Whatever the resolution stage populated is what
+        // reaches the announcement — which, for a request no resolver touched, is
+        // UnresolvedTenantContext, and that is correct and fail-closed. Packet 7 gave the
+        // resolver something to populate; it did not change what this behavior reads.
         var unitOfWork = new RecordingUnitOfWork();
         var behavior = Build(unitOfWork);
 

@@ -8,7 +8,7 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// <b>The invalidation
 /// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
 /// asks for "on the transaction that flips either flag".</b> A host that resolved to
-/// nothing is negative-cached, and until Packet 7 no writer of
+/// nothing is negative-cached, and before Packet 7 no writer of
 /// <c>platform_host_to_tenant</c> existed, so the TTL was the whole of the mechanism —
 /// a host activated inside it kept its 404 for the rest of it. That is the exact symptom
 /// a developer meets when they load a seeded host once before running the seed.

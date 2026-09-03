@@ -19,10 +19,11 @@ namespace LearnStack.Api.Tenancy;
 /// bypass a tenant boundary, and the rejection must precede handler work.
 /// </para>
 /// <para>
-/// In Packet 4 nothing resolves a tenant — <c>ITenantContext.IsResolved</c> is
-/// false until Packet 7's <c>TenantResolverMiddleware</c> — so the mismatch
-/// path is unreachable in traffic and is exercised by tests over a stubbed
-/// context. The comparison ships now because the binding does, and a binding
+/// In Packet 4 nothing resolved a tenant, so the mismatch path was unreachable in
+/// traffic and was exercised by tests over a stubbed context. Packet 7's
+/// <c>TenantResolverMiddleware</c> made it reachable: <c>ITenantContext.IsResolved</c>
+/// is now true for any request arriving on a mapped host. The comparison shipped
+/// before the binding it guards because a binding
 /// whose rule arrives three packets later is a binding nobody wrote the rule
 /// for.
 /// </para>

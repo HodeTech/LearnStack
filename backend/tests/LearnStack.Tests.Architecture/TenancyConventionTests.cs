@@ -15,9 +15,9 @@ namespace LearnStack.Tests.Architecture;
 /// <para>
 /// Most of these are <b>source scans</b>, and that is a deliberate choice rather
 /// than a shortcut. Each rule is about a symbol not appearing outside one file —
-/// a reflection or NetArchTest form would have to observe a call that has no
-/// consumer yet, because the resolver that will read these values does not land
-/// until Packet 7. A scan can hold the line from the day the symbol exists,
+/// a reflection or NetArchTest form would have to observe a call, and these rules were
+/// written before Packet 7's resolver gave the values a consumer. A scan holds the line
+/// from the day the symbol exists,
 /// which is the day it can first be used wrongly. Where the type a rule names
 /// now exists, the rule adds a reflection check alongside the scan rather than
 /// replacing it: the two catch different mistakes.

@@ -103,11 +103,11 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         }
 
         // Nothing to do here for RLS, and nothing left undone elsewhere:
-        // TransactionBehavior issues the set_config pair at step 6. RLS is
-        // enforced today and fail-closed before Packet 7 — an unresolved context
-        // writes the empty string, so every predicate is NULL and every
-        // tenant-owned table returns zero rows. What Packet 7 supplies is a
-        // non-NULL predicate.
+        // TransactionBehavior issues the set_config pair at step 6. RLS was enforced and
+        // fail-closed before Packet 7 too — an unresolved context writes the empty
+        // string, so every predicate is NULL and every tenant-owned table returns zero
+        // rows. What Packet 7 added is a non-NULL predicate: TenantResolverMiddleware
+        // now gives that setter a tenant to write.
         //
         // Why it belongs there and not here: the GUCs are transaction-local
         // (set_config('app.tenant_id', ..., true)) and this behavior runs at

@@ -57,8 +57,8 @@ public abstract class AuditableEntity<TId>
     /// global query filters should gate on <see cref="DeletedAt"/> directly
     /// (<c>e =&gt; e.DeletedAt == null</c>) — <see cref="IsDeleted"/> is a
     /// computed CLR property and is NOT guaranteed to translate to SQL by
-    /// EF Core's expression translator. Packet 7 wires the filters
-    /// accordingly.
+    /// EF Core's expression translator. <c>TenantQueryFilters</c> wires them
+    /// accordingly, as of Packet 7.
     /// </summary>
     public bool IsDeleted => DeletedAt.HasValue;
 

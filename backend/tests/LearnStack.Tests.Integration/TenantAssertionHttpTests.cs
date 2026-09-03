@@ -26,8 +26,10 @@ namespace LearnStack.Tests.Integration;
 /// Packet 4 resolves nothing, so the fixture substitutes a resolved
 /// <c>ITenantContext</c> — which is what makes the mismatch path reachable at
 /// all. That substitution is the test's subject, not a shortcut: ADR-0036's
-/// staging table says this comparison is "unreachable in traffic … and
-/// exercised by unit tests over a stubbed context" until Packet 7.
+/// staging table said this comparison was "unreachable in traffic … and exercised by
+/// unit tests over a stubbed context" before Packet 7's resolver existed. It is reachable
+/// now; the substitution stays because this suite drives the mismatch deliberately, and
+/// <c>TenantIsolationHttpTests</c> is where the real resolver answers.
 /// </remarks>
 public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
     : IClassFixture<ResolvedTenantFixture>
