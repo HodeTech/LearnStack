@@ -990,13 +990,19 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
   test. **Kind:** runtime.
-- **Status:** **Implemented** (Packet 6 step 4,
-  `LearnStack.Tests.Integration`, `TenancySchemaTests`). It moved forward because
-  the schema's own assertions needed the two-tenant seed anyway: without rows for
-  both tenants, every count assertion in that class passed against dropped
-  policies. Packet 7 re-runs it through `TenantResolverMiddleware` and the EF
-  query filters rather than through `set_config`.
-- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
+- **Status:** **Implemented, twice.** The schema-level case is Packet 6 step 4
+  (`TenancySchemaTests`); the request-level one is Packet 7 step 11
+  (`Database/TenantIsolationHttpTests`), which drives it through
+  `HostClassificationMiddleware`, `TenantResolverMiddleware`, the announcement and the
+  EF query filters, with the host header as the only input and no stubbed
+  `ITenantContext`. The schema-level case moved forward because that class's own
+  assertions needed the two-tenant seed anyway: without rows for both tenants, every
+  count in it passed against dropped policies.
+- **Reads `tenant_settings`, not `platform_host_to_tenant`.** The row shape the rule
+  names is tenant-owned with `organization_id IS NULL`; the host table is
+  platform-scoped and its policy has no organization term, so reading it would name the
+  wrong mechanism. The first version of the request-level case did exactly that.
+- **Phase:** 02a (Packet 6 the schema-level case; Packet 7 the request-level one).
 
 #### `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
 
@@ -1008,18 +1014,71 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Implemented** (Packet 6 step 4,
-  `LearnStack.Tests.Integration`, `TenancySchemaTests`) — as a `[Theory]` over
-  both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a rule
-  covering one leaves the other open.
-- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
+- **Status:** **Implemented, twice.** Packet 6 step 4 (`TenancySchemaTests`) as a
+  `[Theory]` over both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a
+  rule covering one leaves the other open. Packet 7 step 11
+  (`Database/TenantIsolationHttpTests`) issues the write through a request: raw SQL on
+  the ambient connection, so no query filter is in front of it and only `WITH CHECK` can
+  refuse. The first version of that case asserted merely that an anonymous POST failed,
+  and passed against a **deleted endpoint** and against a database with every policy
+  dropped — which is why the entry now says what the case must observe rather than what
+  it must return.
+- **Phase:** 02a (Packet 6 the schema-level case; Packet 7 the request-level one).
 
 `Tenant_A_cannot_read_Tenant_B_data`, `Org_X_cannot_read_Org_Y_within_TenantA` and
 `Unsetting_tenant_context_returns_zero_rows_through_RLS` are ordinary integration tests
-named in the phase document rather than catalogue-governed rules; all three shipped
-alongside the two rules above in Packet 6 step 4 and are listed in
-[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), which re-runs them through
-the request path.
+named in the phase document rather than catalogue-governed rules. All three shipped
+alongside the two rules above in Packet 6 step 4, and Packet 7 step 11 re-runs them
+through the request path in `Database/TenantIsolationHttpTests`.
+
+Three things are worth recording about that second run, because each was a defect in its
+first version. `Org_X_…` must read an **organization-scoped** table — `tenant_settings`,
+whose policy carries an organization term — not `organizations`, which is tenant-wide and
+where every organization is visible to every other by design; reading the latter and
+narrowing the rows in the test's own handler tested the test.
+`Unsetting_tenant_context_…` must actually run a query under an unresolved context, which
+takes a `PlatformHost` request (a host in `Tenancy:PlatformHosts`); asserting a 404 for an
+unknown host instead exercises the resolver and never reaches a table. And the suite as a
+whole constrains the **composite** answer, not one layer: measured, deleting both EF query
+filters leaves all five green because RLS holds, disabling RLS leaves the four reads green
+because the filters hold, and removing both turns all five red.
+
+#### `Every_Scoping_Interface_Carries_Its_Marker`
+
+- **Asserts:** every entity implementing a scoping interface — `ITenantOwned`,
+  `IOrganizationScoped` — also carries the marker attribute the filter and policy
+  generators read. An entity that implements one and not the other is scoped in the type
+  system and unscoped everywhere it matters.
+- **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Phase:** 02a Packet 7.
+
+#### `The_Request_Filter_Sees_Every_Shape_MediatR_Dispatches`
+
+- **Asserts:** the predicate that enumerates request types covers every shape MediatR
+  dispatches, so a rule written over "all requests" is not silently blind to one of them.
+  Measured facts behind it: `IStreamRequest<T>.GetInterfaces()` is empty and
+  `IBaseRequest.IsAssignableFrom(IStreamRequest<>)` is false, so a filter written the
+  obvious way misses streamed requests entirely.
+- **Source:** [04-api-design.md](04-api-design.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Phase:** 02a Packet 7.
+
+#### `The_Sweep_Covers_Every_Production_Assembly`
+
+- **Asserts:** every `LearnStack.*` project under `backend/src` is loadable by the rules
+  that sweep production assemblies. A project the sweep cannot load is a project every
+  reflection rule silently skips, which is worse than a rule that fails: it reports green
+  over code it never read.
+- **Note:** it is why adding a project — `LearnStack.Tools.Seeder` in Packet 7 step 10 —
+  requires a `ProjectReference` from the architecture test project. The rule names the
+  remedy in its own failure message.
+- **Source:** [21-architecture-tests-catalogue.md § What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Phase:** 02a Packet 7.
 
 #### `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`
 

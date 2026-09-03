@@ -1,7 +1,7 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-28).** Phase 02a in progress. Packets 0–3, 3b, 4, 5 and 6 shipped; the
-> 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
+> **Status (2026-09-03).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6 and 7 shipped;
+> the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
 > later packet may consume any earlier packet's deliverables, never the reverse.
@@ -16,7 +16,7 @@
 > | 4 | API conventions | ✅ [record](#delivery-record-packet-4) |
 > | 5 | Foundation ports and default implementations | ✅ [record](#delivery-record-packet-5) |
 > | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
-> | 7 | Tenant and organization resolution, isolation, two tenants | ⏳ [scope](#packet-sequence) |
+> | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
 > | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
 > | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
 > | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
@@ -30,7 +30,8 @@
 > [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), and Packet 4 in
 > [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
 > [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
-> [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) — each kept separate
+> [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
+> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -1400,8 +1401,6 @@ The remaining exit gates (tenant + organization resolution, isolation tests runn
 conventions, two seed tenants, architecture-test catalogue green) close as Packets
 3b–10 ship.
 
-
-
 ## Delivery Record (Packets 0–3)
 
 Shipped history, kept verbatim. Packets 0–3 and the 2026-08-08 restructure annotation
@@ -2423,3 +2422,94 @@ in a record rather than in production.
 > does not mistake a green suite for proof of them: a cross-module read inside the
 > ambient transaction returning rows, and an outer failure after an inner write
 > leaving zero rows in both modules. Both need a second module `DbContext`.
+
+## Delivery Record (Packet 7)
+
+Kept separate from the records above, and long for the reason Packets 5 and 6 were:
+most of what follows is a defect this packet introduced and its own review rounds
+found. Eleven steps, each reviewed twice — once by an Opus agent, once by a Sonnet
+one — and the second round repeatedly found the first round's fix.
+
+> **Packet 7 — Tenant and organization resolution, isolation, two tenants ✅**
+>
+> **Measured at close: 1187 tests green** — 1 contract, 76 architecture, 802 unit,
+> 308 integration. Counted from a run, not computed from a plan; an earlier commit
+> message in this packet carried an arithmetic total that was eight short.
+
+### What shipped
+
+- **Host and tenant resolution.** `HostClassificationMiddleware`,
+  `TenantResolverMiddleware`, `CachedHostToTenantResolver`, `EffectiveHost`
+  normalization, the `UnknownHostCache`, and the four-origin `TenantContextFactory`
+  behind a pure, total, synchronous `Create`.
+- **The authority ceiling.** `TenantContextBehavior`'s two nested gates, with
+  `[AllowsUnresolvedTenantContext]` and `[PublicSurface]` as enumerated holes and an
+  architecture rule counting each.
+- **Provisioning.** `ProvisionTenantCommand` — the one operation
+  [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+  sanctions to write two aggregate roots on one transaction — with
+  `IProvisionsTenant`, the `SetProvisioningTenantContextAsync` announcement seam, and
+  `IAggregateWriteStore<TRoot, TId>`, the codebase's first persistence port.
+- **`CreateOrganizationCommand` and `MapHostToTenantCommand`,** both taking their
+  tenant from the context and never from the request, plus
+  `PlatformHostMapping.Create`, which did not exist and without which nothing could
+  write a host row at all.
+- **Two seed tenants** — `demo-english` and `demo-yoga`, two organizations each, one
+  host row each of a different live class — written by `LearnStack.Tools.Seeder`
+  through the same commands a request sends, because ADR-0042 requires the seeder not
+  to hold a second copy of the sanctioned cross-aggregate write. `make seed` runs it.
+- **The request-level isolation suite,** the first fixture pairing
+  `WebApplicationFactory<Program>` with a real Postgres container: five cases driven
+  by the host header alone, with no stubbed `ITenantContext`.
+
+### What this packet got wrong, and how it was found
+
+- **A `[Theory]` that agreed with the code.** Three separate tests were caught
+  asserting what the implementation did rather than what it owed. The sharpest was in
+  the final step: `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` performed no
+  `INSERT` at all — it asserted that an anonymous POST failed, which a 404 satisfies,
+  so it passed against a **deleted endpoint** and against a database with every policy
+  dropped. `Org_X_cannot_read_Org_Y` read a tenant-wide table and narrowed the rows
+  with a `Where` the test's own probe handler wrote.
+- **A validator whose every message was discarded.** `ValidationBehavior` builds its
+  response from `ErrorCode ?? ErrorMessage`, and FluentValidation always fills
+  `ErrorCode` with the validator's own name — so a malformed slug and a tenant sharing
+  its organization's id both reached the caller as `lockey_predicatevalidator`, the
+  second under an empty field key.
+- **A fix that made things worse.** Translating a uniqueness conflict into four
+  module-specific error codes turned a duplicate slug from a 409 into a **500**:
+  `HttpStatusMap` is a closed table of cross-cutting codes and falls through to
+  `InternalServerError`. The shape that works is the one `ValidationBehavior` already
+  used — a canonical top-level code plus per-field details.
+- **An architecture rule with three escapes.** The cross-aggregate rule missed a fused
+  port, every `INotificationHandler`, and any non-public constructor — each proven by
+  dropping the shape into a production assembly and watching 76 cases pass. Worse, the
+  ADR amendment written alongside it *claimed* the fused case was caught.
+- **`make seed` could not run.** It read `ConnectionStrings__Default` from the process
+  environment, which nothing populates: the Makefile has no `include .env`. The error
+  it printed offered a remedy — copy `.env.example` to `.env` — that is exactly the
+  state that already fails.
+- **An idempotency check that masked failures.** The seeder treated any
+  `business_rule_violation` as "already seeded", which was safe while provisioning was
+  the only command and stopped being safe the moment `MapHostToTenantCommand` returned
+  the same code for three different conditions.
+- **Two obligations inherited without noticing.** ADR-0036 assigns the
+  `Tenancy:PlatformHosts` collision check to "whichever packet builds the host-mapping
+  writer", and `UnknownHostCache.Forget` had no caller because none existed. This
+  packet built that writer.
+- **A promise from ADR-0037 that Packet 6 did not keep.** `IIdempotencyStore` still
+  took a raw `Guid` tenant after the ADR said it and `ITenantContext.TenantId` "both
+  move together". Amendment 4 records the conversion and the divergence.
+
+### What it did not ship, and who owns each
+
+- **Nothing is audited.** `AuditLogBehavior` lights up in Packet 9; `TransactionBehavior`
+  carries the `TODO` marking the line the MUST-class write goes on.
+- **Nothing is authorized.** No permission key is registered; the three commands are
+  reachable only from the seeder and, from Phase 02c, the Hub over `/api/internal/*`.
+  Phase 03 ships the catalogue.
+- **`PlatformAdminScope` has no reachable caller.** It ships with its gate closed;
+  Packet 9's GDPR handler is the first.
+- **The host-resolution cache is invalidated before the commit, not after.** The
+  guarantee is therefore the request *after* the write, not the one racing it; closing
+  the rest needs a post-commit seam on `IUnitOfWork`, whose surface ADR-0040 governs.
