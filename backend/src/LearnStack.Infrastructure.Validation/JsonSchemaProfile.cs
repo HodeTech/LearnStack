@@ -48,8 +48,9 @@ internal static class JsonSchemaProfile
     /// schema positions means enumerating every applicator keyword, and a keyword
     /// missed from that list is a hole in the bound rather than a stricter bound;
     /// raw depth over-approximates, which fails safe. The arithmetic above is what
-    /// keeps the over-approximation from refusing what § 8.4 permits — the corpus's
-    /// own <c>guided-sequence</c> example reaches ten.
+    /// keeps the over-approximation from refusing what § 8.4 permits: measured, the
+    /// corpus's own <c>guided-sequence</c> example reaches six, and five nested
+    /// object schemas below the root are admitted while six are refused.
     /// </para>
     /// </remarks>
     internal const int MaxDepth = 12;
@@ -61,6 +62,18 @@ internal static class JsonSchemaProfile
     internal const int MaxBytes = 256 * 1024;
 
     /// <summary>
+    /// Subschema visits one document's reference graph may cost when expanded.
+    /// </summary>
+    /// <remarks>
+    /// Generous for authoring and far below what hurts: a content type at § 8.4's
+    /// hundred-property ceiling, every property referencing one shared <c>$defs</c>
+    /// entry, costs about two hundred. Measured, an acyclic graph of twenty
+    /// doubling <c>$defs</c> entries — 1,401 bytes — costs 2^20 and takes 5.7 GB to
+    /// evaluate, so the bound is what stands between a kilobyte of JSON and a pod.
+    /// </remarks>
+    internal const long MaxExpansions = 1_000;
+
+    /// <summary>
     /// Keywords that run a tenant-authored regular expression. Refused until the
     /// evaluator lets a caller bound one — ADR-0043 § 5 names the trigger.
     /// </summary>
@@ -70,6 +83,25 @@ internal static class JsonSchemaProfile
     /// Keywords that declare or resolve a schema identity outside this document.
     /// </summary>
     private static readonly string[] IdentityKeywords = ["$id", "$anchor", "$dynamicAnchor", "$dynamicRef"];
+
+    /// <summary>
+    /// Keywords whose value is a map from an <b>author-chosen name</b> to a
+    /// subschema. The names inside one are field names, not keywords.
+    /// </summary>
+    /// <remarks>
+    /// Without this, a tenant could not declare a field called <c>pattern</c> — a
+    /// knitting school's content type, say — because the walk would read the field
+    /// name as the keyword it bans. Measured: <c>properties/pattern</c>,
+    /// <c>properties/propertyNames</c>, <c>properties/$id</c> and
+    /// <c>properties/$schema</c> were all refused for being what they were named.
+    /// <para>
+    /// Missing an entry from this list makes the profile <i>stricter</i> — it
+    /// refuses a legal field name — rather than weaker, which is the direction a
+    /// list like this must fail in.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] NameMapKeywords =
+        ["properties", "$defs", "patternProperties", "dependentSchemas", "dependentRequired"];
 
     internal static void Check(JsonElement root, ProfileFailures failures)
     {
@@ -89,7 +121,7 @@ internal static class JsonSchemaProfile
         CheckRootProperties(root, failures);
 
         var references = new List<(string Pointer, string Target)>();
-        Walk(root, "", 1, failures, references);
+        Walk(root, "", 1, failures, references, namesAreAuthored: false);
         CheckReferences(root, references, failures);
     }
 
@@ -127,6 +159,15 @@ internal static class JsonSchemaProfile
             count++;
         }
 
+        if (count == 0)
+        {
+            // Semantically the bare `{}` the clause above refuses: it accepts 42,
+            // a string and every object alike, and § 8.1's read-time structural
+            // pass has no field list to walk.
+            failures.Add("/properties", "lockey_schema_root_must_declare_properties");
+            return;
+        }
+
         if (count > MaxProperties)
         {
             failures.Add("/properties", "lockey_schema_too_many_properties");
@@ -147,7 +188,8 @@ internal static class JsonSchemaProfile
         string pointer,
         int depth,
         ProfileFailures failures,
-        List<(string Pointer, string Target)> references)
+        List<(string Pointer, string Target)> references,
+        bool namesAreAuthored)
     {
         if (depth > MaxDepth)
         {
@@ -161,8 +203,23 @@ internal static class JsonSchemaProfile
                 foreach (var property in element.EnumerateObject())
                 {
                     var child = Pointer(pointer, property.Name);
-                    CheckKeyword(property, child, failures, references);
-                    Walk(property.Value, child, depth + 1, failures, references);
+
+                    // Inside a name map the key is the author's, so it is not read
+                    // as a keyword — and the value under it is a schema again, so
+                    // its own keys are.
+                    if (!namesAreAuthored)
+                    {
+                        CheckKeyword(property, child, failures, references);
+                    }
+
+                    Walk(
+                        property.Value,
+                        child,
+                        depth + 1,
+                        failures,
+                        references,
+                        namesAreAuthored: !namesAreAuthored
+                            && Array.IndexOf(NameMapKeywords, property.Name) >= 0);
                 }
 
                 break;
@@ -177,7 +234,8 @@ internal static class JsonSchemaProfile
                         Pointer(pointer, index.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                         depth + 1,
                         failures,
-                        references);
+                        references,
+                        namesAreAuthored: false);
                     index++;
                 }
 
@@ -223,38 +281,55 @@ internal static class JsonSchemaProfile
         if (string.Equals(property.Name, "$ref", StringComparison.Ordinal))
         {
             references.Add((pointer, property.Value.GetString()!));
+            return;
+        }
+
+        if (string.Equals(property.Name, "$schema", StringComparison.Ordinal)
+            && !string.Equals(pointer, "/$schema", StringComparison.Ordinal))
+        {
+            // The root's own line is checked by CheckDialect; anywhere else it is a
+            // second dialect declaration inside one document. Measured: a draft-07
+            // line under `properties/a` makes `prefixItems` inert for that subschema
+            // only, so the same schema text accepts and rejects the same instance —
+            // which is the failure the root clause exists to prevent, reproduced one
+            // level down.
+            failures.Add(pointer, "lockey_schema_dialect_not_at_root");
         }
     }
 
     /// <summary>
-    /// Resolves every <c>$ref</c> inside the document and refuses one that names
-    /// nothing, or one whose chain returns to itself without consuming an instance.
+    /// Builds the document's reference graph and refuses it if any edge dangles,
+    /// any edge names something that is not a schema, the graph has a cycle, or
+    /// expanding it costs more than <see cref="MaxExpansions"/>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Both cases are measured, and neither is caught by any other gate.</b> A
-    /// <c>$ref</c> naming a missing fragment <i>builds</i> and raises
-    /// <c>RefResolutionException</c> only when an entry is validated against it —
-    /// so the author's mistake would surface on someone else's save.
+    /// <b>Every cycle, not only a "pure indirection" one.</b> An earlier form of
+    /// this check followed a <c>$ref</c> only while the node it landed on carried
+    /// a <c>$ref</c> of its own, on the theory that anything else consumed an
+    /// instance level and therefore terminated. That theory is wrong, and wrong in
+    /// the direction that kills the process: <c>allOf</c>, <c>anyOf</c>,
+    /// <c>oneOf</c>, <c>not</c> and <c>if</c> all re-enter at the <i>same</i>
+    /// instance location without the node carrying a top-level <c>$ref</c>.
+    /// Measured — <c>{"$defs":{"a":{"allOf":[{"$ref":"#/$defs/a"}]}},…}</c>, 161
+    /// bytes, was admitted, built, and ended the process with SIGABRT on the first
+    /// entry validated against it.
     /// </para>
     /// <para>
-    /// <b>A non-productive cycle is worse than a refusal: it is a process kill.</b>
-    /// <c>{"$defs":{"n":{"$ref":"#/$defs/n"}}}</c> reached through
-    /// <c>properties</c> builds without complaint and then overflows the stack
-    /// during evaluation — measured, 4426 frames of
-    /// <c>RefKeyword.Evaluate</c> — and a .NET stack overflow cannot be caught. One
-    /// tenant's schema would end the process for every tenant it serves. The
-    /// builder's own cycle detection fires only for a cycle reached from the root,
-    /// which is not where a tenant writes one.
+    /// The fix is not a longer list of in-place applicators. Getting such a list
+    /// wrong costs a process, so the rule refuses <b>every</b> cycle and gives up
+    /// recursive schemas — a shape no document in the corpus uses, whose
+    /// entry-to-entry cousin § 8.3 already caps at depth two. Nothing here depends
+    /// on classifying a keyword.
     /// </para>
     /// <para>
-    /// <b>Productive recursion stays legal</b>, because it terminates: a
-    /// <c>$ref</c> under <c>properties</c> consumes one instance level per hop, and
-    /// the instance is bounded by the reader's own nesting ceiling. Measured at
-    /// depth 20 in under a millisecond. The chain walk therefore follows a
-    /// <c>$ref</c> only while the node it lands on carries another <c>$ref</c> —
-    /// pure indirection — and stops as soon as a node says anything about an
-    /// instance.
+    /// <b>Acyclic is not enough.</b> Measured: twenty <c>$defs</c> entries of the
+    /// form <c>{"allOf":[{"$ref":"#/$defs/next"},{"$ref":"#/$defs/next"}]}</c> —
+    /// 1,401 bytes, no cycle at all — evaluate to 2^20 visits of one instance
+    /// location: 7.2 seconds and 5.7 GB of resident memory. So the graph is also
+    /// costed, memoized, and refused past a bound. The same count bails out early
+    /// on a long chain, which is what stops the walk itself from being the
+    /// expensive part.
     /// </para>
     /// </remarks>
     private static void CheckReferences(
@@ -262,50 +337,157 @@ internal static class JsonSchemaProfile
         List<(string Pointer, string Target)> references,
         ProfileFailures failures)
     {
+        if (references.Count == 0)
+        {
+            return;
+        }
+
+        var costs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var onStack = new HashSet<string>(StringComparer.Ordinal);
+        var reported = false;
+
         foreach (var (pointer, target) in references)
         {
-            var visited = new HashSet<string>(StringComparer.Ordinal);
-            var hop = target;
+            var cost = Expand(root, target, costs, onStack, failures, pointer, ref reported);
 
-            while (true)
+            if (reported || cost > MaxExpansions)
             {
-                if (!visited.Add(hop))
+                if (!reported)
                 {
-                    failures.Add(pointer, "lockey_schema_reference_cycles");
-                    break;
+                    failures.Add(pointer, "lockey_schema_reference_graph_too_large");
                 }
 
-                if (!TryResolve(root, hop, out var node))
-                {
-                    failures.Add(pointer, "lockey_schema_reference_unresolvable");
-                    break;
-                }
+                return;
+            }
+        }
+    }
 
-                // Following happens whenever the node carries a `$ref` at all, even
-                // beside other keywords: in 2020-12 `$ref` applies alongside its
-                // siblings and re-enters at the same instance location, so siblings
-                // do not make the hop productive.
-                if (node.ValueKind != JsonValueKind.Object
-                    || !node.TryGetProperty("$ref", out var next)
-                    || next.ValueKind != JsonValueKind.String)
-                {
-                    break;
-                }
+    /// <summary>
+    /// The number of subschema visits one <c>$ref</c> costs, memoized per target.
+    /// </summary>
+    /// <remarks>
+    /// A node's cost is one plus the cost of every <c>$ref</c> in its own subtree.
+    /// <c>$defs</c> subtrees are skipped: <c>$defs</c> is a container, not an
+    /// applicator, so what is inside it is paid for by whoever references it and
+    /// counting it here would charge a document twice for the same subschema.
+    /// </remarks>
+    private static long Expand(
+        JsonElement root,
+        string target,
+        Dictionary<string, long> costs,
+        HashSet<string> onStack,
+        ProfileFailures failures,
+        string pointer,
+        ref bool reported)
+    {
+        if (costs.TryGetValue(target, out var memo))
+        {
+            return memo;
+        }
 
-                hop = next.GetString()!;
+        if (!onStack.Add(target))
+        {
+            failures.Add(pointer, "lockey_schema_reference_cycles");
+            reported = true;
+            return 0;
+        }
 
-                if (!hop.StartsWith('#'))
+        try
+        {
+            if (!TryResolve(root, target, out var node))
+            {
+                failures.Add(pointer, "lockey_schema_reference_unresolvable");
+                reported = true;
+                return 0;
+            }
+
+            if (node.ValueKind is not (JsonValueKind.Object or JsonValueKind.True or JsonValueKind.False))
+            {
+                // A fragment may name any JSON value; only a schema may be applied.
+                // Measured: without this, the builder raises a bare
+                // ArgumentException out of AdmitSchema — a 500 from a port whose
+                // contract is that nothing throws.
+                failures.Add(pointer, "lockey_schema_reference_not_a_schema");
+                reported = true;
+                return 0;
+            }
+
+            var cost = 1L;
+
+            foreach (var next in ReferencesWithin(node))
+            {
+                cost += Expand(root, next, costs, onStack, failures, pointer, ref reported);
+
+                if (reported || cost > MaxExpansions)
                 {
-                    // Reported where it was written; nothing further to follow.
-                    break;
+                    return cost;
                 }
             }
+
+            costs[target] = cost;
+            return cost;
+        }
+        finally
+        {
+            onStack.Remove(target);
+        }
+    }
+
+    /// <summary>
+    /// Every <c>$ref</c> string lexically inside <paramref name="node"/>, not
+    /// descending into a <c>$defs</c> container.
+    /// </summary>
+    private static IEnumerable<string> ReferencesWithin(JsonElement node)
+    {
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in node.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, "$defs", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(property.Name, "$ref", StringComparison.Ordinal)
+                        && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        yield return property.Value.GetString()!;
+                        continue;
+                    }
+
+                    foreach (var nested in ReferencesWithin(property.Value))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in node.EnumerateArray())
+                {
+                    foreach (var nested in ReferencesWithin(item))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+
+            default:
+                break;
         }
     }
 
     /// <summary>
     /// Resolves a fragment-only reference against the document, per RFC 6901.
     /// </summary>
+    /// <remarks>
+    /// Fragment-only by the time it is reached: <see cref="CheckKeyword"/> refuses
+    /// anything else, and the target may name any JSON value — which is why the
+    /// caller checks that what comes back is a schema.
+    /// </remarks>
     private static bool TryResolve(JsonElement root, string reference, out JsonElement node)
     {
         node = root;
@@ -332,7 +514,7 @@ internal static class JsonSchemaProfile
 
         foreach (var raw in fragment[1..].Split('/'))
         {
-            var token = raw
+            var token = Uri.UnescapeDataString(raw)
                 .Replace("~1", "/", StringComparison.Ordinal)
                 .Replace("~0", "~", StringComparison.Ordinal);
 
@@ -387,12 +569,17 @@ internal sealed class ProfileFailures
     internal bool Any => Count > 0;
 
     /// <param name="detail">
-    /// The evaluator's own message, when there is one. It names a position in the
-    /// author's document and does not echo a value, and without it a
-    /// "not buildable" refusal is a 400 the author cannot act on. Carried as a
-    /// message parameter rather than as prose, because
-    /// <see cref="LocalizedMessage"/>'s key is the contract and its params are the
-    /// substitution.
+    /// The evaluator's own message, when there is one, carried under the parameter
+    /// name <c>evaluatorMessage</c>.
+    /// <para>
+    /// <b>It is deliberately untranslated, and that is the trade.</b> It is
+    /// attached only where the pointer is the document itself — a schema that does
+    /// not build, a reference that does not resolve, text that is not JSON — and
+    /// there the localized key alone ("not buildable") is a 400 the author cannot
+    /// act on. The message names a position in the author's own document and
+    /// echoes no value. A caller that wants a fully localized surface renders the
+    /// key and drops the parameter.
+    /// </para>
     /// </param>
     internal void Add(string pointer, string localizationKey, string? detail = null)
     {
@@ -401,19 +588,27 @@ internal sealed class ProfileFailures
             return;
         }
 
-        Count++;
-
         if (!_byPointer.TryGetValue(pointer, out var messages))
         {
             messages = [];
             _byPointer[pointer] = messages;
         }
 
+        // One reason per pointer. Two branches of one `anyOf` can both fail at the
+        // same location, and telling an author the same thing twice about the same
+        // field is noise in a body three sinks read.
+        if (messages.Any(existing => string.Equals(existing.Key, localizationKey, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        Count++;
+
         messages.Add(detail is null
             ? new LocalizedMessage(localizationKey)
             : new LocalizedMessage(
                 localizationKey,
-                new Dictionary<string, string>(StringComparer.Ordinal) { ["detail"] = detail }));
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["evaluatorMessage"] = detail }));
     }
 
     internal IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>> ToDetails() =>

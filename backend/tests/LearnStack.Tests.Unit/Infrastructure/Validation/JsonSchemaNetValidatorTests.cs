@@ -9,7 +9,7 @@ namespace LearnStack.Tests.Unit.Infrastructure.Validation;
 
 /// <summary>
 /// The four gates of
-/// <see href="../../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043
+/// <see href="../../../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043
 /// § 2</see>, and the profile clauses the evaluator does not enforce.
 /// </summary>
 /// <remarks>
@@ -228,19 +228,154 @@ public sealed class JsonSchemaNetValidatorTests
     }
 
     [Fact]
-    public void Productive_recursion_stays_legal_because_it_terminates()
+    public void Recursion_is_refused_even_where_it_would_terminate()
     {
-        // Each hop sits under `properties`, so it consumes one instance level and
-        // the instance's own nesting ceiling bounds it. Measured at depth 20 in
-        // under a millisecond. Refusing this would cost a shape the draft permits
-        // for no safety gained.
+        // A $ref under `properties` consumes an instance level per hop, so this
+        // one does terminate — and it is refused anyway. Distinguishing it from
+        // the shapes that do NOT terminate means classifying every in-place
+        // applicator, and the cost of getting that list wrong is a process, not a
+        // wrong answer. Recursive schemas are a shape no document in the corpus
+        // uses, whose entry-to-entry cousin section 8.3 already caps at depth two.
         var document = "{\"$schema\":\"" + Dialect + "\","
             + "\"$defs\":{\"n\":{\"type\":\"object\",\"properties\":{\"next\":{\"$ref\":\"#/$defs/n\"}}}},"
             + "\"type\":\"object\",\"properties\":{\"a\":{\"$ref\":\"#/$defs/n\"}}}";
 
+        Refusal(_validator.AdmitSchema(document)).Values
+            .SelectMany(messages => messages)
+            .Should().Contain(m => m.Key == "lockey_schema_reference_cycles");
+    }
+
+    [Theory]
+    [InlineData("\"allOf\":[{\"$ref\":\"#/$defs/a\"}]")]
+    [InlineData("\"anyOf\":[{\"$ref\":\"#/$defs/a\"}]")]
+    [InlineData("\"oneOf\":[{\"$ref\":\"#/$defs/a\"}]")]
+    [InlineData("\"not\":{\"$ref\":\"#/$defs/a\"}")]
+    [InlineData("\"if\":{\"$ref\":\"#/$defs/a\"}")]
+    [InlineData("\"dependentSchemas\":{\"k\":{\"$ref\":\"#/$defs/a\"}}")]
+    [InlineData("\"properties\":{\"deeper\":{\"$ref\":\"#/$defs/a\"}}")]
+    public void A_cycle_wrapped_in_any_applicator_is_refused(string body)
+    {
+        // The first six are why the earlier rule was replaced. It followed a $ref
+        // only while the landed node carried a $ref of its own, on the theory that
+        // anything else consumed an instance level. Every one of these re-enters at
+        // the SAME instance location without a top-level $ref — measured, all six
+        // were admitted, built, and ended the process with SIGABRT (exit 134) on
+        // the first entry validated against them, from 157 bytes of JSON.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"$defs\":{\"a\":{" + body + "}},"
+            + "\"type\":\"object\",\"properties\":{\"x\":{\"$ref\":\"#/$defs/a\"}}}";
+
+        Refusal(_validator.AdmitSchema(document)).Values
+            .SelectMany(messages => messages)
+            .Should().Contain(m => m.Key == "lockey_schema_reference_cycles");
+    }
+
+    [Fact]
+    public void An_acyclic_reference_graph_that_expands_exponentially_is_refused()
+    {
+        // No cycle anywhere. Twenty $defs entries, each referencing the next twice,
+        // give 2^20 visits of ONE instance location — measured at 7.2 seconds and
+        // 5.7 GB of resident memory from 1,401 bytes of JSON. Refusing cycles alone
+        // does not reach this; the graph has to be costed.
+        var defs = Enumerable.Range(0, 20)
+            .Select(i => $"\"a{i}\":{{\"allOf\":[{{\"$ref\":\"#/$defs/a{i + 1}\"}},{{\"$ref\":\"#/$defs/a{i + 1}\"}}]}}")
+            .Append("\"a20\":{\"type\":\"object\"}");
+        var document = "{\"$schema\":\"" + Dialect + "\",\"$defs\":{" + string.Join(",", defs) + "},"
+            + "\"type\":\"object\",\"properties\":{\"x\":{\"$ref\":\"#/$defs/a0\"}}}";
+
+        Refusal(_validator.AdmitSchema(document)).Values
+            .SelectMany(messages => messages)
+            .Should().Contain(m => m.Key == "lockey_schema_reference_graph_too_large");
+    }
+
+    [Fact]
+    public void A_long_reference_chain_is_refused_without_paying_for_it()
+    {
+        // Two thousand links, 64 KB, inside every other declared limit. Before the
+        // graph was costed this was ADMITTED after 6.7 seconds of the profile's own
+        // walking — LearnStack's code, not the library's. The bound makes it bail.
+        var defs = Enumerable.Range(0, 2000)
+            .Select(i => $"\"a{i}\":{{\"$ref\":\"#/$defs/a{i + 1}\"}}")
+            .Append("\"a2000\":{\"type\":\"object\"}");
+        var document = "{\"$schema\":\"" + Dialect + "\",\"$defs\":{" + string.Join(",", defs) + "},"
+            + "\"type\":\"object\",\"properties\":{\"x\":{\"$ref\":\"#/$defs/a0\"}}}";
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Refusal(_validator.AdmitSchema(document)).Values
+            .SelectMany(messages => messages)
+            .Should().Contain(m => m.Key == "lockey_schema_reference_graph_too_large");
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2),
+            "the bound has to stop the walk, not merely report on it afterwards");
+    }
+
+    [Fact]
+    public void A_reference_that_lands_on_something_that_is_not_a_schema_is_refused()
+    {
+        // A fragment may name any JSON value. Measured: without this clause the
+        // builder raised a bare ArgumentException — "Schemas may only booleans or
+        // objects. Received String" — straight out of AdmitSchema, which is a 500
+        // from a port whose contract is that nothing throws.
+        var document = Schema("\"a\":{\"type\":\"string\"},\"b\":{\"$ref\":\"#/properties/a/type\"}");
+
+        Refusal(_validator.AdmitSchema(document))
+            .Should().ContainKey("/properties/b/$ref").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_reference_not_a_schema");
+    }
+
+    [Theory]
+    [InlineData("pattern")]
+    [InlineData("patternProperties")]
+    [InlineData("propertyNames")]
+    [InlineData("$id")]
+    [InlineData("$anchor")]
+    [InlineData("$dynamicRef")]
+    [InlineData("$schema")]
+    [InlineData("$ref")]
+    public void A_field_may_be_named_after_a_keyword_the_profile_bans(string fieldName)
+    {
+        // The bans read keywords, and inside `properties` the key is the author's.
+        // A knitting school's content type has a `pattern` field; refusing it for
+        // its name would be the profile mistaking data for schema. Measured: every
+        // one of these was refused before the walk learned where it was.
+        var document = Schema("\"" + fieldName + "\":{\"type\":\"string\"}");
+
         _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
-        _validator.ValidateInstance(document, "{\"a\":{\"next\":{\"next\":{}}}}")
-            .IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_banned_keyword_is_still_refused_one_level_below_an_authored_name()
+    {
+        // The other half: the VALUE under an authored name is a schema again, so
+        // its own keys are keywords. A rule that stopped checking after the first
+        // name map would let every ban be bypassed by one level of nesting.
+        Refusal(_validator.AdmitSchema(Schema("\"pattern\":{\"type\":\"string\",\"pattern\":\"^(a+)+$\"}")))
+            .Should().ContainKey("/properties/pattern/pattern").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_regex_not_permitted");
+    }
+
+    [Fact]
+    public void A_dialect_line_below_the_root_is_refused()
+    {
+        // The root clause reads root["$schema"] and saw nothing here. Measured: a
+        // draft-07 line under properties/a makes prefixItems inert for that
+        // subschema alone, so the same schema text accepts and rejects the same
+        // instance — the exact failure the root clause exists to prevent, one
+        // level down.
+        var document = Schema(
+            "\"a\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"prefixItems\":[{\"type\":\"integer\"}]}");
+
+        Refusal(_validator.AdmitSchema(document))
+            .Should().ContainKey("/properties/a/$schema").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_dialect_not_at_root");
+    }
+
+    [Fact]
+    public void An_empty_properties_object_is_refused_like_the_bare_object_it_equals()
+    {
+        // properties:{} satisfies "declares properties" and accepts 42, a string
+        // and every object alike — semantically the {} the clause above refuses.
+        Refusal(_validator.AdmitSchema(Schema("")))
+            .Should().ContainKey("/properties").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_root_must_declare_properties");
     }
 
     [Theory]
@@ -312,12 +447,33 @@ public sealed class JsonSchemaNetValidatorTests
     // ── Gate 3: the meta-schema ─────────────────────────────────────────────
 
     [Theory]
-    [InlineData("\"a\":{\"type\":42}")]
-    [InlineData("\"a\":{\"required\":\"word\"}")]
-    [InlineData("\"a\":{\"minLength\":-3}")]
-    public void A_document_that_is_not_a_valid_schema_is_refused(string properties)
+    [InlineData("\"a\":{\"type\":42}", "/properties/a/type")]
+    [InlineData("\"a\":{\"required\":\"word\"}", "/properties/a/required")]
+    [InlineData("\"a\":{\"minLength\":-3}", "/properties/a/minLength")]
+    [InlineData("\"a\":{\"type\":\"object\",\"properties\":{\"b\":{\"maxItems\":-1}}}",
+        "/properties/a/properties/b/maxItems")]
+    public void A_document_that_is_not_a_valid_schema_is_refused_at_the_offending_keyword(
+        string properties, string at)
     {
-        _validator.AdmitSchema(Schema(properties)).IsSuccess.Should().BeFalse();
+        // The POINTER is the assertion, not merely the refusal. Gate 4 refuses all
+        // four of these too, with a message and no location — so a test that only
+        // checked IsSuccess would pass with gate 3 deleted, and gate 3 is the gate
+        // that exists to name where the author went wrong.
+        Refusal(_validator.AdmitSchema(Schema(properties)))
+            .Should().ContainKey(at).WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_not_valid_json_schema");
+    }
+
+    [Fact]
+    public void A_refusal_names_only_the_keyword_that_failed()
+    {
+        // OutputFormat.List reports the losing branches of an anyOf that
+        // ultimately succeeded. Measured: the meta-schema types `type` as
+        // anyOf[simpleType, array-of-simpleType], so a schema whose only fault is
+        // minLength also reported `/type` — telling the author a correct field is
+        // wrong.
+        Refusal(_validator.AdmitSchema(Schema("\"a\":{\"minLength\":-3}")))
+            .Keys.Should().NotContain("/type");
     }
 
     // ── Gate 4 admits what the corpus's own examples declare ────────────────
@@ -408,20 +564,47 @@ public sealed class JsonSchemaNetValidatorTests
     // ── Isolation ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void One_schemas_identifier_never_reaches_another_build()
+    public void Each_build_gets_its_own_registry_so_one_identifier_cannot_lock_another_out()
     {
         // The library's default registry is process-global: the first writer of an
-        // $id wins and every later build of it raises for the life of the process.
-        // The profile refuses $id outright, and the adapter builds against a fresh
-        // registry — so neither half can be reached. This proves the second half by
-        // admitting the same document twice, which a shared registry would refuse.
-        var document = Schema("\"a\":{\"type\":\"string\"}");
+        // $id wins, and every later build of that $id raises "Overwriting
+        // registered schemas is not permitted" for the life of the process — one
+        // tenant locking another out of saving.
+        //
+        // Gate 2 refuses $id, so this cannot be reached through AdmitSchema, and a
+        // test that went through it would pass with the argument deleted. It is
+        // observable through ValidateInstance, which builds whatever schema text it
+        // is handed: with a fresh registry per build the same $id builds twice;
+        // with the process-global default the second raises.
+        var withIdentifier = "{\"$schema\":\"" + Dialect + "\",\"$id\":\"https://tenant-a.example/s\","
+            + "\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}}}";
 
-        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
-        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+        _validator.ValidateInstance(withIdentifier, "{\"a\":\"x\"}").IsSuccess.Should().BeTrue();
+        _validator.ValidateInstance(withIdentifier, "{\"a\":\"y\"}").IsSuccess.Should().BeTrue();
 
-        var second = new JsonSchemaNetValidator();
-        second.AdmitSchema(document).IsSuccess.Should().BeTrue();
+        // A second instance of the adapter shares the process, so it shares the
+        // default registry too — which is the half that would actually bite.
+        new JsonSchemaNetValidator()
+            .ValidateInstance(withIdentifier, "{\"a\":\"z\"}").IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Each_build_pins_the_dialect_so_a_document_without_the_line_still_evaluates()
+    {
+        // The library's default dialect is https://json-schema.org/v1/2026, whose
+        // AllowUnknownKeywords is false — an x- extension raises there. Gate 2
+        // requires the $schema line, so this too is unobservable through
+        // AdmitSchema and a test that went through it would pass with the pin
+        // deleted. ValidateInstance builds what it is handed, so the pin is what
+        // stands between it and a JsonSchemaException on a stored schema.
+        var noDialectLine = "{\"type\":\"object\",\"properties\":"
+            + "{\"level\":{\"type\":\"string\",\"x-taxonomy\":\"cefr\"}}}";
+
+        var act = () => _validator.ValidateInstance(noDialectLine, "{\"level\":\"b2\"}");
+
+        act.Should().NotThrow(
+            "the adapter pins draft 2020-12 per call rather than taking the library's default");
+        _validator.ValidateInstance(noDialectLine, "{\"level\":\"b2\"}").IsSuccess.Should().BeTrue();
     }
 
     [Fact]

@@ -108,6 +108,15 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
             {
                 return Fail("", "lockey_schema_not_buildable", exception.Message);
             }
+            catch (ArgumentException exception)
+            {
+                // The builder raises a bare ArgumentException for shapes it will
+                // not accept — measured, "Schemas may only booleans or objects" for
+                // a $ref landing on a string. Gate 2 refuses that one now, and this
+                // clause exists so the next such shape is a 400 rather than the 500
+                // the port's own contract says it will never produce.
+                return Fail("", "lockey_schema_not_buildable", exception.Message);
+            }
         }
 
         return Result.Ok(None.Value);
@@ -174,36 +183,81 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     }
 
     /// <summary>
-    /// Turns an evaluation's located failures into pointer-keyed details.
+    /// The genuinely failing nodes of an evaluation, as pointer-keyed details.
     /// </summary>
     /// <remarks>
-    /// A result carries one node per subschema and only some of them have errors;
-    /// the rest are annotations. Bounded by <see cref="ProfileFailures"/> for the
-    /// reason stated there — a pathological document fails on every node, and three
-    /// sinks read <c>Details</c>.
+    /// <para>
+    /// <c>OutputFormat.List</c> is <b>flat</b> — every node is a direct child of
+    /// the root — so a losing branch cannot be pruned by walking a tree. Each node
+    /// does carry its own <c>EvaluationPath</c>, and that is the discriminator: a
+    /// node whose path has a <b>passing</b> prefix belongs to a branch of an
+    /// applicator that ultimately succeeded.
+    /// </para>
+    /// <para>
+    /// Measured, on a schema whose only fault is <c>minLength: -3</c>: the node at
+    /// instance location <c>/type</c> carries evaluation path
+    /// <c>/allOf/3/$ref/properties/type/anyOf/1</c>, and the node at
+    /// <c>/allOf/3/$ref/properties/type</c> is valid — the meta-schema types
+    /// <c>type</c> as <c>anyOf[simpleType, array-of-simpleType]</c> and the array
+    /// branch loses on <c>"object"</c> while the keyword passes. Reporting that
+    /// pointer tells an author a correct field is wrong, which is worse than
+    /// reporting one pointer fewer.
+    /// </para>
+    /// <para>
+    /// Bounded by <see cref="ProfileFailures"/> for the reason stated there — a
+    /// pathological document fails at every node, and three sinks read
+    /// <c>Details</c>.
+    /// </para>
     /// </remarks>
     private static ProfileFailures Collect(EvaluationResults results, string localizationKey)
     {
+        var nodes = Flatten(results).ToList();
+
+        var passing = nodes
+            .Where(node => node.IsValid)
+            .Select(node => node.EvaluationPath.ToString())
+            .ToHashSet(StringComparer.Ordinal);
+
         var failures = new ProfileFailures();
 
-        foreach (var detail in Flatten(results))
+        foreach (var node in nodes)
         {
-            if (detail.Errors is not { Count: > 0 })
+            if (node.IsValid
+                || node.Errors is not { Count: > 0 }
+                || HasPassingAncestor(node.EvaluationPath.ToString(), passing))
             {
                 continue;
             }
 
-            failures.Add(detail.InstanceLocation.ToString(), localizationKey);
+            failures.Add(node.InstanceLocation.ToString(), localizationKey);
         }
 
         if (!failures.Any)
         {
-            // A result can be invalid with every error on a nested node the walk
-            // did not reach. Reporting nothing would be a 400 with no reason.
+            // Every located failure was pruned, or the evaluator reported none at
+            // all. A refusal with no reason tells the author no without telling
+            // them why, which is the one outcome worse than a wrong pointer.
             failures.Add("", localizationKey);
         }
 
         return failures;
+    }
+
+    /// <summary>
+    /// Whether a proper prefix of <paramref name="evaluationPath"/>, at a segment
+    /// boundary, is the path of a node that passed.
+    /// </summary>
+    private static bool HasPassingAncestor(string evaluationPath, HashSet<string> passing)
+    {
+        for (var cut = evaluationPath.LastIndexOf('/'); cut > 0; cut = evaluationPath.LastIndexOf('/', cut - 1))
+        {
+            if (passing.Contains(evaluationPath[..cut]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IEnumerable<EvaluationResults> Flatten(EvaluationResults results)

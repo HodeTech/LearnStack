@@ -30,11 +30,15 @@ namespace LearnStack.SharedKernel.Validation;
 /// depend on Customization to reach a library wrapper.
 /// </para>
 /// <para>
-/// <b>Nothing here names a library type, and nothing throws.</b> Both members
-/// return <see cref="Result{T}"/> because a tenant's authoring mistake is a 400
-/// with a JSON pointer, not an exception — and an <c>ArgumentException</c>
+/// <b>Nothing here names a library type, and no tenant input throws.</b> Both
+/// members return <see cref="Result{T}"/> because a tenant's authoring mistake is
+/// a 400 with a JSON pointer, not an exception — and an <c>ArgumentException</c>
 /// escaping a handler has no entry in the status map and becomes a 500, which
-/// this repository has already paid for once. The compiled schema does not
+/// this repository has already paid for once. There is exactly one exception, and
+/// it is not about tenant input: <see cref="ValidateInstance"/> throws
+/// <see cref="InvalidOperationException"/> when the schema it was handed does not
+/// build, because that means a row was written past this gate and a 500 is the
+/// honest answer. The compiled schema does not
 /// outlive a call: compiling is measured cheaper than evaluating, so
 /// <see href="../../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043
 /// § 6</see> deletes the cache § 8.2 used to mandate.

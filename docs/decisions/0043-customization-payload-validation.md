@@ -531,6 +531,13 @@ enforces:
   indirection when the node it lands on carries a `$ref` of its own — including
   beside other keywords, because in draft 2020-12 `$ref` applies alongside its
   siblings and re-enters at the same instance location.
+
+  > **Erratum (2026-09-05).** This clause is too narrow, and Amendment 2 replaces
+  > it. "Carries a `$ref` of its own" misses every in-place applicator —
+  > `allOf`, `anyOf`, `oneOf`, `not`, `if`, `dependentSchemas` — each of which
+  > re-enters at the same instance location without the landed node carrying a
+  > top-level `$ref`. Measured while implementing § 3: six such documents, the
+  > smallest 157 bytes, were admitted and ended the process.
 - **Productive recursion stays legal.** A `$ref` under `properties` consumes one
   instance level per hop, so it terminates, and the reader's own nesting ceiling
   bounds the instance. Refusing it would cost a shape the draft permits for no
@@ -545,6 +552,66 @@ schema positions instead would mean enumerating every applicator keyword, and on
 missed from that list is a hole rather than a stricter bound.
 [Tenant Customization Model § 8.4](../architecture/32-tenant-customization-model.md)
 now states the unit.
+
+### Amendment 2 — every cycle, and a bound on the graph (2026-09-05)
+
+Amendment 1 replaced a rule that was measured on the wrong case. Its replacement
+was measured on the right case and is still too narrow, which is worth recording
+plainly: the shape of this defect is that each rule was written from the last
+example rather than from the mechanism.
+
+**What Amendment 1 got wrong.** It defines a non-productive hop as one where "the
+node it lands on carries a `$ref` of its own". Every in-place applicator re-enters
+at the same instance location without doing that. Measured, on the pinned 8.0.5,
+each of these was **admitted by the gate, built by the library, and ended the
+process** (SIGABRT) on the first entry validated against it:
+
+| `$defs.a` | bytes | outcome |
+|---|---|---|
+| `{"allOf":[{"$ref":"#/$defs/a"}]}` | 161 | admitted → exit 134 |
+| `{"anyOf":[…]}` / `{"oneOf":[…]}` | 161 | admitted → exit 134 |
+| `{"not":{"$ref":"#/$defs/a"}}` | 157 | admitted → exit 134 |
+| `{"if":{"$ref":"#/$defs/a"}}` | 156 | admitted → exit 134 |
+| `{"dependentSchemas":{"k":{"$ref":"#/$defs/a"}}}` | 176 | admitted |
+
+**Acyclic is not safe either.** Twenty `$defs` entries of the form
+`{"allOf":[{"$ref":"#/$defs/next"},{"$ref":"#/$defs/next"}]}` — 1,401 bytes, no
+cycle anywhere — expand to 2^20 visits of one instance location: measured at
+**7.2 seconds and 5.7 GB** of resident memory. And a plain 2,000-link chain, 64
+KB, cost **6.7 seconds inside the profile's own walk** and was then admitted.
+
+**The rule, replacing Amendment 1's:**
+
+- Every `$ref` resolves inside the document, and its target is a schema — an
+  object or a boolean. A fragment may name any JSON value, and one naming a string
+  made the builder raise a bare `ArgumentException` out of `AdmitSchema`.
+- **Every** `$ref` cycle is refused, not only a "non-productive" one. Recursive
+  schemas are given up: distinguishing the terminating case means enumerating
+  every in-place applicator, and the cost of getting that list wrong is a process
+  rather than a wrong answer. No document in the corpus uses recursion, and its
+  entry-to-entry cousin is already capped at depth two by § 8.3.
+- The reference graph is **costed** — one plus the cost of every `$ref` in a
+  node's subtree, memoized, `$defs` containers excluded — and refused past 1,000
+  expansions. This is what closes the acyclic fan-out, and it is also what makes
+  the long chain cheap to refuse rather than expensive to admit.
+
+**Three further clauses the same implementation pass measured into existence**,
+none of which § 3 licensed:
+
+- `$schema` is refused **anywhere but the root**. A draft-07 line under
+  `properties/a` makes `prefixItems` inert for that subschema alone — the root
+  clause's own failure, one level down.
+- `properties: {}` is refused. It satisfies "declares properties" and is
+  semantically the bare `{}` the clause above it refuses.
+- The keyword bans read **keywords**, not author-chosen names. Inside `properties`,
+  `$defs`, `patternProperties`, `dependentSchemas` and `dependentRequired` the key
+  belongs to the tenant, and a content type with a field called `pattern` is
+  ordinary. Missing an entry from that list refuses a legal field name rather than
+  admitting a regex, which is the direction such a list must fail in.
+
+`$anchor` is refused alongside `$id`, `$dynamicAnchor` and `$dynamicRef`; § 3's
+row named three of the four and the code has always refused all four, since a
+plain-name fragment has nothing to resolve against once `$anchor` is gone.
 
 ## References
 

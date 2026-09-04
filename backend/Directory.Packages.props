@@ -24,6 +24,8 @@
     <!-- Application infrastructure (per-module Application projects) -->
     <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
+
+    <!-- Validation adapter (LearnStack.Infrastructure.Validation only) -->
     <!-- JSON Schema draft 2020-12 evaluation for tenant-authored schemas (ADR-0043).
          PINNED AT 8.0.5 AND IT IS A CEILING, NOT A HOLD: 8.0.5 is the last release
          whose whole resolved graph (JsonPointer.Net 6.0.1, Json.More.Net 2.2.0,
