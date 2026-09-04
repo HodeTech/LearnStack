@@ -68,11 +68,41 @@ public abstract class CustomizationDefinition<TId>
     : AuditableEntity<TId>, ITenantOwned
     where TId : struct, IStronglyTypedId<Guid>, IEquatable<TId>
 {
-    protected CustomizationDefinition(TId id)
+    /// <remarks>
+    /// A constructor rather than a <c>protected void Initialize…</c> a derived
+    /// factory has to remember to call. The base's own fields are what the base
+    /// exists to guarantee, and an initializer method leaves a fully constructed
+    /// object whose non-nullable <see cref="Key"/> is null and whose
+    /// <see cref="SchemaVersion"/> is the zero its own guard refuses — reachable by
+    /// forgetting one line, and reachable silently.
+    /// </remarks>
+    protected CustomizationDefinition(
+        TId id,
+        TenantId tenantId,
+        string key,
+        int schemaVersion,
+        LocalizedText displayName)
         : base(id)
     {
-        Key = null!;
-        DisplayName = null!;
+        TenantOwnership.EnsureRealTenant(
+            tenantId, "A customization definition belongs to a tenant.", nameof(tenantId));
+        CustomizationKey.EnsureValid(key, nameof(key));
+        ArgumentNullException.ThrowIfNull(displayName);
+
+        if (schemaVersion < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(schemaVersion),
+                schemaVersion,
+                "A schema version starts at 1; there is no revision zero to reference.");
+        }
+
+        TenantId = tenantId;
+        Key = key;
+        SchemaVersion = schemaVersion;
+        SchemaRevision = 0;
+        Status = CustomizationStatus.Draft;
+        DisplayName = displayName;
     }
 
     // EF materialization.
@@ -103,37 +133,6 @@ public abstract class CustomizationDefinition<TId>
 
     /// <summary>The tenant's label for this concept, per authored locale.</summary>
     public LocalizedText DisplayName { get; private set; }
-
-    /// <summary>
-    /// Stamps the fields every definition carries. Called by a derived factory
-    /// after its own validation and before <see cref="AuditableEntity{TId}.MarkCreated"/>.
-    /// </summary>
-    protected void InitializeDefinition(
-        TenantId tenantId,
-        string key,
-        int schemaVersion,
-        LocalizedText displayName)
-    {
-        TenantOwnership.EnsureRealTenant(
-            tenantId, "A customization definition belongs to a tenant.", nameof(tenantId));
-        CustomizationKey.EnsureValid(key, nameof(key));
-        ArgumentNullException.ThrowIfNull(displayName);
-
-        if (schemaVersion < 1)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(schemaVersion),
-                schemaVersion,
-                "A schema version starts at 1; there is no revision zero to reference.");
-        }
-
-        TenantId = tenantId;
-        Key = key;
-        SchemaVersion = schemaVersion;
-        SchemaRevision = 0;
-        Status = CustomizationStatus.Draft;
-        DisplayName = displayName;
-    }
 
     /// <summary>
     /// Makes this revision the live definition of its concept.

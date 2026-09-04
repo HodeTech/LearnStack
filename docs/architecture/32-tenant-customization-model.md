@@ -158,17 +158,27 @@ domain lives in the row's display name and its schema, not in the registry.
 ```json
 {
   "key": "cefr",
-  "display_name": "Common European Framework",
+  "display_name": { "en": "Common European Framework", "tr": "Avrupa Dil Portfolyosu" },
   "items": [
-    { "key": "A1", "display_name": "Beginner",     "sort": 1, "metadata": { "color": "#e74c3c" } },
-    { "key": "A2", "display_name": "Elementary",   "sort": 2, "metadata": { "color": "#e67e22" } },
-    { "key": "B1", "display_name": "Intermediate", "sort": 3, "metadata": { "color": "#f39c12" } },
-    { "key": "B2", "display_name": "Upper-Int.",   "sort": 4, "metadata": { "color": "#27ae60" } },
-    { "key": "C1", "display_name": "Advanced",     "sort": 5, "metadata": { "color": "#2980b9" } },
-    { "key": "C2", "display_name": "Mastery",      "sort": 6, "metadata": { "color": "#8e44ad" } }
+    { "key": "a1", "display_name": { "en": "A1 Beginner",     "tr": "A1 Başlangıç" },   "sort": 1, "metadata": { "color": "#e74c3c" } },
+    { "key": "a2", "display_name": { "en": "A2 Elementary",   "tr": "A2 Temel" },        "sort": 2, "metadata": { "color": "#e67e22" } },
+    { "key": "b1", "display_name": { "en": "B1 Intermediate", "tr": "B1 Orta" },         "sort": 3, "metadata": { "color": "#f39c12" } },
+    { "key": "b2", "display_name": { "en": "B2 Upper-Int.",   "tr": "B2 Orta-üstü" },    "sort": 4, "metadata": { "color": "#27ae60" } },
+    { "key": "c1", "display_name": { "en": "C1 Advanced",     "tr": "C1 İleri" },        "sort": 5, "metadata": { "color": "#2980b9" } },
+    { "key": "c2", "display_name": { "en": "C2 Mastery",      "tr": "C2 Ustalık" },      "sort": 6, "metadata": { "color": "#8e44ad" } }
   ]
 }
 ```
+
+**The item `key` is lowercase; the CEFR band name is the `display_name`.** An item
+key is referenced from a tenant-authored schema as `levelKey: "b2"`, reaches a URL
+filter, and is part of the row's primary key — so it carries the same
+lowercase-alphanumeric shape as a concept key, and for the same reason
+`TenantLocale` canonicalizes a locale tag: `A1` and `a1` must not be two rows
+naming one band. Earlier revisions of this example wrote the keys as `A1`…`C2`,
+which the shipped aggregate refuses. `display_name` is where `A1` belongs, and
+being a Pattern B map it is also where a tenant writes the band's name in each
+locale it publishes.
 
 `tenant_scoring_rules` for CEFR placement test:
 

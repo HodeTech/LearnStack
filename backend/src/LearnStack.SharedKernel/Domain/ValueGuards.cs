@@ -107,8 +107,9 @@ public static class TenantOwnership
 public static partial class UrlSlug
 {
     /// <summary>
-    /// The width every slug column maps — a DNS label, which is the narrowest
-    /// consumer. A key that is not a hostname may map less; it may not map more.
+    /// The width every slug column in the Tenancy schema maps — a DNS label.
+    /// A key that reuses this SHAPE without being a hostname declares its own
+    /// width; see <c>CustomizationKey.MaxLength</c>.
     /// </summary>
     /// <remarks>
     /// Named rather than written at each call site because two layers read it: the

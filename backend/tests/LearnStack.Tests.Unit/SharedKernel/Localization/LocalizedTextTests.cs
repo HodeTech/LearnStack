@@ -94,19 +94,31 @@ public sealed class LocalizedTextTests
     }
 
     [Fact]
-    public void Resolve_falls_back_to_the_language_subtag_but_never_widens_the_other_way()
+    public void Resolve_narrows_one_subtag_at_a_time_rather_than_jumping_to_the_language()
     {
-        var languageOnly = LocalizedText.From(("en", "Colour"));
-        var regionOnly = LocalizedText.From(("en-US", "Color"));
+        // Both scripts authored: a request for Traditional must not be answered in
+        // Simplified. Jumping straight to the primary subtag did exactly that.
+        var chinese = LocalizedText.From(("zh", "简体"), ("zh-Hant", "繁體"));
+        chinese.Resolve("zh-Hant-TW").Should().Be("繁體");
+        chinese.Resolve("zh-Hans-CN").Should().Be("简体", "zh-Hans is not authored, zh is");
 
-        // A request for en-US is answered by en …
-        languageOnly.Resolve("en-US").Should().Be("Colour");
+        // And an intermediate tag is reached before the caller's chain is consulted.
+        var english = LocalizedText.From(("de", "Deutsch"), ("en-US", "American"));
+        english.Resolve("en-US-posix").Should().Be("American");
+    }
 
-        // … but a request for `en` is NOT answered by `en-US` through this step.
-        // Narrowing is documented; widening would pick a region the caller did not
-        // ask for, and with two regions authored it would pick one arbitrarily.
-        regionOnly.Resolve("en", ["fr"]).Should().Be("Color",
-            "the chain is exhausted, so the last resort answers — not the subtag step");
+    [Fact]
+    public void Resolve_never_widens_towards_a_region_the_caller_did_not_ask_for()
+    {
+        // Built so that widening and the last resort give DIFFERENT answers:
+        // ordinal-first is `aa`, so a widened lookup returns "US" and the
+        // documented behaviour returns "AA". An earlier version of this test used a
+        // single-entry fixture where both branches returned the same string, and it
+        // passed with the guard deleted.
+        var text = LocalizedText.From(("aa", "AA"), ("en-US", "US"));
+
+        text.Resolve("en").Should().Be("AA",
+            "`en-US` is not an answer to `en`; narrowing is documented, widening is not");
     }
 
     [Fact]
@@ -120,13 +132,25 @@ public sealed class LocalizedTextTests
     }
 
     [Fact]
-    public void Resolve_ignores_blank_entries_in_the_chain()
+    public void Resolve_steps_over_a_blank_chain_entry_instead_of_stopping_at_it()
     {
-        var text = LocalizedText.From(("en", "Beginner"));
+        // Two entries, so stepping over the hole and stopping at it give different
+        // answers: `aa` is ordinal-first and would win if the walk broke early.
+        var text = LocalizedText.From(("aa", "AA"), ("en", "Beginner"));
 
-        // A tenant with no default locale set yields a chain with a hole in it;
-        // the hole must not short-circuit the rest.
+        // A tenant with no default locale set yields a chain with a hole in it.
         text.Resolve("fr", ["", "en"]).Should().Be("Beginner");
+    }
+
+    [Fact]
+    public void Resolve_canonicalizes_the_requested_tag_before_looking_it_up()
+    {
+        // `aa` is ordinal-first, so a lookup that skipped canonicalization would
+        // miss `en-US`, exhaust the chain and answer "AA".
+        var text = LocalizedText.From(("aa", "AA"), ("en-US", "US"));
+
+        text.Resolve("EN-us").Should().Be("US");
+        text.Resolve("en-us").Should().Be("US");
     }
 
     [Fact]
@@ -182,8 +206,51 @@ public sealed class LocalizedTextTests
 
         a.Should().Be(b);
         a.GetHashCode().Should().Be(b.GetHashCode());
-        a.Should().NotBe(LocalizedText.From(("en", "Novice")));
+
+        // Same locales, different values — the comparison this test used to skip,
+        // and the only one that exercises Equals' value half.
+        var sameKeysOtherValues = LocalizedText.From(("en", "Novice"), ("tr", "Acemi"));
+        a.Should().NotBe(sameKeysOtherValues);
+
+        // Same values, one extra locale.
+        a.Should().NotBe(
+            LocalizedText.From(("en", "Beginner"), ("tr", "Başlangıç"), ("de", "Anfänger")));
+
+        // `==` binds to the operator, not to reference identity. Without the
+        // operator pair the next line fails while Should().Be(b) passes — which is
+        // why it is asserted separately rather than trusted to follow.
+        (a == b).Should().BeTrue();
+        (a != b).Should().BeFalse();
+        (a == sameKeysOtherValues).Should().BeFalse();
+
+        LocalizedText? absent = null;
+        (a == absent).Should().BeFalse();
+        (absent == null).Should().BeTrue();
+        (absent != a).Should().BeTrue();
     }
+
+    [Fact]
+    public void FromJson_refuses_a_duplicate_key_exactly_as_From_does()
+    {
+        // A dictionary deserializer keeps the last value silently. A reader that
+        // accepts what the writer refuses is the gap the next importer walks
+        // straight through.
+        var act = () => LocalizedText.FromJson(DuplicateKeyJson);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*appears twice*");
+    }
+
+    [Fact]
+    public void FromJson_names_the_locale_whose_value_is_not_a_string()
+    {
+        var act = () => LocalizedText.FromJson(NumberValueJson);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*'tr' holds Number*");
+    }
+
+    private const string DuplicateKeyJson = "{\"en\":\"Beginner\",\"en\":\"Novice\"}";
+
+    private const string NumberValueJson = "{\"en\":\"Beginner\",\"tr\":42}";
 
     [Fact]
     public void Has_reports_only_what_was_authored()

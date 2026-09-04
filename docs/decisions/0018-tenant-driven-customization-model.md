@@ -497,6 +497,34 @@ quietly implied to be customization.
 The Decision above is unchanged: domain-specific shapes remain tenant customization
 data, and there is no `Verticals/` folder.
 
+### 2026-09-04 — Customization keys and item keys are lowercase
+
+The worked examples in this ADR predate any rule about the *shape* of a key, and
+two of them teach a shape the shipped code refuses. § Content type definition
+writes `"key": "vocabulary-card"`, which is correct; § Level taxonomy writes its
+items as `"key": "A1"` … `"C2"`, which is not.
+
+**The rule, as implemented in
+[Phase 02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md):** a customization
+key — a concept key and an item key alike — is lowercase alphanumeric with single
+interior hyphens, at most 100 characters. It is the shape
+[Database Standards](../standards/05-database.md) already applies to a slug, and
+the reasons are the same three: the key reaches a URL segment, it is a component
+of a cache key (where `CacheKey.EnsureValid` refuses a `:` because a separator
+inside a component collides two tuples), and it is part of a primary key — so
+`A1` and `a1` must not be two rows naming one band, exactly as `en-US` and
+`en-us` must not be two locales.
+
+**The band name is the `display_name`, not the key.** `display_name` is a Pattern
+B localized map ([Localization Standards](../standards/08-localization.md)), so
+`A1` is what a tenant writes there, in each locale it publishes — which is also
+the only place it can be translated.
+
+The Decision above is unchanged. What changes is that two illustrative JSON
+blocks in it show a key shape the platform does not accept; the corrected form is
+in [32-tenant-customization-model.md § 3](../architecture/32-tenant-customization-model.md),
+which is the document the implementation follows.
+
 ## References
 
 - **Supersedes** ADR-0011 (Extension Points).

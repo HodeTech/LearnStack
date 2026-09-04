@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using LearnStack.SharedKernel;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
@@ -82,8 +83,9 @@ public static class CustomizationKey
 /// Customization Model § 2</see>; this is the backend's copy, and it exists because
 /// § 8.1 requires renderer resolution to be checked <b>on saving</b> — a stale
 /// reference must fail the author's request, not render a fallback on a learner's
-/// page. <c>Composite_Renderer_Keys_Match_The_Frontend_Registry</c> holds the two
-/// copies together.
+/// page. <c>Composite_Renderer_Keys_Match_The_Frontend_Registry</c> holds this copy
+/// and <c>composites.ts</c> together; without it the two drift silently, which is
+/// what the same document's primitive list did until Packet 8 reconciled it.
 /// </para>
 /// <para>
 /// <b>Every key names a capability, never a domain.</b> A <c>cefr-level-badge</c>
@@ -97,7 +99,15 @@ public static class CustomizationKey
 /// </remarks>
 public static class CompositeRendererKey
 {
-    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+    /// <remarks>
+    /// A <c>FrozenSet</c> rather than a <c>HashSet</c> behind an
+    /// <c>IReadOnlySet</c>: the latter is one cast away from being mutable, and a
+    /// set the whole platform's genericity claim rests on should not be widened by
+    /// anything but a release. Ordinal and case-sensitive — <c>Default-Card</c> is
+    /// not this key, and admitting it would put a second spelling into a cache-key
+    /// component.
+    /// </remarks>
+    public static readonly FrozenSet<string> All = new[]
     {
         "default-card",
         "content-list",
@@ -108,7 +118,7 @@ public static class CompositeRendererKey
         "placement-shell",
         "live-shell",
         "submission-shell",
-    };
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     public static bool IsKnown(string value) =>
         !string.IsNullOrWhiteSpace(value) && All.Contains(value);

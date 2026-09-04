@@ -138,29 +138,43 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
     {
         JsonValue.EnsureWellFormed(json, parameterName);
 
-        Dictionary<string, string>? parsed;
+        // Enumerated rather than deserialized into a dictionary. A dictionary
+        // collapses `{"en":"a","en":"b"}` to the last value silently, which is the
+        // one duplication From() refuses — a reader that accepts what the writer
+        // rejects is a gap the next importer walks straight through.
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
 
-        try
-        {
-            parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-        }
-        catch (JsonException exception)
-        {
-            throw new ArgumentException(
-                "A localized value is a JSON object of locale to string: "
-                + exception.Message,
-                parameterName,
-                exception);
-        }
-
-        if (parsed is null)
+        if (root.ValueKind == JsonValueKind.Null)
         {
             throw new ArgumentException(
                 "A localized value is a JSON object of locale to string, not null.",
                 parameterName);
         }
 
-        return From(parsed, parameterName);
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new ArgumentException(
+                $"A localized value is a JSON object of locale to string, not {root.ValueKind}.",
+                parameterName);
+        }
+
+        var pairs = new List<KeyValuePair<string, string>>();
+
+        foreach (var property in root.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException(
+                    $"'{property.Name}' holds {property.Value.ValueKind}; a localized value "
+                    + "is a JSON object of locale to string.",
+                    parameterName);
+            }
+
+            pairs.Add(new KeyValuePair<string, string>(property.Name, property.Value.GetString()!));
+        }
+
+        return From(pairs, parameterName);
     }
 
     /// <summary>The <c>jsonb</c> form: a flat object of canonical locale to value.</summary>
@@ -189,14 +203,19 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
             return direct;
         }
 
-        // The language subtag: a tenant that authored `tr` answers a request for
-        // `tr-TR`. Not the reverse — `tr` is not a request for `tr-TR` — so this
-        // step narrows and never widens.
-        var separator = requested.IndexOf('-', StringComparison.Ordinal);
-
-        if (separator > 0 && _values.TryGetValue(requested[..separator], out var language))
+        // Narrow one subtag at a time, never widen: `zh-Hant-TW` asks `zh-Hant`
+        // before `zh`, and `tr` is never treated as a request for `tr-TR`. Jumping
+        // straight to the primary subtag — which this did — answers a request for
+        // Traditional Chinese in Simplified whenever a tenant authored both, and
+        // the type's own error message advertises `zh-Hans-CN` as a supported
+        // shape. This is RFC 4647's lookup, and the corpus's "try the language
+        // part" is its last iteration rather than its only one.
+        for (var cut = requested.LastIndexOf('-'); cut > 0; cut = requested.LastIndexOf('-', cut - 1))
         {
-            return language;
+            if (_values.TryGetValue(requested[..cut], out var narrower))
+            {
+                return narrower;
+            }
         }
 
         if (fallbackChain is not null)
@@ -233,6 +252,19 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
                     && string.Equals(pair.Value, value, StringComparison.Ordinal))));
 
     public override bool Equals(object? obj) => Equals(obj as LocalizedText);
+
+    /// <remarks>
+    /// Defined for the reason <c>Entity&lt;TId&gt;</c> defines them: without the
+    /// pair, <c>a == b</c> binds to reference equality and answers <c>false</c> for
+    /// two instances holding the same map, while <c>a.Equals(b)</c> answers
+    /// <c>true</c>. The compiler warns about the reverse omission and not this one,
+    /// so nothing but a test catches it.
+    /// </remarks>
+    public static bool operator ==(LocalizedText? left, LocalizedText? right) =>
+        left is null ? right is null : left.Equals(right);
+
+    public static bool operator !=(LocalizedText? left, LocalizedText? right) =>
+        !(left == right);
 
     public override int GetHashCode()
     {

@@ -36,11 +36,18 @@ namespace LearnStack.Modules.Customization.Domain;
 public sealed class TenantContentType
     : CustomizationDefinition<TenantContentTypeId>, IAggregateRoot<TenantContentTypeId>
 {
-    private TenantContentType(TenantContentTypeId id)
-        : base(id)
+    private TenantContentType(
+        TenantContentTypeId id,
+        TenantId tenantId,
+        string key,
+        int schemaVersion,
+        LocalizedText displayName,
+        string jsonSchema,
+        string rendererKey)
+        : base(id, tenantId, key, schemaVersion, displayName)
     {
-        JsonSchema = null!;
-        RendererKey = null!;
+        JsonSchema = jsonSchema;
+        RendererKey = rendererKey;
     }
 
     // EF materialization.
@@ -81,13 +88,9 @@ public sealed class TenantContentType
         JsonValue.EnsureWellFormed(jsonSchema, nameof(jsonSchema));
         CompositeRendererKey.EnsureKnown(rendererKey, nameof(rendererKey));
 
-        var contentType = new TenantContentType(id)
-        {
-            JsonSchema = jsonSchema,
-            RendererKey = rendererKey,
-        };
+        var contentType = new TenantContentType(
+            id, tenantId, key, schemaVersion, displayName, jsonSchema, rendererKey);
 
-        contentType.InitializeDefinition(tenantId, key, schemaVersion, displayName);
         contentType.MarkCreated(clock.UtcNow, createdBy);
         return contentType;
     }

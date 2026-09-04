@@ -47,8 +47,13 @@ public sealed class TenantLevelTaxonomy
 
     private readonly List<TenantLevelTaxonomyItem> _items = [];
 
-    private TenantLevelTaxonomy(TenantLevelTaxonomyId id)
-        : base(id)
+    private TenantLevelTaxonomy(
+        TenantLevelTaxonomyId id,
+        TenantId tenantId,
+        string key,
+        int schemaVersion,
+        LocalizedText displayName)
+        : base(id, tenantId, key, schemaVersion, displayName)
     {
     }
 
@@ -79,8 +84,7 @@ public sealed class TenantLevelTaxonomy
                 nameof(id));
         }
 
-        var taxonomy = new TenantLevelTaxonomy(id);
-        taxonomy.InitializeDefinition(tenantId, key, schemaVersion, displayName);
+        var taxonomy = new TenantLevelTaxonomy(id, tenantId, key, schemaVersion, displayName);
         taxonomy.MarkCreated(clock.UtcNow, createdBy);
         return taxonomy;
     }
@@ -197,9 +201,6 @@ public sealed class TenantLevelTaxonomy
 [TenantOwned]
 public sealed class TenantLevelTaxonomyItem : ITenantOwned
 {
-    /// <summary>The width the schema maps for an item key.</summary>
-    public const int MaxKeyLength = 100;
-
     private TenantLevelTaxonomyItem()
     {
         TaxonomyKey = null!;
@@ -247,12 +248,11 @@ public sealed class TenantLevelTaxonomyItem : ITenantOwned
             tenantId, "A taxonomy item belongs to a tenant.", nameof(tenantId));
         CustomizationKey.EnsureValid(taxonomyKey, nameof(taxonomyKey));
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        MappedLength.EnsureAtMost(key, MaxKeyLength, nameof(key));
-
-        // The same shape as a customization key: an item key is referenced from a
-        // tenant-authored JSON Schema (`levelKey: "b2"`) and reaches a URL filter.
-        UrlSlug.EnsureUrlSafe(key, nameof(key));
+        // The same guard as a concept key, not a second copy of it: an item key is
+        // referenced from a tenant-authored JSON Schema (`levelKey: "b2"`), reaches
+        // a URL filter, and is half of this row's primary key. Two constants and
+        // two orderings would be two answers to one question.
+        CustomizationKey.EnsureValid(key, nameof(key));
 
         ArgumentNullException.ThrowIfNull(displayName);
 

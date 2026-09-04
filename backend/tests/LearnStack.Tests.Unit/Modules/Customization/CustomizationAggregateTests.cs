@@ -39,6 +39,17 @@ public sealed class CustomizationAggregateTests
     private const string Schema =
         """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"word":{"type":"string"}}}""";
 
+    /// <summary>
+    /// The nine keys 32-tenant-customization-model.md § 2 publishes, written out
+    /// rather than read from the type under test.
+    /// </summary>
+    private static readonly string[] DocumentedRendererKeys =
+    [
+        "default-card", "content-list", "media-gallery", "rich-page",
+        "lesson-shell", "quiz-shell", "placement-shell", "live-shell",
+        "submission-shell",
+    ];
+
     private static LocalizedText Label(string english = "Vocabulary Card") =>
         LocalizedText.From(("en", english), ("tr", "Kelime Kartı"));
 
@@ -136,18 +147,52 @@ public sealed class CustomizationAggregateTests
     }
 
     [Fact]
-    public void Every_declared_composite_renderer_is_accepted()
+    public void The_composite_renderer_set_is_the_nine_documented_keys()
     {
-        // The backend's copy of the registry has to admit the whole documented set,
-        // not only the four the frontend registers today — a key that is declared
-        // and not yet registered renders UnknownBlock rather than failing the save.
-        foreach (var key in CompositeRendererKey.All)
-        {
-            var act = () => TenantContentType.Create(
-                ContentTypeId, Tenant, "vocabulary-card", 1, Label(), Schema, key, Clock, Actor);
+        // Literals, not a projection of the set under test. The previous version of
+        // this test iterated CompositeRendererKey.All and asserted each member was
+        // in it — true of any set, including one with five keys deleted. Adding a
+        // key is a LearnStack release; this expectation is that release's second
+        // signature.
+        CompositeRendererKey.All.Should().BeEquivalentTo(DocumentedRendererKeys);
+    }
 
-            act.Should().NotThrow($"'{key}' is in the documented closed set");
-        }
+    [Theory]
+    [InlineData("lesson-shell")]
+    [InlineData("quiz-shell")]
+    [InlineData("placement-shell")]
+    [InlineData("live-shell")]
+    [InlineData("submission-shell")]
+    public void A_declared_but_not_yet_registered_shell_is_accepted(string rendererKey)
+    {
+        // The five composites.ts does not register yet. A key that is declared and
+        // unregistered renders UnknownBlock (ADR-0013); it does not fail the save.
+        var act = () => TenantContentType.Create(
+            ContentTypeId, Tenant, "vocabulary-card", 1, Label(), Schema, rendererKey, Clock, Actor);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void The_renderer_comparison_is_ordinal_and_case_sensitive()
+    {
+        // A second spelling would reach a cache-key component, where CacheKey's
+        // own rule is that one component means one tuple.
+        CompositeRendererKey.IsKnown("default-card").Should().BeTrue();
+        CompositeRendererKey.IsKnown("Default-Card").Should().BeFalse();
+        CompositeRendererKey.IsKnown(" default-card").Should().BeFalse();
+        CompositeRendererKey.IsKnown("").Should().BeFalse();
+        CompositeRendererKey.IsKnown("  ").Should().BeFalse();
+    }
+
+    [Fact]
+    public void The_renderer_set_cannot_be_widened_at_runtime()
+    {
+        // It was an IReadOnlySet over a HashSet, which is one cast away from
+        // mutable — and the set the platform's genericity claim rests on should be
+        // widened only by a release.
+        CompositeRendererKey.All.Should().BeAssignableTo<System.Collections.Frozen.FrozenSet<string>>();
+        (CompositeRendererKey.All as ICollection<string>)?.IsReadOnly.Should().NotBe(false);
     }
 
     [Fact]
@@ -384,6 +429,118 @@ public sealed class CustomizationAggregateTests
 
         act.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*not negative*");
     }
+
+    [Fact]
+    public void Every_mutator_stamps_the_audit_columns_and_advances_the_token()
+    {
+        // ADR-0039: an audited mutation is a versioned mutation, and MarkUpdated is
+        // the single primitive both route through. Only Publish was asserted, so
+        // five of the six callers could drop the call unnoticed.
+        var contentType = NewContentType();
+
+        AdvancesVersion(contentType, c => c.ReviseSchema(OtherSchema, Clock, Actor));
+        AdvancesVersion(contentType, c => c.SetRendererKey("content-list", Clock, Actor));
+        AdvancesVersion(contentType, c => c.Rename(Label("Renamed"), Clock, Actor));
+        AdvancesVersion(contentType, c => c.Publish(Clock, Actor));
+        AdvancesVersion(contentType, c => c.Deprecate(Clock, Actor));
+
+        var taxonomy = NewTaxonomy();
+        AdvancesVersion(taxonomy, t => t.AddItem("a1", Band("Beginner"), 1, null, Clock, Actor));
+        AdvancesVersion(taxonomy, t => t.RemoveItem("a1", Clock, Actor));
+    }
+
+    [Fact]
+    public void Revising_a_schema_actually_replaces_it()
+    {
+        // The revision counter moving is not evidence the body moved with it.
+        var contentType = NewContentType();
+        contentType.JsonSchema.Should().Be(Schema);
+
+        contentType.ReviseSchema(OtherSchema, Clock, Actor);
+
+        contentType.JsonSchema.Should().Be(OtherSchema);
+    }
+
+    [Fact]
+    public void A_revised_schema_must_still_be_well_formed_json()
+    {
+        var act = () => NewContentType().ReviseSchema("{", Clock, Actor);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*not well-formed JSON*");
+    }
+
+    [Fact]
+    public void Setting_a_renderer_outside_the_closed_set_is_refused_and_changes_nothing()
+    {
+        var contentType = NewContentType();
+
+        var act = () => contentType.SetRendererKey("cefr-card", Clock, Actor);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*not a composite renderer*");
+        contentType.RendererKey.Should().Be("default-card");
+    }
+
+    [Fact]
+    public void An_item_carries_back_the_payload_it_was_given()
+    {
+        // Validated on the way in and never read back, so the factory could drop
+        // either field and no test would notice.
+        var taxonomy = NewTaxonomy();
+        taxonomy.AddItem("b2", Band("Upper-Intermediate"), 4, MetadataJson, Clock, Actor);
+
+        var item = taxonomy.Items.Single();
+        item.Key.Should().Be("b2");
+        item.Sort.Should().Be(4);
+        item.Metadata.Should().Be(MetadataJson);
+        item.DisplayName.Resolve("en").Should().Be("Upper-Intermediate");
+    }
+
+    [Fact]
+    public void Adding_and_removing_an_item_each_count_as_one_additive_edit()
+    {
+        var taxonomy = NewTaxonomy();
+        taxonomy.SchemaRevision.Should().Be(0);
+
+        taxonomy.AddItem("a1", Band("Beginner"), 1, null, Clock, Actor);
+        taxonomy.SchemaRevision.Should().Be(1);
+
+        taxonomy.RemoveItem("a1", Clock, Actor);
+        taxonomy.SchemaRevision.Should().Be(2);
+    }
+
+    [Fact]
+    public void The_taxonomy_factory_refuses_what_the_content_type_factory_refuses()
+    {
+        // Three guards live in the shared base and one in each factory; asserting
+        // them on one aggregate leaves the other's path unexercised.
+        var badKey = () => NewTaxonomy("CEFR");
+        var noTenant = () => TenantLevelTaxonomy.Create(
+            TaxonomyId, TenantId.From(Guid.Empty), "cefr", 1, Label("CEFR"), Clock, Actor);
+        var noId = () => TenantLevelTaxonomy.Create(
+            Unassigned<TenantLevelTaxonomyId>(), Tenant, "cefr", 1, Label("CEFR"), Clock, Actor);
+        var zeroVersion = () => NewTaxonomy(version: 0);
+
+        badKey.Should().Throw<ArgumentException>().WithMessage("*URL-safe slug*");
+        noTenant.Should().Throw<ArgumentException>().WithMessage("*belongs to a tenant*");
+        noId.Should().Throw<ArgumentException>().WithMessage("*never assigned*");
+        zeroVersion.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*starts at 1*");
+    }
+
+    private static void AdvancesVersion<T>(T aggregate, Action<T> mutate)
+        where T : LearnStack.SharedKernel.Persistence.IOptimisticConcurrency
+    {
+        var before = aggregate.Version;
+        mutate(aggregate);
+        aggregate.Version.Should().BeGreaterThan(
+            before, "every mutation routes through MarkUpdated (ADR-0039)");
+    }
+
+    private static LocalizedText Band(string english) => LocalizedText.From(("en", english));
+
+    private const string OtherSchema =
+        "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}";
+
+    private const string MetadataJson = "{\"color\":\"#27ae60\"}";
 
     /// <summary>
     /// A Vogen id that was never assigned. <c>default(T)</c> written inline is a
