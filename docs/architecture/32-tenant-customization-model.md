@@ -60,13 +60,19 @@ const PRIMITIVE_RENDERERS = {
   math:        MathPrimitive,         // LaTeX / MathML
   link:        LinkPrimitive,
   list:        ListPrimitive,
-  tabs:        TabsPrimitive,
-  embed_html:  SanitizedHtmlPrimitive,   // DOMPurify with allow-list
-  badge:       BadgePrimitive,
-  divider:     DividerPrimitive,
-  spacer:      SpacerPrimitive,
+  tabs:         TabsPrimitive,
+  'embed-html': SanitizedHtmlPrimitive,   // DOMPurify with allow-list
 } as const;
 ```
+
+**Twelve, and the spelling is `embed-html`.** This block is the code's copy, not a second
+decision: the closed set is [ADR-0018 § Renderer architecture](../decisions/0018-tenant-driven-customization-model.md)'s,
+and `frontend/apps/web/src/lib/customization/primitives.ts` carries exactly these keys.
+An earlier version of this table listed `badge`, `divider` and `spacer` as well and
+spelled the last key `embed_html` — three primitives the ADR does not grant and a key no
+tenant row could ever match. `Generic_Primitives_Only_In_Renderer`
+([Packet 10](../roadmap/phase-02a-kernel-tenancy.md)) freezes one set; it cannot freeze
+two.
 
 These map 1:1 to JSON Schema `type` + `format` combinations:
 
@@ -83,7 +89,7 @@ These map 1:1 to JSON Schema `type` + `format` combinations:
 | `{ type: "string", format: "uri" }` | `link` (fallback) |
 | `{ type: "array" }` | `list` |
 | `{ type: "object", x-renderer: "tabs" }` | `tabs` |
-| `{ type: "string", format: "html" }` | `embed_html` (sanitised) |
+| `{ type: "string", format: "html" }` | `embed-html` (sanitised) |
 
 **Composite renderers** sit atop primitives:
 
@@ -101,6 +107,13 @@ const COMPOSITE_RENDERERS = {
   // ... small, fixed list
 } as const;
 ```
+
+The composite set is nine and closed. `composites.ts` registers the first four today;
+`lesson-shell`, `quiz-shell`, `placement-shell`, `live-shell` and `submission-shell` land
+with the phases that render them ([05](../roadmap/phase-05-education-learning-content.md),
+[08a](../roadmap/phase-08a-assessment-notifications.md), [08c](../roadmap/phase-08c-classroom.md)).
+A key that is declared here and not yet registered resolves to `UnknownBlock`
+([ADR-0013](../decisions/0013-page-block-schema-versioning.md)); it is not a second set.
 
 Adding a new primitive or composite renderer is a LearnStack release (CODEOWNERS rule on
 this folder). Tenants compose existing primitives — they cannot bring custom JSX.
@@ -123,6 +136,7 @@ domain lives in the row's display name and its schema, not in the registry.
   "display_name": "Vocabulary Card",
   "schema_version": 1,
   "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "required": ["word", "definition"],
     "properties": {
@@ -185,6 +199,7 @@ output_format: { type: "string", enum: ["A1","A2","B1","B2","C1","C2"] }
   "display_name": "Asana Pose",
   "schema_version": 1,
   "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "required": ["english_name", "sanskrit_name"],
     "properties": {
@@ -212,6 +227,7 @@ output_format: { type: "string", enum: ["A1","A2","B1","B2","C1","C2"] }
   "display_name": "Guided Sequence",
   "schema_version": 1,
   "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
       "poses":      { "type": "array", "items": { "$ref": "#/$defs/pose-ref" } },
@@ -247,6 +263,7 @@ Same modules. Different data.
   "display_name": "Code Challenge",
   "schema_version": 1,
   "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "required": ["title", "language", "starter_code", "test_suite"],
     "properties": {
@@ -373,17 +390,25 @@ display surfaces render the values.
 attempt's data. The expressions are **sandboxed**: no I/O, no arbitrary function calls,
 no infinite loops, bounded execution time.
 
-Candidate sandbox engines (ADR pending, due before Phase 08a):
+Candidate sandbox engines — **ADR-0025**, due in
+[Phase 05](../roadmap/phase-05-education-learning-content.md), which is where the
+evaluator lights up:
 
 - **CEL (Common Expression Language)** — Google's expression language; widely deployed
-  (Kubernetes, Envoy, IAM); has a .NET port (`cel-dotnet`).
+  (Kubernetes, Envoy, IAM); has a .NET port (`cel-dotnet`). Dialect token `cel`.
 - **Restricted Lua** — embeddable, fast; NLua port; requires custom sandbox setup.
-- **Custom YAML rule engine** — declarative-only (no expressions, just `match` clauses);
-  simplest to sandbox but least expressive.
+  Dialect token `lua-restricted`.
+- **A custom AST** — declarative-only (no host language, just the clauses LearnStack
+  parses); simplest to sandbox but least expressive. Dialect token `learnstack-ast`.
 
-Decision deferred to ADR-XXXX; the rule SHAPE is settled — every rule is a
+The rule SHAPE is settled — every rule is a
 `{ condition, weight, band_contribution }` triple with `aggregation` strategy
-(`weighted_majority`, `weighted_sum`, `threshold`) and `output_format`.
+(`weighted_majority`, `weighted_sum`, `threshold`) and `output_format`. So is its
+**storage**: the document is stored verbatim in a `body text` column with a `dialect`
+discriminator naming the language of its `condition` expressions, fixed by
+[ADR-0043 § 8](../decisions/0043-customization-payload-validation.md) so that rules can
+be authored before ADR-0025 picks the engine. What ADR-0025 still owes is the engine, the
+sandbox boundary and the allowed function set — not the column.
 
 ## 7. Completion rule DSL (boolean expressions)
 
@@ -398,7 +423,8 @@ expression: |
   )
 ```
 
-Same sandbox engine as scoring rules (decision pending).
+Same sandbox engine as scoring rules — ADR-0025, and the same `body` / `dialect`
+storage per [ADR-0043 § 8](../decisions/0043-customization-payload-validation.md).
 
 ## 8. Runtime cost model
 
@@ -412,7 +438,7 @@ discovering it on a page load.
 
 | Validation | When | Failure mode |
 |---|---|---|
-| The `json_schema` is itself a valid JSON Schema (draft 2020-12), and every `x-renderer` / `x-taxonomy` / `x-language` extension resolves to a registry entry | **On saving the content type / block / lesson item type** | 400 with Problem Details naming the offending JSON pointer |
+| The `json_schema` passes the four gates in [ADR-0043 § 2](../decisions/0043-customization-payload-validation.md) — it is JSON, it is inside the LearnStack schema profile, it satisfies the draft 2020-12 meta-schema, and it builds — and every `x-renderer` / `x-taxonomy` / `x-language` extension resolves to a registry entry | **On saving the content type / block / lesson item type** | 400 with Problem Details naming the offending JSON pointer |
 | A content entry conforms to its content type's schema at its pinned `schema_version` | **On saving the entry** | 400; the entry is not persisted |
 | The declared limits in § 8.3 | **On saving the schema** | 400 |
 | Renderer resolution: does `renderer_key` exist in `COMPOSITE_RENDERERS`? | **On saving**, again on **server render** as a cheap dictionary lookup | Save is rejected; a stale reference renders a fallback block plus a logged warning, never an exception |
@@ -441,7 +467,6 @@ per tenant per month. That ratio is the whole design.
 | `TenantContentType` set for a tenant | L1 + L2 | `{tenant_id}:customization:content-types-v{generation}` | L1 60s, L2 15 min | Generation bump |
 | `TenantLevelTaxonomy` by key | L1 + L2 | `{tenant_id}:customization:taxonomy-{key}-v{generation}` | same | Generation bump |
 | `TenantPageBlock` set | L1 + L2 | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
-| Compiled JSON Schema validator | L1 only, per pod | `(tenant_id, content_type_key, schema_version)` | Process lifetime, bounded LRU | Immutable — a schema version never changes |
 
 These are composed with `CacheKey.ForTenant(tenantId, "customization", logicalName)`, and the
 shape is not cosmetic: the tenant segment comes **first**, per
@@ -457,9 +482,14 @@ composing, and a `:` in it is rejected rather than silently widening the key spa
 
 Two rules make this safe:
 
-- **A generation counter, not prefix eviction.** Each tenant carries a
-  `customization_generation` integer, bumped in the same transaction as any customization
-  write. Cache keys embed it, so a write makes every stale key unreachable at once,
+- **A generation counter, not prefix eviction.** Each tenant has one `generation` row in
+  a **Customization-owned** table, bumped in the same transaction as any customization
+  write. It is not a column on `tenants`: a module writing another module's table is
+  forbidden with no exception, and it is not an aggregate either —
+  [ADR-0043 § 7](../decisions/0043-customization-payload-validation.md) places it in the
+  same class as `outbox_messages`, which
+  [ADR-0040](../decisions/0040-ambient-unit-of-work.md) already puts inside the business
+  transaction. Cache keys embed it, so a write makes every stale key unreachable at once,
   across every pod, without enumerating keys. This is deliberate: the published
   `ICacheService.RemoveByPrefixAsync` contract cannot be honoured across instances by any
   candidate backend, and it is **removed** in
@@ -467,13 +497,19 @@ Two rules make this safe:
   ([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)). This pattern replaces it,
   and it is a convention here rather than a member of that interface — the counter is
   durable domain state, not a cache entry.
-- **Compiled validators are cached separately from definitions**, keyed by an immutable
-  `(key, schema_version)` tuple. Compiling a JSON Schema is the expensive part; because a
-  published schema version is immutable ([§ 4](#4-schema-versioning)), the compiled form
-  never needs invalidating — it only needs bounding, hence the LRU.
+- **Compiled validators are not cached at all.** This table used to carry a fourth row
+  for them, on the ground that "compiling a JSON Schema is the expensive part". Measured,
+  it is not: compiling costs *less* than evaluating at every realistic size, and the gap
+  widens with the schema — 1.4× at the `vocabulary-card` example in [§ 3](#3-worked-example-three-tenants-same-modules),
+  and **0.5×** at the 100-property ceiling [§ 8.4](#84-declared-limits) declares. The
+  cache also could not have been safe on the key it used: [§ 4](#4-schema-versioning)
+  permits an additive edit under an unchanged `schema_version`, so a validator keyed on
+  the version outlives the schema it was compiled from.
+  [ADR-0043 § 6](../decisions/0043-customization-payload-validation.md) records the
+  measurements and deletes it. The adapter compiles per call.
 
 Cache misses cost one indexed query per tenant per definition set. A cold pod serving its
-first request for a tenant performs at most four such queries, not one per entry.
+first request for a tenant performs at most three such queries, not one per entry.
 
 ### 8.3 The N+1 problem, and the limits that bound it
 
@@ -522,13 +558,19 @@ not to constrain reasonable authoring.
 | Limit | Value | Why this one |
 |---|---|---|
 | `$ref` / `$defs` nesting depth inside one schema | 5 | JSON Schema validators are recursive; unbounded depth is a stack-exhaustion vector on a tenant-authored document |
-| Reference resolution depth (entry → entry) | 2 | Bounds the batched-query fan-out at § 8.3 to a fixed small number of round trips |
+| Reference resolution depth (entry → entry) | 2 until [Phase 05](../roadmap/phase-05-education-learning-content.md), 3 from it | Bounds the batched-query fan-out at § 8.3 to a fixed small number of round trips. § 8.3 gives Phase 05 the deeper case with its own batching design, and Phase 05 § Limits takes it — the two numbers are the same rule before and after that phase, not a disagreement |
 | Properties in one content type | 100 | Beyond this the authoring UI is unusable and the row is a schema smell |
 | Array `maxItems` where the schema omits it | 200 (applied as a default, not a rejection) | An unbounded array in a JSONB column is an unbounded render loop |
 | References in one content entry | 500 | Caps the `ANY(@ids)` parameter list and the hydration dictionary |
 | Block instances on one page | 100 | Each instance is a render subtree; the page is a document, not an application |
 | Serialised size of one content entry | 1 MB | PostgreSQL will happily TOAST more; the browser will not happily render it |
+| Serialised size of one customization row (`json_schema`, a rule `body`) | 256 KB | Keeps a definition inside one round trip. [Phase 05 § Limits](../roadmap/phase-05-education-learning-content.md) owns it as a `LimitKeys` entry; it is enforced from [Packet 8](../roadmap/phase-02a-kernel-tenancy.md), which is where the first `json_schema` is written — a limit that arrives after its first writer is a limit that arrives after the rows it was meant to bound |
 | Content types per tenant | Plan-gated via `FeatureKeys` / `LimitKeys` | Unlimited content types is a Growth+ feature ([ADR-0021](../decisions/0021-feature-based-entitlement.md)) |
+| `pattern`, `patternProperties`, `propertyNames` | **Not admitted** | The evaluator builds a tenant regex with an infinite `MatchTimeout` and `maxLength` does not short-circuit it — measured at 30.2 s for one property ([ADR-0043 § 5](../decisions/0043-customization-payload-validation.md)), which names the trigger for admitting them |
+| `$id`, `$dynamicRef`, `$dynamicAnchor` | **Not admitted** | `$id` is a schema-resource identity the evaluator records; under a shared registry a tenant's `$id` becomes process-global state and locks another tenant out of saving ([ADR-0043 § 3](../decisions/0043-customization-payload-validation.md)) |
+| `$ref` form | Fragment-only (`#…`) | An absolute `$ref` is a resolution attempt against something outside the document |
+| Root of a `json_schema` | An object schema declaring `properties` | `true`, `false` and `{}` are all valid schemas; the first and third switch validation off for every entry of that type, and § 8.1's read-time structural pass has no field list to walk |
+| Root `$schema` | Exactly `https://json-schema.org/draft/2020-12/schema` | A tenant's `$schema` line selects the dialect and overrides the one the adapter pins — measured; without this the same schema text accepts and rejects the same instance |
 
 A schema that violates a structural limit is rejected on save. An **existing** entry that
 would violate a newly tightened limit still renders — limits are enforced forward, and a
@@ -669,7 +711,17 @@ Architecture tests enforce:
    equivalent) is rejected at evaluation time.
 8. **Reference resolution is batched.** `Customization_Reference_Resolution_Is_Batched`
    asserts a constant query count for a many-reference entry — see [§ 8.3](#83-the-n1-problem-and-the-limits-that-bound-it).
-9. **Only the sanitised-HTML primitive may call `dangerouslySetInnerHTML`.**
+9. **The library is confined to one adapter.** `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
+   keeps `Json.Schema` out of every module and core assembly; module code reaches the
+   evaluator through `IJsonSchemaValidator`
+   ([ADR-0043](../decisions/0043-customization-payload-validation.md)).
+10. **A tenant schema is admitted only through the four gates**, and the LearnStack
+   profile — the exact root `$schema`, an object root declaring `properties`, no `$id` /
+   `$dynamicRef` / `$dynamicAnchor`, fragment-only `$ref`, no regex keywords — is the
+   gate the library does not provide. Every clause exists because the behaviour without
+   it was measured; [ADR-0043 § 3](../decisions/0043-customization-payload-validation.md)
+   records what each one prevents.
+11. **Only the sanitised-HTML primitive may call `dangerouslySetInnerHTML`.**
    `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is a frontend lint, and it
    is the rule that keeps [§ 8.5](#85-the-embed-html-sanitisation-contract)'s contract from being bypassed by
    a convenient one-off.
@@ -683,7 +735,7 @@ reads it.
 
 | Phase | Deliverable |
 |-------|-------------|
-| [02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md) | `LearnStack.Modules.Customization` with **two** aggregates: `TenantContentType` and `TenantLevelTaxonomy`. Scoring and completion rule bodies stored as **opaque `text` with a `dialect` discriminator** — the engine is chosen in ADR-0025 and the three candidates do not share a column type. Primitive renderer set scaffolded; a small built-in seed (`default-card`, a stock `Plain` taxonomy). |
+| [02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md) | `LearnStack.Modules.Customization` with **two** aggregates: `TenantContentType` and `TenantLevelTaxonomy`. The `IJsonSchemaValidator` port and its adapter, the four gates and the schema profile ([ADR-0043](../decisions/0043-customization-payload-validation.md)). Scoring and completion rule bodies stored as **opaque `text` with a `dialect` discriminator** — the engine is chosen in ADR-0025 and the three candidates do not share a column type. Primitive renderer set scaffolded; a small built-in seed (`default-card`, a stock `Plain` taxonomy). |
 | [02d](../roadmap/phase-02d-walking-skeleton.md) | Both seed tenants render their own taxonomy and content shape from these two aggregates. First proof that the model works. |
 | [03](../roadmap/phase-03-identity-admin.md) | `TenantCustomFieldDef`, with its mandatory `pii_category` and the `Membership` target. `users` gains no column. |
 | [04](../roadmap/phase-04-cms-media-pages.md) | `TenantPageBlock`; CMS / Page Builder; JSON form editor for content types; validating bulk import. |

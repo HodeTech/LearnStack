@@ -655,6 +655,14 @@ The remaining aggregates land with their consumers:
 | `TenantScoringRule` / `TenantCompletionRule` — aggregates, tables and evaluation | [Phase 05](phase-05-education-learning-content.md) |
 | `TenantTemplateLibrary` | [Phase 08a](phase-08a-assessment-notifications.md) |
 
+The **write path's validator** lands with them, per
+[ADR-0043](../decisions/0043-customization-payload-validation.md): `IJsonSchemaValidator`
+in the shared kernel, `JsonSchema.Net` pinned at 8.0.5 behind it, and the four gates a
+tenant document passes before a row is written. The ADR is where this packet's schema
+profile is decided — the exact root `$schema`, an object root declaring `properties`, no
+`$id` and no regex keywords — and every clause of it is there because the library's
+behaviour without it was measured.
+
 A small built-in seed — one `default-card` composite renderer and a stock
 `Plain` level taxonomy — lets early phases exercise the customization runtime
 before a tenant data set exists. Admin Studio editors land with their consuming

@@ -2,241 +2,205 @@
 name: add-tenant-content-type
 description: >
   Author a `TenantContentType` JSON Schema (data, not code) for a tenant —
-  `VocabularyCard`, `AsanaPose`, `CodeChallenge`, etc. — and seed it into the
-  customization module so the tenant's UI editor and runtime can render entries.
-  USE FOR: a new content type a specific tenant needs, evolving a content type's
-  schema (with versioning), seeding a content type for an integration test or
-  showcase tenant. DO NOT USE FOR: built-in primitive field types (those already
-  exist), generic "this content type might be useful to everyone" — that's a
-  marketplace candidate, not core code, or domain-specific code in any module
-  (forbidden by ADR-0018).
+  `vocabulary-card`, `asana-pose`, `code-challenge`, etc. — and register it through
+  the customization module's command so the tenant's editor and runtime can render
+  entries. USE FOR: a new content type a specific tenant needs, revising a content
+  type's schema (additively or breakingly), seeding a content type for an
+  integration test or a demo tenant. DO NOT USE FOR: built-in primitive field types
+  (those already exist), a content type you intend to compile into a module
+  (forbidden by ADR-0018), or a "useful to everyone" type — that is a Phase 12
+  marketplace candidate, still data.
 ---
 
 # Adding a `TenantContentType`
 
 ## Purpose
 
-Tenant-defined content types live as **data** in
-`tenant_content_types` ([ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),
+Tenant-defined content types live as **data** in `tenant_content_types`
+([ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),
 [32-tenant-customization-model.md](../../../docs/architecture/32-tenant-customization-model.md)).
-This skill walks the schema + seed + runtime validation workflow.
+This skill walks authoring the schema, getting it past the write-path gates, and
+revising it without breaking stored entries.
 
 ## When to use
 
-- A tenant needs a domain-shaped content type — `VocabularyCard`, `AsanaPose`,
-  `CodeChallenge`, `MusicPiece`, `SpeakingPrompt`.
-- A content type's schema needs a non-breaking addition (new optional field).
-- A content type's schema needs a breaking change — ship a new `schemaVersion`.
+- A tenant needs a domain-shaped content type — `vocabulary-card`, `asana-pose`,
+  `code-challenge`, `music-piece`, `speaking-prompt`.
+- A content type needs an **additive** change (a new optional field, a widened
+  enum) — a `schema_revision` bump.
+- A content type needs a **breaking** change (a removed field, a narrowed type, a
+  new required field, a tightened enum) — a new `schema_version`.
 
 ## When not to use
 
-- A field that fits the primitive field set already exposed by the editor (text,
-  rich text, number, boolean, date, media reference, entry reference, select,
-  JSON). Don't reinvent the wheel.
-- A "tenant content type" that you want to compile into LearnStack core. Forbidden
-  by ADR-0018 (architecture test
-  `Core_Modules_HaveNo_DomainSpecific_Names` rejects).
-- Cross-tenant sharing of a content type. Phase 12 Marketplace covers that;
-  Phase 10 ships per-tenant.
+- A field that fits the primitive set the editor already exposes. Don't reinvent it.
+- A "tenant content type" you want to compile into LearnStack core. Forbidden by
+  ADR-0018; `Core_Modules_HaveNo_DomainSpecific_Names`
+  ([Packet 10](../../../docs/roadmap/phase-02a-kernel-tenancy.md)) rejects it.
+- Cross-tenant sharing. [Phase 12](../../../docs/roadmap/phase-12-hub-marketplace.md)
+  covers a template marketplace; it is still data sharing, never code.
 
 ## Inputs
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Tenant id | Yes | Owner of the content type. |
-| Key | Yes | PascalCase, unique per tenant: `VocabularyCard`. |
-| Schema version | Yes | Starts at 1. |
-| JSON Schema | Yes | The payload shape. |
-| Org scope | No | If the type is org-specific, set `organization_id`; else tenant-wide. |
+| Tenant id | Yes | Owner of the content type. Taken from `ITenantContext`, never from a request field. |
+| Key | Yes | **kebab-case**, unique per tenant per version: `vocabulary-card`. The corpus's worked examples are all kebab-case, and the key appears in URLs and cache keys. |
+| Schema version | Yes | Starts at 1. Raised only by a breaking change. |
+| JSON Schema | Yes | Draft 2020-12. Must satisfy the profile below. |
+| Renderer key | Yes | One of the closed composite set in [32 § 2](../../../docs/architecture/32-tenant-customization-model.md). |
+| Display name | Yes | A **localized** map (`{"en": "...", "tr": "..."}`), Pattern B per [Localization Standards](../../../docs/standards/08-localization.md). |
+
+`TenantContentType` is **tenant-wide**. It carries no `organization_id`; the table
+is in the "tenant-owned, tenant-wide" class and therefore takes no restrictive
+write guards ([Database Standards § Table classes](../../../docs/standards/05-database.md)).
 
 ## Workflow
 
-### Step 1: Author the schema
+### Step 1: Author the schema against the LearnStack profile
 
-Use [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/schema) syntax:
+The write path runs four gates
+([ADR-0043 § 2](../../../docs/decisions/0043-customization-payload-validation.md)):
+the document is JSON, it is inside the profile, it satisfies the draft 2020-12
+meta-schema, and it builds. The **profile** is the one the library does not give
+you, and every clause is there because the behaviour without it was measured:
+
+| Rule | Consequence of breaking it |
+|---|---|
+| Root carries `"$schema": "https://json-schema.org/draft/2020-12/schema"`, exactly | Without it, the evaluator picks a different dialect and 2020-12 keywords go silently inert |
+| Root is an object schema declaring `properties` | `true` / `false` / `{}` are legal schemas; the first and third switch validation off entirely |
+| No `pattern`, `patternProperties`, `propertyNames` | Tenant regexes run with an infinite match timeout; one property measured at 30.2 s |
+| No `$id`, `$dynamicRef`, `$dynamicAnchor` | `$id` is process-global state in the evaluator's registry |
+| `$ref` is fragment-only (`#/$defs/…`) | An absolute `$ref` is a fetch attempt against an author-chosen address |
+| Within [§ 8.4's declared limits](../../../docs/architecture/32-tenant-customization-model.md) | Nesting depth 5, 100 properties, 256 KB per row |
 
 ```jsonc
-// docs/customization/<tenant-slug>/content-types/vocabulary-card/v1.json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "VocabularyCard",
   "type": "object",
   "required": ["term", "definition"],
+  "additionalProperties": false,
   "properties": {
-    "term": { "type": "string", "minLength": 1, "maxLength": 80 },
-    "termLanguage": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
-    "definition": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "term":         { "type": "string", "minLength": 1, "maxLength": 80 },
+    "termLanguage": { "type": "string", "maxLength": 35 },
+    "definition":   { "type": "string", "format": "markdown", "maxLength": 1000 },
     "partOfSpeech": {
       "type": "string",
       "enum": ["noun", "verb", "adjective", "adverb", "preposition", "phrase"]
     },
-    "examples": {
-      "type": "array",
-      "items": { "type": "string", "maxLength": 200 },
-      "maxItems": 5
-    },
-    "audioAssetId": { "type": "string", "format": "uuid" },
-    "levelKey": {
-      "type": "string",
-      "description": "References TenantLevelTaxonomy item key (e.g. 'a1', 'b2')."
-    }
-  },
-  "additionalProperties": false
+    "examples":     { "type": "array", "items": { "type": "string", "maxLength": 200 }, "maxItems": 5 },
+    "audioAssetId": { "type": "string", "format": "uuid", "x-renderer": "audio" },
+    "levelKey":     { "type": "string", "x-taxonomy": "cefr" }
+  }
 }
 ```
 
-Rules:
+Rules of thumb:
 
-- `additionalProperties: false` — keep payloads strict.
-- Reference other tenant artefacts by **key**, not embedded JSON
-  (`levelKey: "a1"` instead of inlining a level taxonomy item).
-- Limit string lengths and array lengths — protects the storage column.
-- Use `format: uuid` for asset references; the validator can enforce existence
-  at write time.
+- `additionalProperties: false` — strict payloads catch typos on save.
+- Reference other tenant artefacts **by key**, never by embedding them.
+  `levelKey` names a `TenantLevelTaxonomy` item; inlining the taxonomy creates drift.
+- Cap every string and array. An unbounded array in a JSONB column is an unbounded
+  render loop.
+- `format` is an **annotation, not an assertion**, by default — `format: "uuid"`
+  does not reject a non-UUID on its own. Use it to drive the renderer
+  (`x-renderer`), and use `enum` / `minLength` / `maxLength` when you need the
+  value constrained.
+- `x-renderer` / `x-taxonomy` / `x-language` are LearnStack extensions. The
+  meta-schema ignores them; LearnStack resolves them against the closed registries
+  after the gates, and an unresolvable one fails the save.
 
-### Step 2: Seed the `TenantContentType` row
+### Step 2: Register it through the command
 
-The seed runs as part of tenant provisioning (or for integration tests, as part
-of the test fixture):
-
-```csharp
-await mediator.Send(new RegisterTenantContentTypeCommand(
-    TenantId: tenantId,
-    OrganizationId: null,                          // tenant-wide
-    Key: "VocabularyCard",
-    SchemaVersion: 1,
-    SchemaJson: File.ReadAllText("v1.json"),
-    DisplayName: "Vocabulary Card",
-    Description: "A vocabulary item for English learners.",
-    SampleEntries: vocabSampleEntries));
-```
-
-The seed:
-
-1. Validates the JSON Schema itself (well-formedness via Json.Net schema parser).
-2. Validates `SampleEntries` against the schema.
-3. Inserts the `tenant_content_types` row.
-4. Emits `learnstack.customization.content-type` integration event so downstream
-   consumers (search index, page-block resolver cache) refresh.
-
-### Step 3: Schema versioning
-
-A breaking change → new `(key, schemaVersion+1)` row. The old row stays until all
-entries are migrated.
+Registration goes through the module's command, never through a `DbContext` and
+never through the library directly. `Json.Schema` types are confined to one
+adapter — `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
+([catalogue](../../../docs/standards/21-architecture-tests-catalogue.md)) — and
+handlers reach the evaluator through `IJsonSchemaValidator`.
 
 ```csharp
 await mediator.Send(new RegisterTenantContentTypeCommand(
-    Key: "VocabularyCard",
-    SchemaVersion: 2,
-    SchemaJson: File.ReadAllText("v2.json"),
-    // ...
-));
+    Key: "vocabulary-card",
+    DisplayName: LocalizedText.From(("en", "Vocabulary Card"), ("tr", "Kelime Kartı")),
+    SchemaJson: schemaJson,
+    RendererKey: "default-card"));
 ```
 
-Existing entries against `v1` keep validating against `v1`; new entries against
-`v2`. The Studio's bulk-migration tool walks `v1` entries on demand.
+The tenant comes from `ITenantContext`. A command that took a tenant id from the
+request would be refused by the database anyway — but it would also be the wrong
+shape, and the isolation suite is not the place to discover that.
 
-Backward-compatible additions (an optional new field) still increment the version
-— immutability is the rule.
+The handler validates, writes the row at `status = 'draft'`, and bumps the
+tenant's customization generation **in the same transaction**, which is what makes
+every cached definition set unreachable at once
+([ADR-0043 § 7](../../../docs/decisions/0043-customization-payload-validation.md)).
 
-### Step 4: Runtime read
+### Step 3: Revise it — additively or breakingly
 
-The renderer (and the Studio editor) reads via `ITenantContentTypeService`:
+The two paths are not interchangeable, and the editor decides which one you are on
+by diffing your submission against the current revision — it refuses an additive
+claim that removes or narrows anything
+([Phase 04 § Customization Key Shape](../../../docs/roadmap/phase-04-cms-media-pages.md)).
 
-```csharp
-var contentType = await contentTypes.GetAsync(
-    tenantId, "VocabularyCard", schemaVersion: null /* latest */, ct);
+| Change | Path |
+|---|---|
+| New optional field, widened enum, added facet | `schema_revision` within the same `schema_version` |
+| Removed field, narrowed type, new required field, tightened enum | New `schema_version` |
 
-var validator = JsonSchema.FromText(contentType.SchemaJson);
-var validation = validator.Evaluate(entryPayload);
-if (!validation.IsValid)
-    return Result.Fail<ContentEntryDto>(
-        new Error(LocalizedMessage.Of("lockey_content_type_payload_invalid")));
-```
+`(tenant_id, key, schema_version)` identifies one revision; the partial index
+`UNIQUE (tenant_id, key) WHERE status = 'active'` keeps at most one live
+definition per concept. Existing entries pin their `schema_version` at creation,
+so a breaking revision never invalidates a stored entry — it just stops being the
+one new entries are written against.
 
-The reader is per-tenant; the schema is **never** loaded from a global registry.
-Architecture test `ContentEntry_Payload_ValidatesAgainst_TenantContentType_Schema`
-enforces validation at write time.
+### Step 4: Read it back
 
-### Step 5: Studio editor integration
+The runtime reads through the module's query, which serves from the
+generation-keyed cache and falls back to one indexed query per tenant per
+definition set. There is **no** compiled-validator cache — compiling is measured
+cheaper than evaluating, so the adapter compiles per call
+([ADR-0043 § 6](../../../docs/decisions/0043-customization-payload-validation.md)).
 
-The Studio's content-type editor surfaces:
+Nothing is schema-validated on the read path. That is deliberate and it is what
+makes Step 2 load-bearing: the schema is a **write-time contract**, and any path
+that writes a content-entry row without going through the validating command
+breaks the trust for every subsequent read.
 
-- A JSON Schema editor (with live validation against draft 2020-12).
-- A sample-entry preview (the operator can paste a JSON entry and see the
-  validator's response).
-- A "Where used" panel listing pages / blocks / lessons that reference this type.
+### Step 5: Tests
 
-You don't write any new editor code; the customization-module editor handles every
-`TenantContentType` uniformly.
-
-### Step 6: Tenant-side tests
-
-For a showcase tenant (e.g. the English tenant in Phase 10), the fixture should:
+For a demo or fixture tenant:
 
 1. Provision the tenant.
-2. Seed every `TenantContentType` row.
-3. Create at least one `ContentEntry` per type.
-4. Confirm round-trip through the renderer.
+2. Register each `TenantContentType`.
+3. Write at least one entry per type, and one that must be rejected.
+4. Assert the rejection names the offending JSON pointer in Problem Details.
 
-```csharp
-[Fact]
-public async Task EnglishTenant_VocabularyCard_validates_against_v1_schema()
-{
-    var entry = new {
-        term = "ephemeral",
-        termLanguage = "en",
-        definition = "Lasting for a very short time.",
-        partOfSpeech = "adjective",
-        examples = new[] { "The ephemeral nature of cherry blossoms." },
-        levelKey = "c1"
-    };
-
-    var result = await mediator.Send(new CreateContentEntryCommand(
-        tenantId,
-        contentTypeKey: "VocabularyCard",
-        payload: JsonSerializer.Serialize(entry)));
-
-    Assert.True(result.IsSuccess);
-}
-
-[Fact]
-public async Task EnglishTenant_VocabularyCard_rejects_invalid_payload()
-{
-    var bad = new { term = "x" /* missing definition */ };
-    var result = await mediator.Send(new CreateContentEntryCommand(...));
-    Assert.False(result.IsSuccess);
-    Assert.Equal(
-        "lockey_content_type_payload_invalid",
-        result.Error!.Message.Key);
-}
-```
+Isolation tests connect as **`learnstack_app`**. A test running as
+`learnstack_migration` or a `BYPASSRLS` role passes with every policy inert and
+proves nothing.
 
 ## Validation
 
-- The JSON Schema file is well-formed (`pnpm validate:schemas` or equivalent).
-- The seed registers without conflict.
-- A valid entry round-trips; an invalid entry is rejected with the right
-  `LocalizedMessage` key.
-- A `v2` schema seeded alongside `v1` lets both versions of entries coexist.
-- Architecture test
-  `ContentEntry_Payload_ValidatesAgainst_TenantContentType_Schema` is green for
-  any new entry path.
+- The schema passes all four gates; a profile violation returns
+  `Result.Fail(validation_failed, …)` naming the JSON pointer.
+- A valid entry round-trips; an invalid entry is rejected and **no row is written**.
+- A `v2` registered beside `v1` leaves `v1` entries valid.
+- The generation counter advanced by exactly one per customization write.
 
 ## Common pitfalls
 
-- **Compiling the content type into a module.** Forbidden by ADR-0018. The
-  schema is data; the registration is per-tenant.
-- **Re-using the same `key` for two distinct shapes.** A tenant's `VocabularyCard`
-  is one shape; renaming or repurposing it without a `v+1` breaks stored entries.
-- **Embedding referenced data inline.** Use keys (`levelKey: "a1"`), not embedded
-  level definitions. The level taxonomy is its own aggregate; embedding creates
-  drift.
-- **Skipping `additionalProperties: false`.** Strict schemas catch typos
-  immediately; loose schemas accept garbage that surfaces months later in
-  rendering.
-- **Cross-tenant content-type sharing in code.** That's Phase 12 Marketplace
-  territory (still data-only), not a `learnstack-core` PR.
-- **JSON Schema features the runtime doesn't support.** Stick to draft 2020-12
-  basics; `$ref` to other tenant artefacts is not supported (the renderer would
-  need to resolve cross-row, which complicates caching).
+- **Compiling the content type into a module.** Forbidden by ADR-0018.
+- **PascalCase keys.** The corpus is kebab-case throughout; the key reaches URLs
+  and cache keys, and `CacheKey.EnsureValid` rejects a `:` in it.
+- **Treating an additive edit as a new version, or the reverse.** The first
+  strands entries needlessly; the second breaks them. The diff decides, not the
+  author.
+- **Embedding referenced data inline.** Use `levelKey: "a1"`, not a copy of the
+  taxonomy.
+- **Reaching for `pattern`.** It is not admitted; see the profile table for why
+  and [ADR-0043 § 5](../../../docs/decisions/0043-customization-payload-validation.md)
+  for the trigger that would admit it.
+- **Assuming `format` validates.** It annotates. Constrain with `enum`,
+  `minLength`, `maxLength`.
+- **Importing `Json.Schema` outside the adapter.** One architecture rule exists
+  specifically to stop it.
