@@ -2530,7 +2530,7 @@ them — so the record would be a false account without them.
   session to them as well, so one organization could rewrite the tenant-wide fallback
   every other organization reads. Measured. Corrected in the template, because every
   organization-scoped table is told to copy it, and recorded as
-  [ADR-0003 Amendment 4](../decisions/0003-tenant-isolation-defense-in-depth.md).
+  [ADR-0003 Amendment 5](../decisions/0003-tenant-isolation-defense-in-depth.md).
 - **Three credential and transaction gaps.** The host resolver announced a session
   variable in a transaction four documents call read-only and that was not; the
   platform-admin guard accepted `rolsuper`, which bypasses the GRANT matrix that bounds

@@ -4,7 +4,9 @@
 
 Accepted (Amendment 1: 2026-05-18 — adds Organization scope; Amendment 2: 2026-05-19 —
 identity row terminology; **Amendment 3: 2026-08-08 — corrects the RLS policy template
-and adds the database role model**; see bottom of document)
+and adds the database role model**; Amendment 4: 2026-08-29 — the Phase 02a table list
+has gone stale; **Amendment 5: 2026-09-04 — the write guards exclude an
+organization-scoped session from tenant-wide rows**; see bottom of document)
 
 ## Decision
 
@@ -301,7 +303,7 @@ The single authority for which class a table belongs to is
 into three documents drifts in three directions, and this copy already had — which
 is why the assignment lives in one file and this section keeps only the *rule*.
 
-### Amendment 4 (2026-09-04): the write guards admitted an organization-scoped session to tenant-wide rows
+## Amendment 5 — The write guards admitted an organization-scoped session to tenant-wide rows (2026-09-04)
 
 **What was wrong.** Amendment 3's template closes the `USING`-only write paths with two
 `AS RESTRICTIVE` guards, one `FOR UPDATE` and one `FOR DELETE`. Both read:

@@ -1085,9 +1085,14 @@ because the filters hold, and removing both turns all five red.
 #### `Every_Write_Port_Is_Countable_Or_Enumerated`
 
 - **Asserts:** every interface in a production assembly whose method takes a type from a
-  module's `Domain` assembly either derives from `IAggregateWriteStore<TRoot, TId>` — and
-  is therefore visible to the cross-aggregate census above — or appears on a literal
-  allow-list. The list holds one name: `IPlatformHostMappingStore`.
+  module's `Domain` assembly — **directly, or inside a generic, array or by-ref wrapper**
+  — either derives from `IAggregateWriteStore<TRoot, TId>`, and is therefore visible to
+  the cross-aggregate census above, or appears on a literal allow-list. The list holds one
+  name: `IPlatformHostMappingStore`.
+- **Wrappers are unwrapped transitively,** because a bulk write port is written with one:
+  `IEnumerable<Course>` lives in `System.Private.CoreLib`, so a check on the parameter's
+  own assembly sees the wrapper rather than the domain type inside it — and the port would
+  escape the enumeration while satisfying every word of what this rule claims.
 - **Why it exists.** The census counts derivations, so a port that does not derive is
   invisible to it. One already is, deliberately: `PlatformHostMapping` is a projection
   with a string key rather than an aggregate root. That exemption is fine; being *silent*
@@ -1106,11 +1111,21 @@ because the filters hold, and removing both turns all five red.
 
 - **Asserts:** the two components that announce a session variable outside the ambient
   unit of work — `CachedHostToTenantResolver` and `OrganizationScopeValidator` — each
-  issue `SET TRANSACTION READ ONLY`, and issue it **before** their first `set_config`.
-- **Both halves matter.** PostgreSQL refuses `SET TRANSACTION` after the transaction's
-  first statement, so a setter that issued it late would fail at runtime rather than
-  quietly; and read-only is the property that makes an out-of-band setter acceptable at
-  all, because `learnstack_app` holds write grants on the tables these connections reach.
+  contain `SET TRANSACTION READ ONLY`, and contain it **at a lower source offset than
+  their first `set_config(`**.
+- **What the offset comparison does and does not prove.** PostgreSQL refuses
+  `SET TRANSACTION` after the transaction's *first statement of any kind*, and this scan
+  only orders it against the announcement. A setter that ran some other statement — a
+  `SELECT`, a second `SET` — between `BEGIN` and `SET TRANSACTION READ ONLY` would satisfy
+  the rule and fail at runtime. That failure is loud and immediate rather than silent,
+  which is why the cheap ordering check is the one that ships; the expensive alternative
+  is parsing the method for every command execution, and
+  [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
+  states the general limit.
+- **Why the property matters at all.** Read-only is what makes an out-of-band setter of a
+  session variable acceptable, because `learnstack_app` holds write grants on the tables
+  these connections reach — so nothing but this statement stops a future edit from writing
+  under an announcement no request made.
 - **Why a scan and not a behavioural test.** The transaction is opened, used and disposed
   inside one method, so nothing outside can observe its settings. Measured: the resolver
   shipped without the statement while four carriers — Database Standards, Security

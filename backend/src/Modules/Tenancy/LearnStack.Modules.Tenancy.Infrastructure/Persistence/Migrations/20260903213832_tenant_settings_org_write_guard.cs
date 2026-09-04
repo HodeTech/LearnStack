@@ -25,7 +25,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
     /// <para>
     /// Intra-tenant rather than cross-tenant — the tenant term is untouched, and no row
     /// crosses a tenant boundary — so this is a write-scope correction, not an isolation
-    /// fix. See ADR-0003 Amendment 4 and Database Standards § Tenant-Owned and
+    /// fix. See ADR-0003 Amendment 5 and Database Standards § Tenant-Owned and
     /// Organization-Scoped Tables, which carries the corrected template.
     /// </para>
     /// <para>

@@ -569,7 +569,7 @@ public sealed class TenancySchemaTests
         //
         // Both AS RESTRICTIVE guards used a bare `organization_id IS NULL` first arm,
         // which exists so a TENANT-scope session can write those rows — and admitted an
-        // org-scoped one to them as well. Measured before ADR-0003 Amendment 4: a session
+        // org-scoped one to them as well. Measured before ADR-0003 Amendment 5: a session
         // announcing tenant A and organization A1 rewrote tenant A's tenant-wide row.
         //
         // The refusal is silent by construction: a RESTRICTIVE USING clause on UPDATE

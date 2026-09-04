@@ -5,7 +5,7 @@
 (Amendments 1 + 2),
 [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md)
 (Amendment 1: Organization Scope; **Amendment 3: corrected RLS policy template and
-database role model**; **Amendment 4: the write guards exclude an organization-scoped
+database role model**; **Amendment 5: the write guards exclude an organization-scoped
 session from tenant-wide rows**),
 [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md)
 (Amendment 1: Dapr pub/sub dispatch transport),
