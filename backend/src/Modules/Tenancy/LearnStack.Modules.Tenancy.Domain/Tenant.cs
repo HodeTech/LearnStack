@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
 

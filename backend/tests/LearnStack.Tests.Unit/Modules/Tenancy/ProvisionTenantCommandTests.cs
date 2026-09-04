@@ -4,6 +4,7 @@ using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Application.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;

@@ -1,6 +1,7 @@
 using FluentValidation;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 
