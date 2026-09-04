@@ -141,15 +141,16 @@ From [Phase 06](phase-06-renderer-admin-studio.md), in `frontend/apps/web` under
 Both are Server Components fetching through the typed SDK. Both read the tenant's
 branding tokens, level taxonomy and lesson-body `TenantContentType` from customization
 data — the lesson page renders the field list the tenant declared, not a fixed one.
-Layout, typography and colour come from `TenantSettings`, not from a hard-coded theme.
+Layout, typography and colour come from `TenantSetting`, not from a hard-coded theme.
 
 ### Host-based tenant resolution, end to end
 
 The full path from [Phase 02a Packet 7](phase-02a-kernel-tenancy.md), exercised for
 real: an inbound request's `Host` header resolves through `platform_host_to_tenant` to
-a `(tenant_id, organization_id?)` pair, the request-scoped `ITenantContext` is
-populated, the transaction sets `app.tenant_id` / `app.organization_id` with
-`SET LOCAL`, and Row Level Security filters every read.
+a `(tenant_id, organization_id?)` pair, the singleton `ITenantContextAccessor` is
+written and the transient `ITenantContext` resolves from it on every access, the
+transaction sets `app.tenant_id` / `app.organization_id` with `SET LOCAL`, and Row
+Level Security filters every read.
 
 Two hosts are registered in local development, one per seed tenant.
 

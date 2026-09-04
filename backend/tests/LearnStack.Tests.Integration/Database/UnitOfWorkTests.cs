@@ -1,3 +1,4 @@
+using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
@@ -10,6 +11,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -67,10 +69,115 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    [Trait(RequiresDocker.Key, RequiresDocker.Value)]
+    public async Task A_resolved_context_holding_an_uninitialized_id_still_writes_the_empty_string()
+    {
+        // The failure this exists to prevent is specific and was measured, not
+        // imagined. Vogen 7 gives an uninitialized id two different textual
+        // forms: ToString() returns the literal "[UNINITIALIZED]", while string
+        // interpolation of the same value returns "". So a setter written the
+        // obvious way — context.TenantId.ToString() — sends
+        // '[UNINITIALIZED]' into app.tenant_id, and the first policy predicate
+        // that evaluates it raises 22P02 instead of filtering. Reading .Value
+        // without a gate throws instead. Both are worse than the fail-closed
+        // empty string, and only an IsInitialized() gate produces it.
+        //
+        // IsResolved is deliberately true here: an implementation is *supposed*
+        // to hold "IsResolved implies initialized", and this asserts that the
+        // one boundary where being wrong is a security fault does not take that
+        // promise on trust.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        // Seeded session-scoped (the third argument is false), so it survives
+        // the transaction the setter runs in. Without this the assertion below
+        // passes on a connection where the variable was simply never set, which
+        // proves nothing about the setter: the property under test is that it
+        // *overwrites* a leftover with the fail-closed empty string, which is
+        // the case that matters on a pooled connection.
+        await ReadAsync(
+            unitOfWork,
+            "SELECT set_config('app.tenant_id', '018f4d40-0000-7000-8000-00000000dead', false)");
+        await ReadAsync(
+            unitOfWork,
+            "SELECT set_config('app.organization_id', '018f4d40-0000-7000-8000-00000000beef', false)");
+
+        await unitOfWork.SetTenantContextAsync(new UninitializedIdContext());
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty("an uninitialized id must fail closed, not reach ::uuid");
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.organization_id', true)"))
+            .Should().BeEmpty();
+
+        // And the fail-closed value is usable: the policy filters rather than
+        // raising, which is the whole point of writing '' over the alternative.
+        (await ReadAsync(unitOfWork, "SELECT count(*)::text FROM organizations"))
+            .Should().Be("0");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    [Trait(RequiresDocker.Key, RequiresDocker.Value)]
+    public async Task A_resolved_context_holding_an_all_zero_tenant_id_still_writes_the_empty_string()
+    {
+        // IsInitialized() is only half the test, and this is the other half.
+        // Measured: TenantId.From(Guid.Empty) does not throw and IsInitialized()
+        // returns true for it — Vogen validates the value's shape, and these ids
+        // declare no Validate() — so an all-zero tenant reaches the setter as a
+        // perfectly well-formed id. It casts cleanly to ::uuid and then matches
+        // every row a bug ever wrote under it, which is worse than raising.
+        // The domain refuses it by hand (TenantOwned.EnsureRealTenant); this is
+        // the same refusal at the session-variable boundary.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(Resolved(Guid.Empty, Guid.Empty));
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty("an all-zero tenant names nothing and must not be written");
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.organization_id', true)"))
+            .Should().BeEmpty();
+        (await ReadAsync(unitOfWork, "SELECT count(*)::text FROM organizations"))
+            .Should().Be("0");
+
+        // And it said so. A context that claims to be resolved and yields nothing
+        // usable is a bug in its producer; the empty string keeps the request
+        // fail-closed, but without this line the only symptom is data that looks
+        // absent rather than a context that is broken.
+        provider.GetRequiredService<CapturingLogger>().Records
+            .Should().ContainSingle(record => record.Level == LogLevel.Error)
+            .Which.Message.Should().Contain("no usable tenant id");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public void The_uninitialized_id_fixture_really_is_uninitialized()
+    {
+        // Guards the guard. The two cases above prove the setter's behaviour only
+        // if the stub actually carries unassigned ids, and it reaches them through
+        // an array element because VOG009 forbids default(TenantId). If a Vogen
+        // upgrade ever made that produce an initialized value, both cases would
+        // keep passing while testing nothing at all — silently, which is the one
+        // failure mode a test cannot report on its own behalf.
+        var context = new UninitializedIdContext();
+
+        context.TenantId.IsInitialized().Should().BeFalse();
+        context.OrganizationId!.Value.IsInitialized().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task An_unresolved_context_leaves_every_tenant_owned_table_empty()
     {
-        // Between Packet 6 and Packet 7 every request runs against
-        // UnresolvedTenantContext, and this is what that costs: the GUCs are set
+        // A request no resolver touched runs against UnresolvedTenantContext — before
+        // Packet 7 that was every request, and it is still what a PlatformHost request
+        // gets — and this is what that costs: the GUCs are set
         // to the empty string, NULLIF turns them into NULL, and a NULL predicate
         // is false for USING and WITH CHECK alike. Fail-closed by construction,
         // not by a filter that does not exist yet.
@@ -109,6 +216,139 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task Two_contexts_under_two_tenants_each_see_only_their_own_rows()
+    {
+        // The property the whole query-filter seam turns on, and the one that
+        // fails if the filter closes over anything other than a DbContext
+        // instance member. EF compiles a filter into the model once per context
+        // type; a closure over a local, a field of something else, or a captured
+        // value is evaluated at that moment and baked in as a SQL literal. Every
+        // later request in the process then carries the FIRST request's tenant id
+        // in its WHERE clause — with a plausible number of rows, from the wrong
+        // tenant. Two scopes in one process, two tenants, is the smallest shape
+        // that can tell the two implementations apart: one context alone passes
+        // either way.
+        await using var provider = BuildProvider();
+
+        await using var first = provider.CreateAsyncScope();
+        var firstUnitOfWork = first.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await firstUnitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            first.ServiceProvider, firstUnitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var firstContext = first.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var tenantACount = await firstContext.Organizations.CountAsync();
+        var tenantASeen = await firstContext.Organizations
+            .Select(organization => organization.TenantId).Distinct().ToListAsync();
+
+        await firstUnitOfWork.RollbackAsync();
+
+        await using var second = provider.CreateAsyncScope();
+        var secondUnitOfWork = second.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await secondUnitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            second.ServiceProvider, secondUnitOfWork, SchemaFixture.TenantB, Guid.NewGuid());
+
+        var secondContext = second.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var tenantBSeen = await secondContext.Organizations
+            .Select(organization => organization.TenantId).Distinct().ToListAsync();
+
+        await secondUnitOfWork.RollbackAsync();
+
+        // Each sees its own tenant and nothing else. Under a baked-in literal the
+        // second scope would repeat the first's list, which is why the assertion
+        // is on the tenant ids the rows carry and not merely on the counts.
+        tenantACount.Should().BeGreaterThan(0, "the fixture seeds organizations for tenant A");
+        tenantASeen.Should().ContainSingle()
+            .Which.Value.Should().Be(SchemaFixture.TenantA);
+        tenantBSeen.Should().ContainSingle()
+            .Which.Value.Should().Be(SchemaFixture.TenantB);
+    }
+
+    [Fact]
+    public async Task The_organization_filter_admits_tenant_wide_rows_and_the_caller_own()
+    {
+        // The organization term — `organization_id IS NULL OR organization_id =
+        // current` — had no test at any layer. Measured before this case existed:
+        // flipping its OR to an AND survived all 960. The term is the one that
+        // decides whether a tenant-wide row is visible to an organization-scoped
+        // request, which is the distinction ADR-0017 exists for.
+        //
+        // The fixture seeds exactly the three shapes tenant A needs: one
+        // tenant-wide setting (`tz`), one under OrgA1 (`theme`), one under OrgA2
+        // (`theme`). Under OrgA1 the answer is the first two and not the third.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        var visible = await context.TenantSettings
+            .Select(setting => new { setting.Key, setting.OrganizationId })
+            .ToListAsync();
+
+        visible.Should().HaveCount(2,
+            "an organization sees the tenant-wide rows and its own, and no sibling's");
+        visible.Should().Contain(setting => setting.OrganizationId == null,
+            "the tenant-wide row is in scope — null is a scope, not an absence");
+        visible.Should().Contain(
+            setting => setting.OrganizationId != null
+                && setting.OrganizationId.Value.Value == SchemaFixture.OrgA1,
+            "the caller's own organization is in scope");
+        visible.Should().NotContain(
+            setting => setting.OrganizationId != null
+                && setting.OrganizationId.Value.Value == SchemaFixture.OrgA2,
+            "a sibling organization's row is not");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_context_follows_the_accessor_after_it_was_built()
+    {
+        // Whether the filters read the CURRENT ambient tenant or the one that
+        // happened to be there when EF constructed the context. In every flow the
+        // corpus designs, the accessor is written first — the resolver middleware
+        // at scope start, the event transport per delivery — so a snapshot would
+        // be correct today and wrong the first time that ordering changed. This
+        // asserts the mechanism rather than the ordering.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await EnterTenantAsync(
+            scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+
+        // Built while tenant A is ambient.
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        (await context.Organizations.CountAsync()).Should().BeGreaterThan(0);
+
+        // Now the ambient tenant changes underneath it, and only the accessor
+        // moves — app.tenant_id stays on A, because SetTenantContextAsync is
+        // transaction-local and this transaction already issued it.
+        scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current =
+            Resolved(SchemaFixture.TenantB, Guid.NewGuid());
+
+        // Zero is the discriminating answer, and it is the only one available:
+        // the filter now narrows to B while Row Level Security still narrows to
+        // A, so their intersection is empty. A context that had frozen its tenant
+        // context at construction would still be filtering to A, agree with the
+        // policy, and hand back tenant A's rows — which is what this asserts
+        // against. Reading the emitted SQL cannot tell the two apart, because both
+        // emit the same parameterised text and differ only in the value bound.
+        (await context.Organizations.CountAsync()).Should().Be(0,
+            "the filter must read the accessor on every query, not the instance it "
+            + "was built with — a frozen context would still be reading tenant A");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
     public async Task A_module_context_enlists_in_the_ambient_transaction()
     {
         // The property the shared registration helper exists for. The row is
@@ -120,7 +360,8 @@ public sealed class UnitOfWorkTests
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         await unitOfWork.BeginTransactionAsync();
-        await unitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        await EnterTenantAsync(
+            scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
 
         await ExecuteAsync(unitOfWork,
             """
@@ -141,7 +382,8 @@ public sealed class UnitOfWorkTests
         await using var after = provider.CreateAsyncScope();
         var afterUnitOfWork = after.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await afterUnitOfWork.BeginTransactionAsync();
-        await afterUnitOfWork.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        await EnterTenantAsync(
+            after.ServiceProvider, afterUnitOfWork, SchemaFixture.TenantA, SchemaFixture.OrgA1);
 
         (await after.ServiceProvider.GetRequiredService<TenancyDbContext>()
             .Organizations.CountAsync()).Should().Be(2);
@@ -657,20 +899,189 @@ public sealed class UnitOfWorkTests
         }
     }
 
+    [Fact]
+    public async Task The_session_variables_do_not_survive_the_transaction_that_set_them()
+    {
+        // The setter every request goes through, and the property that makes it safe to
+        // reuse a connection. Measured: with set_config's third argument flipped to
+        // false, all 292 integration cases passed — this is the one that fails.
+        //
+        // NoResetOnClose and a pool of one are what give it teeth. Npgsql sends
+        // DISCARD ALL when a connection returns to the pool, which cleans up after the
+        // bug and hides it; a PgBouncer in transaction-pooling mode — the deployment the
+        // corpus keeps naming — does not. With the reset suppressed the second borrow is
+        // provably the same physical connection, in the state the first left it, and a
+        // session-scoped write shows up as tenant A's id greeting whoever draws it next.
+        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        builder.ConnectionStringBuilder.MaxPoolSize = 1;
+        builder.ConnectionStringBuilder.NoResetOnClose = true;
+        await using var dataSource = builder.Build();
+
+        await using (var provider = BuildProvider(dataSource))
+        {
+            await using var scope = provider.CreateAsyncScope();
+            var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+            await unitOfWork.BeginTransactionAsync();
+            await unitOfWork.SetTenantContextAsync(
+                Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+
+            // The value is there while the transaction is, or the case below would pass
+            // against a setter that never ran.
+            (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+                .Should().Be(SchemaFixture.TenantA.ToString());
+
+            await unitOfWork.CommitAsync();
+        }
+
+        await using var connection = await dataSource.OpenConnectionAsync();
+
+        foreach (var variable in new[] { "app.tenant_id", "app.organization_id" })
+        {
+            await using var read = new NpgsqlCommand(
+                $"SELECT NULLIF(current_setting('{variable}', true), '')", connection);
+
+            (await read.ExecuteScalarAsync() is null or DBNull).Should().BeTrue(
+                $"{variable} was transaction-local, and the next borrower of this "
+                + "connection is another tenant's request");
+        }
+    }
+
+    [Fact]
+    public async Task A_reset_tenant_context_reads_nothing_rather_than_everything()
+    {
+        // The case the Phase Exit Decision names: a read with `app.tenant_id` RESET
+        // rather than merely unset. The distinction is the whole reason the policies are
+        // written with NULLIF.
+        //
+        // Never-set and reset are different values. `current_setting(name, true)` returns
+        // NULL for a variable that was never set, and the EMPTY STRING for one that was
+        // set and then reset — which is the state a pooled connection is in after
+        // DISCARD ALL, and the state every request leaves behind. `''::uuid` raises
+        // 22P02, so a policy that cast without NULLIF would not filter: it would error
+        // on the first read of every reused connection. With NULLIF the empty string
+        // becomes NULL, the predicate is NULL, and NULL is false for both USING and
+        // WITH CHECK — the table returns nothing.
+        //
+        // Driven on one physical connection, because that is the only way the two states
+        // are distinguishable: set a real tenant, observe rows, reset, observe none.
+        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        builder.ConnectionStringBuilder.MaxPoolSize = 1;
+        builder.ConnectionStringBuilder.NoResetOnClose = true;
+        await using var dataSource = builder.Build();
+
+        await using var connection = await dataSource.OpenConnectionAsync();
+
+        await ExecuteOnAsync(connection,
+            $"SELECT set_config('app.tenant_id', '{SchemaFixture.TenantA}', false)");
+
+        (await ScalarOnAsync(connection, "SELECT count(*) FROM organizations"))
+            .Should().NotBe("0", "the tenant is set, so its rows are visible");
+
+        // RESET, not "never set" — the variable exists and now holds ''.
+        await ExecuteOnAsync(connection, "RESET app.tenant_id");
+
+        (await ScalarOnAsync(connection, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty(
+                "a reset GUC reads back as the empty string, which is exactly the value "
+                + "NULLIF exists to turn into NULL");
+
+        (await ScalarOnAsync(connection, "SELECT count(*) FROM organizations"))
+            .Should().Be("0",
+                "and the read fails closed — it returns nothing rather than everything, "
+                + "and does not raise 22P02 on the way");
+    }
+
+    private static async Task ExecuteOnAsync(DbConnection connection, string sql)
+    {
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<string?> ScalarOnAsync(DbConnection connection, string sql)
+    {
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        return (await command.ExecuteScalarAsync())?.ToString();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private ServiceProvider BuildProvider()
+    private ServiceProvider BuildProvider(NpgsqlDataSource? dataSource = null)
     {
         // The real registration path: the shared helper, the real
         // NpgsqlUnitOfWork, and the application role's data source. Only the
         // connection string differs from the composition root, because the
         // fixture's container is not the one appsettings names.
         var services = new ServiceCollection();
-        services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        // A caller-owned data source when a case needs to control pooling; otherwise one
+        // per provider.
+        services.AddSingleton(
+            dataSource ?? NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        services.AddLogging();
+        // The composition root's shape, not a shortcut: a singleton accessor and
+        // a transient ITenantContext resolved from it on every access. The module
+        // context's query filters close over that context, so a provider without
+        // it cannot build one — which is what these cases would otherwise be
+        // silently testing around.
+        services.AddSingleton<ITenantContextAccessor, ScopedAccessor>();
+        services.AddTransient<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
+        // Capturing, so a case can assert the unit of work actually complained.
+        // The Error it logs when a resolved context yields no usable tenant is
+        // the only signal that state ever produces — the request itself just
+        // reads zero rows — so an unasserted logger would leave the diagnostic
+        // in the same position as the silence it replaced.
+        services.AddSingleton<CapturingLogger>();
+        services.AddSingleton<ILogger<NpgsqlUnitOfWork>>(
+            sp => sp.GetRequiredService<CapturingLogger>());
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// The accessor a case writes to decide what tenant its scope runs under.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>AsyncLocal</c>-backed like the production one: these cases drive it
+    /// synchronously and want the value to be visible to the whole provider, which
+    /// is what makes "two scopes, two tenants, one process" expressible.
+    /// </remarks>
+    private sealed class ScopedAccessor : ITenantContextAccessor
+    {
+        public ITenantContext? Current { get; set; }
+    }
+
+    /// <summary>Collects what <see cref="NpgsqlUnitOfWork"/> logged.</summary>
+    private sealed class CapturingLogger : ILogger<NpgsqlUnitOfWork>
+    {
+        private readonly List<(LogLevel Level, int EventId, string Message)> _records = [];
+
+        public IReadOnlyList<(LogLevel Level, int EventId, string Message)> Records
+        {
+            get { lock (_records) { return [.. _records]; } }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+            lock (_records)
+            {
+                _records.Add((logLevel, eventId.Id, formatter(state, exception)));
+            }
+        }
     }
 
     private async Task<long> CountOrganizationsAsync(string slug)
@@ -743,20 +1154,77 @@ public sealed class UnitOfWorkTests
     private static StubTenantContext Resolved(Guid tenant, Guid organization) =>
         new(tenant, organization);
 
+    /// <summary>
+    /// Sets the session variables <b>and</b> the ambient accessor, which is the
+    /// pairing production makes: <c>TenantResolverMiddleware</c> writes the
+    /// accessor, and <c>TransactionBehavior</c> issues the <c>SET LOCAL</c> from
+    /// the same context. A case that wrote only the first would leave the module
+    /// context's query filter narrowing to the all-zero tenant and reading
+    /// nothing — which is the filter working, not a fixture bug, and worth
+    /// spelling out here so the next reader does not remove the filter to make a
+    /// count come back.
+    /// </summary>
+    private static async Task EnterTenantAsync(
+        IServiceProvider scope, IUnitOfWork unitOfWork, Guid tenant, Guid organization)
+    {
+        var context = Resolved(tenant, organization);
+        scope.GetRequiredService<ITenantContextAccessor>().Current = context;
+        await unitOfWork.SetTenantContextAsync(context);
+    }
+
+    /// <summary>
+    /// Claims to be resolved while carrying ids nothing ever assigned.
+    /// </summary>
+    /// <remarks>
+    /// <c>default(TenantId)</c> does not compile — Vogen's VOG009 analyzer
+    /// prohibits it — so the uninitialized value comes from an array element,
+    /// which the analyzer cannot see and the runtime leaves zeroed. That is also
+    /// how one reaches production: a struct field nobody assigned, a
+    /// <c>default(T)</c> in a generic, a deserializer that skipped a member.
+    /// </remarks>
+    private sealed class UninitializedIdContext : ITenantContext
+    {
+        private static readonly TenantId Unassigned = Zeroed<TenantId>();
+        private static readonly OrganizationId UnassignedOrganization = Zeroed<OrganizationId>();
+
+        private static T Zeroed<T>()
+        {
+            var slot = new T[1];
+            return slot[0];
+        }
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId => Unassigned;
+
+        public OrganizationId? OrganizationId => UnassignedOrganization;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "uninitialized-id-probe";
+    }
+
     /// <summary>A request type for driving the real behavior.</summary>
     public sealed record Probe : MediatR.IRequest<Result<string>>;
 
     /// <summary>
-    /// A resolved context, standing in for what Packet 7's
-    /// <c>TenantResolverMiddleware</c> will populate.
+    /// A resolved context, standing in for what <c>TenantResolverMiddleware</c> populates
+    /// in traffic. The real one answers in <c>TenantIsolationHttpTests</c>; here the point
+    /// is the unit of work, and a stub keeps a database out of the question.
     /// </summary>
     private sealed class StubTenantContext(Guid tenant, Guid organization) : ITenantContext
     {
+        // Converted here rather than at each call site: the stub's callers hold
+        // raw fixture Guids and the contract holds typed ids.
+
         public bool IsResolved => true;
 
-        public Guid TenantId => tenant;
+        public TenantId TenantId => SharedKernel.Identifiers.TenantId.From(tenant);
 
-        public Guid? OrganizationId => organization;
+        public OrganizationId? OrganizationId =>
+            SharedKernel.Identifiers.OrganizationId.From(organization);
 
         public UserId? UserId => null;
 

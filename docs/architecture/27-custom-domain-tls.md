@@ -210,10 +210,11 @@ once, and the third is the one that matters operationally:
    every tenant's public site down, for a lookup whose answer LearnStack already stores.
 
 **`IHubClient.LookupHostAsync` is deleted.** `IHostToTenantResolver` reads
-`platform_host_to_tenant` and nothing else:
+`platform_host_to_tenant` and nothing else. The port is `SharedKernel`; only the adapter
+is Infrastructure:
 
 ```csharp
-namespace LearnStack.Infrastructure.MultiTenancy;
+namespace LearnStack.SharedKernel.Tenancy;
 
 public interface IHostToTenantResolver
 {
@@ -227,71 +228,191 @@ public interface IHostToTenantResolver
 }
 
 public sealed record HostResolution(TenantId TenantId, OrganizationId? OrganizationId);
+```
 
-// NpgsqlDataSource, NOT a module DbContext and NOT IUnitOfWork. This runs in
-// TenantResolverMiddleware, before any transaction exists — and the shared
-// registration helper throws by design when a module context is resolved outside
-// the ambient transaction, because a context that never saw SET LOCAL reads zero
-// rows from every tenant-owned table. ADR-0040 § Who sets app.tenant_id already
-// puts every pre-transaction reader on "a short transaction of its own on its own
-// connection"; this is that, and the resolver is the only setter of
-// app.resolving_host.
+The adapter sends the two answers down two paths — the found one through
+`ICacheService`, the unknown one through a structure capped on its own:
+
+```csharp
+namespace LearnStack.Infrastructure.MultiTenancy;
+
+// NpgsqlDataSource, NOT a module DbContext and NOT IUnitOfWork. This runs in host
+// classification, before authentication and before any transaction exists — and
+// the shared registration helper throws by design when a module context is
+// resolved outside the ambient transaction, because a context that never saw
+// SET LOCAL reads zero rows from every tenant-owned table. ADR-0040 § Who sets
+// app.tenant_id already puts every pre-transaction reader on "a short transaction
+// of its own on its own connection"; this is that, and the resolver is the only
+// setter of app.resolving_host.
+//
+// unknownHosts is capped on its own and registered for this resolver alone, so a
+// flood of novel hosts evicts only other unknown hosts. Its cap and TTL, and the
+// positive TTL in options, are configuration rather than literals: this block is
+// copied, and a copied number outlives the measurement that chose it.
+//
+// The resolver itself is registered as a singleton, so the flight map below is
+// process-wide. A scoped registration gives every request its own map and
+// coalesces nothing.
 public sealed class CachedHostToTenantResolver(
     ICacheService cache,
-    NpgsqlDataSource dataSource) : IHostToTenantResolver
+    UnknownHostCache unknownHosts,
+    HostResolutionOptions options,
+    // Lazy: a platform host is answered from Tenancy:PlatformHosts and never
+    // reaches a lookup, so it must cost no database work — including no data
+    // source construction. Holding it directly builds one at the first classified
+    // request whatever its host.
+    Lazy<NpgsqlDataSource> dataSource) : IHostToTenantResolver
 {
-    public Task<HostResolution?> ResolveAsync(string host, CancellationToken ct = default)
-        => cache.GetOrSetAsync(
-            // Composed by the factory, never interpolated: CacheKey.EnsureValid is
-            // what stops an unnormalized spelling creating a parallel entry.
-            CacheKey.ForHostMapping(host),
-            async token =>
-            {
-                // The policy on this table admits exactly the row the resolver
-                // ANNOUNCES. Without the SET LOCAL the predicate is NULL and the
-                // query returns nothing, so the miss path opens its own
-                // transaction: SET LOCAL outside a transaction block emits
-                // "WARNING: SET LOCAL can only be used in transaction blocks" and
-                // has no effect, and a session-level set_config(..., false) would
-                // survive on a pooled connection into the next request.
-                await using var connection = await dataSource.OpenConnectionAsync(token);
-                await using var tx = await connection.BeginTransactionAsync(token);
+    private readonly ConcurrentDictionary<string, Lazy<Task<HostResolution?>>> _flights =
+        new(StringComparer.Ordinal);
 
-                // set_config(..., true) is SET LOCAL's function form and is
-                // transaction-local for the same reason. It has to be this form:
-                // `SET LOCAL app.resolving_host = $1` is a syntax error —
-                // PostgreSQL's SET takes no bind parameter — so the parameterised
-                // spelling every other query uses is unavailable here, and string
-                // interpolation into SET would be an injection site on the
-                // anonymous page-load path.
-                await using (var announce = new NpgsqlCommand(
-                    "SELECT set_config('app.resolving_host', @host, true)", connection, tx))
-                {
-                    announce.Parameters.AddWithValue("host", host);
-                    await announce.ExecuteNonQueryAsync(token);
-                }
+    public async Task<HostResolution?> ResolveAsync(
+        string host, CancellationToken ct = default)
+    {
+        // Composed by the factory, never interpolated: CacheKey.EnsureValid is
+        // what stops an unnormalized spelling creating a parallel entry.
+        var key = CacheKey.ForHostMapping(host);
 
-                // is_publicly_live, per ADR-0036 § HostOnly — NOT the Hub-side
-                // `is_active` in the payload sample below. A domain can be active
-                // (owned, verified) and not yet publicly live, and only the latter
-                // may answer an anonymous page load.
-                await using var read = new NpgsqlCommand(
-                    """
-                    SELECT tenant_id, organization_id
-                    FROM platform_host_to_tenant
-                    WHERE host = @host AND is_publicly_live
-                    """, connection, tx);
-                read.Parameters.AddWithValue("host", host);
+        if (await cache.GetAsync<HostResolution>(key, ct) is { } cached)
+        {
+            return cached;
+        }
 
-                var resolution = await ReadSingleAsync(read, token);
+        if (unknownHosts.Contains(host))
+        {
+            return null;
+        }
 
-                await tx.CommitAsync(token);
-                return resolution;
-            },
-            new CacheOptions(L1Ttl: TimeSpan.FromMinutes(2), L2Ttl: TimeSpan.FromMinutes(15)),
-            ct);
+        var resolution = await ReadCoalescedAsync(host, ct);
+
+        if (resolution is null)
+        {
+            unknownHosts.Add(host);
+            return null;
+        }
+
+        await cache.SetAsync(key, resolution, options.PositiveCache, ct);
+        return resolution;
+    }
+
+    private async Task<HostResolution?> ReadCoalescedAsync(
+        string host, CancellationToken ct)
+    {
+        // One database round trip per host, however many callers arrive during
+        // it. The flight runs on CancellationToken.None: one caller hanging up
+        // must not cancel the lookup the others are waiting on. WaitAsync(ct)
+        // stops only THIS caller waiting, and a caller that stops waiting never
+        // reaches unknownHosts.Add above — so the negative cache is populated
+        // only by a request that survived its own lookup.
+        var flight = _flights.GetOrAdd(
+            host,
+            static (h, self) => new Lazy<Task<HostResolution?>>(
+                () => self.ReadAndRetireAsync(h)),
+            this);
+
+        return await flight.Value.WaitAsync(ct);
+    }
+
+    private async Task<HostResolution?> ReadAndRetireAsync(string host)
+    {
+        // Retirement is bound to the FLIGHT's termination, inside the flight's
+        // own task — never to a caller's exit. Retiring in each waiter's finally
+        // lets a joiner that cancels de-register a read whose transaction is
+        // still open, so the next arrival opens a second one: the stampede the
+        // coalescing exists to prevent, reintroduced by its own cleanup. Packet 5
+        // convicted that exact shape in InMemoryCacheService, which retires a
+        // flight on the factory's termination rather than on a waiter's exit; a
+        // waiter's exit there only decrements the waiter count, and cancels the
+        // factory when the count reaches zero with the read still pending. This
+        // resolver has no cancellation to propagate — the read runs on
+        // CancellationToken.None — so it needs the retirement rule and not the
+        // waiter bookkeeping. Exactly one flight is registered per host at a
+        // time, so the plain TryRemove here has no successor to race.
+        try
+        {
+            return await ReadAsync(host, CancellationToken.None);
+        }
+        finally
+        {
+            _flights.TryRemove(host, out _);
+        }
+    }
+
+    private async Task<HostResolution?> ReadAsync(string host, CancellationToken ct)
+    {
+        // The policy on this table admits exactly the row the resolver
+        // ANNOUNCES. Without the SET LOCAL the predicate is NULL and the query
+        // returns nothing, so the miss path opens its own transaction: SET LOCAL
+        // outside a transaction block emits "WARNING: SET LOCAL can only be used
+        // in transaction blocks" and has no effect, and a session-level
+        // set_config(..., false) would survive on a pooled connection into the
+        // next request.
+        await using var connection = await dataSource.Value.OpenConnectionAsync(ct);
+        await using var tx = await connection.BeginTransactionAsync(ct);
+
+        // set_config(..., true) is SET LOCAL's function form and is
+        // transaction-local for the same reason. It has to be this form:
+        // `SET LOCAL app.resolving_host = $1` is a syntax error — PostgreSQL's
+        // SET takes no bind parameter — so the parameterised spelling every other
+        // query uses is unavailable here, and string interpolation into SET would
+        // be an injection site on the anonymous page-load path.
+        await using (var announce = new NpgsqlCommand(
+            "SELECT set_config('app.resolving_host', @host, true)", connection, tx))
+        {
+            announce.Parameters.AddWithValue("host", host);
+            await announce.ExecuteNonQueryAsync(ct);
+        }
+
+        // BOTH terms, per ADR-0036 § Effective host and the trusted hop. Active
+        // (owned, verified) and publicly live are distinct states — the row
+        // exists from submission onward, before DNS points anywhere — and only
+        // the latter may answer an anonymous page load. Both are read here
+        // because ADR-0036 invalidates the resolver cache on the transaction that
+        // flips EITHER flag, which is only meaningful if both feed the answer.
+        await using var read = new NpgsqlCommand(
+            """
+            SELECT tenant_id, organization_id
+            FROM platform_host_to_tenant
+            WHERE host = @host AND is_active AND is_publicly_live
+            """, connection, tx);
+        read.Parameters.AddWithValue("host", host);
+
+        var resolution = await ReadSingleAsync(read, ct);
+
+        await tx.CommitAsync(ct);
+        return resolution;
+    }
 }
 ```
+
+**The negative answer never enters `ICacheService`.** `InMemoryCacheService.TryRead`
+requires `entry.Value is T`, so a stored null reads back as a miss — pinned by
+`An_Explicitly_Stored_Null_Reads_Back_As_A_Miss`, not accidental — while `SetAsync`
+stores it anyway, consuming one slot of the single process-wide 10,000-entry pool that
+every cache family shares and that trims oldest-first. Routing unknown hosts through the
+cache therefore buys nothing and evicts real mappings, which is what
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) forbids when it
+requires unknown hosts to be "negative-cached in a separately capped structure so a flood
+cannot evict real mappings". **Packet 7 records** the unknown-host cap, its TTL and the
+positive TTL, with the measurements that chose them, in its delivery record in
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md).
+
+**The split forfeits `GetOrSetAsync`.** That method runs its factory once for concurrent
+misses on one key; get-then-set has no factory to coalesce, so N simultaneous first
+requests for one cold host become N transactions unless the resolver re-adds the
+coalescing itself. **Packet 7 re-adds it**, in `CachedHostToTenantResolver`, because the
+flight it protects is a Postgres transaction opened on an anonymous, pre-authentication
+page load — the one path a stranger can make cold at will. The re-added map retires a
+flight when the **flight** terminates, never when a caller exits:
+[Packet 5's delivery record](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-5)
+convicts the waiter-side cleanup, where a joiner that cancels de-registers a read whose
+transaction is still open and the next arrival starts a second one. What the split does
+not get back is supersession — `InMemoryCacheService` also suppresses the store of a
+factory result whose key was written or dropped while it ran, and that is an adapter
+detail rather than an `ICacheService` guarantee — so an invalidation racing an open
+flight can re-store the mapping it just dropped, bounded by the same positive-TTL window
+[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) already accepts for a
+deactivated mapping.
 
 `platform_host_to_tenant` is the one **platform-scoped** table — the row is what
 *determines* the tenant, so it cannot be filtered by a tenant context that does not
@@ -308,8 +429,11 @@ Consequences of the change:
 - A Hub outage degrades **billing and provisioning**. It does not touch page loads.
 - The cache in front of the table is a latency optimisation, not an availability
   mechanism. Even a total cache failure leaves a single indexed primary-key lookup.
-- `TenantResolverMiddleware` calls this resolver first, before JWT validation, because
-  anonymous public routes need a tenant context too.
+- Host classification calls this resolver **before authentication**, so an unknown host
+  is rejected cheaply and an anonymous public route still resolves a tenant; context
+  construction runs **after** it, so `TenantContextFactory.Create` is called once with
+  both signals in hand
+  ([ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md)).
 
 ### How mappings arrive
 
@@ -325,8 +449,9 @@ The endpoint is part of the enumerated Hub → LearnStack surface in
 chain as every other internal call (mTLS + RS256 JWT with `aud=learnstack-internal` +
 HMAC body signature + `jti` replay protection), and is handled by `IHubTenantSync`. The
 handler upserts `platform_host_to_tenant` and invalidates the resolver cache for the
-affected hosts on `learnstack.hub.custom-domain.activated` /
-`.revoked`.
+affected hosts — the positive entry and the unknown-host entry both, or an activation is
+invisible until the negative cap's TTL expires — on
+`learnstack.hub.custom-domain.activated` / `.revoked`.
 
 ### Certificate material never rides the mapping payload
 

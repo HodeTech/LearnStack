@@ -410,6 +410,11 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     b.HasKey("TenantId", "Locale")
                         .HasName("pk_tenant_locales");
 
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tenant_locales_tenant_id_is_default")
+                        .HasFilter("is_default");
+
                     b.ToTable("tenant_locales", (string)null);
                 });
 
@@ -482,6 +487,33 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                     NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "OrganizationId", "Key"), false);
 
                     b.ToTable("tenant_settings", (string)null);
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Tenancy.Domain.TenantFeatureFlag", b =>
+                {
+                    b.HasOne("LearnStack.Modules.Tenancy.Domain.Tenant", null)
+                        .WithMany("FeatureFlags")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_feature_flags_tenant");
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Tenancy.Domain.TenantLocale", b =>
+                {
+                    b.HasOne("LearnStack.Modules.Tenancy.Domain.Tenant", null)
+                        .WithMany("Locales")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_locales_tenant");
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Tenancy.Domain.Tenant", b =>
+                {
+                    b.Navigation("FeatureFlags");
+
+                    b.Navigation("Locales");
                 });
 #pragma warning restore 612, 618
         }

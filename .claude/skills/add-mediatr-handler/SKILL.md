@@ -158,7 +158,7 @@ public sealed class CreateEnrollmentCommandHandler(
         {
             EventId = guidFactory.NewUuidV7(),
             OccurredAt = clock.UtcNow,
-            TenantId = tenantContext.TenantId,
+            TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
             EnrollmentId = enrollment.Id.Value,
             LearnerId = request.LearnerId.Value,
             CourseVersionId = request.CourseVersionId.Value,

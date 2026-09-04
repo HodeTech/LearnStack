@@ -261,7 +261,7 @@ typecheck: ## `pnpm -r typecheck` (tsc --noEmit across the monorepo).
 
 # ─── Seed ─────────────────────────────────────────────────────────────────
 .PHONY: seed
-seed: dev ## Bring the stack up and seed demo data (idempotent).
+seed: dev migrate ## Bring the stack up, apply migrations, seed demo data (idempotent).
 	./scripts/seed.sh
 
 # ─── Bootstrap ────────────────────────────────────────────────────────────

@@ -35,13 +35,22 @@ public sealed class CorrelationContextEnricher(ITenantContextAccessor accessor) 
 
         if (context.IsResolved)
         {
-            logEvent.AddOrUpdateProperty(
-                propertyFactory.CreateProperty("tenant.id", context.TenantId.ToString()));
-
-            if (context.OrganizationId is { } orgId)
+            // Value.ToString() — see TenantContextSpanProcessor for why the id's
+            // own ToString() is not a wire format.
+            // Gated like the two branches below — an enricher that throws takes
+            // down the log line it enriches, including the one reporting the
+            // failure that produced the bad context.
+            if (context.TenantId.IsInitialized())
             {
                 logEvent.AddOrUpdateProperty(
-                    propertyFactory.CreateProperty("organization.id", orgId.ToString()));
+                    propertyFactory.CreateProperty(
+                        "tenant.id", context.TenantId.Value.ToString()));
+            }
+
+            if (context.OrganizationId is { } orgId && orgId.IsInitialized())
+            {
+                logEvent.AddOrUpdateProperty(
+                    propertyFactory.CreateProperty("organization.id", orgId.Value.ToString()));
             }
 
             // IsInitialized() before Value - see TenantContextSpanProcessor;

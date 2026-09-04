@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 
@@ -26,7 +27,9 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// what Packet 6 owns is the schema both sides write to.
 /// </para>
 /// </remarks>
-public sealed class TenantDomain : AuditableEntity<TenantDomainId>
+[TenantOwned]
+public sealed class TenantDomain
+    : AuditableEntity<TenantDomainId>, ITenantOwned, IAggregateRoot<TenantDomainId>
 {
     private TenantDomain(TenantDomainId id)
         : base(id) => Host = null!;
@@ -202,7 +205,7 @@ public sealed class TenantDomain : AuditableEntity<TenantDomainId>
                 nameof(id));
         }
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             tenantId, "A domain belongs to a tenant.", nameof(tenantId));
 
         // The database carries the same rule as ck_tenant_domains_host_normalized;

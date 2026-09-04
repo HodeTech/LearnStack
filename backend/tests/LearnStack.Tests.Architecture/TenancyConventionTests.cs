@@ -15,9 +15,9 @@ namespace LearnStack.Tests.Architecture;
 /// <para>
 /// Most of these are <b>source scans</b>, and that is a deliberate choice rather
 /// than a shortcut. Each rule is about a symbol not appearing outside one file —
-/// a reflection or NetArchTest form would have to observe a call that has no
-/// consumer yet, because the resolver that will read these values does not land
-/// until Packet 7. A scan can hold the line from the day the symbol exists,
+/// a reflection or NetArchTest form would have to observe a call, and these rules were
+/// written before Packet 7's resolver gave the values a consumer. A scan holds the line
+/// from the day the symbol exists,
 /// which is the day it can first be used wrongly. Where the type a rule names
 /// now exists, the rule adds a reflection check alongside the scan rather than
 /// replacing it: the two catch different mistakes.
@@ -37,12 +37,75 @@ public sealed class TenancyConventionTests
         // predicate, header, normalization, all of it. A second reader of
         // Request.Host is a second answer, and the one that skips the accessor
         // is the one that skips the trust check.
+        // The banned list names the headers this code ACTUALLY uses, not only the
+        // conventional one. `X-Forwarded-Host` appears nowhere in the source — banning it
+        // alone made the rule green over the real hole: `TrustedHopOptions.HostHeaderName`
+        // is a public const carrying `X-LearnStack-Host`, and a second file reading it
+        // reads the forwarded host WITHOUT `IsTrustedHop`'s CIDR check and constant-time
+        // secret comparison. Both the literal and the const are banned, because either
+        // spelling reaches the same header.
         Offenders(
                 except: Path.Combine("Tenancy", "EffectiveHostAccessor.cs"),
-                banned: ["Request.Host", "GetDisplayUrl", "GetEncodedUrl", "X-Forwarded-Host"])
+                banned:
+                [
+                    "Request.Host",
+                    "GetDisplayUrl",
+                    "GetEncodedUrl",
+                    "X-Forwarded-Host",
+                    "X-LearnStack-Host",
+                    "TrustedHopOptions.HostHeaderName",
+                ],
+                alsoExcept: [Path.Combine("Tenancy", "TrustedHopOptions.cs")])
             .Should().BeEmpty(
                 "only EffectiveHostAccessor reads a request host (ADR-0036 § Effective "
                 + "host and the trusted hop)");
+    }
+
+    [Fact]
+    public void Out_Of_Band_Setters_Open_Read_Only_Transactions()
+    {
+        // The two components that announce a session variable outside the ambient unit of
+        // work — the host resolver and the organization-scope validator. Four carriers
+        // describe both as a "short READ-ONLY transaction": Database Standards, Security
+        // Standards, the glossary and ADR-0040. Read-only is not decoration there; it is
+        // the property that makes an out-of-band setter of app.tenant_id / app.resolving_host
+        // acceptable at all, because `learnstack_app` holds write grants on the tables
+        // these connections reach.
+        //
+        // Measured: the resolver shipped without the statement while every carrier said it
+        // had one, and the validator two files away had carried it since Packet 6. A
+        // behavioural test cannot catch that — the transaction is opened, used and
+        // disposed inside one method, so nothing outside can observe its settings — which
+        // is why this is a scan.
+        //
+        // The ORDER matters as much as the presence: SET TRANSACTION must precede the
+        // first statement of the transaction or PostgreSQL refuses it outright, so a
+        // setter that issued it after its announcement would fail at runtime rather than
+        // quietly. Both positions are checked.
+        foreach (var file in new[]
+        {
+            Path.Combine("MultiTenancy", "CachedHostToTenantResolver.cs"),
+            Path.Combine("MultiTenancy", "OrganizationScopeValidator.cs"),
+        })
+        {
+            // Comments stripped first, or the doc-comment that EXPLAINS set_config counts
+            // as its first use and the order check compares against prose.
+            var source = SourceText.WithoutComments(File.ReadAllText(
+                Directory.EnumerateFiles(
+                        RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+                    .Single(candidate => candidate.EndsWith(file, StringComparison.Ordinal))));
+
+            var readOnly = source.IndexOf("SET TRANSACTION READ ONLY", StringComparison.Ordinal);
+            var announce = source.IndexOf("set_config(", StringComparison.Ordinal);
+
+            readOnly.Should().BeGreaterThan(-1,
+                $"{file} announces a session variable on its own connection, and every "
+                + "carrier in the corpus calls that transaction READ ONLY");
+            announce.Should().BeGreaterThan(-1, $"{file} is expected to announce something");
+            readOnly.Should().BeLessThan(announce,
+                $"{file} must issue SET TRANSACTION before its first statement — after it, "
+                + "PostgreSQL refuses the statement outright");
+        }
     }
 
     [Fact]
@@ -193,7 +256,10 @@ public sealed class TenancyConventionTests
     /// literal it is forbidden to write.
     /// </remarks>
     private static List<string> Offenders(
-        string? except, IReadOnlyList<string> banned, string? folder = null)
+        string? except,
+        IReadOnlyList<string> banned,
+        string? folder = null,
+        IReadOnlyList<string>? alsoExcept = null)
     {
         var root = Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api");
         if (folder is not null)
@@ -222,6 +288,16 @@ public sealed class TenancyConventionTests
                 continue;
             }
 
+            // A second exemption list, for the file that DECLARES a banned spelling as
+            // opposed to reading it. `TrustedHopOptions` owns the header names; banning
+            // the name without exempting its own declaration would make the rule
+            // unsatisfiable rather than strict.
+            if (alsoExcept is not null
+                && alsoExcept.Any(allowed => relative.Equals(allowed, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
             var code = SourceText.WithoutWhitespace(
                 SourceText.WithoutComments(File.ReadAllText(file)));
 
@@ -235,5 +311,47 @@ public sealed class TenancyConventionTests
         }
 
         return offenders;
+    }
+    [Fact]
+    public void Resolving_Host_Is_Set_In_One_Place()
+    {
+        // app.resolving_host is the fourth canonical session variable and the only
+        // one with a single setter: the resolver announces the host it is about to
+        // look up, and the policy on platform_host_to_tenant admits exactly that
+        // row. A second setter is a second announcement, on the one table read
+        // before any tenant context exists — the one place a widened read is not
+        // already caught by app.tenant_id being NULL.
+        //
+        // Its own scan rather than the Offenders helper above, which is scoped to
+        // LearnStack.Api: the sole setter lives in LearnStack.Infrastructure, so a
+        // rule that only looked at the Api project would be green by construction.
+        //
+        // The SETTER spelling only. Banning the bare literal `app.resolving_host`
+        // fails on the migration's own policy DDL, which must name the variable in
+        // order to read it.
+        const string Setter = "set_config('app.resolving_host'";
+        var SoleSetter = Path.Combine(
+            "LearnStack.Infrastructure", "MultiTenancy", "CachedHostToTenantResolver.cs");
+
+        var offenders = Directory
+            .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            // The full relative path, not a filename suffix. `EndsWith` on the bare name
+            // exempts anything ending in it — `NoopCachedHostToTenantResolver.cs`,
+            // `TestCachedHostToTenantResolver.cs` — so a second setter could be added in a
+            // file the rule silently treats as the sole one.
+            .Where(file => !string.Equals(
+                Path.GetRelativePath(RepositoryPaths.BackendSrc(), file),
+                SoleSetter,
+                StringComparison.Ordinal))
+            .Where(file => SourceText.WithoutComments(File.ReadAllText(file))
+                .Contains(Setter, StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file))
+            .ToList();
+
+        offenders.Should().BeEmpty(
+            "CachedHostToTenantResolver is the sole setter of app.resolving_host "
+            + "(Security Standards § Tenant Context)");
     }
 }

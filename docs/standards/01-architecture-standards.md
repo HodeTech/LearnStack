@@ -6,6 +6,8 @@
 (Amendment 1: outbox dispatch via Dapr pub/sub),
 [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md)
 (scheduled by [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)),
+[ADR-0042 Tenant Provisioning as a Bounded Cross-Aggregate Transaction](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+(§ Aggregate Ownership's carve-out),
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md)),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
@@ -48,6 +50,7 @@ flowchart LR
   domain[Module.Domain]
   infra[Module.Infrastructure]
   kernel[SharedKernel]
+  coreInfra[Core LearnStack.Infrastructure]
   otherContracts[Other Module.Application.Contracts]
   providers[Provider SDKs]
 
@@ -56,9 +59,29 @@ flowchart LR
   app --> contracts
   app --> otherContracts
   infra --> app
+  infra --> coreInfra
   infra --> providers
   contracts --> kernel
 ```
+
+Text fallback — a module's `Domain` depends on `SharedKernel`; its `Application` on its
+own `Domain`, its own `Application.Contracts` and other modules' contracts; its
+`Infrastructure` on its own `Application`, on **core `LearnStack.Infrastructure`**, and
+on provider SDKs; and `Application.Contracts` on `SharedKernel`.
+
+**`Module.Infrastructure → LearnStack.Infrastructure` is permitted, and narrowly.** It
+carries the shared persistence seams every tenant-owned module derives from rather than
+restates — `TenantScopedDbContext` and the query-filter mechanism it applies
+([ADR-0040](../decisions/0040-ambient-unit-of-work.md);
+[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md)). Those
+call EF model-building APIs, which `SharedKernel` is not sanctioned to do — its EF
+reference is scoped to Vogen-emitted converters
+([ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md), and § Build-time-only
+exceptions below) — so the seam has nowhere else to live. The edge is one-way: core
+`LearnStack.Infrastructure` references no module, which is what keeps it acyclic, and
+`CoreInfrastructure_DoesNotDependOn_AnyModule` holds that. A module reaching into core
+Infrastructure for a **capability of its own** rather than for a shared seam is the
+misuse this sentence exists to name.
 
 Forbidden edges:
 - Domain → Application
@@ -93,6 +116,14 @@ third build-time reference to Domain or SharedKernel requires an ADR.
 - The aggregate root is the only entry point for state changes inside the aggregate.
 - Repositories return aggregates, not raw entities.
 - Cross-aggregate writes inside a single transaction are forbidden. Use an integration event.
+  **One standing exception, bounded by enumeration:** tenant provisioning writes `Tenant`
+  and its default `Organization` in one transaction, because
+  `tenants.default_organization_id` carries an invariant no eventual-consistency
+  mechanism can deliver
+  ([ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)).
+  It covers those two roots and that one operation; the allow-list is literal, and
+  `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` holds it at one entry.
+  Cross-**module** writes remain forbidden with no exception at all.
 
 ## Cross-Module Communication
 
@@ -132,7 +163,18 @@ Rules:
 
 ## Tenant-Scoped Code
 
-- Every entity that has a `TenantId` property must be annotated `[TenantOwned]`.
+- Every entity backed by a table in one of the **tenant-owned** table classes carries
+  `[TenantOwned]`. Both exceptions are decided by **table class**, not by oversight, and
+  they except different things. `tenants` is tenant-owned **self-keyed**: it **carries
+  the marker**, and is excepted only from the `TenantId` *property* — its `id` *is* the
+  tenant id, so both the query filter and the policy key on `id`.
+  `platform_host_to_tenant` is **platform-scoped**, read in order to determine the
+  tenant — a tenant-keyed predicate on it would make host resolution return zero rows
+  forever — so it takes **no marker at all**. See
+  [Database Standards § Table classes](05-database.md) and
+  [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
+  The presence of a `TenantId` property is **not** the test: `PlatformHostMapping` has
+  one and takes no marker.
 - `[TenantOwned]` entities must have a configured EF global query filter and a PostgreSQL RLS policy (see [Database Standards](05-database.md)).
 - Application services must never expose `IgnoreQueryFilters()` directly to callers.
 - Background jobs and integration event handlers must accept `TenantId` as part of their payload and set it as the ambient context before doing work.

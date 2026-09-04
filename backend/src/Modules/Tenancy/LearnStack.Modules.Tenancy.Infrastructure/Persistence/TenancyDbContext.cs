@@ -1,4 +1,6 @@
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
@@ -21,18 +23,26 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// there is one call site to change and not many.
 /// </para>
 /// <para>
-/// <b>No global query filters here yet.</b> The tenant and organization filters
-/// are Packet 7's, with <c>TenantResolverMiddleware</c> and the request-scoped
-/// <c>ITenantContext</c> they read. Between the two packets no tenant-owned table
-/// is read on a request path, and with the policies live and <c>app.tenant_id</c>
-/// unset every predicate evaluates to <c>NULL</c> and every query correctly
-/// returns zero rows — fail-closed by construction rather than by a filter that
-/// does not exist yet
+/// <b>The global query filters come from the base.</b>
+/// <c>TenantScopedDbContext</c> owns the two members they close over and applies
+/// one to every entity implementing <c>ITenantOwned</c>; this context adds none
+/// of its own. <see cref="Tenants"/> gets a filter of a different SHAPE, not none:
+/// it is tenant-owned <b>self-keyed</b> — its <c>id</c> is the tenant id, and its
+/// policy says so — so the predicate compares <c>Id</c> rather than a
+/// <c>TenantId</c> column. An earlier version of this paragraph said it got no
+/// filter at all, which the self-keyed branch in <c>TenantQueryFilters</c>
+/// contradicts. One of the eight entity types genuinely gets none:
+/// <see cref="PlatformHostMappings"/>, which is <b>platform-scoped</b> and read
+/// in order to determine the tenant, so a tenant-keyed predicate on it would make
+/// host resolution return zero rows forever. Row Level Security remains the
+/// isolation boundary
 /// (<see href="../../../../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md">ADR-0003
-/// Amendment 3</see>).
+/// Amendment 3</see>); the filters are the layer above it.
 /// </para>
 /// </remarks>
-public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options) : DbContext(options)
+public sealed class TenancyDbContext(
+    DbContextOptions<TenancyDbContext> options, ITenantContextAccessor accessor)
+    : TenantScopedDbContext(options, accessor)
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
@@ -40,11 +50,9 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options)
 
     public DbSet<TenantDomain> TenantDomains => Set<TenantDomain>();
 
-    public DbSet<TenantLocale> TenantLocales => Set<TenantLocale>();
 
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
 
-    public DbSet<TenantFeatureFlag> TenantFeatureFlags => Set<TenantFeatureFlag>();
 
     public DbSet<PlatformEntitlement> PlatformEntitlements => Set<PlatformEntitlement>();
 
@@ -55,6 +63,10 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options)
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TenancyDbContext).Assembly);
+
+        // The base applies the tenant filters, and it runs after the
+        // configurations so every entity type is in the model when it sweeps.
+        base.OnModelCreating(modelBuilder);
 
         // Last, so it also rewrites anything the configurations named explicitly.
         // ToSnakeCase is idempotent, so a name already in snake_case is unchanged.

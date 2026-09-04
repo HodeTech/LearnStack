@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -30,6 +31,7 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// list.
 /// </para>
 /// </remarks>
+[TenantOwned(SelfKeyed = true)]
 public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
 {
     private Tenant(TenantId id)
@@ -93,11 +95,11 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        MappedLength.EnsureAtMost(slug, 63, nameof(slug));
-        MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
+        MappedLength.EnsureAtMost(slug, UrlSlug.MaxLength, nameof(slug));
+        MappedLength.EnsureAtMost(displayName, MappedLength.DisplayName, nameof(displayName));
         UrlSlug.EnsureUrlSafe(slug, nameof(slug));
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             id,
             "A tenant id is assigned by the registry that owns the tenant, never minted here.",
             nameof(id));
@@ -146,6 +148,204 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     /// aggregate — "the schema would not object, so the aggregate is where the
     /// invariant lives".
     /// </remarks>
+    private readonly List<TenantLocale> _locales = [];
+
+    /// <summary>
+    /// The locales this tenant publishes in.
+    /// </summary>
+    /// <remarks>
+    /// A navigation rather than its own aggregate: a locale row is
+    /// <c>PRIMARY KEY (tenant_id, locale)</c> with no surrogate id, and a composite
+    /// natural key is not an <c>IAggregateRoot&lt;TId&gt;</c> under any reading. It is
+    /// read-only here because the root is the only way in — see the mutators below, and
+    /// the reason they exist.
+    /// </remarks>
+    public IReadOnlyCollection<TenantLocale> Locales => _locales.AsReadOnly();
+
+    private readonly List<TenantFeatureFlag> _featureFlags = [];
+
+    /// <summary>This tenant's feature-flag overrides.</summary>
+    public IReadOnlyCollection<TenantFeatureFlag> FeatureFlags => _featureFlags.AsReadOnly();
+
+    /// <summary>Adds a locale this tenant publishes in.</summary>
+    /// <remarks>
+    /// <b>Every child write goes through a root method, and that is what bumps
+    /// <c>row_version</c>.</b> The version advances only inside
+    /// <c>AuditableEntity.Touch</c>, which nothing but <c>MarkUpdated</c> and
+    /// <c>SoftDelete</c> reach — so the bump the roadmap requires for a locale or flag
+    /// write is a consequence of containment rather than a second mechanism someone has
+    /// to remember. A caller holding a locale directly could not have produced it.
+    /// </remarks>
+    public void AddLocale(
+        string locale,
+        bool isDefault,
+        IClock clock,
+        UserId updatedBy,
+        bool isEnabled = true,
+        short sort = 0)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+
+        var added = TenantLocale.Create(Id, locale, isDefault: false, isEnabled, sort);
+
+        if (_locales.Any(existing => string.Equals(
+                existing.Locale, added.Locale, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"This tenant already publishes in '{added.Locale}'. A locale row is "
+                + "identified by (tenant_id, locale), so a second one is a duplicate "
+                + "rather than a second locale.");
+        }
+
+        // Refused before anything is added or stamped. PromoteDefault below raises on a
+        // disabled default, and it runs AFTER the row is in the collection — so without
+        // this check a refused AddLocale left the locale added and the root stamped for a
+        // call that threw. Same shape as SetFeatureFlag's ordering: every guard runs
+        // before the first mutation.
+        if (isDefault && !isEnabled)
+        {
+            throw new InvalidOperationException(
+                $"'{added.Locale}' cannot be added as a disabled default: a default nobody "
+                + "serves is not a default. Add it enabled, or add it non-default.");
+        }
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        _locales.Add(added);
+
+        // The FIRST locale is the default whether the caller asked for it or not. The
+        // partial unique index guarantees at most one default; nothing guarantees at
+        // least one, so a tenant whose only locale arrived with isDefault:false has a
+        // non-empty locale set and no default — a state every reader of "the tenant's
+        // default locale" has to handle and none of them expects. Promoting is the only
+        // answer that leaves the aggregate in a state the schema can also express.
+        if (isDefault || (_locales.Count == 1 && isEnabled))
+        {
+            PromoteDefault(added);
+        }
+    }
+
+    /// <summary>Makes an existing locale this tenant's default.</summary>
+    public void SetDefaultLocale(string locale, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+
+        var canonical = LocaleTag.Canonicalize(locale);
+        var target = _locales.FirstOrDefault(existing => string.Equals(
+                         existing.Locale, canonical, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"This tenant does not publish in '{canonical}', so it cannot be the default.");
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        PromoteDefault(target);
+    }
+
+    /// <summary>Removes a locale, which must not be the default.</summary>
+    public void RemoveLocale(string locale, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+
+        var canonical = LocaleTag.Canonicalize(locale);
+        var target = _locales.FirstOrDefault(existing => string.Equals(
+                         existing.Locale, canonical, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"This tenant does not publish in '{canonical}'.");
+
+        if (target.IsDefault)
+        {
+            throw new InvalidOperationException(
+                $"'{canonical}' is this tenant's default locale. Promote another locale "
+                + "first: a tenant that publishes in nothing has no fallback to render.");
+        }
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        _locales.Remove(target);
+    }
+
+    /// <summary>Sets a feature-flag override, adding it when it is new.</summary>
+    public void SetFeatureFlag(string key, string value, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        var existing = _featureFlags.FirstOrDefault(
+            flag => string.Equals(flag.Key, key, StringComparison.Ordinal));
+
+        // Every guard the child would run, run here first — key width and JSON
+        // well-formedness for both paths, and the audit pair for the new-flag path via
+        // Create below. The stamp comes after, and that ordering is the point: an earlier
+        // version stamped first, matching ChangeStatus, whose comment explains that
+        // MarkUpdated is the only statement in it that can throw. That is not true here —
+        // the child validates too — so a rejected value left the tenant's UpdatedAt,
+        // UpdatedBy and row_version moved for a change that never happened.
+        MappedLength.EnsureAtMost(key, 200, nameof(key));
+        JsonValue.EnsureWellFormed(value, nameof(value));
+
+        var created = existing is null
+            ? TenantFeatureFlag.Create(Id, key, value, clock.UtcNow, updatedBy)
+            : null;
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+
+        if (created is not null)
+        {
+            _featureFlags.Add(created);
+            return;
+        }
+
+        existing!.SetValue(value, clock.UtcNow, updatedBy);
+    }
+
+    /// <summary>Removes a feature-flag override.</summary>
+    public void RemoveFeatureFlag(string key, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        var target = _featureFlags.FirstOrDefault(
+                         flag => string.Equals(flag.Key, key, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"No feature flag '{key}' is set.");
+
+        MarkUpdated(clock.UtcNow, updatedBy);
+        _featureFlags.Remove(target);
+    }
+
+    /// <summary>
+    /// Clears the incumbent default before setting the new one.
+    /// </summary>
+    /// <remarks>
+    /// <b>The order is not cosmetic.</b> A partial unique index
+    /// <c>UNIQUE (tenant_id) WHERE is_default</c> backs this invariant in the database,
+    /// and EF emits one UPDATE per changed row: measured, setting the new default first
+    /// fails 23505, and clearing the incumbent first succeeds. The guard here exists for
+    /// the error message; the index exists because an aggregate invariant does not hold
+    /// across concurrent transactions.
+    /// </remarks>
+    private void PromoteDefault(TenantLocale target)
+    {
+        // A disabled default is a default nobody serves. The partial unique index says at
+        // most one locale is default and says nothing about whether it is enabled, so both
+        // entry points could produce a tenant whose fallback language is switched off —
+        // AddLocale(isDefault: true, isEnabled: false) directly, and SetDefaultLocale by
+        // promoting a locale that was added disabled. Every reader of "the tenant's
+        // default locale" then has a row that answers the question and cannot serve it.
+        if (!target.IsEnabled)
+        {
+            throw new InvalidOperationException(
+                $"'{target.Locale}' is disabled, so it cannot be this tenant's default. "
+                + "Enable it first, or choose a locale that is enabled.");
+        }
+
+
+        foreach (var incumbent in _locales.Where(locale => locale.IsDefault))
+        {
+            incumbent.ClearDefault();
+        }
+
+        target.MakeDefault();
+    }
+
     public void ChangeStatus(TenantStatus status, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);

@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -29,7 +30,10 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// <i>tenant-wide</i> — a scope, not "unknown".
 /// </para>
 /// </remarks>
-public sealed class TenantSetting : AuditableEntity<TenantSettingId>
+[TenantOwned]
+[OrganizationScoped]
+public sealed class TenantSetting
+    : AuditableEntity<TenantSettingId>, IOrganizationScoped, IAggregateRoot<TenantSettingId>
 {
     private TenantSetting(TenantSettingId id)
         : base(id)

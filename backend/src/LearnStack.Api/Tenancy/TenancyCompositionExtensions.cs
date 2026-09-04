@@ -1,14 +1,25 @@
+using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.SharedKernel.Hosting;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace LearnStack.Api.Tenancy;
 
 /// <summary>
-/// Composition-root wiring for the Packet 4 half of
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>:
-/// the effective host, the trusted hop, and the assertion recorder.
+/// Composition-root wiring for
+/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
+/// anonymous, pre-authentication tier.
 /// </summary>
+/// <remarks>
+/// Packet 4 brought the effective host, the trusted hop and the assertion recorder;
+/// Packet 7 added everything host classification needs to answer a request without a
+/// database — <c>Tenancy:PlatformHosts</c> and its boot-time validation, the
+/// separately-capped <c>UnknownHostCache</c>, <c>HostResolutionOptions</c>, and
+/// <c>IHostToTenantResolver</c> over a <c>Lazy&lt;NpgsqlDataSource&gt;</c> so a
+/// platform-only deployment never builds one at all.
+/// </remarks>
 public static class TenancyCompositionExtensions
 {
     public const string DeploymentModeKey = "Deployment:Mode";
@@ -144,6 +155,61 @@ public static class TenancyCompositionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        // Tenancy:PlatformHosts — the hosts that map to no tenant. Bound and
+        // validated here so a malformed entry fails the boot rather than turning
+        // the operator's own entry point into a 404 nobody sees until production.
+        var platformHosts = new PlatformHostOptions
+        {
+            Hosts = configuration.GetSection(PlatformHostOptions.SectionName).Get<string[]>() ?? [],
+        };
+
+        platformHosts.Validate();
+        services.AddSingleton(platformHosts);
+
+        // The same list, as the port the host-mapping writer checks against. ADR-0036
+        // makes that check the writer's job because the list is configuration and the
+        // mapping is a table: a database constraint cannot see the first, and a module
+        // cannot reference this file.
+        services.AddSingleton<IReservedHostRegistry, PlatformHostOptions.Registry>();
+
+        // The RESOLVER is the invalidator, not the negative cache: it owns both sides,
+        // and clearing only the negative one covers activation while leaving a
+        // deactivated or re-pointed host serving its previous tenant for the positive
+        // TTL. Same instance, reached through the port a module is allowed to name.
+        services.AddSingleton<IHostResolutionInvalidator>(
+            provider => (CachedHostToTenantResolver)provider
+                .GetRequiredService<IHostToTenantResolver>());
+
+        // Singleton, so the resolver's in-flight map is process-wide: a scoped one
+        // gives every request its own and coalesces nothing.
+        services.AddSingleton(new UnknownHostCacheOptions());
+        services.AddSingleton(new HostResolutionOptions());
+        services.AddSingleton<UnknownHostCache>();
+
+        // Lazy, so the resolver's construction builds no data source: a request on
+        // a platform host is answered from configuration and must cost nothing
+        // below it. The composition root already registers the data source as a
+        // factory rather than an instance, so this preserves that deferral instead
+        // of collapsing it at the first classified request.
+        services.AddSingleton(provider =>
+            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+        services.AddSingleton<IHostToTenantResolver, CachedHostToTenantResolver>();
+
+        // The membership reader that covers nothing, and the organization scope
+        // validator — the two ports the reconciliation matrix consults beyond the
+        // host. Both are stateless singletons; the validator shares the Lazy above,
+        // so a platform-only deployment still builds no data source.
+        //
+        // Registered UNCONDITIONALLY, with no DeploymentMode anywhere near them. A
+        // reader that were permissive in Development would reproduce exactly the
+        // appsettings inversion this file argues against at the top: the mechanism
+        // would be off in the environment nobody configures and on in the one that
+        // does, and the demo would pass while production 404'd. Phase 03 replaces
+        // DenyAllTenantMembershipReader with one that reads Membership; until then
+        // "nobody is a member of anything" is the true answer, not a placeholder.
+        services.AddSingleton<ITenantMembershipReader, DenyAllTenantMembershipReader>();
+        services.AddSingleton<IOrganizationScopeValidator, OrganizationScopeValidator>();
 
         services.Configure<TrustedHopOptions>(
             configuration.GetSection(TrustedHopOptions.SectionName));

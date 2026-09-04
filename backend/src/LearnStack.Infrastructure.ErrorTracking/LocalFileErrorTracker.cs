@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Observability;
 using LearnStack.SharedKernel.Secrets;
 using Microsoft.Extensions.Logging;
@@ -70,9 +71,15 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
             context.CorrelationId,
             context.RequestPath,
             context.RequestMethod,
-            context.TenantId,
-            context.OrganizationId,
-            context.UserId,
+            // Value under an IsInitialized() gate, not the id itself. Vogen's
+            // System.Text.Json converter reads Value, so an id that was never
+            // assigned makes Serialize throw — and this method's catch swallows
+            // it, dropping the whole envelope to a Warning while the caller logs
+            // the capture as a success. On SelfHostedAirGapped this file is the
+            // only place the error would have been recorded.
+            TenantId = Unwrap(context.TenantId),
+            OrganizationId = Unwrap(context.OrganizationId),
+            UserId = Unwrap(context.UserId),
             context.ModuleName,
             additionalTags = RedactSensitiveTags(context.AdditionalTags),
         };
@@ -108,6 +115,19 @@ internal sealed class LocalFileErrorTracker : IErrorTrackingProvider
             LogWriteFailure(_logger, path, writeFailure);
         }
     }
+
+    /// <summary>
+    /// The underlying value, or <c>null</c> when the id was never assigned.
+    /// </summary>
+    /// <remarks>
+    /// Keeps the serialized envelope byte-identical to what it held when these
+    /// members were <c>Guid?</c> — Vogen's JSON converter unwraps an initialized
+    /// id to the same bare value — while refusing to hand the converter an id
+    /// whose <c>Value</c> throws.
+    /// </remarks>
+    private static Guid? Unwrap<TId>(TId? id)
+        where TId : struct, IStronglyTypedId<Guid> =>
+        id is { } value && value.IsInitialized() ? value.Value : null;
 
     private static void DeleteBestEffort(string tempPath)
     {

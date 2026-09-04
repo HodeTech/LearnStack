@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Infrastructure.ErrorTracking;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Observability;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -33,9 +34,9 @@ public sealed class LocalFileErrorTrackerTests : IDisposable
             CorrelationId: "00-aabb-ccdd-01",
             RequestPath: "/v1/courses",
             RequestMethod: "POST",
-            TenantId: Guid.NewGuid(),
+            TenantId: TenantId.From(TenantGuid),
             OrganizationId: null,
-            UserId: null,
+            UserId: UserId.From(UserGuid),
             ModuleName: "education");
 
         await sut.CaptureAsync(new InvalidOperationException("boom"), context);
@@ -49,7 +50,24 @@ public sealed class LocalFileErrorTrackerTests : IDisposable
         doc.RootElement.GetProperty("RequestPath").GetString().Should().Be("/v1/courses");
         doc.RootElement.GetProperty("exception").GetProperty("type").GetString()
             .Should().Be(typeof(InvalidOperationException).FullName);
+
+        // The envelope is a wire format an operator greps, and the ids on it
+        // became value objects rather than raw Guids. Vogen's System.Text.Json
+        // converter unwraps them to the bare value, so this file is byte-identical
+        // to what it held before — asserted rather than assumed, because a
+        // converter that ever emitted {"Value":"..."} would break every existing
+        // query against these files and no other test would notice.
+        doc.RootElement.GetProperty("TenantId").GetString().Should().Be(TenantGuid.ToString());
+        doc.RootElement.GetProperty("UserId").GetString().Should().Be(UserGuid.ToString());
+        doc.RootElement.GetProperty("OrganizationId").ValueKind
+            .Should().Be(JsonValueKind.Null, "a tenant-wide capture carries no organization");
     }
+
+    private static readonly Guid TenantGuid =
+        Guid.Parse("018f4d40-1234-7000-8000-0000000000a1");
+
+    private static readonly Guid UserGuid =
+        Guid.Parse("018f4d40-1234-7000-8000-0000000000a2");
 
     public void Dispose()
     {

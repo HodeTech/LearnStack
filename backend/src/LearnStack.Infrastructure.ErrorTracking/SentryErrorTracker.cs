@@ -27,19 +27,24 @@ internal sealed class SentryErrorTracker : IErrorTrackingProvider
 
         SentrySdk.CaptureException(exception, scope =>
         {
-            if (context.TenantId is { } tenantId)
+            // Value.ToString() under an IsInitialized() gate on every one of the
+            // three. A Vogen id's own ToString() renders "[UNINITIALIZED]" for an
+            // unassigned value, and these tags are what a dashboard groups by;
+            // reading Value without the gate throws, inside the handler that is
+            // already reporting someone else's exception.
+            if (context.TenantId is { } tenantId && tenantId.IsInitialized())
             {
-                scope.SetTag("tenant.id", tenantId.ToString());
+                scope.SetTag("tenant.id", tenantId.Value.ToString());
             }
 
-            if (context.OrganizationId is { } orgId)
+            if (context.OrganizationId is { } orgId && orgId.IsInitialized())
             {
-                scope.SetTag("organization.id", orgId.ToString());
+                scope.SetTag("organization.id", orgId.Value.ToString());
             }
 
-            if (context.UserId is { } userId)
+            if (context.UserId is { } userId && userId.IsInitialized())
             {
-                scope.User = new SentryUser { Id = userId.ToString() };
+                scope.User = new SentryUser { Id = userId.Value.ToString() };
             }
 
             if (!string.IsNullOrWhiteSpace(context.CorrelationId))

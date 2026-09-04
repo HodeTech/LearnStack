@@ -227,12 +227,13 @@ public sealed class CrossCuttingHttpFixture : WebApplicationFactory<Program>
                 TestValidationHandler>();
             services.AddTransient<IValidator<TestValidationCommand>, TestValidationValidator>();
 
-            // TenantContextBehavior short-circuits when ITenantContext is
-            // not resolved. Until Packet 7 lands TenantResolverMiddleware,
-            // production has no way to flip IsResolved → true. For the
-            // integration test we replace the scoped registration with a
-            // fixed test tenant so MediatR's pipeline reaches the inner
-            // handler.
+            // TenantContextBehavior short-circuits when ITenantContext is not
+            // resolved, and again when the resolved context's origin does not reach
+            // the request type. Production resolves a real one through
+            // TenantResolverMiddleware from a host mapping; these cases have no host
+            // to map, so the scoped registration is replaced with a fixed test tenant
+            // that states an authenticated origin, and MediatR's pipeline reaches the
+            // inner handler.
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext>(_ => TestResolvedTenantContext.Instance);
 
@@ -278,6 +279,16 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
     public Task SetTenantContextAsync(
         ITenantContext context, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    // False, and not "true because nothing here has a database". This host has none, so
+    // no transaction is ever announced, and vouching for one would let the guard pass a
+    // command on a connection that does not exist. AddModuleDbContext refuses to build a
+    // context here anyway, so nothing asks — but the honest answer is the safe one.
+    public bool IsTenantContextIssuedOn(System.Data.Common.DbTransaction? transaction) => false;
+
+    public Task SetProvisioningTenantContextAsync(
+        LearnStack.SharedKernel.Identifiers.TenantId tenantId,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
         HasActiveTransaction = false;
@@ -316,11 +327,20 @@ internal sealed class TestResolvedTenantContext : ITenantContext
     public static TestResolvedTenantContext Instance { get; } = new();
 
     public bool IsResolved => true;
-    public Guid TenantId { get; } = Guid.Parse("018f4d40-0000-7000-8000-000000000001");
-    public Guid? OrganizationId { get; }
+    public TenantId TenantId { get; } = TenantId.From(Guid.Parse("018f4d40-0000-7000-8000-000000000001"));
+    public OrganizationId? OrganizationId { get; }
     public UserId? UserId { get; }
     public string? CorrelationId => null;
     public string? ModuleName => "integration-test";
+
+    // Stated, because the step-4 ceiling is an allow-list and an unstated origin
+    // reaches nothing. This double went red the moment the ceiling landed, which is
+    // the gate working: a resolved context that never decided its authority must not
+    // be handed the run of the API. HostAndClaim is what an authenticated request
+    // carries, which is what these cases are standing in for — not HostOnly, which
+    // would reach only [PublicSurface] types and is a narrower claim than any of them
+    // makes.
+    public TenantContextOrigin? Origin => TenantContextOrigin.HostAndClaim;
 }
 
 [Route("test")]

@@ -89,12 +89,52 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
         {
             // First statement inside the transaction, per ADR-0003 Amendment 3, and
             // inside the try so a failure to issue it fails the frame rather than
-            // leaving it open for the scope to clean up later. Until Packet 7's
-            // TenantResolverMiddleware populates ITenantContext this writes the
-            // empty string, and that is correct: the policies read
-            // NULLIF(current_setting(...), '')::uuid, so an unresolved context is a
-            // NULL predicate and every tenant-owned table returns zero rows.
-            await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
+            // leaving it open for the scope to clean up later. For an unresolved
+            // context this writes the empty string, and that is correct: the policies
+            // read NULLIF(current_setting(...), '')::uuid, so an unresolved context is
+            // a NULL predicate and every tenant-owned table returns zero rows.
+            //
+            // One exception, and it is the one write whose tenant no context can carry.
+            // `tenants` is self-keyed and its policy is WITH CHECK (id = app.tenant_id),
+            // so creating a tenant means announcing the tenant being created — an id
+            // that names nothing resolvable, because it does not exist yet. Measured
+            // against the shipped policy on a throwaway container: unset and empty-string
+            // both fail 42501 — the empty-string half is the one a case pins, in
+            // A_request_that_does_not_provision_still_fails_closed_when_unresolved, since
+            // that is the state this pipeline can actually produce — and
+            // the new tenant's own id lets the whole provisioning sequence commit.
+            //
+            // The !IsResolved term is the load-bearing half, not a defensive one. A
+            // caller already authenticated for tenant A who sends a provisioning request
+            // naming tenant B falls through to the ordinary path, the transaction is
+            // announced with A, and B's insert is refused by the policy. The confused
+            // deputy is closed by the database rather than by a check somebody has to
+            // remember to write.
+            //
+            // Announced ONCE either way. A handler announcing a second time would leave
+            // a window inside this transaction where app.tenant_id is the empty string —
+            // every statement in it silently fail-closed — and would hand every handler
+            // in the solution the ability to move the ambient tenant. This stays the
+            // only caller, which is what keeps ADR-0040's setter set closed at seven.
+            //
+            // WRITE-ONLY, and the asymmetry is the reason. This announces the tenant to
+            // PostgreSQL; it does not touch ITenantContextAccessor, which is what the EF
+            // query filters read. So inside a provisioning transaction the policies see
+            // the new tenant and the filters see the all-zero one, and any EF READ here
+            // returns zero rows — silently, the way a context on its own connection would.
+            // Nothing reads today: ADR-0042 enumerates the operation as three writes, and
+            // inserts are not filtered. A read added here needs the accessor set too,
+            // which would make this a fifth writer of a member ADR-0036 Amendment 2 closes
+            // at four — so it is a decision, not an edit.
+            if (!tenantContext.IsResolved && request is IProvisionsTenant provisioning)
+            {
+                await unitOfWork.SetProvisioningTenantContextAsync(
+                    provisioning.ProvisioningTenantId, cancellationToken);
+            }
+            else
+            {
+                await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
+            }
 
             var response = await next();
 

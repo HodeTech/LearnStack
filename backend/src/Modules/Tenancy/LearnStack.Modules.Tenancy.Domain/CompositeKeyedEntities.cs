@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.Modules.Tenancy.Domain;
 
@@ -24,7 +25,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// own configuration audit covers as one change, not six.
 /// </para>
 /// </remarks>
-public sealed class TenantLocale
+[TenantOwned]
+public sealed class TenantLocale : ITenantOwned
 {
     private TenantLocale() => Locale = null!;
 
@@ -52,14 +54,26 @@ public sealed class TenantLocale
     /// <summary>Display order in a language switcher.</summary>
     public short Sort { get; private set; }
 
-    public static TenantLocale Create(
+    /// <summary>Makes this the tenant's default locale.</summary>
+    /// <remarks>
+    /// <c>internal</c>, and reached only from <c>Tenant.PromoteDefault</c>, which clears
+    /// the incumbent first. Exposed publicly it would be the one call that can put two
+    /// rows past the aggregate guard and into the partial unique index, where the failure
+    /// is a 23505 nobody wrote a message for.
+    /// </remarks>
+    internal void MakeDefault() => IsDefault = true;
+
+    /// <summary>Stops this being the default.</summary>
+    internal void ClearDefault() => IsDefault = false;
+
+    internal static TenantLocale Create(
         TenantId tenantId, string locale, bool isDefault, bool isEnabled = true, short sort = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
         MappedLength.EnsureAtMost(locale, 35, nameof(locale));
         LocaleTag.EnsureWellFormed(locale, nameof(locale));
 
-        TenantOwned.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));
+        TenantOwnership.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));
 
         return new TenantLocale
         {
@@ -91,7 +105,8 @@ public sealed class TenantLocale
 /// first write, and no soft delete — removing a flag removes the row.
 /// </para>
 /// </remarks>
-public sealed class TenantFeatureFlag
+[TenantOwned]
+public sealed class TenantFeatureFlag : ITenantOwned
 {
     private TenantFeatureFlag()
     {
@@ -110,7 +125,7 @@ public sealed class TenantFeatureFlag
 
     public UserId UpdatedBy { get; private set; }
 
-    public static TenantFeatureFlag Create(
+    internal static TenantFeatureFlag Create(
         TenantId tenantId, string key, string value, DateTimeOffset at, UserId by)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -124,7 +139,7 @@ public sealed class TenantFeatureFlag
         // ValueObjectValidationException out of the Vogen EF converter.
         AuditInput.EnsureValid(at, by);
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             tenantId, "A feature flag belongs to a tenant.", nameof(tenantId));
 
         return new TenantFeatureFlag
@@ -137,7 +152,7 @@ public sealed class TenantFeatureFlag
         };
     }
 
-    public void SetValue(string value, DateTimeOffset at, UserId by)
+    internal void SetValue(string value, DateTimeOffset at, UserId by)
     {
         JsonValue.EnsureWellFormed(value, nameof(value));
         AuditInput.EnsureValid(at, by);
@@ -157,8 +172,18 @@ public sealed class TenantFeatureFlag
 /// it. The numbers here are the ones the EF configurations map; asserting them at
 /// the factory is what makes the failure say which field is wrong.
 /// </remarks>
-internal static class MappedLength
+public static class MappedLength
 {
+    /// <summary>
+    /// The width the Tenancy schema maps for a human-facing display name.
+    /// </summary>
+    /// <remarks>
+    /// Public for the same reason as <see cref="UrlSlug.MaxLength"/>: the validator
+    /// refuses at this bound and the factories throw at it, and one number is what keeps
+    /// the two answers the same.
+    /// </remarks>
+    public const int DisplayName = 200;
+
     public static void EnsureAtMost(string value, int maximum, string parameterName)
     {
         if (value.Length > maximum)
@@ -212,7 +237,7 @@ internal static class JsonValue
 /// this is refused at the factory rather than left to collide with whatever that
 /// packet chooses.
 /// </remarks>
-internal static class TenantOwned
+internal static class TenantOwnership
 {
     public static void EnsureRealTenant(TenantId tenantId, string message, string parameterName)
     {
@@ -234,11 +259,34 @@ internal static class TenantOwned
 /// normalization constraint, the slug tables do not — so a slug with a slash or
 /// an uppercase letter reached a hostname unchallenged.
 /// </remarks>
-internal static partial class UrlSlug
+public static partial class UrlSlug
 {
+    /// <summary>
+    /// The width every slug column in the Tenancy schema maps — a DNS label.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than written at each call site because two layers read it: the
+    /// factories below, which throw, and <c>ProvisionTenantCommandValidator</c>, which
+    /// refuses. A number in both places is a number that drifts in one of them, and the
+    /// drift is invisible until a caller sends a 64-character slug and gets whichever
+    /// answer the two disagree on.
+    /// </remarks>
+    public const int MaxLength = 63;
+
+    /// <summary>Whether <paramref name="value"/> is a URL-safe slug.</summary>
+    /// <remarks>
+    /// The predicate form exists so a validator can refuse the same shape this class
+    /// throws on. Application code cannot use the throwing form: an
+    /// <c>ArgumentException</c> escaping a handler has no entry in <c>HttpStatusMap</c>
+    /// and becomes a 500, which is the wrong answer for a caller who mistyped a slug —
+    /// and one that arrives only after the transaction was opened and the tenant
+    /// announced.
+    /// </remarks>
+    public static bool IsUrlSafe(string value) => Pattern().IsMatch(value);
+
     public static void EnsureUrlSafe(string value, string parameterName)
     {
-        if (!Pattern().IsMatch(value))
+        if (!IsUrlSafe(value))
         {
             throw new ArgumentException(
                 $"'{value}' is not a URL-safe slug: lowercase letters, digits and single "

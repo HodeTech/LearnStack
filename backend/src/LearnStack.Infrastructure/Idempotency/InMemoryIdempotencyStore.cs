@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.Identifiers;
 using System.Collections.Concurrent;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Time;
@@ -79,13 +80,13 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     /// </summary>
     public const int MaxEntriesPerTenant = 1_000;
 
-    private readonly ConcurrentDictionary<(Guid Tenant, string Key), Entry> _entries = new();
+    private readonly ConcurrentDictionary<(TenantId Tenant, string Key), Entry> _entries = new();
 
     private long _lastSweepTicks;
     private Census _census = Census.Empty;
 
     public Task<IdempotencyClaimResult> TryClaimAsync(
-        Guid tenantId, string key, string fingerprint, CancellationToken cancellationToken)
+        TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
     {
         Guard(tenantId, key);
         ArgumentNullException.ThrowIfNull(fingerprint);
@@ -102,6 +103,20 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         // protect. Refusing a NEW key costs the caller a retry and costs the
         // guarantee nothing. An existing key is always served, so a client
         // holding one is never locked out by another's flood.
+        // KNOWN GAP — the census this reads is refreshed at most once per SweepInterval,
+        // so admission decides on a snapshot up to a second old. Within that window the
+        // nominal caps do not bound anything: every new key is admitted because the count
+        // they are compared against has not moved. What limits the damage is throughput
+        // and the anonymous rate limiter, not this check, so the caps are a soft ceiling
+        // rather than the hard one their names suggest.
+        //
+        // Closing it means live counters — incremented on insert, decremented on every
+        // removal path including the sweep, the abandon and the completion expiry — which
+        // is a change to a concurrent structure where getting the decrements wrong is
+        // worse than the current softness. It belongs with the durable store, whose
+        // trigger [ADR-0037 Amendment 1](../../../../docs/decisions/0037-idempotency-key-contract.md)
+        // sets: once claims live in Postgres the in-memory ceiling stops being the thing
+        // that bounds a production host at all.
         if (!_entries.ContainsKey(composite) && _census.IsFull(tenantId))
         {
             return Result(new IdempotencyClaimResult(
@@ -141,7 +156,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     }
 
     public Task<bool> CompleteAsync(
-        Guid tenantId,
+        TenantId tenantId,
         string key,
         Guid token,
         IdempotentResponse? response,
@@ -176,7 +191,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     }
 
     public Task<bool> AbandonAsync(
-        Guid tenantId, string key, Guid token, CancellationToken cancellationToken)
+        TenantId tenantId, string key, Guid token, CancellationToken cancellationToken)
     {
         Guard(tenantId, key);
 
@@ -186,23 +201,29 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         if (_entries.TryGetValue((tenantId, key), out var current) && current.Token == token)
         {
             return Task.FromResult(
-                _entries.TryRemove(new KeyValuePair<(Guid, string), Entry>((tenantId, key), current)));
+                _entries.TryRemove(new KeyValuePair<(TenantId, string), Entry>((tenantId, key), current)));
         }
 
         return Task.FromResult(false);
     }
 
-    private static void Guard(Guid tenantId, string key)
+    private static void Guard(TenantId tenantId, string key)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        // The tenant is the key space. An empty one is not a tenant — it is a
-        // call site that forgot to scope, and accepting it would build exactly
-        // the flat space this store's contract exists to prevent.
-        if (tenantId == Guid.Empty)
+        // The tenant is the key space. An unassigned one is not a tenant — it is a call
+        // site that forgot to scope, and accepting it would build exactly the flat space
+        // this store's contract exists to prevent.
+        //
+        // IsInitialized() first: reading Value on an unset Vogen id throws from inside the
+        // id type, which is neither this guard's contract nor a message a caller can act
+        // on. Both sentinels are refused, because a struct nobody assigned and one
+        // assigned the all-zero Guid are the same mistake.
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
         {
             throw new ArgumentException(
-                "An idempotency key is scoped to a tenant; Guid.Empty is not one.", nameof(tenantId));
+                "An idempotency key is scoped to a tenant; an unassigned id is not one.",
+                nameof(tenantId));
         }
     }
 
@@ -238,7 +259,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
             return;
         }
 
-        var counts = new Dictionary<Guid, int>();
+        var counts = new Dictionary<TenantId, int>();
         var total = 0;
 
         foreach (var pair in _entries)
@@ -274,11 +295,11 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     /// claims — a soft ceiling, which is what a ceiling that must never evict a
     /// live record has to be.
     /// </remarks>
-    private sealed record Census(IReadOnlyDictionary<Guid, int> PerTenant, int Total)
+    private sealed record Census(IReadOnlyDictionary<TenantId, int> PerTenant, int Total)
     {
-        public static readonly Census Empty = new(new Dictionary<Guid, int>(), 0);
+        public static readonly Census Empty = new(new Dictionary<TenantId, int>(), 0);
 
-        public bool IsFull(Guid tenantId) =>
+        public bool IsFull(TenantId tenantId) =>
             Total >= MaxEntries || PerTenant.GetValueOrDefault(tenantId) >= MaxEntriesPerTenant;
     }
 

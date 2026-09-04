@@ -12,7 +12,9 @@ two scopes (tenant + organization):
 
 - Tenant context resolved per request, background job, and event handler.
 - Organization context resolved alongside tenant context where applicable.
-- `tenant_id` on every tenant-owned table (mandatory).
+- `tenant_id` on every tenant-owned table (mandatory), except the tenant-owned
+  **self-keyed** class, whose `id` *is* the tenant id — see
+  [Database Standards § Table classes](../standards/05-database.md).
 - `organization_id` on every org-scoped tenant-owned table (nullable; null = tenant-wide).
 - EF Core global query filters for both `tenant_id` and `organization_id`.
 - PostgreSQL Row Level Security on every tenant-owned table: **one** permissive policy
@@ -41,7 +43,7 @@ two scopes (tenant + organization):
 | Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
 | Audit (ADR-0016) | `audit_log.tenant_id` mandatory | `audit_log.organization_id` nullable |
 | Logs (Serilog) | Every log scope carries `TenantId` | `OrganizationId` when context set |
-| Architecture tests | `Every_TenantOwned_Entity_HasTenantIdAndFilter` | `Every_OrgScoped_Entity_HasOrgIdAndFilter` |
+| Architecture tests | `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | `Every_OrgScoped_Entity_HasOrgIdAndFilter` |
 
 ## Isolation flow
 
@@ -63,7 +65,7 @@ sequenceDiagram
     APISIX->>API: Forward with X-Correlation-Id
     API->>MW: HTTP pipeline
     MW->>MW: Resolve host via platform_host_to_tenant AND read JWT claims#59;<br/>reject on disagreement (ADR-0036 — agreement, not priority)
-    MW->>Accessor: SetTenant(tenantId, organizationId, userId)
+    MW->>Accessor: Current = resolved context (tenant, organization, user)
     MW->>API: continue
     API->>EF: BeginTransaction, then SET LOCAL app.tenant_id /<br/>app.organization_id as the first statement (TransactionBehavior, step 6)
     API->>EF: Query tenant-owned aggregate
@@ -82,7 +84,10 @@ In text, for a reader whose renderer does not draw it:
 3. Middleware resolves the host through `platform_host_to_tenant` **and** reads
    the JWT claims, rejecting on disagreement — agreement, not priority
    ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
-4. It sets the ambient context and the request continues.
+4. It writes the ambient context — `ITenantContextAccessor.Current`, the
+   accessor's only member
+   ([ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md)) —
+   and the request continues.
 5. `TransactionBehavior` opens the transaction and issues
    `SET LOCAL app.tenant_id` / `app.organization_id` as its **first** statement.
 6. EF Core applies the global query filter, so the SQL carries the tenant and
@@ -117,11 +122,16 @@ The `app.scope = 'tenant'` setting belongs with `app.tenant_id` and
 reason — all three are transaction-local, so middleware setting them would discard
 them before the guarded query ran. **Two of the three are issued today.** Packet 6
 ships `IUnitOfWork.SetTenantContextAsync`, which writes `app.tenant_id` and
-`app.organization_id`; `ITenantContext` carries no scope member, so nothing sets
-`app.scope` and the hatch below is unreachable at runtime — the correct default,
-and [Packet 7](../roadmap/phase-02a-kernel-tenancy.md)'s to decide
-([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)) ([Security Standards § Tenant Context](../standards/11-security.md) is the
-single authority). What middleware contributes is the *input*: the request comes from a
+`app.organization_id`; `ITenantContext` carries no scope member
+([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), so nothing sets
+`app.scope` and the hatch below is unreachable at runtime — the correct default. The
+flag derives from the actor's role plus a declared tenant-wide operation.
+[Phase 02b](../roadmap/phase-02b-events-auth.md) delivers the authenticated principal it
+needs and nothing more — `Membership`, `Role` and `Permission` are
+[Phase 03](../roadmap/phase-03-identity-admin.md)'s — so Phase 03 is the earliest phase
+that can own a working carrier: the deferral is forced, not chosen
+([Security Standards § Tenant Context](../standards/11-security.md) is the single
+authority). What middleware contributes is the *input*: the request comes from a
 tenant-admin role carrying a tenant-wide operation flag (e.g. cross-org reporting), and
 the behavior turns that into the session variable. It
 widens **reads** across organizations within the caller's tenant; it never widens
@@ -152,12 +162,18 @@ Platform admin (LearnStack operator) access must be explicit:
   authenticated as `learnstack_platform` — the `BYPASSRLS` role of the four-role model.
   There is no `learnstack_audit_admin` role, and `learnstack_app` is not a member of
   `learnstack_platform`, so the application role cannot reach the bypass by `SET ROLE`.
-  Every cross-tenant access emits a `read-sensitive` audit row, written inside the scope
-  under the sentinel platform tenant id. See
+  Every cross-tenant access is recorded. Until
+  [Packet 9](../roadmap/phase-02a-kernel-tenancy.md) ships `audit_log` and `IAuditStore`,
+  `EnterPlatformAdminScope(reason)` records the entry through `ILogger` at `Warning` with
+  the `reason` and the caller — and **not** a sentinel platform tenant id, whose value
+  Packet 9 fixes with the schema that stores it. Packet 9 replaces the log line with the
+  audit row written inside the scope;
+  [the Tenancy audit matrix](../modules/tenancy/audit.md) carries the classification. See
   [Database Standards § Database roles](../standards/05-database.md).
 - No hidden arbitrary `IgnoreQueryFilters()` usage; architecture test
-  `IgnoreQueryFilters_OnlyInPlatformAdminScope` forbids it outside the
-  `LearnStack.Modules.Identity.Application.Platform` namespace.
+  `No_IgnoreQueryFilters_Outside_PlatformAdminScope` forbids it outside the audited
+  `EnterPlatformAdminScope(reason)` call path. The rule is a path check; there is no
+  escape-hatch comment marker to write.
 
 ## Background jobs
 
@@ -174,8 +190,8 @@ public abstract record JobParams
 }
 ```
 
-Workers restore tenant + org context (`accessor.SetTenant(tenantId, orgId, null)`) before
-reading or writing tenant-owned data. `LearnStackJob<TParams>` base class enforces this
+Workers restore tenant + org context (`accessor.Current = ...`) before reading or
+writing tenant-owned data. `LearnStackJob<TParams>` base class enforces this
 (Nexora analogue: `Nexora/docs/architecture/multi-tenancy.md` and
 `Nexora/docs/decisions/0012-tenant-management.md`; LearnStack will implement
 equivalent `LearnStackJob<TParams>` in Phase 02).
@@ -192,7 +208,7 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
         {
             using var scope = _serviceProvider.CreateAsyncScope();
             scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>()
-                .SetTenant(tenant.TenantId, null, null);
+                .Current = JobTenantContext.ForTenant(tenant.TenantId);
             try
             {
                 await ExecuteForTenantAsync(parameters, tenant, scope.ServiceProvider, ct);
@@ -211,15 +227,17 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 
 ## Architecture tests (Phase 02 blocker)
 
+Canonical rule names **and their assertions** live in the
+[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md); this
+table repeats the isolation-facing half of each.
+
 | Test | Asserts |
 |------|---------|
-| `Every_TenantOwned_Entity_HasTenantId` | Every aggregate marked `[TenantOwned]` (or inheriting `AuditableEntity<>`) has a `TenantId` property and an EF query filter referencing it. |
-| `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every aggregate marked `[OrganizationScoped]` has `OrganizationId` nullable + EF query filter. |
-| `Every_TenantOwned_Table_HasRlsPolicy` | Migration scan: every tenant-owned table has `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and **exactly one** permissive policy with an explicit `WITH CHECK`. Two permissive policies fail the test. |
-| `Every_OrgScoped_Table_HasOrgRlsPolicy` | Migration scan: the organization term is `AND`-ed inside that single policy — not in a second permissive one — and both `AS RESTRICTIVE` write guards are present. |
-| `IgnoreQueryFilters_OnlyInPlatformAdminScope` | Roslyn source scan: `IgnoreQueryFilters()` appears only in `LearnStack.Modules.Identity.Application.Platform` or behind an `architecture-allow: ignore-query-filters ADR-NNNN` marker. |
+| `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | Every entity marked `[TenantOwned]` has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an EF global query filter referencing it, and — in the migration that creates its table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus exactly one policy carrying both a `USING` and a `WITH CHECK` clause over `app.tenant_id`. A second **permissive** policy on the same table fails the test. |
+| `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every entity marked `[OrganizationScoped]` carries a **nullable** `OrganizationId`, an org-aware EF query filter, an organization term `AND`-ed into that same single policy — not a second permissive one — and, in the creating migration, both `AS RESTRICTIVE` write guards, `FOR UPDATE` and `FOR DELETE`. |
+| `No_IgnoreQueryFilters_Outside_PlatformAdminScope` | xUnit source scan: `IgnoreQueryFilters()` appears only inside the audited `EnterPlatformAdminScope(reason)` call path. No marker exempts a call site. |
 | `Hangfire_JobPayloads_IncludeTenantId` | Reflection: every `LearnStackJob<TParams>` subclass's `TParams` has `TenantId`. |
-| `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; `SetTenant(...)` precedes `ExecuteAsync(...)`. |
+| `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; the write to `ITenantContextAccessor.Current` precedes `ExecuteAsync(...)`. |
 | `No_DirectDaprClient_OutsideInfrastructure` | Roslyn source scan: `Dapr.Client.*` only in `LearnStack.Infrastructure.{Caching, Messaging, Secrets}`. |
 | `Provider_SDK_Types_NotImported_InDomain` | Provider SDK types (Stripe, Iyzico, LiveKit, Keycloak admin, SeaweedFS) only in `LearnStack.Infrastructure.*` adapters. |
 

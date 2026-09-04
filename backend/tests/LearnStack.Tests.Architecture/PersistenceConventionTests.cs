@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Tests.Architecture;
 
@@ -144,11 +145,12 @@ public sealed class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Four files under backend/src may reach for a connection at all: the two
+        // Five files under backend/src may reach for a connection at all: the two
         // design-time factories, where a connection string is the point; the
         // shared helper, which passes a connection rather than a string; and the
-        // composition root, which builds the one application data source behind
-        // its credential guard. A fifth is a new decision.
+        // two composition roots — the API's, which builds the one application data
+        // source behind its credential guard, and the seeder's, which is the same act
+        // for a host with no HTTP surface. A sixth is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -161,16 +163,27 @@ public sealed class PersistenceConventionTests
                        StringComparison.Ordinal))
             .Where(file => ProviderTokens.Any(token =>
                 StripComments(File.ReadAllText(file)).Contains(token, StringComparison.Ordinal)))
-            .Select(Path.GetFileName)
+            // Qualified by the directory above the file, not the bare filename. There
+            // are now two `Program.cs` under backend/src — the API's and the seeder's —
+            // and a set keyed on filenames alone would let one of them acquire a
+            // connection under cover of the other's entry.
+            .Select(file => $"{Path.GetFileName(Path.GetDirectoryName(file))}/{Path.GetFileName(file)}")
             .Order(StringComparer.Ordinal)
             .ToList();
 
         callSites.Should().BeEquivalentTo(
         [
-            "ModuleDbContextRegistration.cs",
-            "PersistenceCompositionExtensions.cs",
-            "PlatformDbContextFactory.cs",
-            "TenancyDbContextFactory.cs",
+            "Persistence/ModuleDbContextRegistration.cs",
+            "Composition/PersistenceCompositionExtensions.cs",
+            "Persistence/PlatformDbContextFactory.cs",
+            "Persistence/TenancyDbContextFactory.cs",
+
+            // The fifth, and a deliberate entry rather than a discovered one: the seeder
+            // is a second composition root, and building the one application data source
+            // is the same act PersistenceCompositionExtensions performs for the API. It
+            // is in the set — not exempted from it — so the next tool that reaches for a
+            // connection is still a reviewed diff.
+            "LearnStack.Tools.Seeder/Program.cs",
         ]);
     }
 
@@ -483,9 +496,18 @@ public sealed class PersistenceConventionTests
 
         using var _ = process;
 
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+        // Both pipes drained concurrently, then the wait. Reading one to the end and only
+        // then the other deadlocks whenever the child fills the second pipe's buffer while
+        // this side is blocked on the first — the classic Process pitfall. The role check
+        // is terse enough that it has never happened here, which is exactly why it would
+        // land on whoever makes the target chattier.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+
         process.WaitForExit(milliseconds: 60_000).Should().BeTrue("the role check exits immediately");
+
+        var stdout = stdoutTask.GetAwaiter().GetResult();
+        var stderr = stderrTask.GetAwaiter().GetResult();
 
         return (process.ExitCode, stdout + stderr);
     }
@@ -533,7 +555,12 @@ public sealed class PersistenceConventionTests
     /// value is deliberately not a real credential.
     /// </remarks>
     private static TenancyDbContext BuildTenancyContext() =>
-        new(new DbContextOptionsBuilder<TenancyDbContext>()
-            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
-            .Options);
+        new(
+            new DbContextOptionsBuilder<TenancyDbContext>()
+                .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
+                .Options,
+            // The model is what these cases read, and a query filter emits no
+            // DDL and no table mapping, so the context this builds is identical
+            // whichever tenant context it holds.
+            StaticTenantContextAccessor.Unresolved);
 }

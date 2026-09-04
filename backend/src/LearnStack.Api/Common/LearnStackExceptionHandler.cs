@@ -157,11 +157,20 @@ internal sealed class LearnStackExceptionHandler(
             RequestPath: httpContext.Request.Path.Value,
             RequestMethod: httpContext.Request.Method,
             TenantId: context?.IsResolved == true ? context.TenantId : null,
-            OrganizationId: context?.OrganizationId,
-            // IsInitialized() before Value: this builds context while already
-            // handling an exception, so a throw here loses the original one.
+            // Gated like the other two, because every downstream reader of this
+            // record reaches for Value — including the System.Text.Json converter
+            // that LocalFileErrorTracker serializes it through, whose throw that
+            // tracker's catch swallows. The envelope would be dropped to a
+            // Warning while the handler goes on logging the capture as a success.
+            OrganizationId: context?.OrganizationId is { } organization
+                && organization.IsInitialized()
+                    ? organization
+                    : null,
+            // IsInitialized() before it is carried: a UserId? being non-null
+            // says a UserId struct is there, not that it was ever assigned one,
+            // and every downstream reader of this record reaches for Value.
             UserId: context?.UserId is { } userId && userId.IsInitialized()
-                ? userId.Value
+                ? userId
                 : null,
             ModuleName: context?.ModuleName,
             AdditionalTags: null);

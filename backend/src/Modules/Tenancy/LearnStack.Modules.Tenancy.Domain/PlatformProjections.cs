@@ -1,4 +1,6 @@
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.Modules.Tenancy.Domain;
 
@@ -33,7 +35,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// ships <c>RefreshAsync</c> for it to guard.
 /// </para>
 /// </remarks>
-public sealed class PlatformEntitlement
+[TenantOwned]
+public sealed class PlatformEntitlement : ITenantOwned
 {
     private PlatformEntitlement()
     {
@@ -101,6 +104,73 @@ public sealed class PlatformEntitlement
 public sealed class PlatformHostMapping
 {
     private PlatformHostMapping() => Host = null!;
+
+    /// <summary>Maps <paramref name="host"/> to a tenant, or to one of its organizations.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The host is normalized here, not by the caller.</b> The resolver compares
+    /// ordinally against what <see cref="EffectiveHost.Normalize"/> produces from a
+    /// request's <c>Host</c> header, so a row stored in any other spelling — an uppercase
+    /// letter, a trailing dot, a port, an unpunycoded IDN — matches nothing and the tenant
+    /// is a 404 on its own domain. Normalizing at the factory is what makes that
+    /// unreachable rather than a review item.
+    /// </para>
+    /// <para>
+    /// <b>Both flags default to false.</b> The lifecycle
+    /// <see href="../../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
+    /// describes is submit → row → DNS instructions → activate, so a row that arrives
+    /// already serving anonymous traffic has skipped the two steps that decide whether it
+    /// should. A caller that wants a live host says so.
+    /// </para>
+    /// </remarks>
+    public static PlatformHostMapping Create(
+        string host,
+        TenantId tenantId,
+        OrganizationId? organizationId = null,
+        bool isActive = false,
+        bool isPubliclyLive = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+
+        var normalized = EffectiveHost.Normalize(host)
+            ?? throw new ArgumentException(
+                $"'{host}' is not a usable host: it must normalize to a name the resolver "
+                + "can compare against a request's Host header.",
+                nameof(host));
+
+        TenantOwnership.EnsureRealTenant(
+            tenantId,
+            "A host mapping names the tenant it resolves to; the tenant id was never assigned.",
+            nameof(tenantId));
+
+        if (organizationId is { } organization
+            && (!organization.IsInitialized() || organization.Value == Guid.Empty))
+        {
+            throw new ArgumentException(
+                "The organization id was never assigned. Pass null for a tenant-wide host.",
+                nameof(organizationId));
+        }
+
+        // Publicly live without being active is the combination the two flags exist to
+        // keep apart, inverted: it would serve anonymous traffic for a mapping the tenant
+        // does not yet own. The database has no CHECK for it — this is the guard.
+        if (isPubliclyLive && !isActive)
+        {
+            throw new ArgumentException(
+                "A host cannot be publicly live before it is active: the lifecycle is "
+                + "submit → row → DNS instructions → activate.",
+                nameof(isPubliclyLive));
+        }
+
+        return new PlatformHostMapping
+        {
+            Host = normalized,
+            TenantId = tenantId,
+            OrganizationId = organizationId,
+            IsActive = isActive,
+            IsPubliclyLive = isPubliclyLive,
+        };
+    }
 
     /// <summary>The normalized effective host. Primary key — one answer per host.</summary>
     public string Host { get; private set; }

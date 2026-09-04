@@ -67,4 +67,23 @@ public sealed class HttpStatusMapTests
         // the client disconnect.
         HttpStatusMap.For(new OperationCanceledException()).Should().Be(499);
     }
+
+    [Fact]
+    public void The_Tenant_Context_Guard_Reports_A_Fault_Rather_Than_A_Not_Found()
+    {
+        // The whole point of the 404-to-500 reclassification, and nothing pinned it:
+        // measured, reverting the exception's key to lockey_tenant_mismatch left the
+        // entire suite green. A wiring bug that tripped the guard would then have
+        // reached a client as a 404 byte-comparable to the deliberate refusal an
+        // unresolvable host gets — the response Steps 4 through 6 spent three review
+        // rounds making indistinguishable on purpose, with a server fault hiding inside
+        // it, invisible in monitoring.
+        var failure = new TenantContextMissingException("a command on an unannounced transaction");
+
+        // The CODE, not only the status. `internal_error` is not an explicit arm of the
+        // map — it falls into the default — so a mistyped key would still yield 500 and
+        // go unnoticed, while `code` is the field an RFC 7807 client matches on.
+        failure.Error.Code.Should().Be("internal_error");
+        HttpStatusMap.For(failure).Should().Be(500);
+    }
 }

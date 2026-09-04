@@ -53,12 +53,21 @@ public abstract class AuditableEntity<TId>
 
     /// <summary>
     /// Convenience projection of <see cref="DeletedAt"/> for in-process
-    /// callers (aggregate methods, application services, mappers). EF
-    /// global query filters should gate on <see cref="DeletedAt"/> directly
-    /// (<c>e =&gt; e.DeletedAt == null</c>) — <see cref="IsDeleted"/> is a
-    /// computed CLR property and is NOT guaranteed to translate to SQL by
-    /// EF Core's expression translator. Packet 7 wires the filters
-    /// accordingly.
+    /// callers (aggregate methods, application services, mappers). A query filter that
+    /// needs to exclude deleted rows gates on <see cref="DeletedAt"/> directly
+    /// (<c>e =&gt; e.DeletedAt == null</c>) — <see cref="IsDeleted"/> is a computed CLR
+    /// property and is NOT guaranteed to translate to SQL by EF Core's expression
+    /// translator.
+    ///
+    /// <b><c>TenantQueryFilters</c> does not add that term, and that is the shipped
+    /// state.</b> An earlier version of this comment said it did, which was false.
+    /// [Database Standards § Soft Delete](../../../../docs/standards/05-database.md) makes
+    /// the exclusion opt-in per aggregate — the columns are universal, the filtering is
+    /// not — and no aggregate exposes a soft delete today, so there is nothing to
+    /// exclude. The first one that does owns adding the term for its own entity, and
+    /// <c>tenant_domains</c> is where it will bite first: <c>ux_tenant_domains_host</c> is
+    /// partial on <c>deleted_at IS NULL</c>, so a released host frees the name in the
+    /// database while an unfiltered read would still return the row.
     /// </summary>
     public bool IsDeleted => DeletedAt.HasValue;
 

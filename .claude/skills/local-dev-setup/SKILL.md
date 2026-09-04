@@ -196,23 +196,37 @@ docker compose --env-file .env -f infra/compose/dev.yml config --format json
 
 ### Step 4: First-run bootstrap
 
-`make seed` verifies the stack is healthy and prints the demo credentials. The
-steps below are its **Phase 02a** scope — `scripts/seed.sh` carries them as a
-documented placeholder and does not run them yet:
+`make seed` brings the stack up, applies migrations (it depends on `migrate`),
+checks the two Keycloak realms, and — since Phase 02a Packet 7 — writes the two
+demo tenants. One command from a clean checkout.
 
-1. Applies every module's EF migrations.
-2. Seeds Keycloak's `learnstack` realm with a platform admin and two demo tenants
-   (each with two organizations + 4 users covering each role).
-3. Seeds Keycloak's `learnstack-hub` realm with an operator (`hub-operator`) and a
-   billing viewer.
-4. Seeds the two demo tenants' customization data (`TenantContentType`,
-   `TenantPageBlock`, `TenantLevelTaxonomy`, …) so the page renderer has
-   something to render.
-5. Creates the SeaweedFS buckets.
-6. Creates the Meilisearch indexes.
+What it writes today:
 
-There is no separate reset target today. If the placeholder seed must be rerun
-against fresh local data, use the destructive `make clean`, then `make seed`.
+1. `demo-english` ("English Hero") and `demo-yoga` ("Anatolia Yoga"), each with a
+   default organization and a second one, through `ProvisionTenantCommand` and
+   `CreateOrganizationCommand`.
+2. One `platform_host_to_tenant` row per tenant —
+   `demo-english.learnstack.local` mapping to the tenant, and
+   `demo-yoga.learnstack.local` to its default organization, so both live host
+   classifications exist in the seed.
+
+What it does not write yet, and which phase owns each:
+
+3. Keycloak realm users beyond the ones the realm JSON imports at compose boot —
+   the `users` table arrives with
+   [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md)'s Identity
+   migration, and Packet 7 creates none.
+4. Customization data (`TenantContentType`, `TenantPageBlock`,
+   `TenantLevelTaxonomy`, …) — the Customization module is empty until
+   [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), which is what first needs them.
+5. SeaweedFS buckets and Meilisearch indexes — both adapters are demand-gated to
+   [Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) under
+   [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
+
+The seed is idempotent: a second run recognises its own first by the uniqueness
+refusal and exits 0. There is no separate reset target — for fresh local data use
+the destructive `make clean`, then `make seed`, which re-applies the migrations on
+its way through.
 
 ### Step 5: Verify
 
@@ -272,7 +286,7 @@ dotnet run --project backend/src/LearnStack.Api
 | `Bind for 127.0.0.1:5432 failed: port is already allocated` | Stop your local Postgres, or stop the other compose project holding the port — host ports are fixed in `dev.yml`, so two projects cannot both bind them. |
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
-| Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`; `scripts/seed.sh` is still a Phase 02a placeholder today. |
+| Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
 | Web app shows raw i18n keys | i18n bundle build skipped; `pnpm build:i18n`. |
 | Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |

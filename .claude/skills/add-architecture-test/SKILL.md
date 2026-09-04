@@ -110,22 +110,35 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-The current set lives across these files; add yours to the right one:
+**The shipped set is ten files, not a family per topic.** Add yours to the one whose
+subject it shares:
 
 | File | What it covers |
 |------|----------------|
-| `ModuleDependencyTests.cs` | Cross-module reference bans, contracts-only access. |
-| `TenantIsolationTests.cs` | `[TenantOwned]` + filter + RLS, `[OrganizationScoped]` + org RLS. |
-| `EventBusTests.cs` | Topic naming, integration-event base, inbox guard usage. |
-| `AuditTests.cs` | `AuditEntry` inheritance, no direct `audit_log` writes. |
-| `EntitlementTests.cs` | Plan-projected vs tenant-flag separation, FeatureKey registry. |
-| `PermissionTests.cs` | Closed action set, scope correctness, denied-test presence. |
-| `HubContractTests.cs` | No direct Hub-URL references; Hub clients only inside the named adapters (ADR-0034). |
-| `DomainGenericTests.cs` | `Core_Modules_HaveNo_DomainSpecific_Names`, no `Verticals/`. |
-| `DaprDirectInjectionTests.cs` | No `IConnectionMultiplexer` / `KafkaProducer` / `VaultClient` in modules. |
-| `ConventionTests.cs` | Strongly-typed ids in commands, validator pairing, etc. |
+| `ModuleDependencyTests.cs` | Dependency direction between module packages, plus a planted-violation meta test that proves the scanner still detects one. |
+| `PersistenceConventionTests.cs` | `row_version` mapping, ambient-unit-of-work enlistment, the Docker trait, and the `migrate` recipe's chain coverage and credential redaction. |
+| `TenancyConventionTests.cs` | The ADR-0036 **request-edge** rules — what may read a host, where the effective host and `app.resolving_host` are computed, and the assertion budget's independence from `ICacheService`. Source scans, because three of the four banned inputs appear only as string literals. |
+| `TenantScopingTests.cs` | The correspondence between the `[TenantOwned]` / `[OrganizationScoped]` markers, the EF global query filters, and the Row Level Security policies. |
+| `TenantContextConstructionTests.cs` | How a tenant context comes into existence and who may write it: the factory's single entry point, the constructor's one call site, the enumerated accessor writers, and the composite-key organization read. |
+| `ApiConventionTests.cs` | Live majors, forwarded headers, required `Deployment:Mode`, unversioned route prefixes. |
+| `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, provider SDK exceptions). |
+| `RequestSurfaceTests.cs` | What the step-4 authority ceiling admits: the two request markers, their permitted sets, the shape of the attributes themselves, and the ban on request shapes MediatR runs with no pipeline. |
+| `PlatformAdminScopeConventionTests.cs` | The single sanctioned `BYPASSRLS` path: who may resolve the keyed platform data source, where connection strings are read, the entry gate, and what the scope must not touch. |
+| `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals` and the single-frontend-app rule. |
 
-If your rule doesn't fit any file, create a new file with a focused name.
+Rules for surfaces no file covers yet — audit, permissions, entitlement, event bus,
+Hub contract — are **Registered** in
+[the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
+the phase that ships the code they inspect. Check its Status line before assuming a
+net is under you, and create a new file only when your rule's subject is not one of
+the ten above.
+
+> **The tenancy rules live in three files, and the split is by subject, not by ADR.**
+> All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable
+> instruction. Ask what the rule is *about*: the request edge and what may be read from
+> it (`TenancyConventionTests`), the marker-to-filter-to-policy correspondence
+> (`TenantScopingTests`), or the construction and writing of the context itself
+> (`TenantContextConstructionTests`).
 
 ### Step 5: Stability of the test
 
@@ -141,8 +154,9 @@ Architecture tests are **non-skippable**. That means:
 When the rule is about migration content (RLS, partition):
 
 ```csharp
+/// <summary>A migration-scan sketch. NOT the shipped rule — see the note below.</summary>
 [Fact]
-public void Every_TenantOwned_Table_HasRls_With_AppTenantId()
+public void Migration_Files_Creating_Tenant_Owned_Tables_Carry_A_Policy_Block()
 {
     // RepositoryPaths.BackendSrc() — the shipped helper. A relative "backend/src"
     // is resolved against the TEST HOST's working directory (bin/Debug/net10.0),
@@ -151,31 +165,74 @@ public void Every_TenantOwned_Table_HasRls_With_AppTenantId()
     var migrationFiles = Directory
         .GetFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
         .Where(f => f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"))
+        .Where(f => !f.EndsWith(".Designer.cs", StringComparison.Ordinal))
         .ToList();
 
-    // The guard that makes the emptiness observable. Without it this test passes
-    // before a single migration exists and keeps passing if the path ever breaks.
+    // Guard one: the path resolved and found files. Necessary, and on its own
+    // not sufficient — see guard two.
     Assert.NotEmpty(migrationFiles);
 
-    foreach (var file in migrationFiles)
+    var tenantOwned = migrationFiles
+        .Select(f => (File: f, Content: File.ReadAllText(f)))
+        // Both tokens, because the two shipped chains use one each. EF writes the
+        // tenancy chain through migrationBuilder.CreateTable(name: "…"): measured,
+        // "CREATE TABLE" occurs ZERO times in 20260828092437_create_tenancy_schema.cs,
+        // which creates eight tables. The platform chain writes outbox_messages and
+        // idempotency_keys through migrationBuilder.Sql("CREATE TABLE …") because
+        // neither is an EF entity: "CreateTable(" occurs ZERO times in
+        // 20260828085701_create_platform_infrastructure_tables.cs. Either token alone
+        // classifies exactly one of the two chains, so the predicate is their union.
+        .Where(x => (x.Content.Contains("CreateTable(") || x.Content.Contains("CREATE TABLE"))
+                    && x.Content.Contains("tenant_id"))
+        .ToList();
+
+    // Guard two, and the reason this test is worth landing: it asserts on what the
+    // scan CLASSIFIED, not on what it read. A detection predicate that matches
+    // nothing runs the loop zero times and reports green over the exact migrations
+    // the rule exists to cover, past a NotEmpty guard on the file list. It catches
+    // an EMPTY classification, not a PARTIAL one: either token on its own leaves
+    // this assertion green while a whole shipped chain goes unscanned, which is
+    // why the predicate above is a union.
+    Assert.NotEmpty(tenantOwned);
+
+    foreach (var (file, content) in tenantOwned)
     {
-        var content = File.ReadAllText(file);
-        if (content.Contains("CREATE TABLE") && content.Contains("tenant_id"))
-        {
-            Assert.Contains("ENABLE ROW LEVEL SECURITY", content);
+        Assert.True(
+            content.Contains("ENABLE ROW LEVEL SECURITY")
             // FORCE is the half that matters: without it the table owner bypasses
             // its own policy and the whole layer is inert while ENABLE stays green.
             // Matched as a regex because the canonical template writes two spaces.
-            Assert.Matches(@"FORCE\s+ROW LEVEL SECURITY", content);
+            && Regex.IsMatch(content, @"FORCE\s+ROW LEVEL SECURITY")
             // Must match the canonical template's exact shape. A bare
             // current_setting('app.tenant_id') assertion FAILS against every
             // correct migration and PASSES against the superseded one-argument
             // form — see ADR-0003 Amendment 3 and 05-database.md.
-            Assert.Contains("NULLIF(current_setting('app.tenant_id', true), '')", content);
-        }
+            && content.Contains("NULLIF(current_setting('app.tenant_id', true), '')"),
+            $"{Path.GetFileName(file)} creates a tenant-owned table without the "
+            + "canonical policy block. Fix: copy it from docs/standards/05-database.md "
+            + "§ Tenant-Owned and Organization-Scoped Tables — that file is the only "
+            + "place the template exists.");
     }
 }
 ```
+
+**This sketch is deliberately not the canonical rule, and does not carry its name.**
+`Every_TenantOwned_Entity_HasFilterAndRlsPolicy` ships in
+`LearnStack.Tests.Architecture/TenantScopingTests.cs` and verifies **per entity**
+against the EF model — every marked type has a filter, and the migration carries that
+table's policy. The scan above is file-granular: delete one table's policy block from a
+migration that creates eight and it stays green, because a sibling table's block
+satisfies the `Contains`. Read it as an illustration of the mechanics — path resolution,
+the two `CREATE TABLE` spellings, the empty-classification guard — not as a rule to
+copy.
+
+File granularity is what makes the predicate above safe *as an illustration*: the two
+**table classes** that key their policy on something else — `tenants` on `id`,
+`platform_host_to_tenant` on `app.resolving_host` — ship in a file that also creates
+ordinary tenant-owned tables, so the file-level `tenant_id` assertion holds. A per-table
+version needs the table classes from
+[Database Standards § Table classes](../../../docs/standards/05-database.md), which is
+what the shipped rule uses.
 
 ### Step 7: Test the test
 

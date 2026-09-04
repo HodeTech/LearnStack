@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Idempotency;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -197,6 +198,10 @@ internal sealed partial class IdempotencyFilter(
             return;
         }
 
+        // No unwrapping: the port's key space is (TenantId, string) as of Packet 7, which
+        // is what ADR-0037 § What we punted on promised when it said the raw Guid and
+        // ITenantContext.TenantId "both move together". The IsResolved gate above has
+        // already returned, so this id is a real one.
         var tenantId = tenantContext.TenantId;
         var cancellationToken = context.HttpContext.RequestAborted;
         var fingerprint = await ComputeFingerprintAsync(context.HttpContext, cancellationToken)
@@ -262,11 +267,25 @@ internal sealed partial class IdempotencyFilter(
     private async Task RunAndRecordAsync(
         ResourceExecutingContext context,
         ResourceExecutionDelegate next,
-        Guid tenantId,
+        TenantId tenantId,
         string key,
         Guid token,
         CancellationToken cancellationToken)
     {
+        // KNOWN GAP — this buffer is unbounded, and MaxStoredResponseBytes is applied to
+        // `buffer.Length` further down, AFTER the action has written all of it. So a
+        // response far over the cap is materialised in full before being judged too large
+        // to store: the limit bounds what is RECORDED, never what is held in memory to
+        // decide it.
+        //
+        // Capping the stream is not the whole fix, because this buffer serves two
+        // purposes — capture for replay, and holding the body back until the outcome is
+        // recorded. Delivering past the cap while capturing only the first 256 KiB means
+        // streaming to `original` as the action writes, which reverses the
+        // "record BEFORE delivering" ordering ADR-0037 chose deliberately and reasons
+        // about at length. That ordering is the decision to revisit, not this line, and it
+        // belongs with the endpoints that return large bodies — none exist yet; every
+        // idempotent surface today answers with an identifier, a receipt or a status.
         var response = context.HttpContext.Response;
         var original = response.Body;
         using var buffer = new MemoryStream();
@@ -383,7 +402,7 @@ internal sealed partial class IdempotencyFilter(
         return Outcome.Record;
     }
 
-    private Task<bool> AbandonAsync(Guid tenantId, string key, Guid token) =>
+    private Task<bool> AbandonAsync(TenantId tenantId, string key, Guid token) =>
         store.AbandonAsync(tenantId, key, token, CancellationToken.None);
 
     /// <summary>
@@ -422,9 +441,31 @@ internal sealed partial class IdempotencyFilter(
     {
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        Append(digest, tenantContext.TenantId.ToString());
-        Append(digest, tenantContext.OrganizationId?.ToString() ?? string.Empty);
-        Append(digest, tenantContext.UserId is { } user ? $"user:{user}" : "anonymous");
+        // Value, not the id's own ToString(). Measured: for an initialized id the
+        // two produce the same string, so this conversion leaves every existing
+        // fingerprint byte-identical — which matters, because a changed digest
+        // would silently invalidate every live idempotency claim. Value is what
+        // makes that property independent of Vogen's formatting.
+        Append(digest, tenantContext.TenantId.Value.ToString());
+        // Ungated on purpose, and the reason is the opposite of the usual one.
+        // Falling back to the empty string is exactly what a genuinely
+        // tenant-wide (null) organization contributes, so gating an
+        // uninitialized id into the same empty string would merge "no scope" and
+        // "unknown scope" into one key space and let the two replay each other's
+        // responses. Throwing is the fail-closed answer here.
+        Append(
+            digest,
+            tenantContext.OrganizationId is { } fingerprintOrganization
+                ? fingerprintOrganization.Value.ToString()
+                : string.Empty);
+        // Value, not the wrapper. Measured: for an initialized id
+        // $"user:{id}" and "user:" + id.Value are byte-identical, so no live
+        // claim is invalidated — but for one nothing assigned, interpolation
+        // silently yields the literal "user:" while the sibling components
+        // throw. Two callers with a corrupted principal would then share a
+        // digest and replay each other's response bodies, which is precisely
+        // what putting the principal in the fingerprint prevents.
+        Append(digest, tenantContext.UserId is { } user ? $"user:{user.Value}" : "anonymous");
         Append(digest, context.Request.Method);
         Append(digest, context.Request.Path.Value ?? string.Empty);
         Append(digest, context.Request.QueryString.Value ?? string.Empty);

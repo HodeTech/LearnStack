@@ -135,12 +135,31 @@ public static class ModuleDbContextRegistration
                 // context this helper registers — on a seam whose whole premise is
                 // that a misconfigured context fails invisibly. Measured: the
                 // model-validation warnings and the command-error lines carrying
-                // the failing SQL both disappear. It is also what lets a
-                // DI-registered interceptor be found, which Packet 9 needs.
+                // the failing SQL both disappear.
+                //
+                // It does NOT make a DI-registered interceptor discoverable — an
+                // earlier version of this comment said it did, and measured on EF
+                // Core 10 that is false for both interceptor kinds, whether
+                // registered as IInterceptor or by its own type. An interceptor
+                // reaches a context by AddInterceptors on the options, which is the
+                // line below.
                 .UseApplicationServiceProvider(provider)
+                // Every module context, no opt-out: this is the single site that
+                // builds them, which is why the guard goes here rather than in each
+                // module's registration. The interceptor takes THIS scope's unit of
+                // work, so it compares each command's transaction against the one
+                // this request actually announced a tenant on.
+                .AddInterceptors(new TenantContextGuardInterceptor(unitOfWork))
                 .Options;
 
-            var context = (TContext)Activator.CreateInstance(typeof(TContext), options)!;
+            // ActivatorUtilities, not Activator: a module context takes its
+            // DbContextOptions plus whatever else it needs from DI —
+            // TenantScopedDbContext takes ITenantContextAccessor, because its
+            // query filters read it on every access rather than holding a context
+            // captured at construction. Activator.CreateInstance can only pass the
+            // options, so it would fail to construct any context with a second
+            // parameter, which is now every tenant-scoped one.
+            var context = ActivatorUtilities.CreateInstance<TContext>(provider, options);
             context.Database.UseTransaction(unitOfWork.Transaction);
 
             return context;

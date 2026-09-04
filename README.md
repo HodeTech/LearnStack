@@ -41,9 +41,12 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5 and 6 shipped; packets 4–10 re-scoped on 2026-08-08.
-[Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — host and tenant
-resolution, the query filters, and the two seed tenants — is next.**
+packets 0–3, 3b, 4, 5, 6 and 7 shipped; packets 4–10 re-scoped on 2026-08-08.
+Packet 7 landed host and tenant resolution, the query filters, tenant provisioning
+and the two seed tenants — `demo-english` and `demo-yoga`, which `make seed` writes
+through the same commands a request uses.
+[Packet 8](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the Tenant
+Customization foundation — is next.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the

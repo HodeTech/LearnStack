@@ -23,7 +23,7 @@ and a non-developer tenant admin can maintain it.
 | Host-based tenant + organization resolution, end to end | Per-organization branding override on the resolved context |
 | Catalog page and lesson page, Server Components over the typed SDK | Navigation, SEO metadata, 404 and redirect handling, full page composition |
 | One built-in content primitive | The complete two-tier block registry with safe-render placeholders |
-| Branding tokens read from `TenantSettings` | The branding configuration surface that writes them |
+| Branding tokens read from `TenantSetting` | The branding configuration surface that writes them |
 | First frontend tests, replacing the `--passWithNoTests` placeholder | The browser-level end-to-end suite |
 
 ### Public site renderer

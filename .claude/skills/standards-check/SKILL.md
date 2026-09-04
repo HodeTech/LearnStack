@@ -237,8 +237,9 @@ domain the diff doesn't touch.
 - [ ] Every `[TenantOwned]` entity ships with the mandatory isolation pair
   in `LearnStack.Tests.Integration`.
 - [ ] Architecture tests **non-skippable** — no `[Skip]` / `[Fact(Skip=…)]`.
-- [ ] Coverage targets respected: Domain ≥ 90%, Application ≥ 80%,
-  Infrastructure ≥ 50%.
+- [ ] Coverage targets respected: Domain ≥ 90% line / ≥ 80% branch, Application
+  ≥ 80% line, Infrastructure adapters ≥ 70% line. Reported, not enforced — the
+  standard does not make coverage a blocker and no CI job collects it.
 - [ ] Real Postgres via Testcontainers for integration tests; no in-memory
   substitution.
 

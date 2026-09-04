@@ -120,6 +120,38 @@ public sealed class CrossCuttingFoundationTests
     }
 
     [Fact]
+    public void Registering_The_Pipeline_Twice_Registers_It_Once()
+    {
+        // A doubled TransactionBehavior would be a nested frame on every request — the
+        // joiner path, taken for no reason, on the hot path — and a doubled
+        // AuditLogBehavior would catch and rethrow the same exception twice.
+        //
+        // The property holds, and it is MediatR's, not ours: `AddBehavior` deduplicates,
+        // so a second call adds nothing. Measured — seven behaviours and eleven total
+        // registrations either way. This pins it because it is a property we depend on
+        // and did not write: every test fixture in the repository registers its probe
+        // handler by hand specifically to avoid re-running AddMediatR, and if this ever
+        // stopped holding, that workaround would be load-bearing rather than cautious.
+        //
+        // A guard of our own was written for this and then removed: it changed nothing,
+        // and a guard no test can kill is a comment.
+        var once = new ServiceCollection();
+        once.AddLearnStackMediatRPipeline();
+
+        var twice = new ServiceCollection();
+        twice.AddLearnStackMediatRPipeline();
+        twice.AddLearnStackMediatRPipeline();
+
+        static int Behaviors(IServiceCollection services) => services.Count(descriptor =>
+            descriptor.ServiceType.IsGenericType
+            && descriptor.ServiceType.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>));
+
+        Behaviors(twice).Should().Be(Behaviors(once),
+            "the second call is a no-op, not a second pipeline");
+        twice.Count.Should().Be(once.Count, "and it adds no other registration either");
+    }
+
+    [Fact]
     public void IExceptionHandler_Registered_AtStartup()
     {
         // ADR-0032 § Sub-decision 1 — every host registers
@@ -270,11 +302,19 @@ public sealed class CrossCuttingFoundationTests
         // now, while the pipeline contract is fresh. Vacuous today (no
         // handlers yet); active the moment they land. Standards 02 § MediatR
         // Use Cases (review-4 M1).
-        var applicationAssemblies = ModuleAssemblyShapes
-            .Where(n => n.EndsWith(".Application", StringComparison.Ordinal))
-            .Append("LearnStack.Application")
-            .Select(TryLoadAssembly)
-            .Where(a => a is not null)
+        // Every LearnStack.* project under backend/src, derived rather than listed.
+        // A handler is wherever someone puts it, and the sibling rule in
+        // RequestSurfaceTests was measured passing a marked request type that sat in
+        // Application.Contracts — which is exactly where add-mediatr-handler tells an
+        // author to put one. Loaded without a null filter: an assembly this project
+        // cannot load is a missing ProjectReference, and dropping it turns "I could not
+        // read this code" into "this code is clean".
+        var applicationAssemblies = Directory
+            .EnumerateFiles(
+                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => Assembly.Load(name!))
             .ToArray();
 
         foreach (var assembly in applicationAssemblies)
@@ -288,8 +328,34 @@ public sealed class CrossCuttingFoundationTests
 
                 foreach (var contract in type.GetInterfaces())
                 {
-                    if (!contract.IsGenericType
-                        || contract.GetGenericTypeDefinition() != typeof(IRequestHandler<,>))
+                    if (!contract.IsGenericType)
+                    {
+                        continue;
+                    }
+
+                    var definition = contract.GetGenericTypeDefinition();
+
+                    // The two shapes the arity-2 check below cannot see, both of which
+                    // run with ZERO behaviors. Measured against MediatR 12.4.1:
+                    // typeof(IRequestHandler<>).GetInterfaces() is empty — the void
+                    // handler does not derive from IRequestHandler<T, Unit> — and Unit
+                    // does not implement IResultBase, so MediatR builds a chain of
+                    // IPipelineBehavior<TRequest, Unit> and every LearnStack behavior,
+                    // constrained on IResultBase, is excluded from it. No authority
+                    // ceiling, no validation, no audit classification, and no
+                    // TransactionBehavior — so no SET LOCAL app.tenant_id either.
+                    definition.Should().NotBe(typeof(IRequestHandler<>),
+                        $"{type.FullName} handles a void request, which MediatR runs with "
+                        + "no pipeline at all. Declare it IRequest<Result<None>> instead. "
+                        + "Standards 02 § MediatR Use Cases.");
+
+                    definition.Should().NotBe(typeof(IStreamRequestHandler<,>),
+                        $"{type.FullName} handles a stream request, which MediatR routes "
+                        + "through IStreamPipelineBehavior<,> — of which this solution "
+                        + "registers none, deliberately. Requests_Are_Never_Streamed bans "
+                        + "the shape; this is the handler half of the same ban.");
+
+                    if (definition != typeof(IRequestHandler<,>))
                     {
                         continue;
                     }
@@ -516,17 +582,24 @@ public sealed class CrossCuttingFoundationTests
             || ModuleAssemblyShapes.Contains(
                 member.DeclaringType.Assembly.GetName().Name, StringComparer.Ordinal);
 
+        // Through wrappers, not only at the surface. `IEventBus.IsAssignableFrom` is false
+        // for `Lazy<IEventBus>`, `Func<IEventBus>`, `IEnumerable<IEventBus>` and
+        // `Task<IEventBus>` — each of which injects the port just as effectively, and the
+        // first of them is a shape this codebase already uses (`Lazy<NpgsqlDataSource>`).
+        // A rule that only looked at the declared type was satisfied by one type argument.
+        bool Banned(Type declared) =>
+            Unwrap(declared).Any(inner =>
+                forbidden.Any(candidate => candidate.IsAssignableFrom(inner)));
+
         return type.GetConstructors(members).Where(InScope).Any(constructor =>
-                   constructor.GetParameters().Any(parameter =>
-                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+                   constructor.GetParameters().Any(parameter => Banned(parameter.ParameterType)))
                || type.GetMethods(members).Where(InScope).Any(method =>
-                   forbidden.Any(candidate => candidate.IsAssignableFrom(method.ReturnType))
-                   || method.GetParameters().Any(parameter =>
-                       forbidden.Any(candidate => candidate.IsAssignableFrom(parameter.ParameterType))))
+                   Banned(method.ReturnType)
+                   || method.GetParameters().Any(parameter => Banned(parameter.ParameterType)))
                || type.GetFields(members).Where(InScope).Any(field =>
-                   forbidden.Any(candidate => candidate.IsAssignableFrom(field.FieldType)))
+                   Banned(field.FieldType))
                || type.GetProperties(members).Where(InScope).Any(property =>
-                   forbidden.Any(candidate => candidate.IsAssignableFrom(property.PropertyType)));
+                   Banned(property.PropertyType));
     }
 
     /// <summary>A type that breaks the rule, so the checker can be shown to catch it.</summary>
@@ -616,6 +689,30 @@ public sealed class CrossCuttingFoundationTests
         catch (FileNotFoundException)
         {
             return null;
+        }
+    }
+
+    /// <summary>A declared type and every type argument reachable through it.</summary>
+    /// <remarks>
+    /// Transitive, because the wrappers nest: <c>Func&lt;Lazy&lt;IEventBus&gt;&gt;</c> is
+    /// two layers and injects the port at the bottom of both. Open generics are skipped —
+    /// a type parameter names no port.
+    /// </remarks>
+    private static IEnumerable<Type> Unwrap(Type declared)
+    {
+        yield return declared;
+
+        if (!declared.IsGenericType || declared.IsGenericTypeDefinition)
+        {
+            yield break;
+        }
+
+        foreach (var argument in declared.GetGenericArguments())
+        {
+            foreach (var inner in Unwrap(argument))
+            {
+                yield return inner;
+            }
         }
     }
 }

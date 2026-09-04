@@ -18,8 +18,8 @@ using LearnStack.SharedKernel.Messaging;
 public sealed class EventTenantContext : ITenantContext
 {
     private EventTenantContext(
-        Guid tenantId,
-        Guid? organizationId,
+        TenantId tenantId,
+        OrganizationId? organizationId,
         UserId? causalActorUserId,
         string? correlationId,
         string? moduleName)
@@ -35,8 +35,18 @@ public sealed class EventTenantContext : ITenantContext
     /// <inheritdoc />
     public bool IsResolved => true;
 
+    /// <summary>Matrix row 17: the envelope carried the tenant.</summary>
+    /// <remarks>
+    /// Proof that the factory is not the only producer of a resolved context — it is
+    /// the only producer of the <see cref="TenantContext"/> <i>type</i>. There is no
+    /// host and no token here to reconcile, so there is no matrix to apply; a
+    /// missing tenant fails at enqueue, which is the only place it can still be
+    /// fixed.
+    /// </remarks>
+    public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
+
     /// <inheritdoc />
-    public Guid TenantId { get; }
+    public TenantId TenantId { get; }
 
     /// <summary>
     /// The organization the fact belongs to, when the envelope names one.
@@ -54,7 +64,7 @@ public sealed class EventTenantContext : ITenantContext
     /// <c>WITH CHECK</c> rejects writing one. Widening is the
     /// <c>app.scope = 'tenant'</c> hatch, not an absent value.
     /// </remarks>
-    public Guid? OrganizationId { get; }
+    public OrganizationId? OrganizationId { get; }
 
     /// <summary>Who the consumer's writes are attributed to.</summary>
     /// <remarks>
@@ -97,8 +107,10 @@ public sealed class EventTenantContext : ITenantContext
         }
 
         return new EventTenantContext(
-            envelope.Event.TenantId,
-            envelope.OrganizationId,
+            Identifiers.TenantId.From(envelope.Event.TenantId),
+            envelope.OrganizationId is { } organization
+                ? Identifiers.OrganizationId.From(organization)
+                : null,
             envelope.ActorUserId,
             envelope.CorrelationId,
             moduleName);

@@ -93,11 +93,13 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Thirty-six test methods exist in
+Fifty-nine test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4 and
-Packet 6 — 55 cases once the theories expand. Methods are not rows: a `[Theory]`
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
+Packet 6 and Packet 7 — 77 cases once the theories expand. Counted from a run at
+Packet 7's close; the previous figures were Packet 6's and were not updated when
+Packet 7 added its rules. Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
 assertion that stops it passing vacuously.
 
@@ -666,6 +668,41 @@ otherwise).
   assemblies carry types.
 - **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
 
+#### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
+
+- **Asserts:** no type implementing `IRequestHandler<,>`, `IRequestHandler<>` or
+  `INotificationHandler<>` can reach more than one **distinct aggregate root** through
+  its constructor parameters' `IAggregateWriteStore<TRoot, TId>` derivations, except the
+  single handler on a literal allow-list — `ProvisionTenantCommandHandler`, which writes
+  `Tenant` and its default `Organization` in one transaction per ADR-0042.
+- **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
+  [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented.**
+- **Phase:** 02a Packet 7.
+- **Note:** the rule counts **aggregate roots reached through ports**, not `DbSet`
+  use, and the change is not cosmetic. ADR-0042 § Implementation Notes specified a
+  source scan for `Add` / `Update` / `Remove` against more than one `DbSet`; under the
+  shipped dependency rules that scan can never fire, because a module's `Application`
+  may not reference its `Infrastructure` and so no handler can name a `DbSet` at all. A
+  rule at **Implemented** that cannot fire is worse than one at **Registered**, because
+  the catalogue then claims coverage the suite does not have. See
+  [ADR-0042 Amendment 1](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
+- **Three escapes closed by measurement,** each found by putting the shape into a
+  production assembly and watching all 76 cases pass: a **fused port**
+  (`IFused : IAggregateWriteStore<A,_>, IAggregateWriteStore<B,_>`) is one parameter
+  reaching two roots, so roots are counted rather than parameters; an
+  **`INotificationHandler`** runs inside the ambient transaction and is the same write,
+  so it is in the handler set; and `Type.GetConstructors()` is public-only, so the
+  scan passes `NonPublic`.
+- **What it does not catch:** a write routed through a helper that itself holds two
+  ports, or through a second `DbContext` reached indirectly — the same limit
+  [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
+  states for every structural rule. The binding control is that the allow-list has one
+  entry and growing it is a reviewed diff.
+- **Mutation-checked.** A second handler taking two write ports, the sanctioned handler
+  renamed, and the two ports fused into one — each turns the rule red.
+
 ### Persistence: concurrency and the unit of work
 
 Source: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md),
@@ -760,16 +797,23 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly three files may mention
-  `UseNpgsql` or `AddDbContext` at all: the two design-time factories, where a
-  connection string is the point, and the shared helper, which passes a
-  *connection*. A fourth is a new decision. A context on its own connection never
-  saw `SET LOCAL`, so every read through it returns zero rows under the corrected
-  policy — silently.
+  its own connection. And under `backend/src`, exactly **five** files may reach for a
+  connection at all: the two design-time factories, where a connection string is the
+  point; the shared helper, which passes a *connection*; and the two composition roots —
+  `LearnStack.Api`'s, which builds the one application data source behind its credential
+  guard, and `LearnStack.Tools.Seeder`'s, which is the same act for a host with no HTTP
+  surface. A sixth is a new decision. A context on its own connection never saw the
+  announcement, so every read through it returns zero rows under the corrected policy —
+  silently.
+
+  The set is keyed on `directory/filename`, not the bare filename: two `Program.cs` now
+  exist under `backend/src`, and a bare-name set would let the API's silently take the
+  seeder's slot.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 6 step 6,
-  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+- **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
+  keyed by directory in Packet 7 step 10, `LearnStack.Tests.Architecture`,
+  `PersistenceConventionTests`).
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
@@ -815,6 +859,23 @@ first two rows are coverage checks; the last three are the proof.
 - **Status:** **Awaiting backfill** — cited by the standard, no dispatcher yet.
   **Phase:** 02b.
 
+#### `CoreInfrastructure_DoesNotDependOn_AnyModule`
+
+- **Asserts:** the core `LearnStack.Infrastructure` assembly references no
+  `LearnStack.Modules.*` type. The reverse edge — a module's `Infrastructure`
+  referencing core Infrastructure — is permitted and required, because
+  `TenantScopedDbContext` and the query-filter seam live there
+  ([Architecture Standards § Dependency Direction](01-architecture-standards.md)).
+  This rule is the half that keeps it one-way: core Infrastructure is referenced by
+  every module, so a single edge back into one makes the graph cyclic and makes that
+  module impossible to extract.
+- **Source:** [ADR-0002](../decisions/0002-initial-architecture.md);
+  [ADR-0010](../decisions/0010-cross-module-communication.md);
+  [Architecture Standards § Dependency Direction](01-architecture-standards.md).
+- **Type:** NetArchTest. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 3, `ModuleDependencyTests`).
+- **Phase:** 02a Packet 7.
+
 #### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
 
 - **Asserts:** the keyed `NpgsqlDataSource` built from `ConnectionStrings:PlatformAdmin`
@@ -823,13 +884,19 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** [05-database.md § How `EnterPlatformAdminScope(reason)` reaches
   `learnstack_platform`](05-database.md).
 - **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
-- **Status:** **Awaiting backfill.** **Phase:** 02a Packet 7.
-
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7). **Phase:** 02a Packet 7.
+- **Note:** three legs, all live. The keyed-resolution scan, a scan that connection
+  strings are read in exactly one file, and a self-check that the scan matched something
+  at all — a two-path allow-list matching nothing would pass vacuously. This is the
+  repository's first keyed DI registration, so the scan is the whole boundary: the key
+  is a public const because `GetKeyedServices(KeyedService.AnyKey)` reaches a keyed
+  registration whatever the key is spelled, so hiding the string buys nothing.
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 
 - **Asserts:** every entity marked `[TenantOwned]` (or implementing `ITenantOwned`)
-  has a `TenantId` property, an EF global query filter referencing it, and — in the
-  migration that creates its table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus
+  has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an
+  EF global query filter referencing it, and — in the migration that creates its
+  table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus
   exactly one policy carrying both a `USING` and a `WITH CHECK` clause over
   `app.tenant_id`. A second **permissive** policy on the same table fails the test: that
   is the defect ADR-0003 Amendment 3 corrects.
@@ -838,19 +905,42 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
+  module; Packet 10 closes it across every module.
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Note:** a marker-gated rule cannot catch a **missing** marker — it iterates what it
+  finds. The companion case `The_Host_Map_Carries_No_Tenant_Marker` states the negative
+  that matters most in this module: `platform_host_to_tenant` has a `TenantId` property
+  and must carry neither the marker nor a filter, because a tenant-keyed predicate on the
+  table read *in order to* determine the tenant makes host resolution return zero rows
+  forever, on the anonymous page-load path, with no error anywhere.
+- **Note:** the marker's scope is decided by **table class**, not by the presence of a
+  `TenantId` property. `tenants` is tenant-owned **self-keyed** — its policy is on `id`
+  and it carries no marker-driven `TenantId` filter — and `platform_host_to_tenant` is
+  **platform-scoped** and takes no marker at all, because it is read in order to
+  determine the tenant. See
+  [Database Standards § Table classes](05-database.md);
+  [Architecture Standards § Tenant-Scoped Code](01-architecture-standards.md) was
+  corrected to match in the same pass.
 
 #### `Every_OrgScoped_Entity_HasOrgIdAndFilter`
 
 - **Asserts:** every entity marked `[OrganizationScoped]` carries a **nullable**
-  `OrganizationId` (null = tenant-wide per ADR-0017), an org-aware EF query filter, and
-  an organization term `AND`-ed into the same single policy as the tenant term.
+  `OrganizationId` (null = tenant-wide per ADR-0017), an org-aware EF query filter, an
+  organization term `AND`-ed into the same single policy as the tenant term, and — in
+  the migration that creates its table — the two `AS RESTRICTIVE` write guards,
+  `FOR UPDATE` and `FOR DELETE`, that ADR-0003 Amendment 3 makes mandatory for every
+  organization-scoped table. The guards are part of the assertion, not decoration:
+  [the Tenancy module spec § Risks](../modules/tenancy/README.md) records the
+  measurement — with the hatch set and the delete guard dropped, a `DELETE` removed
+  another organization's row.
 - **Canonical name.** See § Canonical names and superseded spellings for the four
   superseded spellings.
-- **Source:** ADR-0017; ADR-0003 Amendment 3.
+- **Source:** ADR-0017; ADR-0003 Amendment 3;
+  [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
+  module; Packet 10 closes it across every module.
 - **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
@@ -859,9 +949,14 @@ first two rows are coverage checks; the last three are the proof.
   `EnterPlatformAdminScope(reason)` path.
 - **Source:** ADR-0003; [11-security.md](11-security.md);
   [05-database.md § Forbidden](05-database.md).
-- **Type:** xUnit + source scan / Roslyn allowlist. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + source scan; the permitted paths are a list inside the scan, not a
+  call-site marker. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7).
 - **Phase:** 02a (Packet 7).
+- **Note:** a live negative — nothing under `backend/src` calls `IgnoreQueryFilters`
+  today, and the rule exists so the first call is a deliberate edit to the exemption
+  rather than a quiet one at a call site. A path check with no marker, deliberately: a
+  comment is what a reviewer skims past.
 
 #### `AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`
 
@@ -875,8 +970,16 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003; ADR-0032 § Sub-decision 2;
   [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md).
 - **Type:** xUnit + reflection over `IRequest<>` implementations. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
 - **Phase:** 02a (Packet 7).
+- **Note:** the set leg is **vacuous today** and the shape leg is not. There is not one
+  production request type in the solution, so the permitted set is literally empty;
+  `ProvisionTenantCommand` is the first to carry the marker, in Packet 7 step 9. What runs now
+  is the guard on the attribute's own `AttributeUsage`: the behavior reads it with
+  `inherit: false`, and flipping the attribute to `Inherited = true` is not an error and not a
+  widening — it is a marker the pipeline silently stops following.
+- **Note:** the permitted set is a **literal list of type names**, not a naming pattern. A rule
+  satisfied by what an author calls a class is a rule nobody reviewed.
 
 #### `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA`
 
@@ -889,13 +992,19 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
   test. **Kind:** runtime.
-- **Status:** **Implemented** (Packet 6 step 4,
-  `LearnStack.Tests.Integration`, `TenancySchemaTests`). It moved forward because
-  the schema's own assertions needed the two-tenant seed anyway: without rows for
-  both tenants, every count assertion in that class passed against dropped
-  policies. Packet 7 re-runs it through `TenantResolverMiddleware` and the EF
-  query filters rather than through `set_config`.
-- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
+- **Status:** **Implemented, twice.** The schema-level case is Packet 6 step 4
+  (`TenancySchemaTests`); the request-level one is Packet 7 step 11
+  (`Database/TenantIsolationHttpTests`), which drives it through
+  `HostClassificationMiddleware`, `TenantResolverMiddleware`, the announcement and the
+  EF query filters, with the host header as the only input and no stubbed
+  `ITenantContext`. The schema-level case moved forward because that class's own
+  assertions needed the two-tenant seed anyway: without rows for both tenants, every
+  count in it passed against dropped policies.
+- **Reads `tenant_settings`, not `platform_host_to_tenant`.** The row shape the rule
+  names is tenant-owned with `organization_id IS NULL`; the host table is
+  platform-scoped and its policy has no organization term, so reading it would name the
+  wrong mechanism. The first version of the request-level case did exactly that.
+- **Phase:** 02a (Packet 6 the schema-level case; Packet 7 the request-level one).
 
 #### `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`
 
@@ -907,18 +1016,101 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Implemented** (Packet 6 step 4,
-  `LearnStack.Tests.Integration`, `TenancySchemaTests`) — as a `[Theory]` over
-  both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a rule
-  covering one leaves the other open.
-- **Phase:** 02a (Packet 6 ships the schema-level case; Packet 7 the request-level one).
+- **Status:** **Implemented, twice.** Packet 6 step 4 (`TenancySchemaTests`) as a
+  `[Theory]` over both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a
+  rule covering one leaves the other open. Packet 7 step 11
+  (`Database/TenantIsolationHttpTests`) issues the write through a request: raw SQL on
+  the ambient connection, so no query filter is in front of it and only `WITH CHECK` can
+  refuse. The first version of that case asserted merely that an anonymous POST failed,
+  and passed against a **deleted endpoint** and against a database with every policy
+  dropped — which is why the entry now says what the case must observe rather than what
+  it must return.
+- **Phase:** 02a (Packet 6 the schema-level case; Packet 7 the request-level one).
 
 `Tenant_A_cannot_read_Tenant_B_data`, `Org_X_cannot_read_Org_Y_within_TenantA` and
 `Unsetting_tenant_context_returns_zero_rows_through_RLS` are ordinary integration tests
-named in the phase document rather than catalogue-governed rules; all three shipped
-alongside the two rules above in Packet 6 step 4 and are listed in
-[Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), which re-runs them through
-the request path.
+named in the phase document rather than catalogue-governed rules. All three shipped
+alongside the two rules above in Packet 6 step 4, and Packet 7 step 11 re-runs them
+through the request path in `Database/TenantIsolationHttpTests`.
+
+Three things are worth recording about that second run, because each was a defect in its
+first version. `Org_X_…` must read an **organization-scoped** table — `tenant_settings`,
+whose policy carries an organization term — not `organizations`, which is tenant-wide and
+where every organization is visible to every other by design; reading the latter and
+narrowing the rows in the test's own handler tested the test.
+`Unsetting_tenant_context_…` must actually run a query under an unresolved context, which
+takes a `PlatformHost` request (a host in `Tenancy:PlatformHosts`); asserting a 404 for an
+unknown host instead exercises the resolver and never reaches a table. And the suite as a
+whole constrains the **composite** answer, not one layer: measured, deleting both EF query
+filters leaves all five green because RLS holds, disabling RLS leaves the four reads green
+because the filters hold, and removing both turns all five red.
+
+#### `Every_Scoping_Interface_Carries_Its_Marker`
+
+- **Asserts:** every entity implementing a scoping interface — `ITenantOwned`,
+  `IOrganizationScoped` — also carries the marker attribute the filter and policy
+  generators read. An entity that implements one and not the other is scoped in the type
+  system and unscoped everywhere it matters.
+- **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Phase:** 02a Packet 7.
+
+#### `The_Request_Filter_Sees_Every_Shape_MediatR_Dispatches`
+
+- **Asserts:** the predicate that enumerates request types covers every shape MediatR
+  dispatches, so a rule written over "all requests" is not silently blind to one of them.
+  Measured facts behind it: `IStreamRequest<T>.GetInterfaces()` is empty and
+  `IBaseRequest.IsAssignableFrom(IStreamRequest<>)` is false, so a filter written the
+  obvious way misses streamed requests entirely.
+- **Source:** [04-api-design.md](04-api-design.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Phase:** 02a Packet 7.
+
+#### `The_Sweep_Covers_Every_Production_Assembly`
+
+- **Asserts:** every `LearnStack.*` project under `backend/src` is loadable by the rules
+  that sweep production assemblies. A project the sweep cannot load is a project every
+  reflection rule silently skips, which is worse than a rule that fails: it reports green
+  over code it never read.
+- **Note:** it is why adding a project — `LearnStack.Tools.Seeder` in Packet 7 step 10 —
+  requires a `ProjectReference` from the architecture test project. The rule names the
+  remedy in its own failure message.
+- **Source:** [21-architecture-tests-catalogue.md § What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Phase:** 02a Packet 7.
+
+#### `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`
+
+- **Asserts:** both arms of the `DbCommandInterceptor` guard. A command a module `DbContext` issues on a transaction no sanctioned setter announced throws `TenantContextMissingException`; the same command on an announced transaction runs. One arm is not the rule: a guard keyed on `TransactionBehavior` instead of on the marker passes the first arm and rejects the writes the idempotency store and the audit store legitimately make on their own short transactions.
+- **Keyed on the transaction, not on the table.** An earlier wording said "a command against a `[TenantOwned]` table", and the rule's own name says otherwise. What shipped is the name: matching table names would put a parser between every query and the database, wrong on the first CTE, to decide something every command from a module context already answers — such a command belongs to a request that had a tenant to announce. Nothing is lost, because a platform-scoped read from a module context is exactly as much of a wiring bug as a tenant-owned one.
+- **Runs as `learnstack_app`.**
+- **Source:** [11-security.md § The out-of-band setters](11-security.md);
+  [05-database.md § Connection Management](05-database.md).
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Status:** **Implemented** (`TenantContextGuardTests`, Packet 7 step 8).
+- **Phase:** 02a Packet 7.
+- **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
+  ADR-0040 Amendment 5 adds. **Only one of the seven sanctioned setters stamps it**, and
+  that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the
+  other six, **five do not exist in code yet** — including the integration-event
+  transport, which is the one other setter that *opens* the ambient transaction and will
+  have to announce it when Phase 02b lands it — and the one that does,
+  `OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception cannot
+  see, so it needs neither a mark nor an exemption. (`CachedHostToTenantResolver` is not
+  one of the seven: it sets `app.resolving_host`.) The exemption list is empty for the
+  same reason, which is why `PlatformAdminScope` — a `BYPASSRLS` connection that announces
+  no tenant by design — is invisible here by construction rather than by a hand-written
+  exception someone later widens.
+- **Note:** the guard is a **diagnostic above Row Level Security, never the boundary**.
+  `Without_The_Guard_An_Unannounced_Read_Is_Silent_And_Empty` asserts the state it exists
+  to make visible: safe already, because the predicate is `NULL`, and silent, which is the
+  outage. It also does **not** close the unresolved-context case: `SetTenantContextAsync`
+  writes the empty string for an unresolved context by design, so such a transaction is
+  announced, passes the guard, and still reads nothing. `TenantContextBehavior` at pipeline
+  step 4 is what refuses that, and remains the only thing in front of it.
 
 #### `Db_Connection_String_Is_TransactionPooled`
 
@@ -1815,11 +2007,11 @@ structural test proves — and what it does not.
 
 #### `Effective_Host_Normalization_Is_Total`
 
-- **Asserts:** `EffectiveHost.Normalize` returns a value or `null` for every input and never throws — including the `xn--` forms that make `HostString.FromUriComponent` raise, which an anonymous remote client could otherwise use to drive unhandled exceptions into the error tracker. Covers the two corrections in [ADR-0036 Amendment 1](../decisions/0036-tenant-resolution-trusted-inputs.md): the port is stripped **before** the IPv4 test, so `1.2.3.4:443` is refused, and the result passes a letters-digits-hyphen-dot whitelist, so `IdnMapping`'s compatibility mapping cannot smuggle `/`, `@` or `%` past the input scan.
-- **Source:** ADR-0036 § Normalization, Amendment 1.
+- **Asserts:** `EffectiveHost.Normalize` returns a value or `null` for every input and never throws — including the `xn--` forms that make `HostString.FromUriComponent` raise, which an anonymous remote client could otherwise use to drive unhandled exceptions into the error tracker. Covers the two corrections in [ADR-0036 Amendment 1](../decisions/0036-tenant-resolution-trusted-inputs.md): the port is stripped **before** the IPv4 test, so `1.2.3.4:443` is refused, and the result passes a letters-digits-hyphen-dot whitelist, so `IdnMapping`'s compatibility mapping cannot smuggle `/`, `@` or `%` past the input scan. And [Amendment 4](../decisions/0036-tenant-resolution-trusted-inputs.md)'s correction, which generalizes the same argument to the remaining input-side check: the IPv4 refusal re-runs on the value being returned, so a trailing dot cannot carry `1.2.3.4.` past it — nor can the fullwidth and ideographic dots `GetAscii` folds into `.` after the early check has already run. Paired with `Anything_Normalize_Accepts_Is_A_Host_The_Cache_Key_Accepts`, which is a **separate invariant**: `EffectiveHost.Normalize` and `CacheKey.ForHostMapping` are two spellings of "what counts as a host", written in different assemblies, and every input the first accepts the second must accept too. Checking either alone is how they drifted — the accepted-then-throwing literal above was a `500` and an unsampled error-tracker capture per request, from an unauthenticated caller, where a bodyless `404` was specified.
+- **Source:** ADR-0036 § Normalization, Amendment 1, Amendment 4.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Implemented** (`EffectiveHostTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a Packet 4; the Amendment 4 correction and the pairing property, Packet 7 step 4.
 
 #### `Tenant_Assertions_Are_Compared_Not_Resolved`
 
@@ -1927,52 +2119,132 @@ structural test proves — and what it does not.
 - **Phase:** 02b.
 - **Note:** The integration test is the load-bearing half: the structural test passes while issuer validation is disabled in configuration.
 
+#### `Resolving_Host_Is_Set_In_One_Place`
+
+- **Asserts:** `set_config('app.resolving_host'` appears in exactly one file across
+  `backend/src` — `CachedHostToTenantResolver`. The bare literal is deliberately not banned:
+  the migration's own policy DDL must name the variable in order to read it.
+- **Why it matters:** `app.resolving_host` is the only session variable whose value *is* the
+  lookup key. The policy on `platform_host_to_tenant` admits exactly the row the setter
+  announces, so a second setter is a second announcement on the one table read before any
+  tenant context exists — the one place a widened read is not already caught by
+  `app.tenant_id` being `NULL`.
+- **Source:** [11-security.md § Tenant Context](11-security.md);
+  [05-database.md § Table classes](05-database.md); ADR-0036.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 4, `TenancyConventionTests`).
+- **Phase:** 02a Packet 7.
+
 #### `Host_Classification_Applies_To_Tenant_Facing_Routes_Only`
 
-- **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface.
+- **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface. The list's **contents** are pinned as well as its shape: an emptied or shortened list would otherwise start classifying the Hub surface with every case still green.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + route-table inspection. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (Packet 7 step 4, `HostClassificationScopeTests`).
 - **Phase:** 02a Packet 7.
+- **Note:** driven against `HostClassificationMiddleware.ClassifiesPath` rather than
+  through the middleware. The rule is about paths, and routing a request to observe it
+  would need a resolver and a database the decision never touches. The prefix-versus-
+  literal distinction is asserted directly — every excluded prefix must also exclude
+  everything beneath it — because that is the half whose absence 404s the Hub contract
+  surface.
 
 #### `TenantContext_Is_Constructed_Only_By_The_Factory`
 
-- **Asserts:** `TenantContext` is sealed with no public constructor and `TenantContextFactory.Create` is its only entry point. The factory returns `Result.Fail` on any disagreement and never a partially populated context.
+- **Asserts:** `TenantContext` is sealed with no public constructor and `TenantContextFactory.Create` is its only entry point. Five conjuncts, and they need **two instruments** — which is why this is written out rather than expressed as one NetArchTest chain. Reflection covers sealedness, the absent public constructor, the absence of any `InternalsVisibleTo` on `LearnStack.SharedKernel` (one attribute would hand a whole assembly the constructor), and the single member whose return type mentions `TenantContext`. It cannot cover the fifth: a `new` expression is a call site, not a type reference. That one is a source scan — `TenantContext_Is_Instantiated_In_One_File` — banning `new TenantContext(` everywhere in the kernel but the factory's own file, which is exactly the residual an `internal` constructor leaves. **`internal` and not `private`:** C# has no friend types, so a private constructor and a top-level `TenantContextFactory` — the name ADR-0036, the glossary and two roadmap lines all carry — are mutually exclusive, and both normative carriers say only *public*. The factory returns `Result.Fail` on any disagreement and never a partially populated context.
 - **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
+- **Phase:** 02a Packet 7.
+
+#### `TenantContext_Is_Instantiated_In_One_File`
+
+- **Asserts:** the literal `new TenantContext(` appears in exactly one file under `backend/src/LearnStack.SharedKernel` — which is every file that can compile the call, since the constructor is `internal` and the assembly has no `InternalsVisibleTo` — `TenantContextFactory.cs`. Comments and whitespace are stripped first, because the files these rules cover argue in prose about the very literal they may not write.
+- **Why it matters:** the second instrument `TenantContext_Is_Constructed_Only_By_The_Factory` needs and cannot be. `internal` blocks every other assembly, and nothing but a scan blocks a second caller inside the kernel itself — which would be a second entry point producing a context the matrix never decided.
+- **Source:** [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a Packet 7.
 
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
 
-- **Asserts:** `ITenantContextAccessor.SetTenant` is called only by `TenantResolverMiddleware`, `HubCorrelationMiddleware`, the Hangfire `JobActivator`, and the outbox / inbox handler scope. `EnterPlatformAdminScope` is not among them.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Asserts:** `ITenantContextAccessor.Current` is **written** only by `TenantResolverMiddleware`, `HubCorrelationMiddleware`, the Hangfire `JobActivator`, and the outbox / inbox handler scope. `EnterPlatformAdminScope` is not among them: it opens a second connection and sets no tenant context. Reads are unconstrained.
+- **Source:** ADR-0036 § Rules, second bullet, as corrected by its erratum and
+  [Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a Packet 7.
+- **Note:** the name predates the correction and is kept. `ITenantContextAccessor`
+  declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant`
+  this row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and
+  keeps the test's spelling, because § Canonical names makes a rename its own
+  liability and the name describes the caller set, which is what ADR-0036 decides.
+- **Note:** a source scan rather than NetArchTest: NetArchTest resolves *type*
+  references and cannot see a write to a property, which is the whole assertion —
+  the same reason `Effective_Host_Computed_In_One_Place` is a scan. The needle
+  (`.Current =`) is receiver-agnostic, so an unrelated `Activity.Current =` would trip
+  it; that is a false positive to exempt by path, never a reason to filter by folder.
+- **Note:** **two of the four callers exist** — `TenantResolverMiddleware` (Packet 7
+  step 5) and the integration-event handler scope in `InProcessEventBus` (Packet 5).
+  `HubCorrelationMiddleware` is Phase 02c and the Hangfire `JobActivator` is Phase 02b.
+  Until they land the rule's live work is the **negative** — no writer outside the set.
+  The first version of the test scanned only files whose path contained `Tenancy`,
+  which deleted the `InProcessEventBus` writer from its own expectation *and* let a
+  fifth writer anywhere else in the tree pass green: a rule whose job is the negative
+  cannot be scoped to the folder its positives happen to live in.
+
+#### `Requests_Are_Never_Streamed`
+
+- **Asserts:** no production request type implements `IStreamRequest<>`, and (in `Handlers_Return_Result`) no type implements `IStreamRequestHandler<,>` or the void `IRequestHandler<>`.
+- **Why it matters:** all three shapes run with **no pipeline behaviors at all**. MediatR routes a stream through `IStreamPipelineBehavior<,>`, of which this solution registers none; and measured against MediatR 12.4.1, `typeof(IRequestHandler<>).GetInterfaces()` is empty — the void handler does not derive from `IRequestHandler<T, Unit>` — while `Unit` does not implement `IResultBase`, which every LearnStack behavior is constrained on. So each shape bypasses the authority ceiling, validation, audit classification and `TransactionBehavior` — and therefore the `SET LOCAL app.tenant_id` that makes Row Level Security non-`NULL`. RLS keeps EF reads fail-closed; what is exposed is every effect that is not an EF read.
+- **Source:** ADR-0032 § Sub-decision 2; [02-backend-coding.md § MediatR Use Cases](02-backend-coding.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (`RequestSurfaceTests` and `CrossCuttingFoundationTests`, Packet 7 step 6).
+- **Phase:** 02a Packet 7.
+- **Note:** vacuous today — nothing streams — and that is the point of landing it now. The shapes are invisible to the ordinary `IRequest<>` filter, so without this rule the first one to arrive would be counted as absent rather than caught.
 
 #### `PublicSurface_Marker_Set_Is_Enumerated`
 
-- **Asserts:** every `[PublicSurface]` request type appears in the catalogue's enumerated set with its permitted methods; the default is `GET`/`HEAD` and a mutating entry states why. No `[PublicSurface]` type performs a tenant-owned write.
-- **Source:** ADR-0036 § The reconciliation matrix.
+- **Asserts:** every `[PublicSurface]` request type appears in the enumerated set in [Standards 04 § Public surface](04-api-design.md) with its permitted methods; the default is `GET`/`HEAD` and a mutating entry states why. No `[PublicSurface]` type performs a tenant-owned write.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [Standards 04 § Public surface](04-api-design.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
 - **Phase:** 02a Packet 7.
+- **Note:** the two directions are not equally vacuous, and the existing note above covers
+  only one of them. **Marked set → table** is vacuous while no type carries the marker.
+  **Table → marked set** is live from the day it ships: the table may not name a type that
+  carries no attribute, because an entry there reads as a reviewed decision and one with
+  nothing behind it is a decision the pipeline never enforces. The table ships empty, so that
+  leg asserts emptiness — and becomes an assertion about something the moment Phase 02d
+  writes its first row.
+- **Note:** the set ships **empty** in Packet 7, which registers no `[PublicSurface]`
+  request type, and takes its first rows in
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). The rule is vacuously green
+  until then.
 
 #### `PublicSurface_Requests_Are_Never_ReadSensitive`
 
 - **Asserts:** no `[PublicSurface]` request type is classified MUST-class `read-sensitive`. Otherwise an anonymous `GET` becomes a durable standalone audit write.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + audit-catalogue cross-check. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02a Packet 7.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [Standards 04 § Public surface](04-api-design.md).
+- **Type:** xUnit + reflection (set-emptiness); the audit-catalogue cross-check from Packet 9. **Kind:** structural.
+- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6) — as set-emptiness only.
+- **Phase:** 02a Packet 7; the cross-check leg, Packet 9.
+- **Note:** **vacuous on both sides today, and the Type field above said otherwise.** The
+  catalogued instrument was an audit-catalogue cross-check against a catalogue that does not
+  exist in code — `IAuditStore` and the operation catalogue are Packet 9 — so the leg that
+  runs is the emptiness of the marked set, which makes the claim trivially true rather than
+  checked. It is landed rather than deferred so that a marked type arriving before Packet 9
+  turns this rule red and forces the question, instead of passing quietly under a rule whose
+  stated instrument was never built.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 
-- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone.
+- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone. `pk_organizations` is the surrogate id, so a lookup by it is a well-formed, index-served query that returns another tenant's row — for the policy to hide if the announcement was made, and to hand back if it was not. Two legs: the raw-SQL leg pins the validator's `WHERE` clause and its `set_config` announcement (scanned, because a command's text is a string literal no type-reference test can see), and the EF leg bans `Organizations.Find`/`FindAsync`, which take the primary key and therefore cannot express the composite one. **The EF leg is vacuous today** and deliberately kept: nothing reads `organizations` through a `DbContext` until Packet 7 step 9 writes the first command, and a scan added only once there is something to catch is a scan nobody adds. The runtime suite cannot substitute for either leg — with the announcement made, the policy makes both spellings behave identically, which is defence in depth working and is exactly why the rule has to be structural.
 - **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a Packet 7.
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
@@ -1982,14 +2254,53 @@ structural test proves — and what it does not.
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a Packet 7.
+- **Note:** no `app.scope` carrier ships in Packet 7. `ITenantContext` exposes no scope
+  member and the flag derives from the actor's **role**, which lands with `Membership` /
+  `Role` in [Phase 03](../roadmap/phase-03-identity-admin.md) — after
+  [Phase 02b](../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is the
+  prerequisite and not the carrier
+  ([11-security.md § Tenant Context](11-security.md)). The rule holds as a negative until
+  then — nothing sets the flag, so nothing sets it from request input — and becomes
+  non-vacuous in Phase 03.
+
+#### `The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable`
+
+- **Asserts:** `PlatformAdminScope.cs` contains none of `set_config(`, `SetTenantContextAsync` or `IUnitOfWork`, with comments and whitespace stripped first.
+- **Why it matters:** it pins the complement of two closed sets, and getting either wrong reopens a set an ADR closed. `PlatformAdminScope` is **not** a fifth writer of `ITenantContextAccessor.Current` — [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md) names it as explicitly not one, and `SetTenant_Callers_Are_The_Enumerated_Four` covers that globally. It is **not** an eighth out-of-band setter of `app.tenant_id` either: the role bypasses policies, so there is nothing to announce to, and [ADR-0040 Amendment 3](../decisions/0040-ambient-unit-of-work.md) closes that set at seven on the property that every one of them connects as `learnstack_app`. And it must not enlist on the ambient unit of work, which would put the bypass on the request's own connection and leave it there.
+- **Source:** ADR-0003; ADR-0036 § Rules; ADR-0040 Amendment 3.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7).
+- **Phase:** 02a Packet 7.
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
 - **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
-- **Source:** ADR-0036 § The reconciliation matrix.
+- **Source:** ADR-0036 § The platform-admin override is not a resolution source.
 - **Type:** xUnit. **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
 - **Phase:** 02a Packet 7.
+- **Note:** **the permission clause is live in its mechanism and vacuous in its subject;
+  the marker clause is vacuous outright.** Two Notes previously stood here assigning
+  "live" to opposite clauses — one written when the rule was Registered and one when it
+  landed — and this replaces both.
+
+  *Mechanism, live:* the gate is a real port, the registered implementation refuses
+  everyone, `PlatformAdminScope` consults it, and no second implementation exists in any
+  production assembly — which is how a permissive default actually arrives, registered
+  elsewhere for a demo. The ordering, gate before the credential is touched, is
+  behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
+
+  *Subject, vacuous:* there is no permission to hold. `AuthorizationBehavior.Handle` is
+  `return next()`, authentication arrives in
+  [Phase 02b](../roadmap/phase-02b-events-auth.md), and the Platform-scope permission
+  with the Identity module in [Phase 03](../roadmap/phase-03-identity-admin.md). So
+  nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
+  this packet ships — Packet 9's GDPR redaction is the first real caller and inherits it.
+
+  *Marker clause, still vacuous — but for a narrower reason since Packet 7 step 9:* no
+  handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
+  `ProvisionTenantCommand` now carries the first, and nothing carries the second, so the
+  conjunction is empty because one half of it is — not because both are.
 
 #### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
 

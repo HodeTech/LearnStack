@@ -568,6 +568,37 @@ Neither changes what this ADR decides. `PostgresIdempotencyStore` does not exist
 yet — it is demand-gated on the trigger Amendment 1 names — so both land while the
 table has no rows and the constraint validates instantly.
 
+### Amendment 4 — the port takes `TenantId`, one packet later than promised (2026-09-03)
+
+§ What we punted on said of the raw `Guid` tenant: "The strongly-typed `TenantId`
+lands with the tenancy schema in Packet 6, **and both move together**." They did
+not. Packet 6 typed `ITenantContext.TenantId`; `IIdempotencyStore` kept the raw
+`Guid` through Packet 6 and most of Packet 7, and `IdempotentAttribute` carried a
+comment naming the seam it crossed at a single call site. Nothing recorded the
+divergence, which is how a promise like this is usually discovered — three packets
+later, by someone who trusted it.
+
+**What ships.** `TryClaimAsync`, `CompleteAsync` and `AbandonAsync` take
+`TenantId`; the store's internal key becomes `(TenantId, string)` and its census
+`Dictionary<TenantId, int>`. The single unwrapping site in `IdempotentAttribute`
+is gone, so the port is now what [Standards 02](../standards/02-backend-coding.md)
+requires of a public surface rather than the exception the original text
+acknowledged.
+
+**What changed in the guard, and why it is not cosmetic.** The refusal was
+`tenantId == Guid.Empty`. A typed id has two ways to be unassigned — a Vogen value
+nobody constructed, and one constructed from the all-zero `Guid` — and reading
+`.Value` on the first throws from inside the id type, which is neither this
+guard's contract nor a message a caller can act on. The guard now tests
+`IsInitialized()` first and both sentinels after, matching `AuditInput.EnsureValid`
+and `NpgsqlUnitOfWork`'s setter. Its test drives the unassigned value from an array
+element, because `default(TenantId)` does not compile — Vogen's VOG009 analyzer
+prohibits it — and an array slot is also how the value reaches production.
+
+**What did not change.** The key space, the contract's states, the fingerprint
+rule, and Amendment 1's gating of the durable store. This is the type of one
+parameter, not a change to what the port does.
+
 ## References
 
 - [ADR-0035: Demand-Gated Infrastructure](0035-demand-gated-infrastructure.md)

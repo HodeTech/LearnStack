@@ -143,4 +143,23 @@ public sealed class ModuleDependencyTests
                 ex);
         }
     }
+    [Fact]
+    public void CoreInfrastructure_DoesNotDependOn_AnyModule()
+    {
+        // The one-way half of the edge Packet 7 step 3 introduced. A module's
+        // Infrastructure may reference core Infrastructure — that is where
+        // TenantScopedDbContext lives, and every tenant-owned module derives from
+        // it. The reverse would close the loop: core Infrastructure is referenced
+        // by every module, so a single edge back into one makes the whole graph
+        // cyclic and makes that module impossible to extract.
+        var result = Types
+            .InAssembly(typeof(LearnStack.Infrastructure.Persistence.TenantQueryFilters).Assembly)
+            .Should()
+            .NotHaveDependencyOn("LearnStack.Modules")
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue(
+            "core Infrastructure must reference no module: "
+            + string.Join(", ", result.FailingTypeNames ?? []));
+    }
 }

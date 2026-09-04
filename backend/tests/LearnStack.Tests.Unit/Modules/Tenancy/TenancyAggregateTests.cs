@@ -33,6 +33,90 @@ public sealed class TenancyAggregateTests
         TenantDomainId.From(Guid.Parse("dddddddd-1111-7111-8111-111111111111"));
 
     [Fact]
+    public void A_disabled_locale_cannot_be_the_default()
+    {
+        // The index guarantees at most one default and says nothing about whether it is
+        // enabled, so both entry points could produce a tenant whose fallback language is
+        // switched off — and every reader of "the tenant's default locale" then holds a
+        // row that answers the question and cannot serve it.
+        var tenant = TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+        var addDisabledDefault = () =>
+            tenant.AddLocale("tr-TR", isDefault: true, Clock, Actor, isEnabled: false);
+
+        addDisabledDefault.Should().Throw<InvalidOperationException>()
+            .WithMessage("*disabled*");
+
+        // And it left nothing behind: PromoteDefault raises after the row is in the
+        // collection, so a guard placed only there would have added the locale and
+        // stamped the root for a call that threw.
+        tenant.Locales.Should().BeEmpty("a refused add adds nothing");
+        tenant.Version.Should().Be(0, "and does not move the root's concurrency token");
+
+        // And the same through the other door: added disabled, promoted later.
+        tenant.AddLocale("tr-TR", isDefault: false, Clock, Actor);
+        tenant.AddLocale("en-US", isDefault: false, Clock, Actor, isEnabled: false);
+
+        var promoteDisabled = () => tenant.SetDefaultLocale("en-US", Clock, Actor);
+
+        promoteDisabled.Should().Throw<InvalidOperationException>()
+            .WithMessage("*disabled*");
+
+        tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("tr-TR",
+            "the refused promotion left the incumbent in place");
+    }
+
+    [Fact]
+    public void The_first_locale_is_the_default_whether_or_not_it_was_asked_for()
+    {
+        // ux_tenant_locales_tenant_id_is_default guarantees AT MOST one default. Nothing
+        // guarantees at least one — so a tenant whose only locale was added with
+        // isDefault:false published in a language and had no default, a state every
+        // reader of "the tenant's default locale" has to handle and none expects.
+        var tenant = TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+        tenant.AddLocale("tr-TR", isDefault: false, Clock, Actor);
+
+        tenant.Locales.Should().ContainSingle().Which.IsDefault.Should().BeTrue(
+            "the first locale is the default by construction");
+
+        // And a second one is not promoted, or the promotion would be unconditional and
+        // the caller's answer would never matter.
+        tenant.AddLocale("en-US", isDefault: false, Clock, Actor);
+
+        tenant.Locales.Should().HaveCount(2);
+        tenant.Locales.Count(locale => locale.IsDefault).Should().Be(1);
+        tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("tr-TR");
+    }
+
+    [Theory]
+    [InlineData(true, "a flag that does not exist yet")]
+    [InlineData(false, "one that does")]
+    public void A_refused_feature_flag_leaves_the_tenant_untouched(bool isNew, string what)
+    {
+        // The root's audit state is a claim about what changed. An earlier version stamped
+        // it before the child validated, so a malformed JSON value moved UpdatedAt,
+        // UpdatedBy and row_version for a change that never happened — and row_version is
+        // the concurrency token, so the next writer would lose an update to a write that
+        // was rejected.
+        var tenant = TenancyDomain.Tenant.Create(Tenant, "acme", "Acme", Clock, Actor);
+
+        if (!isNew)
+        {
+            tenant.SetFeatureFlag("beta", "true", Clock, Actor);
+        }
+
+        var before = (tenant.Version, tenant.UpdatedAt, Count: tenant.FeatureFlags.Count);
+
+        var refused = () => tenant.SetFeatureFlag("beta", "not json at all", Clock, Actor);
+
+        refused.Should().Throw<ArgumentException>($"the value is malformed for {what}");
+
+        (tenant.Version, tenant.UpdatedAt, Count: tenant.FeatureFlags.Count)
+            .Should().Be(before, "a rejected write changes nothing, root included");
+    }
+
+    [Fact]
     public void A_subdomain_is_verified_by_construction()
     {
         var domain = TenantDomain.CreateSubdomain(
@@ -223,7 +307,7 @@ public sealed class TenancyAggregateTests
     [InlineData("yes", false)]
     public void A_feature_flag_value_must_be_well_formed_json(string value, bool accepted)
     {
-        var create = () => TenantFeatureFlag.Create(Tenant, "live-classroom", value, Clock.UtcNow, Actor);
+        var create = () => NewTenant().SetFeatureFlag("live-classroom", value, Clock, Actor);
 
         if (accepted)
         {
@@ -377,7 +461,7 @@ public sealed class TenancyAggregateTests
         var at = sentinelClock ? default : Clock.UtcNow;
         var by = emptyActor ? UserId.From(Guid.Empty) : Actor;
 
-        var create = () => TenantFeatureFlag.Create(Tenant, "beta", "true", at, by);
+        var create = () => NewTenant().SetFeatureFlag("beta", "true", new FixedClock(at), by);
 
         create.Should().Throw<ArgumentException>();
     }
@@ -385,9 +469,11 @@ public sealed class TenancyAggregateTests
     [Fact]
     public void Setting_a_feature_flag_refuses_them_too()
     {
-        var flag = TenantFeatureFlag.Create(Tenant, "beta", "true", Clock.UtcNow, Actor);
+        var tenant = NewTenant();
+        tenant.SetFeatureFlag("beta", "true", Clock, Actor);
+        var flag = tenant.FeatureFlags.Single();
 
-        var set = () => flag.SetValue("false", default, Actor);
+        var set = () => tenant.SetFeatureFlag("false", "x", new FixedClock(default), Actor);
 
         set.Should().Throw<ArgumentException>();
     }
@@ -477,7 +563,7 @@ public sealed class TenancyAggregateTests
     [InlineData("en-Latn-US-scouse-scouse-scouse-scouse", false)]
     public void A_locale_is_bounded_by_the_length_its_column_holds(string locale, bool accepted)
     {
-        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+        var create = () => NewTenant().AddLocale(locale, isDefault: true, Clock, Actor);
 
         if (accepted)
         {
@@ -501,8 +587,10 @@ public sealed class TenancyAggregateTests
     [InlineData("tr", "tr")]
     public void A_locale_is_stored_in_canonical_case(string input, string expected)
     {
-        TenantLocale.Create(Tenant, input, isDefault: true)
-            .Locale.Should().Be(expected);
+        var tenant = NewTenant();
+        tenant.AddLocale(input, isDefault: true, Clock, Actor);
+
+        tenant.Locales.Should().ContainSingle().Which.Locale.Should().Be(expected);
     }
 
     [Theory]
@@ -512,7 +600,7 @@ public sealed class TenancyAggregateTests
     [InlineData("zh-Hans-CN")]
     public void A_well_formed_locale_tag_is_accepted(string locale)
     {
-        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+        var create = () => NewTenant().AddLocale(locale, isDefault: true, Clock, Actor);
 
         create.Should().NotThrow();
     }
@@ -530,7 +618,7 @@ public sealed class TenancyAggregateTests
     [InlineData("123")]
     public void A_locale_that_is_not_a_bcp47_tag_is_refused(string locale)
     {
-        var create = () => TenantLocale.Create(Tenant, locale, isDefault: true);
+        var create = () => NewTenant().AddLocale(locale, isDefault: true, Clock, Actor);
 
         create.Should().Throw<ArgumentException>().WithMessage("*BCP-47*");
     }
@@ -560,8 +648,8 @@ public sealed class TenancyAggregateTests
     [InlineData(201, false)]
     public void A_feature_flag_key_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
     {
-        var create = () => TenantFeatureFlag.Create(
-            Tenant, new string('k', length), "true", Clock.UtcNow, Actor);
+        var create = () => NewTenant().SetFeatureFlag(
+            new string('k', length), "\"v\"", Clock, Actor);
 
         if (accepted)
         {

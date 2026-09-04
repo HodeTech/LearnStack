@@ -49,8 +49,12 @@
          `[Trait("Requires","Docker")]` in CI's `backend-integration` job. -->
     <PackageVersion Include="Testcontainers" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
-    <!-- Declared, and used by nothing yet. Kept rather than removed because
-         both have a named consumer: `Testcontainers.Redis` is the RESP-compatible
+    <!-- Versioned here and referenced by NO project. That is the whole state: a
+         PackageVersion binds a version if someone asks; it pulls nothing on its own.
+         The integration project used to carry a PackageReference to both and use
+         neither, which restores them on every build for nothing.
+
+         Kept versioned rather than deleted because both have a named consumer: `Testcontainers.Redis` is the RESP-compatible
          container the Valkey-backed `ICacheService` adapter will need in Phase 11
          (the .NET library publishes it under that identifier — there is no
          `Testcontainers.Valkey` on NuGet, and the container takes any

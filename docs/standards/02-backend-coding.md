@@ -1,7 +1,7 @@
 # 02 — Backend Coding Standards
 
 **Status:** Active
-**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md).
+**Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -71,6 +71,32 @@ Construction:
 The same annotation covers richer value objects (`Email`, `Slug`, `LocaleCode`,
 `Money`) — the emitter shape is identical for IDs and value objects, with the
 value-object's invariant captured in a `Validate` static method.
+
+Emission — **at an export boundary, write `id.Value`, never the id**:
+
+- The boundaries are: a span tag, a log property, an error-tracker tag, a SQL
+  parameter, a hash input, a JSON or wire payload, a job payload, and a metric
+  dimension. Anywhere the identifier leaves the type system, the underlying value
+  goes, not the wrapper.
+- **A Vogen id's own formatting is not a wire format.** Measured on Vogen 7, for
+  an id that was never assigned: `id.ToString()` returns the literal
+  `"[UNINITIALIZED]"`, while `$"{id}"` — string interpolation of the same value —
+  returns the empty string. Two spellings of "print this id" disagree, so neither
+  is a contract. `id.Value.ToString()` is.
+- Reading `Value` on an uninitialized id throws `ValueObjectValidationException`,
+  so the read is gated on `IsInitialized()` wherever the id may not have been
+  assigned. `default(TId)` does not compile — Vogen's `VOG009` analyzer prohibits
+  it — but an array element, a `default(T)` in a generic, and a member a
+  deserializer skipped all reach that state.
+- The cost of getting it wrong is not cosmetic on every path. `'[UNINITIALIZED]'`
+  reaching `app.tenant_id` is cast by the Row Level Security policy as `::uuid`
+  and raises `22P02` on the first predicate evaluation, turning a fail-closed
+  empty result into a hard error — see
+  [Security Standards § Tenant Context](11-security.md).
+- Inside the type system the opposite holds: pass the id, not its value. A domain
+  factory, a repository and an application contract all take `TenantId`, and
+  unwrapping early is how a tenant id ends up where an organization id belongs
+  with the compiler's blessing.
 
 ## Nullability
 
@@ -258,7 +284,11 @@ this order and changes only the durability contract of what step 3 records
    and carries the resolved tenant + organization forward for the rest of
    the pipeline. Unresolved context short-circuits with
    `Result.Fail(tenant_mismatch)` unless the request carries
-   `[AllowsUnresolvedTenantContext]`.
+   `[AllowsUnresolvedTenantContext]`. The behavior also rejects a request whose
+   `TenantContextOrigin` exceeds what the request type permits — a `HostOnly`
+   context reaches only `[PublicSurface]` request types, enumerated in
+   [04-api-design.md § Public surface](04-api-design.md) and bounded by
+   [ADR-0036 § The reconciliation matrix](../decisions/0036-tenant-resolution-trusted-inputs.md).
 
    This behavior does **not** set the PostgreSQL session variables. It runs
    at step 4; the transaction opens at step 6; and

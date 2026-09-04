@@ -1,0 +1,387 @@
+using FluentAssertions;
+using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Errors;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Npgsql;
+using Xunit;
+
+namespace LearnStack.Tests.Integration.Database;
+
+/// <summary>
+/// The guard that turns an unannounced transaction from a silence into a failure.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Connected as <c>learnstack_app</c>.</b> The whole subject is what a request-path
+/// connection does when nobody announced its tenant, and a bypass role would answer a
+/// different question.
+/// </para>
+/// <para>
+/// <b>These are diagnostic tests, not isolation tests.</b> Row Level Security already
+/// makes the unannounced state safe — the first case below proves exactly that, and it
+/// is the reason the guard is worth having: safe is not the same as visible, and an
+/// empty result set arriving from production gets investigated as a bug in the feature.
+/// Removing the interceptor removes a diagnostic, never a protection, and no assertion
+/// here should be read as covering isolation.
+/// </para>
+/// </remarks>
+[Trait(RequiresDocker.Key, RequiresDocker.Value)]
+[Collection(SharedSchema.Name)]
+public sealed class TenantContextGuardTests
+{
+    private readonly SchemaFixture _schema;
+
+    public TenantContextGuardTests(SchemaFixture schema) => _schema = schema;
+
+    [Fact]
+    public async Task Without_The_Guard_An_Unannounced_Read_Is_Silent_And_Empty()
+    {
+        // The state the guard exists for, observed directly rather than described.
+        // Issued as a raw command, which EF interception cannot see, so this is what the
+        // application would have got back: rows the tenant owns, filtered to nothing by a
+        // NULL predicate, with no error anywhere. Safe, and indistinguishable from a
+        // tenant that simply has no organizations.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var connection = await dataSource.OpenConnectionAsync(CancellationToken.None);
+        await using var transaction = await connection.BeginTransactionAsync(CancellationToken.None);
+
+        await using var read = new NpgsqlCommand(
+            "SELECT count(*) FROM organizations", connection, transaction);
+
+        (await read.ExecuteScalarAsync(CancellationToken.None)).Should().Be(0L,
+            "with app.tenant_id unset every policy predicate is NULL — fail-closed, and "
+            + "the failure mode is an empty result set rather than an error");
+    }
+
+    [Fact]
+    public async Task An_Announced_Transaction_Is_Let_Through()
+    {
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await AnnounceAsync(scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA);
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        (await context.Organizations.CountAsync()).Should().BeGreaterThan(0,
+            "the announcement is what makes the policy admit the tenant's own rows");
+
+        // The let-through direction on the other two pairs. Measured: replacing both
+        // NonQuery bodies with an unconditional throw left the whole suite green,
+        // because the only let-through assertion was a reader — so a guard that refused
+        // everything would have passed for two of the three command kinds.
+        var write = async () => await context.Database.ExecuteSqlRawAsync(
+            "UPDATE organizations SET slug = slug WHERE false");
+        await write.Should().NotThrowAsync();
+
+        var creator = context.GetService<IRelationalDatabaseCreator>();
+        var scalar = async () => await creator.HasTablesAsync(CancellationToken.None);
+        await scalar.Should().NotThrowAsync();
+
+        // And the same three, blocking. EF does not route the synchronous APIs through
+        // the asynchronous ones, so each pair is two independent arms — and the previous
+        // round fixed this asymmetry only for the refusal direction. Measured: replacing
+        // all three synchronous bodies with an unconditional throw left every case here
+        // green, so a guard that refused every blocking call would have shipped.
+#pragma warning disable xUnit1031 // The blocking API is the subject, not an accident.
+        var syncRead = () => context.Organizations.Count();
+        var syncWrite = () => context.Database.ExecuteSqlRaw(
+            "UPDATE organizations SET slug = slug WHERE false");
+        var syncScalar = () => creator.HasTables();
+#pragma warning restore xUnit1031
+
+        syncRead.Should().NotThrow();
+        syncWrite.Should().NotThrow();
+        syncScalar.Should().NotThrow();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task An_Unannounced_Read_Throws_Instead_Of_Returning_Nothing()
+    {
+        // The same query as above, on a transaction nobody announced. Without the
+        // interceptor this returns zero rows and says nothing.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var act = async () => await context.Organizations.CountAsync();
+
+        (await act.Should().ThrowAsync<TenantContextMissingException>())
+            .Which.Message.Should().Contain("SetTenantContextAsync",
+                "the message names the announcement a reader has to go and find");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task An_Unannounced_Raw_Sql_Write_Throws_Too()
+    {
+        // Raw SQL is the shape that reaches NonQueryExecuting — the read cases above
+        // cover the reader pair, and this is the only case that reaches this pair. An
+        // earlier version of this comment reasoned about a SaveChanges INSERT, which
+        // arrives on ReaderExecuting: it named the one shape the body does not run.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var act = async () => await context.Database.ExecuteSqlRawAsync(
+            "UPDATE organizations SET slug = slug WHERE false");
+
+        await act.Should().ThrowAsync<TenantContextMissingException>();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_Nested_Frame_Inherits_The_Announcement()
+    {
+        // SetTenantContextAsync returns early for a joiner — re-issuing would let an
+        // inner frame retarget the outer frame's tenant. So the mark has to belong to the
+        // transaction, not to the frame, or every nested handler would trip the guard.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await AnnounceAsync(scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA);
+
+        await using (await unitOfWork.BeginTransactionAsync())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+            var act = async () => await context.Organizations.CountAsync();
+
+            await act.Should().NotThrowAsync();
+        }
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_Second_Transaction_Does_Not_Inherit_The_First_Ones_Announcement()
+    {
+        // The mark is per physical transaction. Measured on Npgsql 10, a pooled data
+        // source hands back the SAME NpgsqlTransaction instance across sequential
+        // cycles — so anything keyed on the transaction object, or a flag nobody cleared
+        // at BEGIN, would vouch for this second transaction on the strength of the
+        // first's announcement. That is the bug class the unit of work's own generation
+        // counter already records shipping once.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        // Committed rather than rolled back: a rollback marks the unit rollback-only for
+        // its life, so a second transaction on it is refused outright and this scenario
+        // would be unreachable. A commit is the path the unit's own reset comment
+        // describes — "a unit that committed and then opened a second transaction".
+        await using (await unitOfWork.BeginTransactionAsync())
+        {
+            await AnnounceAsync(scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA);
+            await unitOfWork.CommitAsync();
+        }
+
+        // Where the `transaction is not null` term earns its place. The commit nulled
+        // _transaction and nothing clears the flag there, so without that term
+        // ReferenceEquals(null, null) is true and the unit would vouch for any command
+        // carrying no transaction at all. The assertion below, taken while a transaction
+        // is live, cannot see this: the reference check alone already answers false there.
+        unitOfWork.IsTenantContextIssuedOn(null).Should().BeFalse(
+            "the announcement belonged to a transaction that is over");
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        var act = async () => await context.Organizations.CountAsync();
+
+        await act.Should().ThrowAsync<TenantContextMissingException>(
+            "a new transaction is unannounced until someone announces it");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_Synchronous_Read_Is_Guarded_Too()
+    {
+        // EF does not route the synchronous APIs through the asynchronous ones, so the
+        // six overrides are three independent pairs. Measured: commenting the guard out
+        // of the three synchronous arms left every other case here green, because they
+        // all await. A caller using the blocking API would have walked straight past.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+#pragma warning disable xUnit1031 // The blocking API is the subject, not an accident.
+        var read = () => context.Organizations.Count();
+        var write = () => context.Database.ExecuteSqlRaw("UPDATE organizations SET slug = slug WHERE false");
+#pragma warning restore xUnit1031
+
+        read.Should().Throw<TenantContextMissingException>();
+        write.Should().Throw<TenantContextMissingException>();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task An_Announcement_Vouches_For_Its_Own_Transaction_And_No_Other()
+    {
+        // The identity half of the check, which the reset at BEGIN hides in every
+        // sequential case — measured, dropping ReferenceEquals left the whole suite
+        // green. It matters because Npgsql recycles transaction objects: a pooled data
+        // source hands back the same NpgsqlTransaction instance across cycles, so a flag
+        // read without comparing against the unit's OWN live transaction would vouch for
+        // whatever came next.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await AnnounceAsync(scope.ServiceProvider, unitOfWork, SchemaFixture.TenantA);
+
+        unitOfWork.IsTenantContextIssuedOn(unitOfWork.Transaction).Should().BeTrue();
+        unitOfWork.IsTenantContextIssuedOn(null).Should().BeFalse(
+            "a command outside any transaction is announced by nothing");
+
+        // Some other transaction, on a connection this unit does not own.
+        await using var elsewhere = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var otherConnection = await elsewhere.OpenConnectionAsync(CancellationToken.None);
+        await using var otherTransaction =
+            await otherConnection.BeginTransactionAsync(CancellationToken.None);
+
+        unitOfWork.IsTenantContextIssuedOn(otherTransaction).Should().BeFalse(
+            "the announcement is about one transaction, not about the unit's mood");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_Scalar_Command_Is_Guarded_Too()
+    {
+        // The third pair, and the one nothing reached: deleting Guard from BOTH Scalar
+        // overrides left all 1136 tests green — a third of the guard's surface asserted
+        // by nothing, in a file whose own comment claimed the mutation standard had been
+        // applied to every arm. IRelationalDatabaseCreator is what reaches it from a
+        // module context without descending into EF internals.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var creator = scope.ServiceProvider.GetRequiredService<TenancyDbContext>()
+            .GetService<IRelationalDatabaseCreator>();
+
+#pragma warning disable xUnit1031 // The blocking arm is half the subject.
+        var blocking = () => creator.HasTables();
+#pragma warning restore xUnit1031
+        var awaited = async () => await creator.HasTablesAsync(CancellationToken.None);
+
+        blocking.Should().Throw<TenantContextMissingException>();
+        await awaited.Should().ThrowAsync<TenantContextMissingException>();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task A_Save_Reports_The_Guard_Through_The_Wrapper_EF_Puts_Round_It()
+    {
+        // What a caller actually catches, which is not what the guard throws. EF wraps a
+        // failing SaveChanges in DbUpdateException, so an assertion written as a bare
+        // ThrowAsync<TenantContextMissingException> fails on the path Step 9's first
+        // real handler will take. Pinned here so the next step writes the right
+        // assertion rather than discovering the wrapper.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        context.Organizations.Add(NewOrganization());
+
+        var act = async () => await context.SaveChangesAsync(CancellationToken.None);
+
+        var wrapper = (await act.Should().ThrowAsync<DbUpdateException>()).Which;
+
+        wrapper.InnerException.Should().BeOfType<TenantContextMissingException>(
+            "the guard's exception is what EF wrapped, and a caller unwrapping one level "
+            + "finds it — an assertion written as a bare ThrowAsync would not");
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    private static Organization NewOrganization() =>
+        Organization.Create(
+            OrganizationId.From(Guid.NewGuid()),
+            TenantId.From(SchemaFixture.TenantA),
+            $"guard-{Guid.NewGuid():N}"[..24],
+            "Guard probe",
+            new FixedClock(new DateTimeOffset(2026, 9, 2, 9, 0, 0, TimeSpan.Zero)),
+            UserId.SystemActor);
+
+    private static async Task AnnounceAsync(
+        IServiceProvider scope, IUnitOfWork unitOfWork, Guid tenant)
+    {
+        var context = new AnnouncedContext(tenant);
+        scope.GetRequiredService<ITenantContextAccessor>().Current = context;
+        await unitOfWork.SetTenantContextAsync(context);
+    }
+
+    private ServiceProvider BuildProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        services.AddLogging();
+        services.AddSingleton<ITenantContextAccessor, FlowingAccessor>();
+        services.AddTransient<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
+        services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
+        services.AddModuleDbContext<TenancyDbContext>();
+        return services.BuildServiceProvider();
+    }
+
+    private sealed class FlowingAccessor : ITenantContextAccessor
+    {
+        public ITenantContext? Current { get; set; }
+    }
+
+    private sealed class AnnouncedContext(Guid tenant) : ITenantContext
+    {
+        public bool IsResolved => true;
+
+        public TenantId TenantId { get; } = TenantId.From(tenant);
+
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public TenantContextOrigin? Origin => TenantContextOrigin.HostAndClaim;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => null;
+    }
+}

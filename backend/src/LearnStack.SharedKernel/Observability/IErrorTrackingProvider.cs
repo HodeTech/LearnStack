@@ -1,3 +1,5 @@
+using LearnStack.SharedKernel.Identifiers;
+
 namespace LearnStack.SharedKernel.Observability;
 
 /// <summary>
@@ -35,8 +37,8 @@ public sealed record CapturedContext(
     string? CorrelationId,
     string? RequestPath,
     string? RequestMethod,
-    Guid? TenantId,
-    Guid? OrganizationId,
-    Guid? UserId,
+    TenantId? TenantId,
+    OrganizationId? OrganizationId,
+    UserId? UserId,
     string? ModuleName,
     IReadOnlyDictionary<string, string>? AdditionalTags = null);

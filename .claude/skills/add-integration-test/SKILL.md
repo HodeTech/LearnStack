@@ -42,7 +42,12 @@ architecture test) plus any other invariant the change touches. See
 
 - Domain-method invariants. Those are unit tests in `LearnStack.Tests.Unit`.
 - Structural rules (no cross-module reference). Architecture tests own those.
-- UI flows. E2E tests in `LearnStack.Tests.EndToEnd` own those.
+- UI flows. There is no `LearnStack.Tests.EndToEnd` project. End-to-end means a
+  browser: Playwright over a running stack, owned by
+  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) per
+  [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
+  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) puts two
+  tenants in a browser but gates on a human opening them, not on a Playwright run.
 
 ## Inputs
 
@@ -165,9 +170,16 @@ public async Task Unsetting_tenant_context_returns_zero_rows_through_RLS()
 }
 ```
 
-There is no `TenantContextMissingException` today: the `DbCommandInterceptor` that
-would throw it is described in Standards 05 and 11 and owned by Packet 7. Until it
-exists, the fail-closed behaviour is the empty result, which is what to assert.
+Nothing throws `TenantContextMissingException` today — the type itself shipped in
+Packet 3, in `LearnStack.SharedKernel/Errors/`. The `DbCommandInterceptor` that
+throws it is described in Standards 05 and 11 and lands in **Packet 7**, which owns
+it. Until it does, the fail-closed behaviour is the empty result, which is what to
+assert. From Packet 7 the same read **through a module `DbContext`** is a loud
+`TenantContextMissingException` — the interceptor is an EF `DbCommandInterceptor`
+keyed on the marker a sanctioned setter stamps, so it never sees a raw
+`NpgsqlCommand`. The case above opens its own connection from `PostgresFixture` and
+therefore keeps asserting the empty result; a new case exercising the EF path is
+what asserts the throw.
 
 For `[OrganizationScoped]` entities, add the cross-org pair:
 
@@ -194,8 +206,22 @@ public async Task Org_X_cannot_read_Org_Y_within_TenantA()
 And one more, which the org-scoped template needs and an ordinary session cannot
 reach: with `app.scope = 'tenant'` set, the **read** widens across organizations
 and neither write does. Without that case both `AS RESTRICTIVE` guards can be
-deleted with the suite green — measured, in Packet 6. See
+deleted with the suite green — measured, in Packet 6. Set the variable in the test
+itself; nothing sets it at runtime, because the flag derives from the actor's role
+and roles arrive in
+[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md). See
 `TenancySchemaTests.TheTenantScopeHatchWidensReadsAndNeitherWrite`.
+
+The Packet 7 half of these cases goes through the **request**, and it needs no
+production endpoint to do so. Register a **test-only controller in the test
+fixture** — `AddApplicationPart` plus `TestControllerFilter`, the shipped
+`IApplicationModelConvention` that keeps only the probe types this fixture names
+and removes every other `ITestOnlyController`. That is the precedent
+`IdempotencyFixture` set for `/api/v1/sideeffectprobe`, and
+`ProductionHostFixture` is the counterpart that adds none, so the production
+endpoint set stays exactly what a deployed instance serves. It drives the real
+middleware chain and the real EF
+query filters without moving Phase 02d's first `/api/v1/*` read endpoints earlier.
 
 ### Step 3: Outbox round-trip
 
@@ -272,8 +298,8 @@ For commands with an `Idempotency-Key`:
 public async Task Create_with_same_idempotency_key_returns_same_result()
 {
     var key = "idem-12345";
-    var a = await _fx.PostAsync("/v1/enrollments", payload, key);
-    var b = await _fx.PostAsync("/v1/enrollments", payload, key);
+    var a = await _fx.PostAsync("/api/v1/enrollments", payload, key);
+    var b = await _fx.PostAsync("/api/v1/enrollments", payload, key);
     Assert.Equal(a.EnrollmentId, b.EnrollmentId);
     Assert.Equal(1, await _fx.Db.Enrollments.CountAsync());
 }
@@ -287,12 +313,17 @@ Don't substitute `UseInMemoryDatabase` even for "fast" tests.
 
 ### Step 7: Speed
 
-The fixture is `IClassFixture` (per-class container lifetime). For test classes
-that share the same seed shape, that's fast. If a class needs a unique seed,
-prefer **inside-the-fixture** seeding over a new container.
+`SchemaFixture` is a **collection** fixture (`ICollectionFixture` behind
+`[Collection(SharedSchema.Name)]`), so one container and one applied schema serve
+every class in the schema suite. `PostgresFixture` is taken as an `IClassFixture`
+by the class that needs the roles without the schema. If a class needs a unique
+seed, prefer **inside-the-fixture** seeding over a new container — a fixture
+carrying only one of the two migration chains is what narrowed every structural
+sweep to eight of ten tables, and let a second permissive policy on
+`outbox_messages` pass the whole suite.
 
-CI parallelises by class; within a class tests run sequentially against the shared
-container.
+Roll the transaction back rather than committing, so the seeded row counts other
+cases assert on stay what they were.
 
 ## Validation
 

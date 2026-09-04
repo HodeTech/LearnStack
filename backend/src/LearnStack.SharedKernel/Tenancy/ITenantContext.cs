@@ -3,7 +3,7 @@ using LearnStack.SharedKernel.Identifiers;
 namespace LearnStack.SharedKernel.Tenancy;
 
 /// <summary>
-/// Request-scoped tenant + organization + user context handed to MediatR
+/// Tenant + organization + user context handed to MediatR
 /// handlers, EF interceptors, and the audit pipeline. Populated at scope
 /// start by <c>TenantResolverMiddleware</c> (HTTP), <c>HubCorrelationMiddleware</c>
 /// (<c>/api/internal/*</c>), the Hangfire <c>JobActivator</c> (background jobs),
@@ -23,7 +23,11 @@ public interface ITenantContext
     /// <c>true</c> once the resolution pipeline has populated tenant + (where
     /// applicable) organization. <c>TenantContextBehavior</c> short-circuits
     /// the request with <c>Result.Fail(tenant_mismatch)</c> when this is
-    /// <c>false</c>.
+    /// <c>false</c>, unless the request carries
+    /// <see cref="AllowsUnresolvedTenantContextAttribute"/>. A context that <i>is</i>
+    /// resolved then faces the second gate — see <see cref="Origin"/>, whose refusal
+    /// carries <c>not_found</c> rather than <c>tenant_mismatch</c> because it must be
+    /// indistinguishable from an unresolvable host.
     /// </summary>
     bool IsResolved { get; }
 
@@ -32,14 +36,26 @@ public interface ITenantContext
     /// <see cref="System.InvalidOperationException"/> — callers gate on
     /// <see cref="IsResolved"/> first.
     /// </summary>
-    Guid TenantId { get; }
+    /// <remarks>
+    /// <b><see cref="IsResolved"/> implies this is initialized.</b> Every
+    /// implementation holds that invariant, and it is what lets a caller write
+    /// <c>TenantId.Value</c> under an <see cref="IsResolved"/> gate — reading
+    /// <c>Value</c> on an uninitialized Vogen id throws
+    /// <c>ValueObjectValidationException</c>. Do not reach for
+    /// <c>ToString()</c> as a substitute: measured on Vogen 7, an uninitialized
+    /// id's <c>ToString()</c> returns the literal <c>"[UNINITIALIZED]"</c> while
+    /// string interpolation of the same value returns the empty string, so the
+    /// two disagree and one of them reaches PostgreSQL as
+    /// <c>'[UNINITIALIZED]'::uuid</c>, which raises.
+    /// </remarks>
+    TenantId TenantId { get; }
 
     /// <summary>
     /// The resolved organization within the tenant, when the request targets
     /// an <c>[OrganizationScoped]</c> resource. <c>null</c> for tenant-wide
     /// requests.
     /// </summary>
-    Guid? OrganizationId { get; }
+    OrganizationId? OrganizationId { get; }
 
     /// <summary>
     /// The effective actor. Authenticated requests carry their user, anonymous
@@ -54,6 +70,22 @@ public interface ITenantContext
     /// integration-event consumer.
     /// </summary>
     UserId? CausalActorUserId => null;
+
+    /// <summary>
+    /// Which signals agreed to produce this context — the authority ceiling.
+    /// <c>null</c> on a context that resolved nothing.
+    /// </summary>
+    /// <remarks>
+    /// <b>Read it as an allow-list, never as a negation.</b> The default is
+    /// <c>null</c> so that an implementation which has not thought about the ceiling
+    /// gets no authority rather than the wrong one — but that only holds if the
+    /// consumer asks "is this origin one of the ones permitted here?". A check
+    /// written as <c>Origin != HostOnly</c> passes for <c>null</c> and hands an
+    /// unstated context the run of the API. <c>TenantContextBehavior</c> at pipeline
+    /// step 4 is that consumer, and it is written as a <c>switch</c> over stated
+    /// origins for exactly this reason.
+    /// </remarks>
+    TenantContextOrigin? Origin => null;
 
     /// <summary>
     /// W3C <c>traceparent</c> string ("00-&lt;trace&gt;-&lt;span&gt;-&lt;flags&gt;")

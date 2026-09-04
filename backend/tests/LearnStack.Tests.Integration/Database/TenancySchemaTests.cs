@@ -418,14 +418,18 @@ public sealed class TenancySchemaTests
     public async Task OrganizationIdIsImmutableAfterInsert()
     {
         // Tenant-wide to org-scoped: the NULL -> value move, which `<>` would miss
-        // because `<>` is NULL when either side is null. The restrictive UPDATE
-        // guard does not cover it either — it admits the row when the NEW
-        // organization_id is the caller's own, which is exactly this move.
+        // because `<>` is NULL when either side is null. The trigger is what refuses it,
+        // and this case exists because no policy does.
+        //
+        // Run as a TENANT-scope session — no app.organization_id. Since ADR-0003
+        // Amendment 4 the restrictive UPDATE guard refuses an organization-scoped session
+        // the tenant-wide row outright, so attempting the move from one filters to zero
+        // rows and the trigger never fires: the case would pass while testing nothing. A
+        // tenant-scope session is the one that can still reach the row, which makes it
+        // the one that can still attempt the move.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
-        await SchemaQueries.SetSettingAsync(connection, transaction,
-            "app.organization_id", SchemaFixture.OrgA1.ToString());
 
         await using var command = new NpgsqlCommand(
             "UPDATE tenant_settings SET organization_id = @org WHERE key = 'tz'",
@@ -523,6 +527,96 @@ public sealed class TenancySchemaTests
             ("tenant", SchemaFixture.TenantB), ("host", Host), ("actor", SchemaFixture.Actor));
 
         await reclaim.Should().NotThrowAsync();
+
+        // The other half, and without it this case passes with the uniqueness dropped
+        // entirely: `unique: false` on ux_tenant_domains_host leaves everything above
+        // green, because nothing here ever asks for a CONFLICT. A live claim must still
+        // block a second one — that index is the schema's only guarantee that two tenants
+        // cannot hold the same hostname at once, and RLS hides the collision from both
+        // sides, so nothing else would notice it was gone.
+        const string Contested = "contested.example.com";
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.ExecuteAsync(connection, transaction,
+            """
+            INSERT INTO tenant_domains
+                (id, tenant_id, host, kind, status, verification_attempts, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, @host, 'Custom', 'Requested', 0, now(), @actor, 0)
+            """,
+            ("tenant", SchemaFixture.TenantA), ("host", Contested), ("actor", SchemaFixture.Actor));
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);
+        var contest = async () => await SchemaQueries.ExecuteAsync(connection, transaction,
+            """
+            INSERT INTO tenant_domains
+                (id, tenant_id, host, kind, status, verification_attempts, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, @host, 'Custom', 'Requested', 0, now(), @actor, 0)
+            """,
+            ("tenant", SchemaFixture.TenantB), ("host", Contested), ("actor", SchemaFixture.Actor));
+
+        (await contest.Should().ThrowAsync<PostgresException>(
+            "a hostname that is live for one tenant is not available to another"))
+            .Which.SqlState.Should().Be("23505");
+    }
+
+    [Fact]
+    public async Task An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row()
+    {
+        // Database Standards § Tenant-Owned and Organization-Scoped Tables: "a
+        // tenant-scope reporting query may read across organizations, but NOTHING may
+        // write outside its organization." A tenant-wide row belongs to no organization,
+        // so an organization-scoped session writing one is writing outside its own.
+        //
+        // Both AS RESTRICTIVE guards used a bare `organization_id IS NULL` first arm,
+        // which exists so a TENANT-scope session can write those rows — and admitted an
+        // org-scoped one to them as well. Measured before ADR-0003 Amendment 4: a session
+        // announcing tenant A and organization A1 rewrote tenant A's tenant-wide row.
+        //
+        // The refusal is silent by construction: a RESTRICTIVE USING clause on UPDATE
+        // FILTERS the rows the statement may target rather than raising, so what this
+        // asserts is zero rows affected and the value unchanged — not an exception.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.ExecuteAsync(connection, transaction,
+            "SELECT set_config('app.organization_id', @org, true)",
+            ("org", SchemaFixture.OrgA1.ToString()));
+
+        await using (var update = new NpgsqlCommand(
+            """
+            UPDATE tenant_settings SET value = '"hijacked"'
+            WHERE tenant_id = @tenant AND organization_id IS NULL
+            """,
+            (NpgsqlConnection)connection,
+            (NpgsqlTransaction)transaction))
+        {
+            update.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+
+            (await update.ExecuteNonQueryAsync()).Should().Be(0,
+                "the tenant-wide row is outside this session's organization, so the "
+                + "restrictive guard does not let the statement target it");
+        }
+
+        // And the row is still there, unchanged — so the zero above is the guard
+        // filtering rather than the row being absent.
+        await using (var read = new NpgsqlCommand(
+            """
+            SELECT count(*) FROM tenant_settings
+            WHERE tenant_id = @tenant AND organization_id IS NULL AND value <> '"hijacked"'
+            """,
+            (NpgsqlConnection)connection,
+            (NpgsqlTransaction)transaction))
+        {
+            read.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+
+            // Read under the same org-scoped session: the main policy's USING admits a
+            // tenant-wide row to a reader, which is the asymmetry the standard states —
+            // read across, write only your own.
+            (await read.ExecuteScalarAsync()).Should().Be(1L);
+        }
+
+        await transaction.RollbackAsync();
     }
 
     [Fact]

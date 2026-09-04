@@ -69,6 +69,14 @@ Every module `DbContext` resolved in that scope is constructed against that same
 connection and enlisted in that same transaction; `IAuditStore` and `IOutbox`
 reach the same connection through the same seam.
 
+> **Erratum — 2026-09-01.** The `SetTenantContextAsync` doc-comment in the sketch below
+> reads "Issues SET LOCAL app.tenant_id / app.organization_id / app.scope". It issues the
+> first two and not `app.scope`: `ITenantContext` carries no scope member, so the method
+> has nothing to read one from — which Amendment 1 of this ADR already records, making the
+> sketch inconsistent with its own document. `app.scope` has no carrier anywhere; see
+> § Amendment 1. The Decision is unchanged. Current authority:
+> [Security Standards § Tenant Context](../standards/11-security.md).
+
 ```csharp
 // LearnStack.SharedKernel.Persistence
 public interface IUnitOfWork : IAsyncDisposable
@@ -201,6 +209,16 @@ the business write" — a formulation ADR-0033 **withdrew** in favour of the sam
 *transaction*. Packet 6 corrects that sentence.
 
 ### Who sets `app.tenant_id`, completely
+
+> **Erratum — 2026-08-30.** The paragraph and table below read that the set "is
+> closed" at six. It is seven. The seventh is `IOrganizationScopeValidator`,
+> which reads `organizations` by `(tenant_id, id)` "in its own short read-only
+> transaction that sets `app.tenant_id` as its first statement"; shown by
+> [ADR-0036 § What is out of scope, and what is not](0036-tenant-resolution-trusted-inputs.md),
+> Accepted 2026-08-18 — nine days before this ADR. The Decision is unchanged.
+> Current authority: this subsection as corrected, reproduced in
+> [Security Standards § The out-of-band setters](../standards/11-security.md).
+> Recorded in Amendment 3.
 
 The set is closed. Each entry either **is** the ambient transaction or owns a
 short transaction of its own on its own connection, because it runs where no
@@ -443,6 +461,131 @@ conclude no nested SQL exists.
 
 None of this changes what the ADR decides — one connection per scope, owned by
 `IUnitOfWork`, with every context and cross-cutting writer enlisted on it.
+
+### Amendment 3 — the setter set is seven, not six (2026-08-30)
+
+**What was wrong.** § Who sets `app.tenant_id`, completely opens "The set is
+closed" over a six-row table. The set was already seven when that sentence
+entered the record.
+
+**How it was shown.**
+[ADR-0036](0036-tenant-resolution-trusted-inputs.md) § What is out of scope, and
+what is not — Accepted **2026-08-18**, nine days before this ADR's 2026-08-27 —
+schedules `IOrganizationScopeValidator`, "reading `organizations` by the
+composite key `(tenant_id, id)` in its own short read-only transaction that sets
+`app.tenant_id` as its first statement — the same pattern
+`CachedHostToTenantResolver` uses for `app.resolving_host`". It is a setter of
+`app.tenant_id` by that sentence's own terms, and it is not in the table. It
+cannot be `TransactionBehavior`'s ambient transaction either: the organization
+assertion is validated in the request edge, before the pipeline reaches step 6.
+
+**Every carrier changed.** This ADR (the inline erratum above and this
+amendment) and
+[Security Standards § The out-of-band setters](../standards/11-security.md),
+which reproduces the count and the table — "six" becomes seven, "four own a
+short transaction of their own" becomes five, and the table gains an
+`IOrganizationScopeValidator` row. No other document reproduces the table; a pointer
+that only names the count — `.claude/skills/add-ef-migration/SKILL.md` is one — stays
+correct by naming the corrected number rather than by carrying a second enumeration.
+
+**The canonical list** remains this subsection, as corrected. Security Standards
+reproduces it because that section is the placement authority; it is not a second
+enumeration.
+
+**The Decision is unchanged.** One connection per scope, owned by `IUnitOfWork`,
+with every context and cross-cutting writer enlisted on it. The seventh setter
+obeys the same rule as the four before it — its own short transaction, on its own
+connection, connected as `learnstack_app` — which is the property the enumeration
+exists to hold.
+
+### Amendment 4 — one bounded cross-aggregate write is now sanctioned (2026-08-30)
+
+Not a correction. § What the transaction spans says the transaction covers "one
+aggregate's write" and closes with "**This ADR does not relax either rule.**"
+Both statements were true when written and remain true of *this* ADR: it relaxes
+nothing.
+
+[ADR-0042](0042-tenant-provisioning-cross-aggregate-transaction.md) does, once
+and by enumeration. Tenant provisioning writes `Tenant` and its default
+`Organization` in one transaction, because `tenants.default_organization_id`
+carries an invariant no eventual-consistency mechanism can deliver. The table row
+is therefore an incomplete description of the sanctioned transaction, and this
+amendment is the pointer that keeps a reader of this ADR alone from concluding
+the exception does not exist.
+
+Nothing else changes. Cross-**module** writes remain forbidden with no exception,
+which is the property ADR-0010's outbox boundary exists to protect, and the
+exception's holder is a literal allow-list of one.
+
+### Amendment 5 — the seam gains a read member for the tenant-context guard (2026-09-02)
+
+**What changed.** § Decision enumerates the `IUnitOfWork` seam member by member. Packet 7
+step 8 adds one: `bool IsTenantContextIssuedOn(DbTransaction? transaction)`. Recorded
+here for the same reason Amendment 1 exists — that sketch is the contract, and an
+addition to it that goes unrecorded is an addition nobody reviewed.
+
+**Why it belongs on the seam and not beside it.** The guard —
+`TenantContextGuardInterceptor`, registered on every module `DbContext` — has to ask
+whether a sanctioned setter announced the transaction a command is about to run on. Put
+on a side interface, a future `IUnitOfWork` implementation could omit it and be silently
+unguarded; on the seam, the compiler makes every implementation answer, which is what the
+addition buys.
+
+> **Erratum — 2026-09-02.** The sentence below writes the check with **two** terms. The
+> code that shipped in the same commit has **three**, and the missing one is load bearing:
+> `transaction is not null && ReferenceEquals(transaction, _transaction) &&
+> _tenantContextIssued`. After a commit `_transaction` is null and nothing clears the flag
+> there, so without the first term `ReferenceEquals(null, null)` is true and the unit
+> vouches for any command carrying no transaction at all. Shown by removing it: exactly
+> one case fails, `A_Second_Transaction_Does_Not_Inherit_The_First_Ones_Announcement`.
+> The statement was false when it entered the record rather than having aged, which is
+> what makes this an erratum. What the amendment decides — a read member on the seam,
+> taking the transaction, with no writer — is unchanged. Recorded in Amendment 6.
+
+**Why it takes the transaction rather than returning a flag.** The check is
+`ReferenceEquals(transaction, _transaction) && _tenantContextIssued`, and the reference
+half is load-bearing: measured on Npgsql 10, a pooled data source hands back the **same**
+`NpgsqlTransaction` instance across sequential open/begin/dispose cycles, so a bare flag —
+or anything keyed on the transaction object — would vouch for a later transaction on the
+strength of an earlier one's announcement. Keeping the comparison inside the type that
+owns `_transaction` is what makes that impossible to get wrong at the call site.
+
+**There is deliberately no writer.** The only code that may mark a transaction is
+`SetTenantContextAsync`, which sets the flag after the `set_config` round trip returns —
+so a failed announcement vouches for nothing — and the flag is cleared in the one block
+that runs once per physical transaction. A module able to set it could silence the guard.
+
+**The setter set is unchanged.** This adds a reader, not an eighth setter; Amendment 3's
+seven stand.
+
+**The Decision is unchanged.** One connection per scope, owned by `IUnitOfWork`, with
+every context and cross-cutting writer enlisted on it.
+
+### Amendment 6 — Amendment 5 wrote the check with a term missing (2026-09-02)
+
+**What was wrong.** Amendment 5's § Why it takes the transaction rather than returning a
+flag gives the check as `ReferenceEquals(transaction, _transaction) &&
+_tenantContextIssued`. The shipped member has a third term first:
+`transaction is not null`.
+
+**How it was shown.** Removing that term and running the guard suite produces exactly one
+failure — `A_Second_Transaction_Does_Not_Inherit_The_First_Ones_Announcement`, "found
+True". After a commit `_transaction` is null and nothing clears the flag there, so
+`ReferenceEquals(null, null)` is true and the unit would vouch for any command carrying no
+transaction at all. The formula appears in no other document; Standards 05 and 11 describe
+the marker without writing it out.
+
+**Why it is an erratum rather than an amendment to a stale sentence.** Amendment 5 and the
+three-term code landed in the same commit, `087b95c`. The sentence never described the
+code, so it was false when it entered the record — ADR-0041's inline-erratum case, not the
+supersede-what-has-aged case.
+
+**Every carrier changed.** This ADR: the inline erratum beside Amendment 5's formula, and
+this amendment. The code is unchanged and was already correct; its test coverage was added
+in `8ff3743`, which is what made the discrepancy visible.
+
+**The Decision is unchanged**, and so is Amendment 5's: one read member on the seam, taking
+the transaction, with no writer.
 
 ## References
 

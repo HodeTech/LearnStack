@@ -1,6 +1,9 @@
+using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
@@ -37,19 +40,32 @@ namespace LearnStack.Api.Composition;
 /// <c>app.tenant_id = ''</c> — turns from "no rows" into "every tenant's rows".
 /// </para>
 /// <para>
-/// <b>Resolved lazily, not built eagerly.</b> The data source is a singleton
-/// whose factory runs when something first needs a connection. A deployment with
-/// no database configured therefore fails on the first request that touches one,
-/// naming the key — rather than at startup, which would make every
-/// <c>WebApplicationFactory</c> test carry a database it does not use.
+/// <b>Built lazily; validated eagerly when there is anything to validate.</b>
+/// The data source is a singleton whose factory runs when something first needs a
+/// connection, so a <c>WebApplicationFactory</c> test — and a deployment serving
+/// only platform hosts — carries no database it does not use. The two checks above
+/// are not deferred with it: a present <c>ConnectionStrings:Default</c> is
+/// name-checked at <c>AddLearnStackPersistence</c> time, because a string naming
+/// <c>learnstack_migration</c> is precisely the ownership mistake this guard exists
+/// for and the first tenant request is a bad place to discover it. An <b>absent</b>
+/// key still fails lazily, on the first request that needs a tenant — which is the
+/// first moment its absence means anything.
 /// </para>
 /// <para>
-/// <c>ConnectionStrings:PlatformAdmin</c> and
-/// <c>ConnectionStrings:OutboxDispatcher</c> are deliberately absent. They are
-/// keyed data sources reachable only from <c>PlatformAdminScope</c> and the
-/// outbox dispatcher, and they land with their consumers — Packet 7 and Phase
-/// 02b — under
-/// <c>Platform_DataSource_Resolved_Only_By_PlatformAdminScope</c>.
+/// <c>ConnectionStrings:PlatformAdmin</c> is read here, and inversely guarded:
+/// it names <c>learnstack_platform</c>, which <i>is</i> a bypassing role, so it gets
+/// the mirror of the check above — a platform credential that does not bypass would
+/// make every cross-tenant read come back filtered to nothing and look like missing
+/// data. It is registered <b>keyed and unconditionally</b>, behind a
+/// <c>Lazy&lt;NpgsqlDataSource&gt;</c>, so a deployment that performs no cross-tenant
+/// operation boots with no such credential at all and the failure — when one is
+/// finally needed — names the key rather than a container type.
+/// <c>Platform_DataSource_Resolved_Only_By_PlatformAdminScope</c> holds the
+/// resolution boundary.
+/// </para>
+/// <para>
+/// <c>ConnectionStrings:OutboxDispatcher</c> is still deliberately absent; it lands
+/// with its consumer in Phase 02b.
 /// </para>
 /// </remarks>
 public static class PersistenceCompositionExtensions
@@ -65,8 +81,57 @@ public static class PersistenceCompositionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.TryAddSingleton(_ =>
-            BuildApplicationDataSource(configuration.GetConnectionString(DefaultConnectionName)));
+        var connectionString = configuration.GetConnectionString(DefaultConnectionName);
+
+        // Validated at boot when the key is present; built on first use either way.
+        //
+        // The build is deferred so that a request on a platform host — answered
+        // from Tenancy:PlatformHosts, never from the database — costs nothing
+        // below it, and so the Docker-free host suites keep working with no
+        // credential at all. But deferring the build used to defer the *checks*
+        // with it, and those are worth having early: a connection string that
+        // names learnstack_migration is the ownership mistake FORCE ROW LEVEL
+        // SECURITY exists to defeat, and discovering it on the first tenant
+        // request rather than at boot is discovering it in production. An absent
+        // key still throws lazily, because a deployment that serves only platform
+        // hosts legitimately has none.
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            ValidateApplicationConnectionString(connectionString);
+        }
+
+        services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
+
+        // The platform credential — the second, separately-credentialed data source
+        // ADR-0003 requires, keyed so only PlatformAdminScope resolves it. Validated at
+        // boot when present, for the same reason the application one is: a credential
+        // naming the wrong role is a deployment mistake, and the first cross-tenant
+        // operation is a bad place to find it.
+        var platformConnectionString = configuration.GetConnectionString(PlatformConnectionName);
+
+        if (!string.IsNullOrWhiteSpace(platformConnectionString))
+        {
+            ValidatePlatformConnectionString(platformConnectionString);
+        }
+
+        // Registered UNCONDITIONALLY, never gated on the key being present. A
+        // conditional registration turns an absent credential into the container's "no
+        // service for type NpgsqlDataSource has been registered", which names neither
+        // the key nor the file an operator has to edit. The Lazy is what lets a
+        // deployment that needs no platform admin — most of them — boot with none.
+        services.TryAddKeyedSingleton<NpgsqlDataSource>(
+            PlatformAdminScope.PlatformDataSourceKey,
+            (_, _) => BuildPlatformDataSource(platformConnectionString));
+
+        services.TryAddKeyedSingleton<Lazy<NpgsqlDataSource>>(
+            PlatformAdminScope.PlatformDataSourceKey,
+            (provider, key) => new Lazy<NpgsqlDataSource>(
+                () => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)));
+
+        // The gate first, so a reader sees that entry is refused before a connection is
+        // opened rather than after. Both are stateless singletons.
+        services.TryAddSingleton<IPlatformAdminGate, DenyAllPlatformAdminGate>();
+        services.TryAddSingleton<IPlatformAdminScope, PlatformAdminScope>();
 
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
@@ -77,6 +142,14 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+
+        // The write side of the two Tenancy roots, beside the context they run on. A
+        // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge
+        // and the reverse reference is already a cycle — so these ports are how the first
+        // production handler reaches persistence at all.
+        services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
+        services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
+        services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 
         return services;
     }
@@ -92,6 +165,108 @@ public static class PersistenceCompositionExtensions
     /// every log that captured the startup failure.
     /// </remarks>
     internal static NpgsqlDataSource BuildApplicationDataSource(string? connectionString)
+    {
+        ValidateApplicationConnectionString(connectionString);
+
+        var builder = new NpgsqlDataSourceBuilder(connectionString);
+
+        // Asked of the server, once per physical connection, because the name is
+        // not the privilege: learnstack_app could have been granted BYPASSRLS, and
+        // a superuser bypasses row security with rolbypassrls = false — which is
+        // why rolsuper is in the predicate.
+        builder.UsePhysicalConnectionInitializer(
+            connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
+            connection => RefuseBypassRole(connection, async: true));
+
+        return builder.Build();
+    }
+
+    /// <summary>The configuration key the platform credential comes from.</summary>
+    public const string PlatformConnectionName = "PlatformAdmin";
+
+    /// <summary>
+    /// The platform-role data source. <b>Not</b> built by
+    /// <see cref="BuildApplicationDataSource"/>.
+    /// </summary>
+    /// <remarks>
+    /// That builder installs a physical-connection initializer refusing any role that can
+    /// reach <c>BYPASSRLS</c> — and <c>learnstack_platform</c> <i>is</i> that role, so
+    /// reusing it would make the credential refuse its own first connection. The
+    /// initializer here asserts the inverse. A platform credential that does not bypass
+    /// is not merely wrong: every cross-tenant read would come back filtered to nothing
+    /// and read as missing data rather than as a misconfiguration.
+    /// </remarks>
+    internal static NpgsqlDataSource BuildPlatformDataSource(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} is not configured, so the "
+                + "platform-admin scope is unavailable. It is the only path to a "
+                + "cross-tenant connection and it does not fall back to the application "
+                + "role — a bypass that silently became a tenant-scoped read would return "
+                + "nothing and look like missing data. A deployment that performs no "
+                + "cross-tenant operation needs no such credential and may leave the key "
+                + "unset; one that does, sets it from the platform role's secret. "
+                + "See .env.example.");
+        }
+
+        ValidatePlatformConnectionString(connectionString);
+
+        var builder = new NpgsqlDataSourceBuilder(connectionString);
+
+        builder.UsePhysicalConnectionInitializer(
+            connection => RequireBypassRole(connection, async: false).GetAwaiter().GetResult(),
+            connection => RequireBypassRole(connection, async: true));
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Everything about <c>ConnectionStrings:PlatformAdmin</c> checkable without a
+    /// connection.
+    /// </summary>
+    internal static void ValidatePlatformConnectionString(string? connectionString)
+    {
+        NpgsqlConnectionStringBuilder parsed;
+
+        try
+        {
+            parsed = new NpgsqlConnectionStringBuilder(connectionString);
+        }
+        catch (ArgumentException failure)
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} is not a valid Npgsql "
+                + "connection string. It must be key/value form, not a URI DSN.", failure);
+        }
+
+        if (!string.Equals(parsed.Username, PlatformRole, StringComparison.Ordinal))
+        {
+            var observed = string.IsNullOrEmpty(parsed.Username) ? "<none>" : parsed.Username;
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} names Username='{observed}'. "
+                + $"It must name '{PlatformRole}', the one role in the four-role model that "
+                + "holds BYPASSRLS. Any other role either cannot see across tenants — in "
+                + "which case every cross-tenant read comes back empty and looks like "
+                + "missing data — or is a wider credential than this path is allowed to "
+                + "hold.");
+        }
+    }
+
+    /// <summary>The role the platform credential must name.</summary>
+    private const string PlatformRole = "learnstack_platform";
+
+    /// <summary>
+    /// Everything about <c>ConnectionStrings:Default</c> that can be checked
+    /// without opening a connection.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the build so the composition root can run it at boot while
+    /// still deferring the data source itself. The server-side bypass check is not
+    /// here — it needs a connection, and it runs per physical connection.
+    /// </remarks>
+    internal static void ValidateApplicationConnectionString(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -115,11 +290,16 @@ public static class PersistenceCompositionExtensions
             // operator who pasted a URI-style DSN — the form DATABASE_URL carries
             // on several hosts — otherwise gets a bare ArgumentException out of
             // System.Data.Common.
+            // The value is NOT echoed, redacted or otherwise. It failed to parse, so
+            // there is no field to be confident about: the userinfo pattern could not
+            // cross a '/' or a second '@' inside a password, and either one put the
+            // secret in a startup log. The message's job is to name the key and the
+            // expected form, and it does that without quoting anything.
             throw new InvalidOperationException(
-                $"ConnectionStrings:Default is not a valid connection string: "
-                + $"{RedactUnparsed(connectionString)}. "
-                + "The expected form is a semicolon-separated key/value list — Host, Port, "
-                + "Database, Username, Password — not a URI. See .env.example.",
+                "ConnectionStrings:Default is not a valid connection string. The expected "
+                + "form is a semicolon-separated key/value list — Host, Port, Database, "
+                + "Username, Password — not a URI. The value is not repeated here because "
+                + "an unparseable one cannot be reliably redacted. See .env.example.",
                 exception);
         }
 
@@ -134,18 +314,6 @@ public static class PersistenceCompositionExtensions
                 + "unresolved-tenant state that returns no rows returns every tenant's instead. "
                 + "EnterPlatformAdminScope is the only sanctioned path to a bypass credential.");
         }
-
-        var builder = new NpgsqlDataSourceBuilder(connectionString);
-
-        // Asked of the server, once per physical connection, because the name is
-        // not the privilege: learnstack_app could have been granted BYPASSRLS, and
-        // a superuser bypasses row security with rolbypassrls = false — which is
-        // why rolsuper is in the predicate.
-        builder.UsePhysicalConnectionInitializer(
-            connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
-            connection => RefuseBypassRole(connection, async: true));
-
-        return builder.Build();
     }
 
     private static async Task RefuseBypassRole(NpgsqlConnection connection, bool async)
@@ -184,6 +352,52 @@ public static class PersistenceCompositionExtensions
         }
     }
 
+    /// <summary>
+    /// Refuses a platform connection whose role does <b>not</b> bypass row security.
+    /// </summary>
+    /// <remarks>
+    /// The mirror of <c>RefuseBypassRole</c>, and asked of the server for the same
+    /// reason: the name is not the privilege. A <c>learnstack_platform</c> that lost
+    /// <c>BYPASSRLS</c> — a re-created role, a restored dump, an <c>ALTER ROLE</c> — is
+    /// the failure that looks like nothing at all, because every cross-tenant query
+    /// simply returns fewer rows.
+    /// </remarks>
+    /// <remarks>
+    /// <b><c>AND NOT rolsuper</c>, not <c>OR rolsuper</c>.</b> A superuser does bypass
+    /// RLS, so accepting it satisfies the literal question this guard asks — and that is
+    /// the trap. A superuser also bypasses the table and schema GRANT matrix that is what
+    /// BOUNDS this role: `02-create-roles.sql` writes it <c>BYPASSRLS NOSUPERUSER</c>
+    /// deliberately, and a deployment that promoted it would have widened the one
+    /// credential the platform path uses from "reads across tenants" to "does anything".
+    /// Refusing it here is how that misconfiguration fails at startup rather than at the
+    /// first incident.
+    /// </remarks>
+    private static async Task RequireBypassRole(NpgsqlConnection connection, bool async)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_roles r
+                WHERE r.rolname = current_user AND r.rolbypassrls AND NOT r.rolsuper)
+            """;
+
+        var bypasses = async
+            ? await command.ExecuteScalarAsync()
+            : command.ExecuteScalar();
+
+        if (bypasses is not true)
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{PlatformConnectionName} connected as a role that does "
+                + "not bypass Row Level Security. The platform-admin scope exists only to "
+                + "cross tenant boundaries, and under a non-bypassing role every query it "
+                + "runs is silently filtered to the current tenant context — which, with "
+                + "no context set, is no rows at all. Grant BYPASSRLS to "
+                + $"{PlatformRole} or correct the credential.");
+        }
+    }
+
     /// <summary>The connection string with its password removed.</summary>
     /// <remarks>
     /// From the <b>parsed</b> builder, not by pattern-matching the raw text.
@@ -206,40 +420,4 @@ public static class PersistenceCompositionExtensions
         return redacted.ConnectionString;
     }
 
-    /// <summary>
-    /// The same, for a value Npgsql could not parse — so there is no builder to
-    /// clear a field on.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// A regex is the only tool left here, so it covers both forms a rejected value
-    /// arrives in. The keyword pass knows every alias Npgsql accepts —
-    /// <c>Password</c>, <c>PSW</c>, <c>PWD</c>, measured, not the canonical
-    /// spelling alone.
-    /// </para>
-    /// <para>
-    /// The second pass is the one this branch exists for. Npgsql <b>rejects</b> a
-    /// URI-style DSN outright — measured — so <c>postgres://user:secret@host/db</c>
-    /// is not some exotic input here, it is the input, and it carries its password
-    /// in the userinfo where no <c>password=</c> appears. The first version of this
-    /// method echoed it whole into an exception message that a startup failure puts
-    /// in the log.
-    /// </para>
-    /// </remarks>
-    private static string RedactUnparsed(string connectionString)
-    {
-        var byKeyword = System.Text.RegularExpressions.Regex.Replace(
-            connectionString,
-            "(?i)\\b(password|pwd|psw)(\\s*=)[^;]*",
-            "$1$2***");
-
-        // The whole userinfo, not the password half: a value shaped like a URI
-        // failed to parse, so there is no field to be confident about, and the
-        // username is not what the operator needs from this message anyway — the
-        // message tells them the form is wrong, not which role they named.
-        return System.Text.RegularExpressions.Regex.Replace(
-            byKeyword,
-            "(?i)(://)[^/@\\s]*@",
-            "$1***@");
-    }
 }

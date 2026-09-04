@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
 
 namespace LearnStack.Modules.Tenancy.Domain;
@@ -32,7 +33,8 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// writes.
 /// </para>
 /// </remarks>
-public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRoot<OrganizationId>
+[TenantOwned]
+public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRoot<OrganizationId>, ITenantOwned
 {
     private Organization(OrganizationId id)
         : base(id)
@@ -125,7 +127,7 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
                 nameof(id));
         }
 
-        TenantOwned.EnsureRealTenant(
+        TenantOwnership.EnsureRealTenant(
             tenantId,
             "An organization belongs to a tenant; the tenant id was never assigned.",
             nameof(tenantId));
@@ -154,13 +156,14 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     }
 
     /// <summary>
-    /// The two bounds <c>OrganizationConfiguration</c> maps: 63 for the slug,
-    /// which is a DNS label, and 200 for the display name.
+    /// The two bounds <c>OrganizationConfiguration</c> maps, named once each so the
+    /// validator that refuses at them and the factory that throws at them read the same
+    /// number.
     /// </summary>
     private static void EnsureWithinMappedLengths(string slug, string displayName)
     {
-        MappedLength.EnsureAtMost(slug, 63, nameof(slug));
-        MappedLength.EnsureAtMost(displayName, 200, nameof(displayName));
+        MappedLength.EnsureAtMost(slug, UrlSlug.MaxLength, nameof(slug));
+        MappedLength.EnsureAtMost(displayName, MappedLength.DisplayName, nameof(displayName));
     }
 
     /// <summary>Moves the organization to a new lifecycle state.</summary>

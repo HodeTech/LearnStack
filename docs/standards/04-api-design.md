@@ -135,6 +135,83 @@ The two rules an API author needs at the point of writing an endpoint:
 
 A request that cannot resolve a tenant returns **404** (not 403, to avoid disclosure).
 
+### Public surface
+
+`[PublicSurface]` marks a request type as reachable by a caller LearnStack has not
+authenticated — the [`Portal Public`](19-permissions.md) role, made mechanical. The
+marker is the whole of the claim under a host-only context: a request type without it is
+unreachable from `HostOnly`, whatever its route looks like. Rows 13 and 15 of ADR-0036's
+reconciliation matrix are the separate case — no tenant context resolves at all, and
+`[AllowsUnresolvedTenantContext]` governs them.
+
+- **`TenantContextOrigin` is the ceiling.** A context resolved from the host alone
+  carries `HostOnly` and reaches only `[PublicSurface]` request types;
+  `TenantContextBehavior` at pipeline step 4
+  ([02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)) rejects anything
+  else — failing with `lockey_not_found`, so the body it renders is byte-identical to
+  the one an unresolvable host gets, because anything a client can tell apart confirms
+  to an anonymous caller that the tenant exists. Not `lockey_tenant_mismatch`: a
+  `HostOnly` context is anonymous by construction and `tenant_mismatch` is the
+  authenticated code. The mechanism differs and the wire result must not —
+  host classification writes a bodyless **404** that `UseStatusCodePages` fills in through
+  `ProblemDetailsFactory.ForStatus(404)`, while a step-4 failure carries its own Problem
+  Details body through `ProblemDetailsActionResult`; since
+  `HttpStatusMap.CanonicalCodeFor(404)` is `not_found` and `Error.Code` strips the
+  `lockey_` prefix, both carry the same `type`, `title`, `status`, `code` and
+  `messageKey`.
+
+  **What indistinguishability covers, precisely, and what it does not.** It covers the
+  paths the ceiling controls: on the same path, with the same method, a live tenant host
+  and an unknown one produce byte-identical responses, and nothing anywhere names *which*
+  tenant. It does **not** extend to responses routing produces before the pipeline runs —
+  a method no action accepts is a `405` on a host that resolved and the shared `404` on
+  one that did not. That is measured and deliberate rather than an oversight: the only
+  hosts reaching routing are ones the resolver admitted, and it admits a row only under
+  `is_active AND is_publicly_live`, which
+  [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) defines as DNS
+  pointing at LearnStack and the tenant's public site being served. A host that is not
+  publicly live resolves to nothing and answers the unknown-host `404` here too, so the
+  bit disclosed is exactly the one that is public by definition — and once the table
+  above has a row, a plain `GET` discloses it more directly by returning `200`.
+  `A_Disallowed_Method_Discloses_Only_That_The_Host_Is_Publicly_Live` pins the boundary
+  so a later reader does not have to re-derive it; two independent reviews of this
+  mechanism reached opposite conclusions about it, which is why it is written down.
+
+  A **platform host** is separable from both, by `code` rather than status: an unmarked
+  request there resolves no tenant and fails gate 1 with `tenant_mismatch`, where a
+  tenant host under the ceiling and an unknown host both carry `not_found`. That
+  discloses membership of `Tenancy:PlatformHosts` — a short static list an operator
+  publishes as its own entry point — and nothing about any tenant.
+- **Permitted methods default to `GET` / `HEAD`.** An entry declaring a mutating method
+  states why, in the table.
+- **No `[PublicSurface]` type performs a tenant-owned write.**
+- **No `[PublicSurface]` type is classified MUST-class `read-sensitive`**
+  ([18-audit-coverage.md](18-audit-coverage.md)) — an anonymous `GET` would otherwise
+  become a durable standalone audit write.
+
+[ADR-0036 § The reconciliation matrix](../decisions/0036-tenant-resolution-trusted-inputs.md)
+is the authority for why the ceiling holds and what a forged host reaches under it. The
+matrix is not restated here.
+
+The set is this table and nothing else:
+
+| Request type | Permitted methods | Why | Owning phase |
+|--------------|-------------------|-----|--------------|
+
+Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s two
+anonymous read endpoints. Until then `PublicSurface_Marker_Set_Is_Enumerated` and
+`PublicSurface_Requests_Are_Never_ReadSensitive`
+([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) pass over an
+empty set — the honest state of a marker no request type carries yet.
+
+**Adding a row here is half of an edit.** The rule reads this table in both directions,
+so a row naming a request type that does not carry `[PublicSurface]` fails the build:
+an entry here reads as a reviewed decision, and one with no attribute behind it is a
+decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSensitive`
+is the one to watch when the first row lands — its audit-catalogue cross-check needs
+`IAuditStore`, which arrives in Packet 9, so until then it asserts only that the set is
+empty and a row landing before that is what forces the question.
+
 ## Pagination
 
 Cursor pagination by default:

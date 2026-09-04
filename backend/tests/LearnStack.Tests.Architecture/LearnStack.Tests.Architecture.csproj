@@ -26,6 +26,11 @@
     <ProjectReference Include="..\..\src\LearnStack.Infrastructure.ErrorTracking\LearnStack.Infrastructure.ErrorTracking.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Infrastructure.Resilience\LearnStack.Infrastructure.Resilience.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <!-- The seeder is a second composition root and holds an ITenantContext
+         implementation, so the sweep scans it like any other production assembly:
+         a tool that could write across an aggregate boundary or set the tenant
+         itself is exactly what these rules exist to see. -->
+    <ProjectReference Include="..\..\src\LearnStack.Tools.Seeder\LearnStack.Tools.Seeder.csproj" />
 
     <!-- Modules: Tenancy -->
     <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Domain\LearnStack.Modules.Tenancy.Domain.csproj" />

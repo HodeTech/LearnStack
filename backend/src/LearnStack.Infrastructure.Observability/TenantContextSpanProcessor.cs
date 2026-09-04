@@ -44,10 +44,25 @@ public sealed class TenantContextSpanProcessor(ITenantContextAccessor accessor)
             // with no contract on format (some exporters use "D", others
             // "N"). Pin the wire format here for parity with
             // SentryErrorTracker and Loki dashboards.
-            data.SetTag("tenant.id", context.TenantId.ToString());
-            if (context.OrganizationId is { } orgId)
+            // Value.ToString(), not the id's own ToString(). Same reason the
+            // UserId branch below already reads Value: measured on Vogen 7, an
+            // uninitialized id's ToString() is the literal "[UNINITIALIZED]"
+            // while interpolating the same value gives "" — so the id's own
+            // formatting is not a wire format, and this tag is one.
+            // IsInitialized() on the tenant id too, not only on the two below
+            // it. This processor runs inside Activity.Start() for every span and
+            // must never throw; before the ids became value objects this was a
+            // Guid read that could not, and the asymmetry with the sibling
+            // branches otherwise reads as an oversight rather than as reliance
+            // on ITenantContext's IsResolved-implies-initialized invariant.
+            if (context.TenantId.IsInitialized())
             {
-                data.SetTag("organization.id", orgId.ToString());
+                data.SetTag("tenant.id", context.TenantId.Value.ToString());
+            }
+
+            if (context.OrganizationId is { } orgId && orgId.IsInitialized())
+            {
+                data.SetTag("organization.id", orgId.Value.ToString());
             }
 
             // IsInitialized() before Value: UserId? being non-null says a

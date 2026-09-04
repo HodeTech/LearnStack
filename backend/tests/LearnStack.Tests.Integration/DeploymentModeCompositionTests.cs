@@ -3,6 +3,7 @@ using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Hosting;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Observability;
 using LearnStack.SharedKernel.Secrets;
@@ -133,9 +134,9 @@ public sealed class DeploymentModeCompositionTests
     private sealed class ResolvedContext(Guid tenantId) : ITenantContext
     {
         public bool IsResolved => true;
-        public Guid TenantId { get; } = tenantId;
-        public Guid? OrganizationId => null;
-        public LearnStack.SharedKernel.Identifiers.UserId? UserId => null;
+        public TenantId TenantId { get; } = TenantId.From(tenantId);
+        public OrganizationId? OrganizationId => null;
+        public UserId? UserId => null;
         public string? CorrelationId => null;
         public string? ModuleName => "integration-test";
     }

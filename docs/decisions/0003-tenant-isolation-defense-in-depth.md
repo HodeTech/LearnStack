@@ -300,3 +300,47 @@ The single authority for which class a table belongs to is
 [Database Standards § Table classes](../standards/05-database.md). A list copied
 into three documents drifts in three directions, and this copy already had — which
 is why the assignment lives in one file and this section keeps only the *rule*.
+
+### Amendment 4 (2026-09-04): the write guards admitted an organization-scoped session to tenant-wide rows
+
+**What was wrong.** Amendment 3's template closes the `USING`-only write paths with two
+`AS RESTRICTIVE` guards, one `FOR UPDATE` and one `FOR DELETE`. Both read:
+
+```sql
+organization_id IS NULL
+OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+```
+
+The first arm is unconditional. It exists so a **tenant-scope** session — one with no
+`app.organization_id` — can write the tenant-wide rows that belong to no organization. It
+also admits an **organization-scoped** session to those same rows, which is the opposite
+of what [Database Standards](../standards/05-database.md) states in the same breath as the
+guards: *"a tenant-scope reporting query may read across organizations, but nothing may
+write outside its organization."* A tenant-wide row is outside every organization.
+
+**Measured, not reasoned.** On the shipped schema, a session announcing tenant A and
+organization A1 updated tenant A's `organization_id IS NULL` row in `tenant_settings`
+without refusal. The consequence is intra-tenant rather than cross-tenant — one
+organization rewriting the fallback every other organization reads — so it is a
+write-scope defect, not an isolation breach, and the four-role model and the tenant term
+are untouched.
+
+**The correction.** The first arm is `AND`-ed with "the session has no organization":
+
+```sql
+(organization_id IS NULL
+ AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
+OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+```
+
+A tenant-scope session still writes tenant-wide rows; an organization-scoped session
+writes only its own organization's. `app.scope` is deliberately absent here for the same
+reason Amendment 3 keeps it out of `WITH CHECK` — the read hatch is not a write hatch, and
+it has no carrier until [Phase 03](../roadmap/phase-03-identity-admin.md).
+
+**Where it applies.** [Database Standards](../standards/05-database.md) carries the
+template and is corrected in place, because it is the canonical artifact other tables are
+told to copy — the instrument [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md)
+reserves for exactly that. `tenant_settings` is the only shipped organization-scoped table
+and is corrected by a forward-only migration; every table created after this carries the
+corrected guards from the template.

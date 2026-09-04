@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.Identifiers;
 namespace LearnStack.SharedKernel.Idempotency;
 
 /// <summary>
@@ -121,7 +122,7 @@ public interface IIdempotencyStore
     /// </param>
     /// <param name="cancellationToken">Cancellation.</param>
     Task<IdempotencyClaimResult> TryClaimAsync(
-        Guid tenantId,
+        TenantId tenantId,
         string key,
         string fingerprint,
         CancellationToken cancellationToken);
@@ -144,7 +145,7 @@ public interface IIdempotencyStore
     /// silence.
     /// </returns>
     Task<bool> CompleteAsync(
-        Guid tenantId,
+        TenantId tenantId,
         string key,
         Guid token,
         IdempotentResponse? response,
@@ -162,5 +163,5 @@ public interface IIdempotencyStore
     /// </remarks>
     /// <returns><c>true</c> when the key was released by this caller.</returns>
     Task<bool> AbandonAsync(
-        Guid tenantId, string key, Guid token, CancellationToken cancellationToken);
+        TenantId tenantId, string key, Guid token, CancellationToken cancellationToken);
 }

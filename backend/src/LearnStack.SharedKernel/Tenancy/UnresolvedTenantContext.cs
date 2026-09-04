@@ -11,10 +11,14 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// </summary>
 /// <remarks>
 /// The real population sites (per ADR-0032 § Sub-decision 10) overwrite the
-/// scoped instance once they resolve. Until Packet 7 lands
-/// <c>TenantResolverMiddleware</c>, every request runs against this default —
-/// the <c>TenantContextBehavior</c> short-circuits with
-/// <c>Result.Fail(tenant_mismatch)</c> before any handler runs.
+/// scoped instance once they resolve. <c>TenantResolverMiddleware</c> is the first of
+/// them <b>on an HTTP request</b> — <c>InProcessEventBus</c> has written the accessor
+/// for the integration-event handler scope since Packet 5 — and it writes this instance
+/// <b>explicitly</b> on the requests that
+/// legitimately have no tenant — a platform host, matrix rows 13 and 15. That is not
+/// a refusal: the pipeline decides what may run without a tenant. Every request that
+/// classification never classified, and every non-HTTP entry point until Phase 02b
+/// wires its own, still arrives here by default.
 /// </remarks>
 public sealed class UnresolvedTenantContext : ITenantContext
 {
@@ -22,10 +26,10 @@ public sealed class UnresolvedTenantContext : ITenantContext
 
     public bool IsResolved => false;
 
-    public Guid TenantId => throw new InvalidOperationException(
+    public TenantId TenantId => throw new InvalidOperationException(
         "TenantId is not available on an unresolved tenant context. Gate reads on IsResolved.");
 
-    public Guid? OrganizationId => null;
+    public OrganizationId? OrganizationId => null;
 
     public UserId? UserId => null;
 

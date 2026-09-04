@@ -36,11 +36,10 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5 and 6 shipped; packets 3b–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5, 6 and 7 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
-[Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — host and
-tenant resolution, the EF query filters, the request-level isolation suite and
-the two seed tenants — is next.**
+[Packet 8](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the Tenant
+Customization foundation — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -108,6 +107,24 @@ belong to Packets 7 and 9. Its record,
 is long because several of its defects were introduced by the *fix* for an
 earlier one, and because three tests were caught agreeing with the code instead
 of constraining it — the packet's most repeated lesson.
+
+**Packet 7** shipped what a request does with a tenant: host classification and
+resolution, `EffectiveHost` normalization, the negative host cache, the
+four-origin `TenantContextFactory`, and `TenantContextBehavior`'s two-gate
+authority ceiling with `[AllowsUnresolvedTenantContext]` and `[PublicSurface]` as
+enumerated holes. With them: `ProvisionTenantCommand`, the one operation
+[ADR-0042](docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+sanctions to write two aggregate roots on one transaction; `CreateOrganizationCommand`
+and `MapHostToTenantCommand`, both taking their tenant from the context and never
+from the request; `LearnStack.Tools.Seeder` and the two seed tenants
+(`demo-english`, `demo-yoga`) written through those commands, so `make seed` exercises
+the request path rather than a second one; and the request-level isolation suite —
+the first fixture pairing the real middleware chain with a real database. Its record,
+[Delivery Record (Packet 7)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-7),
+is long for the reason Packets 5 and 6's were: eleven steps, each reviewed twice,
+and the second round repeatedly found the first round's fix. The sharpest finding
+was a test that asserted an anonymous POST failed and therefore passed against a
+deleted endpoint.
 
 **Packet 6** shipped the tenancy schema: the four database roles, ten tables in
 two independent migration chains, and every one of them under `ENABLE` **and**

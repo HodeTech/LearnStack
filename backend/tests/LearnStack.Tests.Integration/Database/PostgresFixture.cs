@@ -104,6 +104,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary><c>BYPASSRLS</c>; only the outbox dispatcher's equivalent.</summary>
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
+
     public async Task InitializeAsync()
     {
         await _container.StartAsync();

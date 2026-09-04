@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -64,6 +65,22 @@ public static class MediatRPipelineRegistration
             }
         });
 
+        // The same assemblies, for the same reason, and it was missing. ValidationBehavior
+        // resolves IEnumerable<IValidator<TRequest>> from the container, so without this
+        // every validator in the solution is a class nothing constructs — the behavior
+        // sees an empty array, short-circuits, and a command with a validator is refused
+        // by nothing. It shipped that way only because no validator existed yet; the
+        // first one would have been silently inert.
+        //
+        // The kernel assembly is always in the list, not only in the fallback: a shared
+        // validator placed beside the behavior that consumes it would otherwise be as
+        // inert as the ones this line exists to register, and inert in the one place
+        // nobody would think to check.
+        services.AddValidatorsFromAssemblies(
+            assembliesToScan.Append(typeof(AssemblyMarker).Assembly).Distinct(),
+            includeInternalTypes: true);
+
         return services;
     }
+
 }

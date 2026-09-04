@@ -168,8 +168,14 @@ migrationBuilder.Sql("""
 > for why the two-policy shape was withdrawn.
 
 **Session variable names** are canonical: `app.tenant_id` / `app.organization_id` /
-`app.scope`. Always pass the second `true` argument so an unset context filters the row
-out instead of raising on a pooled connection.
+`app.scope` / `app.resolving_host`. Always pass the second `true` argument so an unset
+context filters the row out instead of raising on a pooled connection. Write the
+`app.scope` term into the policy even though **nothing sets it**: the flag derives from
+the actor's role and roles arrive in
+[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which is the earliest
+phase that can own the carrier, so the cross-organization read hatch is unreachable at
+runtime until then — the correct default, and the reason the two `AS RESTRICTIVE`
+guards need a test that sets the variable by hand.
 
 **Roles.** Migrations run as `learnstack_migration` (the table owner);
 the application connects as `learnstack_app` (`NOBYPASSRLS`, not the owner). Grant the
@@ -254,7 +260,12 @@ migrationBuilder.DropColumn(name: "source_legacy", table: "enrollments");
 
 Small data migrations live inline as SQL. Larger migrations live as **idempotent
 Hangfire jobs** triggered by the migration. The job sets `app.tenant_id` per tenant
-before mutating data:
+before mutating data, on the **migration** connection:
+
+> This loop is a migration-time backfill, not an eighth entry in ADR-0040's closed
+> seven-setter set. Application code never opens its own connection to set the
+> variable — it goes through `IUnitOfWork.SetTenantContextAsync` on the ambient
+> transaction ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)).
 
 ```csharp
 foreach (var tenantId in tenantIds)
@@ -339,17 +350,29 @@ migration is consistent.
 - `dotnet ef migrations script` output matches the expected SQL (table, indexes,
   RLS, partitions).
 - `dotnet build` is green.
-- `LearnStack.Tests.Architecture` is green; specifically
-  `Every_TenantOwned_Table_HasRls_With_AppTenantId` and
-  `Every_OrgScoped_Entity_HasOrgIdAndFilter` if applicable.
+- `LearnStack.Tests.Architecture` is green. The two rules for this surface —
+  `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
+  `Every_OrgScoped_Entity_HasOrgIdAndFilter`, the canonical names — are
+  **Implemented** as of Packet 7 step 3 (`TenantScopingTests`): they read the EF
+  model and scan every migration source, so a marked entity with no filter, no
+  tenant key, or a table missing `ENABLE` + `FORCE` + one permissive policy with
+  both clauses fails the build. Alongside them, what runs against your migration is
+  the schema sweeps in
+  `LearnStack.Tests.Integration`'s `TenancySchemaTests`: row security enabled *and*
+  forced on every table in the catalogue, no second permissive policy for one
+  command, snake_case identifiers, foreign-key indexing, and the exact grant matrix.
 - An integration test exercises the new table / column under a tenant + org pair.
 - For destructive changes: the two-step plan is documented in the PR + migration
   comment, and the prerequisite tolerant-read release exists.
 
 ## Common pitfalls
 
-- **Forgetting RLS on a new tenant-owned table.** The architecture test catches it;
-  fixing late is painful because production may already have leakable rows.
+- **Forgetting RLS on a new tenant-owned table.** The `TenancySchemaTests` sweeps
+  catch it, and only because they enumerate the applied catalogue rather than a list
+  of names — a fixture carrying one migration chain silently narrowed every sweep to
+  eight of ten tables, and a second permissive policy on `outbox_messages` passed the
+  whole suite. Fixing late is painful because production may already have leakable
+  rows.
 - **Wrong session variable name.** `current_setting('app.current_tenant_id')` is
   silently wrong — RLS returns zero rows because the variable is never set.
 - **Editing an applied migration.** `__EFMigrationsHistory` holds only
@@ -361,5 +384,7 @@ migration is consistent.
   separate migrations so rollback is granular.
 - **One migration spanning multiple modules.** Each module owns its own migrations;
   cross-module schemas go through read-model projections, not shared tables.
-- **Skipping `--locked-mode` in CI.** `dotnet restore --locked-mode` and
-  `dotnet ef --no-build` keep CI deterministic.
+- **Building without `CI=true`.** `TreatWarningsAsErrors` is conditioned on it in
+  `backend/Directory.Build.props`, and CI sets it on the build step. A local build
+  without it is green on warnings the required check rejects — that shipped once, in
+  Packet 4. `CI=true` is now the only way this repository is built.

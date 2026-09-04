@@ -49,12 +49,13 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## Entity-relationship diagram
 
-Aggregate roots are `Tenant` and `Organization` — the two that implement
-`IAggregateRoot<TId>`. `PlatformHostMapping` and `PlatformEntitlement` are
+Aggregate roots in the shipped code are `Tenant` and `Organization` — the two
+that implement `IAggregateRoot<TId>`; the promotion below adds `TenantDomain` and
+`TenantSetting`, which carry the shape of a root but which no command writes yet. `PlatformHostMapping` and `PlatformEntitlement` are
 projections rather than aggregates: nothing in this module mutates them through
 a root.
 
-**The other four sit between the two, and the boundary is not settled.**
+**The other four resolve two ways, and Packet 7 settles them as promotion.**
 `TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` each have
 a public factory, a top-level `DbSet` on `TenancyDbContext`, and no navigation
 from `Tenant` — so there is no path through a root, which
@@ -65,11 +66,15 @@ requires for state changes inside an aggregate. They also split:
 `TenantFeatureFlag` have composite natural keys and no id at all and therefore
 cannot be `IAggregateRoot<TId>` under any reading.
 
-**Packet 7 decides it**, because Packet 7 writes the first command that touches
-any of them and a boundary with no writer is a boundary with no evidence. Until
-then nothing writes them, so the divergence costs nothing — but it is a
-divergence, and this paragraph says so rather than describing a containment the
-code does not implement.
+So the first pair becomes aggregate roots in their own right and the second
+becomes navigations inside `Tenant` — four roots in Tenancy, with a write to
+`TenantLocale` or `TenantFeatureFlag` bumping `Tenant.row_version` and the two
+promoted roots carrying their own.
+[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) writes the first command
+that touches any of them, which is the evidence the boundary had none of and
+where the promotion lands; provisioning writing `Tenant` and its default
+`Organization` in one transaction is sanctioned by enumeration in
+[ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 
 ```mermaid
 erDiagram
@@ -145,7 +150,8 @@ Text fallback — **TenantDomain lifecycle**:
 - A `Custom` domain travels the whole path — `Requested → Verifying → Verified`,
   or `Verifying → Failed → Verifying` on retry.
 - **A verified row does not serve traffic on its own.** A corresponding
-  `platform_host_to_tenant` row with `is_publicly_live` does.
+  `platform_host_to_tenant` row that is `is_active` **and** `is_publicly_live`
+  does.
 
 ## Sequence diagrams
 
@@ -154,38 +160,70 @@ Text fallback — **TenantDomain lifecycle**:
 ```mermaid
 sequenceDiagram
     participant R as Registry (Hub / config / fixture)
+    participant T as TransactionBehavior
     participant H as Handler
     participant U as IUnitOfWork
+    participant S as IUnitOfWorkScope
     participant D as TenancyDbContext
     participant P as PostgreSQL
 
-    R->>H: tenant id, slug, display name
-    H->>U: BeginTransactionAsync
+    R->>T: ProvisionTenantCommand (tenant id, slug, names)
+    T->>U: BeginTransactionAsync
     U->>P: BEGIN
-    H->>U: SetTenantContextAsync(id)
-    U->>P: SET LOCAL app.tenant_id = <id>
+    T->>U: SetProvisioningTenantContextAsync(command.TenantId)
+    U->>P: SELECT set_config('app.tenant_id', <id>, true),<br/>set_config('app.organization_id', '', true)
+    T->>H: next()
     H->>D: INSERT tenants
     D->>P: WITH CHECK passes — app.tenant_id already equals id
     H->>D: INSERT organizations (default)
     H->>D: UPDATE tenants SET default_organization_id
-    H->>U: CommitAsync
-    U->>P: COMMIT
+    T->>S: CompleteAsync
+    S->>P: COMMIT
 ```
 
 Text fallback — **provisioning a tenant**: the registry (Hub, config or fixture)
-supplies the tenant id, slug and display name; the handler opens the ambient
-transaction through `IUnitOfWork`, sets `app.tenant_id` to that id as the first
-statement inside it, inserts `tenants`, inserts the default `organizations` row,
-updates `tenants.default_organization_id`, and commits. One transaction, one
-connection, one commit point.
+sends a `ProvisionTenantCommand`; `TransactionBehavior` opens the ambient
+transaction, announces `app.tenant_id` as the tenant being created and blanks
+`app.organization_id` in the same statement — the first inside the transaction —
+and calls the handler; the handler inserts `tenants`,
+inserts the default `organizations` row, updates
+`tenants.default_organization_id`, and returns; the behavior completes the scope,
+which commits. One transaction, one connection, one commit point.
+
+**The handler opens nothing and announces nothing.** Both belong to
+`TransactionBehavior`, and the distinction is not stylistic. A
+`BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)
+returns a nested frame on the same transaction, so it would be a no-op that
+reads like a boundary. An announcement from inside a handler would be an eighth
+setter of `app.tenant_id` against a set two ADRs close at seven, and would hand
+every handler in the solution the ability to move the ambient tenant.
 
 Three statements, one transaction. The tenant id is **never minted in the
-handler**: the registry assigns it and the transaction sets `app.tenant_id` to
-that value *before* the insert, so the self-keyed policy's `WITH CHECK` passes. A
-handler that generated its own could not satisfy its own policy. The
-`default_organization_id` update is separate because the composite foreign key
-has nothing to reference until the organization exists; `MATCH SIMPLE` skips the
-check while the column is null, which is what makes the ordering legal.
+handler**: the registry assigns it, and the behavior announces it *before* the
+insert by reading `IProvisionsTenant` off the request, so the self-keyed policy's
+`WITH CHECK` passes. A handler that generated its own could not satisfy its own
+policy. Measured against the shipped policies on a throwaway container: with
+`app.tenant_id` unset or set to the empty string the `tenants` insert raises
+`42501` identically, and only the new tenant's own id lets the sequence commit.
+Of the two, the empty-string case is the one a test pins —
+`A_request_that_does_not_provision_still_fails_closed_when_unresolved` — because
+it is the state this pipeline actually produces; nothing in the request path
+leaves the variable unset.
+
+The announcement requires an **unresolved** context, which is what closes the
+confused deputy: a caller already authenticated for tenant A who sends a
+provisioning command naming tenant B takes the ordinary path, the transaction
+carries A, and B's insert is refused by the database rather than by a check
+somebody has to remember to write. Nothing verifies that the requested id is
+unused, and the guarantee does not need it to be: the only statement the
+announcement authorises is an `INSERT` the primary key rejects when the tenant
+already exists. Anything later added inside that transaction — the MUST-class
+audit write, the outbox flush — inherits that assumption and must not rely on
+the announced tenant being new.
+
+The `default_organization_id` update is separate because the composite foreign
+key has nothing to reference until the organization exists; `MATCH SIMPLE` skips
+the check while the column is null, which is what makes the ordering legal.
 
 ### Primary integration-event flow: host mapping changed
 
@@ -221,27 +259,37 @@ resolver reads `platform_host_to_tenant` and nothing else.
 flowchart LR
     subgraph Tenancy
         DOM[Domain<br/>Tenant, Organization]
-        APP[Application]
-        INF[Infrastructure<br/>TenancyDbContext]
+        CON[Application.Contracts<br/>ProvisionTenant, CreateOrganization,<br/>MapHostToTenant]
+        APP[Application<br/>3 handlers + validators,<br/>ITenantWriteStore, IOrganizationWriteStore,<br/>IPlatformHostMappingStore]
+        INF[Infrastructure<br/>TenancyDbContext,<br/>3 write stores]
     end
     SK[SharedKernel<br/>TenantId, OrganizationId, IUnitOfWork]
+    CORE[Core Infrastructure<br/>TenantScopedDbContext]
     PG[(PostgreSQL<br/>8 tables, RLS)]
     HUB[Hub adapters<br/>IEntitlementProvider, IHubTenantSync]
     OTHER[Other modules]
 
     DOM --> SK
+    CON --> SK
+    APP --> CON
     APP --> DOM
     INF --> APP
+    INF --> CORE
     INF --> PG
     HUB -.-> APP
-    OTHER -.->|application contract only| APP
+    OTHER -.->|application contract only| CON
 ```
 
-Text fallback — **components**: Tenancy is three assemblies — `Domain` (the
-`Tenant` and `Organization` aggregates), `Application`, and `Infrastructure`
-(`TenancyDbContext`). `Domain` depends on `SharedKernel` for `TenantId`,
+Text fallback — **components**: Tenancy is four assemblies — `Domain` (the
+`Tenant` and `Organization` aggregates), `Application.Contracts` (three commands —
+`ProvisionTenant`, `CreateOrganization`, `MapHostToTenant`), `Application` (their
+handlers and validators, and the `ITenantWriteStore` / `IOrganizationWriteStore` /
+`IPlatformHostMappingStore` ports) and `Infrastructure` (`TenancyDbContext` and the
+three write stores). `Domain` depends on `SharedKernel` for `TenantId`,
 `OrganizationId` and `IUnitOfWork`; `Application` on `Domain`; `Infrastructure`
-on `Application` and on PostgreSQL. The Hub adapters (`IEntitlementProvider`,
+on `Application`, on core `LearnStack.Infrastructure` — where
+`TenantScopedDbContext`, the base `TenancyDbContext` derives from, applies the
+query filters — and on PostgreSQL. The Hub adapters (`IEntitlementProvider`,
 `IHubTenantSync`) and every other module reach `Application` and nothing deeper.
 
 Other modules reach Tenancy **only** through an application contract in
@@ -293,26 +341,39 @@ request and are the only Tenancy work an anonymous visitor pays for.
 
 ## Risks and open questions
 
-- **`app.scope` has no carrier.** `ITenantContext` exposes no scope member, so
+- **`app.scope` has no carrier.** `ITenantContext` exposes no scope member
+  ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)), so
   no application path sets `app.scope = 'tenant'` and the cross-organization read
   hatch on `tenant_settings` is unreachable at runtime. That is the correct
-  default; [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) decides how the
-  flag arrives ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)).
+  default, and no carrier ships in
+  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md): the flag derives from the
+  actor's role, and roles land with `Membership` / `Role` in
+  [Phase 03](../../roadmap/phase-03-identity-admin.md) — after
+  [Phase 02b](../../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is
+  the prerequisite and not the carrier. The deferral is forced, not chosen
+  ([Security Standards § Tenant Context](../../standards/11-security.md)).
   The two `AS RESTRICTIVE` write guards are tested **now** rather than then —
   `TheTenantScopeHatchWidensReadsAndNeitherWrite` sets the flag directly — because
   under any ordinary organization-scoped session the base policy's own
   organization term already refuses a sibling's row, so both guards could be
   deleted with the whole suite green. Measured: with the hatch set and the delete
   guard dropped, a `DELETE` removed another organization's row.
-- **No query filters yet.** The EF tenant and organization filters land in Packet
-  7 with `TenantResolverMiddleware`. Between the packets nothing reads a
-  tenant-owned table on a request path, and with `app.tenant_id` unset every
-  policy predicate is `NULL` and every query returns zero rows — fail-closed by
-  construction rather than by a filter that does not exist.
+- **The query filters landed in Packet 7 step 3**, ahead of
+  `TenantResolverMiddleware`, which supplies the resolved context they read. Every
+  entity marked `[TenantOwned]` carries one; the two exceptions are table classes
+  rather than omissions — `tenants` is tenant-owned **self-keyed** and its policy
+  keys on `id`, and `platform_host_to_tenant` is **platform-scoped** and takes no
+  marker at all. Row Level Security remains the isolation boundary: with
+  `app.tenant_id` unset every policy predicate is `NULL` and every query returns
+  zero rows whether or not a filter exists. The filter is the layer above it, and
+  it fails closed the same way — an unresolved context narrows to the all-zero
+  tenant, which no row can carry.
 - **Two defaults per tenant are possible.** Nothing stops two `tenant_locales`
-  rows with `is_default = true` for one tenant. A partial unique index would fix
-  it; whether the invariant belongs in the database or in the aggregate is
-  Packet 7's call, with the first code that reads it.
+  rows with `is_default = true` for one tenant.
+  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) closes it in both places:
+  a partial unique index `UNIQUE (tenant_id) WHERE is_default`, because an
+  aggregate invariant alone does not hold across concurrent transactions, plus an
+  aggregate-level guard for the error message.
 - **Nothing stops a tenant claiming a hostname it does not own.**
   `ux_tenant_domains_host` is globally unique — it has to be, or a host would
   resolve to two tenants — so the *first* tenant to insert a `Requested` row for

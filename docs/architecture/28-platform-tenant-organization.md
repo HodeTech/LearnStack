@@ -229,9 +229,12 @@ manage:
 The following invariants are enforced by architecture tests, integration tests, and
 operational discipline:
 
-1. **No two tenants share a row.** Every tenant-owned table has `tenant_id` + EF query
-   filter + RLS policy. Architecture test `Every_TenantOwned_Entity_Has_TenantId` fails
-   the build on violation. (ADR-0003)
+1. **No two tenants share a row.** Every table in a **tenant-owned** table class carries
+   an EF query filter and an RLS policy over `app.tenant_id`; the marker follows the table
+   class, not the presence of a `tenant_id` column — see
+   [Database Standards § Table classes](../standards/05-database.md). Architecture test
+   `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` fails the build on violation.
+   (ADR-0003)
 2. **No two organizations in the same tenant share a row when org-scoped.** Same shape,
    one extra column. (ADR-0017)
 3. **Hub never stores tenant content.** Hub DB schema is forbidden to contain `course`,

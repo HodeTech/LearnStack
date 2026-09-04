@@ -2,6 +2,7 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -213,9 +214,10 @@ public sealed class TransactionBehaviorTests
     [Fact]
     public async Task Passes_The_Ambient_Tenant_Context_Through()
     {
-        // Not a context of its own. Whatever the resolution stage populated is
-        // what reaches SET LOCAL — which, until Packet 7, is
-        // UnresolvedTenantContext, and that is correct and fail-closed.
+        // Not a context of its own. Whatever the resolution stage populated is what
+        // reaches the announcement — which, for a request no resolver touched, is
+        // UnresolvedTenantContext, and that is correct and fail-closed. Packet 7 gave the
+        // resolver something to populate; it did not change what this behavior reads.
         var unitOfWork = new RecordingUnitOfWork();
         var behavior = Build(unitOfWork);
 
@@ -312,6 +314,22 @@ public sealed class TransactionBehaviorTests
             throw new NotSupportedException("the behavior must never reach for the connection");
 
         public DbTransaction? Transaction => null;
+
+        // This double records the context it was handed rather than announcing anything,
+        // and its Transaction is always null — so the honest answer tracks whether the
+        // announcement was made, which is what the behaviour under test drives.
+        public bool IsTenantContextIssuedOn(DbTransaction? transaction) => TenantContext is not null;
+
+        /// <summary>What a provisioning request announced, if it announced one.</summary>
+        public TenantId? ProvisionedTenantId { get; private set; }
+
+        public Task SetProvisioningTenantContextAsync(
+            TenantId tenantId, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("provision");
+            ProvisionedTenantId = tenantId;
+            return Task.CompletedTask;
+        }
 
         public bool HasActiveTransaction => _depth > 0;
 

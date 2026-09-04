@@ -8,6 +8,10 @@ model, and session-variable placement**),
 (Amendment 1: `learnstack-hub` realm),
 [ADR-0015 API Gateway: APISIX](../decisions/0015-api-gateway-apisix.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
+[ADR-0036 Tenant Resolution and Trusted Inputs](../decisions/0036-tenant-resolution-trusted-inputs.md)
+(the resolution matrix and the authority ceiling),
+[ADR-0040 The Ambient Unit of Work](../decisions/0040-ambient-unit-of-work.md)
+(§ Tenant Context's closed setter set),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md),
@@ -57,8 +61,8 @@ answer **yes** to each item, or attach a written justification:
       the entity may be tenant-wide) and has an org-aware EF query filter + RLS policy
       per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). The
       architecture test `Every_OrgScoped_Entity_HasOrgIdAndFilter` checks the marker.
-- [ ] No `IgnoreQueryFilters()` outside platform-admin code paths (Roslyn-allowlisted +
-      audit-logged).
+- [ ] No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
+      call path.
 - [ ] Every background job payload carries `TenantId` (and `OrganizationId?` when
       relevant); the worker sets ambient tenant + org before any work.
 - [ ] Every integration event payload carries `tenant_id` (and `organization_id?` when
@@ -206,8 +210,12 @@ for the full strategy. Standards-side:
   and an org-aware EF filter + RLS policy
   ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)). Nullable
   `OrganizationId` means the row may be tenant-wide.
-- `IgnoreQueryFilters()` is allowed only in platform-admin code paths with a
-  Roslyn-allowlist attribute and an audit-log call.
+- `IgnoreQueryFilters()` is allowed only inside the audited
+  `EnterPlatformAdminScope(reason)` call path, which is itself the record of the
+  access. The architecture test `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
+  is a **path check**: no per-call-site attribute or comment marker exempts a call
+  ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
   payload; jobs without it fail at registration.
 - The `app.tenant_id` and `app.organization_id` session variables are set with
@@ -224,7 +232,7 @@ Row Level Security predicates read four PostgreSQL session variables — `app.te
 and canonical policy templates live in
 [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md) and
 [05-database.md § Table classes](05-database.md). This section fixes **where** the first
-three are set. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
+three belong. `app.resolving_host` is set by `CachedHostToTenantResolver` alone, in its
 own short read-only transaction before the host lookup, because the row that determines
 the tenant must be readable before any tenant context exists; it is read by exactly one
 policy, on `platform_host_to_tenant`. Its value is the **normalized effective host** as
@@ -236,8 +244,8 @@ from; this section remains the authority for session-variable **placement** only
 
 ### The rule
 
-`app.tenant_id`, `app.organization_id` **and `app.scope`** are set with **`SET LOCAL`,
-inside the ambient transaction, as the first statement after it opens** — in practice by
+`app.tenant_id` and `app.organization_id` are set with **`SET LOCAL`, inside the
+ambient transaction, as the first statement after it opens** — in practice by
 `TransactionBehavior` (step 6 of the MediatR pipeline), from the `ITenantContext` that
 `TenantContextBehavior` asserted at step 4.
 
@@ -253,13 +261,28 @@ consequences follow, and both are load-bearing:
   shared across transactions, so the value is either absent or — worse — left over from
   another tenant's transaction.
 
+**`app.scope` has no carrier.** No application path sets it, and
+[Packet 7](../roadmap/phase-02a-kernel-tenancy.md) ships nothing that does:
+`ITenantContext` carries no scope member
+([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), and the flag
+derives from the actor's role plus a declared tenant-wide operation, and **the role is
+the part that does not exist yet**. [Phase 02b](../roadmap/phase-02b-events-auth.md)
+delivers the authenticated principal the carrier needs and says in its own scope that it
+delivers "only the authentication plumbing"; `Membership`, `Role` and `Permission` land in
+[Phase 03](../roadmap/phase-03-identity-admin.md), which is therefore the earliest phase
+that can own a working carrier. The deferral is forced, not chosen.
+Until it lifts, the cross-organization read hatch in the policy template is unreachable at
+runtime — the hatch term reads an unset variable and is never true, so reads stay inside
+the caller's organization plus the tenant-wide rows — which is the correct default. The
+placement rule above is unchanged and governs `app.scope` the moment a carrier exists.
+
 ### The out-of-band setters
 
-`TransactionBehavior` is the general case, not the only one. Six setters exist in
+`TransactionBehavior` is the general case, not the only one. Seven setters exist in
 total and the set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md)
 is the authority; it is reproduced here because this section is the placement
-authority). Two set it on the **ambient** transaction; four own a **short
+authority). Two set it on the **ambient** transaction; five own a **short
 transaction of their own**, because they run where no ambient transaction exists
 yet:
 
@@ -267,10 +290,20 @@ yet:
 |---|---|---|
 | `TransactionBehavior` | ambient | — the general case |
 | The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
+| `IOrganizationScopeValidator` | its own short read-only one | The organization assertion is validated in the request edge, before the pipeline reaches step 6 ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)) |
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
 | The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
+
+> **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
+> only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated
+> claim, and there is no `UseAuthentication` until Phase 02b — so no request can reach the
+> call. The assertion path ADR-0036 § What the assertions do names as its caller is
+> subsumed by `TenantAssertionMiddleware`, which refuses on any difference between the
+> asserted and the resolved value before belonging can matter. This table lists it because
+> the set of setters is closed and a closed set is worth stating whole; it is not evidence
+> that a seventh short transaction runs on any Packet 7 request path.
 
 Every one of them connects as `learnstack_app`. A setter that reached for
 `learnstack_platform` would be invisible to the isolation suite, which is the
@@ -280,20 +313,38 @@ names by hand.
 Because every `current_setting` read is called with its missing-OK argument (`true`)
 **and** wrapped in `NULLIF(…, '')`, both an unset and a reset variable yield `NULL` and
 the policy predicate filters the row out. The failure mode is an empty result set, not a
-leak — but an empty result set arriving from production is an outage, so a
-`DbCommandInterceptor` is to assert that **a sanctioned setter** has already
-issued the `SET LOCAL` pair on this transaction before any command against a
-`[TenantOwned]` table runs — `TransactionBehavior` in the general case, or any of the
-out-of-band setters above, each of which stamps the same marker on the transaction it
-opens. Naming `TransactionBehavior` alone would make the guard reject every write the
-idempotency store and the audit store legitimately make. It throws
-`TenantContextMissingException` when it has not. **It does not exist yet**: Packet 6
-ships the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it would
-back up, and no packet yet owns the interceptor — the first tenant-owned read on a
-request path is Packet 7's, and that is where it belongs. It cannot be a connection-checkout
-interceptor, for the same reason it cannot be a `DbConnectionInterceptor` that *sets* the
-values: checkout precedes the transaction, so the transaction-local value is not there to
-be observed ([05-database.md § Connection Management](05-database.md)).
+leak — but an empty result set arriving from production is an outage, so
+`TenantContextGuardInterceptor` asserts that **a sanctioned setter** has already issued
+the `SET LOCAL` pair on this transaction before any command a module `DbContext` issues
+runs on it.
+
+**Keyed on the transaction, not on the table**, and marked by one setter rather than
+seven — both narrower than an earlier wording here, and both for reasons the shipped
+mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
+every query and the database to decide something the transaction already answers.
+And of the seven out-of-band setters only `TransactionBehavior`, through
+`IUnitOfWork.SetTenantContextAsync`, marks anything today: five do not exist in code yet — the integration-event transport among them, and that
+one matters most, because it is the other setter that *opens* the ambient transaction and
+must therefore announce it when Phase 02b lands it — and the one that does exist,
+`OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception never
+sees. `CachedHostToTenantResolver` is not in this set at all: it sets
+`app.resolving_host`, not `app.tenant_id`. That is also why the
+exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
+announces no tenant by design, is invisible to the guard by construction rather than by a
+hand-written exception. The concern the earlier wording had — that naming
+`TransactionBehavior` alone would reject the writes the idempotency store and the audit
+store legitimately make on their own short transactions — is real, and is answered by the
+guard reading a marker rather than a behavior's name: when those setters land, each marks
+the transaction it opens if and only if it reaches EF. It throws
+`TenantContextMissingException` when it has not, which
+[`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
+asserts in both directions. **Packet 7 owns it**: Packet 6 ships
+the setter (`IUnitOfWork.SetTenantContextAsync`) and the policies it will back up, and
+the first tenant-owned read on a request path is Packet 7's, which is where the guard
+belongs. It cannot be a connection-checkout interceptor, for the same reason it cannot be
+a `DbConnectionInterceptor` that *sets* the values: checkout precedes the transaction, so
+the transaction-local value is not there to be observed
+([05-database.md § Connection Management](05-database.md)).
 
 ### Corrections this supersedes
 

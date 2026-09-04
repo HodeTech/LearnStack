@@ -1,4 +1,5 @@
 using System.Data.Common;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.SharedKernel.Persistence;
@@ -96,6 +97,65 @@ public interface IUnitOfWork : IAsyncDisposable
     /// silently retarget the outer frame's tenant.
     /// </remarks>
     Task SetTenantContextAsync(ITenantContext context, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether a sanctioned setter has announced the tenant on
+    /// <paramref name="transaction"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read by <c>TenantContextGuardInterceptor</c>, which refuses any command a module
+    /// <c>DbContext</c> issues on an unannounced transaction. Without it the failure is
+    /// an empty result set — safe, because the policy predicate is <c>NULL</c>, and
+    /// silent, which is the outage.
+    /// </para>
+    /// <para>
+    /// <b>It takes the command's transaction rather than returning a bare flag</b>, and
+    /// the reference check against this unit's own live transaction is the load-bearing
+    /// half. Measured on Npgsql 10: a pooled data source hands back the <i>same</i>
+    /// <c>NpgsqlTransaction</c> instance across sequential open/begin/dispose cycles, so
+    /// anything keyed on the transaction object would vouch for a later transaction on
+    /// the strength of an earlier one's announcement.
+    /// </para>
+    /// <para>
+    /// There is deliberately no writer on this interface. The only thing that may mark a
+    /// transaction is the code that issues the <c>set_config</c> pair, and it does so
+    /// after the round trip returns — a failed announcement leaves the transaction
+    /// unmarked. A module that could set the flag could silence the guard.
+    /// </para>
+    /// </remarks>
+    bool IsTenantContextIssuedOn(DbTransaction? transaction);
+
+    /// <summary>
+    /// Announces the tenant a provisioning request is about to create.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The one write whose tenant no context can supply.</b> <c>tenants</c> is
+    /// self-keyed and its policy is <c>WITH CHECK (id = app.tenant_id)</c>, so creating a
+    /// tenant requires announcing the tenant being created. No resolved
+    /// <c>ITenantContext</c> can carry that id — it names a tenant that does not exist —
+    /// and the empty string an unresolved context writes fails the check identically to
+    /// announcing nothing: measured, 42501 both ways.
+    /// </para>
+    /// <para>
+    /// <b>It does not widen the setter set.</b>
+    /// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
+    /// Amendment 3</see> closes that set at seven, and <c>TransactionBehavior</c> remains
+    /// the only caller of this as it is of its sibling — this is the same setter
+    /// announcing a different value for one request shape, not an eighth.
+    /// </para>
+    /// <para>
+    /// <b>Every way of misusing it throws rather than degrading.</b> No open transaction,
+    /// a joiner (<i>not</i> the silent early return the ambient setter uses — a joiner
+    /// that thought it announced would fail three frames away with 42501), a transaction
+    /// already announced, or an id that is uninitialized or all-zero. The
+    /// already-announced guard is what keeps the only reachable transition
+    /// unannounced → the new tenant: nothing can retarget a live transaction.
+    /// </para>
+    /// </remarks>
+    Task SetProvisioningTenantContextAsync(
+        TenantId tenantId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resolves the innermost open frame. On the outermost frame this commits —

@@ -3,6 +3,7 @@ using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Xunit;
+using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Tests.Integration.Database;
 
@@ -111,7 +112,8 @@ public sealed class SchemaFixture : IAsyncLifetime
             new DbContextOptionsBuilder<TenancyDbContext>()
                 .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
                     npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
-                .Options))
+                .Options,
+            StaticTenantContextAccessor.Unresolved))
         {
             await tenancy.Database.MigrateAsync();
         }

@@ -6,6 +6,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <!-- The tenant query-filter seam (TenantScopedDbContext) lives in core
+         Infrastructure, not in SharedKernel: it calls EF model-building APIs,
+         and SharedKernel's EF reference is sanctioned for Vogen-emitted
+         converters only (Standards 01 § Build-time-only exceptions). Core
+         Infrastructure references no module, so this adds no cycle. -->
+    <ProjectReference Include="..\..\..\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Tenancy.Domain\LearnStack.Modules.Tenancy.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Tenancy.Application\LearnStack.Modules.Tenancy.Application.csproj" />
   </ItemGroup>

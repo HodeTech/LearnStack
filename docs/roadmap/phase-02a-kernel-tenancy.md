@@ -1,7 +1,7 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-08-28).** Phase 02a in progress. Packets 0–3, 3b, 4, 5 and 6 shipped; the
-> 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
+> **Status (2026-09-03).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6 and 7 shipped;
+> the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
 > later packet may consume any earlier packet's deliverables, never the reverse.
@@ -16,7 +16,7 @@
 > | 4 | API conventions | ✅ [record](#delivery-record-packet-4) |
 > | 5 | Foundation ports and default implementations | ✅ [record](#delivery-record-packet-5) |
 > | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
-> | 7 | Tenant and organization resolution, isolation, two tenants | ⏳ [scope](#packet-sequence) |
+> | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
 > | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
 > | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
 > | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
@@ -30,7 +30,8 @@
 > [`## Delivery Record (Packet 3b)`](#delivery-record-packet-3b), and Packet 4 in
 > [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
 > [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
-> [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) — each kept separate
+> [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
+> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -419,19 +420,51 @@ exists: unit-of-work begin, commit on success-`Result`, rollback on failure,
 preserving the `ExceptionDispatchInfo` rethrow `AuditLogBehavior` owns one
 frame out.
 
-**Packet 7 — Tenant and organization resolution, isolation, two tenants ⏳**
+**Packet 7 — Tenant and organization resolution, isolation, two tenants ✅**
 `IHostToTenantResolver` backed by `platform_host_to_tenant` and **nothing
 else** — never the Hub, per
 [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); an anonymous
 page load must not depend on a control plane being reachable.
-`TenantResolverMiddleware`, request-scoped `ITenantContext` (`TenantId`,
-`OrganizationId?`, `UserId?`), singleton `ITenantContextAccessor`
+`TenantResolverMiddleware`, transient `ITenantContext` (`TenantId`,
+`OrganizationId?`, `UserId?`) resolved from the singleton
+`ITenantContextAccessor` on every access, the accessor
 (`AsyncLocal<ITenantContext?>`-backed) populated at scope start by
 `TenantResolverMiddleware` (HTTP), `HubCorrelationMiddleware`
 (`/api/internal/*`), the Hangfire `JobActivator` (background jobs), and the
 outbox / inbox handler scope (integration events). `[TenantOwned]` and
 `[OrganizationScoped]` marker attributes. EF global query filters on every
 entity implementing `ITenantOwned` / `IOrganizationScoped`.
+
+**What [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) assigns to this
+packet.** `HostClassificationMiddleware` runs over `/api/v1/*` only and produces exactly
+one of `TenantHost(T)`, `OrgHost(T, O)`, `PlatformHost`, or `UnknownHost` → **404**
+before any handler. What it does not classify is a **prefix list** rather than a closed
+allow-list of endpoint literals, which would 404 the first Hub endpoint nobody
+remembered to enumerate; the prefixes are enumerated in
+[ADR-0036 § Effective host and the trusted hop](../decisions/0036-tenant-resolution-trusted-inputs.md).
+`TenantContextFactory.Create(TenantResolutionAttempt) → Result<TenantContext>` is the
+sealed context's only entry point: it returns `Result.Fail` on any disagreement between
+signals and never a partially populated context. `TenantContextOrigin` is the authority
+ceiling, and the `[PublicSurface]` set it gates is enumerated in
+[Standards 04 § Public surface](../standards/04-api-design.md) — the enumeration ships
+**empty**, because the first request types that need it are
+[Phase 02d](phase-02d-walking-skeleton.md)'s two anonymous read endpoints.
+`IOrganizationScopeValidator` answers "does this organization belong to this tenant" by
+reading `organizations` on the composite key `(tenant_id, id)`, in its own short
+read-only transaction that sets `app.tenant_id` as its first statement — the **seventh**
+sanctioned `app.tenant_id` setter
+([ADR-0040 Amendment 3](../decisions/0040-ambient-unit-of-work.md)).
+`DenyAllTenantMembershipReader` is the `ITenantMembershipReader` this packet registers:
+it covers nothing, so the reconciliation matrix's rows 7 and 14 fail closed and the
+Studio tenant switcher returns **404 `not_found`** for everyone until
+[Phase 03](phase-03-identity-admin.md) ships `Membership`. That is correct and it will
+look like a bug; it is named here with its error code so nobody makes the default
+permissive to unblock a demo. The refusal is byte-identical on the wire to an
+unresolvable host: a bodyless 404 rendered by `UseStatusCodePages`, because anything a
+client can tell apart confirms to an anonymous caller that the tenant exists. The
+per-packet staging is
+[ADR-0036 § Staging across packets](../decisions/0036-tenant-resolution-trusted-inputs.md);
+the matrix is not restated here.
 
 **The RLS session variables are set with `SET LOCAL` inside the ambient
 transaction**, after it opens. `set_config(..., true)` is transaction-local: set
@@ -440,8 +473,20 @@ connection interceptor that fires at connection open, it is discarded before the
 query it is meant to protect ever runs. The corpus previously described all
 three placements; [Security Standards § Tenant Context](../standards/11-security.md)
 is now the single authority. The Packet 3 `TenantContextBehavior` TODO — which
-named the connection-interceptor option — was corrected in Packet 3b; this packet
-implements the mechanism it now points at.
+named the connection-interceptor option — was corrected in Packet 3b, and Packet 6
+shipped the setter it now points at: `IUnitOfWork.SetTenantContextAsync`, called by
+`TransactionBehavior`. What this packet supplies is the **resolved context** that setter
+writes.
+
+**The `DbCommandInterceptor` guard lands here too.** With `app.tenant_id` unset or reset
+the policy predicate is `NULL`, so a tenant-owned read returns zero rows — fail-closed,
+and silent. The interceptor asserts that a sanctioned setter has already issued the
+`SET LOCAL` pair on the transaction the command runs in and throws
+`TenantContextMissingException` when none has, which turns the silent empty result into
+a loud one. Both
+[Security Standards § Tenant Context](../standards/11-security.md) and
+[Database Standards](../standards/05-database.md) place it in this packet, on the same
+argument: the first tenant-owned read on a request path is Packet 7's.
 
 Explicit, scoped, audited `EnterPlatformAdminScope(reason)` for the narrow
 cross-tenant access path. It reaches `learnstack_platform` through a **second,
@@ -457,8 +502,12 @@ only `PlatformAdminScope` may resolve
 
 The scope's **audit obligation is declared here and satisfied in Packet 9**, which is
 where `audit_log` and `IAuditStore` land. Until then `EnterPlatformAdminScope(reason)`
-records the entry through `ILogger` at `Warning` with the `reason`, the caller and the
-sentinel platform tenant id, and Packet 9 replaces that with a `SecurityEvent` audit row
+records the entry through `ILogger` at `Warning` with the `reason` and the caller — and
+**not** a sentinel platform tenant id, whose value `TenantId.cs` deliberately leaves
+unfixed. The irreversible consumer of that value is `audit_log`'s `tenant_id` column, so
+Packet 9 chooses it with the schema that stores it; a log line is not a one-way door and
+carries the reason and the caller without minting a one-way-door identifier for a table
+that does not exist yet. Packet 9 replaces the log line with a `SecurityEvent` audit row
 written as `learnstack_platform` **before** the operation runs — so an operation that
 later fails is still recorded. Packet 7 must not claim a durable audit trail it has no
 table for; a log line that is honestly a log line is better than an audit row that does
@@ -477,8 +526,32 @@ not the containment
 [the module spec's ERD](../modules/tenancy/README.md) described — and the two
 halves do not resolve the same way: the first pair is root-shaped already, the
 second cannot be a root at all under `IAggregateRoot<TId>`. Packet 7 writes the
-first command that touches any of them, which is the first evidence either
-reading has, so it decides and reconciles code and spec in one direction.
+first code that has to take a position on any of them, which is the first evidence
+either reading has, and it resolves as **promotion**: `TenantDomain` and `TenantSetting` become
+aggregate roots in their own right — each already carries a surrogate Vogen id, an
+`AuditableEntity` base, a `row_version` and its own Row Level Security policy — while
+`TenantLocale` and `TenantFeatureFlag` become navigations inside the `Tenant`
+aggregate, because a composite natural key and no surrogate id is not an
+`IAggregateRoot<TId>` under any reading. Tenancy therefore has four roots: `Tenant`,
+`Organization`, `TenantDomain` and `TenantSetting`. **Two of them are written by a
+command; two are not.** Packet 7 ships `ProvisionTenantCommand`,
+`CreateOrganizationCommand` and `MapHostToTenantCommand` — nothing writes a
+`TenantDomain` or a `TenantSetting` yet, and the promotion is a statement about the
+model (`Tenant` gained the two navigations, `TenantLocale` and `TenantFeatureFlag` lost
+their public factories) rather than about a command that exists. A write to `TenantLocale` or
+`TenantFeatureFlag` bumps `Tenant.row_version`; `TenantDomain` and `TenantSetting`
+carry their own. Provisioning writes two of those roots in one transaction, which
+[ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+sanctions by enumeration rather than by principle — one operation,
+`ProvisionTenantCommand`, a literal allow-list of one in
+`Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`, and no child entity, no
+projection and no cross-module write.
+
+Packet 6 left the `tenant_locales` **single-default** invariant to this packet's call,
+with the first code that reads it. It lands in the database, as a partial unique index
+`UNIQUE (tenant_id) WHERE is_default`, plus an aggregate-level guard for the error
+message. An aggregate invariant on its own does not hold across concurrent
+transactions.
 
 **Two seed tenants in unrelated domains**, each with two organizations: an
 English school and a **yoga studio**. This is the artefact that tests the
@@ -488,8 +561,27 @@ tenants for isolation testing — the marginal cost is the second tenant's
 customization data, and the marginal benefit is that every phase from
 [Phase 02d](phase-02d-walking-skeleton.md) onward is tested against two shapes
 instead of one. Picks up the application-level seed drop-in deferred from
-[Phase 01 Packet 8](phase-01-repository-tooling.md), wired through the Tenancy
-module `DbContext` rather than the placeholder `scripts/seed.sh`.
+[Phase 01 Packet 8](phase-01-repository-tooling.md). Shipped one layer above what
+this sentence originally asked for: `LearnStack.Tools.Seeder` sends
+`ProvisionTenantCommand`, `CreateOrganizationCommand` and `MapHostToTenantCommand`
+rather than reaching for the module `DbContext`, because
+[ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+requires it — a seeder writing the tenant and its default organization itself
+would be a second copy of the one sanctioned cross-aggregate write. `scripts/seed.sh`
+is no longer a placeholder; it invokes the tool and refuses any role but
+`learnstack_app`.
+
+The two are `demo-english` ("English Hero") and `demo-yoga` ("Anatolia Yoga"), on
+`demo-english.learnstack.local` and `demo-yoga.learnstack.local`. **Packet 7 writes
+their `platform_host_to_tenant` rows** — one row per tenant, not one per organization —
+and sets `organization_id` deliberately: one row carries it and one leaves it `NULL`,
+so both live classification classes, `OrgHost` and `TenantHost`, are exercised by the
+seed rather than only by a fixture.
+[Phase 02d](phase-02d-walking-skeleton.md) lists the same two host rows among its
+deliverables; it renders them in a browser, and this packet writes them. Neither host
+belongs in `Tenancy:PlatformHosts` — the short static deployment list of hosts that map
+to **no** tenant (`app.learnstack.dev`, `localhost`), which is why those need no row at
+all.
 
 Cross-tenant and cross-organization isolation integration tests **run as
 `learnstack_app`**. A test that connects as the table owner or as a `BYPASSRLS`
@@ -511,6 +603,13 @@ policy dropped, because nothing had put a row in the table. What Packet 7 owns i
 what a *request* does: the same five re-run through `TenantResolverMiddleware`
 and the EF query filters rather than through `set_config` in a test, plus
 whatever the two seed tenants add.
+
+**No production `/api/v1` endpoint ships in this packet.** The request-level suite
+drives the real middleware chain and the real query filters through a **test-only
+controller registered in the test fixture**, which is the precedent
+`IdempotencyFixture` already set for `/api/v1/sideeffectprobe`. The first real
+`/api/v1/*` read endpoints stay where
+[Phase 02d](phase-02d-walking-skeleton.md) declares them.
 
 Carries two Packet 3 follow-ups: converting `ITenantContext` **and**
 `CapturedContext` from raw `Guid` / `Guid?` to the strongly-typed `TenantId` /
@@ -611,9 +710,11 @@ Implements `Core_Modules_HaveNo_DomainSpecific_Names` — the mechanical
 guarantee behind the platform's entire premise, and currently unimplemented
 while its far weaker sibling `No_Source_Folder_Named_Verticals` is green.
 
-One rule is restated rather than renamed. The catalogue's
-`Every_TenantOwned_Table_HasRls_With_AppTenantId` asserts that a policy
-**exists** and mentions `app.tenant_id`. The superseded template satisfied that
+One rule is restated rather than renamed. `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
+asserts more than that a policy **exists** and mentions `app.tenant_id`: it requires
+`ENABLE` **and** `FORCE ROW LEVEL SECURITY` and exactly one policy carrying both a
+`USING` and a `WITH CHECK`. The superseded spelling
+`Every_TenantOwned_Table_HasRls_With_AppTenantId` asserted only the weaker half. The superseded template satisfied that
 assertion perfectly while leaking every tenant-wide row across tenants — a
 structure-shaped test that passes against a broken policy is worse than no test,
 because it converts an open question into a false answer. Structural assertions
@@ -924,11 +1025,14 @@ Per [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md
   `ActivitySource` named per module (`learnstack.<module>`) for use-case
   spans.
 - **`ITenantContextAccessor`** (singleton, `AsyncLocal<ITenantContext?>`-backed)
-  lives in `LearnStack.SharedKernel` alongside the request-scoped
-  `ITenantContext`. The scoped interface is what handlers and services
-  inject; the singleton accessor is what cross-cutting infrastructure
-  (OTel processor, Serilog enricher, Sentry enricher) reads. The accessor
-  is populated at scope start by `TenantResolverMiddleware` (HTTP),
+  lives in `LearnStack.SharedKernel` alongside `ITenantContext`, whose
+  production registration is **transient, resolved from the singleton
+  accessor on every access** — a scoped factory would cache the first value
+  for the rest of the scope, so a write to the accessor after a handler
+  resolved would never reach it. That transient interface is what handlers
+  and services inject; the singleton accessor is what cross-cutting
+  infrastructure (OTel processor, Serilog enricher, Sentry enricher) reads.
+  The accessor is populated at scope start by `TenantResolverMiddleware` (HTTP),
   `HubCorrelationMiddleware` (`/api/internal/*`), Hangfire `JobActivator`
   (background jobs), and the outbox / inbox handler scope (integration
   events). Modules never write to the accessor.
@@ -990,6 +1094,9 @@ Context is resolvable from:
 - Org-scoped subdomain (`branch-istanbul.example.edu` → tenant + organization).
 - Studio / Portal tenant selection, which travels as a **re-issued JWT claim**, never as
   a selector header ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
+  Packet 7 registers `DenyAllTenantMembershipReader`, so the path is wired and **fails
+  closed** — 404 for everyone — until [Phase 03](phase-03-identity-admin.md) ships
+  `Membership`.
 - Background job parameter.
 - Integration event envelope (envelope contract defined in Phase 02b; the resolver
   respects it from the start).
@@ -997,8 +1104,16 @@ Context is resolvable from:
 Implementation:
 
 - `IHostToTenantResolver` (Postgres-backed default reading `platform_host_to_tenant`).
+- `HostClassificationMiddleware` over `/api/v1/*` only, producing `TenantHost` /
+  `OrgHost` / `PlatformHost` / `UnknownHost` → 404. What it skips is a prefix list, not
+  an endpoint allow-list.
 - `TenantResolverMiddleware`.
-- `ITenantContext` (request-scoped) exposing `TenantId`, `OrganizationId?`, `UserId?`.
+- `TenantContextFactory.Create(TenantResolutionAttempt) → Result<TenantContext>` as the
+  sealed context's only entry point, with `TenantContextOrigin` as the authority ceiling
+  over the `[PublicSurface]` set.
+- `IOrganizationScopeValidator` and `DenyAllTenantMembershipReader`.
+- `ITenantContext` (transient, resolved from the singleton accessor on every access)
+  exposing `TenantId`, `OrganizationId?`, `UserId?`.
 - Tenant- and org-aware query conventions.
 - Tenant + org context propagation seams for Hangfire jobs and outbox dispatcher
   handlers (wired in 02b).
@@ -1093,11 +1208,14 @@ identifiers registered in
   as `learnstack_app`; a structural assertion passes against a policy that leaks.
 - Every `[OrganizationScoped]` entity has org filter + RLS
   (`Every_OrgScoped_Entity_HasOrgIdAndFilter`).
-- No `IgnoreQueryFilters()` outside platform-admin module.
+- No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
+  call path (`No_IgnoreQueryFilters_Outside_PlatformAdminScope`).
 - Audit-coverage matrix file exists per module.
 - `AuditEntry_Inherits_Entity_Not_AuditableEntity`.
 - `MustClass_Audit_Writes_Share_The_Business_Transaction` — per
   [ADR-0033](../decisions/0033-audit-durability-model.md).
+- `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` — per
+  [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 - `LearnStack_Modules_DoNotReference_Hub`.
 - `Modules_Do_Not_Inject_Valkey_Directly`, `Modules_Do_Not_Read_Entitlement_Cache_Directly`,
   `Modules_Do_Not_Write_AuditLog_Directly`.
@@ -1143,7 +1261,9 @@ land in Phase 02b.
   PostgreSQL Row Level Security template, and the four-role database model active for
   both dimensions.
 - **Two seed tenants in unrelated domains** (an English school and a yoga studio), each
-  with two organizations, seeded through the Tenancy module's `DbContext`.
+  with two organizations, seeded through the Tenancy module's **commands** — see the
+  Packet 7 entry above for why the command path replaced the `DbContext` this line
+  originally named.
 - `LearnStack.Modules.Customization` with `TenantContentType` and
   `TenantLevelTaxonomy` plus their runtime read paths.
 - `LearnStack.Modules.Audit` aggregates + `LearnStack.Infrastructure.Audit` pipeline
@@ -1205,9 +1325,11 @@ land in Phase 02b.
   `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
 - All ten tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
   `pg_class`, with no exception list.
-- `make dev`, `make seed` and `make test` succeed on a clean checkout — `make seed`
-  currently exits non-zero on every run, and that is a completion blocker, not a
-  nuisance.
+- `make dev`, `make seed` and `make test` succeed on a clean checkout. `make seed` now
+  writes the two demo tenants; it reads `ConnectionStrings__Default` from the
+  environment or `.env` — the Makefile exports neither into a recipe — and refuses any
+  role but `learnstack_app`, because seeding as the owner would succeed with every
+  policy inert and prove nothing.
 - Architecture tests for tenant + org ownership, RLS structure, module-boundary
   direction, domain-neutral module naming, and the audit pipeline are not skippable.
 
@@ -1265,7 +1387,7 @@ Three ADRs targeted Phase 02a as exit blockers; all three are now Accepted
 | [ADR-0024](../decisions/0024-api-versioning-policy.md) | API versioning policy | **Accepted** (2026-05-20) | URL `/v{N}/`, 6-month deprecation window, RFC 8594 `Sunset` + `Deprecation` headers, OpenAPI `x-sunset` extensions |
 | [ADR-0028](../decisions/0028-audit-log-partition-management.md) | `audit_log` monthly partition management | **Accepted** (2026-05-20) | Daily Hangfire recurring job (`learnstack:audit:partition-management`); no `pg_partman` runtime dependency. Its *implementation* moves to [Phase 11](phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — the decision stands, the schedule changed |
 
-Six further decisions were taken during the phase and are Accepted:
+Seven further decisions were taken during the phase and are Accepted:
 
 | # | Topic | Status | Decision |
 |---|---|---|---|
@@ -1277,13 +1399,12 @@ Six further decisions were taken during the phase and are Accepted:
 | [ADR-0037](../decisions/0037-idempotency-key-contract.md) | What an idempotency key identifies, owns and replays | **Accepted** (2026-08-20) | A key is a **nonce inside a tenant's key space**, not an identity; a fingerprint decides whether a replay answers the question asked; a fencing token owns the claim; capacity is admission, not eviction |
 | [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) | The optimistic concurrency token | **Accepted** (2026-08-27) | An explicit `row_version bigint` (CLR `long`) project-wide, incremented by the primitive that stamps the audit columns; `xmin` rejected because the token is client-visible through ETag and a restore or replication cutover changes it |
 | [ADR-0040](../decisions/0040-ambient-unit-of-work.md) | The ambient unit of work | **Accepted** (2026-08-27) | One `DbConnection` per scope owned by `IUnitOfWork`; every module `DbContext`, `IAuditStore` and `IOutbox` enlists on it, because `SET LOCAL` is connection-local. Defines nesting, disposal, and the event-consumer entry point that never reaches MediatR |
+| [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md) | Tenant provisioning as a bounded cross-aggregate transaction | **Accepted** (2026-09-01) | A standing exception to § Aggregate Ownership, bounded by **enumeration**: provisioning writes `Tenant` and its default `Organization` in one transaction, because `tenants.default_organization_id` carries an invariant an integration event cannot deliver. One operation, an allow-list of one, no child entity, no projection, no cross-**module** write |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
 `learnstack_app`, the durable audit pipeline, customization runtime read paths, API
 conventions, two seed tenants, architecture-test catalogue green) close as Packets
 3b–10 ship.
-
-
 
 ## Delivery Record (Packets 0–3)
 
@@ -2306,3 +2427,94 @@ in a record rather than in production.
 > does not mistake a green suite for proof of them: a cross-module read inside the
 > ambient transaction returning rows, and an outer failure after an inner write
 > leaving zero rows in both modules. Both need a second module `DbContext`.
+
+## Delivery Record (Packet 7)
+
+Kept separate from the records above, and long for the reason Packets 5 and 6 were:
+most of what follows is a defect this packet introduced and its own review rounds
+found. Eleven steps, each reviewed twice — once by an Opus agent, once by a Sonnet
+one — and the second round repeatedly found the first round's fix.
+
+> **Packet 7 — Tenant and organization resolution, isolation, two tenants ✅**
+>
+> **Measured at close: 1187 tests green** — 1 contract, 76 architecture, 802 unit,
+> 308 integration. Counted from a run, not computed from a plan; an earlier commit
+> message in this packet carried an arithmetic total that was eight short.
+
+### What shipped
+
+- **Host and tenant resolution.** `HostClassificationMiddleware`,
+  `TenantResolverMiddleware`, `CachedHostToTenantResolver`, `EffectiveHost`
+  normalization, the `UnknownHostCache`, and the four-origin `TenantContextFactory`
+  behind a pure, total, synchronous `Create`.
+- **The authority ceiling.** `TenantContextBehavior`'s two nested gates, with
+  `[AllowsUnresolvedTenantContext]` and `[PublicSurface]` as enumerated holes and an
+  architecture rule counting each.
+- **Provisioning.** `ProvisionTenantCommand` — the one operation
+  [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
+  sanctions to write two aggregate roots on one transaction — with
+  `IProvisionsTenant`, the `SetProvisioningTenantContextAsync` announcement seam, and
+  `IAggregateWriteStore<TRoot, TId>`, the codebase's first persistence port.
+- **`CreateOrganizationCommand` and `MapHostToTenantCommand`,** both taking their
+  tenant from the context and never from the request, plus
+  `PlatformHostMapping.Create`, which did not exist and without which nothing could
+  write a host row at all.
+- **Two seed tenants** — `demo-english` and `demo-yoga`, two organizations each, one
+  host row each of a different live class — written by `LearnStack.Tools.Seeder`
+  through the same commands a request sends, because ADR-0042 requires the seeder not
+  to hold a second copy of the sanctioned cross-aggregate write. `make seed` runs it.
+- **The request-level isolation suite,** the first fixture pairing
+  `WebApplicationFactory<Program>` with a real Postgres container: five cases driven
+  by the host header alone, with no stubbed `ITenantContext`.
+
+### What this packet got wrong, and how it was found
+
+- **A `[Theory]` that agreed with the code.** Three separate tests were caught
+  asserting what the implementation did rather than what it owed. The sharpest was in
+  the final step: `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` performed no
+  `INSERT` at all — it asserted that an anonymous POST failed, which a 404 satisfies,
+  so it passed against a **deleted endpoint** and against a database with every policy
+  dropped. `Org_X_cannot_read_Org_Y` read a tenant-wide table and narrowed the rows
+  with a `Where` the test's own probe handler wrote.
+- **A validator whose every message was discarded.** `ValidationBehavior` builds its
+  response from `ErrorCode ?? ErrorMessage`, and FluentValidation always fills
+  `ErrorCode` with the validator's own name — so a malformed slug and a tenant sharing
+  its organization's id both reached the caller as `lockey_predicatevalidator`, the
+  second under an empty field key.
+- **A fix that made things worse.** Translating a uniqueness conflict into four
+  module-specific error codes turned a duplicate slug from a 409 into a **500**:
+  `HttpStatusMap` is a closed table of cross-cutting codes and falls through to
+  `InternalServerError`. The shape that works is the one `ValidationBehavior` already
+  used — a canonical top-level code plus per-field details.
+- **An architecture rule with three escapes.** The cross-aggregate rule missed a fused
+  port, every `INotificationHandler`, and any non-public constructor — each proven by
+  dropping the shape into a production assembly and watching 76 cases pass. Worse, the
+  ADR amendment written alongside it *claimed* the fused case was caught.
+- **`make seed` could not run.** It read `ConnectionStrings__Default` from the process
+  environment, which nothing populates: the Makefile has no `include .env`. The error
+  it printed offered a remedy — copy `.env.example` to `.env` — that is exactly the
+  state that already fails.
+- **An idempotency check that masked failures.** The seeder treated any
+  `business_rule_violation` as "already seeded", which was safe while provisioning was
+  the only command and stopped being safe the moment `MapHostToTenantCommand` returned
+  the same code for three different conditions.
+- **Two obligations inherited without noticing.** ADR-0036 assigns the
+  `Tenancy:PlatformHosts` collision check to "whichever packet builds the host-mapping
+  writer", and `UnknownHostCache.Forget` had no caller because none existed. This
+  packet built that writer.
+- **A promise from ADR-0037 that Packet 6 did not keep.** `IIdempotencyStore` still
+  took a raw `Guid` tenant after the ADR said it and `ITenantContext.TenantId` "both
+  move together". Amendment 4 records the conversion and the divergence.
+
+### What it did not ship, and who owns each
+
+- **Nothing is audited.** `AuditLogBehavior` lights up in Packet 9; `TransactionBehavior`
+  carries the `TODO` marking the line the MUST-class write goes on.
+- **Nothing is authorized.** No permission key is registered; the three commands are
+  reachable only from the seeder and, from Phase 02c, the Hub over `/api/internal/*`.
+  Phase 03 ships the catalogue.
+- **`PlatformAdminScope` has no reachable caller.** It ships with its gate closed;
+  Packet 9's GDPR handler is the first.
+- **The host-resolution cache is invalidated before the commit, not after.** The
+  guarantee is therefore the request *after* the write, not the one racing it; closing
+  the rest needs a post-commit seam on `IUnitOfWork`, whose surface ADR-0040 governs.

@@ -28,7 +28,14 @@ var deploymentMode = builder.Configuration.RequireDeploymentMode();
 // X-Forwarded-For.
 builder.Configuration.RefuseAmbientForwardedHeaders();
 
-builder.AddLearnStackCrossCuttingFoundation(deploymentMode);
+// The module assemblies MediatR scans for handlers. Tenancy's is here as of Packet 7,
+// which shipped the first production request types — and the parameter existed all along,
+// so the change was one argument rather than a new seam. A module whose assembly is missing here
+// has handlers nothing dispatches, which fails as "no handler for request" at the call
+// site rather than at startup.
+builder.AddLearnStackCrossCuttingFoundation(
+    deploymentMode,
+    typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
@@ -87,11 +94,27 @@ app.UseLearnStackRequestBodyLimit();
 // an edge concern — APISIX blocks or allow-lists /openapi per environment.
 app.MapLearnStackOpenApi();
 
+// Which host is this /api/v1 request for? Before authentication, so an unknown
+// host is refused before any token is validated (ADR-0036 § Rules) — and after
+// the rate limiter, so a flood of novel hostnames is bounded before it buys a
+// Postgres transaction each. Context construction runs later, after
+// authentication, so the factory sees both signals at once.
+app.UseLearnStackHostClassification();
+
+// Which tenant, given the host and — from Phase 02b — the validated claims.
+// After classification so TenantContextFactory.Create is called once with both
+// signals in hand, rather than twice with one each; ADR-0036 § Rules splits the
+// single step architecture/27 once described into exactly these two. Phase 02b
+// inserts UseAuthentication ABOVE this line and UseAuthorization below the
+// assertions — two insertions, not one block.
+app.UseLearnStackTenantResolution();
+
 // X-Tenant-Id / X-Organization-Id are assertions: compared against what the
 // API resolved, never a source of it (ADR-0036). Registered after
 // MapLearnStackClientErrors so a rejection gets the one Problem Details shape,
-// and before the endpoints so no handler runs on a request that lost the
-// comparison.
+// after the resolver so there is something to compare against — until this
+// packet the comparison had no resolved value and was unreachable in traffic —
+// and before the endpoints so no handler runs on a request that lost it.
 app.UseLearnStackTenantAssertions();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))

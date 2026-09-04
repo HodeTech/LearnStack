@@ -26,8 +26,10 @@ namespace LearnStack.Tests.Integration;
 /// Packet 4 resolves nothing, so the fixture substitutes a resolved
 /// <c>ITenantContext</c> — which is what makes the mismatch path reachable at
 /// all. That substitution is the test's subject, not a shortcut: ADR-0036's
-/// staging table says this comparison is "unreachable in traffic … and
-/// exercised by unit tests over a stubbed context" until Packet 7.
+/// staging table said this comparison was "unreachable in traffic … and exercised by
+/// unit tests over a stubbed context" before Packet 7's resolver existed. It is reachable
+/// now; the substitution stays because this suite drives the mismatch deliberately, and
+/// <c>TenantIsolationHttpTests</c> is where the real resolver answers.
 /// </remarks>
 public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
     : IClassFixture<ResolvedTenantFixture>
@@ -161,7 +163,7 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
         // A first version echoed this back under a second header. Kestrel
         // accepts bytes in a REQUEST header that it refuses to write into a
         // RESPONSE header, so 'é', a control character or an emoji made the
-        // assignment throw: a 500 on every route, pre-auth and pre-routing,
+        // assignment throw: a 500 on every route, before authentication,
         // each one captured by IErrorTrackingProvider. One header, anonymous,
         // and the error-tracker quota is someone else's.
         using var request = Get("/api/v1/assertionprobe");
@@ -201,6 +203,160 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
 
     private static HttpRequestMessage Get(string path) =>
         new(HttpMethod.Get, new Uri(path, UriKind.Relative));
+}
+
+/// <summary>
+/// The tenant-wide branch of the organization comparison: a resolved context
+/// carrying <b>no</b> organization, with an organization asserted at it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Its own fixture because <see cref="ResolvedTenantFixture"/>'s context always
+/// resolves an organization, so the branch this covers has no fixture there and
+/// was reachable by no test. Measured: rewriting the middleware's null clause to
+/// the natural-looking
+/// <c>OrganizationId is { } r &amp;&amp; organization != r.Value</c> leaves the entire
+/// suite green while turning this case from a 404 into a 200.
+/// </para>
+/// <para>
+/// What that mutant permits is the one thing
+/// <see href="../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
+/// says an assertion may never do: a header would widen a tenant-wide request
+/// into an organization scope the resolver never granted. The rule is that an
+/// assertion can reject a request and can never fill a gap.
+/// </para>
+/// </remarks>
+public sealed class TenantWideOrganizationAssertionTests(TenantWideFixture fixture)
+    : IClassFixture<TenantWideFixture>
+{
+    private readonly HttpClient _client = fixture.CreateClient();
+
+    [Fact]
+    public async Task An_Organization_Asserted_Against_A_Tenant_Wide_Context_Is_A_404()
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+        request.Headers.Add(
+            TenantAssertionMiddleware.OrganizationHeaderName, Guid.NewGuid().ToString());
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(
+            HttpStatusCode.NotFound,
+            "an assertion may reject a request and may never widen one");
+    }
+
+    [Fact]
+    public async Task An_Organization_Asserted_Against_An_Unassigned_One_Is_A_404_Not_A_500()
+    {
+        // A resolved context whose OrganizationId is non-null but was never
+        // assigned. Reading Value on it throws, and the throw escapes into
+        // UseExceptionHandler — replacing this middleware's whole purpose, a
+        // clean fail-closed 404, with an uncontrolled 500 on a pre-auth path,
+        // triggered by an attacker-supplied header. The comparison must treat an
+        // unusable resolved organization exactly as it treats an absent one.
+        using var client = fixture.WithUnassignedOrganization().CreateClient();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+        request.Headers.Add(
+            TenantAssertionMiddleware.OrganizationHeaderName, Guid.NewGuid().ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task The_Same_Request_Without_The_Header_Is_Served()
+    {
+        // The companion that stops the 404 above from passing for the wrong
+        // reason — a mis-wired fixture, a missing probe route, a middleware that
+        // refuses every tenant-wide request.
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+}
+
+/// <summary>
+/// <see cref="ResolvedTenantFixture"/> with the organization removed, so the
+/// context is resolved and tenant-wide.
+/// </summary>
+public sealed class TenantWideFixture : ResolvedTenantFixture
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ITenantContext>();
+            services.AddScoped<ITenantContext>(_ => TenantWideContext.Instance);
+        });
+    }
+
+    /// <summary>
+    /// The same host, with an organization that is present but never assigned.
+    /// </summary>
+    public WebApplicationFactory<Program> WithUnassignedOrganization() =>
+        WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ITenantContext>();
+            services.AddScoped<ITenantContext>(_ => UnassignedOrganizationContext.Instance);
+        }));
+
+    private sealed class UnassignedOrganizationContext : ITenantContext
+    {
+        public static UnassignedOrganizationContext Instance { get; } = new();
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId =>
+            SharedKernel.Identifiers.TenantId.From(ResolvedTenantFixture.TenantId);
+
+        /// <summary>
+        /// Non-null and uninitialized. VOG009 forbids writing that as a literal,
+        /// so it comes from an array element — the way production reaches it too,
+        /// through a member nothing assigned.
+        /// </summary>
+        public OrganizationId? OrganizationId => Unassigned;
+
+        private static readonly OrganizationId Unassigned = Zeroed();
+
+        private static OrganizationId Zeroed()
+        {
+            var slot = new OrganizationId[1];
+            return slot[0];
+        }
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "integration-test";
+    }
+
+    private sealed class TenantWideContext : ITenantContext
+    {
+        public static TenantWideContext Instance { get; } = new();
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId =>
+            SharedKernel.Identifiers.TenantId.From(ResolvedTenantFixture.TenantId);
+
+        /// <summary>Tenant-wide: no organization, which is a scope and not "unknown".</summary>
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => null;
+
+        public string? ModuleName => "integration-test";
+    }
 }
 
 /// <summary>
@@ -266,8 +422,12 @@ public class ResolvedTenantFixture : WebApplicationFactory<Program>
         public static ResolvedContext Instance { get; } = new();
 
         public bool IsResolved => true;
-        public Guid TenantId => ResolvedTenantFixture.TenantId;
-        public Guid? OrganizationId => ResolvedTenantFixture.OrganizationId;
+        // Fully qualified: each property's own name shadows its type here.
+        public TenantId TenantId =>
+            SharedKernel.Identifiers.TenantId.From(ResolvedTenantFixture.TenantId);
+
+        public OrganizationId? OrganizationId =>
+            SharedKernel.Identifiers.OrganizationId.From(ResolvedTenantFixture.OrganizationId);
         public UserId? UserId => null;
         public string? CorrelationId => null;
         public string? ModuleName => "integration-test";

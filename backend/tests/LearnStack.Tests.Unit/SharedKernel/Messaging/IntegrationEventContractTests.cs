@@ -220,8 +220,15 @@ public sealed class IntegrationEventContractTests
         // consumer that sends a MediatR command — silently, before its business
         // logic ran.
         context.IsResolved.Should().BeTrue();
-        context.TenantId.Should().Be(Tenant);
-        context.OrganizationId.Should().Be(organization);
+
+        // Matrix row 17. The envelope carried the tenant, so there is no host and no
+        // token to reconcile and no matrix to apply — which is also the proof that
+        // TenantContextFactory is the only producer of the TenantContext TYPE rather
+        // than the only producer of a resolved ITenantContext.
+        context.Origin.Should().Be(TenantContextOrigin.Ambient);
+        context.TenantId.Should().Be(TenantId.From(Tenant));
+        context.OrganizationId.Should().Be(
+            organization is { } org ? OrganizationId.From(org) : null);
         context.UserId.Should().Be(UserId.SystemActor);
         context.CausalActorUserId.Should().Be(actor);
         context.CorrelationId.Should().Be(Trace);

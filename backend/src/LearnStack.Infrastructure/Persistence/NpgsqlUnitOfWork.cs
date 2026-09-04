@@ -1,5 +1,7 @@
 using System.Data.Common;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.Extensions.Logging;
 using LearnStack.SharedKernel.Tenancy;
 using Npgsql;
 
@@ -38,10 +40,14 @@ namespace LearnStack.Infrastructure.Persistence;
 /// that a later <c>BEGIN</c> clears is not.
 /// </para>
 /// </remarks>
-public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
+public sealed class NpgsqlUnitOfWork(
+    NpgsqlDataSource dataSource, ILogger<NpgsqlUnitOfWork> logger) : IUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource =
         dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+
+    private readonly ILogger<NpgsqlUnitOfWork> _logger =
+        logger ?? throw new ArgumentNullException(nameof(logger));
 
     private NpgsqlConnection? _connection;
     private DbTransaction? _transaction;
@@ -67,6 +73,8 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
 
     private bool _rollbackOnly;
     private bool _commitRequested;
+
+    private bool _tenantContextIssued;
     private bool _disposed;
 
     public DbConnection Connection
@@ -125,6 +133,13 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
             // frame nobody had opened — over whatever exception was already in
             // flight.
             _commitRequested = false;
+
+            // Same reasoning, same block. This is the one place that runs exactly once
+            // per PHYSICAL transaction, so it is where per-transaction state is cleared —
+            // and nothing clears it on commit, rollback or dispose because those null
+            // _transaction, after which the reference check below fails for every
+            // argument.
+            _tenantContextIssued = false;
         }
 
         return new Frame(this, ++_depth, _generation);
@@ -157,16 +172,138 @@ public sealed class NpgsqlUnitOfWork(NpgsqlDataSource dataSource) : IUnitOfWork
         // so '' is NULL is fail-closed — and setting it explicitly is what makes
         // a value left behind on a pooled connection by anything session-scoped
         // unreachable, rather than merely unlikely.
+        //
+        // Value, under an IsInitialized() gate — never ToString() on the id. This
+        // is the one place where the difference is a fault rather than a
+        // cosmetic. Measured on Vogen 7: an uninitialized id's ToString() returns
+        // the literal "[UNINITIALIZED]" while string interpolation of the same
+        // value returns "", so the two spellings of "print this id" disagree, and
+        // the first reaches PostgreSQL as '[UNINITIALIZED]'::uuid — which raises
+        // 22P02 on the first policy evaluation rather than filtering. Reading
+        // Value on an uninitialized id throws instead, which is why the gate is
+        // IsInitialized() and not a null check: ITenantContext's contract says
+        // IsResolved implies initialized, and this is the boundary that does not
+        // take the contract's word for it.
+        // Guid.Empty is refused alongside the uninitialized case, because
+        // IsInitialized() is only half the test: Vogen validates the *shape* of
+        // the value, not that it names anything, and the domain already refuses
+        // the all-zero id by hand (TenantOwned.EnsureRealTenant). An all-zero
+        // tenant would otherwise cast cleanly and match every row a bug wrote
+        // under it.
+        var tenant = context.IsResolved
+            && context.TenantId.IsInitialized()
+            && context.TenantId.Value != Guid.Empty
+                ? context.TenantId.Value.ToString()
+                : string.Empty;
+
+        var organization = context.IsResolved
+            && context.OrganizationId is { } scoped
+            && scoped.IsInitialized()
+            && scoped.Value != Guid.Empty
+                ? scoped.Value.ToString()
+                : string.Empty;
+
+        // A context that says it is resolved and yields no usable tenant is a
+        // bug in whoever built it. The empty string keeps the request
+        // fail-closed, but silence here is the worst possible diagnostic: every
+        // query returns nothing, attributed to nobody, and the symptom looks
+        // like missing data rather than a broken context.
+        if (context.IsResolved && tenant.Length == 0)
+        {
+            LogResolvedWithoutTenant(_logger, context.GetType().Name, null);
+        }
+
         await ExecuteAsync(
             "SELECT set_config('app.tenant_id', @tenant, true), "
             + "set_config('app.organization_id', @organization, true)",
             cancellationToken,
-            ("tenant", context.IsResolved ? context.TenantId.ToString() : string.Empty),
-            ("organization",
-                context.IsResolved && context.OrganizationId is { } organization
-                    ? organization.ToString()
-                    : string.Empty));
+            ("tenant", tenant),
+            ("organization", organization));
+
+        // After the round trip, never before: the flag means the announcement actually
+        // reached PostgreSQL, so a setter that threw leaves the transaction unmarked and
+        // the guard refuses the commands that would have run under it.
+        //
+        // Not independently observable, and said so rather than implied. Making the
+        // announcement fail means breaking the connection under it, and this unit's
+        // disposal then throws on the dead transaction before any assertion is reached —
+        // a pre-existing shape, not this flag's. What the ordering buys is that a
+        // half-announced transaction is refused rather than trusted; no test here fails
+        // if the line moves, and none pretends to.
+        _tenantContextIssued = true;
     }
+
+    /// <inheritdoc />
+    public async Task SetProvisioningTenantContextAsync(
+        TenantId tenantId, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_transaction is null)
+        {
+            throw new InvalidOperationException(
+                "SetProvisioningTenantContextAsync requires an open transaction, for the "
+                + "reason its sibling does: set_config(..., true) is transaction-local.");
+        }
+
+        // A throw, not the ambient setter's silent early return. That return exists so an
+        // inner frame cannot retarget an outer frame's tenant; here the caller believes it
+        // announced a tenant, and a joiner that quietly announced nothing surfaces as
+        // 42501 three frames away, on an INSERT that reads as a permissions problem.
+        if (_depth > 1)
+        {
+            throw new InvalidOperationException(
+                "A joining frame cannot provision. The tenant a provisioning request "
+                + "creates must be announced on the transaction that carries the write, "
+                + "and an inner frame joins a transaction another announcement already "
+                + "owns. Provisioning opens its own unit of work.");
+        }
+
+        if (_tenantContextIssued)
+        {
+            throw new InvalidOperationException(
+                "This transaction has already been announced. The only transition this "
+                + "method permits is unannounced to the tenant being created; allowing a "
+                + "second announcement would let any caller move the ambient tenant "
+                + "mid-request, which is a wider capability than provisioning needs.");
+        }
+
+        // Value under an IsInitialized() gate, never ToString(): measured on Vogen 7, an
+        // uninitialized id renders as "[UNINITIALIZED]" and reaches PostgreSQL as
+        // '[UNINITIALIZED]'::uuid, which raises 22P02 rather than filtering. Guid.Empty is
+        // refused beside it because Vogen validates the shape of a value, not that it
+        // names anything, and the domain refuses the all-zero tenant by hand.
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A provisioning tenant id must be a real, registry-assigned id.",
+                nameof(tenantId));
+        }
+
+        // app.organization_id is written explicitly as the empty string rather than left
+        // alone: a pooled connection must not carry a previous transaction's organization
+        // into a provisioning write.
+        await ExecuteAsync(
+            "SELECT set_config('app.tenant_id', @tenant, true), "
+            + "set_config('app.organization_id', '', true)",
+            cancellationToken,
+            ("tenant", tenantId.Value.ToString()));
+
+        _tenantContextIssued = true;
+    }
+
+    /// <inheritdoc />
+    public bool IsTenantContextIssuedOn(DbTransaction? transaction) =>
+        transaction is not null
+        && ReferenceEquals(transaction, _transaction)
+        && _tenantContextIssued;
+
+    private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1, nameof(LogResolvedWithoutTenant)),
+            "{ContextType} reports IsResolved but carries no usable tenant id. app.tenant_id "
+            + "was left empty, so every tenant-owned read on this transaction returns zero rows.");
 
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
