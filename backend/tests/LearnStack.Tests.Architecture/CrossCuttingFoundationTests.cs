@@ -246,6 +246,50 @@ public sealed class CrossCuttingFoundationTests
     }
 
     [Fact]
+    public void JsonSchema_Net_Types_NotImportedOutsideInfrastructure()
+    {
+        // ADR-0043 § 1 — the evaluator lives behind IJsonSchemaValidator, and
+        // LearnStack.Infrastructure.Validation is the only project that may name a
+        // `Json.Schema` type. Adapters_Wrap_Provider_Exceptions does NOT cover
+        // this: its forbidden list is a closed enumeration of network-reached
+        // provider SDKs, and an in-process evaluator is not one — the same split
+        // the corpus already made for Dapr.
+        //
+        // The sweep is wider than ModuleAssemblyShapes because the PORT is in the
+        // shared kernel: the assembly most likely to reach for the library by
+        // accident is the one that declares the interface.
+        var confined = ModuleAssemblyShapes
+            .Append("LearnStack.SharedKernel")
+            .Append("LearnStack.Domain")
+            .Append("LearnStack.Application")
+            .Append("LearnStack.Application.Contracts")
+            .Append("LearnStack.Api")
+            .Select(TryLoadAssembly)
+            .Where(assembly => assembly is not null)
+            .ToArray();
+
+        confined.Should().NotBeEmpty("a sweep with nothing to sweep passes vacuously");
+
+        foreach (var assembly in confined)
+        {
+            var result = Types.InAssembly(assembly!)
+                .Should()
+                // "Json.Schema", not "JsonSchema" or "JsonSchema.Net": the first is
+                // the namespace, the other two are the type and the package, and a
+                // rule spelled either of those ways can never fire.
+                .NotHaveDependencyOn("Json.Schema")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{assembly!.GetName().Name} names a Json.Schema type. The evaluator is "
+                + "reached through IJsonSchemaValidator; only "
+                + "LearnStack.Infrastructure.Validation references the package "
+                + "(ADR-0043 § 1). Offenders: "
+                + string.Join(", ", result.FailingTypeNames ?? []));
+        }
+    }
+
+    [Fact]
     public void Adapters_Wrap_Provider_Exceptions()
     {
         // ADR-0032 § Sub-decision 5 — provider SDK exception types

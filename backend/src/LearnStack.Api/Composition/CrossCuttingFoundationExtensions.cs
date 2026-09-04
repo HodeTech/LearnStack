@@ -102,6 +102,15 @@ public static class CrossCuttingFoundationExtensions
         builder.Services.TryAddSingleton<LearnStack.SharedKernel.Identifiers.IGuidFactory,
             LearnStack.SharedKernel.Identifiers.SystemGuidFactory>();
 
+        // The write path's gate for a tenant-authored JSON Schema (ADR-0043).
+        // Singleton because the adapter holds no state: it compiles per call, and
+        // ADR-0043 § 6 deletes the cache § 8.2 used to mandate — compiling is
+        // measured cheaper than evaluating. Registered here rather than with the
+        // Customization module because four modules reach it.
+        builder.Services
+            .TryAddSingleton<LearnStack.SharedKernel.Validation.IJsonSchemaValidator,
+                LearnStack.Infrastructure.Validation.JsonSchemaNetValidator>();
+
         // The cache socket. SelectCacheService is the SINGLE site that picks the
         // implementation per DeploymentMode, so Phase 11's Valkey adapter is one
         // line here rather than a search for every registration.

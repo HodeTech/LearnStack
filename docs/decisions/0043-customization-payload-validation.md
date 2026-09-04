@@ -165,6 +165,7 @@ the draft requires it.
 | `$ref` is fragment-only (`#…`) | An absolute `$ref` is a resolution attempt against something outside the document. `$defs` and `#/$defs/…` remain available |
 | No `$dynamicRef` / `$dynamicAnchor` | Their whole purpose is late binding across documents; there is no second document |
 | Nesting and reference limits per § 8.4 | Measured on the syntax tree. A reference **cycle** needs no separate limit: the builder detects it (§ Context) |
+| **Erratum (2026-09-04):** the row above is false as written, and Amendment 1 replaces the rule it states. The builder detects a cycle only from the document root; a cycle reached through `properties` builds and then overflows the stack during evaluation. Measured while implementing this ADR |
 
 ### 4. Unknown keywords pass — because the pinned dialect says so
 
@@ -395,6 +396,10 @@ clean, but "immutable" would be the wrong word for it.)
 at build time. § 8.4's depth limit is measured on the syntax tree; the cycle is
 the builder's.
 
+> **Erratum (2026-09-04).** The paragraph above is false. Its measurement used a
+> `$ref` cycle at the document **root**, and generalised from it. Amendment 1
+> records what a cycle written where a tenant would write one actually does.
+
 **The evaluator does not fetch remote references, and that is not enough.** A
 `$ref` naming `http://10.255.255.1/s.json` — a blackholed address that would
 stall any real request — raised `RefResolutionException` in **0 ms**. That makes
@@ -493,6 +498,53 @@ with the adapter it guards.
 - Rule-body storage ships as **documentation and a decision** in Packet 8; the
   columns arrive with the tables in
   [Phase 05](../roadmap/phase-05-education-learning-content.md).
+
+## Amendments
+
+### Amendment 1 — a reference cycle is a process kill, not a build error (2026-09-04)
+
+§ 3's reference row and § Context's cycle paragraph both say the builder detects a
+`$ref` cycle, so the profile need not. Measured while implementing this ADR, that
+is true only of a cycle reached from the document **root** — and a tenant writes a
+schema, not a root `$ref`.
+
+**What was measured**, on the pinned 8.0.5:
+
+| Document | Builds? | Evaluating an entry against it |
+|---|---|---|
+| `{"$defs":{"a":{"$ref":"#/$defs/a"}},"$ref":"#/$defs/a"}` — cycle at the root | no | — (the builder raises `Cycle detected …`) |
+| `{"$defs":{"n":{"$ref":"#/$defs/n"}},"properties":{"a":{"$ref":"#/$defs/n"}}}` | **yes** | **stack overflow**, 4426 repeated frames of `RefKeyword.Evaluate` inside `PropertiesKeyword.Evaluate` |
+| the same shape mutually, `a` → `b` → `a` | **yes** | the same |
+| `{"properties":{"a":{"$ref":"#/$defs/missing"}}}` | **yes** | `RefResolutionException` |
+| `{"$defs":{"n":{"type":"object","properties":{"next":{"$ref":"#/$defs/n"}}}}}` — productive | yes | terminates; instance depth 20 in under a millisecond |
+
+A .NET stack overflow cannot be caught. It is not a response a request returns; it
+is the process ending, for every tenant the pod was serving — reachable by one
+tenant's content editor writing four lines of JSON.
+
+**The rule this replaces the erroneous rows with**, and what § 3's profile
+enforces:
+
+- Every `$ref` is resolved **at write time**, against the document itself. One
+  that names nothing is refused there rather than on a later reader's request.
+- A `$ref` **cycle whose hops are pure indirection** is refused. A hop is
+  indirection when the node it lands on carries a `$ref` of its own — including
+  beside other keywords, because in draft 2020-12 `$ref` applies alongside its
+  siblings and re-enters at the same instance location.
+- **Productive recursion stays legal.** A `$ref` under `properties` consumes one
+  instance level per hop, so it terminates, and the reader's own nesting ceiling
+  bounds the instance. Refusing it would cost a shape the draft permits for no
+  safety gained.
+
+**One further correction to § 3's nesting row.** It says the limit is "measured on
+the syntax tree", which is right, but § 8.4 declares its five in **schema** levels
+and the syntax tree counts JSON levels. A schema level costs two JSON levels — an
+applicator keyword then a name — so the writer checks raw JSON depth against
+twelve. Raw depth over-approximates schema depth, which fails safe; counting
+schema positions instead would mean enumerating every applicator keyword, and one
+missed from that list is a hole rather than a stricter bound.
+[Tenant Customization Model § 8.4](../architecture/32-tenant-customization-model.md)
+now states the unit.
 
 ## References
 

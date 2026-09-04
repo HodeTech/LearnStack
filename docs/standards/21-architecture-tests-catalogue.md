@@ -443,16 +443,19 @@ otherwise).
 
 - **Asserts:** no module assembly and no core assembly (`LearnStack.SharedKernel`,
   `LearnStack.Domain`, `LearnStack.Application`, `LearnStack.Application.Contracts`,
-  `LearnStack.Api`) depends on the `Json.Schema` namespace. Only the adapter project
-  behind `IJsonSchemaValidator` may use the library; everything else goes through the
-  port. `Adapters_Wrap_Provider_Exceptions` does **not** cover this: its forbidden list
+  `LearnStack.Api`) depends on the `Json.Schema` namespace. Only
+  `LearnStack.Infrastructure.Validation` references the package; everything else reaches
+  the evaluator through `IJsonSchemaValidator`. The sweep includes the shared kernel
+  deliberately — it declares the port, so it is the assembly most likely to reach for the
+  library by accident. `Adapters_Wrap_Provider_Exceptions` does **not** cover this: its forbidden list
   is a closed enumeration of network-reached provider SDKs, and an in-process evaluator
   is not one — the same split the corpus already made between
   `Dapr_SDK_Types_NotImportedOutsideInfrastructure` and the exception rule.
 - **Source:** [ADR-0043](../decisions/0043-customization-payload-validation.md) § 1 and
   its § Architecture Tests.
 - **Type:** xUnit + NetArchTest namespace-dependency scan. **Kind:** structural.
-- **Status:** **Registered.** The test lands with the adapter it guards.
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`. Verified against a
+  planted violation: a `Json.Schema` reference added to the shared kernel makes it fail.
 - **Phase:** 02a (Packet 8).
 
 #### `Logging_Goes_Through_Microsoft_Extensions_Logging`
