@@ -1082,6 +1082,81 @@ because the filters hold, and removing both turns all five red.
 - **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
 - **Phase:** 02a Packet 7.
 
+#### `Every_Write_Port_Is_Countable_Or_Enumerated`
+
+- **Asserts:** every interface in a production assembly whose method takes a type from a
+  module's `Domain` assembly — **directly, or inside a generic, array or by-ref wrapper**
+  — either derives from `IAggregateWriteStore<TRoot, TId>`, and is therefore visible to
+  the cross-aggregate census above, or appears on a literal allow-list. The list holds one
+  name: `IPlatformHostMappingStore`.
+- **Wrappers are unwrapped transitively,** because a bulk write port is written with one:
+  `IEnumerable<Course>` lives in `System.Private.CoreLib`, so a check on the parameter's
+  own assembly sees the wrapper rather than the domain type inside it — and the port would
+  escape the enumeration while satisfying every word of what this rule claims.
+- **Why it exists.** The census counts derivations, so a port that does not derive is
+  invisible to it. One already is, deliberately: `PlatformHostMapping` is a projection
+  with a string key rather than an aggregate root. That exemption is fine; being *silent*
+  about it is not, because a second such port would join the first with nothing to notice,
+  and the census that keeps ADR-0042's exception at one entry would stop describing the
+  system.
+- **Detected by shape, not by name.** "Takes a domain type" rather than "ends in `Store`":
+  a rule keyed on a suffix is satisfied by renaming.
+- **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
+- **Type:** xUnit + reflection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
+  `AggregateWriteTests`).
+- **Phase:** 02a Packet 7.
+
+#### `Out_Of_Band_Setters_Open_Read_Only_Transactions`
+
+- **Asserts:** the two components that announce a session variable outside the ambient
+  unit of work — `CachedHostToTenantResolver` and `OrganizationScopeValidator` — each
+  contain `SET TRANSACTION READ ONLY`, and contain it **at a lower source offset than
+  their first `set_config(`**.
+- **What the offset comparison does and does not prove.** PostgreSQL refuses
+  `SET TRANSACTION` after the transaction's *first statement of any kind*, and this scan
+  only orders it against the announcement. A setter that ran some other statement — a
+  `SELECT`, a second `SET` — between `BEGIN` and `SET TRANSACTION READ ONLY` would satisfy
+  the rule and fail at runtime. That failure is loud and immediate rather than silent,
+  which is why the cheap ordering check is the one that ships; the expensive alternative
+  is parsing the method for every command execution, and
+  [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
+  states the general limit.
+- **Why the property matters at all.** Read-only is what makes an out-of-band setter of a
+  session variable acceptable, because `learnstack_app` holds write grants on the tables
+  these connections reach — so nothing but this statement stops a future edit from writing
+  under an announcement no request made.
+- **Why a scan and not a behavioural test.** The transaction is opened, used and disposed
+  inside one method, so nothing outside can observe its settings. Measured: the resolver
+  shipped without the statement while four carriers — Database Standards, Security
+  Standards, the glossary and ADR-0040 — described it as read-only, and the validator two
+  files away had carried it since Packet 6.
+- **Source:** [ADR-0040](../decisions/0040-ambient-unit-of-work.md);
+  [05-database.md](05-database.md); [11-security.md](11-security.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
+  `TenancyConventionTests`).
+- **Phase:** 02a Packet 7.
+
+#### `Registering_The_Pipeline_Twice_Registers_It_Once`
+
+- **Asserts:** calling `AddLearnStackMediatRPipeline` twice on one `ServiceCollection`
+  yields the same registrations as calling it once — the same behaviour count and the same
+  total.
+- **The property is MediatR's, not ours.** `AddBehavior` deduplicates; measured at seven
+  behaviours and eleven registrations either way. It is pinned because the repository
+  depends on it and did not write it: every test fixture registers its probe handler by
+  hand specifically to avoid re-running `AddMediatR`, and if deduplication stopped
+  holding, that workaround would become load-bearing rather than cautious with nothing to
+  say so. A doubled `TransactionBehavior` is a nested frame on every request.
+- **A guard of our own was written and removed.** It changed nothing under mutation, and a
+  guard no test can kill is a comment.
+- **Source:** [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md).
+- **Type:** xUnit + DI registration inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
+  `CrossCuttingFoundationTests`).
+- **Phase:** 02a Packet 7.
+
 #### `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`
 
 - **Asserts:** both arms of the `DbCommandInterceptor` guard. A command a module `DbContext` issues on a transaction no sanctioned setter announced throws `TenantContextMissingException`; the same command on an announced transaction runs. One arm is not the rule: a guard keyed on `TransactionBehavior` instead of on the marker passes the first arm and rejects the writes the idempotency store and the audit store legitimately make on their own short transactions.

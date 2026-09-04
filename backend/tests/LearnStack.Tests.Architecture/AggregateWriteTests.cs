@@ -80,7 +80,8 @@ public sealed class AggregateWriteTests
             .Where(type => type.IsInterface)
             .Where(type => type.GetMethods().Any(method =>
                 method.GetParameters().Any(parameter =>
-                    domainAssemblies.Contains(parameter.ParameterType.Assembly))))
+                    Unwrap(parameter.ParameterType).Any(inner =>
+                        domainAssemblies.Contains(inner.Assembly)))))
             .Where(type => !WriteStoreConstructions(type).Any())
             .Select(type => type.Name)
             .Distinct()
@@ -163,4 +164,39 @@ public sealed class AggregateWriteTests
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => !string.IsNullOrEmpty(name))
             .Select(name => name!);
+
+    /// <summary>A declared type and every type reachable through it.</summary>
+    /// <remarks>
+    /// Through wrappers, because a bulk write port takes one: <c>IEnumerable&lt;Course&gt;</c>
+    /// lives in <c>System.Private.CoreLib</c>, so a check on the parameter's own assembly
+    /// sees the wrapper and not the domain type inside it — and the port escapes the
+    /// enumeration while satisfying every word of what this rule claims to detect.
+    /// Transitive, and through arrays and by-ref, because those nest too:
+    /// <c>Course[]</c> and <c>in Course</c> are the same port with different syntax.
+    /// </remarks>
+    private static IEnumerable<Type> Unwrap(Type declared)
+    {
+        yield return declared;
+
+        if (declared.HasElementType && declared.GetElementType() is { } element)
+        {
+            foreach (var inner in Unwrap(element))
+            {
+                yield return inner;
+            }
+        }
+
+        if (!declared.IsGenericType || declared.IsGenericTypeDefinition)
+        {
+            yield break;
+        }
+
+        foreach (var argument in declared.GetGenericArguments())
+        {
+            foreach (var inner in Unwrap(argument))
+            {
+                yield return inner;
+            }
+        }
+    }
 }
