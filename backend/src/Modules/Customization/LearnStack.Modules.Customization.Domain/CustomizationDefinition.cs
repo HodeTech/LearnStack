@@ -144,7 +144,7 @@ public abstract class CustomizationDefinition<TId>
     /// incumbent in the same transaction, and the index is what catches the case
     /// where it did not.
     /// </remarks>
-    public void Publish(IClock clock, UserId by)
+    public void Publish(IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
 
@@ -158,14 +158,14 @@ public abstract class CustomizationDefinition<TId>
         EnsurePublishable();
 
         // Stamped first — a guard that runs after the mutation has already lost.
-        MarkUpdated(clock.UtcNow, by);
+        MarkUpdated(clock.UtcNow, updatedBy);
         Status = CustomizationStatus.Active;
     }
 
     /// <summary>
     /// Retires this revision. Rows that pinned it keep resolving to it.
     /// </summary>
-    public void Deprecate(IClock clock, UserId by)
+    public void Deprecate(IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
 
@@ -176,19 +176,19 @@ public abstract class CustomizationDefinition<TId>
                 + "A draft that is not wanted is deleted, not deprecated — nothing references it.");
         }
 
-        MarkUpdated(clock.UtcNow, by);
+        MarkUpdated(clock.UtcNow, updatedBy);
         Status = CustomizationStatus.Deprecated;
     }
 
     /// <summary>
     /// Replaces the label. Presentation metadata, so it stays mutable after publish.
     /// </summary>
-    public void Rename(LocalizedText displayName, IClock clock, UserId by)
+    public void Rename(LocalizedText displayName, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(displayName);
 
-        MarkUpdated(clock.UtcNow, by);
+        MarkUpdated(clock.UtcNow, updatedBy);
         DisplayName = displayName;
     }
 

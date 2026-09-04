@@ -253,6 +253,80 @@ public sealed class LocalizedTextTests
     private const string NumberValueJson = "{\"en\":\"Beginner\",\"tr\":42}";
 
     [Fact]
+    public void A_value_at_exactly_the_mapped_width_is_accepted()
+    {
+        // The refusal was pinned one past the cap and the acceptance was not, so
+        // `>` could become `>=`, or the constant could shrink, unnoticed. The at-cap
+        // input is a fixed literal rather than the constant, so shrinking the
+        // constant makes this input over-long and the test fails.
+        var act = () => LocalizedText.From(("en", new string('x', 200)));
+
+        act.Should().NotThrow();
+        LocalizedText.MaxValueLength.Should().Be(200, "the mapped column width");
+    }
+
+    [Fact]
+    public void Exactly_the_maximum_number_of_locales_is_accepted()
+    {
+        var pairs = Enumerable.Range(0, 50)
+            .Select(i => ($"{(char)('a' + (i / 26))}{(char)('a' + (i % 26))}", "value"))
+            .ToArray();
+
+        var act = () => LocalizedText.From(pairs);
+
+        act.Should().NotThrow();
+        LocalizedText.MaxLocales.Should().Be(50);
+    }
+
+    [Fact]
+    public void A_locale_at_exactly_the_tag_width_is_accepted()
+    {
+        // 35 characters, well-formed: a primary subtag plus variant subtags.
+        var tag = "en-abcde123-fghij456-klmno789-pqrst";
+        tag.Length.Should().Be(LocaleTag.MaxLength);
+
+        var act = () => LocalizedText.From((tag, "value"));
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Script_subtags_keep_BCP_47_title_case_rather_than_being_uppercased()
+    {
+        // `zh-HANS` and `zh-Hans` would be two entries naming one locale, which is
+        // the collision canonicalization exists to prevent — so the script branch
+        // has to Title-case rather than uppercase like the region branch does.
+        var text = LocalizedText.From(("zh-hans-cn", "简体"), ("zh-hant", "繁體"));
+
+        text.Locales.Should().BeEquivalentTo(["zh-Hans-CN", "zh-Hant"]);
+        text.Resolve("ZH-HANS-CN").Should().Be("简体");
+    }
+
+    [Fact]
+    public void Resolve_steps_over_a_null_chain_entry()
+    {
+        // The chain is built per request from the tenant's locales; a tenant with no
+        // default yields a hole, and the hole can be null rather than empty. Without
+        // the skip this is a NullReferenceException on a read path.
+        var text = LocalizedText.From(("aa", "AA"), ("en", "Beginner"));
+
+        text.Resolve("fr", [null!, "en"]).Should().Be("Beginner");
+    }
+
+    [Fact]
+    public void Equality_compares_values_with_case()
+    {
+        // Two labels differing only in case are two labels. An ordinal-ignore-case
+        // comparison would call them equal and a cache keyed on the pair would
+        // serve one for the other.
+        var lower = LocalizedText.From(("en", "beginner"));
+        var upper = LocalizedText.From(("en", "Beginner"));
+
+        lower.Should().NotBe(upper);
+        (lower == upper).Should().BeFalse();
+    }
+
+    [Fact]
     public void Has_reports_only_what_was_authored()
     {
         var text = LocalizedText.From(("en-US", "Color"));

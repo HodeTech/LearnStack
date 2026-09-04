@@ -12,6 +12,17 @@ namespace LearnStack.SharedKernel.Localization;
 /// </remarks>
 public static partial class LocaleTag
 {
+    /// <summary>
+    /// The width every locale column maps, per
+    /// <see href="../../../../docs/architecture/12-localization.md">12-localization.md</see>.
+    /// </summary>
+    /// <remarks>
+    /// Named for the reason <c>UrlSlug.MaxLength</c> is: two layers read it — the
+    /// factories, which throw, and the validators, which refuse — and a number
+    /// written twice is a number that drifts in one of them.
+    /// </remarks>
+    public const int MaxLength = 35;
+
     public static void EnsureWellFormed(string value, string parameterName)
     {
         // Shape first, then the framework. CultureInfo alone is not a check:

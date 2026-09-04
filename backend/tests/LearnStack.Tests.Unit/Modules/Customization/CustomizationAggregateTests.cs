@@ -526,6 +526,91 @@ public sealed class CustomizationAggregateTests
         zeroVersion.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*starts at 1*");
     }
 
+    [Fact]
+    public void A_key_at_exactly_the_mapped_width_is_accepted()
+    {
+        // The literal, not the constant: shrinking MaxLength must make this input
+        // over-long and fail, which reading the constant here would hide.
+        var act = () => NewContentType(new string('a', 100));
+
+        act.Should().NotThrow();
+        CustomizationKey.MaxLength.Should().Be(100, "the mapped column width");
+    }
+
+    [Fact]
+    public void An_unassigned_tenant_is_refused_as_well_as_a_nil_one()
+    {
+        // The guard is `!IsInitialized() || Value == Guid.Empty`; the nil half was
+        // pinned and the never-assigned half was not, so either could be deleted.
+        var act = () => TenantContentType.Create(
+            ContentTypeId, Unassigned<TenantId>(), "vocabulary-card", 1, Label(),
+            Schema, "default-card", Clock, Actor);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*belongs to a tenant*");
+    }
+
+    [Fact]
+    public void A_nil_identifier_is_refused_as_well_as_an_unassigned_one()
+    {
+        // Same compound guard, on the aggregate id, for both aggregates.
+        var contentType = () => TenantContentType.Create(
+            TenantContentTypeId.From(Guid.Empty), Tenant, "vocabulary-card", 1, Label(),
+            Schema, "default-card", Clock, Actor);
+        var taxonomy = () => TenantLevelTaxonomy.Create(
+            TenantLevelTaxonomyId.From(Guid.Empty), Tenant, "cefr", 1, Label("CEFR"), Clock, Actor);
+
+        contentType.Should().Throw<ArgumentException>().WithMessage("*never assigned*");
+        taxonomy.Should().Throw<ArgumentException>().WithMessage("*never assigned*");
+    }
+
+    [Fact]
+    public void A_definition_without_a_display_name_is_refused()
+    {
+        var contentType = () => TenantContentType.Create(
+            ContentTypeId, Tenant, "vocabulary-card", 1, null!, Schema, "default-card", Clock, Actor);
+        var taxonomy = () => TenantLevelTaxonomy.Create(
+            TaxonomyId, Tenant, "cefr", 1, null!, Clock, Actor);
+        var item = () => NewTaxonomy().AddItem("a1", null!, 1, null, Clock, Actor);
+
+        contentType.Should().Throw<ArgumentNullException>();
+        taxonomy.Should().Throw<ArgumentNullException>();
+        item.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void A_refused_mutation_leaves_the_audit_columns_and_the_token_alone()
+    {
+        // A guard that runs after MarkUpdated still refuses the call, but it has
+        // already versioned and stamped an aggregate that did not change — and the
+        // next If-Match then fails for a caller who did nothing wrong.
+        var contentType = NewContentType();
+        contentType.Publish(Clock, Actor);
+        var version = contentType.Version;
+        var updatedAt = contentType.UpdatedAt;
+
+        var frozen = () => contentType.ReviseSchema(OtherSchema, Clock, Actor);
+        var unknown = () => contentType.SetRendererKey("cefr-card", Clock, Actor);
+
+        frozen.Should().Throw<InvalidOperationException>();
+        unknown.Should().Throw<ArgumentException>();
+        contentType.Version.Should().Be(version);
+        contentType.UpdatedAt.Should().Be(updatedAt);
+    }
+
+    [Fact]
+    public void A_frozen_revision_reports_that_it_is_frozen_even_for_malformed_input()
+    {
+        // Both guards fire for this call. The lifecycle one is the useful answer:
+        // "your JSON is malformed" sends the author to fix a document they are not
+        // allowed to change at all.
+        var contentType = NewContentType();
+        contentType.Publish(Clock, Actor);
+
+        var act = () => contentType.ReviseSchema("{", Clock, Actor);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*frozen*");
+    }
+
     private static void AdvancesVersion<T>(T aggregate, Action<T> mutate)
         where T : LearnStack.SharedKernel.Persistence.IOptimisticConcurrency
     {

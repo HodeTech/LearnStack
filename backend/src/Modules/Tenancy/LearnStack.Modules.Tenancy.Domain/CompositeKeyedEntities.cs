@@ -71,7 +71,7 @@ public sealed class TenantLocale : ITenantOwned
         TenantId tenantId, string locale, bool isDefault, bool isEnabled = true, short sort = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
-        MappedLength.EnsureAtMost(locale, 35, nameof(locale));
+        MappedLength.EnsureAtMost(locale, LocaleTag.MaxLength, nameof(locale));
         LocaleTag.EnsureWellFormed(locale, nameof(locale));
 
         TenantOwnership.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));

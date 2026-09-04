@@ -97,12 +97,19 @@ public static class TenantOwnership
 /// Guards a slug against the shape its column's consumers assume.
 /// </summary>
 /// <remarks>
-/// A tenant slug appears in hostnames and an organization slug is documented as a
-/// DNS label, so both are lowercase alphanumeric with single interior hyphens.
-/// Neither factory looked at the characters, and neither column has a CHECK —
-/// <c>platform_host_to_tenant</c> and <c>tenant_domains</c> carry the host
-/// normalization constraint, the slug tables do not — so a slug with a slash or
-/// an uppercase letter reached a hostname unchallenged.
+/// <para>
+/// Lowercase alphanumeric with single interior hyphens. The shape was adopted for
+/// hostnames — a tenant slug appears in one and an organization slug is documented
+/// as a DNS label — and neither factory looked at the characters, so a slug with a
+/// slash or an uppercase letter reached a hostname unchallenged.
+/// </para>
+/// <para>
+/// It now guards things that are not hostnames: a customization key and a taxonomy
+/// item key reuse it because they reach a URL segment and a cache-key component,
+/// and because they are part of a primary key where two spellings would be two
+/// rows. Those carry their own width (<c>CustomizationKey.MaxLength</c>); this
+/// class owns the character shape, not the length.
+/// </para>
 /// </remarks>
 public static partial class UrlSlug
 {

@@ -105,16 +105,19 @@ public sealed class TenantLevelTaxonomy
         short sort,
         string? metadata,
         IClock clock,
-        UserId by)
+        UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
 
-        // Validated before anything mutates, so a refused call leaves the
-        // aggregate exactly as it was.
+        // The lifecycle guard first, for the reason ReviseSchema gives: a published
+        // taxonomy refuses the item whatever is wrong with it, and naming the item's
+        // fault sends the author to fix something that would still be refused.
+        EnsureBodyMutable();
+
+        // Then the item, validated before anything mutates, so a refused call
+        // leaves the aggregate exactly as it was.
         var item = TenantLevelTaxonomyItem.Create(
             TenantId, Key, SchemaVersion, itemKey, displayName, sort, metadata);
-
-        EnsureBodyMutable();
 
         if (_items.Count >= MaxItems)
         {
@@ -135,7 +138,7 @@ public sealed class TenantLevelTaxonomy
                 + "order render in whichever order the database happened to return them.");
         }
 
-        MarkUpdated(clock.UtcNow, by);
+        MarkUpdated(clock.UtcNow, updatedBy);
         _items.Add(item);
         RaiseRevision();
     }
@@ -150,7 +153,7 @@ public sealed class TenantLevelTaxonomy
     /// from a live taxonomy is a change a stored row fails. It raises
     /// <c>schema_version</c>, like any other breaking change.
     /// </remarks>
-    public void RemoveItem(string itemKey, IClock clock, UserId by)
+    public void RemoveItem(string itemKey, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemKey);
@@ -161,7 +164,7 @@ public sealed class TenantLevelTaxonomy
             ?? throw new InvalidOperationException(
                 $"'{itemKey}' is not an item of '{Key}' at version {SchemaVersion}.");
 
-        MarkUpdated(clock.UtcNow, by);
+        MarkUpdated(clock.UtcNow, updatedBy);
         _items.Remove(item);
         RaiseRevision();
     }
@@ -244,10 +247,12 @@ public sealed class TenantLevelTaxonomyItem : ITenantOwned
         short sort,
         string? metadata)
     {
-        TenantOwnership.EnsureRealTenant(
-            tenantId, "A taxonomy item belongs to a tenant.", nameof(tenantId));
-        CustomizationKey.EnsureValid(taxonomyKey, nameof(taxonomyKey));
-
+        // `tenantId` and `taxonomyKey` are the parent's own TenantId and Key, both
+        // validated in CustomizationDefinition's constructor and immutable after it,
+        // and AddItem is this internal factory's only caller as of 2026-09-04. They
+        // are not re-validated here: a guard no caller can reach is a guard no test
+        // can kill. A second caller owes its own validation.
+        //
         // The same guard as a concept key, not a second copy of it: an item key is
         // referenced from a tenant-authored JSON Schema (`levelKey: "b2"`), reaches
         // a URL filter, and is half of this row's primary key. Two constants and

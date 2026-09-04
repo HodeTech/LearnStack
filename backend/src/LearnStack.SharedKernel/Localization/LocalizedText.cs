@@ -75,7 +75,7 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
         foreach (var (locale, text) in values)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(locale, parameterName);
-            MappedLength.EnsureAtMost(locale, 35, parameterName);
+            MappedLength.EnsureAtMost(locale, LocaleTag.MaxLength, parameterName);
             LocaleTag.EnsureWellFormed(locale, parameterName);
 
             var canonical = LocaleTag.Canonicalize(locale);

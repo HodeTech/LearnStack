@@ -109,13 +109,17 @@ public sealed class TenantContentType
     /// cannot: that the body is still a draft, so no stored instance has been
     /// validated against it yet.
     /// </remarks>
-    public void ReviseSchema(string jsonSchema, IClock clock, UserId by)
+    public void ReviseSchema(string jsonSchema, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
-        JsonValue.EnsureWellFormed(jsonSchema, nameof(jsonSchema));
-        EnsureBodyMutable();
 
-        MarkUpdated(clock.UtcNow, by);
+        // The lifecycle guard first. Both refuse this call when a published
+        // revision is handed a malformed document, and "your JSON is malformed"
+        // sends the author to fix a body they are not allowed to change at all.
+        EnsureBodyMutable();
+        JsonValue.EnsureWellFormed(jsonSchema, nameof(jsonSchema));
+
+        MarkUpdated(clock.UtcNow, updatedBy);
         JsonSchema = jsonSchema;
         RaiseRevision();
     }
@@ -128,12 +132,12 @@ public sealed class TenantContentType
     /// decides how an instance is drawn, never whether it is valid, so changing it
     /// cannot invalidate a stored row.
     /// </remarks>
-    public void SetRendererKey(string rendererKey, IClock clock, UserId by)
+    public void SetRendererKey(string rendererKey, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
         CompositeRendererKey.EnsureKnown(rendererKey, nameof(rendererKey));
 
-        MarkUpdated(clock.UtcNow, by);
+        MarkUpdated(clock.UtcNow, updatedBy);
         RendererKey = rendererKey;
     }
 }

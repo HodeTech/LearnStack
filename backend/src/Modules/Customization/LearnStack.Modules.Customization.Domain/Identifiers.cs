@@ -45,9 +45,9 @@ public readonly partial record struct TenantLevelTaxonomyId : IStronglyTypedId<G
 /// examples use (<c>vocabulary-card</c>, <c>asana-pose</c>, <c>cefr</c>).
 /// </para>
 /// <para>
-/// The cache-key component is not decoration: <c>CacheKey.EnsureValid</c> rejects
-/// a <c>:</c> inside a component, because a separator that can appear inside one
-/// makes two different key tuples collide. Refusing the whole shape here is
+/// The cache-key component is not decoration: <c>CacheKey</c> refuses a <c>:</c>
+/// inside a component when it composes a key, because a separator that can appear
+/// inside one makes two different key tuples collide. Refusing the whole shape here is
 /// stricter than refusing that one character, and it is refused at the factory so
 /// the failure names the field rather than surfacing three layers away.
 /// </para>

@@ -188,15 +188,15 @@ display_name: CEFR Placement Test Scoring
 schema_version: 1
 rules:
   - condition: "section.id == 'grammar' && score < 50"
-    band_contribution: A1
+    band_contribution: a1
     weight: 1.0
   - condition: "section.id == 'grammar' && score >= 50 && score < 70"
-    band_contribution: A2
+    band_contribution: a2
     weight: 1.0
   # ...
 aggregation: weighted_majority
 output_taxonomy: cefr
-output_format: { type: "string", enum: ["A1","A2","B1","B2","C1","C2"] }
+output_format: { type: "string", enum: ["a1","a2","b1","b2","c1","c2"] }
 ```
 
 ### Example B — Yoga studio platform
