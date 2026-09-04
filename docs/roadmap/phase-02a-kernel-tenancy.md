@@ -2437,9 +2437,11 @@ one — and the second round repeatedly found the first round's fix.
 
 > **Packet 7 — Tenant and organization resolution, isolation, two tenants ✅**
 >
-> **Measured at close: 1187 tests green** — 1 contract, 76 architecture, 802 unit,
-> 308 integration. Counted from a run, not computed from a plan; an earlier commit
-> message in this packet carried an arithmetic total that was eight short.
+> **Measured at merge: 1208 tests green** — 1 contract, 79 architecture, 813 unit,
+> 315 integration. Counted from a run, not computed from a plan; an earlier commit
+> message in this packet carried an arithmetic total that was eight short. The number
+> moved after this record was first written, because the pull request's own review found
+> more — see § What the pull-request review found.
 
 ### What shipped
 
@@ -2506,6 +2508,50 @@ one — and the second round repeatedly found the first round's fix.
   took a raw `Guid` tenant after the ADR said it and `ITenantContext.TenantId` "both
   move together". Amendment 4 records the conversion and the divergence.
 
+### What the pull-request review found
+
+The record above was written at packet close. Fifteen commits landed after it, from three
+review rounds on the pull request itself, and the sharpest defect of the packet was among
+them — so the record would be a false account without them.
+
+- **A shipped invariant that did not hold.** Promoting a default locale through the
+  aggregate raised `23505` every time. `PromoteDefault` clears the incumbent and then sets
+  the target in memory, and EF does not preserve that order: same-table commands go out in
+  its comparer's order, and the composite key `(tenant_id, locale)` sorts `en-US` before
+  `tr-TR` — exactly the seeded pair. Nothing caught it because the cases covering that
+  index drive raw SQL in an order they choose, so they pin what PostgreSQL does with two
+  statements rather than what EF emits for one save. **This packet's own PR description
+  cited that invariant as the migration's safety rationale.** The store now saves in two
+  passes; a partial unique index permits zero defaults, so the intermediate state is one
+  the schema allows.
+- **A canonical template that admitted the wrong writer.** Both `AS RESTRICTIVE` write
+  guards began with a bare `organization_id IS NULL` — the arm that lets a *tenant*-scope
+  session write rows belonging to no organization. It admitted an *organization*-scoped
+  session to them as well, so one organization could rewrite the tenant-wide fallback
+  every other organization reads. Measured. Corrected in the template, because every
+  organization-scoped table is told to copy it, and recorded as
+  [ADR-0003 Amendment 4](../decisions/0003-tenant-isolation-defense-in-depth.md).
+- **Three credential and transaction gaps.** The host resolver announced a session
+  variable in a transaction four documents call read-only and that was not; the
+  platform-admin guard accepted `rolsuper`, which bypasses the GRANT matrix that bounds
+  the role; and an unparseable connection string was echoed through a redaction pattern
+  that could not cross a `/` or a second `@` inside a password.
+- **Two architecture rules with escapes, and one blind test.** The effective-host rule
+  banned a header the code never reads instead of the one it does; the resolving-host rule
+  exempted its sole setter by filename suffix; and the host-reclaim case passed with the
+  hostname uniqueness dropped entirely, because nothing in it asked for a conflict.
+- **Three ADR edits made outside the rules that govern them** — a stale statement rewritten
+  rather than amended, a normative paragraph added to an Accepted body, and an amendment
+  placed above the decision it amends.
+- **Two findings refuted by measurement**, which is why they are worth recording: MediatR
+  already deduplicates pipeline behaviours, so a guard written for it was removed rather
+  than shipped; and the query filter's pinned `DbContext` is harmless because its
+  `CurrentTenantId` delegates to the process-wide accessor.
+
+**A hook now catches what CI caught three times.** Three commits on the branch tripped the
+72-character subject limit, each found after a push — and a subject is only fixable by
+rewriting history. `.githooks/commit-msg` enforces exactly what CI's `meta` job enforces.
+
 ### What it did not ship, and who owns each
 
 - **Nothing is audited.** `AuditLogBehavior` lights up in Packet 9; `TransactionBehavior`
@@ -2518,3 +2564,17 @@ one — and the second round repeatedly found the first round's fix.
 - **The host-resolution cache is invalidated before the commit, not after.** The
   guarantee is therefore the request *after* the write, not the one racing it; closing
   the rest needs a post-commit seam on `IUnitOfWork`, whose surface ADR-0040 governs.
+- **Two idempotency limits do not bound memory,** and are recorded at the line rather than
+  fixed. The store's admission check reads a census refreshed once per sweep interval, so
+  within that window its caps admit every new key; and the filter buffers a response in
+  full before applying the 256 KiB cap. Both are Packet 4's, both fixes revisit an
+  ordering [ADR-0037](../decisions/0037-idempotency-key-contract.md) chose deliberately,
+  and neither is reachable through an endpoint that exists — every idempotent surface
+  today answers with an identifier, a receipt or a status. They belong with the durable
+  store, on that ADR's trigger.
+- **Two migrations shipped in one pull request,** which
+  [Git Standards § Branching](../standards/14-git-workflow.md) says should not happen.
+  Splitting was attempted and measured infeasible: the migration commit carries the model
+  change it was generated from, and cherry-picking it onto `main` conflicts through the
+  marker and typed-identifier commits before it — a "migration PR" would have carried
+  roughly the first thirty commits of the packet.
