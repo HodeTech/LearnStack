@@ -2,6 +2,8 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using LearnStack.Modules.Customization.Domain;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
@@ -45,55 +47,84 @@ namespace LearnStack.Tests.Architecture;
 /// </remarks>
 public sealed class TenantScopingTests
 {
+    /// <summary>
+    /// Every module that has a schema, paired with the context that maps it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Enumerated, and that is the point.</b> This rule used to read one
+    /// assembly and one context, so the second module's entities were invisible to
+    /// it — a sweep that has silently stopped covering what it names is worse than
+    /// no sweep, because the name still reads as a guarantee.
+    /// <c>Every_Module_With_A_Schema_Is_Swept</c> below is what stops the list
+    /// going stale a third time: it fails when a module ships a
+    /// <c>[TenantOwned]</c> entity and does not appear here.
+    /// </para>
+    /// <para>
+    /// A module with no schema yet contributes nothing and is not listed. The
+    /// guard is on the reverse direction — having a schema and not being swept.
+    /// </para>
+    /// </remarks>
+    private static readonly (Assembly Domain, Func<DbContext> Context)[] ScopedModules =
+    [
+        (typeof(Tenant).Assembly, ModelOnly<TenancyDbContext>),
+        (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>),
+    ];
+
     private static readonly Assembly TenancyDomain = typeof(Tenant).Assembly;
 
     [Fact]
     public void Every_TenantOwned_Entity_HasFilterAndRlsPolicy()
     {
-        var marked = ScopedEntities().ToList();
-
-        marked.Should().NotBeEmpty(
-            "a rule that finds nothing to check passes for the wrong reason");
-
-        using var context = ModelOnlyContext();
-        var model = context.Model;
         var migrations = MigrationSql();
+        var checked_ = 0;
 
-        foreach (var entity in marked)
+        foreach (var (domain, buildContext) in ScopedModules)
         {
-            var attribute = entity.GetCustomAttribute<TenantOwnedAttribute>()!;
+            using var context = buildContext();
+            var model = context.Model;
 
-            // A tenant key: the TenantId property, or Id on the self-keyed class.
-            if (attribute.SelfKeyed)
+            foreach (var entity in ScopedEntities(domain))
             {
-                typeof(ITenantOwned).IsAssignableFrom(entity).Should().BeFalse(
-                    $"{entity.Name} is self-keyed, so it has no TenantId column to filter on");
+                checked_++;
+                var attribute = entity.GetCustomAttribute<TenantOwnedAttribute>()!;
+
+                // A tenant key: the TenantId property, or Id on the self-keyed class.
+                if (attribute.SelfKeyed)
+                {
+                    typeof(ITenantOwned).IsAssignableFrom(entity).Should().BeFalse(
+                        $"{entity.Name} is self-keyed, so it has no TenantId column to filter on");
+                }
+                else
+                {
+                    typeof(ITenantOwned).IsAssignableFrom(entity).Should().BeTrue(
+                        $"{entity.Name} carries [TenantOwned] and must expose the key the filter reads");
+                }
+
+                var entityType = model.FindEntityType(entity);
+                entityType.Should().NotBeNull(
+                    $"{entity.Name} carries [TenantOwned] and must be mapped by its module's context");
+                var mapped = entityType!;
+
+                var table = mapped.GetTableName()!;
+
+                // The EF filter, on everything but the self-keyed class. That one is
+                // carried by its policy alone — `tenants` keys on `id`, and a filter
+                // comparing Id to the current tenant would be correct but redundant
+                // with the policy and wrong the moment a platform-admin path reads it.
+                var key = attribute.SelfKeyed ? "Id" : nameof(ITenantOwned.TenantId);
+
+                RowMembersRead(mapped).Should().Contain(
+                    key,
+                    $"{table}'s filter must compare the row's own {key} — a filter that reads "
+                    + "only context members narrows nothing and would return every row");
+
+                AssertRowSecurity(migrations, table);
             }
-            else
-            {
-                typeof(ITenantOwned).IsAssignableFrom(entity).Should().BeTrue(
-                    $"{entity.Name} carries [TenantOwned] and must expose the key the filter reads");
-            }
-
-            var entityType = model.FindEntityType(entity);
-            entityType.Should().NotBeNull($"{entity.Name} is not mapped by TenancyDbContext");
-            var mapped = entityType!;
-
-            var table = mapped.GetTableName()!;
-
-            // The EF filter, on everything but the self-keyed class. That one is
-            // carried by its policy alone — `tenants` keys on `id`, and a filter
-            // comparing Id to the current tenant would be correct but redundant
-            // with the policy and wrong the moment a platform-admin path reads it.
-            var key = attribute.SelfKeyed ? "Id" : nameof(ITenantOwned.TenantId);
-
-            RowMembersRead(mapped).Should().Contain(
-                key,
-                $"{table}'s filter must compare the row's own {key} — a filter that reads "
-                + "only context members narrows nothing and would return every row");
-
-            AssertRowSecurity(migrations, table);
         }
+
+        checked_.Should().BeGreaterThan(
+            0, "a rule that finds nothing to check passes for the wrong reason");
     }
 
     [Fact]
@@ -102,7 +133,8 @@ public sealed class TenantScopingTests
         // Enumerated by its own marker, not by filtering the tenant-owned set: an
         // entity carrying only [OrganizationScoped] would otherwise be invisible to
         // both rules, which is the one arrangement neither could report.
-        var marked = TenancyDomain.GetTypes()
+        var marked = ScopedModules
+            .SelectMany(module => module.Domain.GetTypes())
             .Where(type => type.GetCustomAttribute<OrganizationScopedAttribute>() is not null)
             .OrderBy(type => type.Name, StringComparer.Ordinal)
             .ToList();
@@ -110,11 +142,11 @@ public sealed class TenantScopingTests
         marked.Should().NotBeEmpty(
             "tenant_settings is organization-scoped; a rule finding nothing checks nothing");
 
-        using var context = ModelOnlyContext();
         var migrations = MigrationSql();
 
         foreach (var entity in marked)
         {
+            using var context = ContextFor(entity);
             typeof(IOrganizationScoped).IsAssignableFrom(entity).Should().BeTrue(
                 $"{entity.Name} carries [OrganizationScoped] and must expose OrganizationId");
 
@@ -200,7 +232,7 @@ public sealed class TenantScopingTests
         typeof(ITenantOwned).IsAssignableFrom(typeof(PlatformHostMapping))
             .Should().BeFalse();
 
-        using var context = ModelOnlyContext();
+        using var context = ModelOnly<TenancyDbContext>();
         RowMembersRead(context.Model.FindEntityType(typeof(PlatformHostMapping))!)
             .Should().BeEmpty("a tenant filter here would make host resolution impossible");
     }
@@ -259,20 +291,66 @@ public sealed class TenantScopingTests
         }
     }
 
-    private static IEnumerable<Type> ScopedEntities() =>
-        TenancyDomain.GetTypes()
+    /// <summary>
+    /// The context that maps <paramref name="entity"/>, by the module it lives in.
+    /// </summary>
+    private static DbContext ContextFor(Type entity)
+    {
+        var module = ScopedModules.SingleOrDefault(candidate => candidate.Domain == entity.Assembly);
+
+        module.Context.Should().NotBeNull(
+            $"{entity.Name} lives in {entity.Assembly.GetName().Name}, which is not in ScopedModules");
+
+        return module.Context();
+    }
+
+    private static IEnumerable<Type> ScopedEntities(Assembly domain) =>
+        domain.GetTypes()
             .Where(type => type.GetCustomAttribute<TenantOwnedAttribute>() is not null)
             .OrderBy(type => type.Name, StringComparer.Ordinal);
 
     /// <summary>
     /// A context built for its model alone. The connection string is never opened.
     /// </summary>
-    private static TenancyDbContext ModelOnlyContext() =>
-        new(
-            new DbContextOptionsBuilder<TenancyDbContext>()
-                .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
-                .Options,
-            StaticTenantContextAccessor.Unresolved);
+    private static DbContext ModelOnly<TContext>()
+        where TContext : DbContext
+    {
+        var options = new DbContextOptionsBuilder<TContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
+            .Options;
+
+        return (DbContext)Activator.CreateInstance(
+            typeof(TContext), options, StaticTenantContextAccessor.Unresolved)!;
+    }
+
+    [Fact]
+    public void Every_Module_With_A_Schema_Is_Swept()
+    {
+        // The rule above reads an enumerated list, which is what stops it passing
+        // vacuously for a module nobody referenced. The cost of enumerating is that
+        // the list goes stale — it did once already, when Customization shipped
+        // entities the sweep could not see. This is the guard on that: a module
+        // Domain assembly carrying a [TenantOwned] entity must be in the list.
+        var swept = ScopedModules.Select(module => module.Domain.GetName().Name).ToHashSet(StringComparer.Ordinal);
+
+        var withEntities = ModuleNames
+            .Select(module => Assembly.Load($"LearnStack.Modules.{module}.Domain"))
+            .Where(assembly => ScopedEntities(assembly).Any())
+            .Select(assembly => assembly.GetName().Name!)
+            .ToList();
+
+        withEntities.Should().NotBeEmpty("a rule that finds nothing to check passes for the wrong reason");
+        withEntities.Should().OnlyContain(
+            name => swept.Contains(name),
+            "a module that ships a tenant-owned entity is swept by Every_TenantOwned_Entity_HasFilterAndRlsPolicy; "
+            + "add it to ScopedModules with the context that maps it");
+    }
+
+    /// <summary>Every module, by name — the same list the tenancy conventions use.</summary>
+    private static readonly string[] ModuleNames =
+    [
+        "Tenancy", "Identity", "Customization", "Audit", "Content", "Media", "Education",
+    ];
 
     /// <summary>
     /// Every migration source in the repository, concatenated.

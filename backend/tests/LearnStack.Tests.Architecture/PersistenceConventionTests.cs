@@ -145,12 +145,13 @@ public sealed class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Five files under backend/src may reach for a connection at all: the two
-        // design-time factories, where a connection string is the point; the
-        // shared helper, which passes a connection rather than a string; and the
-        // two composition roots — the API's, which builds the one application data
+        // Six files under backend/src may reach for a connection at all: the three
+        // design-time factories, where a connection string is the point — one per
+        // migration chain, and a module that ships a schema ships one; the shared
+        // helper, which passes a connection rather than a string; and the two
+        // composition roots — the API's, which builds the one application data
         // source behind its credential guard, and the seeder's, which is the same act
-        // for a host with no HTTP surface. A sixth is a new decision.
+        // for a host with no HTTP surface. A seventh is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -177,6 +178,11 @@ public sealed class PersistenceConventionTests
             "Composition/PersistenceCompositionExtensions.cs",
             "Persistence/PlatformDbContextFactory.cs",
             "Persistence/TenancyDbContextFactory.cs",
+
+            // One design-time factory per migration chain. Customization's is the
+            // third, and it is here rather than exempted for the same reason the
+            // seeder is: the list is what makes the next one a reviewed diff.
+            "Persistence/CustomizationDbContextFactory.cs",
 
             // The fifth, and a deliberate entry rather than a discovered one: the seeder
             // is a second composition root, and building the one application data source

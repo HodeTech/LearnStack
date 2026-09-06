@@ -929,6 +929,9 @@ first two rows are coverage checks; the last three are the proof.
   registration whatever the key is spelled, so hiding the string buys nothing.
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 
+> Swept across **every module with a schema** from Packet 8, not only Tenancy. The
+> module list is enumerated and `Every_Module_With_A_Schema_Is_Swept` holds it current.
+
 - **Asserts:** every entity marked `[TenantOwned]` (or implementing `ITenantOwned`)
   has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an
   EF global query filter referencing it, and — in the migration that creates its
@@ -958,6 +961,22 @@ first two rows are coverage checks; the last three are the proof.
   [Database Standards § Table classes](05-database.md);
   [Architecture Standards § Tenant-Scoped Code](01-architecture-standards.md) was
   corrected to match in the same pass.
+
+#### `Every_Module_With_A_Schema_Is_Swept`
+
+- **Asserts:** every module `Domain` assembly that declares a `[TenantOwned]` entity
+  appears in `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`'s enumerated module list.
+  The sweep is enumerated rather than discovered, because a rule that scanned loaded
+  assemblies would silently skip the module nobody referenced and pass vacuously — and
+  the cost of enumerating is that the list goes stale. It did: the sweep read one
+  assembly and one `DbContext` until Packet 8, so the second module's entities were
+  invisible to the rule that names them. This is the guard on that direction.
+- **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md);
+  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md).
+- **Type:** xUnit + reflection over every module `Domain` assembly. **Kind:** structural.
+- **Status:** **Implemented** — `TenantScopingTests.cs`. Verified against a planted
+  violation: removing a module from the list makes it fail.
+- **Phase:** 02a (Packet 8).
 
 #### `Every_OrgScoped_Entity_HasOrgIdAndFilter`
 
