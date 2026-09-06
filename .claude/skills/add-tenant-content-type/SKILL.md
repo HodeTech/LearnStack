@@ -119,21 +119,43 @@ adapter — `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
 handlers reach the evaluator through `IJsonSchemaValidator`.
 
 ```csharp
-await mediator.Send(new RegisterTenantContentTypeCommand(
+var result = await mediator.Send(new RegisterTenantContentTypeCommand(
+    ContentTypeId: guidFactory.NewUuidV7(),
     Key: "vocabulary-card",
-    DisplayName: LocalizedText.From(("en", "Vocabulary Card"), ("tr", "Kelime Kartı")),
-    SchemaJson: schemaJson,
+    SchemaVersion: 1,
+    DisplayName: new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["en"] = "Vocabulary Card",
+        ["tr"] = "Kelime Kartı",
+    },
+    JsonSchema: schemaJson,
     RendererKey: "default-card"));
 ```
+
+Three things about that call are not incidental. The id is **caller-assigned**, from
+`IGuidFactory.NewUuidV7()`, so a retry conflicts on the row it wrote last time
+instead of inserting a second one. `DisplayName` is a plain map rather than a
+`LocalizedText`: the command contract is the cross-module surface and names only
+`SharedKernel` types, so the handler builds the value object one layer in — a
+contract naming `Customization.Domain` would put that assembly in the IL of every
+module that sends the command. And it lands as a **`Draft`**; publishing is a
+second command, because authoring a shape and making it the live answer for a key
+are two decisions with different blast radii.
 
 The tenant comes from `ITenantContext`. A command that took a tenant id from the
 request would be refused by the database anyway — but it would also be the wrong
 shape, and the isolation suite is not the place to discover that.
 
-The handler validates, writes the row at `status = 'draft'`, and bumps the
-tenant's customization generation **in the same transaction**, which is what makes
-every cached definition set unreachable at once
+The handler runs the four gates, writes the row at `status = 'Draft'`, and bumps
+the tenant's customization generation **in the same transaction**, which is what
+makes every cached definition set unreachable at once
 ([ADR-0043 § 7](../../../docs/decisions/0043-customization-payload-validation.md)).
+
+`PublishTenantContentTypeCommand(contentTypeId)` then makes it live, deprecating
+the revision it succeeds in that same transaction — the partial index admits one
+live revision per key, and an aggregate cannot see its siblings, so retiring the
+incumbent is the command's work and the index is what catches the case where it
+did not happen.
 
 ### Step 3: Revise it — additively or breakingly
 

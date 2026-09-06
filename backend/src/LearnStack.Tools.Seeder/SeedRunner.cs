@@ -378,9 +378,18 @@ public sealed class SeedRunner(
         // a fixed id, so a repeat collides on the primary key and reports
         // `lockey_identifier_taken` above; these two are what a register hits when
         // the id differs and the KEY is what is taken — a hand-edited SeedData, or a
-        // tenant that authored its own `card` before the seeder reached it. Leaving
-        // that definition alone is the right answer in both cases, and the ownership
-        // check is what stops the answer being given for somebody else's row.
+        // tenant that authored its own `card` before the seeder reached it.
+        //
+        // In that second case the seeder STOPS, and the stop is one act later than
+        // it looks: the register is classified "already present", and the publish
+        // then names the fixed id, cannot see a row under it, and answers
+        // `not_found`, which is not in this set. That is the right outcome and not
+        // a gap — the built-in did not get installed, and a seed that exits 0
+        // having installed nothing is the masking defect the ownership check exists
+        // to prevent. Resolving the tenant's own id and publishing that instead
+        // would be a different decision, and no shipped path can reach the case:
+        // the four commands have no HTTP endpoint, so the seeder is the only writer
+        // of a customization row.
         "lockey_schema_version_taken",
         "lockey_customization_key_already_live",
         "lockey_customization_not_a_draft",

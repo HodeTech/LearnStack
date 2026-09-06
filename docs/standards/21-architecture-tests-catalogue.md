@@ -962,9 +962,10 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
-  module; Packet 10 closes it across every module.
-- **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`; widened in Packet 8
+  step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
+  `Every_Module_With_A_Schema_Is_Swept` holds current).
+- **Phase:** 02a (Packet 7 introduces, Packet 8 widens).
 - **Note:** a marker-gated rule cannot catch a **missing** marker — it iterates what it
   finds. The companion case `The_Host_Map_Carries_No_Tenant_Marker` states the negative
   that matters most in this module: `platform_host_to_tenant` has a `TenantId` property
@@ -1015,9 +1016,10 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0017; ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
-  module; Packet 10 closes it across every module.
-- **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`; widened in Packet 8
+  step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
+  `Every_Module_With_A_Schema_Is_Swept` holds current).
+- **Phase:** 02a (Packet 7 introduces, Packet 8 widens).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
 

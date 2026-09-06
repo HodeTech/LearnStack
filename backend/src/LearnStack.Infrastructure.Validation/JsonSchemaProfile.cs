@@ -74,6 +74,33 @@ internal static class JsonSchemaProfile
     internal const long MaxExpansions = 1_000;
 
     /// <summary>
+    /// Keywords whose value is an <b>instance</b> — a literal the schema constrains
+    /// data to — rather than a subschema.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same lesson <see cref="NameMapKeywords"/> records, one level further in.
+    /// The walk reads object keys as keywords, so descending into an instance makes
+    /// the profile refuse a document for the shape of the tenant's own DATA.
+    /// Measured, all three refused before this list existed:
+    /// <c>const: {"$ref": "#/nope"}</c> as an unresolvable reference,
+    /// <c>enum: [{"pattern": "x"}]</c> as a banned regex, and
+    /// <c>default: {"$id": "…"}</c> as a banned identity — none of which is a
+    /// keyword in any of those positions.
+    /// </para>
+    /// <para>
+    /// It also stops an instance consuming the depth budget § 8.4 measures on the
+    /// SCHEMA tree: a deeply nested example is not a deeply nested schema.
+    /// </para>
+    /// <para>
+    /// Missing an entry makes the profile stricter rather than weaker — a legal
+    /// document is refused — which is the direction a list like this must fail in.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] InstanceValuedKeywords =
+        ["const", "default", "enum", "examples"];
+
+    /// <summary>
     /// Keywords that run a tenant-authored regular expression. Refused until the
     /// evaluator lets a caller bound one — ADR-0043 § 5 names the trigger.
     /// </summary>
@@ -218,6 +245,14 @@ internal static class JsonSchemaProfile
                     if (!namesAreAuthored)
                     {
                         CheckKeyword(property, child, failures, references);
+
+                        // The keyword is checked; its VALUE is data, so the walk
+                        // stops here. Going in reads the tenant's own literals as
+                        // keywords and charges them against the schema's depth.
+                        if (Array.IndexOf(InstanceValuedKeywords, property.Name) >= 0)
+                        {
+                            continue;
+                        }
                     }
 
                     Walk(
@@ -308,7 +343,8 @@ internal static class JsonSchemaProfile
     /// <summary>
     /// Builds the document's reference graph and refuses it if any edge dangles,
     /// any edge names something that is not a schema, the graph has a cycle, or
-    /// expanding it costs more than <see cref="MaxExpansions"/>.
+    /// expanding <b>the whole document</b> costs more than
+    /// <see cref="MaxExpansions"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -339,6 +375,18 @@ internal static class JsonSchemaProfile
     /// on a long chain, which is what stops the walk itself from being the
     /// expensive part.
     /// </para>
+    /// <para>
+    /// <b>Two bounds, and the second is the one that matters.</b> Per edge is not a
+    /// bound on a document at all: measured, a 698-byte schema with one reference
+    /// was refused while a 3,400-byte one with a hundred references to the same
+    /// target was admitted, at roughly fifty times the evaluation cost — 147 ms and
+    /// 125 MB for a single instance. So the document is also costed as a whole:
+    /// one for the root plus every reference in its subtree. That is the number
+    /// <see href="../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043</see>
+    /// states when it says the bound "sees a cost of 101" for a hundred properties
+    /// over one shared shape — a total, not a maximum — and that schema stays
+    /// admitted because memoization keeps reference <i>reuse</i> at one apiece.
+    /// </para>
     /// </remarks>
     private static void CheckReferences(
         JsonElement root,
@@ -354,6 +402,10 @@ internal static class JsonSchemaProfile
         var onStack = new HashSet<string>(StringComparer.Ordinal);
         var reported = false;
 
+        // Every edge, including one inside a `$defs` entry nothing references: a
+        // dangling `$ref` is a defect wherever it sits, and reachability from the
+        // root is not what makes it one. The per-edge bail also stops an
+        // unreachable but exponential subtree costing anything to discover.
         foreach (var (pointer, target) in references)
         {
             var cost = Expand(root, target, costs, onStack, failures, pointer, ref reported);
@@ -363,6 +415,27 @@ internal static class JsonSchemaProfile
                 if (!reported)
                 {
                     failures.Add(pointer, "lockey_schema_reference_graph_too_large");
+                }
+
+                return;
+            }
+        }
+
+        // Then the document itself, which is what a single evaluation actually
+        // costs: one for the root plus every reference in its subtree, `$defs`
+        // excluded because whoever references an entry pays for it. Memoized, so
+        // this re-walks nothing the loop above already priced.
+        var document = 1L;
+
+        foreach (var next in ReferencesWithin(root))
+        {
+            document += Expand(root, next, costs, onStack, failures, "", ref reported);
+
+            if (reported || document > MaxExpansions)
+            {
+                if (!reported)
+                {
+                    failures.Add("", "lockey_schema_reference_graph_too_large");
                 }
 
                 return;

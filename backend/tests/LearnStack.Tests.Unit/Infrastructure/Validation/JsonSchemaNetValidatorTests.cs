@@ -381,14 +381,21 @@ public sealed class JsonSchemaNetValidatorTests
 
     [Theory]
     [InlineData("\"type\":\"string\"", true)]
-    [InlineData("\"enum\":[\"x\"]", false)]
+    [InlineData("\"not\":{\"type\":\"string\"}", false)]
     public void Nesting_is_admitted_to_the_ceiling_exactly(string leaf, bool admitted)
     {
         // Two documents nested identically, differing by exactly ONE raw JSON
-        // level: the enum's array element sits one below the keyword. The boundary
-        // falls between them, so moving MaxDepth in either direction fails one of
-        // the two. The earlier pair moved in steps of two — a schema level costs
-        // two JSON levels — and could not see a one-step drift.
+        // level: `not` takes a schema directly, so it adds one object where
+        // `properties` adds two. The boundary falls between them, so moving
+        // MaxDepth in either direction fails one of the two. The first pair moved
+        // in steps of two — a `properties` level costs two JSON levels — and could
+        // not see a one-step drift.
+        //
+        // The second pair used `enum:["x"]`, whose array element also sits one
+        // level down. That worked, and it was measuring the wrong tree: an enum
+        // holds an INSTANCE, and § 8.4's depth is the schema's. The walk no longer
+        // descends there, so the pair had to move to a keyword that really does
+        // carry a subschema.
         var body = leaf;
 
         for (var i = 0; i < 5; i++)
@@ -402,14 +409,18 @@ public sealed class JsonSchemaNetValidatorTests
     }
 
     [Theory]
-    [InlineData(999, true)]
-    [InlineData(1000, false)]
+    [InlineData(998, true)]
+    [InlineData(999, false)]
     public void A_reference_graph_is_admitted_to_the_bound_exactly(int links, bool admitted)
     {
-        // 999 links plus the terminal node cost exactly 1000; 1000 links cost
-        // 1001. One link apart, so raising the bound by one
-        // fails the second case — the earlier pair was a thousand apart and did
-        // not.
+        // 998 links plus the terminal node plus the root cost exactly 1000; 999
+        // links cost 1001. One link apart, so raising the bound by one fails the
+        // second case — the first pair was a thousand apart and did not.
+        //
+        // The root is in the count because the bound is the DOCUMENT's, which is
+        // what one evaluation costs. Priced per reference instead, this pair still
+        // passed while a hundred references to one 256-cost target were admitted at
+        // fifty times the price — the case below.
         var defs = Enumerable.Range(0, links)
             .Select(i => $"\"a{i}\":{{\"$ref\":\"#/$defs/a{i + 1}\"}}")
             .Append($"\"a{links}\":{{\"type\":\"object\"}}");
@@ -417,6 +428,64 @@ public sealed class JsonSchemaNetValidatorTests
             + "\"type\":\"object\",\"properties\":{\"x\":{\"$ref\":\"#/$defs/a0\"}}}";
 
         _validator.AdmitSchema(document).IsSuccess.Should().Be(admitted);
+    }
+
+    [Fact]
+    public void A_reference_graph_is_costed_across_the_whole_document()
+    {
+        // A hundred sites referencing one target that costs 256 each. No single
+        // reference is near the bound; the document is fifty times over it.
+        // Measured before this was costed: admitted at 3,400 bytes, and one
+        // instance validation against it took 147 ms and allocated 125 MB — while
+        // a 698-byte document with ONE reference was refused.
+        var defs = Enumerable.Range(0, 9)
+            .Select(i => i < 8
+                ? $"\"d{i}\":{{\"allOf\":[{{\"$ref\":\"#/$defs/d{i + 1}\"}},{{\"$ref\":\"#/$defs/d{i + 1}\"}}]}}"
+                : $"\"d{i}\":{{\"type\":\"string\"}}");
+
+        var properties = Enumerable.Range(0, 100)
+            .Select(i => $"\"p{i}\":{{\"$ref\":\"#/$defs/d0\"}}");
+
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + string.Join(",", properties) + "},\"$defs\":{" + string.Join(",", defs) + "}}";
+
+        Refusal(_validator.AdmitSchema(document))
+            .Values.SelectMany(reasons => reasons).Select(reason => reason.Key)
+            .Should().Contain("lockey_schema_reference_graph_too_large");
+    }
+
+    [Fact]
+    public void The_shape_ADR_0043_prices_at_101_is_still_admitted()
+    {
+        // The other edge of the same bound, and the one the ADR names: a hundred
+        // properties applying one shared `$defs` shape "sees a cost of 101, because
+        // the cost model counts reference expansion and this is reference reuse".
+        // A document bound that refused this would be refusing what § 8.4 declares.
+        var properties = Enumerable.Range(0, 100)
+            .Select(i => $"\"p{i}\":{{\"$ref\":\"#/$defs/shared\"}}");
+
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + string.Join(",", properties) + "},\"$defs\":{\"shared\":{\"type\":\"string\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("\"const\":{\"$ref\":\"#/nope\"}")]
+    [InlineData("\"enum\":[{\"pattern\":\"x\"}]")]
+    [InlineData("\"default\":{\"$id\":\"https://example.test\"}")]
+    [InlineData("\"examples\":[{\"propertyNames\":{}}]")]
+    public void A_literal_that_looks_like_a_keyword_is_still_a_literal(string leaf)
+    {
+        // The tenant's DATA, not its schema. All four were refused before the walk
+        // stopped at an instance-valued keyword — as an unresolvable reference, a
+        // banned regex, a banned identity — for the shape of a value the schema
+        // exists to constrain rather than to interpret. It is the same lesson the
+        // name-map list records, one level further in.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\","
+            + "\"properties\":{\"a\":{" + leaf + "}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
     }
 
     [Theory]
