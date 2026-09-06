@@ -96,14 +96,6 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
             {
                 JsonSchema.FromText(jsonSchema, BuildOptions());
             }
-            catch (RefResolutionException exception)
-            {
-                // First, because it derives from JsonSchemaException and the
-                // broader clause below would otherwise swallow it. Gate 2 refuses a
-                // non-fragment `$ref`, so reaching this means a fragment that names
-                // nothing in its own document.
-                return Fail("", "lockey_schema_reference_unresolvable", exception.Message);
-            }
             catch (JsonSchemaException exception)
             {
                 return Fail("", "lockey_schema_not_buildable", exception.Message);
@@ -132,32 +124,58 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
 
         using (document)
         {
-            JsonSchema schema;
+            // The port's own bound, not the middleware's. Measured at the entry cap
+            // § 8.4 declares: a hundred properties each applying one shared shape,
+            // against a 1 MiB instance, costs 742 ms and 1.6 GB of allocation in one
+            // call. The HTTP body limit caps a request; it does not cap the seeder
+            // or the bulk importer Phase 04 brings, and both reach this method.
+            if (Encoding.UTF8.GetByteCount(instanceJson) > MaxInstanceBytes)
+            {
+                return Fail("", "lockey_instance_too_large");
+            }
+
+            if (Encoding.UTF8.GetByteCount(admittedSchema) > JsonSchemaProfile.MaxBytes)
+            {
+                return Fail("", "lockey_schema_too_large");
+            }
 
             try
             {
-                schema = JsonSchema.FromText(admittedSchema, BuildOptions());
+                var schema = JsonSchema.FromText(admittedSchema, BuildOptions());
+                var evaluation = schema.Evaluate(document.RootElement, Located);
+
+                return evaluation.IsValid
+                    ? Result.Ok(None.Value)
+                    : Fail(Collect(evaluation, "lockey_instance_does_not_match_schema"));
             }
-            catch (Exception exception) when (exception is JsonSchemaException or JsonException)
+            catch (Exception exception)
+                when (exception is JsonSchemaException or JsonException or ArgumentException)
             {
-                // The caller read this from a column only AdmitSchema writes, so a
-                // failure here is a broken invariant rather than a tenant's mistake
-                // — and it is the one ADR-0043's Driver 2 names: something wrote a
-                // row without passing this gate.
+                // Everything the library raises for a schema it will not accept,
+                // and the evaluation is inside the try because that is where two of
+                // them actually surface: measured, an unresolvable or external
+                // `$ref` raises RefResolutionException from Evaluate and never from
+                // FromText, and a `$ref` onto a string raises a bare
+                // ArgumentException. Both used to escape raw, past a port whose
+                // contract names exactly one exception.
+                //
+                // The caller read this schema from a column only AdmitSchema
+                // writes, so any of them means a row was written past the gate —
+                // ADR-0043's Driver 2, and a 500 rather than a tenant's 400.
                 throw new InvalidOperationException(
-                    "The stored schema does not build. It was written without passing "
-                    + "IJsonSchemaValidator.AdmitSchema, which is the only sanctioned "
-                    + "writer of that column.",
+                    "The stored schema does not build, or does not evaluate. It was "
+                    + "written without passing IJsonSchemaValidator.AdmitSchema, which "
+                    + "is the only sanctioned writer of that column.",
                     exception);
             }
-
-            var evaluation = schema.Evaluate(document.RootElement, Located);
-
-            return evaluation.IsValid
-                ? Result.Ok(None.Value)
-                : Fail(Collect(evaluation, "lockey_instance_does_not_match_schema"));
         }
     }
+
+    /// <summary>
+    /// The largest content entry this validator will evaluate, per
+    /// <see href="../../../docs/architecture/32-tenant-customization-model.md">§ 8.4</see>.
+    /// </summary>
+    private const int MaxInstanceBytes = 1024 * 1024;
 
     /// <remarks>
     /// A fresh registry per build. Both arguments are load-bearing; see the

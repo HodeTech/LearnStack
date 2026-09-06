@@ -341,6 +341,120 @@ public sealed class JsonSchemaNetValidatorTests
         _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("\"$defs\":{\"pattern\":{\"type\":\"string\"}},\"properties\":{\"a\":{\"$ref\":\"#/$defs/pattern\"}}")]
+    [InlineData("\"properties\":{\"a\":{\"type\":\"object\",\"dependentSchemas\":{\"$id\":{\"type\":\"object\",\"properties\":{\"z\":{\"type\":\"string\"}}}}}}")]
+    [InlineData("\"properties\":{\"a\":{\"type\":\"object\",\"dependentRequired\":{\"pattern\":[\"b\"]}}}")]
+    public void Every_name_map_keyword_shields_the_names_inside_it(string body)
+    {
+        // One case per REACHABLE entry of the name-map list. Only `properties` was
+        // covered, so the others could be dropped and nothing failed — and dropping
+        // one refuses a legal document rather than admitting an illegal one, which
+        // is a failure only a test will notice. `patternProperties` has no case
+        // because the keyword itself is banned, so no admitted schema contains one;
+        // its entry is defence for the day ADR-0043 § 5's trigger fires.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\"," + body + "}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_schema_of_exactly_the_row_cap_is_admitted_and_one_byte_more_is_not()
+    {
+        // Only the refusal was pinned, so the cap could be widened or narrowed and
+        // nothing failed. Both edges are asserted here, and the size is built from
+        // the literal 256 KB § 8.4 publishes rather than from the constant under
+        // test — reading the constant would move the input with it.
+        const int cap = 256 * 1024;
+        var shell = Schema("\"a\":{\"type\":\"string\",\"description\":\"\"}");
+        var padding = cap - System.Text.Encoding.UTF8.GetByteCount(shell);
+
+        var atCap = Schema($"\"a\":{{\"type\":\"string\",\"description\":\"{new string('x', padding)}\"}}");
+        var overCap = Schema($"\"a\":{{\"type\":\"string\",\"description\":\"{new string('x', padding + 1)}\"}}");
+
+        System.Text.Encoding.UTF8.GetByteCount(atCap).Should().Be(cap);
+        _validator.AdmitSchema(atCap).IsSuccess.Should().BeTrue();
+        Refusal(_validator.AdmitSchema(overCap))
+            .Should().ContainKey("").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_too_large");
+    }
+
+    [Theory]
+    [InlineData("\"type\":\"string\"", true)]
+    [InlineData("\"enum\":[\"x\"]", false)]
+    public void Nesting_is_admitted_to_the_ceiling_exactly(string leaf, bool admitted)
+    {
+        // Two documents nested identically, differing by exactly ONE raw JSON
+        // level: the enum's array element sits one below the keyword. The boundary
+        // falls between them, so moving MaxDepth in either direction fails one of
+        // the two. The earlier pair moved in steps of two — a schema level costs
+        // two JSON levels — and could not see a one-step drift.
+        var body = leaf;
+
+        for (var i = 0; i < 5; i++)
+        {
+            body = "\"properties\":{\"n" + i + "\":{" + body + "}}";
+        }
+
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\"," + body + "}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().Be(admitted);
+    }
+
+    [Theory]
+    [InlineData(999, true)]
+    [InlineData(1000, false)]
+    public void A_reference_graph_is_admitted_to_the_bound_exactly(int links, bool admitted)
+    {
+        // 999 links plus the terminal node cost exactly 1000; 1000 links cost
+        // 1001. One link apart, so raising the bound by one
+        // fails the second case — the earlier pair was a thousand apart and did
+        // not.
+        var defs = Enumerable.Range(0, links)
+            .Select(i => $"\"a{i}\":{{\"$ref\":\"#/$defs/a{i + 1}\"}}")
+            .Append($"\"a{links}\":{{\"type\":\"object\"}}");
+        var document = "{\"$schema\":\"" + Dialect + "\",\"$defs\":{" + string.Join(",", defs) + "},"
+            + "\"type\":\"object\",\"properties\":{\"x\":{\"$ref\":\"#/$defs/a0\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().Be(admitted);
+    }
+
+    [Theory]
+    [InlineData("#/properties/a/oneOf/0", true)]
+    [InlineData("#/properties/a/oneOf/1", true)]
+    [InlineData("#/properties/a/oneOf/2", false)]
+    [InlineData("#/properties/a~1b", false)]
+    public void A_reference_may_index_an_array_and_may_not_run_off_its_end(string reference, bool admitted)
+    {
+        // Index 2 on a two-element array is the case that discriminates: an
+        // off-by-one in the bound admits it, and an index far past the end does
+        // not. The array branch had no test at all before.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"oneOf\":[{\"type\":\"string\"},{\"type\":\"integer\"}]},"
+            + "\"b\":{\"$ref\":\"" + reference + "\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().Be(admitted);
+    }
+
+    [Fact]
+    public void A_pointer_token_is_percent_decoded_before_it_is_unescaped()
+    {
+        // RFC 3986 first, then RFC 6901 — and ~0 after ~1, so an encoded tilde in a
+        // field name does not turn into a slash. The percent-decode had no case at
+        // all, and the order had none that discriminated.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"$defs\":{"
+            + "\"a/b\":{\"type\":\"string\"},"      // reached as ~1
+            + "\"c~1d\":{\"type\":\"integer\"},"    // reached as ~01, NOT as a slash
+            + "\"e f\":{\"type\":\"boolean\"}"      // reached as %20
+            + "},\"type\":\"object\",\"properties\":{"
+            + "\"x\":{\"$ref\":\"#/$defs/a~1b\"},"
+            + "\"y\":{\"$ref\":\"#/$defs/c~01d\"},"
+            + "\"z\":{\"$ref\":\"#/$defs/e%20f\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+    }
+
+
     [Fact]
     public void A_banned_keyword_is_still_refused_one_level_below_an_authored_name()
     {
@@ -550,15 +664,49 @@ public sealed class JsonSchemaNetValidatorTests
         Refusal(_validator.ValidateInstance(schema, "{\"n\":1}")).Should().NotBeEmpty();
     }
 
-    [Fact]
-    public void A_stored_schema_that_does_not_build_is_a_broken_invariant_not_a_tenant_error()
+    [Theory]
+    [InlineData("{\"type\": 42}")]
+    [InlineData("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"a\":{\"$ref\":\"https://example.com/x.json\"}}}")]
+    [InlineData("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"a\":{\"$ref\":\"#/$defs/nope\"}}}")]
+    [InlineData("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"$ref\":\"#/properties/a/type\"}}}")]
+    public void A_stored_schema_the_gate_never_admitted_is_a_broken_invariant_not_a_tenant_error(
+        string storedSchema)
     {
-        // Only AdmitSchema writes that column. If a migration, a repair script or a
-        // future importer put something else there, the read path has been trusting
-        // an unvalidated row — that is not a 400.
-        var act = () => _validator.ValidateInstance("{\"type\": 42}", "{}");
+        // Only AdmitSchema writes that column, so any of these means a row was
+        // written past the gate — a 500, not a 400. Measured before this was
+        // sealed: the last three escaped RAW, as Json.Schema.RefResolutionException
+        // and System.ArgumentException, past a port whose contract names exactly
+        // one exception. Two of them surface from Evaluate and never from FromText,
+        // which is why the evaluation is inside the try.
+        var act = () => _validator.ValidateInstance(storedSchema, "{\"a\":\"x\"}");
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*only sanctioned writer*");
+    }
+
+    [Fact]
+    public void An_instance_larger_than_the_declared_entry_cap_is_refused()
+    {
+        // The port's own bound. The HTTP body limit caps a request; it does not cap
+        // the seeder, nor the bulk importer Phase 04 brings, and both reach here.
+        // Measured at the cap: a hundred properties each applying one shared shape
+        // against a 1 MiB instance costs 742 ms and 1.6 GB of allocation in one
+        // call, so the cap is what the cost is bounded by.
+        var oversized = "{\"a\":\"" + new string('x', 1024 * 1024) + "\"}";
+
+        Refusal(_validator.ValidateInstance(Schema("\"a\":{\"type\":\"string\"}"), oversized))
+            .Should().ContainKey("").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_instance_too_large");
+    }
+
+    [Fact]
+    public void A_stored_schema_larger_than_the_row_cap_is_refused()
+    {
+        var padding = new string('x', 300 * 1024);
+        var oversized = Schema($"\"a\":{{\"type\":\"string\",\"description\":\"{padding}\"}}");
+
+        Refusal(_validator.ValidateInstance(oversized, "{\"a\":\"x\"}"))
+            .Should().ContainKey("").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_too_large");
     }
 
     // ── Isolation ───────────────────────────────────────────────────────────

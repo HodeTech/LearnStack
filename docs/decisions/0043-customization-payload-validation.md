@@ -489,6 +489,11 @@ with the adapter it guards.
 - Port: `IJsonSchemaValidator` in `LearnStack.SharedKernel.Validation`. Two
   members — admit a schema document, and check an instance against a schema
   document already admitted. Both return `Result`; neither throws; neither
+  <!-- Erratum (2026-09-06): "neither throws" is false and always was.
+       ValidateInstance throws InvalidOperationException by design when the schema
+       it is handed does not build or does not evaluate — that means a row was
+       written past this gate, which is a 500 rather than a tenant's 400.
+       Amendment 3 states the sealed surface. -->
   mentions a `Json.Schema` type in its signature, and no built `JsonSchema`
   outlives a call (§ 6).
 - Adapter: `JsonSchemaNetValidator` in `LearnStack.Infrastructure.Validation`.
@@ -612,6 +617,40 @@ none of which § 3 licensed:
 `$anchor` is refused alongside `$id`, `$dynamicAnchor` and `$dynamicRef`; § 3's
 row named three of the four and the code has always refused all four, since a
 plain-name fragment has nothing to resolve against once `$anchor` is gone.
+
+### Amendment 3 — the port's exception surface, and the entry cap it enforces itself (2026-09-06)
+
+§ Implementation Notes says "neither throws". That is false of
+`ValidateInstance` and always was: it is handed a schema read from a column only
+`AdmitSchema` writes, so a schema that will not build means a row was written
+past this gate — ADR-0043's own Driver 2 — and a 500 is the honest answer rather
+than a tenant's 400.
+
+**What was wrong is that the surface was not sealed.** Measured: of four schemas
+that never passed `AdmitSchema`, three escaped `ValidateInstance` **raw** —
+`Json.Schema.RefResolutionException` for an external and for an unresolvable
+`$ref`, `System.ArgumentException` for a `$ref` onto a string — and only one
+produced the documented `InvalidOperationException`. Two of the three surface
+from `Evaluate`, which sat outside the `try` entirely.
+
+The same measurement retires a claim in § Context: `RefResolutionException` is
+raised by **evaluation**, never by the build. `AdmitSchema`'s `catch` for it was
+therefore unreachable, with a comment that read as though it handled a real case.
+It is gone; gate 2 resolves every reference itself, and the remaining clauses
+catch what the builder can actually raise.
+
+**`ValidateInstance` now bounds its own inputs.** § 8.4 caps a content entry at
+1 MB and a customization row at 256 KB, and until now the only thing enforcing
+either on this path was the HTTP body limit — which does not cover the seeder,
+nor the validating bulk importer
+[Phase 04](../roadmap/phase-04-cms-media-pages.md) brings, and both reach this
+method. The cap is worth its own enforcement: measured at exactly it, a hundred
+properties each applying one shared `$defs` shape, against a 1 MiB instance,
+costs **742 ms and 1.6 GB of allocation** in a single call. That is the price of
+the declared limits rather than a hole in them — the reference-graph bound sees a
+cost of 101 for that schema, because the cost model counts reference *expansion*
+and this is reference *reuse* — and it is stated here so the next person to
+choose those numbers knows what they buy.
 
 ## References
 

@@ -99,6 +99,14 @@ internal static class JsonSchemaProfile
     /// refuses a legal field name — rather than weaker, which is the direction a
     /// list like this must fail in.
     /// </para>
+    /// <para>
+    /// <c>patternProperties</c> is on the list and cannot be reached: the keyword
+    /// itself is banned, so no admitted schema contains one. It is here for the day
+    /// <see href="../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043
+    /// § 5</see>'s trigger fires and the regex keywords are admitted — at which
+    /// point its keys become author-chosen and a list that had quietly dropped it
+    /// would start refusing them.
+    /// </para>
     /// </remarks>
     private static readonly string[] NameMapKeywords =
         ["properties", "$defs", "patternProperties", "dependentSchemas", "dependentRequired"];
