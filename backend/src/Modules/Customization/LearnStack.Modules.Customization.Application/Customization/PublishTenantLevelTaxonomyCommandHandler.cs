@@ -72,7 +72,18 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
         if (incumbent is not null)
         {
             incumbent.Deprecate(clock, actor);
-            await taxonomies.UpdateAsync(incumbent, cancellationToken);
+
+            try
+            {
+                await taxonomies.UpdateAsync(incumbent, cancellationToken);
+            }
+            catch (AggregateConcurrencyException)
+            {
+                // The loser of two concurrent successions. Its UPDATE matched nothing
+                // because the winner already retired this row — re-read and retry is
+                // the answer, and it is the one the concurrency token exists to give.
+                return CustomizationFailures.Stale<TenantLevelTaxonomyDto>();
+            }
         }
 
         successor.Publish(clock, actor);
@@ -87,6 +98,10 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
 
             return CustomizationFailures.Field<TenantLevelTaxonomyDto>(
                 "lockey_business_rule_violation", field, reason);
+        }
+        catch (AggregateConcurrencyException)
+        {
+            return CustomizationFailures.Stale<TenantLevelTaxonomyDto>();
         }
 
         await generations.BumpAsync(tenantContext.TenantId, cancellationToken);

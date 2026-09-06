@@ -45,6 +45,20 @@ public static class WriteStoreTracking
         {
             await db.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateConcurrencyException stale)
+        {
+            // Before the 23505 arm, because DbUpdateConcurrencyException DERIVES from
+            // DbUpdateException — ordered the other way this is unreachable, and the
+            // loser of an ordinary race would fall through to the L1 handler as a
+            // DbUpdateException, which HttpStatusMap has no arm for. That is a 500 for
+            // the one outcome the concurrency token exists to report.
+            //
+            // Nothing is detached here: a Modified entry's original values are what the
+            // database still holds, and a caller re-reading to retry needs the tracker
+            // intact.
+            throw new AggregateConcurrencyException(
+                "The aggregate changed after it was read; re-read it and retry.", stale);
+        }
         catch (DbUpdateException failure)
             when (failure.InnerException is PostgresException { SqlState: "23505" } conflict)
         {

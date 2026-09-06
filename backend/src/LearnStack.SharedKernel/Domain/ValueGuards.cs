@@ -84,6 +84,8 @@ public static class JsonValue
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
 
+        // The exception carries the parser's own message, which names the offset —
+        // so this parses rather than calling IsWellFormed and losing it.
         try
         {
             using var _ = System.Text.Json.JsonDocument.Parse(value);

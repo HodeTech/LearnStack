@@ -85,7 +85,18 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         if (incumbent is not null)
         {
             incumbent.Deprecate(clock, actor);
-            await contentTypes.UpdateAsync(incumbent, cancellationToken);
+
+            try
+            {
+                await contentTypes.UpdateAsync(incumbent, cancellationToken);
+            }
+            catch (AggregateConcurrencyException)
+            {
+                // The loser of two concurrent successions. Its UPDATE matched nothing
+                // because the winner already retired this row — re-read and retry is
+                // the answer, and it is the one the concurrency token exists to give.
+                return CustomizationFailures.Stale<TenantContentTypeDto>();
+            }
         }
 
         successor.Publish(clock, actor);
@@ -100,6 +111,10 @@ internal sealed class PublishTenantContentTypeCommandHandler(
 
             return CustomizationFailures.Field<TenantContentTypeDto>(
                 "lockey_business_rule_violation", field, reason);
+        }
+        catch (AggregateConcurrencyException)
+        {
+            return CustomizationFailures.Stale<TenantContentTypeDto>();
         }
 
         await generations.BumpAsync(tenantContext.TenantId, cancellationToken);

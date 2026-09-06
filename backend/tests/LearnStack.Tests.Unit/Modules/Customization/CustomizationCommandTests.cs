@@ -54,6 +54,15 @@ public sealed class CustomizationCommandTests
     private static readonly Dictionary<string, string> Name =
         new(StringComparer.Ordinal) { ["en"] = "Announcement" };
 
+    /// <summary>A label distinct from every other in the fixture.</summary>
+    /// <remarks>
+    /// One map reused for the definition and for every band makes a handler that
+    /// builds a band's label from the definition's field indistinguishable from one
+    /// that does not — measured: that mutation survived the whole suite.
+    /// </remarks>
+    private static Dictionary<string, string> Label(string text) =>
+        new(StringComparer.Ordinal) { ["en"] = text };
+
     private static RegisterTenantContentTypeCommand RegisterContentType(
         Guid? id = null, string key = "announcement", int version = 1) =>
         new(id ?? ContentTypeId, key, version, Name, Schema, "default-card");
@@ -62,7 +71,7 @@ public sealed class CustomizationCommandTests
         Guid? id = null, string key = "proficiency", int version = 1,
         IReadOnlyList<TaxonomyItemInput>? items = null) =>
         new(id ?? TaxonomyId, key, version, Name,
-            items ?? [new TaxonomyItemInput("beginner", Name, 0)]);
+            items ?? [new TaxonomyItemInput("beginner", Label("Beginner"), 0)]);
 
     // ── The write path ────────────────────────────────────────────────────
 
@@ -249,6 +258,224 @@ public sealed class CustomizationCommandTests
         stores.Writes.Should().BeEmpty();
     }
 
+
+    [Fact]
+    public async Task A_band_carries_its_own_label_and_not_the_taxonomy_s()
+    {
+        var (sender, stores) = Build();
+
+        await sender.Send(RegisterTaxonomy(items:
+        [
+            new TaxonomyItemInput("a1", Label("Breakthrough"), 0),
+            new TaxonomyItemInput("a2", Label("Waystage"), 1),
+        ]));
+
+        stores.AddedTaxonomies.Single().Items.Select(item => item.DisplayName.Resolve("en"))
+            .Should().Equal("Breakthrough", "Waystage");
+    }
+
+    [Fact]
+    public async Task Publishing_a_taxonomy_deprecates_the_incumbent_before_the_successor()
+    {
+        // The same case as the content type's, and it needs its own: the two publish
+        // handlers are separate code, and measured, both the ordering and the bump
+        // could be deleted from this one with the whole suite green.
+        var (sender, stores) = Build();
+
+        await sender.Send(RegisterTaxonomy(version: 1));
+        await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+        var successorId = Guid.Parse("0199a000-0000-7000-8000-0000000000d2");
+        await sender.Send(RegisterTaxonomy(successorId, version: 2));
+
+        stores.Writes.Clear();
+        stores.UpdatedStatuses.Clear();
+        var result = await sender.Send(new PublishTenantLevelTaxonomyCommand(successorId));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Status.Should().Be(nameof(CustomizationStatus.Active));
+        stores.Writes.Should().Equal("taxonomy:update", "taxonomy:update", "generation:bump");
+        stores.UpdatedStatuses.Should().Equal(
+            CustomizationStatus.Deprecated, CustomizationStatus.Active);
+        stores.Taxonomies[TaxonomyId].Status.Should().Be(CustomizationStatus.Deprecated);
+    }
+
+    [Fact]
+    public async Task Publishing_a_taxonomy_already_live_is_a_refusal_and_not_an_exception()
+    {
+        var (sender, _) = Build();
+
+        await sender.Send(RegisterTaxonomy());
+        await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+        var result = await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+        result.Error!.Details!["TaxonomyId"].Single().Key
+            .Should().Be("lockey_customization_not_a_draft");
+    }
+
+    [Fact]
+    public async Task Publishing_a_taxonomy_id_this_tenant_does_not_have_is_a_refusal()
+    {
+        var (sender, _) = Build();
+
+        var result = await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+        result.Error!.Message.Key.Should().Be("lockey_not_found");
+        result.Error!.Details!["TaxonomyId"].Single().Key
+            .Should().Be("lockey_customization_not_found");
+    }
+
+    [Fact]
+    public async Task A_definition_this_tenant_does_not_have_answers_not_found()
+    {
+        // 404 and not 409: nothing conflicts, and a client told to resolve a conflict
+        // over an id it cannot see has nothing to resolve. `tenant_mismatch` maps to
+        // 404 as well, so the two indistinguishable causes stay indistinguishable.
+        var (sender, _) = Build();
+
+        var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+        result.Error!.Message.Key.Should().Be("lockey_not_found");
+    }
+
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_race_lost_on_the_incumbent_asks_the_caller_to_re_read(string subject)
+    {
+        // The answer IOptimisticConcurrency's own remarks promise. Untranslated this
+        // is a DbUpdateException, which HttpStatusMap has no arm for — a 500 for the
+        // one outcome the concurrency token exists to report.
+        var (sender, stores) = Build();
+
+        if (subject == "content-type")
+        {
+            await sender.Send(RegisterContentType(version: 1));
+            await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+            var successorId = Guid.Parse("0199a000-0000-7000-8000-0000000000c3");
+            await sender.Send(RegisterContentType(successorId, version: 2));
+            stores.NextStale = true;
+
+            var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
+            result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+            return;
+        }
+
+        await sender.Send(RegisterTaxonomy(version: 1));
+        await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+        var successor = Guid.Parse("0199a000-0000-7000-8000-0000000000d3");
+        await sender.Send(RegisterTaxonomy(successor, version: 2));
+        stores.NextStale = true;
+
+        var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(successor));
+        taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+    }
+
+    [Theory]
+    [InlineData("ux_tenant_content_types_tenant_id_key_schema_version", "SchemaVersion", "lockey_schema_version_taken")]
+    [InlineData("ux_tenant_content_types_tenant_id_key_active", "Key", "lockey_customization_key_already_live")]
+    [InlineData("pk_tenant_content_types", "$", "lockey_identifier_taken")]
+    [InlineData("ux_tenant_level_taxonomy_items_taxonomy_sort", "Items", "lockey_taxonomy_item_sort_duplicated")]
+    [InlineData("pk_tenant_level_taxonomy_items", "Items", "lockey_taxonomy_item_key_duplicated")]
+    [InlineData("something_nobody_named", "$", "lockey_business_rule_violation")]
+    public async Task Each_uniqueness_names_the_thing_its_author_must_change(
+        string constraint, string field, string reason)
+    {
+        // Every arm, because they are how a tenant admin knows what to fix: a taken
+        // revision number needs a different number, a live key needs a different key,
+        // and one message for both sends half the callers to change the wrong thing.
+        // Measured: collapsing all six arms into one left the whole suite green.
+        var (sender, stores) = Build();
+        stores.NextConflict = constraint;
+
+        var result = await sender.Send(RegisterContentType());
+
+        result.Error!.Message.Key.Should().Be("lockey_business_rule_violation");
+        result.Error!.Details!.Should().ContainKey(field);
+        result.Error!.Details![field].Single().Key.Should().Be(reason);
+    }
+
+    [Fact]
+    public async Task Two_bands_sharing_a_key_are_refused_by_the_handler()
+    {
+        // The aggregate refuses it too, with an InvalidOperationException — which is a
+        // 500. A band declared twice is an ordinary authoring mistake, and this is
+        // where it becomes an answer. Measured: without the guard both cases below
+        // throw out of AddItem.
+        var (sender, stores) = Build();
+
+        var result = await sender.Send(RegisterTaxonomy(items:
+        [
+            new TaxonomyItemInput("a1", Label("First"), 0),
+            new TaxonomyItemInput("a1", Label("Second"), 1),
+        ]));
+
+        result.Error!.Message.Key.Should().Be("lockey_validation_failed");
+        result.Error!.Details!["Items"].Single().Key
+            .Should().Be("lockey_taxonomy_item_key_duplicated");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Two_bands_sharing_a_sort_are_refused_by_the_handler()
+    {
+        // A duplicate sort is not a constraint violation in memory at all — it is a
+        // render whose order changes between two requests, which is the harder bug.
+        var (sender, stores) = Build();
+
+        var result = await sender.Send(RegisterTaxonomy(items:
+        [
+            new TaxonomyItemInput("a1", Label("First"), 0),
+            new TaxonomyItemInput("a2", Label("Second"), 0),
+        ]));
+
+        result.Error!.Details!["Items"].Single().Key
+            .Should().Be("lockey_taxonomy_item_sort_duplicated");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_gate_sees_the_document_the_caller_submitted()
+    {
+        // Not merely "the gate was called": a handler that gated a constant would pass
+        // every other case here. Measured — that mutation survived the whole suite.
+        var gate = new RecordingGate();
+        var (sender, _) = Build(gate: gate);
+
+        await sender.Send(RegisterContentType());
+
+        gate.Admitted.Should().ContainSingle().Which.Should().Be(Schema);
+    }
+
+    [Theory]
+    [InlineData("register-content-type")]
+    [InlineData("publish-content-type")]
+    [InlineData("register-taxonomy")]
+    [InlineData("publish-taxonomy")]
+    public async Task Every_handler_fails_closed_without_a_tenant(string command)
+    {
+        // Each of the four, because the guard is four separate lines: measured, three
+        // of them could be deleted with the whole suite green, and a handler past this
+        // point writes a customization under the all-zero tenant.
+        var (sender, stores) = Build(resolved: false);
+
+        var result = command switch
+        {
+            "register-content-type" => (IResultBase)await sender.Send(RegisterContentType()),
+            "publish-content-type" =>
+                await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId)),
+            "register-taxonomy" => await sender.Send(RegisterTaxonomy()),
+            _ => await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId)),
+        };
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Message.Key.Should().Be("lockey_tenant_mismatch");
+        stores.Writes.Should().BeEmpty();
+    }
+
     // ── What the validators refuse ────────────────────────────────────────
     //
     // Asserted through the validator resolved from the container, not through the
@@ -408,6 +635,70 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
+    public void A_band_sort_below_zero_is_refused()
+    {
+        RefuseTaxonomy(RegisterTaxonomy(items: [new TaxonomyItemInput("a1", Name, -1)]))
+            .Should().Be("lockey_taxonomy_item_sort_invalid");
+    }
+
+    [Fact]
+    public void An_empty_json_schema_is_refused()
+    {
+        Refuse(new RegisterTenantContentTypeCommand(
+                ContentTypeId, "announcement", 1, Name, string.Empty, "default-card"))
+            .Should().Be("lockey_json_schema_required");
+    }
+
+    [Fact]
+    public void A_missing_display_name_map_is_refused()
+    {
+        // Null rather than empty: a deserializer supplies it for an absent property,
+        // and without the NotNull rule LocalizedText.TryFrom raises
+        // ArgumentNullException out of the validator itself — a 500 from the layer
+        // whose whole job is answering 400.
+        Refuse(new RegisterTenantContentTypeCommand(
+                ContentTypeId, "announcement", 1, null!, Schema, "default-card"))
+            .Should().Be("lockey_display_name_required");
+    }
+
+    [Fact]
+    public void A_missing_band_list_is_refused()
+    {
+        RefuseTaxonomy(new RegisterTenantLevelTaxonomyCommand(
+                TaxonomyId, "proficiency", 1, Name, null!))
+            .Should().Be("lockey_taxonomy_items_required");
+    }
+
+    [Theory]
+    [InlineData("publish-content-type")]
+    [InlineData("publish-taxonomy")]
+    public void A_publish_command_still_checks_its_identifier(string command)
+    {
+        // The two publish validators carry one rule each, which is exactly the shape
+        // that reads as ceremony and gets deleted: measured, gutting both left the
+        // whole suite green while an unassigned id reached a Vogen `From` that throws.
+        var provider = Provider();
+
+        var result = command == "publish-content-type"
+            ? provider.GetRequiredService<IValidator<PublishTenantContentTypeCommand>>()
+                .Validate(new PublishTenantContentTypeCommand(Guid.Empty))
+            : provider.GetRequiredService<IValidator<PublishTenantLevelTaxonomyCommand>>()
+                .Validate(new PublishTenantLevelTaxonomyCommand(Guid.Empty));
+
+        Single(result).Should().Be("lockey_identifier_required");
+    }
+
+    [Fact]
+    public void The_band_cap_is_the_width_the_aggregate_holds()
+    {
+        // Pinned to the number, not to the symbol. Both boundary cases above read
+        // `MaxItems`, so they move with it — measured, changing the constant to 101
+        // left the whole 1017-case unit suite green, and the cap is what stops one
+        // tenant's taxonomy from becoming a page nobody can render.
+        TenantLevelTaxonomy.MaxItems.Should().Be(100);
+    }
+
+    [Fact]
     public void Every_command_has_a_validator_the_scan_can_find()
     {
         // A validator that exists but is not found is silence: the command runs
@@ -452,14 +743,15 @@ public sealed class CustomizationCommandTests
     // ── Wiring ────────────────────────────────────────────────────────────
 
     private static (ISender Sender, RecordingStores Stores) Build(
-        bool resolved = true, bool admitSchemas = true)
+        bool resolved = true, bool admitSchemas = true, IJsonSchemaValidator? gate = null)
     {
         var stores = new RecordingStores();
-        return (Provider(stores, resolved, admitSchemas).GetRequiredService<ISender>(), stores);
+        return (Provider(stores, resolved, admitSchemas, gate).GetRequiredService<ISender>(), stores);
     }
 
     private static ServiceProvider Provider(
-        RecordingStores? stores = null, bool resolved = true, bool admitSchemas = true)
+        RecordingStores? stores = null, bool resolved = true, bool admitSchemas = true,
+        IJsonSchemaValidator? gate = null)
     {
         // MediatR and FluentValidation scan the same assembly the composition root
         // hands them, so a handler or validator this container cannot find is one the
@@ -474,7 +766,7 @@ public sealed class CustomizationCommandTests
         services.AddSingleton<ITenantContentTypeStore>(stores);
         services.AddSingleton<ITenantLevelTaxonomyStore>(stores);
         services.AddSingleton<ICustomizationGenerationStore>(stores);
-        services.AddSingleton<IJsonSchemaValidator>(new StubGate(admitSchemas));
+        services.AddSingleton(gate ?? new StubGate(admitSchemas));
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<ITenantContext>(
             resolved ? new ResolvedContext(Tenant) : new UnresolvedTenantContext());
@@ -508,6 +800,9 @@ public sealed class CustomizationCommandTests
         /// <summary>The constraint the next write collides with, or nothing.</summary>
         public string? NextConflict { get; set; }
 
+        /// <summary>Whether the next update loses a race.</summary>
+        public bool NextStale { get; set; }
+
         /// <summary>
         /// The status each update carried, in the order the store received them.
         /// </summary>
@@ -531,6 +826,7 @@ public sealed class CustomizationCommandTests
             TenantContentType aggregate, CancellationToken cancellationToken)
         {
             Conflict();
+            Stale();
             Writes.Add("content-type:update");
             UpdatedStatuses.Add(aggregate.Status);
             return Task.CompletedTask;
@@ -561,6 +857,7 @@ public sealed class CustomizationCommandTests
             TenantLevelTaxonomy aggregate, CancellationToken cancellationToken)
         {
             Conflict();
+            Stale();
             Writes.Add("taxonomy:update");
             UpdatedStatuses.Add(aggregate.Status);
             return Task.CompletedTask;
@@ -581,6 +878,17 @@ public sealed class CustomizationCommandTests
         {
             Writes.Add("generation:bump");
             return Task.FromResult(++_generation);
+        }
+
+        private void Stale()
+        {
+            if (!NextStale)
+            {
+                return;
+            }
+
+            NextStale = false;
+            throw new AggregateConcurrencyException("the row moved under this write");
         }
 
         private void Conflict()
@@ -613,6 +921,21 @@ public sealed class CustomizationCommandTests
                     {
                         ["/properties/body"] = [new LocalizedMessage("lockey_validation_failed")],
                     }));
+
+        public Result<None> ValidateInstance(string admittedSchema, string instanceJson) =>
+            Result.Ok(None.Value);
+    }
+
+    /// <summary>A gate that admits everything and remembers what it saw.</summary>
+    private sealed class RecordingGate : IJsonSchemaValidator
+    {
+        public List<string> Admitted { get; } = [];
+
+        public Result<None> AdmitSchema(string jsonSchema)
+        {
+            Admitted.Add(jsonSchema);
+            return Result.Ok(None.Value);
+        }
 
         public Result<None> ValidateInstance(string admittedSchema, string instanceJson) =>
             Result.Ok(None.Value);

@@ -19,9 +19,16 @@ namespace LearnStack.Modules.Customization.Application.Abstractions;
 /// with the first handler that has something to read, and this is it — but they
 /// arrive <i>here</i>, on the module's own port, because the reads are by natural
 /// key rather than by id, which is a Customization fact and not a shared one. A
-/// separate read port would also be a port taking a <c>Customization.Domain</c>
-/// type that does not derive from the generic, which is exactly what
-/// <c>Every_Write_Port_Is_Countable_Or_Enumerated</c> refuses to leave unnamed.
+/// handler holding one port for reading and one for writing is still writing one
+/// aggregate, which the cross-aggregate census says in as many words; fusing them
+/// is what keeps that obvious rather than something a reader has to re-derive.
+/// </para>
+/// <para>
+/// It is <b>not</b> the census that forces the shape, and it is worth being exact
+/// about why: <c>Every_Write_Port_Is_Countable_Or_Enumerated</c> inspects a
+/// method's <i>parameters</i>, so a read port <i>returning</i> a domain type is
+/// invisible to it however it is declared. The reason to put the reads here is the
+/// aggregate boundary, not the rule.
 /// </para>
 /// </remarks>
 public interface ITenantContentTypeStore

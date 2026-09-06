@@ -20,6 +20,12 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// the database's.
 /// </para>
 /// <para>
+/// <b>Both reads exclude soft-deleted rows.</b> A retired definition is not an
+/// incumbent to succeed and not a draft to publish; the partial index says the
+/// first in the schema, and a lookup by id that ignored it would let a handler
+/// publish something the tenant has already thrown away.
+/// </para>
+/// <para>
 /// <b>The reads are tracked, deliberately.</b> A publish loads a revision in order
 /// to change it, and <c>UpdateAsync</c> refuses anything this context does not
 /// track — so <c>AsNoTracking</c> here would make every read useless to the only
@@ -51,7 +57,8 @@ public sealed class TenantContentTypeStore(CustomizationDbContext db) : ITenantC
     public Task<TenantContentType?> FindAsync(
         TenantContentTypeId id, CancellationToken cancellationToken = default) =>
         db.TenantContentTypes.SingleOrDefaultAsync(
-            contentType => contentType.Id == id, cancellationToken);
+            contentType => contentType.Id == id && contentType.DeletedAt == null,
+            cancellationToken);
 
     public Task<TenantContentType?> FindActiveAsync(
         string key, CancellationToken cancellationToken = default) =>
@@ -87,7 +94,8 @@ public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db) : ITenan
 
     public Task<TenantLevelTaxonomy?> FindAsync(
         TenantLevelTaxonomyId id, CancellationToken cancellationToken = default) =>
-        WithItems().SingleOrDefaultAsync(taxonomy => taxonomy.Id == id, cancellationToken);
+        WithItems().SingleOrDefaultAsync(
+            taxonomy => taxonomy.Id == id && taxonomy.DeletedAt == null, cancellationToken);
 
     public Task<TenantLevelTaxonomy?> FindActiveAsync(
         string key, CancellationToken cancellationToken = default) =>

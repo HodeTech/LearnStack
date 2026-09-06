@@ -29,13 +29,20 @@ internal static class CustomizationFailures
 
     /// <summary>No definition with that id belongs to the ambient tenant.</summary>
     /// <remarks>
+    /// <para>
     /// A row belonging to another tenant is invisible here — the query filter and
     /// the policy both drop it — so "not this tenant's" and "does not exist" are
     /// one answer by construction, and there is no lookup that could tell a caller
     /// which. That is the isolation working, not information withheld.
+    /// </para>
+    /// <para>
+    /// <c>not_found</c> and therefore <c>404</c>, not <c>business_rule_violation</c>
+    /// and <c>409</c>: nothing conflicts, and a client told 409 for an id it cannot
+    /// see is being asked to resolve a conflict it cannot observe.
+    /// </para>
     /// </remarks>
     internal static Result<T> NotFound<T>(string field) =>
-        Field<T>("lockey_business_rule_violation", field, "lockey_customization_not_found");
+        Field<T>("lockey_not_found", field, "lockey_customization_not_found");
 
     /// <summary>The document did not pass ADR-0043's gates.</summary>
     /// <remarks>
@@ -48,6 +55,16 @@ internal static class CustomizationFailures
     /// needs to find the mistake.
     /// </remarks>
     internal static Result<T> SchemaRefused<T>(Error gate) => Result.FailFor<Result<T>>(gate);
+
+    /// <summary>The aggregate changed after this handler read it.</summary>
+    /// <remarks>
+    /// Two callers publishing successors for one key both load the incumbent and
+    /// both deprecate it; one wins and the other's <c>UPDATE</c> matches nothing.
+    /// <c>concurrency_conflict</c> is what tells the loser to re-read and retry —
+    /// the answer <c>IOptimisticConcurrency</c>'s own remarks promise.
+    /// </remarks>
+    internal static Result<T> Stale<T>() =>
+        Result.FailFor<Result<T>>(new Error(new LocalizedMessage("lockey_concurrency_conflict")));
 
     internal static Result<T> Field<T>(string code, string field, string reason) =>
         Result.FailFor<Result<T>>(new Error(

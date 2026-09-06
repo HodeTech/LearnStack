@@ -87,9 +87,9 @@ internal sealed class RegisterTenantContentTypeCommandValidator
         RuleFor(command => command.DisplayName).MustBeALocalizedName();
 
         // Shape only. Whether the document is an admissible JSON Schema is
-        // ADR-0043's four gates, which run in the handler: they are the expensive
-        // half — measured at 742 ms and 1.6 GB at the § 8.4 caps — and they answer
-        // with a JSON pointer, which is a refusal this layer has no way to carry.
+        // ADR-0043's four gates, which run in the handler — they answer with a JSON
+        // pointer, and a FluentValidation rule keys its failures on a property name,
+        // so a refusal carried from here would lose the location the author needs.
         RuleFor(command => command.JsonSchema)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithErrorCode("lockey_json_schema_required");
