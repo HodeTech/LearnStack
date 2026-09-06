@@ -712,8 +712,11 @@ Architecture tests enforce:
    `learnstack_app`.
 6. **`tenant_*` customization keys are scoped to tenant and versioned.**
    `UNIQUE (tenant_id, key, schema_version)` identifies one immutable revision;
-   `UNIQUE (tenant_id, key) WHERE status = 'active'` (a partial index) keeps at most one
-   live definition per concept. `UNIQUE (tenant_id, key)` alone would reject the second
+   `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` (a partial
+   index) keeps at most one live definition per concept. The `deleted_at` term is not
+   decoration: soft delete does not change `status`, so without it a retired definition
+   keeps its key against the tenant forever and the successor it was retired for can
+   never be published. `UNIQUE (tenant_id, key)` alone would reject the second
    revision of any key and make the first breaking change ADR-0013 requires impossible —
    see [§ 4](#4-schema-versioning) and
    [Phase 04 § Customization Key Shape and Immutable Schema Versions](../roadmap/phase-04-cms-media-pages.md).

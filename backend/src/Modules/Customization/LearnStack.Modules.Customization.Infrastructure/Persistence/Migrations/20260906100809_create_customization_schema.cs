@@ -125,6 +125,18 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
             // C# enum and maps through a value converter, so the stored value is
             // the CLR name (Database Standards § Constraints).
             //
+            // The two `jsonb` columns are deliberately NOT bounded here either, and
+            // for a different reason. `jsonb` already refuses malformed JSON at the
+            // storage layer; the only further property a CHECK could express is
+            // `jsonb_typeof(...) = 'object'`, which is a weaker restatement of the
+            // FIRST of ADR-0043's four gates and says nothing about the other
+            // three. Every document those gates refuse — `{}`, an unknown
+            // `$schema`, a `pattern` the profile bans, a `$ref` that does not
+            // resolve — is an object, so the CHECK admits all of them and the
+            // column would carry a bound that can only ever disagree with the
+            // authority that actually holds it. The eight `jsonb` columns the two
+            // already-shipped chains carry take no such CHECK either.
+            //
             // `renderer_key` is a closed set too and is deliberately NOT bounded
             // here. Its nine values live in `CompositeRendererKey.All` and are
             // shared with the frontend's `composites.ts`, which

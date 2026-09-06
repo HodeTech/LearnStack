@@ -838,15 +838,19 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
 
+> Widened to **six** files, keyed by directory, in Packet 8 step 3: a third
+> design-time factory — Customization's — joined the allow-list, because one lands
+> with every migration chain.
+
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly **five** files may reach for a
-  connection at all: the two design-time factories, where a connection string is the
-  point; the shared helper, which passes a *connection*; and the two composition roots —
-  `LearnStack.Api`'s, which builds the one application data source behind its credential
-  guard, and `LearnStack.Tools.Seeder`'s, which is the same act for a host with no HTTP
-  surface. A sixth is a new decision. A context on its own connection never saw the
+  its own connection. And under `backend/src`, exactly **six** files may reach for a
+  connection at all: the three design-time factories — one per migration chain, where a
+  connection string is the point; the shared helper, which passes a *connection*; and the
+  two composition roots — `LearnStack.Api`'s, which builds the one application data
+  source behind its credential guard, and `LearnStack.Tools.Seeder`'s, which is the same
+  act for a host with no HTTP surface. A seventh is a new decision. A context on its own connection never saw the
   announcement, so every read through it returns zero rows under the corrected policy —
   silently.
 
@@ -856,8 +860,8 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
-  keyed by directory in Packet 7 step 10, `LearnStack.Tests.Architecture`,
-  `PersistenceConventionTests`).
+  keyed by directory in Packet 7 step 10, and to six in Packet 8 step 3,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 

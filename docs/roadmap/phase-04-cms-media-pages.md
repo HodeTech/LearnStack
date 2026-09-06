@@ -101,7 +101,7 @@ The key shape LearnStack ships, for every versioned customization aggregate
 | Constraint | Purpose |
 |---|---|
 | `UNIQUE (tenant_id, key, schema_version)` | Identity of one immutable schema revision |
-| `UNIQUE (tenant_id, key) WHERE status = 'active'` (partial index) | At most one publishable revision per concept |
+| `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` (partial index) | At most one publishable revision per concept, and a retired one releases its key |
 
 `(tenant_id, key)` names the concept; `(tenant_id, key, schema_version)` names the
 revision. The partial index preserves what § 10's rule was actually protecting — a
