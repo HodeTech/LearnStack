@@ -53,6 +53,33 @@ public static class MappedLength
 /// </remarks>
 public static class JsonValue
 {
+    /// <summary>
+    /// Whether <paramref name="value"/> is JSON a <c>jsonb</c> column will take.
+    /// </summary>
+    /// <remarks>
+    /// The predicate half of the pair <see cref="UrlSlug"/> already has, and for the
+    /// same reason: a validator owes the caller a refusal, and reaching
+    /// <see cref="EnsureWellFormed"/> for that answer means catching an
+    /// <see cref="ArgumentException"/> to decide whether to report one.
+    /// </remarks>
+    public static bool IsWellFormed(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var _ = System.Text.Json.JsonDocument.Parse(value);
+            return true;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
     public static void EnsureWellFormed(string value, string parameterName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);

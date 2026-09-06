@@ -138,8 +138,9 @@ public abstract class CustomizationDefinition<TId>
     /// Makes this revision the live definition of its concept.
     /// </summary>
     /// <remarks>
-    /// The partial index <c>UNIQUE (tenant_id, key) WHERE status = 'active'</c> is
-    /// what actually holds "one live revision per concept"; the aggregate cannot
+    /// The partial index
+    /// <c>UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL</c>
+    /// is what actually holds "one live revision per concept"; the aggregate cannot
     /// see its siblings. The command that publishes a successor deprecates the
     /// incumbent in the same transaction, and the index is what catches the case
     /// where it did not.

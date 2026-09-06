@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using LearnStack.SharedKernel.Domain;
 
@@ -115,6 +116,48 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
         }
 
         return new LocalizedText(builder.ToImmutable());
+    }
+
+    /// <summary>
+    /// Builds, or answers <see langword="false"/> for input
+    /// <see cref="From(IEnumerable{KeyValuePair{string,string}}, string)"/> would
+    /// refuse.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For a validator, which owes the caller a refusal rather than a <c>500</c>. It
+    /// runs the factory itself for the reason
+    /// <c>MapHostToTenantCommandValidator</c> runs <c>EffectiveHost.Normalize</c>:
+    /// "what this validator accepts" and "what the aggregate accepts" are then the
+    /// same set <b>by construction</b>, rather than two rule sets somebody has to
+    /// keep in agreement. Six rules live in that factory — the tag's shape, its
+    /// canonical form, both length caps, the blank value and the locale cap — and a
+    /// validator restating them is a validator that drifts.
+    /// </para>
+    /// <para>
+    /// The cost is a caught exception on the refusal path, which is the trade this
+    /// makes deliberately: the alternative is a second copy of six rules, and the
+    /// valid path — every request that is going to succeed — pays nothing.
+    /// <see cref="ArgumentNullException"/> is not caught, because a null map is a
+    /// programmer error rather than input a tenant can send.
+    /// </para>
+    /// </remarks>
+    public static bool TryFrom(
+        IEnumerable<KeyValuePair<string, string>> values,
+        [NotNullWhen(true)] out LocalizedText? result)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        try
+        {
+            result = From(values);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            result = null;
+            return false;
+        }
     }
 
     /// <inheritdoc cref="From(IEnumerable{KeyValuePair{string,string}}, string)"/>

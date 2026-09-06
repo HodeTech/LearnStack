@@ -1,5 +1,6 @@
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
@@ -152,6 +153,14 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
+
+        // The same for Customization's two roots, plus the generation counter — which
+        // is a port of its own precisely because it is NOT an aggregate: it derives
+        // from nothing, so the rule that counts a handler's aggregate writes still
+        // counts one for a handler that bumps it (ADR-0043 § 7).
+        services.TryAddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
+        services.TryAddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
+        services.TryAddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
 
         return services;
     }

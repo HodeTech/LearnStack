@@ -629,7 +629,8 @@ render two different tenants; the rest have no consumer for several phases.
 
 Both tables ship the versioned key shape —
 `UNIQUE (tenant_id, key, schema_version)` plus the partial index
-`UNIQUE (tenant_id, key) WHERE status = 'active'`. Not `UNIQUE (tenant_id, key)`:
+`UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL`. Not
+`UNIQUE (tenant_id, key)`:
 that rejects the second revision of any key. See
 [`## Scope` § Tenant Customization Foundation](#tenant-customization-foundation).
 
