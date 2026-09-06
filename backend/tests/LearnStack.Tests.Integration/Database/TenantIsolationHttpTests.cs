@@ -318,7 +318,7 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>These rows are what three of the five cases are about.</b> `tenant_settings` is
+    /// <b>These rows are what `Org_X_cannot_read_Org_Y_within_TenantA`, `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` and `Unsetting_tenant_context_returns_zero_rows_through_RLS` are about — named rather than counted, because a ratio against a total moves every time a case is added and this one already had.</b> `tenant_settings` is
     /// the organization-scoped table class — <c>TenantSetting</c> implements
     /// <c>IOrganizationScoped</c> and its policy carries an organization term — so it is
     /// the only seeded table where "organization X cannot read organization Y" is a
@@ -535,11 +535,12 @@ public sealed record UnresolvedProbeQuery
 
 /// <summary>The customization read, on a request the pipeline runs with no tenant.</summary>
 /// <remarks>
-/// A second type rather than a subject on <see cref="UnresolvedProbeQuery"/>, because
-/// the two read through DIFFERENT module contexts — one settles on
-/// <c>TenancyDbContext</c>, this one on <c>CustomizationDbContext</c> — and a single
-/// type discriminating on a subject would put both in one handler signature for no
-/// gain. The marker is the same on both, which is the part that is not the reason.
+/// A second type rather than a subject on <see cref="UnresolvedProbeQuery"/>, and the
+/// honest reason is small: the pair is two lines of code, and <c>ProbeQuery</c> — which
+/// DOES discriminate a subject across both module contexts in one handler — shows that
+/// unifying them would work too. What would be wrong is unifying them with the
+/// <i>marker</i> as the discriminator: a request type wears one ceiling, and a subject
+/// that changed which ceiling applied would hide the thing this file exists to pin.
 /// </remarks>
 [SharedKernel.Tenancy.AllowsUnresolvedTenantContext]
 public sealed record UnresolvedCustomizationProbeQuery

@@ -1,6 +1,6 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-09-03).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6 and 7 shipped;
+> **Status (2026-09-06).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped;
 > the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -17,7 +17,7 @@
 > | 5 | Foundation ports and default implementations | ✅ [record](#delivery-record-packet-5) |
 > | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
-> | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
+> | 8 | Tenant Customization foundation | ✅ [record](#delivery-record-packet-8) |
 > | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
 > | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
 >
@@ -31,7 +31,8 @@
 > [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
 > [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
 > [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
-> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) — each kept separate
+> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) and Packet 8 in
+> [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -620,7 +621,7 @@ tenant-provisioning and platform-admin commands that legitimately run before a
 tenant is resolved, backed by an architecture test that the attribute appears
 only on that narrow command set.
 
-**Packet 8 — Tenant Customization foundation ⏳**
+**Packet 8 — Tenant Customization foundation ✅** — [record](#delivery-record-packet-8)
 `LearnStack.Modules.Customization` with **two** aggregates:
 `TenantContentType` (JSON Schema declaring a content shape) and
 `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary). These are
@@ -1378,7 +1379,17 @@ skips; the Packet 7 isolation suite green **connected as `learnstack_app`**, inc
 case that reads with `app.tenant_id` reset rather than merely unset; a MUST-class command
 whose audit store is unavailable rejected rather than committed; and two seed tenants in
 unrelated domains, two organizations each, resolvable by host and returning
-tenant-specific customization data through the runtime read paths.
+tenant-specific customization data — its own content type and its own level
+vocabulary — through the request path.
+
+The wording used to say "through the runtime read paths", and that was circular: the
+read path and its generation-keyed cache land with their first consumer in
+[Phase 02d](phase-02d-walking-skeleton.md), which begins when this phase exits. What
+Packet 8 shipped and what this phase can therefore gate on is the data being
+resolvable and isolated per tenant through a real request —
+`Tenant_A_cannot_read_Tenant_B_customizations` is the case that answers it.
+[The Customization module spec](../modules/customization/README.md) is the single
+record of where the read path lands.
 
 [Phase 02c](phase-02c-hub-foundation.md) is not gated on this phase's exit in the
 ordinary sense: it hangs off the spine and starts when its trigger fires (a tenant must
@@ -2587,3 +2598,96 @@ rewriting history. `.githooks/commit-msg` enforces exactly what CI's `meta` job 
   change it was generated from, and cherry-picking it onto `main` conflicts through the
   marker and typed-identifier commits before it — a "migration PR" would have carried
   roughly the first thirty commits of the packet.
+
+## Delivery Record (Packet 8)
+
+Kept separate from the records above. Six steps, each reviewed twice — once by an
+Opus agent round, once by a Sonnet one — and, as in Packets 5, 6 and 7, the second
+round repeatedly found the first round's fix.
+
+> **Packet 8 — Tenant Customization foundation ✅**
+>
+> **Measured at merge: 1465 tests green** — 1 contract, 83 architecture, 1049 unit,
+> 332 integration. Counted from a run under `CI=true`, which makes warnings errors.
+
+### What shipped
+
+- **[ADR-0043](../decisions/0043-customization-payload-validation.md)**, written and
+  approved before any code: what happens to a tenant-authored payload. Six decisions,
+  three inline errata and three dated Amendments, every clause of it measured against
+  the library rather than reasoned about.
+- **Two aggregates.** `TenantContentType` — a tenant-authored JSON Schema plus the
+  composite renderer that draws it — and `TenantLevelTaxonomy` with its bands, sharing
+  a `CustomizationDefinition<TId>` base that owns the Draft → Active → Deprecated
+  lifecycle and the rule that a published body is frozen.
+- **The payload gate.** `IJsonSchemaValidator` in the shared kernel, `JsonSchema.Net`
+  pinned at 8.0.5 behind it in `LearnStack.Infrastructure.Validation`, and ADR-0043's
+  four ordered gates with the schema profile the library does not provide.
+- **The schema.** Four tables in a third migration chain, all under `ENABLE` **and**
+  `FORCE ROW LEVEL SECURITY` with the tenant-owned tenant-wide policy, the versioned
+  key as an alternate key the child foreign key reuses, and the partial
+  `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL`.
+- **The write path.** Four commands — register and publish, per aggregate — three
+  ports, and the generation counter bumped in the same transaction by one statement
+  whose increment PostgreSQL evaluates against the row it is about to write.
+- **A built-in seed.** A `card` content type drawn by `default-card` and a `plain`
+  level taxonomy with three bands, installed by the seeder through the same four
+  commands a tenant admin uses, so a tenant that has authored nothing still resolves
+  something.
+- **[The Customization module spec](../modules/customization/README.md)**, the
+  repository's second, with its permission and audit matrices.
+- **Three things moved rather than copied**, each when a second module needed them:
+  `SnakeCaseNaming`, `AuditColumnMapping` and `WriteStoreTracking` to
+  `LearnStack.Infrastructure`, and what "this identifier was supplied" means to
+  `SharedKernel`.
+
+### What this packet got wrong, and how it was found
+
+- **Two byte-identical unique indexes.** `HasPrincipalKey` invents an alternate key
+  when it cannot find one, so declaring a unique index over the same columns shipped
+  `tenant_level_taxonomies` with two b-trees under a name no source file spelled —
+  and the name PostgreSQL reports on a violation was the invented one.
+- **A partial index that ignored soft delete.** `SoftDelete` does not touch `Status`,
+  so a retired Active definition held its key against the tenant forever and the
+  successor it was retired for could never be published. Found by a review round;
+  the term it added then had **no test**, which the next round found — removing it
+  left all 1390 cases green.
+- **A fixture that applied two of three migration chains.** Eight catalogue-level
+  assertions stopped covering the tables this packet added, each staying green by
+  reading a schema that did not contain them. It happened a second time in the same
+  packet, in a different fixture, which is why all three now call one applier.
+- **Two cleanups that deleted nothing.** Under `FORCE ROW LEVEL SECURITY` the owner
+  is subject to its own policy and `USING` is the only gate a `DELETE` has —
+  measured, `DELETE 0` without an announcement and `DELETE 1` with one.
+- **Ownership checks nothing discriminated.** The seeder verifies that a uniqueness
+  conflict is its own prior run and not another tenant's row. Three of its four arms
+  could be replaced with `true` with the whole suite green — including one that
+  predates this packet.
+- **A regression test that passed for the wrong reason, twice.** The case covering
+  the ownership check was written three times: the first seeded both tenants, so the
+  check answered "yes, mine" about a row it had just written; the second matched on
+  an act label a later, unrelated failure also matched.
+- **Comments that claimed more than was measured.** A performance figure attributed
+  to the wrong method, a catch-clause ordering described as required when measurement
+  showed it defensive, an architecture rule cited as forcing a design it does not
+  constrain, and four surviving copies of a predicate — `WHERE status = 'active'` —
+  that would match no row.
+
+### What it deliberately did not ship
+
+Each of these is recorded, with its owning phase, in
+[the module spec's § Risks](../modules/customization/README.md) rather than only here.
+
+- **The read path and its generation-keyed cache** — [Phase 02d](phase-02d-walking-skeleton.md),
+  with its first consumer.
+- **Deprecate, revise, rename and per-band editing** — they have no caller until the
+  Admin Studio editors, which [Phase 04](phase-04-cms-media-pages.md) and
+  [Phase 05](phase-05-education-learning-content.md) own and
+  [Phase 06](phase-06-renderer-admin-studio.md) consolidates.
+- **Permission keys** — [Phase 03](phase-03-identity-admin.md) brings the registry;
+  [permissions.md](../modules/customization/permissions.md) is the forward declaration.
+- **Audit rows** — Packet 9 lights up `AuditLogBehavior`;
+  [audit.md](../modules/customization/audit.md) classifies what it will write and
+  records what these handlers already do so that adding it is a wiring change.
+- **The remaining five customization aggregates** — each lands with its first
+  consumer, per [ADR-0018's 2026-09-06 Amendment](../decisions/0018-tenant-driven-customization-model.md).

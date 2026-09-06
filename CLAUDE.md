@@ -36,10 +36,10 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6 and 7 shipped; packets 3b–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
-[Packet 8](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the Tenant
-Customization foundation — is next.**
+[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
+infrastructure and the entitlement socket — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -143,6 +143,20 @@ is long for the reason Packet 5's was: the packet's own review rounds found that
 structural sweep is only as wide as the schema it runs on — a second permissive
 policy on `outbox_messages` passed the whole suite — and that the transaction
 boundary was wrong in the two places it is hardest to see.
+
+**Packet 8** shipped the Tenant Customization foundation — the module that makes
+the genericity claim true. Two aggregates a tenant declares as data,
+`TenantContentType` and `TenantLevelTaxonomy`; the payload gate
+[ADR-0043](docs/decisions/0043-customization-payload-validation.md) decides, with
+`JsonSchema.Net` pinned behind `IJsonSchemaValidator` and four ordered gates a
+tenant document passes before a row is written; four tables in a third migration
+chain under the corrected RLS template; four commands and the generation counter
+that every cache key will embed; and a built-in seed so a tenant that has authored
+nothing still has something to render. Its record,
+[Delivery Record (Packet 8)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-8),
+is long for the reason Packets 5, 6 and 7's were: the defects are its own review
+rounds' findings, and the sharpest was a term added by one round that the next
+round found had no test — removing it left all 1390 cases green.
 
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
