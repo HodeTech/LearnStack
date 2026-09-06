@@ -49,8 +49,7 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
 
         if (successor.Status != CustomizationStatus.Draft)
         {
-            return CustomizationFailures.Field<TenantLevelTaxonomyDto>(
-                "lockey_business_rule_violation",
+            return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>(
                 nameof(PublishTenantLevelTaxonomyCommand.TaxonomyId),
                 "lockey_customization_not_a_draft");
         }
@@ -60,8 +59,7 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
         // tenant admin fixes by adding a band.
         if (successor.Items.Count == 0)
         {
-            return CustomizationFailures.Field<TenantLevelTaxonomyDto>(
-                "lockey_business_rule_violation",
+            return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>(
                 nameof(PublishTenantLevelTaxonomyCommand.TaxonomyId),
                 "lockey_taxonomy_items_required");
         }
@@ -96,8 +94,7 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return CustomizationFailures.Field<TenantLevelTaxonomyDto>(
-                "lockey_business_rule_violation", field, reason);
+            return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>(field, reason);
         }
         catch (AggregateConcurrencyException)
         {

@@ -80,8 +80,7 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return CustomizationFailures.Field<TenantContentTypeDto>(
-                "lockey_business_rule_violation", field, reason);
+            return CustomizationFailures.BusinessRule<TenantContentTypeDto>(field, reason);
         }
 
         // In this transaction, because a reader that has already composed a key

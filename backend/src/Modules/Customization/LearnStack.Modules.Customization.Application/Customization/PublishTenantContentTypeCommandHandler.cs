@@ -69,8 +69,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         // refusal a tenant admin acts on.
         if (successor.Status != CustomizationStatus.Draft)
         {
-            return CustomizationFailures.Field<TenantContentTypeDto>(
-                "lockey_business_rule_violation",
+            return CustomizationFailures.BusinessRule<TenantContentTypeDto>(
                 nameof(PublishTenantContentTypeCommand.ContentTypeId),
                 "lockey_customization_not_a_draft");
         }
@@ -109,8 +108,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return CustomizationFailures.Field<TenantContentTypeDto>(
-                "lockey_business_rule_violation", field, reason);
+            return CustomizationFailures.BusinessRule<TenantContentTypeDto>(field, reason);
         }
         catch (AggregateConcurrencyException)
         {

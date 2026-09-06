@@ -8,13 +8,16 @@ namespace LearnStack.Modules.Customization.Application.Customization;
 /// </summary>
 /// <remarks>
 /// The top-level code stays a cross-cutting one — <c>validation_failed</c>,
-/// <c>business_rule_violation</c>, <c>tenant_mismatch</c> — because
+/// <c>not_found</c>, <c>business_rule_violation</c>, <c>concurrency_conflict</c>
+/// and <c>tenant_mismatch</c> are the five this module emits — because
 /// <c>HttpStatusMap</c> is a closed table and a module-specific key there falls
 /// through to <c>500</c>: the one answer a refusal must never give. What is
 /// module-specific goes in the field entry, where a client reads it.
 /// </remarks>
 internal static class CustomizationFailures
 {
+    private const string BusinessRuleViolation = "lockey_business_rule_violation";
+
     /// <summary>The context carried no tenant, so there is nothing to write into.</summary>
     /// <remarks>
     /// <c>TenantContextBehavior</c> has already refused an unresolved context for
@@ -66,6 +69,10 @@ internal static class CustomizationFailures
     internal static Result<T> Stale<T>() =>
         Result.FailFor<Result<T>>(new Error(new LocalizedMessage("lockey_concurrency_conflict")));
 
+    /// <summary>An ordinary business-rule refusal, naming the field to change.</summary>
+    internal static Result<T> BusinessRule<T>(string field, string reason) =>
+        Field<T>(BusinessRuleViolation, field, reason);
+
     internal static Result<T> Field<T>(string code, string field, string reason) =>
         Result.FailFor<Result<T>>(new Error(
             new LocalizedMessage(code),
@@ -97,6 +104,6 @@ internal static class CustomizationFailures
                 ("Items", "lockey_taxonomy_item_key_duplicated"),
             "ux_tenant_level_taxonomy_items_taxonomy_sort" =>
                 ("Items", "lockey_taxonomy_item_sort_duplicated"),
-            _ => ("$", "lockey_business_rule_violation"),
+            _ => ("$", BusinessRuleViolation),
         };
 }

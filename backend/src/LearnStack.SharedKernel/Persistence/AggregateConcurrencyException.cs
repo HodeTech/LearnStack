@@ -33,6 +33,20 @@ namespace LearnStack.SharedKernel.Persistence;
 /// concurrency token, and the row that holds it is the one the caller already
 /// knows about.
 /// </para>
+/// <para>
+/// <b>Catching it is the handler's job</b>, for the reason
+/// <see cref="AggregateConflictException"/> gives for its own: an uncaught one
+/// still reaches the L1 handler, which answers <c>409</c> correctly from the
+/// carried <see cref="Error"/> — but also captures to
+/// <c>IErrorTrackingProvider</c>, because <c>ShouldCapture</c> exempts only
+/// <c>ProviderException.IsClientError</c> and a client-side
+/// <c>BadHttpRequestException</c>. A lost race is an ordinary outcome of two
+/// people editing at once, and reporting it as an error would make the tracker
+/// noisiest exactly when the system is busiest. Adding a third arm is an edit to
+/// <see href="../../../../docs/decisions/0032-exception-handling-logging-and-observability.md">ADR-0032</see>
+/// § Sub-decision 7's table and is owed by the phase that first needs it. Today
+/// the two handlers that can raise it catch it.
+/// </para>
 /// </remarks>
 public sealed class AggregateConcurrencyException : LearnStackException
 {

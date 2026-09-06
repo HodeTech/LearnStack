@@ -130,9 +130,11 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
     /// <c>MapHostToTenantCommandValidator</c> runs <c>EffectiveHost.Normalize</c>:
     /// "what this validator accepts" and "what the aggregate accepts" are then the
     /// same set <b>by construction</b>, rather than two rule sets somebody has to
-    /// keep in agreement. Six rules live in that factory — the tag's shape, its
-    /// canonical form, both length caps, the blank value and the locale cap — and a
-    /// validator restating them is a validator that drifts.
+    /// keep in agreement. Every rule
+    /// <see cref="From(IEnumerable{KeyValuePair{string,string}}, string)"/>'s
+    /// <c>exception</c> doc lists is one a validator restating them would have to
+    /// restate — and one more it could then drift on. The count is deliberately not
+    /// repeated here; that list is where it lives.
     /// </para>
     /// <para>
     /// The cost is a caught exception on the refusal path, which is the trade this

@@ -87,8 +87,7 @@ internal sealed class RegisterTenantLevelTaxonomyCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return CustomizationFailures.Field<TenantLevelTaxonomyDto>(
-                "lockey_business_rule_violation", field, reason);
+            return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>(field, reason);
         }
 
         await generations.BumpAsync(tenantContext.TenantId, cancellationToken);

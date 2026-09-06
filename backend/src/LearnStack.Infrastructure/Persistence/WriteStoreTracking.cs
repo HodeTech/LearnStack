@@ -47,11 +47,16 @@ public static class WriteStoreTracking
         }
         catch (DbUpdateConcurrencyException stale)
         {
-            // Before the 23505 arm, because DbUpdateConcurrencyException DERIVES from
-            // DbUpdateException — ordered the other way this is unreachable, and the
-            // loser of an ordinary race would fall through to the L1 handler as a
-            // DbUpdateException, which HttpStatusMap has no arm for. That is a 500 for
-            // the one outcome the concurrency token exists to report.
+            // Concurrency arm first, defensively rather than of necessity — measured:
+            // with the arms swapped the outcome is unchanged, because the 23505 arm's
+            // filter requires a PostgresException inner and a real
+            // DbUpdateConcurrencyException (zero rows affected) carries none, so a
+            // failed filter falls through to this catch. It is still first, because
+            // DbUpdateConcurrencyException DERIVES from DbUpdateException and the day
+            // that filter is loosened the order becomes the only thing keeping this
+            // reachable — and unreachable, the loser of an ordinary race falls through
+            // to the L1 handler as a DbUpdateException, which HttpStatusMap has no arm
+            // for. That is a 500 for the one outcome the concurrency token reports.
             //
             // Nothing is detached here: a Modified entry's original values are what the
             // database still holds, and a caller re-reading to retry needs the tracker

@@ -476,6 +476,81 @@ public sealed class CustomizationCommandTests
         stores.Writes.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_race_lost_on_the_successor_itself_asks_the_caller_to_re_read(string subject)
+    {
+        // The OTHER catch arm. Every race case above arranges an incumbent, so the
+        // fake's armed failure is always consumed by the incumbent's update and the
+        // successor's own try/catch is never entered — measured, both handlers' second
+        // arm could be deleted with the whole suite green. A first-ever publish under a
+        // key has no incumbent, so the successor's update is the only one there is.
+        var (sender, stores) = Build();
+
+        if (subject == "content-type")
+        {
+            await sender.Send(RegisterContentType());
+            stores.NextStale = true;
+
+            var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+            result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+            return;
+        }
+
+        await sender.Send(RegisterTaxonomy());
+        stores.NextStale = true;
+
+        var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+        taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+    }
+
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_uniqueness_the_successor_s_own_publish_hits_names_the_field(string subject)
+    {
+        // The same arm's sibling: the partial index refuses a second live revision,
+        // and the row it refuses is the successor's. Without an incumbent this is the
+        // only update in the run, so it is the one that collides.
+        var (sender, stores) = Build();
+
+        if (subject == "content-type")
+        {
+            await sender.Send(RegisterContentType());
+            stores.NextConflict = "ux_tenant_content_types_tenant_id_key_active";
+
+            var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+            result.Error!.Details!["Key"].Single().Key
+                .Should().Be("lockey_customization_key_already_live");
+            return;
+        }
+
+        await sender.Send(RegisterTaxonomy());
+        stores.NextConflict = "ux_tenant_level_taxonomies_tenant_id_key_active";
+
+        var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+        taxonomyResult.Error!.Details!["Key"].Single().Key
+            .Should().Be("lockey_customization_key_already_live");
+    }
+
+    [Fact]
+    public async Task A_taxonomy_that_collides_on_insert_names_the_field_too()
+    {
+        // The content type's register handler has this covered twice; its taxonomy
+        // twin is the same shape and had nothing — measured, deleting its whole catch
+        // block left the suite green and turned a 409 into an unhandled exception.
+        var (sender, stores) = Build();
+        stores.NextConflict = "ux_tenant_level_taxonomies_tenant_id_key_schema_version";
+
+        var result = await sender.Send(RegisterTaxonomy());
+
+        result.Error!.Message.Key.Should().Be("lockey_business_rule_violation");
+        result.Error!.Details!["SchemaVersion"].Single().Key
+            .Should().Be("lockey_schema_version_taken");
+        stores.Writes.Should().NotContain("generation:bump");
+    }
+
     // ── What the validators refuse ────────────────────────────────────────
     //
     // Asserted through the validator resolved from the container, not through the
