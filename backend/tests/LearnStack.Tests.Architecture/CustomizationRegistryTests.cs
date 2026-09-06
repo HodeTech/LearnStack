@@ -50,13 +50,24 @@ public sealed class CustomizationRegistryTests
             + "the author is told the renderer does not exist while the page can draw it");
     }
 
+    /// <summary>
+    /// The frontend primitive set is exactly the twelve
+    /// <see href="../../../docs/decisions/0018-tenant-driven-customization-model.md">ADR-0018</see>
+    /// § Renderer architecture grants.
+    /// </summary>
+    /// <remarks>
+    /// The catalogue's name for this rule, rather than a description of what it
+    /// currently counts: <c>Standards 21 § Canonical names</c> says one rule has one
+    /// identifier, and a name carrying "twelve" would have to be renamed by the
+    /// release that grants a thirteenth — which is a rename nobody would make.
+    /// </remarks>
     [Fact]
-    public void The_frontend_primitive_set_is_the_twelve_ADR_0018_grants()
+    public void Generic_Primitives_Only_In_Renderer()
     {
         // Not a composite-renderer rule, but the same failure mode and the same
         // file pair. ADR-0018 § Renderer architecture is the decision; the
         // architecture doc is its deep dive and drifted from it. Stated here as
-        // literals so a fourteenth primitive fails rather than being absorbed.
+        // literals so a thirteenth primitive fails rather than being absorbed.
         FrontendKeys("primitives.ts", "PRIMITIVE_KEYS")
             .Should().BeEquivalentTo(GrantedPrimitiveKeys);
     }

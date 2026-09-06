@@ -148,7 +148,7 @@ claim that removes or narrows anything
 | Removed field, narrowed type, new required field, tightened enum | New `schema_version` |
 
 `(tenant_id, key, schema_version)` identifies one revision; the partial index
-`UNIQUE (tenant_id, key) WHERE status = 'active'` keeps at most one live
+`UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` keeps at most one live
 definition per concept. Existing entries pin their `schema_version` at creation,
 so a breaking revision never invalidates a stored entry — it just stops being the
 one new entries are written against.

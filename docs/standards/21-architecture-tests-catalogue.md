@@ -569,9 +569,12 @@ otherwise).
 - **Source:** [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md);
   [32-tenant-customization-model.md § 2](../architecture/32-tenant-customization-model.md).
   Named in shipped code at `frontend/apps/web/src/lib/customization/primitives.ts`.
-- **Type:** frontend test over the renderer map. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02a (Packet 10).
+- **Type:** xUnit + a bounded scan of the named `as const` declaration. **Kind:** structural.
+- **Status:** **Implemented** — `CustomizationRegistryTests.cs`. The set is written out
+  as literals in the test rather than read from either registry, so a thirteenth
+  primitive fails the rule instead of being absorbed by it — which is what the two
+  copies had already done to each other before Packet 8 pinned them.
+- **Phase:** 02a (Packet 8).
 
 #### `Composite_Renderer_Keys_Match_The_Frontend_Registry`
 
@@ -581,9 +584,8 @@ otherwise).
   shells land with the phases that render them — a declared-but-unregistered key renders
   `UnknownBlock` ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)), while a
   registered-but-undeclared one makes the backend refuse a save for a renderer the page
-  can draw. A sibling case pins the frontend primitive set to the twelve
-  [ADR-0018](../decisions/0018-tenant-driven-customization-model.md) grants, which is where
-  the two copies had already drifted.
+  can draw. `Generic_Primitives_Only_In_Renderer` above is the sibling rule on the same
+  file pair, pinning the primitive set.
 - **Source:** [ADR-0018 § Renderer architecture](../decisions/0018-tenant-driven-customization-model.md);
   [32-tenant-customization-model.md § 2 and § 8.1](../architecture/32-tenant-customization-model.md).
 - **Type:** xUnit + a bounded scan of the named `as const` declaration. **Kind:** structural.

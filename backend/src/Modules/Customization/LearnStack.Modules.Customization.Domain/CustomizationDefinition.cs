@@ -40,7 +40,7 @@ public enum CustomizationStatus
 /// the key shape
 /// <see href="../../../../../docs/roadmap/phase-04-cms-media-pages.md">Phase 04</see>
 /// fixes — <c>UNIQUE (tenant_id, key, schema_version)</c> for the revision,
-/// <c>UNIQUE (tenant_id, key) WHERE status = 'active'</c> for the live definition —
+/// <c>UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL</c> for the live definition —
 /// and the same transitions. Two copies of a lifecycle is two lifecycles as soon
 /// as one of them is edited.
 /// </para>

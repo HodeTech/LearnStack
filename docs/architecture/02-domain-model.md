@@ -398,7 +398,7 @@ module owns these aggregates:
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `TenantContentType` | Yes | JSON Schema for a content type (e.g. `vocabulary-card`, `asana-pose`, `code-challenge`). Tenant-scoped. The key shape is **`UNIQUE (tenant_id, key, schema_version)` plus a partial `UNIQUE (tenant_id, key) WHERE status = 'active'`** — `UNIQUE (tenant_id, key)` alone would reject the second revision of any key and make the first breaking change ADR-0013 requires impossible. [Phase 04 § Customization Key Shape](../roadmap/phase-04-cms-media-pages.md) is the authority. |
+| `TenantContentType` | Yes | JSON Schema for a content type (e.g. `vocabulary-card`, `asana-pose`, `code-challenge`). Tenant-scoped. The key shape is **`UNIQUE (tenant_id, key, schema_version)` plus a partial `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL`** — `UNIQUE (tenant_id, key)` alone would reject the second revision of any key and make the first breaking change ADR-0013 requires impossible. [Phase 04 § Customization Key Shape](../roadmap/phase-04-cms-media-pages.md) is the authority. |
 | `TenantPageBlock` | Yes | JSON Schema for a page block + composite renderer key (e.g. `default-card`, `content-list`). |
 | `TenantLessonItemType` | Yes | JSON Schema for a custom lesson item type + player composite key. |
 | `TenantLevelTaxonomy` | Yes | Flat list of level items with metadata (sort, color, …). Examples: CEFR, yoga-difficulty, coding-difficulty. |

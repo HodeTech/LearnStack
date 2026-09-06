@@ -1073,7 +1073,7 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
   `TenantTemplateLibrary` in [Phase 08a](phase-08a-assessment-notifications.md).
 - Both aggregates carry the versioned key shape from their first migration:
   `UNIQUE (tenant_id, key, schema_version)` for the revision, plus the partial index
-  `UNIQUE (tenant_id, key) WHERE status = 'active'` for the live definition.
+  `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` for the live definition.
   [Phase 04](phase-04-cms-media-pages.md) § Customization Key Shape and Immutable Schema
   Versions is the authority; the constraint ships here because this is the table's first
   migration and ADR-0013's version history cannot be retrofitted onto

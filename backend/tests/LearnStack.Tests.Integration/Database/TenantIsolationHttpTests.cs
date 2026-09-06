@@ -21,13 +21,13 @@ using Xunit;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// The five isolation cases, re-run through a real request.
+/// The isolation cases, re-run through a real request.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What Packet 7 owns that Packet 6 did not.</b> Packet 6 shipped all five against the
-/// schema, driving them with <c>set_config</c> in a test — statements about the migration
-/// and its policies. These drive the same five through
+/// <b>What Packet 7 owns that Packet 6 did not.</b> Packet 6 shipped the tenancy cases
+/// against the schema, driving them with <c>set_config</c> in a test — statements about
+/// the migration and its policies. These drive them through
 /// <c>HostClassificationMiddleware</c>, <c>TenantResolverMiddleware</c>,
 /// <c>TenantContextBehavior</c>, <c>TransactionBehavior</c>'s announcement and the EF
 /// query filters, which is the path a browser takes. Not because nothing else exercises
@@ -55,10 +55,11 @@ namespace LearnStack.Tests.Integration.Database;
 /// <para>
 /// <b>What these cases constrain, measured in both directions.</b> They constrain the
 /// composite outcome — the answer a request gets — and each read is protected by two
-/// independent layers, so no single-layer mutation breaks one. Delete BOTH EF query
-/// filters and all five stay green, because Row Level Security alone holds; disable RLS on
-/// every tenancy table instead and the four reads stay green, because the filters alone
-/// hold. Remove both and all five go red. That is defense in depth behaving as designed
+/// independent layers, so no single-layer mutation breaks one. Delete the EF query
+/// filters and every case stays green, because Row Level Security alone holds; disable RLS
+/// instead and they stay green, because the filters alone hold. Remove both and they go
+/// red — measured for the tenancy tables when this file shipped, and again for the
+/// customization ones when Packet 8 added its two. That is defense in depth behaving as designed
 /// rather than a gap, and the two halves are separately constrained elsewhere: the filters
 /// by <c>Every_TenantOwned_Entity_HasFilterAndRlsPolicy</c>,
 /// <c>Every_OrgScoped_Entity_HasOrgIdAndFilter</c> and
@@ -492,9 +493,9 @@ public sealed class IsolationProbeController(MediatR.ISender sender)
 
 /// <summary>What the probe reads.</summary>
 /// <remarks>
-/// The unresolved-context read is a separate request type rather than a third member here,
-/// and the asymmetry is deliberate: what distinguishes it is not which rows it wants but
-/// which marker it carries, and a marker is a property of the type. Folding it in would
+/// The unresolved-context reads are separate request types rather than members here, and
+/// the asymmetry is deliberate: what distinguishes them is not which rows they want but
+/// which marker they carry, and a marker is a property of the type. Folding them in would
 /// mean one request type wearing two ceilings.
 /// </remarks>
 public enum ProbeSubject
@@ -534,9 +535,11 @@ public sealed record UnresolvedProbeQuery
 
 /// <summary>The customization read, on a request the pipeline runs with no tenant.</summary>
 /// <remarks>
-/// A second type rather than a flag on <see cref="UnresolvedProbeQuery"/>, for the
-/// reason that one is separate from <c>ProbeQuery</c>: what distinguishes it is which
-/// marker it carries, and a marker is a property of the type.
+/// A second type rather than a subject on <see cref="UnresolvedProbeQuery"/>, because
+/// the two read through DIFFERENT module contexts — one settles on
+/// <c>TenancyDbContext</c>, this one on <c>CustomizationDbContext</c> — and a single
+/// type discriminating on a subject would put both in one handler signature for no
+/// gain. The marker is the same on both, which is the part that is not the reason.
 /// </remarks>
 [SharedKernel.Tenancy.AllowsUnresolvedTenantContext]
 public sealed record UnresolvedCustomizationProbeQuery
@@ -603,21 +606,23 @@ public sealed class ProbeQueryHandler(
             await ReadCustomizationsAsync(customization, cancellationToken));
 
     /// <summary>
-    /// Every setting the request can see, as <c>key=scope</c>.
-    /// </summary>
-    /// <remarks>
-    /// The value is projected to the owning organization's slug — or the tenant's, for a
-    /// tenant-wide row — so an assertion names what it expects to see rather than a raw
-    /// setting value. No <c>Where</c>: what a request sees is the filters' and the
-    /// policies' answer, and narrowing it here would be the test testing itself.
-    /// </remarks>
-    /// <summary>
     /// Every customization the request can see, as <c>kind:key</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Three of the four tables, because the fourth is a counter with nothing to
     /// name. No <c>Where</c>: what a request sees is the filters' and the policies'
     /// answer, and narrowing it here would be the test testing itself.
+    /// </para>
+    /// <para>
+    /// <b>The bands come off the item table, not through the taxonomy.</b> Reading
+    /// them as <c>SelectMany(taxonomy =&gt; taxonomy.Items)</c> translates to a join
+    /// whose <c>ON</c> clause already carries <c>tenant_id</c>, so the parent's
+    /// isolation hides a band whatever the item table's own filter and policy say —
+    /// measured: with both of the item table's layers removed, that read still
+    /// returned only this tenant's bands. Reaching the entity directly is what puts
+    /// the child's two layers in front of the request.
+    /// </para>
     /// </remarks>
     private static async Task<List<string>> ReadCustomizationsAsync(
         LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext db,
@@ -631,14 +636,23 @@ public sealed class ProbeQueryHandler(
             .Select(taxonomy => "taxonomy:" + taxonomy.Key)
             .ToListAsync(cancellationToken);
 
-        var bands = await db.TenantLevelTaxonomies
-            .SelectMany(taxonomy => taxonomy.Items)
+        var bands = await db
+            .Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>()
             .Select(item => "band:" + item.Key)
             .ToListAsync(cancellationToken);
 
         return [.. contentTypes.Concat(taxonomies).Concat(bands).Order(StringComparer.Ordinal)];
     }
 
+    /// <summary>
+    /// Every setting the request can see, as <c>key=scope</c>.
+    /// </summary>
+    /// <remarks>
+    /// The value is projected to the owning organization's slug — or the tenant's, for a
+    /// tenant-wide row — so an assertion names what it expects to see rather than a raw
+    /// setting value. No <c>Where</c>: what a request sees is the filters' and the
+    /// policies' answer, and narrowing it here would be the test testing itself.
+    /// </remarks>
     private static async Task<List<string>> ReadSettingsAsync(
         TenancyDbContext db, CancellationToken cancellationToken) =>
         await db.TenantSettings
