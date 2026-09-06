@@ -45,7 +45,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <b>The data is the seed, not a fixture.</b> The two demo tenants and their host rows
 /// come from <c>SeedRunner</c> — the same code <c>make seed</c> runs — so these cases also
 /// answer "does what the seeder writes actually serve a request?", which is the question
-/// [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) asks in a browser.
+/// [Phase 02d](../../../../docs/roadmap/phase-02d-walking-skeleton.md) asks in a browser.
 /// </para>
 /// <para>
 /// <b>No production endpoint ships in this packet.</b> The reads go through a test-only

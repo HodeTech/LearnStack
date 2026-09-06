@@ -13,9 +13,9 @@ namespace LearnStack.Tests.Unit.Api.Tenancy;
 /// </summary>
 /// <remarks>
 /// Catalogued in
-/// <see href="../../../../docs/standards/21-architecture-tests-catalogue.md">Standards
+/// <see href="../../../../../docs/standards/21-architecture-tests-catalogue.md">Standards
 /// 21 § Tenant and organization resolution</see>, from
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
+/// <see href="../../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
 /// § The reconciliation matrix</see>. Driven against the predicate rather than
 /// through the middleware: the rule is about paths, and routing a request through
 /// the middleware to observe it would need a resolver and a database that the

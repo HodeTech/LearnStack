@@ -272,31 +272,35 @@ public sealed class SeederTests : IAsyncLifetime
             .Should().Be(0L);
     }
 
-    [Fact]
-    public async Task A_built_in_whose_id_another_tenant_holds_stops_the_run()
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_built_in_whose_id_another_tenant_holds_stops_the_run(string subject)
     {
-        // The ownership verification, for the two customization acts. A content type's
+        // The ownership verification, for the two customization acts. A definition's
         // id is a uuid primary key and therefore GLOBAL, while its key is per tenant —
         // so a second tenant handed the first tenant's id conflicts on the primary key
         // and the conflict looks exactly like a prior run of its own.
         //
         // Without the check the seeder logs "already present", exits 0, and leaves that
-        // tenant with no content type at all — the same masking defect the host act was
-        // given this verification for. Measured: with both customization arms replaced
-        // by `true`, the whole suite stays green.
+        // tenant with no definition at all — the same masking defect the host act was
+        // given this verification for.
+        //
+        // BOTH arms, because they are two switch cases: measured, with only the
+        // taxonomy arm forced to report "owned", the whole 1461-test suite stayed
+        // green while half the defect this packet exists to close was still open.
         await using var dataSource = DataSource();
 
-        // ONLY the first tenant, so the second genuinely has no content type of its
-        // own. Seeding both first would make the ownership check answer "yes, mine"
-        // about the row it wrote a moment earlier, and the case would prove nothing.
+        // ONLY the first tenant, so the second genuinely has no definition of its own.
+        // Seeding both first would make the ownership check answer "yes, mine" about a
+        // row it wrote a moment earlier, and the case would prove nothing.
         (await Runner(dataSource)
             .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
 
         // The second tenant, re-declared with the first tenant's built-in id.
-        var collidingYoga = SeedData.Yoga with
-        {
-            BuiltInContentTypeId = SeedData.English.BuiltInContentTypeId,
-        };
+        var collidingYoga = subject == "content-type"
+            ? SeedData.Yoga with { BuiltInContentTypeId = SeedData.English.BuiltInContentTypeId }
+            : SeedData.Yoga with { BuiltInTaxonomyId = SeedData.English.BuiltInTaxonomyId };
 
         var seed = async () => await Runner(dataSource)
             .RunAsync(CancellationToken.None, [collidingYoga]);
@@ -307,6 +311,35 @@ public sealed class SeederTests : IAsyncLifetime
         // too. Measured: it did.
         (await seed.Should().ThrowAsync<InvalidOperationException>(
             "a conflict on a row this tenant does not own is not a prior run"))
+            .WithMessage("*the row that holds the name is not this tenant's*");
+    }
+
+    [Fact]
+    public async Task An_organization_whose_id_another_tenant_holds_stops_the_run()
+    {
+        // The same hole, in the act that predates this packet: `SecondOrganizationAct`'s
+        // ownership arm had no negative case either, and forcing it to report "owned"
+        // is invisible to the whole suite. It is not the slug that collides globally —
+        // ux_organizations_tenant_id_slug is per tenant — it is the primary key, the
+        // same shape as the two customization cases above.
+        await using var dataSource = DataSource();
+
+        (await Runner(dataSource)
+            .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+
+        var collidingYoga = SeedData.Yoga with
+        {
+            SecondOrganization = SeedData.Yoga.SecondOrganization with
+            {
+                OrganizationId = SeedData.English.SecondOrganization.OrganizationId,
+            },
+        };
+
+        var seed = async () => await Runner(dataSource)
+            .RunAsync(CancellationToken.None, [collidingYoga]);
+
+        (await seed.Should().ThrowAsync<InvalidOperationException>(
+            "an organization id another tenant holds is not this tenant's prior run"))
             .WithMessage("*the row that holds the name is not this tenant's*");
     }
 

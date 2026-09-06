@@ -443,11 +443,15 @@ otherwise).
 
 - **Asserts:** no module assembly and no core assembly (`LearnStack.SharedKernel`,
   `LearnStack.Domain`, `LearnStack.Application`, `LearnStack.Application.Contracts`,
-  `LearnStack.Api`) depends on the `Json.Schema` namespace. Only
-  `LearnStack.Infrastructure.Validation` references the package; everything else reaches
-  the evaluator through `IJsonSchemaValidator`. The sweep includes the shared kernel
-  deliberately — it declares the port, so it is the assembly most likely to reach for the
-  library by accident. `Adapters_Wrap_Provider_Exceptions` does **not** cover this: its forbidden list
+  `LearnStack.Api`, `LearnStack.Tools.Seeder`) depends on the `Json.Schema` namespace.
+  Only `LearnStack.Infrastructure.Validation` references the package; everything else
+  reaches the evaluator through `IJsonSchemaValidator`. The sweep includes the shared
+  kernel deliberately — it declares the port, so it is the assembly most likely to reach
+  for the library by accident. The seeder joined it in Packet 8 step 5, and it is the
+  entry that needed a decision rather than a habit: as the second composition root it
+  legitimately references the adapter **project** in order to register the port, and
+  that reference is exactly what would let it name a `Json.Schema` type with no other
+  rule noticing. `Adapters_Wrap_Provider_Exceptions` does **not** cover this: its forbidden list
   is a closed enumeration of network-reached provider SDKs, and an in-process evaluator
   is not one — the same split the corpus already made between
   `Dapr_SDK_Types_NotImportedOutsideInfrastructure` and the exception rule.

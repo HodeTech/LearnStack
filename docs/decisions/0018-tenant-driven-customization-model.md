@@ -525,6 +525,26 @@ blocks in it show a key shape the platform does not accept; the corrected form i
 in [32-tenant-customization-model.md § 3](../architecture/32-tenant-customization-model.md),
 which is the document the implementation follows.
 
+### 2026-09-06 — The aggregates ship phase by phase, not in one bundle
+
+§ Implementation notes lists all seven customization aggregates against "Phase 02
+— Platform kernel", as though they land together. They do not, and have not since
+the 2026-08-08 restructure: only the two the runtime needs before a browser can
+render two tenants ship in
+[Phase 02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md) —
+`TenantContentType` and `TenantLevelTaxonomy` — and the rest land with their
+first consumer.
+
+**Where each one lands** is a single record, and it is not here:
+[Tenant Customization Model § 12](../architecture/32-tenant-customization-model.md)
+carries the phasing table, and the Packet 8 entry in the phase document carries
+the same mapping for the packet's own scope. This ADR's list is read as what the
+model contains, not as a delivery schedule.
+
+Nothing about the decision changes. The aggregates are still the whole
+customization surface, they are still tenant data rather than code, and the
+Option A model this ADR chose is what every one of them is delivered under.
+
 ## References
 
 - **Supersedes** ADR-0011 (Extension Points).

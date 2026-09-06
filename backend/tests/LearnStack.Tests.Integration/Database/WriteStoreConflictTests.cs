@@ -29,7 +29,12 @@ namespace LearnStack.Tests.Integration.Database;
 /// the arm is ever entered.
 /// </para>
 /// <para>
-/// Every case rolls back, so the counts the schema cases assert are unchanged.
+/// <b>The setup write commits; the write under test does not.</b> A real 23505 and
+/// a real stale token both need a row another transaction can already see, so the
+/// probe row is committed on purpose — which is why each case ends by deleting it
+/// under the announcement its policy requires, rather than by rolling anything
+/// back. The container is shared and the schema cases assert exact counts for the
+/// tenant these probes belong to.
 /// </para>
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]

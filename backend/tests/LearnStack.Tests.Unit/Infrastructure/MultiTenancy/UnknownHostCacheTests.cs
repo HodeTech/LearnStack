@@ -7,7 +7,7 @@ namespace LearnStack.Tests.Unit.Infrastructure.MultiTenancy;
 
 /// <summary>
 /// The separately-capped structure
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
+/// <see href="../../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
 /// requires for unknown hosts, so a flood cannot evict real mappings.
 /// </summary>
 /// <remarks>
