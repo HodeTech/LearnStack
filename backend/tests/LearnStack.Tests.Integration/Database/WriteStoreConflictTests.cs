@@ -167,20 +167,36 @@ public sealed class WriteStoreConflictTests
     }
 
     /// <summary>
-    /// Removes what a case committed, as the owner.
+    /// Removes what a case committed, under the announcement its policy requires.
     /// </summary>
     /// <remarks>
-    /// The fixture's container is shared, and the schema cases assert exact row
-    /// counts — a probe row left behind fails a case that has nothing to do with
-    /// this file.
+    /// <para>
+    /// <b>The announcement is not optional, and the owner does not escape it.</b>
+    /// These tables are under <c>FORCE ROW LEVEL SECURITY</c>, so
+    /// <c>learnstack_migration</c> is subject to its own policy — and <c>USING</c>
+    /// is the only gate a <c>DELETE</c> has. Measured: with no
+    /// <c>app.tenant_id</c> the statement reports <c>DELETE 0</c> and the row
+    /// stays; with it, <c>DELETE 1</c>. A cleanup that silently removes nothing is
+    /// worse than none, because the probe rows belong to
+    /// <see cref="SchemaFixture.TenantA"/> — the tenant whose exact row counts other
+    /// cases in this shared container assert.
+    /// </para>
+    /// <para>
+    /// One transaction, committed: the row has to be gone for the next case, not
+    /// rolled back with the read that removed it.
+    /// </para>
     /// </remarks>
     private async Task DeleteAsync(TenantContentTypeId id)
     {
         await using var owner = await PostgresFixture.OpenAsync(
             _schema.Postgres.MigrationConnectionString);
+        await using var transaction = await owner.BeginTransactionAsync();
 
-        await SchemaQueries.ExecuteAsync(owner, null,
+        await SchemaQueries.SetTenantAsync(owner, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.ExecuteAsync(owner, transaction,
             "DELETE FROM tenant_content_types WHERE id = @id", ("id", id.Value));
+
+        await transaction.CommitAsync();
     }
 
     private ServiceProvider BuildProvider()

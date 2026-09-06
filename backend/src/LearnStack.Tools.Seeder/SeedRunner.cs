@@ -365,9 +365,17 @@ public sealed class SeedRunner(
         "lockey_identifier_taken",
         "lockey_host_taken",
 
-        // The customization acts. A second run's REGISTER conflicts on the versioned
-        // key; its PUBLISH refuses because the definition it names is already Active,
-        // which is the same fact reported from the other side of the same row.
+        // The customization acts. A second run's PUBLISH refuses because the
+        // definition it names is already Active — that one is reached on every
+        // repeat, and without it `make seed` would throw the second time it ran.
+        //
+        // The two uniqueness reasons are the REGISTER side. The shipped seed carries
+        // a fixed id, so a repeat collides on the primary key and reports
+        // `lockey_identifier_taken` above; these two are what a register hits when
+        // the id differs and the KEY is what is taken — a hand-edited SeedData, or a
+        // tenant that authored its own `card` before the seeder reached it. Leaving
+        // that definition alone is the right answer in both cases, and the ownership
+        // check is what stops the answer being given for somebody else's row.
         "lockey_schema_version_taken",
         "lockey_customization_key_already_live",
         "lockey_customization_not_a_draft",

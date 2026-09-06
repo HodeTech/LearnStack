@@ -170,9 +170,11 @@ is the next user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
-**Tenancy is the only module holding domain code**, as of Packet 6: the
-`Tenant` and `Organization` aggregates, their entities, and
-`TenancyDbContext`. The other six module assemblies are still empty, and
+**Two modules hold domain code**, as of Packet 8: Tenancy — the `Tenant` and
+`Organization` aggregates, their entities, and `TenancyDbContext` — and
+Customization, with `TenantContentType`, `TenantLevelTaxonomy`, their
+generation counter and `CustomizationDbContext`. The other five module
+assemblies are still empty, and
 module-level references in the docs (e.g.
 `LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
 `ITenantSearch`) describe **intended** shape that the corpus anchors

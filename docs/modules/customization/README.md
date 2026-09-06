@@ -57,7 +57,7 @@ erDiagram
     tenant_content_types {
         uuid id PK
         uuid tenant_id
-        text key
+        varchar key
         int schema_version
         int schema_revision
         text status
@@ -68,7 +68,7 @@ erDiagram
     tenant_level_taxonomies {
         uuid id PK
         uuid tenant_id
-        text key
+        varchar key
         int schema_version
         int schema_revision
         text status
@@ -76,9 +76,9 @@ erDiagram
     }
     tenant_level_taxonomy_items {
         uuid tenant_id PK
-        text taxonomy_key PK
+        varchar taxonomy_key PK
         int schema_version PK
-        text key PK
+        varchar key PK
         jsonb display_name
         smallint sort
         jsonb metadata
@@ -157,6 +157,15 @@ ordering PostgreSQL rejects — and it would reject it after the successor's
 `UPDATE` had already been sent. All of it is one transaction, because
 [ADR-0040](../../decisions/0040-ambient-unit-of-work.md) gives the scope one.
 
+### Primary integration-event flow: none
+
+There is no integration-event diagram because there is no integration event —
+see [§ Integration-event catalogue](#integration-event-catalogue) for why, and
+for the condition under which one becomes owed.
+[Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md)
+asks for a diagram of the primary integration-event flow; this records its
+absence rather than substituting an unrelated diagram for it.
+
 ### Primary read flow: resolving a tenant's shapes
 
 Not implemented. The read path is a projection keyed on
@@ -179,6 +188,8 @@ graph TD
     Seeder[Tools.Seeder]
 
     Seeder --> Contracts
+    Seeder --> App
+    Seeder --> Infra
     App --> Contracts
     App --> Domain
     App --> Gate
@@ -186,8 +197,10 @@ graph TD
     Infra --> Domain
 ```
 
-Text fallback: contracts name only `SharedKernel` types, so a module sending a
-command does not take a dependency on `Customization.Domain` — the forbidden
+Text fallback: the seeder is the second composition root, so it references the
+Application and Infrastructure projects as well as the contracts — it has to
+register the ports itself. Contracts name only `SharedKernel` types, so a module
+sending a command does not take a dependency on `Customization.Domain` — the forbidden
 `Module A → Module B.Domain` edge. Application declares the ports; Infrastructure
 implements them and is wired at the composition root. The JSON-Schema gate is a
 shared-kernel port with one adapter, and `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
@@ -223,7 +236,7 @@ In [audit.md](audit.md), the file
 | Resolve a tenant's live definitions (cache miss) | **< 20 ms** p95 | Two indexed reads on partial unique indexes |
 | Admit a tenant-authored schema (four gates) | **< 50 ms** p95 | Interactive, on save, and rare |
 | Validate one instance at the § 8.4 caps | **742 ms, 1.6 GB** | Measured worst case, not a budget — see below |
-| Publish a successor (4 statements) | **< 100 ms** p95 | Interactive but rare |
+| Publish a successor (2 reads, 2 updates, 1 upsert) | **< 100 ms** p95 | Interactive but rare |
 
 The instance-validation number is the one to read carefully: it is a **measured
 worst case** at

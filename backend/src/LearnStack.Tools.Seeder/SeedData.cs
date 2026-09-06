@@ -89,10 +89,15 @@ public static class SeedData
 /// </param>
 /// <remarks>
 /// The two customization ids are fixed literals for the same reason every other id
-/// here is: a re-run has to conflict on the id it wrote last time, and an id
-/// generated per run would insert a second copy under a second key instead of
-/// reporting "already present". They are per tenant because the row is — the key
-/// is unique within a tenant, not globally.
+/// here is: a re-run has to conflict on something it wrote last time. An id
+/// generated per run would not insert a second copy — the versioned key would
+/// still refuse it — but it would report the collision as
+/// <c>lockey_schema_version_taken</c> rather than <c>lockey_identifier_taken</c>,
+/// and the seed would then be idempotent by a different accident on every run.
+/// They are per tenant because the id is a global primary key while the key is
+/// unique only within a tenant: two tenants sharing an id is a collision, and the
+/// seeder's ownership check is what turns it into a stopped run rather than a
+/// silent "already present".
 /// </remarks>
 public sealed record SeedTenant(
     TenantId TenantId,

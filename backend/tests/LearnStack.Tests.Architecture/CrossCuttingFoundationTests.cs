@@ -258,12 +258,19 @@ public sealed class CrossCuttingFoundationTests
         // The sweep is wider than ModuleAssemblyShapes because the PORT is in the
         // shared kernel: the assembly most likely to reach for the library by
         // accident is the one that declares the interface.
+        //
+        // The seeder is on the list as of Packet 8 step 5, and it is the entry that
+        // needed a decision rather than a habit: it is the second composition root,
+        // so it legitimately references the adapter PROJECT in order to register the
+        // port — and that reference is exactly what would let it name a `Json.Schema`
+        // type without any other rule noticing.
         var confined = ModuleAssemblyShapes
             .Append("LearnStack.SharedKernel")
             .Append("LearnStack.Domain")
             .Append("LearnStack.Application")
             .Append("LearnStack.Application.Contracts")
             .Append("LearnStack.Api")
+            .Append("LearnStack.Tools.Seeder")
             .Select(TryLoadAssembly)
             .Where(assembly => assembly is not null)
             .ToArray();

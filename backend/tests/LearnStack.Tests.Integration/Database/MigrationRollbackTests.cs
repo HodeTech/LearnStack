@@ -90,14 +90,10 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     {
         await Postgres.InitializeAsync();
 
-        await using var tenancy = CreateTenancy();
-        await tenancy.Database.MigrateAsync();
-
-        await using var platform = CreatePlatform();
-        await platform.Database.MigrateAsync();
-
-        await using var customization = CreateCustomization();
-        await customization.Database.MigrateAsync();
+        // The shared applier, so a fourth chain reaches this fixture without anybody
+        // remembering. The three CreateX helpers below stay: the REVERSAL half needs
+        // per-chain control, which is the half that cannot be shared.
+        await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();
