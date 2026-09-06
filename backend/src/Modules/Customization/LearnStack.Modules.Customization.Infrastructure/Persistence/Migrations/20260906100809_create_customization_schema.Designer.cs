@@ -88,7 +88,6 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                         .HasColumnName("renderer_key");
 
                     b.Property<int>("SchemaRevision")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("schema_revision");
@@ -123,14 +122,13 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_tenant_content_types");
 
+                    b.HasAlternateKey("TenantId", "Key", "SchemaVersion")
+                        .HasName("ux_tenant_content_types_tenant_id_key_schema_version");
+
                     b.HasIndex("TenantId", "Key")
                         .IsUnique()
                         .HasDatabaseName("ux_tenant_content_types_tenant_id_key_active")
-                        .HasFilter("status = 'Active'");
-
-                    b.HasIndex("TenantId", "Key", "SchemaVersion")
-                        .IsUnique()
-                        .HasDatabaseName("ux_tenant_content_types_tenant_id_key_schema_version");
+                        .HasFilter("status = 'Active' AND deleted_at IS NULL");
 
                     b.ToTable("tenant_content_types", (string)null);
                 });
@@ -169,7 +167,6 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                         .HasColumnName("key");
 
                     b.Property<int>("SchemaRevision")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("schema_revision");
@@ -205,16 +202,12 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                         .HasName("pk_tenant_level_taxonomies");
 
                     b.HasAlternateKey("TenantId", "Key", "SchemaVersion")
-                        .HasName("ak_tenant_level_taxonomies_tenant_id_key_schema_version");
+                        .HasName("ux_tenant_level_taxonomies_tenant_id_key_schema_version");
 
                     b.HasIndex("TenantId", "Key")
                         .IsUnique()
                         .HasDatabaseName("ux_tenant_level_taxonomies_tenant_id_key_active")
-                        .HasFilter("status = 'Active'");
-
-                    b.HasIndex("TenantId", "Key", "SchemaVersion")
-                        .IsUnique()
-                        .HasDatabaseName("ux_tenant_level_taxonomies_tenant_id_key_schema_version");
+                        .HasFilter("status = 'Active' AND deleted_at IS NULL");
 
                     b.ToTable("tenant_level_taxonomies", (string)null);
                 });

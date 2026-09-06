@@ -47,6 +47,7 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_tenant_content_types", x => x.id);
+                    table.UniqueConstraint("ux_tenant_content_types_tenant_id_key_schema_version", x => new { x.tenant_id, x.key, x.schema_version });
                 });
 
             migrationBuilder.CreateTable(
@@ -71,7 +72,7 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_tenant_level_taxonomies", x => x.id);
-                    table.UniqueConstraint("ak_tenant_level_taxonomies_tenant_id_key_schema_version", x => new { x.tenant_id, x.key, x.schema_version });
+                    table.UniqueConstraint("ux_tenant_level_taxonomies_tenant_id_key_schema_version", x => new { x.tenant_id, x.key, x.schema_version });
                 });
 
             migrationBuilder.CreateTable(
@@ -102,26 +103,14 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
                 table: "tenant_content_types",
                 columns: new[] { "tenant_id", "key" },
                 unique: true,
-                filter: "status = 'Active'");
-
-            migrationBuilder.CreateIndex(
-                name: "ux_tenant_content_types_tenant_id_key_schema_version",
-                table: "tenant_content_types",
-                columns: new[] { "tenant_id", "key", "schema_version" },
-                unique: true);
+                filter: "status = 'Active' AND deleted_at IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "ux_tenant_level_taxonomies_tenant_id_key_active",
                 table: "tenant_level_taxonomies",
                 columns: new[] { "tenant_id", "key" },
                 unique: true,
-                filter: "status = 'Active'");
-
-            migrationBuilder.CreateIndex(
-                name: "ux_tenant_level_taxonomies_tenant_id_key_schema_version",
-                table: "tenant_level_taxonomies",
-                columns: new[] { "tenant_id", "key", "schema_version" },
-                unique: true);
+                filter: "status = 'Active' AND deleted_at IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "ux_tenant_level_taxonomy_items_taxonomy_sort",
@@ -135,6 +124,13 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence.Migrations
             // migration on the type rather than on the table. The CLR side stays a
             // C# enum and maps through a value converter, so the stored value is
             // the CLR name (Database Standards § Constraints).
+            //
+            // `renderer_key` is a closed set too and is deliberately NOT bounded
+            // here. Its nine values live in `CompositeRendererKey.All` and are
+            // shared with the frontend's `composites.ts`, which
+            // `Composite_Renderer_Keys_Match_The_Frontend_Registry` holds equal; a
+            // CHECK would be a third copy that only a migration can correct, and
+            // the two it must agree with ship on a different cadence.
             migrationBuilder.Sql("""
                 ALTER TABLE tenant_content_types
                     ADD CONSTRAINT ck_tenant_content_types_status

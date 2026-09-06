@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -11,12 +12,13 @@ using LearnStack.SharedKernel.Tenancy;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// Both migration chains applied and then reversed against a real database.
+/// Every migration chain applied and then reversed against a real database.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Database Standards § Migrations says reversal is expected for a non-destructive
-/// migration, and both chains here only create. Neither reversed as first shipped:
+/// migration, and every chain here only creates. Neither of the first two reversed
+/// as shipped:
 /// the tenancy <c>Down()</c> aborted on its first statement, because
 /// <c>DROP FUNCTION fn_organization_id_immutable()</c> fails while the trigger on
 /// <c>tenant_settings</c> depends on it, and would have aborted again on
@@ -38,15 +40,16 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
     public MigrationRollbackTests(MigrationRollbackFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task BothChainsReverseToAnEmptySchema()
+    public async Task EveryChainReversesToAnEmptySchema()
     {
         await using var connection = await PostgresFixture.OpenAsync(
             _fixture.Postgres.MigrationConnectionString);
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(12L,
-            "eight tenancy tables, two platform tables, and the two history tables");
+        (await CountAsync(connection, TablesQuery)).Should().Be(17L,
+            "eight tenancy tables, two platform tables, four customization tables, "
+            + "and the three history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
 
@@ -54,7 +57,7 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // The history tables survive: `database update 0` empties them, it does not
         // drop them. Everything the two migrations created is gone.
-        (await CountAsync(connection, TablesQuery)).Should().Be(2L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(3L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
     }
@@ -92,17 +95,25 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
 
         await using var platform = CreatePlatform();
         await platform.Database.MigrateAsync();
+
+        await using var customization = CreateCustomization();
+        await customization.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();
 
     /// <summary>
-    /// Reverses both chains, platform first — the order a developer undoing a
-    /// packet would use, and the one that proves neither chain depends on the
-    /// other's tables.
+    /// Reverses every chain in the reverse of the order that applied them — the
+    /// order a developer undoing a packet would use, and the one that proves no
+    /// chain depends on another's tables.
     /// </summary>
     public async Task RollBackAsync()
     {
+        await using (var customization = CreateCustomization())
+        {
+            await customization.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
+        }
+
         await using (var platform = CreatePlatform())
         {
             await platform.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
@@ -125,4 +136,12 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
             .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
                 npgsql.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable))
             .Options);
+
+    private CustomizationDbContext CreateCustomization() =>
+        new(
+            new DbContextOptionsBuilder<CustomizationDbContext>()
+                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
+                    npgsql.MigrationsHistoryTable(CustomizationDbContextFactory.HistoryTable))
+                .Options,
+            StaticTenantContextAccessor.Unresolved);
 }

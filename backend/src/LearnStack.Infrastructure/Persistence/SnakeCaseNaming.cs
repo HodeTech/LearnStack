@@ -102,7 +102,7 @@ public static class SnakeCaseNaming
     /// underscore is left alone, which is what makes the function idempotent and
     /// therefore safe to apply to a name a configuration already set.
     /// </remarks>
-    public static string ToSnakeCase(string name)
+    internal static string ToSnakeCase(string name)
     {
         if (string.IsNullOrEmpty(name))
         {

@@ -36,9 +36,15 @@ public sealed class CustomizationDbContext(
 {
     public DbSet<TenantContentType> TenantContentTypes => Set<TenantContentType>();
 
+    /// <remarks>
+    /// No <c>DbSet</c> for <c>TenantLevelTaxonomyItem</c>, exactly as
+    /// <c>TenancyDbContext</c> exposes none for <c>TenantLocale</c>: an item is
+    /// inside this aggregate and is reached through its root. It stays mapped by
+    /// <c>ApplyConfigurationsFromAssembly</c>, so it keeps its query filter, its
+    /// policy and its place in the isolation sweep — which resolves entity types
+    /// from the model, not from the context's properties.
+    /// </remarks>
     public DbSet<TenantLevelTaxonomy> TenantLevelTaxonomies => Set<TenantLevelTaxonomy>();
-
-    public DbSet<TenantLevelTaxonomyItem> TenantLevelTaxonomyItems => Set<TenantLevelTaxonomyItem>();
 
     /// <summary>
     /// The cache-generation counter. Mapped so the four isolation layers reach it;

@@ -47,46 +47,26 @@ namespace LearnStack.Tests.Architecture;
 /// </remarks>
 public sealed class TenantScopingTests
 {
-    /// <summary>
-    /// Every module that has a schema, paired with the context that maps it.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Enumerated, and that is the point.</b> This rule used to read one
-    /// assembly and one context, so the second module's entities were invisible to
-    /// it — a sweep that has silently stopped covering what it names is worse than
-    /// no sweep, because the name still reads as a guarantee.
-    /// <c>Every_Module_With_A_Schema_Is_Swept</c> below is what stops the list
-    /// going stale a third time: it fails when a module ships a
-    /// <c>[TenantOwned]</c> entity and does not appear here.
-    /// </para>
-    /// <para>
-    /// A module with no schema yet contributes nothing and is not listed. The
-    /// guard is on the reverse direction — having a schema and not being swept.
-    /// </para>
-    /// </remarks>
-    private static readonly (Assembly Domain, Func<DbContext> Context)[] ScopedModules =
-    [
-        (typeof(Tenant).Assembly, ModelOnly<TenancyDbContext>),
-        (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>),
-    ];
-
-    private static readonly Assembly TenancyDomain = typeof(Tenant).Assembly;
-
     [Fact]
     public void Every_TenantOwned_Entity_HasFilterAndRlsPolicy()
     {
         var migrations = MigrationSql();
-        var checked_ = 0;
 
-        foreach (var (domain, buildContext) in ScopedModules)
+        foreach (var (domain, buildContext) in Modules.Scoped)
         {
             using var context = buildContext();
             var model = context.Model;
 
+            // Per module, not once for the suite: a suite-wide counter is satisfied
+            // by Tenancy alone however many other modules contribute nothing, which
+            // is the one failure an enumerated list actually produces.
+            ScopedEntities(domain).Should().NotBeEmpty(
+                $"{domain.GetName().Name} is listed in Modules.Scoped, so it must have "
+                + "tenant-owned entities to sweep — a module that has gone quiet is "
+                + "either mis-listed or has lost its markers");
+
             foreach (var entity in ScopedEntities(domain))
             {
-                checked_++;
                 var attribute = entity.GetCustomAttribute<TenantOwnedAttribute>()!;
 
                 // A tenant key: the TenantId property, or Id on the self-keyed class.
@@ -122,9 +102,6 @@ public sealed class TenantScopingTests
                 AssertRowSecurity(migrations, table);
             }
         }
-
-        checked_.Should().BeGreaterThan(
-            0, "a rule that finds nothing to check passes for the wrong reason");
     }
 
     [Fact]
@@ -133,7 +110,7 @@ public sealed class TenantScopingTests
         // Enumerated by its own marker, not by filtering the tenant-owned set: an
         // entity carrying only [OrganizationScoped] would otherwise be invisible to
         // both rules, which is the one arrangement neither could report.
-        var marked = ScopedModules
+        var marked = Modules.Scoped
             .SelectMany(module => module.Domain.GetTypes())
             .Where(type => type.GetCustomAttribute<OrganizationScopedAttribute>() is not null)
             .OrderBy(type => type.Name, StringComparer.Ordinal)
@@ -203,9 +180,22 @@ public sealed class TenantScopingTests
         // at runtime — the sweep gates on the interface — while both rules skip
         // it entirely, so its RLS policy, its tenant key and its migration go
         // unchecked. The pair has to travel together in both directions.
-        foreach (var entity in TenancyDomain.GetTypes()
+        //
+        // Over every module, not one: left reading a single assembly this rule
+        // reported nothing when a second module's entity dropped its marker, and
+        // the marker is what the two rules above enumerate — so the entity fell
+        // out of all three at once and the suite stayed green. Measured.
+        var implementors = Modules.Scoped
+            .SelectMany(module => module.Domain.GetTypes())
             .Where(typeof(ITenantOwned).IsAssignableFrom)
-            .Where(type => type is { IsInterface: false, IsAbstract: false }))
+            .Where(type => type is { IsInterface: false, IsAbstract: false })
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .ToList();
+
+        implementors.Should().NotBeEmpty(
+            "a rule that finds nothing to check passes for the wrong reason");
+
+        foreach (var entity in implementors)
         {
             entity.GetCustomAttribute<TenantOwnedAttribute>().Should().NotBeNull(
                 $"{entity.Name} implements ITenantOwned, so it must carry [TenantOwned] "
@@ -232,7 +222,7 @@ public sealed class TenantScopingTests
         typeof(ITenantOwned).IsAssignableFrom(typeof(PlatformHostMapping))
             .Should().BeFalse();
 
-        using var context = ModelOnly<TenancyDbContext>();
+        using var context = Modules.ModelOnly<TenancyDbContext>();
         RowMembersRead(context.Model.FindEntityType(typeof(PlatformHostMapping))!)
             .Should().BeEmpty("a tenant filter here would make host resolution impossible");
     }
@@ -296,10 +286,10 @@ public sealed class TenantScopingTests
     /// </summary>
     private static DbContext ContextFor(Type entity)
     {
-        var module = ScopedModules.SingleOrDefault(candidate => candidate.Domain == entity.Assembly);
+        var module = Modules.Scoped.SingleOrDefault(candidate => candidate.Domain == entity.Assembly);
 
         module.Context.Should().NotBeNull(
-            $"{entity.Name} lives in {entity.Assembly.GetName().Name}, which is not in ScopedModules");
+            $"{entity.Name} lives in {entity.Assembly.GetName().Name}, which is not in Modules.Scoped");
 
         return module.Context();
     }
@@ -309,20 +299,6 @@ public sealed class TenantScopingTests
             .Where(type => type.GetCustomAttribute<TenantOwnedAttribute>() is not null)
             .OrderBy(type => type.Name, StringComparer.Ordinal);
 
-    /// <summary>
-    /// A context built for its model alone. The connection string is never opened.
-    /// </summary>
-    private static DbContext ModelOnly<TContext>()
-        where TContext : DbContext
-    {
-        var options = new DbContextOptionsBuilder<TContext>()
-            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
-            .Options;
-
-        return (DbContext)Activator.CreateInstance(
-            typeof(TContext), options, StaticTenantContextAccessor.Unresolved)!;
-    }
-
     [Fact]
     public void Every_Module_With_A_Schema_Is_Swept()
     {
@@ -331,9 +307,9 @@ public sealed class TenantScopingTests
         // the list goes stale — it did once already, when Customization shipped
         // entities the sweep could not see. This is the guard on that: a module
         // Domain assembly carrying a [TenantOwned] entity must be in the list.
-        var swept = ScopedModules.Select(module => module.Domain.GetName().Name).ToHashSet(StringComparer.Ordinal);
+        var swept = Modules.Scoped.Select(module => module.Domain.GetName().Name).ToHashSet(StringComparer.Ordinal);
 
-        var withEntities = ModuleNames
+        var withEntities = Modules.Names
             .Select(module => Assembly.Load($"LearnStack.Modules.{module}.Domain"))
             .Where(assembly => ScopedEntities(assembly).Any())
             .Select(assembly => assembly.GetName().Name!)
@@ -343,14 +319,8 @@ public sealed class TenantScopingTests
         withEntities.Should().OnlyContain(
             name => swept.Contains(name),
             "a module that ships a tenant-owned entity is swept by Every_TenantOwned_Entity_HasFilterAndRlsPolicy; "
-            + "add it to ScopedModules with the context that maps it");
+            + "add it to Modules.Scoped with the context that maps it");
     }
-
-    /// <summary>Every module, by name — the same list the tenancy conventions use.</summary>
-    private static readonly string[] ModuleNames =
-    [
-        "Tenancy", "Identity", "Customization", "Audit", "Content", "Media", "Education",
-    ];
 
     /// <summary>
     /// Every migration source in the repository, concatenated.

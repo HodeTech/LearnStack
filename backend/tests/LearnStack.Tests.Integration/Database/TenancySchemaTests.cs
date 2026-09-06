@@ -241,6 +241,42 @@ public sealed class TenancySchemaTests
             INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
             VALUES (@foreign, 'sneak-key-01', 'fp', uuidv7(), 'in_flight', now() + interval '5 minutes')
             """,
+        // The Customization chain. A content type or a taxonomy written into
+        // another tenant is a shape that tenant's own renderers will read and
+        // that no page can question — the content is the tenant's declaration of
+        // what its data means.
+        ["tenant_content_types"] =
+            """
+            INSERT INTO tenant_content_types
+                (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+                 json_schema, renderer_key, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak', 1, 0, 'Draft', '{"en":"Sneak"}',
+                    '{"type":"object"}', 'default-card', now(), @actor, 0)
+            """,
+        ["tenant_level_taxonomies"] =
+            """
+            INSERT INTO tenant_level_taxonomies
+                (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+                 created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak', 1, 0, 'Draft', '{"en":"Sneak"}',
+                    now(), @actor, 0)
+            """,
+        // Named against the seeded parent in the *foreign* tenant, so the statement
+        // is a genuine cross-tenant write rather than one the foreign key would
+        // have refused on its own.
+        ["tenant_level_taxonomy_items"] =
+            """
+            INSERT INTO tenant_level_taxonomy_items
+                (tenant_id, taxonomy_key, schema_version, key, display_name, sort)
+            VALUES (@foreign, 'proficiency', 1, 'sneak', '{"en":"Sneak"}', 99)
+            """,
+        // The counter every cache key embeds: advancing another tenant's
+        // generation invalidates its caches, and holding it back serves them stale.
+        ["customization_generations"] =
+            """
+            INSERT INTO customization_generations (tenant_id, generation)
+            VALUES (@foreign, 99)
+            """,
     };
 
     public static TheoryData<string> TablesWithAWithCheck()
@@ -649,10 +685,12 @@ public sealed class TenancySchemaTests
     public async Task Every_Foreign_Key_Has_A_Supporting_Index()
     {
         // Database Standards § Indexes: index every foreign key. Every foreign key
-        // in this schema is ON DELETE RESTRICT, so every parent delete pays the
-        // child scan. Swept rather than listed: the one that shipped without an
-        // index — fk_organizations_reporting_parent — was missed precisely because
-        // nothing swept.
+        // in this schema is ON DELETE RESTRICT except the one cascade the standard
+        // sanctions — a child inside an aggregate boundary — so a parent delete
+        // pays the child scan either way, to refuse or to cascade. Swept rather
+        // than listed: the one that shipped without an index —
+        // fk_organizations_reporting_parent — was missed precisely because nothing
+        // swept.
         //
         // "Supporting" means one of two things, and both bound the scan:
         //
@@ -693,7 +731,7 @@ public sealed class TenancySchemaTests
     public async Task TheGrantMatrixIsExactlyWhatTheMigrationsWrote()
     {
         // There is no ALTER DEFAULT PRIVILEGES, so every grant is one a migration
-        // wrote. All three non-owner grantees are asserted, across both chains:
+        // wrote. All three non-owner grantees are asserted, across every chain:
         // BYPASSRLS bypasses policies and not GRANTs, so for learnstack_platform
         // and learnstack_outbox_admin this matrix is the whole of the bound, and a
         // widened grant on either is invisible in any other assertion. Measured:
@@ -733,9 +771,17 @@ public sealed class TenancySchemaTests
             "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform outbox_messages DELETE,SELECT",
             "learnstack_platform idempotency_keys DELETE,SELECT",
+            "learnstack_app tenant_content_types DELETE,INSERT,SELECT,UPDATE",
+            "learnstack_app tenant_level_taxonomies DELETE,INSERT,SELECT,UPDATE",
+            "learnstack_app tenant_level_taxonomy_items DELETE,INSERT,SELECT,UPDATE",
+            "learnstack_app customization_generations INSERT,SELECT,UPDATE",
+            "learnstack_platform tenant_content_types SELECT",
+            "learnstack_platform tenant_level_taxonomies SELECT",
+            "learnstack_platform tenant_level_taxonomy_items SELECT",
+            "learnstack_platform customization_generations SELECT",
             "learnstack_outbox_admin outbox_messages SELECT",
         ],
-        "every line is one line of the two migrations' grant matrices, and "
+        "every line is one line of the three migrations' grant matrices, and "
         + "learnstack_outbox_admin holds nothing beyond the outbox");
     }
 }

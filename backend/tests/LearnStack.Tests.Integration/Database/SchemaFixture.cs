@@ -1,4 +1,5 @@
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -8,12 +9,12 @@ using LearnStack.SharedKernel.Tenancy;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// Applies <b>both</b> migration chains and seeds every table they create, for
+/// Applies <b>every</b> migration chain and seeds every table they create, for
 /// two tenants.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Both chains, one fixture, and that is the point.</b> The structural sweeps
+/// <b>Every chain, one fixture, and that is the point.</b> The structural sweeps
 /// — row security, the permissive-policy rule, snake_case, the grant matrix,
 /// foreign-key indexing — enumerate the catalogue rather than a list of names, so
 /// a fixture carrying only the tenancy chain silently narrows every one of them
@@ -21,6 +22,13 @@ namespace LearnStack.Tests.Integration.Database;
 /// different shape: measured, a second permissive SELECT policy on
 /// <c>outbox_messages</c> passed the entire suite while letting any session with
 /// any tenant context read every tenant's pending events.
+/// </para>
+/// <para>
+/// It happened again, in the same shape, when the Customization chain shipped:
+/// this fixture applied two of three, so the four new tables were outside every
+/// sweep above and each one stayed green by reading a schema that did not contain
+/// them. <b>A chain that deploys is a chain this fixture applies</b> — the count
+/// below is the assertion that says so.
 /// </para>
 /// <para>
 /// <b>Every table carries rows for both tenants.</b> A count assertion against an
@@ -50,8 +58,8 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The ten tables the two chains create, used only to prove that a catalogue
-    /// sweep read something.
+    /// The fourteen tables the three chains create, used only to prove that a
+    /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
     /// Not an inclusion list: no query filters on it. It exists so a sweep that
@@ -64,6 +72,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         "tenant_settings", "tenant_feature_flags",
         "platform_entitlement_cache", "platform_host_to_tenant",
         "outbox_messages", "idempotency_keys",
+        "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items",
+        "customization_generations",
     ];
 
     /// <summary>What tenant A sees with its tenant context set and no organization scope.</summary>
@@ -81,6 +91,10 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["platform_host_to_tenant"] = 1,
         ["outbox_messages"] = 1,
         ["idempotency_keys"] = 1,
+        ["tenant_content_types"] = 1,
+        ["tenant_level_taxonomies"] = 1,
+        ["tenant_level_taxonomy_items"] = 1,
+        ["customization_generations"] = 1,
     };
 
     /// <summary>What tenant B sees with its tenant context set.</summary>
@@ -96,6 +110,10 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["platform_host_to_tenant"] = 1,
         ["outbox_messages"] = 1,
         ["idempotency_keys"] = 1,
+        ["tenant_content_types"] = 1,
+        ["tenant_level_taxonomies"] = 1,
+        ["tenant_level_taxonomy_items"] = 1,
+        ["customization_generations"] = 1,
     };
 
     public PostgresFixture Postgres { get; } = new();
@@ -125,6 +143,16 @@ public sealed class SchemaFixture : IAsyncLifetime
                 .Options))
         {
             await platform.Database.MigrateAsync();
+        }
+
+        await using (var customization = new CustomizationDbContext(
+            new DbContextOptionsBuilder<CustomizationDbContext>()
+                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
+                    npgsql.MigrationsHistoryTable(CustomizationDbContextFactory.HistoryTable))
+                .Options,
+            StaticTenantContextAccessor.Unresolved))
+        {
+            await customization.Database.MigrateAsync();
         }
 
         await SeedAsync();
@@ -208,6 +236,30 @@ public sealed class SchemaFixture : IAsyncLifetime
         INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
         VALUES ('11111111-1111-7111-8111-111111111111','alpha-seed-key','fp-alpha', uuidv7(),
                 'in_flight', now() + interval '5 minutes');
+
+        -- The Customization chain. Every table carries a row for both tenants for
+        -- the reason the tenancy tables do: a count assertion against an empty
+        -- table passes whether or not the policy that should have emptied it
+        -- exists.
+        INSERT INTO tenant_content_types
+            (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+             json_schema, renderer_key, created_at, created_by, row_version)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111','announcement', 1, 0, 'Active', '{"en":"Announcement"}',
+                '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                'default-card', now(), '00000000-0000-7000-8000-000000000001', 0);
+
+        INSERT INTO tenant_level_taxonomies
+            (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+             created_at, created_by, row_version)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111','proficiency', 1, 0, 'Active', '{"en":"Proficiency"}',
+                now(), '00000000-0000-7000-8000-000000000001', 0);
+
+        INSERT INTO tenant_level_taxonomy_items
+            (tenant_id, taxonomy_key, schema_version, key, display_name, sort)
+        VALUES ('11111111-1111-7111-8111-111111111111','proficiency', 1, 'beginner', '{"en":"Beginner"}', 0);
+
+        INSERT INTO customization_generations (tenant_id, generation)
+        VALUES ('11111111-1111-7111-8111-111111111111', 1);
         COMMIT;
 
         BEGIN;
@@ -254,6 +306,30 @@ public sealed class SchemaFixture : IAsyncLifetime
         INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
         VALUES ('22222222-2222-7222-8222-222222222222','beta-seed-key','fp-beta', uuidv7(),
                 'in_flight', now() + interval '5 minutes');
+
+        -- The Customization chain. Every table carries a row for both tenants for
+        -- the reason the tenancy tables do: a count assertion against an empty
+        -- table passes whether or not the policy that should have emptied it
+        -- exists.
+        INSERT INTO tenant_content_types
+            (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+             json_schema, renderer_key, created_at, created_by, row_version)
+        VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222','announcement', 1, 0, 'Active', '{"en":"Announcement"}',
+                '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                'default-card', now(), '00000000-0000-7000-8000-000000000001', 0);
+
+        INSERT INTO tenant_level_taxonomies
+            (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+             created_at, created_by, row_version)
+        VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222','proficiency', 1, 0, 'Active', '{"en":"Proficiency"}',
+                now(), '00000000-0000-7000-8000-000000000001', 0);
+
+        INSERT INTO tenant_level_taxonomy_items
+            (tenant_id, taxonomy_key, schema_version, key, display_name, sort)
+        VALUES ('22222222-2222-7222-8222-222222222222','proficiency', 1, 'starter', '{"en":"Beginner"}', 0);
+
+        INSERT INTO customization_generations (tenant_id, generation)
+        VALUES ('22222222-2222-7222-8222-222222222222', 2);
         COMMIT;
         """;
 
@@ -281,7 +357,7 @@ public sealed class SchemaFixture : IAsyncLifetime
 /// </summary>
 /// <remarks>
 /// A shared collection rather than two <c>IClassFixture</c>s, because the point
-/// of merging them is that the structural sweeps must see <b>all ten</b> tables.
+/// of merging them is that the structural sweeps must see <b>every</b> table.
 /// Two class fixtures would be two containers with two half-schemas, which is the
 /// arrangement that let a second permissive policy on <c>outbox_messages</c> pass
 /// the whole suite.

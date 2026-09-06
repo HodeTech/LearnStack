@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Npgsql;
 using Xunit;
@@ -245,6 +246,7 @@ public sealed class PlatformSchemaTests
         {
             PlatformDbContextFactory.HistoryTable,
             TenancyDbContextFactory.HistoryTable,
+            CustomizationDbContextFactory.HistoryTable,
         }.Order(StringComparer.Ordinal));
 
         (await command.ExecuteScalarAsync()).Should().Be(expected);

@@ -214,12 +214,7 @@ public sealed class TenancyConventionTests
     /// The <c>Domain</c> assembly of every module, by name.
     /// </summary>
     private static IEnumerable<Assembly> ModuleDomainAssemblies() =>
-        ModuleNames.Select(module => Assembly.Load($"LearnStack.Modules.{module}.Domain"));
-
-    private static readonly string[] ModuleNames =
-    [
-        "Tenancy", "Identity", "Customization", "Audit", "Content", "Media", "Education",
-    ];
+        Modules.Names.Select(module => Assembly.Load($"LearnStack.Modules.{module}.Domain"));
 
     /// <summary>
     /// Types in the <c>LearnStack.Api.Tenancy</c> namespace that take an

@@ -748,6 +748,14 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`
 
+> Swept across **every module with a schema** from Packet 8, not only Tenancy. Read
+> against one model the rule said nothing about the aggregates a second module
+> shipped, while this entry and ADR-0039 both described it as covering every entity
+> implementing `IOptimisticConcurrency`. It reads `Modules.Scoped`, the same
+> enumerated list `Every_Module_With_A_Schema_Is_Swept` holds current, and asserts
+> per model that the model has aggregates in it — one model carrying them satisfies
+> a suite-wide total however many carry none.
+
 - **Asserts:** every entity implementing `IOptimisticConcurrency` has its `Version`
   configured as the concurrency token against a `row_version` column, **and** that
   the property's `ValueGenerated` is `Never` with both save behaviours at `Save`.
@@ -970,7 +978,10 @@ first two rows are coverage checks; the last three are the proof.
   assemblies would silently skip the module nobody referenced and pass vacuously — and
   the cost of enumerating is that the list goes stale. It did: the sweep read one
   assembly and one `DbContext` until Packet 8, so the second module's entities were
-  invisible to the rule that names them. This is the guard on that direction.
+  invisible to the rule that names them. This is the guard on that direction. The
+  *universe* it checks against is discovered from `backend/src/Modules` rather than
+  written down, because a hard-coded universe cannot report the module missing from
+  both lists — which is the same vacuity one level up.
 - **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md);
   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md).
 - **Type:** xUnit + reflection over every module `Domain` assembly. **Kind:** structural.
@@ -1102,13 +1113,20 @@ because the filters hold, and removing both turns all five red.
 
 #### `Every_Scoping_Interface_Carries_Its_Marker`
 
+> Swept across **every module with a schema** from Packet 8, not only Tenancy. This
+> is the reverse-direction guard, so leaving it on one assembly was the worst of the
+> three to leave behind: a second module's entity that dropped its marker fell out
+> of all three scoping rules at once — this one, which enumerates the interface, and
+> the two that enumerate the marker — and the suite stayed green. Measured.
+
 - **Asserts:** every entity implementing a scoping interface — `ITenantOwned`,
   `IOrganizationScoped` — also carries the marker attribute the filter and policy
   generators read. An entity that implements one and not the other is scoped in the type
   system and unscoped everywhere it matters.
 - **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`; widened to
+  every module in Packet 8 step 3).
 - **Phase:** 02a Packet 7.
 
 #### `The_Request_Filter_Sees_Every_Shape_MediatR_Dispatches`

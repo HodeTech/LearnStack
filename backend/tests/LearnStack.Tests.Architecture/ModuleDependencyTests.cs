@@ -21,24 +21,13 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 public sealed class ModuleDependencyTests
 {
-    private static readonly string[] ModuleNames =
-    [
-        "Tenancy",
-        "Identity",
-        "Customization",
-        "Audit",
-        "Content",
-        "Media",
-        "Education",
-    ];
-
     [Theory]
     [MemberData(nameof(EveryModule))]
     public void ModuleDomain_DoesNotDependOn_OtherModuleDomain(string moduleName)
     {
         var domainAssembly = LoadModuleAssembly(moduleName, layer: "Domain");
 
-        foreach (var other in ModuleNames)
+        foreach (var other in Modules.Names)
         {
             if (other == moduleName)
             {
@@ -125,7 +114,7 @@ public sealed class ModuleDependencyTests
     private static readonly Type _plantedDependency = typeof(LearnStack.Domain.AssemblyMarker);
 
     public static IEnumerable<object[]> EveryModule() =>
-        ModuleNames.Select(m => new object[] { m });
+        Modules.Names.Select(m => new object[] { m });
 
     private static Assembly LoadModuleAssembly(string moduleName, string layer)
     {
