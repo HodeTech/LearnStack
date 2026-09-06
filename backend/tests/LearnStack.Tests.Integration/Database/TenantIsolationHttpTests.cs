@@ -196,6 +196,59 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
             value => value.StartsWith("smuggled", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Tenant_A_cannot_read_Tenant_B_customizations()
+    {
+        // The customization tables through the request path, which is the layer the
+        // schema suite cannot reach: two requests differing only in the host, a
+        // SECOND module context resolved in each, and neither naming a tenant.
+        //
+        // Both tenants hold a `card` and a `plain` with the same keys — the built-in
+        // seed gives every tenant the same two — so an isolation failure here does
+        // not show up as a foreign key appearing. It shows up as a DOUBLED one, which
+        // is why the counts are asserted and not only the names.
+        //
+        // Measured with `IgnoreQueryFilters()` on both reads: this case still passes,
+        // because the policy is what actually holds and the filter is the layer in
+        // front of it. That is the claim defence in depth makes, and it is the reason
+        // this case is worth having beside the schema suite's — those run raw SQL, so
+        // only this one puts BOTH layers of a real request in front of the same read.
+        var english = await ReadCustomizationsAsync(SeedData.English.Host);
+        var yoga = await ReadCustomizationsAsync(SeedData.Yoga.Host);
+
+        english.Should().BeEquivalentTo(yoga,
+            "the built-in seed gives both tenants the same two definitions");
+
+        english.Should().BeEquivalentTo(
+            ["content-type:card", "taxonomy:plain", "band:beginner", "band:intermediate", "band:advanced"],
+            "one of each, from this tenant alone — two of each would be both tenants'");
+    }
+
+    [Fact]
+    public async Task An_unresolved_request_reads_no_customization()
+    {
+        // The fail-closed half. `[AllowsUnresolvedTenantContext]` lets the request
+        // through the pipeline; the filter and the policy are what leave it with
+        // nothing, and the policy is the one that still holds if the filter is
+        // dropped.
+        // `localhost`, not a tenant host: it is in `Tenancy:PlatformHosts`, so it
+        // classifies PlatformHost and the pipeline runs under
+        // UnresolvedTenantContext rather than refusing the request outright. On a
+        // tenant host the ceiling answers 404 before a handler ever reads — measured,
+        // and it is why this case names the host it does.
+        var rows = await GetAsync("localhost", "customizations-unresolved");
+
+        rows.Should().BeEmpty(
+            "no announcement means no tenant, and NULL is false for USING");
+
+        // And the same read on a resolved host is not empty, or this would pass
+        // against a probe that never queried anything.
+        (await ReadCustomizationsAsync(SeedData.English.Host)).Should().NotBeEmpty();
+    }
+
+    private async Task<IReadOnlyList<string>> ReadCustomizationsAsync(string host) =>
+        await GetAsync(host, "customizations");
+
     private async Task<IReadOnlyList<string>> ReadOrganizationsAsync(string host) =>
         await GetAsync(host, "organizations");
 
@@ -374,6 +427,10 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
                     SharedKernel.Results.Result<List<string>>>,
                 ProbeQueryHandler>();
             services.AddTransient<
+                MediatR.IRequestHandler<UnresolvedCustomizationProbeQuery,
+                    SharedKernel.Results.Result<List<string>>>,
+                ProbeQueryHandler>();
+            services.AddTransient<
                 MediatR.IRequestHandler<ForeignWriteCommand, SharedKernel.Results.Result<string>>,
                 ForeignWriteHandler>();
         });
@@ -406,6 +463,16 @@ public sealed class IsolationProbeController(MediatR.ISender sender)
         (await sender.Send(new ProbeQuery(ProbeSubject.Settings), cancellationToken))
             .ToActionResult();
 
+    [HttpGet("customizations")]
+    public async Task<IActionResult> Customizations(CancellationToken cancellationToken) =>
+        (await sender.Send(new ProbeQuery(ProbeSubject.Customizations), cancellationToken))
+            .ToActionResult();
+
+    [HttpGet("customizations-unresolved")]
+    public async Task<IActionResult> CustomizationsUnresolved(CancellationToken cancellationToken) =>
+        (await sender.Send(new UnresolvedCustomizationProbeQuery(), cancellationToken))
+            .ToActionResult();
+
     [HttpGet("settings-unresolved")]
     public async Task<IActionResult> SettingsUnresolved(CancellationToken cancellationToken) =>
         (await sender.Send(new UnresolvedProbeQuery(), cancellationToken)).ToActionResult();
@@ -434,6 +501,7 @@ public enum ProbeSubject
 {
     Organizations,
     Settings,
+    Customizations,
 }
 
 /// <remarks>
@@ -464,6 +532,16 @@ public sealed record ProbeQuery(ProbeSubject Subject)
 public sealed record UnresolvedProbeQuery
     : MediatR.IRequest<SharedKernel.Results.Result<List<string>>>;
 
+/// <summary>The customization read, on a request the pipeline runs with no tenant.</summary>
+/// <remarks>
+/// A second type rather than a flag on <see cref="UnresolvedProbeQuery"/>, for the
+/// reason that one is separate from <c>ProbeQuery</c>: what distinguishes it is which
+/// marker it carries, and a marker is a property of the type.
+/// </remarks>
+[SharedKernel.Tenancy.AllowsUnresolvedTenantContext]
+public sealed record UnresolvedCustomizationProbeQuery
+    : MediatR.IRequest<SharedKernel.Results.Result<List<string>>>;
+
 /// <summary>An INSERT naming a tenant other than the announced one.</summary>
 [SharedKernel.Tenancy.PublicSurface]
 public sealed record ForeignWriteCommand(Guid TenantId)
@@ -477,9 +555,13 @@ public sealed record ForeignWriteCommand(Guid TenantId)
 /// re-register the pipeline behaviors the composition root already added, and a doubled
 /// <c>TransactionBehavior</c> is a nested frame on every request.
 /// </remarks>
-public sealed class ProbeQueryHandler(TenancyDbContext db)
+public sealed class ProbeQueryHandler(
+    TenancyDbContext db,
+    LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext customization)
     : MediatR.IRequestHandler<ProbeQuery, SharedKernel.Results.Result<List<string>>>,
-      MediatR.IRequestHandler<UnresolvedProbeQuery, SharedKernel.Results.Result<List<string>>>
+      MediatR.IRequestHandler<UnresolvedProbeQuery, SharedKernel.Results.Result<List<string>>>,
+      MediatR.IRequestHandler<UnresolvedCustomizationProbeQuery,
+          SharedKernel.Results.Result<List<string>>>
 {
     public async Task<SharedKernel.Results.Result<List<string>>> Handle(
         ProbeQuery request, CancellationToken cancellationToken)
@@ -496,6 +578,13 @@ public sealed class ProbeQueryHandler(TenancyDbContext db)
             ProbeSubject.Settings => SharedKernel.Results.Result.Ok(
                 await ReadSettingsAsync(db, cancellationToken)),
 
+            // A SECOND module context in the same request, which is the half
+            // ADR-0040 § What Packet 6 can and cannot prove said needed a second
+            // module: both are enlisted on the one connection the unit of work owns,
+            // so what this read sees is the same announcement the tenancy read saw.
+            ProbeSubject.Customizations => SharedKernel.Results.Result.Ok(
+                await ReadCustomizationsAsync(customization, cancellationToken)),
+
             // Exhaustive by construction, fail-closed on a member added without deciding
             // what it reads — the house style, and the opposite of falling through to
             // whichever subject happens to be last.
@@ -508,6 +597,11 @@ public sealed class ProbeQueryHandler(TenancyDbContext db)
         UnresolvedProbeQuery request, CancellationToken cancellationToken) =>
         SharedKernel.Results.Result.Ok(await ReadSettingsAsync(db, cancellationToken));
 
+    public async Task<SharedKernel.Results.Result<List<string>>> Handle(
+        UnresolvedCustomizationProbeQuery request, CancellationToken cancellationToken) =>
+        SharedKernel.Results.Result.Ok(
+            await ReadCustomizationsAsync(customization, cancellationToken));
+
     /// <summary>
     /// Every setting the request can see, as <c>key=scope</c>.
     /// </summary>
@@ -517,6 +611,34 @@ public sealed class ProbeQueryHandler(TenancyDbContext db)
     /// setting value. No <c>Where</c>: what a request sees is the filters' and the
     /// policies' answer, and narrowing it here would be the test testing itself.
     /// </remarks>
+    /// <summary>
+    /// Every customization the request can see, as <c>kind:key</c>.
+    /// </summary>
+    /// <remarks>
+    /// Three of the four tables, because the fourth is a counter with nothing to
+    /// name. No <c>Where</c>: what a request sees is the filters' and the policies'
+    /// answer, and narrowing it here would be the test testing itself.
+    /// </remarks>
+    private static async Task<List<string>> ReadCustomizationsAsync(
+        LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var contentTypes = await db.TenantContentTypes
+            .Select(contentType => "content-type:" + contentType.Key)
+            .ToListAsync(cancellationToken);
+
+        var taxonomies = await db.TenantLevelTaxonomies
+            .Select(taxonomy => "taxonomy:" + taxonomy.Key)
+            .ToListAsync(cancellationToken);
+
+        var bands = await db.TenantLevelTaxonomies
+            .SelectMany(taxonomy => taxonomy.Items)
+            .Select(item => "band:" + item.Key)
+            .ToListAsync(cancellationToken);
+
+        return [.. contentTypes.Concat(taxonomies).Concat(bands).Order(StringComparer.Ordinal)];
+    }
+
     private static async Task<List<string>> ReadSettingsAsync(
         TenancyDbContext db, CancellationToken cancellationToken) =>
         await db.TenantSettings
