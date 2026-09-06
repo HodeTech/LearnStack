@@ -242,12 +242,8 @@ public sealed class PlatformSchemaTests
             FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE '\_\_ef%'
             """, (NpgsqlConnection)connection);
 
-        var expected = string.Join(',', new[]
-        {
-            PlatformDbContextFactory.HistoryTable,
-            TenancyDbContextFactory.HistoryTable,
-            CustomizationDbContextFactory.HistoryTable,
-        }.Order(StringComparer.Ordinal));
+        var expected = string.Join(
+            ',', MigrationChains.HistoryTables.Order(StringComparer.Ordinal));
 
         (await command.ExecuteScalarAsync()).Should().Be(expected);
     }

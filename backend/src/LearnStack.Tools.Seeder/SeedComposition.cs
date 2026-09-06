@@ -1,10 +1,14 @@
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Validation;
+using LearnStack.Modules.Customization.Application.Abstractions;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Validation;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -70,6 +74,22 @@ public static class SeedComposition
         services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.AddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 
+        // The Customization module, for act three. Its context goes through the same
+        // helper for the same reason Tenancy's does: one connection per scope, enlisted
+        // on the ambient transaction, so the built-ins land under the announcement the
+        // policies check them against.
+        // The gate ADR-0043 § 2 puts in front of every stored schema. Registered here
+        // because a second composition root that omitted it would not fail to compile —
+        // it would fail at the first Register command, which is what happened. The API
+        // registers the same adapter behind the same port; a seed that used a different
+        // one would be seeding documents the request path might refuse.
+        services.AddSingleton<IJsonSchemaValidator, JsonSchemaNetValidator>();
+
+        services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
+        services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
+        services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
+
         // Its own short read-only transaction on its own connection, which is why it takes
         // a Lazy data source rather than the ambient unit of work: it answers "is this
         // organization one of this tenant's?" before the write that would depend on the
@@ -81,7 +101,9 @@ public static class SeedComposition
         // default answers truthfully for that host rather than approximating the API's.
         services.AddSingleton(reservedHosts ?? NoReservedHosts.Instance);
         services.AddSingleton<IHostResolutionInvalidator>(NullHostResolutionInvalidator.Instance);
-        services.AddLearnStackMediatRPipeline(typeof(ITenantWriteStore).Assembly);
+        services.AddLearnStackMediatRPipeline(
+            typeof(ITenantWriteStore).Assembly,
+            typeof(ITenantContentTypeStore).Assembly);
 
         return services.BuildServiceProvider();
     }

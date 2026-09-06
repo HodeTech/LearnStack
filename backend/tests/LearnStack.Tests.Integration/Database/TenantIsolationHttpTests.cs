@@ -237,24 +237,7 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
     {
         await _postgres.InitializeAsync();
 
-        await using (var tenancy = new TenancyDbContext(
-            new DbContextOptionsBuilder<TenancyDbContext>()
-                .UseNpgsql(_postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
-                .Options,
-            SharedKernel.Tenancy.StaticTenantContextAccessor.Unresolved))
-        {
-            await tenancy.Database.MigrateAsync();
-        }
-
-        await using (var platform = new PlatformDbContext(
-            new DbContextOptionsBuilder<PlatformDbContext>()
-                .UseNpgsql(_postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable))
-                .Options))
-        {
-            await platform.Database.MigrateAsync();
-        }
+        await MigrationChains.ApplyAllAsync(_postgres.MigrationConnectionString);
 
         // The seeder, not a fixture INSERT: these cases are about what a request sees, and
         // what a request sees should be what `make seed` wrote.

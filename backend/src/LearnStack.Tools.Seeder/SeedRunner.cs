@@ -1,3 +1,5 @@
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
@@ -129,6 +131,57 @@ public sealed class SeedRunner(
                 IsPubliclyLive: true),
             HostMappingAct,
             cancellationToken);
+
+        // Act three, still as the tenant: the two built-ins, registered and then
+        // published, so a tenant that has authored nothing still has a live content
+        // type and a live level vocabulary for the runtime to resolve. Both go in
+        // through the same four commands a tenant admin uses — nothing here writes a
+        // row the ordinary path could not.
+        await SeedBuiltInsAsync(tenant, asTenant, cancellationToken);
+    }
+
+    private async Task SeedBuiltInsAsync(
+        SeedTenant tenant, ITenantContext asTenant, CancellationToken cancellationToken)
+    {
+        await SendAsync(
+            tenant,
+            asTenant,
+            new RegisterTenantContentTypeCommand(
+                tenant.BuiltInContentTypeId,
+                BuiltInCustomizations.Card.Key,
+                BuiltInCustomizations.SchemaVersion,
+                BuiltInCustomizations.Card.DisplayName,
+                BuiltInCustomizations.Card.JsonSchema,
+                BuiltInCustomizations.Card.RendererKey),
+            ContentTypeAct,
+            cancellationToken);
+
+        await SendAsync(
+            tenant,
+            asTenant,
+            new PublishTenantContentTypeCommand(tenant.BuiltInContentTypeId),
+            ContentTypePublishAct,
+            cancellationToken);
+
+        await SendAsync(
+            tenant,
+            asTenant,
+            new RegisterTenantLevelTaxonomyCommand(
+                tenant.BuiltInTaxonomyId,
+                BuiltInCustomizations.Plain.Key,
+                BuiltInCustomizations.SchemaVersion,
+                BuiltInCustomizations.Plain.DisplayName,
+                [.. BuiltInCustomizations.Plain.Bands.Select(band =>
+                    new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]),
+            TaxonomyAct,
+            cancellationToken);
+
+        await SendAsync(
+            tenant,
+            asTenant,
+            new PublishTenantLevelTaxonomyCommand(tenant.BuiltInTaxonomyId),
+            TaxonomyPublishAct,
+            cancellationToken);
     }
 
     /// <summary>
@@ -207,6 +260,15 @@ public sealed class SeedRunner(
     /// <summary>The label for the act that points a host at the tenant.</summary>
     private const string HostMappingAct = "host mapping";
 
+    /// <summary>The labels for the four acts that install the built-in customizations.</summary>
+    private const string ContentTypeAct = "built-in content type";
+
+    private const string ContentTypePublishAct = "built-in content type publication";
+
+    private const string TaxonomyAct = "built-in level taxonomy";
+
+    private const string TaxonomyPublishAct = "built-in level taxonomy publication";
+
     /// <summary>
     /// Whether the rows that conflicted belong to <paramref name="tenant"/>.
     /// </summary>
@@ -242,6 +304,9 @@ public sealed class SeedRunner(
 
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
+        static CustomizationDbContext Customization(AsyncServiceScope scope) =>
+            scope.ServiceProvider.GetRequiredService<CustomizationDbContext>();
+
         // The act that conflicted, and only that act. An earlier version asked "do we own
         // either?" and the OR let the organization we had just created vouch for a host
         // another tenant held — the verification passing on the strength of an unrelated
@@ -254,6 +319,19 @@ public sealed class SeedRunner(
             SecondOrganizationAct => await db.Organizations
                 .AnyAsync(
                     organization => organization.Slug == tenant.SecondOrganization.Slug,
+                    cancellationToken),
+
+            // The customization keys are per tenant rather than global, so a visible
+            // row under this announcement is this tenant's by construction — the same
+            // trick the two above use, on a narrower key.
+            ContentTypeAct or ContentTypePublishAct => await Customization(scope)
+                .TenantContentTypes.AnyAsync(
+                    contentType => contentType.Key == BuiltInCustomizations.Card.Key,
+                    cancellationToken),
+
+            TaxonomyAct or TaxonomyPublishAct => await Customization(scope)
+                .TenantLevelTaxonomies.AnyAsync(
+                    taxonomy => taxonomy.Key == BuiltInCustomizations.Plain.Key,
                     cancellationToken),
 
             // No other act runs with a resolved context, so nothing else reaches here.
@@ -286,6 +364,13 @@ public sealed class SeedRunner(
         "lockey_slug_taken",
         "lockey_identifier_taken",
         "lockey_host_taken",
+
+        // The customization acts. A second run's REGISTER conflicts on the versioned
+        // key; its PUBLISH refuses because the definition it names is already Active,
+        // which is the same fact reported from the other side of the same row.
+        "lockey_schema_version_taken",
+        "lockey_customization_key_already_live",
+        "lockey_customization_not_a_draft",
     };
 }
 

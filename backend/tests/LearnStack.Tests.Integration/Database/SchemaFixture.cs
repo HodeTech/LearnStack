@@ -122,38 +122,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     {
         await Postgres.InitializeAsync();
 
-        // The history table names come from the design-time factories, which are
-        // what `dotnet ef` — and therefore `make migrate` — actually use. A
-        // fixture that repeated the literal would assert the name it wrote itself,
-        // and the deployment path could drift underneath a green suite.
-        await using (var tenancy = new TenancyDbContext(
-            new DbContextOptionsBuilder<TenancyDbContext>()
-                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
-                .Options,
-            StaticTenantContextAccessor.Unresolved))
-        {
-            await tenancy.Database.MigrateAsync();
-        }
-
-        await using (var platform = new PlatformDbContext(
-            new DbContextOptionsBuilder<PlatformDbContext>()
-                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable))
-                .Options))
-        {
-            await platform.Database.MigrateAsync();
-        }
-
-        await using (var customization = new CustomizationDbContext(
-            new DbContextOptionsBuilder<CustomizationDbContext>()
-                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(CustomizationDbContextFactory.HistoryTable))
-                .Options,
-            StaticTenantContextAccessor.Unresolved))
-        {
-            await customization.Database.MigrateAsync();
-        }
+        await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
 
         await SeedAsync();
     }
