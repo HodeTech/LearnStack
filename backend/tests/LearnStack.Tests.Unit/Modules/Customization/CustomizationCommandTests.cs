@@ -160,6 +160,32 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
+    public async Task A_band_reaches_the_aggregate_with_the_sort_and_metadata_it_was_given()
+    {
+        // Sort deliberately not the index, and metadata deliberately present. Every
+        // other case passes `Sort == index` and no metadata, so a handler that
+        // enumerated positions or dropped the field was indistinguishable from one
+        // that carried them.
+        var (sender, stores) = Build();
+
+        var result = await sender.Send(RegisterTaxonomy(items:
+        [
+            new TaxonomyItemInput("a1", Label("Beginner"), 40, "{\"color\":\"#e74c3c\"}"),
+            new TaxonomyItemInput("b1", Label("Middle"), 10, null),
+        ]));
+
+        result.IsSuccess.Should().BeTrue();
+
+        var bands = stores.AddedTaxonomies.Single().Items
+            .ToDictionary(item => item.Key, StringComparer.Ordinal);
+
+        bands["a1"].Sort.Should().Be(40);
+        bands["a1"].Metadata.Should().Be("{\"color\":\"#e74c3c\"}");
+        bands["b1"].Sort.Should().Be(10);
+        bands["b1"].Metadata.Should().BeNull("absent metadata stays absent");
+    }
+
+    [Fact]
     public async Task Publishing_a_taxonomy_refuses_one_with_no_bands()
     {
         // The aggregate's EnsurePublishable states the same rule and throws, which is
@@ -265,6 +291,11 @@ public sealed class CustomizationCommandTests
 
         (await sender.Send(RegisterContentType())).IsSuccess.Should().BeTrue();
         stores.Writes.Should().Equal("content-type:add", "generation:bump");
+
+        // And a document that names no taxonomy asks the catalogue nothing — the
+        // common case, and the one an unconditional query would spend a round trip
+        // on inside every customization write.
+        stores.TaxonomyLookups.Should().BeEmpty();
     }
 
     [Fact]
@@ -308,20 +339,24 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
-    public async Task One_taxonomy_key_is_asked_about_once_however_often_it_appears()
+    public async Task Every_taxonomy_a_document_names_is_asked_about_in_one_query()
     {
-        // A content type at § 8.4's hundred-property ceiling may reference one
-        // vocabulary a hundred times, and the answer cannot differ between them
-        // inside a transaction that holds one connection.
+        // Extensions are collected at every schema position, not only under
+        // `properties`, so a document inside § 8.4's 256 KB can name on the order of
+        // ten thousand distinct vocabularies. One call per key put that many
+        // sequential round trips inside an open transaction.
         var (sender, stores) = Build(gate: Reporting(
             ("/properties/a/x-taxonomy", "x-taxonomy", "proficiency"),
             ("/properties/b/x-taxonomy", "x-taxonomy", "proficiency"),
-            ("/properties/c/x-taxonomy", "x-taxonomy", "proficiency")));
+            ("/$defs/t/x-taxonomy", "x-taxonomy", "second")));
 
         await sender.Send(RegisterTaxonomy());
+        stores.TaxonomyLookups.Clear();
         await sender.Send(RegisterContentType());
 
-        stores.TaxonomyLookups.Should().Equal("proficiency");
+        stores.TaxonomyLookups.Should().ContainSingle(
+            "one save asks once, whatever the document names")
+            .Which.Should().Be("proficiency,second", "and it asks about each distinct key");
     }
 
     [Fact]
@@ -787,6 +822,31 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
+    public async Task A_publish_whose_successor_collides_after_the_retirement_poisons_the_unit()
+    {
+        // The other arm behind Undo, and the one nothing reached: a publish fails on
+        // the successor's own UPDATE — the partial index, not the token — after the
+        // incumbent has already been retired. Deleting that arm left the suite green.
+        var (sender, stores, unit) = BuildWithUnit();
+
+        await sender.Send(RegisterContentType(version: 1));
+        await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+        var successorId = Guid.Parse("0199a000-0000-7000-8000-0000000000c3");
+        await sender.Send(RegisterContentType(successorId, version: 2));
+
+        stores.NextConflict = "ux_tenant_content_types_tenant_id_key_active";
+        stores.RearmConflictAfterFirst = true;
+
+        var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
+
+        result.IsFailure.Should().BeTrue();
+        unit.RolledBackOnly.Should().BeTrue(
+            "the incumbent was already deprecated on this transaction, and committing "
+            + "that alone leaves the key with no live revision at all");
+    }
+
+    [Fact]
     public async Task A_publish_that_never_retired_anything_leaves_the_unit_alone()
     {
         // The other edge. A first-ever publish writes only the successor, so a
@@ -1175,7 +1235,7 @@ public sealed class CustomizationCommandTests
 
         public List<TenantLevelTaxonomy> AddedTaxonomies { get; } = [];
 
-        /// <summary>Every key the catalogue was asked about, in order.</summary>
+        /// <summary>One entry per catalogue CALL, carrying the keys it asked about.</summary>
         public List<string> TaxonomyLookups { get; } = [];
 
         /// <summary>The constraint the next write collides with, or nothing.</summary>
@@ -1183,6 +1243,14 @@ public sealed class CustomizationCommandTests
 
         /// <summary>Whether the next update loses a race.</summary>
         public bool NextStale { get; set; }
+
+        /// <summary>Whether the conflict re-arms once, so the SECOND write collides.</summary>
+        /// <remarks>
+        /// The successor's <c>UPDATE</c> is the second write of a publish, and the
+        /// arm that undoes the incumbent's retirement sits behind it. Without this
+        /// the arm was unreachable: deleting it left the suite green.
+        /// </remarks>
+        public bool RearmConflictAfterFirst { get; set; }
 
         /// <summary>
         /// Whether the stale flag re-arms once, so the SECOND update fails.
@@ -1267,16 +1335,21 @@ public sealed class CustomizationCommandTests
         /// <remarks>
         /// Answers from the same dictionary the writes fill, and by the same rule
         /// the real query uses — any non-deleted revision, whatever its status. A
-        /// fake that answered <c>true</c> unconditionally would make every
-        /// extension case pass for the wrong reason.
+        /// fake that answered "all of them" would make every extension case pass
+        /// for the wrong reason.
         /// </remarks>
-        Task<bool> ITenantLevelTaxonomyCatalog.ContainsAsync(
-            string key, CancellationToken cancellationToken)
+        Task<IReadOnlySet<string>> ITenantLevelTaxonomyCatalog.ExistingAsync(
+            IReadOnlyCollection<string> keys, CancellationToken cancellationToken)
         {
-            TaxonomyLookups.Add(key);
+            // The whole call, not each key: what the batching change has to keep
+            // true is that one save asks once.
+            TaxonomyLookups.Add(string.Join(",", keys.Order(StringComparer.Ordinal)));
 
-            return Task.FromResult(Taxonomies.Values.Any(
-                taxonomy => taxonomy.Key == key && taxonomy.DeletedAt is null));
+            return Task.FromResult<IReadOnlySet<string>>(
+                Taxonomies.Values
+                    .Where(taxonomy => keys.Contains(taxonomy.Key) && taxonomy.DeletedAt is null)
+                    .Select(taxonomy => taxonomy.Key)
+                    .ToHashSet(StringComparer.Ordinal));
         }
 
         public Task<long> BumpAsync(TenantId tenantId, CancellationToken cancellationToken = default)
@@ -1312,6 +1385,14 @@ public sealed class CustomizationCommandTests
             }
 
             NextConflict = null;
+
+            if (RearmConflictAfterFirst)
+            {
+                RearmConflictAfterFirst = false;
+                NextConflict = constraint;
+                return;
+            }
+
             throw new AggregateConflictException("duplicate key value", constraint);
         }
     }

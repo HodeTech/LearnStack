@@ -1339,7 +1339,8 @@ land in Phase 02b.
 - Tenant A cannot repoint tenant B's host even though the resolver policy can see it —
   the `UPDATE` affects zero rows and an `INSERT` naming tenant B is rejected by
   `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
-- All ten tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
+- Every tenant-owned table — ten from Packet 6, four more from Packet 8 — reports
+  `relrowsecurity` **and** `relforcerowsecurity` true in
   `pg_class`, with no exception list.
 - `make dev`, `make seed` and `make test` succeed on a clean checkout. `make seed` now
   writes the two demo tenants; it reads `ConnectionStrings__Default` from the
@@ -2613,11 +2614,11 @@ round repeatedly found the first round's fix.
 
 > **Packet 8 — Tenant Customization foundation ✅**
 >
-> **Measured at merge: 1543 tests green** — 1 contract, 90 architecture, 1109 unit,
-> 343 integration. Counted from a run under `CI=true`, which makes warnings errors.
-> The packet's own review rounds account for the first 1465; the external review of
-> the pull request added the rest, and § What the pull-request review changed says
-> what they cover.
+> **Measured at merge: 1568 tests green** — 1 contract, 90 architecture, 1130 unit,
+> 347 integration. Counted from a run under `CI=true`, which makes warnings errors.
+> The packet's own review rounds account for the first 1465; three external reviews
+> of the pull request added the rest, and § What the pull-request review changed
+> says what they cover.
 
 ### What shipped
 
@@ -2684,10 +2685,13 @@ round repeatedly found the first round's fix.
 
 ### What the pull-request review changed
 
-Two external review passes read the branch after the packet's own six rounds — one
-inline, one a three-agent report on the whole diff. Between them they found eight
-things the packet's rounds had not, and every one was reproduced before it was
-fixed.
+Three external review passes read the branch after the packet's own six rounds —
+two inline, one a thirty-three-lens report on the whole diff. Between them they
+found thirteen things the packet's rounds had not, and every one was reproduced
+before it was fixed. The third pass also **refuted its own highest-scored
+finding** by measurement, which is worth as much as the rest: `JsonDocument`'s
+keyed lookup returns the *last* of a duplicated pair, not the first, so the attack
+it described could not work. The defect underneath it was real and smaller.
 
 - **The gate's own traversal, in four ways.** The reference graph was costed per
   edge and not across the document; an author-chosen `$defs` name hid real edges
@@ -2722,6 +2726,26 @@ fixed.
   a contract naming the typed id puts that module's `Domain` in every sender's IL —
   and now a decided one, with a test that measures the assembly reference rather
   than the signature ([ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md)).
+- **An unpaired surrogate escape was a 500, from five places at once.**
+  `JsonElement.GetString()` raises rather than returning one, and the profile reads
+  a string out of `$schema`, a `$ref`, an extension value and every member name it
+  builds a pointer from. The storability clause — the one walk that reads nothing
+  unsafely — runs first now, so the rest of the profile cannot meet the character.
+  Enabling duplicate detection then found a sixth site inside the parse itself.
+- **A duplicated member meant two different documents.** A keyed lookup returns the
+  last and an enumeration yields both, so the profile audited a member `jsonb` then
+  discarded, and `$schema` declared twice was read one way by the gate and another
+  by the builder — admitted, measured, in one of the two orders. The parse refuses
+  duplicates now.
+- **The property ceiling counted only the root.** A nested object could declare as
+  many as the byte cap allowed, about seventeen thousand.
+- **`x-taxonomy` asked one query per key**, inside an open transaction, and a
+  document can name on the order of ten thousand. One `= ANY` now.
+- **Four tests that could not fail.** The successor's conflict arm behind `Undo`, a
+  band's `sort` and `metadata` reaching the aggregate, three structural sweeps that
+  passed over an empty result set, and the generation counter's whole reason for
+  being a single statement — the last needed a lock-wait synchronisation point,
+  because without one it passed against a read-modify-write.
 - **Two matrices disagreed with the standards they cite.** The audit matrix marked a
   rename SHOULD beneath a baseline that makes these aggregates' updates MUST, and
   the permission matrix put publication on `admin` — which no default role holds and

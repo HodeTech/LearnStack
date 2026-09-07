@@ -120,7 +120,28 @@ public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db) : ITenan
 /// </remarks>
 public sealed class TenantLevelTaxonomyCatalog(CustomizationDbContext db) : ITenantLevelTaxonomyCatalog
 {
-    public Task<bool> ContainsAsync(string key, CancellationToken cancellationToken = default) =>
-        db.TenantLevelTaxonomies.AnyAsync(
-            taxonomy => taxonomy.Key == key && taxonomy.DeletedAt == null, cancellationToken);
+    public async Task<IReadOnlySet<string>> ExistingAsync(
+        IReadOnlyCollection<string> keys, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+
+        // No empty-set short circuit: `= ANY('{}')` is the same answer, and a branch
+        // no behaviour can distinguish is a branch no test can kill. The caller that
+        // matters already returns before reaching this port when a document names no
+        // taxonomy at all.
+        //
+        // An array so the provider sends one `= ANY(@keys)` rather than a parameter
+        // per key. No `Include`: the question is whether the tenant has ever
+        // declared the vocabulary, and loading a revision would fetch its bands to
+        // throw them away.
+        var wanted = keys as string[] ?? [.. keys];
+
+        var found = await db.TenantLevelTaxonomies
+            .Where(taxonomy => wanted.Contains(taxonomy.Key) && taxonomy.DeletedAt == null)
+            .Select(taxonomy => taxonomy.Key)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return found.ToHashSet(StringComparer.Ordinal);
+    }
 }

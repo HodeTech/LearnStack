@@ -37,37 +37,24 @@ public sealed class CrossCuttingFoundationTests
     /// assemblies that by convention never hold an event, so it would be vacuous
     /// permanently rather than until the first module ships one — and the same
     /// omission narrowed three older rules alongside it.
+    /// <para>
+    /// <b>Derived from <see cref="Modules.Names"/>, not written out.</b> Seven rules
+    /// read this list, and a module absent from a hand-kept copy is a module all
+    /// seven silently stop covering — which is the failure mode
+    /// <c>Every_Module_With_A_Schema_Is_Swept</c> exists to prevent one level up.
+    /// <c>backend/src/Modules</c> cannot go stale: a module that exists has a
+    /// directory.
+    /// </para>
     /// </remarks>
     private static readonly string[] ModuleAssemblyShapes =
     [
-        "LearnStack.Modules.Tenancy.Application",
-        "LearnStack.Modules.Tenancy.Application.Contracts",
-        "LearnStack.Modules.Tenancy.Domain",
-        "LearnStack.Modules.Tenancy.Infrastructure",
-        "LearnStack.Modules.Identity.Application",
-        "LearnStack.Modules.Identity.Application.Contracts",
-        "LearnStack.Modules.Identity.Domain",
-        "LearnStack.Modules.Identity.Infrastructure",
-        "LearnStack.Modules.Customization.Application",
-        "LearnStack.Modules.Customization.Application.Contracts",
-        "LearnStack.Modules.Customization.Domain",
-        "LearnStack.Modules.Customization.Infrastructure",
-        "LearnStack.Modules.Audit.Application",
-        "LearnStack.Modules.Audit.Application.Contracts",
-        "LearnStack.Modules.Audit.Domain",
-        "LearnStack.Modules.Audit.Infrastructure",
-        "LearnStack.Modules.Content.Application",
-        "LearnStack.Modules.Content.Application.Contracts",
-        "LearnStack.Modules.Content.Domain",
-        "LearnStack.Modules.Content.Infrastructure",
-        "LearnStack.Modules.Media.Application",
-        "LearnStack.Modules.Media.Application.Contracts",
-        "LearnStack.Modules.Media.Domain",
-        "LearnStack.Modules.Media.Infrastructure",
-        "LearnStack.Modules.Education.Application",
-        "LearnStack.Modules.Education.Application.Contracts",
-        "LearnStack.Modules.Education.Domain",
-        "LearnStack.Modules.Education.Infrastructure",
+        .. Modules.Names.SelectMany(module => new[]
+        {
+            $"LearnStack.Modules.{module}.Application",
+            $"LearnStack.Modules.{module}.Application.Contracts",
+            $"LearnStack.Modules.{module}.Domain",
+            $"LearnStack.Modules.{module}.Infrastructure",
+        }),
     ];
 
     [Fact]

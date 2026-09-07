@@ -497,8 +497,13 @@ So the boundary rule, in full:
   the typed id, and `Guid` appears in exactly one place.
 
 `ModuleContracts_DoNotDependOn_AnyModuleDomain` enforces the direction that
-matters — the assembly reference, not the parameter type — because a contract that
-kept the reference would re-open the hole whatever its signatures happened to say.
+matters — the dependency, not the parameter type — because a contract that kept it
+would re-open the hole whatever its signatures happened to say. It has **two
+legs**, and the second is why the first is not enough: NetArchTest walks IL type
+references, so it sees a `Domain` type *used* and not a `ProjectReference` that
+merely exists, and an unused reference is one edit away from the first use while
+already exporting the assembly to every consumer. The second leg reads the
+`.csproj`.
 
 ## References
 

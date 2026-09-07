@@ -170,6 +170,22 @@ internal static class JsonSchemaProfile
     private static readonly string[] NameMapKeywords =
         ["properties", "$defs", "patternProperties", "dependentSchemas", "dependentRequired"];
 
+    /// <summary>
+    /// What the walk counts across the whole document rather than at one node.
+    /// </summary>
+    /// <remarks>
+    /// A class rather than a second traversal. § 8.4's property ceiling is "in one
+    /// content type", and a content type is the whole document — a walk that
+    /// counted per node would admit a hundred properties at every level, and a
+    /// separate walk that counted them would be a second copy of the alternation
+    /// between keywords and author-chosen names, which is the divergence this file
+    /// has already paid for twice.
+    /// </remarks>
+    private sealed class WalkTotals
+    {
+        internal int Properties { get; set; }
+    }
+
     /// <returns>
     /// Every LearnStack extension keyword the document declares at a schema
     /// position, for the caller that owns the registries — see
@@ -191,14 +207,30 @@ internal static class JsonSchemaProfile
             return [];
         }
 
+        // FIRST, and the order is load-bearing rather than tidy. Every clause below
+        // reads strings out of the document — `$schema`'s value, a `$ref`'s target,
+        // an extension's value, and every member NAME the pointers are built from —
+        // and `JsonElement.GetString()` RAISES on an unpaired surrogate escape
+        // rather than returning one (measured). Five call sites threw
+        // `InvalidOperationException` straight out of `AdmitSchema`, past a port
+        // whose contract says tenant input never throws, and became a 500. This
+        // clause is the one walk that reads nothing unsafely, so running it first
+        // makes the rest of the profile unable to meet the character at all.
+        CheckStorable(root, failures);
+
+        if (failures.Any)
+        {
+            return [];
+        }
+
         CheckDialect(root, failures);
         CheckRootProperties(root, failures);
-        CheckStorable(root, failures);
 
         var references = new List<(string Pointer, string Target)>();
         var schemaPositions = new HashSet<string>(StringComparer.Ordinal);
         var extensions = new List<SchemaExtensionReference>();
-        Walk(root, "", 1, failures, references, schemaPositions, extensions, namesAreAuthored: false);
+        Walk(root, "", 1, failures, references, schemaPositions, extensions, new WalkTotals(),
+            namesAreAuthored: false);
         CheckReferences(root, references, schemaPositions, failures);
 
         return extensions;
@@ -304,6 +336,7 @@ internal static class JsonSchemaProfile
         List<(string Pointer, string Target)> references,
         HashSet<string> schemaPositions,
         List<SchemaExtensionReference> extensions,
+        WalkTotals totals,
         bool namesAreAuthored)
     {
         if (depth > MaxDepth)
@@ -351,6 +384,12 @@ internal static class JsonSchemaProfile
                                 child, property.Name, ExtensionValue(property.Value)));
                             continue;
                         }
+
+                        // § 8.4 caps the properties in one CONTENT TYPE, and a content
+                        // type is the document. Counted at every `properties`, because
+                        // the root check alone let a nested object declare as many as
+                        // the byte cap allows — measured, about seventeen thousand.
+                        CountProperties(property, child, totals, failures);
                     }
 
                     Walk(
@@ -361,6 +400,7 @@ internal static class JsonSchemaProfile
                         references,
                         schemaPositions,
                         extensions,
+                        totals,
                         namesAreAuthored: !namesAreAuthored
                             && Array.IndexOf(NameMapKeywords, property.Name) >= 0);
                 }
@@ -380,6 +420,7 @@ internal static class JsonSchemaProfile
                         references,
                         schemaPositions,
                         extensions,
+                        totals,
                         namesAreAuthored: false);
                     index++;
                 }
@@ -388,6 +429,29 @@ internal static class JsonSchemaProfile
 
             default:
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Charges one <c>properties</c> node against the document's budget.
+    /// </summary>
+    private static void CountProperties(
+        JsonProperty property, string pointer, WalkTotals totals, ProfileFailures failures)
+    {
+        if (!string.Equals(property.Name, "properties", StringComparison.Ordinal)
+            || property.Value.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var _ in property.Value.EnumerateObject())
+        {
+            totals.Properties++;
+        }
+
+        if (totals.Properties > MaxProperties)
+        {
+            failures.Add(pointer, "lockey_schema_too_many_properties");
         }
     }
 

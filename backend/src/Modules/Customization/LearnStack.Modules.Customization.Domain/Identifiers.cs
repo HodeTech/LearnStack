@@ -45,11 +45,13 @@ public readonly partial record struct TenantLevelTaxonomyId : IStronglyTypedId<G
 /// examples use (<c>vocabulary-card</c>, <c>asana-pose</c>, <c>cefr</c>).
 /// </para>
 /// <para>
-/// The cache-key component is not decoration: <c>CacheKey</c> refuses a <c>:</c>
-/// inside a component when it composes a key, because a separator that can appear
-/// inside one makes two different key tuples collide. Refusing the whole shape here is
-/// stricter than refusing that one character, and it is refused at the factory so
-/// the failure names the field rather than surfacing three layers away.
+/// The cache-key component is not decoration, and <b>this guard is the only thing
+/// that protects it</b>. <c>CacheKey.EnsureValid</c> splits a key on <c>:</c> and
+/// checks the segments; a component carrying one simply yields an extra segment,
+/// which it accepts — so a key with a separator inside it collides two different
+/// tuples and nothing downstream notices. Refusing the whole shape here is what
+/// prevents that, and it is refused at the factory so the failure names the field
+/// rather than surfacing three layers away.
 /// </para>
 /// </remarks>
 public static class CustomizationKey

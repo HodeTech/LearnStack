@@ -525,6 +525,25 @@ blocks in it show a key shape the platform does not accept; the corrected form i
 in [32-tenant-customization-model.md § 3](../architecture/32-tenant-customization-model.md),
 which is the document the implementation follows.
 
+> **Erratum (2026-09-07):** three statements above were false when they entered
+> the record, and the rule they support is not.
+>
+> - *"two of them teach a shape the shipped code refuses"* — the paragraph then
+>   names one correct example (`vocabulary-card`) and one wrong one (`A1`). **One**
+>   block teaches the wrong shape.
+> - *"`CacheKey.EnsureValid` refuses a `:`"* — it does not. `EnsureValid` splits on
+>   `:` and checks the resulting segments; a component carrying one simply produces
+>   an extra segment, which it accepts. What actually refuses the character is the
+>   key's own slug shape, which is this amendment's rule — so the sentence used the
+>   rule to justify itself. The collision it describes is real; nothing but this
+>   rule prevents it.
+> - *"the shape [Database Standards] already applies to a slug"* — Database
+>   Standards names `slug` columns and a `ck_…_slug_format` constraint but states
+>   no shape. The shape is `UrlSlug`'s, in code, and no document carries it.
+>
+> The rule stands as written: lowercase alphanumeric, single interior hyphens, at
+> most 100 characters, for a concept key and an item key alike.
+
 ### 2026-09-06 — The aggregates ship phase by phase, not in one bundle
 
 § Implementation notes lists all seven customization aggregates against "Phase 02

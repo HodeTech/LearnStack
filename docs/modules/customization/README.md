@@ -279,6 +279,22 @@ solve none.
   [Phase 04](../../roadmap/phase-04-cms-media-pages.md) with the field type that
   carries one. [§ 8.1](../../architecture/32-tenant-customization-model.md) records
   the gap rather than leaving the invariant reading as though it were closed.
+- **Publishing an older revision silently demotes a newer live one.** `Publish`
+  retires whatever is `Active` for the key without comparing `schema_version`, so
+  a `Draft` left over at v1 makes v1 live again and deprecates v3. That is
+  *coherent* with the model — an entry pins the version it was written against,
+  and [ADR-0013](../../decisions/0013-page-block-schema-versioning.md) keeps the
+  deprecated revision resolvable — so it is a rollback rather than a corruption,
+  and refusing it would forbid one. What is missing is the editor that makes the
+  choice deliberate: [Phase 04](../../roadmap/phase-04-cms-media-pages.md) owns
+  the diff that decides additive from breaking, and this question with it.
+- **The lifecycle guards do not mention soft delete, and nothing can reach them.**
+  `Publish` and `ReviseSchema` do not ask whether the row is deleted. They cannot
+  be handed one: there is no delete command, and both store reads exclude
+  `deleted_at IS NOT NULL`. The guard is owed by whichever phase ships the delete
+  command — [Phase 04](../../roadmap/phase-04-cms-media-pages.md) for content
+  types, per [audit.md](audit.md)'s `soft delete` row — and writing it now would
+  be a branch no test could kill.
 - **A tenant can strand its own content.** Deprecating the only live revision of
   a key leaves content rows pinned to a version nothing publishes. The schema
   permits it and no command refuses it, because "is this key still needed?" is a

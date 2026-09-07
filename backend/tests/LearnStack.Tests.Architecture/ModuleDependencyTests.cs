@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using NetArchTest.Rules;
 using Xunit;
@@ -87,6 +88,38 @@ public sealed class ModuleDependencyTests
                 + "reaches every sender: "
                 + string.Join(", ", result.FailingTypeNames ?? []));
         }
+
+        // The second leg, and it is not redundant: NetArchTest (Mono.Cecil) walks IL
+        // TypeRefs, so it sees a Domain type USED and not a project reference that
+        // merely exists — Meta_NetArchTest_DetectsAPlantedViolation says as much in
+        // as many words. An unused reference is one edit away from the first use, and
+        // it exports the assembly to every consumer of the contracts besides. This is
+        // the leg ADR-0023 Amendment 8 rests on.
+        ProjectReferencesOf(moduleName, "Application.Contracts")
+            .Where(reference => reference.EndsWith(".Domain.csproj", StringComparison.Ordinal))
+            .Should().BeEmpty(
+                $"{moduleName}.Application.Contracts must not reference any Domain project — "
+                + "a module-local identifier crosses a contract as Guid precisely so that "
+                + "reference never has to exist (ADR-0023 Amendment 8)");
+    }
+
+    /// <summary>Every <c>ProjectReference</c> path one module project declares.</summary>
+    private static List<string> ProjectReferencesOf(string moduleName, string layer)
+    {
+        var path = Path.Combine(
+            RepositoryPaths.BackendSrc(),
+            "Modules",
+            moduleName,
+            $"LearnStack.Modules.{moduleName}.{layer}",
+            $"LearnStack.Modules.{moduleName}.{layer}.csproj");
+
+        File.Exists(path).Should().BeTrue(
+            $"{Path.GetFileName(path)} is where the module's references are declared — "
+            + "a renamed or moved project silently empties this leg");
+
+        return Regex.Matches(File.ReadAllText(path), @"ProjectReference\s+Include=""(?<path>[^""]+)""")
+            .Select(match => match.Groups["path"].Value.Replace('\\', '/'))
+            .ToList();
     }
 
     [Theory]

@@ -90,6 +90,12 @@ public sealed class TenancySchemaTests
         // permissive policy has two policies for at least one command.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
 
+        // The sweep proves it read the catalogue before it reports nothing wrong:
+        // a schema with no policies at all satisfies "no two permissive policies".
+        (await SchemaQueries.CountAsync(connection,
+                "SELECT count(*) FROM pg_policies WHERE schemaname = 'public'"))
+            .Should().BeGreaterThan(0, "a policy sweep over no policies passes vacuously");
+
         var offenders = await SchemaQueries.ReadStringsAsync(connection,
             """
             SELECT tablename || ' (' || string_agg(policyname, ', ' ORDER BY policyname) || ')'
@@ -669,6 +675,13 @@ public sealed class TenancySchemaTests
         var scanned = await SchemaQueries.ReadStringsAsync(connection, SchemaQueries.TableNames);
         scanned.Should().Contain(SchemaFixture.KnownTables);
 
+        (await SchemaQueries.CountAsync(connection,
+                $"""
+                 SELECT count(*) FROM pg_attribute a
+                 WHERE a.attrelid IN ({SchemaQueries.TableOids}) AND a.attnum > 0
+                 """))
+            .Should().BeGreaterThan(0, "a column sweep over no columns passes vacuously");
+
         var offenders = await SchemaQueries.ReadStringsAsync(connection,
             $"""
              SELECT c.relname || '.' || a.attname
@@ -704,6 +717,13 @@ public sealed class TenancySchemaTests
         //   already yields at most one candidate row, so the second column adds
         //   nothing an index could.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+
+        (await SchemaQueries.CountAsync(connection,
+                $"""
+                 SELECT count(*) FROM pg_constraint
+                 WHERE contype = 'f' AND conrelid IN ({SchemaQueries.TableOids})
+                 """))
+            .Should().BeGreaterThan(0, "an index sweep over no foreign keys passes vacuously");
 
         var unindexed = await SchemaQueries.ReadStringsAsync(connection,
             """

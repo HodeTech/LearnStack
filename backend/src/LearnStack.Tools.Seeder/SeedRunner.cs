@@ -444,5 +444,11 @@ public sealed class SeedTenantContext(TenantId tenantId, OrganizationId organiza
 
     public string? CorrelationId => null;
 
-    public string? ModuleName => "tenancy";
+    /// <remarks>
+    /// <c>null</c>, as the request-path <c>TenantContext</c> also returns. This
+    /// context announces every write the seeder makes, and four of them are
+    /// Customization's — a literal here tagged those spans and any error report
+    /// with the wrong module, which is the one thing this field is read for.
+    /// </remarks>
+    public string? ModuleName => null;
 }

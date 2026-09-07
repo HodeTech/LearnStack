@@ -41,10 +41,11 @@ internal static class SchemaExtensionResolution
     /// The occurrences that name nothing, in document order.
     /// </summary>
     /// <remarks>
-    /// Every distinct taxonomy key costs one query and a repeated one costs none:
-    /// a content type at § 8.4's hundred-property ceiling may reference one
-    /// vocabulary a hundred times, and the answer cannot differ between them
-    /// inside a transaction that holds one connection.
+    /// Every taxonomy key in the document costs <b>one</b> query between them. A
+    /// document inside § 8.4's 256 KB can name on the order of ten thousand
+    /// distinct vocabularies — extensions are collected at every schema position,
+    /// not only under <c>properties</c> — and one call per key put that many
+    /// sequential round trips inside an open transaction.
     /// </remarks>
     internal static async Task<IReadOnlyList<SchemaExtensionReference>> UnresolvedAsync(
         IReadOnlyList<SchemaExtensionReference> extensions,
@@ -82,23 +83,25 @@ internal static class SchemaExtensionResolution
         ITenantLevelTaxonomyCatalog taxonomies,
         CancellationToken cancellationToken)
     {
-        var missing = new HashSet<string>(StringComparer.Ordinal);
-        var asked = new HashSet<string>(StringComparer.Ordinal);
+        var wanted = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var extension in extensions)
         {
-            if (!string.Equals(extension.Keyword, TaxonomyKeyword, StringComparison.Ordinal)
-                || !asked.Add(extension.Value))
+            if (string.Equals(extension.Keyword, TaxonomyKeyword, StringComparison.Ordinal))
             {
-                continue;
-            }
-
-            if (!await taxonomies.ContainsAsync(extension.Value, cancellationToken))
-            {
-                missing.Add(extension.Value);
+                wanted.Add(extension.Value);
             }
         }
 
-        return missing;
+        if (wanted.Count == 0)
+        {
+            return wanted;
+        }
+
+        var existing = await taxonomies.ExistingAsync(wanted, cancellationToken);
+
+        wanted.ExceptWith(existing);
+
+        return wanted;
     }
 }

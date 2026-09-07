@@ -104,8 +104,18 @@ public interface ITenantLevelTaxonomyStore
 /// </remarks>
 public interface ITenantLevelTaxonomyCatalog
 {
-    /// <summary>Whether any non-deleted revision of <paramref name="key"/> exists.</summary>
-    Task<bool> ContainsAsync(string key, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Which of <paramref name="keys"/> the tenant has declared, in one query.
+    /// </summary>
+    /// <remarks>
+    /// <b>A set in and a set out, rather than one call per key.</b> Extensions are
+    /// collected at every schema position, not only under <c>properties</c>, so a
+    /// document inside § 8.4's 256 KB can name on the order of ten thousand
+    /// distinct taxonomies — and asking once per key put that many sequential round
+    /// trips inside an open transaction. One <c>= ANY</c> costs one.
+    /// </remarks>
+    Task<IReadOnlySet<string>> ExistingAsync(
+        IReadOnlyCollection<string> keys, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

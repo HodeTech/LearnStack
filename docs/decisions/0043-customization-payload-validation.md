@@ -489,13 +489,16 @@ with the adapter it guards.
 - Port: `IJsonSchemaValidator` in `LearnStack.SharedKernel.Validation`. Two
   members — admit a schema document, and check an instance against a schema
   document already admitted. Both return `Result`; neither throws; neither
-  <!-- Erratum (2026-09-06): "neither throws" is false and always was.
-       ValidateInstance throws InvalidOperationException by design when the schema
-       it is handed does not build or does not evaluate — that means a row was
-       written past this gate, which is a 500 rather than a tenant's 400.
-       Amendment 3 states the sealed surface. -->
   mentions a `Json.Schema` type in its signature, and no built `JsonSchema`
   outlives a call (§ 6).
+
+  > **Erratum (2026-09-06):** *"neither throws"* is false and always was.
+  > `ValidateInstance` throws `InvalidOperationException` **by design** when the
+  > schema it is handed does not build or does not evaluate — that means a row was
+  > written past this gate, which is a 500 rather than a tenant's 400. Amendment 3
+  > states the sealed surface. *(This erratum was written inside an HTML comment
+  > and so was invisible in every renderer; it is restated here on 2026-09-07,
+  > unchanged.)*
 - Adapter: `JsonSchemaNetValidator` in `LearnStack.Infrastructure.Validation`.
   It is the only project referencing the package.
 - `Directory.Packages.props` gains `JsonSchema.Net` at `8.0.5`, with the licence

@@ -6,9 +6,10 @@ description: >
   connected as `learnstack_app`, never as the owner — and asserts behaviour under
   tenant + organization context. No Valkey and no Kafka: nothing the backend runs
   calls them. Phase 02a Packet 6 shipped the Postgres fixture, CI's
-  `backend-integration` job, both migration chains, the RLS policies, a
+  `backend-integration` job, the migration chains, the RLS policies, a
   two-tenant seed and the schema-level isolation suite; Packet 7 re-runs those
-  cases through `TenantResolverMiddleware` and the EF query filters. Docker-bound cases carry
+  cases through `TenantResolverMiddleware` and the EF query filters, and Packet 8
+  added the Customization chain and its four tables. Docker-bound cases carry
   `[Trait("Requires","Docker")]`, which is how CI routes them. USE FOR: cross-tenant / cross-org isolation tests (mandatory for every
   new `[TenantOwned]` / `[OrganizationScoped]` entity), outbox → consumer round
   trips, audit-pipeline assertions, RLS-effective-isolation tests. DO NOT USE FOR:
@@ -65,9 +66,11 @@ architecture test) plus any other invariant the change touches. See
 > **Two fixtures, and picking the wrong one is the common mistake.**
 > `PostgresFixture` is the container plus the four roles and nothing else — use it
 > for a role-level or provisioning question. `SchemaFixture` builds on it and is
-> what almost every test wants: both migration chains applied and **every one of
-> the ten tables seeded for two tenants**, with a second organization under tenant
-> A. Share it with `[Collection(SharedSchema.Name)]` rather than
+> what almost every test wants: **every** migration chain applied — through
+> `MigrationChains.ApplyAllAsync`, never a list a fixture keeps itself — and every
+> table seeded for two tenants, with a second organization under tenant A. There
+> are three chains and fourteen tables as of Packet 8; a fixture that names them is
+> a fixture that goes stale, which is the defect below. Share it with `[Collection(SharedSchema.Name)]` rather than
 > `IClassFixture<>`, so one container serves the whole schema suite.
 >
 > Anything touching either carries `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`,
@@ -79,13 +82,13 @@ What the fixtures do today:
   backend runs today calls either, and both sit behind the `gated` compose profile
   per [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
 - Provision the **four database roles** by running the same script the compose
-  stack runs, then apply both migration chains **as `learnstack_migration`** —
+  stack runs, then apply every migration chain **as `learnstack_migration`** —
   which owns every table — and expose a connection as **`learnstack_app`** for the
   tests themselves. A test that connects as the owner or as a `BYPASSRLS` role
   passes even when every policy is inert, so it proves nothing.
 - Seed **every table for both tenants**, deliberately: a count assertion against a
   table the fixture never populated passes whatever the policy says. That shipped
-  once, in Packet 6, and is why `SchemaFixture` fills all ten.
+  once, in Packet 6, and is why `SchemaFixture` fills all of them.
 - Expose the seeded ids as `SchemaFixture.TenantA` / `TenantB` / `OrgA1` / `OrgA2`,
   and the session-variable helpers as `SchemaQueries.SetTenantAsync` /
   `SetSettingAsync` — `set_config(name, value, true)`, not `SET LOCAL`, because
@@ -318,9 +321,11 @@ Don't substitute `UseInMemoryDatabase` even for "fast" tests.
 every class in the schema suite. `PostgresFixture` is taken as an `IClassFixture`
 by the class that needs the roles without the schema. If a class needs a unique
 seed, prefer **inside-the-fixture** seeding over a new container — a fixture
-carrying only one of the two migration chains is what narrowed every structural
-sweep to eight of ten tables, and let a second permissive policy on
-`outbox_messages` pass the whole suite.
+carrying a subset of the migration chains is what narrowed every structural sweep
+to eight of ten tables, and let a second permissive policy on `outbox_messages`
+pass the whole suite. It then happened again in Packet 8, in a different fixture,
+which is why every fixture now calls `MigrationChains.ApplyAllAsync` instead of
+applying a list of its own.
 
 Roll the transaction back rather than committing, so the seeded row counts other
 cases assert on stay what they were.

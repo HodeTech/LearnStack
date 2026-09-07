@@ -768,6 +768,88 @@ public sealed class JsonSchemaNetValidatorTests
             .IsSuccess.Should().BeTrue();
     }
 
+    [Theory]
+    // Every position the profile reads a string out of, and one member NAME, which
+    // is what the pointers are built from.
+    [InlineData("\"$schema\":\"\\ud800\",\"type\":\"object\",\"properties\":{\"a\":{}}")]
+    [InlineData("\"$schema\":\"DIALECT\",\"type\":\"object\",\"properties\":{\"a\":{\"x-renderer\":\"\\ud800\"}}")]
+    [InlineData("\"$schema\":\"DIALECT\",\"type\":\"object\",\"properties\":{\"a\":{\"$ref\":\"\\ud800\"}}")]
+    [InlineData("\"$schema\":\"DIALECT\",\"type\":\"object\",\"properties\":{\"\\ud800\":{\"type\":\"string\"}}")]
+    [InlineData("\"$schema\":\"DIALECT\",\"type\":\"object\",\"properties\":{\"a\":{\"\\ud800\":1}}")]
+    public void An_unpaired_surrogate_is_refused_rather_than_thrown(string body)
+    {
+        // `JsonElement.GetString()` RAISES on an unpaired surrogate escape rather
+        // than returning one — measured — and every one of these positions is a
+        // GetString the profile makes. All five threw InvalidOperationException out
+        // of AdmitSchema, past a port whose contract says tenant input never throws,
+        // and became a 500. The storability clause runs first now, so the rest of
+        // the profile cannot meet the character at all.
+        Refusal(_validator.AdmitSchema("{" + body.Replace("DIALECT", Dialect, StringComparison.Ordinal) + "}"))
+            .Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void A_duplicated_member_is_refused()
+    {
+        // Measured on .NET 10: a keyed lookup returns the LAST of a duplicated pair
+        // and an enumeration yields both, so the profile audits a member `jsonb`
+        // then discards — and the two readers of this document disagree about which
+        // one is there.
+        Refusal(_validator.AdmitSchema(
+                "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+                + "\"a\":{\"type\":\"string\"},\"a\":{\"type\":\"number\"}}}"))
+            .Should().ContainKey("").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_not_well_formed_json");
+    }
+
+    [Theory]
+    [InlineData("\"$schema\":\"DIALECT\",\"$schema\":\"http://json-schema.org/draft-07/schema#\"")]
+    [InlineData("\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"$schema\":\"DIALECT\"")]
+    public void A_second_dialect_line_cannot_be_smuggled_past_the_first(string dialects)
+    {
+        // Both orders, because the gate reads by key and the builder parses the text:
+        // whichever one each of them believes, a document carrying two answers to
+        // "which dialect is this?" is the hazard the pinned dialect exists to remove.
+        // Measured before the parse refused duplicates: draft-07 then 2020-12 was
+        // ADMITTED.
+        _validator.AdmitSchema(
+                "{" + dialects.Replace("DIALECT", Dialect, StringComparison.Ordinal)
+                + ",\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}}}")
+            .IsSuccess.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(99, true)]
+    [InlineData(100, false)]
+    public void The_property_ceiling_counts_the_whole_document(int nested, bool admitted)
+    {
+        // § 8.4 caps the properties in one CONTENT TYPE, and a content type is the
+        // document. Checked only at the root, a nested object declared as many as
+        // the byte cap allowed — about seventeen thousand, measured. The root's own
+        // `a` is the hundredth here, which is why the pair sits at 99 and 100.
+        var inner = string.Join(",", Enumerable.Range(0, nested)
+            .Select(i => $"\"p{i}\":{{\"type\":\"string\"}}"));
+
+        _validator.AdmitSchema(
+                Schema("\"a\":{\"type\":\"object\",\"properties\":{" + inner + "}}"))
+            .IsSuccess.Should().Be(admitted);
+    }
+
+    [Theory]
+    [InlineData("{\"a\":\"\\u0000\"}", "lockey_instance_text_not_storable")]
+    [InlineData("{\"a\":\"\\ud800\"}", "lockey_instance_text_not_storable")]
+    [InlineData("{\"a\":1e1000000}", "lockey_instance_number_not_storable")]
+    public void An_instance_the_column_cannot_hold_is_refused(string instance, string reason)
+    {
+        // An entry is stored in a `jsonb` column too, and all three of these satisfy
+        // every schema. Without this the entry is admitted here and refused by the
+        // INSERT — the 500 Amendment 4 removed from the schema path, still standing
+        // on the entry one, where Phase 04's importer would have inherited it.
+        Refusal(_validator.ValidateInstance(Schema("\"a\":{}"), instance))
+            .Should().ContainSingle().Which.Value.Should()
+            .ContainSingle(m => m.Key == reason);
+    }
+
     // ── LearnStack extensions: reported, not resolved ───────────────────────
 
     [Theory]

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Json.Schema;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Validation;
@@ -58,6 +59,16 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     /// <inheritdoc />
     public Result<IReadOnlyList<SchemaExtensionReference>> AdmitSchema(string jsonSchema)
     {
+        // The size cap before the parse, not after. It names no location, so ADR-0043
+        // § 2's ordering — the gates that CAN name one run first — has nothing to say
+        // about where it sits; what does is that parsing is the work the cap exists
+        // to refuse, and the callers no request-body limit bounds (the seeder, the
+        // Hub adapter, Phase 04's bulk importer) all reach this method.
+        if (Encoding.UTF8.GetByteCount(jsonSchema) > JsonSchemaProfile.MaxBytes)
+        {
+            return Fail<IReadOnlyList<SchemaExtensionReference>>("", "lockey_schema_too_large");
+        }
+
         // Gate 1 — it is JSON. JsonException, whose reader-depth subtype
         // JsonReaderException is internal and cannot be named in a catch.
         if (!TryParse(jsonSchema, out var document, out var malformed))
@@ -69,11 +80,6 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
 
         using (document)
         {
-            if (Encoding.UTF8.GetByteCount(jsonSchema) > JsonSchemaProfile.MaxBytes)
-            {
-                return Fail<IReadOnlyList<SchemaExtensionReference>>("", "lockey_schema_too_large");
-            }
-
             // Gate 2 — the LearnStack profile, which the library does not provide.
             // It is also the only walk that can say WHERE an x-renderer sits, so the
             // extension occurrences LearnStack has to resolve leave from here.
@@ -96,7 +102,18 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
                     Collect(meta, "lockey_schema_not_valid_json_schema"));
             }
 
-            // Gate 4 — it builds. NOT where cycles are caught: gate 2 refuses every
+            // Gate 4 — it builds. Both catches below are **defensive at a third-party
+            // boundary and no longer reachable from a document gates 1-3 admit**:
+            // searched on 2026-09-07 across `$ref` onto a non-schema, a `$ref` into a
+            // `properties` slot, `contentSchema`, `unevaluatedProperties`,
+            // `prefixItems`, a pruned `$vocabulary` and a malformed
+            // `dependentRequired`, and gate 2 or gate 3 refused every one first. They
+            // stay because the builder is a pinned dependency rather than a rule this
+            // repository owns — the same reason ADR-0043 gives for the
+            // ArgumentException arm, which a measured shape DID reach before gate 2
+            // grew the clause that now refuses it.
+            //
+            // NOT where cycles are caught either: gate 2 refuses every
             // one, because the builder detects only a cycle reachable from the root
             // and one reached through `properties` builds and then ends the process
             // during evaluation (ADR-0043 Amendments 1 and 2).
@@ -127,6 +144,17 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     /// <inheritdoc />
     public Result<None> ValidateInstance(string admittedSchema, string instanceJson)
     {
+        // Both caps before either parse, for the reason AdmitSchema states.
+        if (Encoding.UTF8.GetByteCount(instanceJson) > MaxInstanceBytes)
+        {
+            return Fail<None>("", "lockey_instance_too_large");
+        }
+
+        if (Encoding.UTF8.GetByteCount(admittedSchema) > JsonSchemaProfile.MaxBytes)
+        {
+            return Fail<None>("", "lockey_schema_too_large");
+        }
+
         if (!TryParse(instanceJson, out var document, out var malformed))
         {
             return Fail<None>(malformed);
@@ -134,19 +162,24 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
 
         using (document)
         {
-            // The port's own bound, not the middleware's. Measured at the entry cap
-            // § 8.4 declares: a hundred properties each applying one shared shape,
-            // against a 1 MiB instance, costs 742 ms and 1.6 GB of allocation in one
-            // call. The HTTP body limit caps a request; it does not cap the seeder
-            // or the bulk importer Phase 04 brings, and both reach this method.
-            if (Encoding.UTF8.GetByteCount(instanceJson) > MaxInstanceBytes)
+            // An entry is stored in a `jsonb` column too, and `U+0000`, an unpaired
+            // surrogate and a number outside `numeric` all pass every schema — so
+            // without this the entry is admitted here and refused by the INSERT, as
+            // the 500 ADR-0043 Amendment 4 removed from the schema path.
+            var unstorable = new ProfileFailures();
+
+            foreach (var (location, fault) in JsonValue.Unstorable(document.RootElement))
             {
-                return Fail<None>("", "lockey_instance_too_large");
+                unstorable.Add(
+                    location,
+                    fault == JsonStorageFault.Number
+                        ? "lockey_instance_number_not_storable"
+                        : "lockey_instance_text_not_storable");
             }
 
-            if (Encoding.UTF8.GetByteCount(admittedSchema) > JsonSchemaProfile.MaxBytes)
+            if (unstorable.Any)
             {
-                return Fail<None>("", "lockey_schema_too_large");
+                return Fail<None>(unstorable);
             }
 
             try
@@ -199,16 +232,45 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     /// <c>Result</c>, because the two callers answer with different payload types
     /// and the reason for the refusal is the same either way.
     /// </remarks>
+    /// <summary>
+    /// Gate 1's parse, with duplicate members refused.
+    /// </summary>
+    /// <remarks>
+    /// <b>Because the readers disagree about which one wins.</b> Measured on .NET
+    /// 10: a keyed lookup returns the <i>last</i> member of a duplicated pair and
+    /// an enumeration yields both — so the profile audits a member <c>jsonb</c>
+    /// then discards, and a duplicated <c>$schema</c> is read by this gate and by
+    /// the builder with no guarantee they agree. Refusing the document is one
+    /// option flag, and it raises <c>JsonException</c>, which gate 1 already turns
+    /// into a 400 naming the position.
+    /// <para>
+    /// <b>Here and not in <c>JsonValue</c>.</b> PostgreSQL does store a duplicated
+    /// member — it keeps the last — so "JSON a <c>jsonb</c> column takes" stays true
+    /// of one, and that general guard also runs on <c>LocalizedText.FromJson</c>,
+    /// which reads a stored column back and would then refuse a value on its way
+    /// out. What is specific to this gate is that <b>LearnStack reads the document
+    /// twice under different rules</b>: the profile enumerates, and the dialect
+    /// check looks up by key.
+    /// </para>
+    /// </remarks>
+    private static readonly JsonDocumentOptions NoDuplicates = new() { AllowDuplicateProperties = false };
+
     private static bool TryParse(string json, out JsonDocument document, out ProfileFailures malformed)
     {
         try
         {
-            document = JsonDocument.Parse(json);
+            document = JsonDocument.Parse(json, NoDuplicates);
             malformed = default!;
             return true;
         }
-        catch (JsonException exception)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
+            // InvalidOperationException is not a parser error in general — it is what
+            // duplicate detection raises when it has to READ a member name to compare
+            // it, and the name carries an unpaired surrogate escape ("Cannot read
+            // incomplete UTF-16 JSON text…", measured). It arrives only from this
+            // call and means exactly what JsonException means here: the text is not
+            // a document this platform can read.
             document = default!;
             malformed = new ProfileFailures();
             malformed.Add("", "lockey_schema_not_well_formed_json", exception.Message);
