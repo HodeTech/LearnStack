@@ -2613,8 +2613,11 @@ round repeatedly found the first round's fix.
 
 > **Packet 8 — Tenant Customization foundation ✅**
 >
-> **Measured at merge: 1465 tests green** — 1 contract, 83 architecture, 1049 unit,
-> 332 integration. Counted from a run under `CI=true`, which makes warnings errors.
+> **Measured at merge: 1543 tests green** — 1 contract, 90 architecture, 1109 unit,
+> 343 integration. Counted from a run under `CI=true`, which makes warnings errors.
+> The packet's own review rounds account for the first 1465; the external review of
+> the pull request added the rest, and § What the pull-request review changed says
+> what they cover.
 
 ### What shipped
 
@@ -2678,6 +2681,52 @@ round repeatedly found the first round's fix.
   showed it defensive, an architecture rule cited as forcing a design it does not
   constrain, and four surviving copies of a predicate — `WHERE status = 'active'` —
   that would match no row.
+
+### What the pull-request review changed
+
+Two external review passes read the branch after the packet's own six rounds — one
+inline, one a three-agent report on the whole diff. Between them they found eight
+things the packet's rounds had not, and every one was reproduced before it was
+fixed.
+
+- **The gate's own traversal, in four ways.** The reference graph was costed per
+  edge and not across the document; an author-chosen `$defs` name hid real edges
+  from the cost model; a `$ref` could name a position inside a literal; and a
+  percent-encoded fragment was refused although RFC 6901 § 6 decodes the fragment
+  whole. One change closed all four: the traversal now mirrors the walk's own
+  alternation between keywords and author-chosen names.
+- **Well-formed JSON that the column refuses.** `U+0000`, an unpaired surrogate and
+  a number outside `numeric` all parse and none stores — `22P05`, `22P02`, `22003`,
+  measured on PostgreSQL 18.6 — so the refusal happened at the `INSERT`, as a 500.
+  The profile refuses them by pointer now, `JsonValue` answers the question it had
+  always claimed to, and `LocalizedText` refuses the same characters because a
+  surrogate it accepted was stored as `U+FFFD` with nothing raised at all
+  ([ADR-0043 Amendment 4](../decisions/0043-customization-payload-validation.md)).
+  An integration case asks the real column about eleven documents and asserts the
+  guard agrees in both directions.
+- **The extensions were admitted and never resolved.** § 8.1 requires every
+  `x-renderer` / `x-taxonomy` / `x-language` to resolve to a registry entry **on
+  saving**, and a content type naming a renderer or a taxonomy that does not exist
+  was stored, published and frozen. The validator now reports where each extension
+  sits — only the walk that separates schema positions from instance literals can —
+  and the module resolves it. `x-language` is admitted unresolved because its
+  registry does not exist; [Phase 04](phase-04-cms-media-pages.md) owns it.
+- **A publish that failed after retiring the incumbent** committed the retirement,
+  because an inner `Result.Fail` an outer handler absorbs does not roll back an
+  ambient transaction. Both publish handlers now mark it rollback-only.
+- **A null element in a taxonomy list** reached the aggregate as a
+  `NullReferenceException`: `SetValidator` skips a null rather than refusing it.
+- **`$` is not end-of-input in .NET.** It matches before a final newline, so
+  `card\n` was a url-safe customization key and `en\n` a well-formed locale tag.
+- **A raw `Guid` in a command contract had no record.** It is the right shape —
+  a contract naming the typed id puts that module's `Domain` in every sender's IL —
+  and now a decided one, with a test that measures the assembly reference rather
+  than the signature ([ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md)).
+- **Two matrices disagreed with the standards they cite.** The audit matrix marked a
+  rename SHOULD beneath a baseline that makes these aggregates' updates MUST, and
+  the permission matrix put publication on `admin` — which no default role holds and
+  which the closed action set does not mean. Publication is a sub-resource, which is
+  Permission Standards' own worked example.
 
 ### What it deliberately did not ship
 
