@@ -14,6 +14,12 @@
 # MapHostToTenantCommand under each tenant's own announcement. Idempotent: a
 # second run recognises its own first by the uniqueness refusal and exits 0.
 #
+# Phase 02a Packet 8 scope (wired): a third act per tenant installs the two
+# built-in customizations — a `card` content type drawn by `default-card`, and
+# a `plain` level taxonomy with three bands — through the same four commands a
+# tenant admin uses, so a tenant that has authored nothing still has something
+# for the runtime to resolve. Idempotent by the same mechanism.
+#
 # There is no platform-admin user to seed. This packet creates no `users`
 # table — Phase 03's Identity migration owns it — and `UserId.SystemActor` is
 # a CLR constant with no row behind it, deliberately, because the audit

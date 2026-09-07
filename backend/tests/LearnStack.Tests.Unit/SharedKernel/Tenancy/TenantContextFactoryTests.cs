@@ -6,7 +6,7 @@ using Xunit;
 namespace LearnStack.Tests.Unit.SharedKernel.Tenancy;
 
 /// <summary>
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
+/// <see href="../../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
 /// reconciliation matrix, driven row by row.
 /// </summary>
 /// <remarks>

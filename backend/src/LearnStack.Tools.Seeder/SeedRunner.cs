@@ -1,3 +1,5 @@
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
@@ -129,6 +131,57 @@ public sealed class SeedRunner(
                 IsPubliclyLive: true),
             HostMappingAct,
             cancellationToken);
+
+        // Act three, still as the tenant: the two built-ins, registered and then
+        // published, so a tenant that has authored nothing still has a live content
+        // type and a live level vocabulary for the runtime to resolve. Both go in
+        // through the same four commands a tenant admin uses — nothing here writes a
+        // row the ordinary path could not.
+        await SeedBuiltInsAsync(tenant, asTenant, cancellationToken);
+    }
+
+    private async Task SeedBuiltInsAsync(
+        SeedTenant tenant, ITenantContext asTenant, CancellationToken cancellationToken)
+    {
+        await SendAsync(
+            tenant,
+            asTenant,
+            new RegisterTenantContentTypeCommand(
+                tenant.BuiltInContentTypeId,
+                BuiltInCustomizations.Card.Key,
+                BuiltInCustomizations.SchemaVersion,
+                BuiltInCustomizations.Card.DisplayName,
+                BuiltInCustomizations.Card.JsonSchema,
+                BuiltInCustomizations.Card.RendererKey),
+            ContentTypeAct,
+            cancellationToken);
+
+        await SendAsync(
+            tenant,
+            asTenant,
+            new PublishTenantContentTypeCommand(tenant.BuiltInContentTypeId),
+            ContentTypePublishAct,
+            cancellationToken);
+
+        await SendAsync(
+            tenant,
+            asTenant,
+            new RegisterTenantLevelTaxonomyCommand(
+                tenant.BuiltInTaxonomyId,
+                BuiltInCustomizations.Plain.Key,
+                BuiltInCustomizations.SchemaVersion,
+                BuiltInCustomizations.Plain.DisplayName,
+                [.. BuiltInCustomizations.Plain.Bands.Select(band =>
+                    new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]),
+            TaxonomyAct,
+            cancellationToken);
+
+        await SendAsync(
+            tenant,
+            asTenant,
+            new PublishTenantLevelTaxonomyCommand(tenant.BuiltInTaxonomyId),
+            TaxonomyPublishAct,
+            cancellationToken);
     }
 
     /// <summary>
@@ -207,6 +260,15 @@ public sealed class SeedRunner(
     /// <summary>The label for the act that points a host at the tenant.</summary>
     private const string HostMappingAct = "host mapping";
 
+    /// <summary>The labels for the four acts that install the built-in customizations.</summary>
+    private const string ContentTypeAct = "built-in content type";
+
+    private const string ContentTypePublishAct = "built-in content type publication";
+
+    private const string TaxonomyAct = "built-in level taxonomy";
+
+    private const string TaxonomyPublishAct = "built-in level taxonomy publication";
+
     /// <summary>
     /// Whether the rows that conflicted belong to <paramref name="tenant"/>.
     /// </summary>
@@ -240,7 +302,15 @@ public sealed class SeedRunner(
         await using var frame = await unitOfWork.BeginTransactionAsync(cancellationToken);
         await unitOfWork.SetTenantContextAsync(context, cancellationToken);
 
-        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        // Both through local functions, so an act resolves only the context it reads.
+        // Building a module context is not free — measured at 14-19 ms, the same order
+        // as the transaction it sits beside — and two of the four arms below never
+        // touch the tenancy one.
+        static TenancyDbContext Tenancy(AsyncServiceScope scope) =>
+            scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        static CustomizationDbContext Customization(AsyncServiceScope scope) =>
+            scope.ServiceProvider.GetRequiredService<CustomizationDbContext>();
 
         // The act that conflicted, and only that act. An earlier version asked "do we own
         // either?" and the OR let the organization we had just created vouch for a host
@@ -248,12 +318,25 @@ public sealed class SeedRunner(
         // row is exactly the failure it exists to prevent.
         var owned = what switch
         {
-            HostMappingAct => await db.PlatformHostMappings
+            HostMappingAct => await Tenancy(scope).PlatformHostMappings
                 .AnyAsync(mapping => mapping.Host == tenant.Host, cancellationToken),
 
-            SecondOrganizationAct => await db.Organizations
+            SecondOrganizationAct => await Tenancy(scope).Organizations
                 .AnyAsync(
                     organization => organization.Slug == tenant.SecondOrganization.Slug,
+                    cancellationToken),
+
+            // The customization keys are per tenant rather than global, so a visible
+            // row under this announcement is this tenant's by construction — the same
+            // trick the two above use, on a narrower key.
+            ContentTypeAct or ContentTypePublishAct => await Customization(scope)
+                .TenantContentTypes.AnyAsync(
+                    contentType => contentType.Key == BuiltInCustomizations.Card.Key,
+                    cancellationToken),
+
+            TaxonomyAct or TaxonomyPublishAct => await Customization(scope)
+                .TenantLevelTaxonomies.AnyAsync(
+                    taxonomy => taxonomy.Key == BuiltInCustomizations.Plain.Key,
                     cancellationToken),
 
             // No other act runs with a resolved context, so nothing else reaches here.
@@ -286,6 +369,30 @@ public sealed class SeedRunner(
         "lockey_slug_taken",
         "lockey_identifier_taken",
         "lockey_host_taken",
+
+        // The customization acts. A second run's PUBLISH refuses because the
+        // definition it names is already Active — that one is reached on every
+        // repeat, and without it `make seed` would throw the second time it ran.
+        //
+        // The two uniqueness reasons are the REGISTER side. The shipped seed carries
+        // a fixed id, so a repeat collides on the primary key and reports
+        // `lockey_identifier_taken` above; these two are what a register hits when
+        // the id differs and the KEY is what is taken — a hand-edited SeedData, or a
+        // tenant that authored its own `card` before the seeder reached it.
+        //
+        // In that second case the seeder STOPS, and the stop is one act later than
+        // it looks: the register is classified "already present", and the publish
+        // then names the fixed id, cannot see a row under it, and answers
+        // `not_found`, which is not in this set. That is the right outcome and not
+        // a gap — the built-in did not get installed, and a seed that exits 0
+        // having installed nothing is the masking defect the ownership check exists
+        // to prevent. Resolving the tenant's own id and publishing that instead
+        // would be a different decision, and no shipped path can reach the case:
+        // the four commands have no HTTP endpoint, so the seeder is the only writer
+        // of a customization row.
+        "lockey_schema_version_taken",
+        "lockey_customization_key_already_live",
+        "lockey_customization_not_a_draft",
     };
 }
 
@@ -337,5 +444,11 @@ public sealed class SeedTenantContext(TenantId tenantId, OrganizationId organiza
 
     public string? CorrelationId => null;
 
-    public string? ModuleName => "tenancy";
+    /// <remarks>
+    /// <c>null</c>, as the request-path <c>TenantContext</c> also returns. This
+    /// context announces every write the seeder makes, and four of them are
+    /// Customization's — a literal here tagged those spans and any error report
+    /// with the wrong module, which is the one thing this field is read for.
+    /// </remarks>
+    public string? ModuleName => null;
 }

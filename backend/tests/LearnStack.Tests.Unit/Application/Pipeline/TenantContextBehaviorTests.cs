@@ -15,7 +15,7 @@ namespace LearnStack.Tests.Unit.Application.Pipeline;
 /// <remarks>
 /// <para>
 /// The second gate is
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
+/// <see href="../../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>'s
 /// authority ceiling, and it is the control that makes a forged <c>Host</c> harmless:
 /// with it, a forged host reaches exactly the pages that hostname already serves to
 /// anyone who types it. Everything below is about the shape of those two gates,

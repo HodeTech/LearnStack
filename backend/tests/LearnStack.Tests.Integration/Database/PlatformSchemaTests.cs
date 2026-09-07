@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Npgsql;
 using Xunit;
@@ -241,11 +242,8 @@ public sealed class PlatformSchemaTests
             FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE '\_\_ef%'
             """, (NpgsqlConnection)connection);
 
-        var expected = string.Join(',', new[]
-        {
-            PlatformDbContextFactory.HistoryTable,
-            TenancyDbContextFactory.HistoryTable,
-        }.Order(StringComparer.Ordinal));
+        var expected = string.Join(
+            ',', MigrationChains.HistoryTables.Order(StringComparer.Ordinal));
 
         (await command.ExecuteScalarAsync()).Should().Be(expected);
     }

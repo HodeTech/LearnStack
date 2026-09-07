@@ -155,7 +155,11 @@ The `TenantScoringRule` and `TenantCompletionRule` aggregates, their tables, and
 evaluation runtime all land here — moved out of Phase 02a Packet 8, and blocked until
 ADR-0025 is Accepted. The body column is `text` with a `dialect` discriminator, the shape
 [Phase 02a Packet 8](phase-02a-kernel-tenancy.md) fixed so that the engine choice did not
-have to be made first.
+have to be made first; it is recorded in
+[ADR-0043 § 8](../decisions/0043-customization-payload-validation.md), which also fixes
+what `dialect` names — the language of the `condition` expressions, not of the document,
+which stays the YAML [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)
+shows.
 
 Built-in primitive completion checks:
 

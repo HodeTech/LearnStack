@@ -1,6 +1,7 @@
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
-using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.Modules.Tenancy.Domain;
 

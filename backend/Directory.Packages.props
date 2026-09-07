@@ -25,6 +25,17 @@
     <PackageVersion Include="MediatR" Version="12.4.1" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
 
+    <!-- Validation adapter (LearnStack.Infrastructure.Validation only) -->
+    <!-- JSON Schema draft 2020-12 evaluation for tenant-authored schemas (ADR-0043).
+         PINNED AT 8.0.5 AND IT IS A CEILING, NOT A HOLD: 8.0.5 is the last release
+         whose whole resolved graph (JsonPointer.Net 6.0.1, Json.More.Net 2.2.0,
+         Humanizer.Core 3.0.1) is a plain MIT expression. From 9.0.0 the NuGet binary
+         ships under the Open Source Maintenance Fee EULA — the source stays MIT and
+         redistribution is unrestricted, but taking the prebuilt artifact puts a
+         monthly fee agreement in the dependency graph. Bumping this is a decision,
+         not a chore; there is no later MIT-expression release to move into. -->
+    <PackageVersion Include="JsonSchema.Net" Version="8.0.5" />
+
     <!-- Strongly-typed ID + value object source generator (ADR-0023).
          Referenced via PrivateAssets="all" in every project that hosts
          [ValueObject<>] declarations (SharedKernel for cross-cutting VOs,

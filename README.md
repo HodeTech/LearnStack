@@ -41,12 +41,14 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6 and 7 shipped; packets 4–10 re-scoped on 2026-08-08.
+packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 4–10 re-scoped on 2026-08-08.
 Packet 7 landed host and tenant resolution, the query filters, tenant provisioning
 and the two seed tenants — `demo-english` and `demo-yoga`, which `make seed` writes
-through the same commands a request uses.
-[Packet 8](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the Tenant
-Customization foundation — is next.**
+through the same commands a request uses. Packet 8 landed the Customization module:
+two tenant-authored aggregates, their schema under the corrected RLS template, and
+the four gates a tenant's JSON Schema passes before a row exists.
+[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
+infrastructure and the entitlement socket — is next.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the
@@ -89,8 +91,8 @@ additive infrastructure later behind its ports
 ([ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)), and moved the
 genericity proof earlier — two seed tenants in Packet 7, rendered in a browser in
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), the next user-visible
-milestone. Tenancy is the only module holding domain code; the other six assemblies are
-still empty.
+milestone. Tenancy and Customization hold domain code; the other five module
+assemblies are still empty.
 
 ```bash
 make install   # one-time: deps + git hooks

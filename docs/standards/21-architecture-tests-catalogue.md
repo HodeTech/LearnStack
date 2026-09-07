@@ -140,6 +140,7 @@ against a host serving unversioned endpoints.
 | `Integration_Event_TopicNames_FollowConvention` | `CrossCuttingFoundationTests.cs` |
 | `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
+| `ModuleContracts_DoNotDependOn_AnyModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
 | `Live_Majors_Are_At_Most_Two_Adjacent` | `ApiConventionTests.cs` |
 | `Unversioned_Route_Prefixes_Are_Declared_Once` | `ApiConventionTests.cs` |
@@ -439,6 +440,29 @@ otherwise).
 - **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`.
 - **Phase:** 02a (Packet 3).
 
+#### `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
+
+- **Asserts:** no module assembly and no core assembly (`LearnStack.SharedKernel`,
+  `LearnStack.Domain`, `LearnStack.Application`, `LearnStack.Application.Contracts`,
+  `LearnStack.Api`, `LearnStack.Tools.Seeder`) depends on the `Json.Schema` namespace.
+  Only `LearnStack.Infrastructure.Validation` references the package; everything else
+  reaches the evaluator through `IJsonSchemaValidator`. The sweep includes the shared
+  kernel deliberately — it declares the port, so it is the assembly most likely to reach
+  for the library by accident. The seeder joined it in Packet 8 step 5, and it is the
+  entry that needed a decision rather than a habit: as the second composition root it
+  legitimately references the adapter **project** in order to register the port, and
+  that reference is exactly what would let it name a `Json.Schema` type with no other
+  rule noticing. `Adapters_Wrap_Provider_Exceptions` does **not** cover this: its forbidden list
+  is a closed enumeration of network-reached provider SDKs, and an in-process evaluator
+  is not one — the same split the corpus already made between
+  `Dapr_SDK_Types_NotImportedOutsideInfrastructure` and the exception rule.
+- **Source:** [ADR-0043](../decisions/0043-customization-payload-validation.md) § 1 and
+  its § Architecture Tests.
+- **Type:** xUnit + NetArchTest namespace-dependency scan. **Kind:** structural.
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`. Verified against a
+  planted violation: a `Json.Schema` reference added to the shared kernel makes it fail.
+- **Phase:** 02a (Packet 8).
+
 #### `Logging_Goes_Through_Microsoft_Extensions_Logging`
 
 - **Asserts:** no module assembly imports `Serilog.ILogger` or
@@ -539,16 +563,41 @@ otherwise).
 
 #### `Generic_Primitives_Only_In_Renderer`
 
-- **Asserts:** the frontend `PRIMITIVE_RENDERERS` map contains only the documented closed
-  set of generic primitives. A new primitive is a LearnStack release guarded by
-  CODEOWNERS, not a tenant action — tenant-specific blocks are `TenantPageBlock` rows
-  pointing at a composite renderer key.
+- **Asserts:** the frontend `PRIMITIVE_RENDERERS` map and the backend's
+  `PrimitiveRendererKey.All` each contain exactly the documented closed set of generic
+  primitives. A new primitive is a LearnStack release guarded by CODEOWNERS, not a tenant
+  action — tenant-specific blocks are `TenantPageBlock` rows pointing at a composite
+  renderer key. Equality in both copies, where the composite rule below is containment:
+  an `x-renderer` resolves against the backend's copy **on save**
+  ([§ 8.1](../architecture/32-tenant-customization-model.md)), so a key only the frontend
+  knows cannot be authored, and a key only the backend knows is saved and drawn by
+  nothing.
 - **Source:** [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md);
   [32-tenant-customization-model.md § 2](../architecture/32-tenant-customization-model.md).
-  Named in shipped code at `frontend/apps/web/src/lib/customization/primitives.ts`.
-- **Type:** frontend test over the renderer map. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02a (Packet 10).
+  Named in shipped code at `frontend/apps/web/src/lib/customization/primitives.ts` and
+  `LearnStack.Modules.Customization.Domain/Identifiers.cs`.
+- **Type:** xUnit + a bounded scan of the named `as const` declaration. **Kind:** structural.
+- **Status:** **Implemented** — `CustomizationRegistryTests.cs`. The set is written out
+  as literals in the test rather than read from either registry, so a thirteenth
+  primitive fails the rule instead of being absorbed by it — which is what the two
+  copies had already done to each other before Packet 8 pinned them.
+- **Phase:** 02a (Packet 8).
+
+#### `Composite_Renderer_Keys_Match_The_Frontend_Registry`
+
+- **Asserts:** every composite renderer key `frontend/apps/web/src/lib/customization/composites.ts`
+  registers is declared by the backend's `CompositeRendererKey.All`. Containment, not
+  equality: the documented set is nine and the frontend registers four, because the five
+  shells land with the phases that render them — a declared-but-unregistered key renders
+  `UnknownBlock` ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)), while a
+  registered-but-undeclared one makes the backend refuse a save for a renderer the page
+  can draw. `Generic_Primitives_Only_In_Renderer` above is the sibling rule on the same
+  file pair, pinning the primitive set.
+- **Source:** [ADR-0018 § Renderer architecture](../decisions/0018-tenant-driven-customization-model.md);
+  [32-tenant-customization-model.md § 2 and § 8.1](../architecture/32-tenant-customization-model.md).
+- **Type:** xUnit + a bounded scan of the named `as const` declaration. **Kind:** structural.
+- **Status:** **Implemented** — `CustomizationRegistryTests.cs`.
+- **Phase:** 02a (Packet 8).
 
 #### `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml`
 
@@ -581,6 +630,21 @@ otherwise).
 - **Type:** xUnit theory + NetArchTest, one case per module. **Kind:** structural.
 - **Status:** **Implemented** — `ModuleDependencyTests.cs`.
 - **Phase:** 02a (Packet 2).
+
+#### `ModuleContracts_DoNotDependOn_AnyModuleDomain`
+
+- **Asserts:** per module, `LearnStack.Modules.<X>.Application.Contracts` has no type
+  reference into **any** module's `Domain` — its own included. A contract is the
+  cross-module surface, so a `Domain` type named there reaches every sender, which is
+  `ModuleDomain_DoesNotDependOn_OtherModuleDomain`'s forbidden edge arrived at through
+  the one assembly meant to be referenced widely.
+- **Source:** ADR-0010; [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md),
+  which is what makes a `Guid` in a contract correct rather than sloppy — a module-local
+  identifier crosses as `Guid` and the handler types it one layer in, while a
+  `SharedKernel` identifier stays typed.
+- **Type:** xUnit theory + NetArchTest, one case per module. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`.
+- **Phase:** 02a (Packet 8).
 
 #### `Meta_NetArchTest_DetectsAPlantedViolation`
 
@@ -712,6 +776,14 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`
 
+> Swept across **every module with a schema** from Packet 8, not only Tenancy. Read
+> against one model the rule said nothing about the aggregates a second module
+> shipped, while this entry and ADR-0039 both described it as covering every entity
+> implementing `IOptimisticConcurrency`. It reads `Modules.Scoped`, the same
+> enumerated list `Every_Module_With_A_Schema_Is_Swept` holds current, and asserts
+> per model that the model has aggregates in it — one model carrying them satisfies
+> a suite-wide total however many carry none.
+
 - **Asserts:** every entity implementing `IOptimisticConcurrency` has its `Version`
   configured as the concurrency token against a `row_version` column, **and** that
   the property's `ValueGenerated` is `Never` with both save behaviours at `Save`.
@@ -794,15 +866,19 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
 
+> Widened to **six** files, keyed by directory, in Packet 8 step 3: a third
+> design-time factory — Customization's — joined the allow-list, because one lands
+> with every migration chain.
+
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly **five** files may reach for a
-  connection at all: the two design-time factories, where a connection string is the
-  point; the shared helper, which passes a *connection*; and the two composition roots —
-  `LearnStack.Api`'s, which builds the one application data source behind its credential
-  guard, and `LearnStack.Tools.Seeder`'s, which is the same act for a host with no HTTP
-  surface. A sixth is a new decision. A context on its own connection never saw the
+  its own connection. And under `backend/src`, exactly **six** files may reach for a
+  connection at all: the three design-time factories — one per migration chain, where a
+  connection string is the point; the shared helper, which passes a *connection*; and the
+  two composition roots — `LearnStack.Api`'s, which builds the one application data
+  source behind its credential guard, and `LearnStack.Tools.Seeder`'s, which is the same
+  act for a host with no HTTP surface. A seventh is a new decision. A context on its own connection never saw the
   announcement, so every read through it returns zero rows under the corrected policy —
   silently.
 
@@ -812,8 +888,8 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
-  keyed by directory in Packet 7 step 10, `LearnStack.Tests.Architecture`,
-  `PersistenceConventionTests`).
+  keyed by directory in Packet 7 step 10, and to six in Packet 8 step 3,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
@@ -893,6 +969,9 @@ first two rows are coverage checks; the last three are the proof.
   registration whatever the key is spelled, so hiding the string buys nothing.
 #### `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
 
+> Swept across **every module with a schema** from Packet 8, not only Tenancy. The
+> module list is enumerated and `Every_Module_With_A_Schema_Is_Swept` holds it current.
+
 - **Asserts:** every entity marked `[TenantOwned]` (or implementing `ITenantOwned`)
   has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an
   EF global query filter referencing it, and — in the migration that creates its
@@ -905,9 +984,10 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
-  module; Packet 10 closes it across every module.
-- **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`; widened in Packet 8
+  step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
+  `Every_Module_With_A_Schema_Is_Swept` holds current).
+- **Phase:** 02a (Packet 7 introduces, Packet 8 widens).
 - **Note:** a marker-gated rule cannot catch a **missing** marker — it iterates what it
   finds. The companion case `The_Host_Map_Carries_No_Tenant_Marker` states the negative
   that matters most in this module: `platform_host_to_tenant` has a `TenantId` property
@@ -922,6 +1002,25 @@ first two rows are coverage checks; the last three are the proof.
   [Database Standards § Table classes](05-database.md);
   [Architecture Standards § Tenant-Scoped Code](01-architecture-standards.md) was
   corrected to match in the same pass.
+
+#### `Every_Module_With_A_Schema_Is_Swept`
+
+- **Asserts:** every module `Domain` assembly that declares a `[TenantOwned]` entity
+  appears in `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`'s enumerated module list.
+  The sweep is enumerated rather than discovered, because a rule that scanned loaded
+  assemblies would silently skip the module nobody referenced and pass vacuously — and
+  the cost of enumerating is that the list goes stale. It did: the sweep read one
+  assembly and one `DbContext` until Packet 8, so the second module's entities were
+  invisible to the rule that names them. This is the guard on that direction. The
+  *universe* it checks against is discovered from `backend/src/Modules` rather than
+  written down, because a hard-coded universe cannot report the module missing from
+  both lists — which is the same vacuity one level up.
+- **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md);
+  [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md).
+- **Type:** xUnit + reflection over every module `Domain` assembly. **Kind:** structural.
+- **Status:** **Implemented** — `TenantScopingTests.cs`. Verified against a planted
+  violation: removing a module from the list makes it fail.
+- **Phase:** 02a (Packet 8).
 
 #### `Every_OrgScoped_Entity_HasOrgIdAndFilter`
 
@@ -939,9 +1038,10 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** ADR-0017; ADR-0003 Amendment 3;
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md).
 - **Type:** xUnit + EF model inspection + migration SQL scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`) for the Tenancy
-  module; Packet 10 closes it across every module.
-- **Phase:** 02a (Packet 7 introduces, Packet 10 closes).
+- **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`; widened in Packet 8
+  step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
+  `Every_Module_With_A_Schema_Is_Swept` holds current).
+- **Phase:** 02a (Packet 7 introduces, Packet 8 widens).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
 
@@ -1047,13 +1147,20 @@ because the filters hold, and removing both turns all five red.
 
 #### `Every_Scoping_Interface_Carries_Its_Marker`
 
+> Swept across **every module with a schema** from Packet 8, not only Tenancy. This
+> is the reverse-direction guard, so leaving it on one assembly was the worst of the
+> three to leave behind: a second module's entity that dropped its marker fell out
+> of all three scoping rules at once — this one, which enumerates the interface, and
+> the two that enumerate the marker — and the suite stayed green. Measured.
+
 - **Asserts:** every entity implementing a scoping interface — `ITenantOwned`,
   `IOrganizationScoped` — also carries the marker attribute the filter and policy
   generators read. An entity that implements one and not the other is scoped in the type
   system and unscoped everywhere it matters.
 - **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
+- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`; widened to
+  every module in Packet 8 step 3).
 - **Phase:** 02a Packet 7.
 
 #### `The_Request_Filter_Sees_Every_Shape_MediatR_Dispatches`

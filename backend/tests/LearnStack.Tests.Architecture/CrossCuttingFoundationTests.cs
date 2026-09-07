@@ -37,37 +37,24 @@ public sealed class CrossCuttingFoundationTests
     /// assemblies that by convention never hold an event, so it would be vacuous
     /// permanently rather than until the first module ships one — and the same
     /// omission narrowed three older rules alongside it.
+    /// <para>
+    /// <b>Derived from <see cref="Modules.Names"/>, not written out.</b> Seven rules
+    /// read this list, and a module absent from a hand-kept copy is a module all
+    /// seven silently stop covering — which is the failure mode
+    /// <c>Every_Module_With_A_Schema_Is_Swept</c> exists to prevent one level up.
+    /// <c>backend/src/Modules</c> cannot go stale: a module that exists has a
+    /// directory.
+    /// </para>
     /// </remarks>
     private static readonly string[] ModuleAssemblyShapes =
     [
-        "LearnStack.Modules.Tenancy.Application",
-        "LearnStack.Modules.Tenancy.Application.Contracts",
-        "LearnStack.Modules.Tenancy.Domain",
-        "LearnStack.Modules.Tenancy.Infrastructure",
-        "LearnStack.Modules.Identity.Application",
-        "LearnStack.Modules.Identity.Application.Contracts",
-        "LearnStack.Modules.Identity.Domain",
-        "LearnStack.Modules.Identity.Infrastructure",
-        "LearnStack.Modules.Customization.Application",
-        "LearnStack.Modules.Customization.Application.Contracts",
-        "LearnStack.Modules.Customization.Domain",
-        "LearnStack.Modules.Customization.Infrastructure",
-        "LearnStack.Modules.Audit.Application",
-        "LearnStack.Modules.Audit.Application.Contracts",
-        "LearnStack.Modules.Audit.Domain",
-        "LearnStack.Modules.Audit.Infrastructure",
-        "LearnStack.Modules.Content.Application",
-        "LearnStack.Modules.Content.Application.Contracts",
-        "LearnStack.Modules.Content.Domain",
-        "LearnStack.Modules.Content.Infrastructure",
-        "LearnStack.Modules.Media.Application",
-        "LearnStack.Modules.Media.Application.Contracts",
-        "LearnStack.Modules.Media.Domain",
-        "LearnStack.Modules.Media.Infrastructure",
-        "LearnStack.Modules.Education.Application",
-        "LearnStack.Modules.Education.Application.Contracts",
-        "LearnStack.Modules.Education.Domain",
-        "LearnStack.Modules.Education.Infrastructure",
+        .. Modules.Names.SelectMany(module => new[]
+        {
+            $"LearnStack.Modules.{module}.Application",
+            $"LearnStack.Modules.{module}.Application.Contracts",
+            $"LearnStack.Modules.{module}.Domain",
+            $"LearnStack.Modules.{module}.Infrastructure",
+        }),
     ];
 
     [Fact]
@@ -242,6 +229,57 @@ public sealed class CrossCuttingFoundationTests
             result.IsSuccessful.Should().BeTrue(
                 $"{name} references the Sentry SDK directly. Use IErrorTrackingProvider "
                 + "(ADR-0032 § Sub-decision 9).");
+        }
+    }
+
+    [Fact]
+    public void JsonSchema_Net_Types_NotImportedOutsideInfrastructure()
+    {
+        // ADR-0043 § 1 — the evaluator lives behind IJsonSchemaValidator, and
+        // LearnStack.Infrastructure.Validation is the only project that may name a
+        // `Json.Schema` type. Adapters_Wrap_Provider_Exceptions does NOT cover
+        // this: its forbidden list is a closed enumeration of network-reached
+        // provider SDKs, and an in-process evaluator is not one — the same split
+        // the corpus already made for Dapr.
+        //
+        // The sweep is wider than ModuleAssemblyShapes because the PORT is in the
+        // shared kernel: the assembly most likely to reach for the library by
+        // accident is the one that declares the interface.
+        //
+        // The seeder is on the list as of Packet 8 step 5, and it is the entry that
+        // needed a decision rather than a habit: it is the second composition root,
+        // so it legitimately references the adapter PROJECT in order to register the
+        // port — and that reference is exactly what would let it name a `Json.Schema`
+        // type without any other rule noticing.
+        var confined = ModuleAssemblyShapes
+            .Append("LearnStack.SharedKernel")
+            .Append("LearnStack.Domain")
+            .Append("LearnStack.Application")
+            .Append("LearnStack.Application.Contracts")
+            .Append("LearnStack.Api")
+            .Append("LearnStack.Tools.Seeder")
+            .Select(TryLoadAssembly)
+            .Where(assembly => assembly is not null)
+            .ToArray();
+
+        confined.Should().NotBeEmpty("a sweep with nothing to sweep passes vacuously");
+
+        foreach (var assembly in confined)
+        {
+            var result = Types.InAssembly(assembly!)
+                .Should()
+                // "Json.Schema", not "JsonSchema" or "JsonSchema.Net": the first is
+                // the namespace, the other two are the type and the package, and a
+                // rule spelled either of those ways can never fire.
+                .NotHaveDependencyOn("Json.Schema")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{assembly!.GetName().Name} names a Json.Schema type. The evaluator is "
+                + "reached through IJsonSchemaValidator; only "
+                + "LearnStack.Infrastructure.Validation references the package "
+                + "(ADR-0043 § 1). Offenders: "
+                + string.Join(", ", result.FailingTypeNames ?? []));
         }
     }
 

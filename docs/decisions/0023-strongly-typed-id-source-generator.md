@@ -469,6 +469,42 @@ an export boundary write `id.Value` under an `IsInitialized()` gate; inside the
 type system pass the id. Nothing this ADR decides changes — Vogen, the `IdMask`
 conversion set, and the no-`New()` rule all stand.
 
+### Amendment 8 — a module-local id crosses a contract as `Guid` (2026-09-07)
+
+[Standards 02 § Naming](../standards/02-backend-coding.md) says "never expose raw
+`Guid` on the public surface", and Amendment 2 says an identifier only one module
+holds lives in that module's `Domain`. Packet 8 is the first place those two meet:
+`RegisterTenantContentTypeCommand` is a cross-module contract
+([ADR-0010](0010-cross-module-communication.md)) and `TenantContentTypeId` lives
+in `Customization.Domain`.
+
+**The contract carries the `Guid`, and the rule that yields is the naming one.** A
+contract naming the typed id would put `Customization.Domain` into the IL of every
+module that sends the command — the forbidden `Module A → Module B.Domain` edge,
+reached through the one assembly whose entire purpose is to be referenced widely.
+There is no third option: moving the id to `SharedKernel` is what Amendment 2
+refuses for an identifier nothing outside the module holds, and a contract
+assembly that referenced `Domain` would export it to every consumer whether or not
+the type appeared in a signature.
+
+So the boundary rule, in full:
+
+- A **`SharedKernel` identifier** — `TenantId`, `OrganizationId`, `UserId` — stays
+  typed everywhere, contracts included. Naming it creates no edge.
+- A **module-local identifier** crosses a contract as `Guid`, and the handler
+  constructs the typed id one layer in, where the module's own types are in scope.
+  Inside the module nothing changes: the aggregate, its ports and its stores speak
+  the typed id, and `Guid` appears in exactly one place.
+
+`ModuleContracts_DoNotDependOn_AnyModuleDomain` enforces the direction that
+matters — the dependency, not the parameter type — because a contract that kept it
+would re-open the hole whatever its signatures happened to say. It has **two
+legs**, and the second is why the first is not enough: NetArchTest walks IL type
+references, so it sees a `Domain` type *used* and not a `ProjectReference` that
+merely exists, and an unused reference is one edit away from the first use while
+already exporting the assembly to every consumer. The second leg reads the
+`.csproj`.
+
 ## References
 
 - [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)

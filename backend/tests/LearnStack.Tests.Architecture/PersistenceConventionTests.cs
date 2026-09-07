@@ -47,11 +47,28 @@ public sealed class PersistenceConventionTests
         //   aggregate increments, and the next reader of the model has to work out
         //   which of the two mistakes it is. `.ValueGeneratedNever()` states it
         //   (ADR-0039 Amendment 2).
-        using var context = BuildTenancyContext();
+        // Every module's model, not one: read against Tenancy alone this rule said
+        // nothing about the four aggregates the second module shipped, while
+        // Standards 21 and ADR-0039 both describe it as covering every entity that
+        // implements IOptimisticConcurrency. Measured — the forbidden IsRowVersion()
+        // form passed on both new aggregates.
+        var contexts = Modules.Scoped.Select(module => module.Context()).ToList();
 
+        try
+        {
+            AssertRowVersionMapping(contexts);
+        }
+        finally
+        {
+            contexts.ForEach(context => context.Dispose());
+        }
+    }
+
+    private static void AssertRowVersionMapping(IReadOnlyCollection<DbContext> contexts)
+    {
         var offenders = new List<string>();
 
-        foreach (var entity in context.Model.GetEntityTypes())
+        foreach (var entity in contexts.SelectMany(context => context.Model.GetEntityTypes()))
         {
             if (!typeof(IOptimisticConcurrency).IsAssignableFrom(entity.ClrType))
             {
@@ -80,10 +97,16 @@ public sealed class PersistenceConventionTests
 
         // A model with no IOptimisticConcurrency entity would pass the loop above
         // without inspecting anything, which is the same defect as an inclusion
-        // list that matches nothing.
-        context.Model.GetEntityTypes()
-            .Count(e => typeof(IOptimisticConcurrency).IsAssignableFrom(e.ClrType))
-            .Should().BeGreaterThan(0, "the rule must be reading a model that has aggregates in it");
+        // list that matches nothing — and it is asserted per model, because one
+        // model carrying aggregates satisfies a total however many carry none.
+        foreach (var context in contexts)
+        {
+            context.Model.GetEntityTypes()
+                .Count(e => typeof(IOptimisticConcurrency).IsAssignableFrom(e.ClrType))
+                .Should().BeGreaterThan(
+                    0,
+                    $"{context.GetType().Name} must be a model that has aggregates in it");
+        }
     }
 
     [Fact]
@@ -145,12 +168,13 @@ public sealed class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Five files under backend/src may reach for a connection at all: the two
-        // design-time factories, where a connection string is the point; the
-        // shared helper, which passes a connection rather than a string; and the
-        // two composition roots — the API's, which builds the one application data
+        // Six files under backend/src may reach for a connection at all: the three
+        // design-time factories, where a connection string is the point — one per
+        // migration chain, and a module that ships a schema ships one; the shared
+        // helper, which passes a connection rather than a string; and the two
+        // composition roots — the API's, which builds the one application data
         // source behind its credential guard, and the seeder's, which is the same act
-        // for a host with no HTTP surface. A sixth is a new decision.
+        // for a host with no HTTP surface. A seventh is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -178,7 +202,12 @@ public sealed class PersistenceConventionTests
             "Persistence/PlatformDbContextFactory.cs",
             "Persistence/TenancyDbContextFactory.cs",
 
-            // The fifth, and a deliberate entry rather than a discovered one: the seeder
+            // One design-time factory per migration chain. Customization's is the
+            // third, and it is here rather than exempted for the same reason the
+            // seeder is: the list is what makes the next one a reviewed diff.
+            "Persistence/CustomizationDbContextFactory.cs",
+
+            // The sixth, and a deliberate entry rather than a discovered one: the seeder
             // is a second composition root, and building the one application data source
             // is the same act PersistenceCompositionExtensions performs for the API. It
             // is in the set — not exempted from it — so the next tool that reaches for a
@@ -545,22 +574,4 @@ public sealed class PersistenceConventionTests
                 "^" + string.Join(
                     "[^/]*",
                     token.Split('*').Select(System.Text.RegularExpressions.Regex.Escape)) + "$"));
-
-    /// <summary>
-    /// Builds the Tenancy model without a database.
-    /// </summary>
-    /// <remarks>
-    /// A connection string is required to configure the provider and is never
-    /// opened: <c>DbContext.Model</c> is built from the configurations alone. The
-    /// value is deliberately not a real credential.
-    /// </remarks>
-    private static TenancyDbContext BuildTenancyContext() =>
-        new(
-            new DbContextOptionsBuilder<TenancyDbContext>()
-                .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
-                .Options,
-            // The model is what these cases read, and a query filter emits no
-            // DDL and no table mapping, so the context this builds is identical
-            // whichever tenant context it holds.
-            StaticTenantContextAccessor.Unresolved);
 }

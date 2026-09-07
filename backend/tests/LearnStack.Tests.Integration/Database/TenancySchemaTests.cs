@@ -90,6 +90,12 @@ public sealed class TenancySchemaTests
         // permissive policy has two policies for at least one command.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
 
+        // The sweep proves it read the catalogue before it reports nothing wrong:
+        // a schema with no policies at all satisfies "no two permissive policies".
+        (await SchemaQueries.CountAsync(connection,
+                "SELECT count(*) FROM pg_policies WHERE schemaname = 'public'"))
+            .Should().BeGreaterThan(0, "a policy sweep over no policies passes vacuously");
+
         var offenders = await SchemaQueries.ReadStringsAsync(connection,
             """
             SELECT tablename || ' (' || string_agg(policyname, ', ' ORDER BY policyname) || ')'
@@ -240,6 +246,42 @@ public sealed class TenancySchemaTests
             """
             INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
             VALUES (@foreign, 'sneak-key-01', 'fp', uuidv7(), 'in_flight', now() + interval '5 minutes')
+            """,
+        // The Customization chain. A content type or a taxonomy written into
+        // another tenant is a shape that tenant's own renderers will read and
+        // that no page can question — the content is the tenant's declaration of
+        // what its data means.
+        ["tenant_content_types"] =
+            """
+            INSERT INTO tenant_content_types
+                (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+                 json_schema, renderer_key, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak', 1, 0, 'Draft', '{"en":"Sneak"}',
+                    '{"type":"object"}', 'default-card', now(), @actor, 0)
+            """,
+        ["tenant_level_taxonomies"] =
+            """
+            INSERT INTO tenant_level_taxonomies
+                (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+                 created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'sneak', 1, 0, 'Draft', '{"en":"Sneak"}',
+                    now(), @actor, 0)
+            """,
+        // Named against the seeded parent in the *foreign* tenant, so the statement
+        // is a genuine cross-tenant write rather than one the foreign key would
+        // have refused on its own.
+        ["tenant_level_taxonomy_items"] =
+            """
+            INSERT INTO tenant_level_taxonomy_items
+                (tenant_id, taxonomy_key, schema_version, key, display_name, sort)
+            VALUES (@foreign, 'proficiency', 1, 'sneak', '{"en":"Sneak"}', 99)
+            """,
+        // The counter every cache key embeds: advancing another tenant's
+        // generation invalidates its caches, and holding it back serves them stale.
+        ["customization_generations"] =
+            """
+            INSERT INTO customization_generations (tenant_id, generation)
+            VALUES (@foreign, 99)
             """,
     };
 
@@ -633,6 +675,13 @@ public sealed class TenancySchemaTests
         var scanned = await SchemaQueries.ReadStringsAsync(connection, SchemaQueries.TableNames);
         scanned.Should().Contain(SchemaFixture.KnownTables);
 
+        (await SchemaQueries.CountAsync(connection,
+                $"""
+                 SELECT count(*) FROM pg_attribute a
+                 WHERE a.attrelid IN ({SchemaQueries.TableOids}) AND a.attnum > 0
+                 """))
+            .Should().BeGreaterThan(0, "a column sweep over no columns passes vacuously");
+
         var offenders = await SchemaQueries.ReadStringsAsync(connection,
             $"""
              SELECT c.relname || '.' || a.attname
@@ -649,10 +698,12 @@ public sealed class TenancySchemaTests
     public async Task Every_Foreign_Key_Has_A_Supporting_Index()
     {
         // Database Standards § Indexes: index every foreign key. Every foreign key
-        // in this schema is ON DELETE RESTRICT, so every parent delete pays the
-        // child scan. Swept rather than listed: the one that shipped without an
-        // index — fk_organizations_reporting_parent — was missed precisely because
-        // nothing swept.
+        // in this schema is ON DELETE RESTRICT except the one cascade the standard
+        // sanctions — a child inside an aggregate boundary — so a parent delete
+        // pays the child scan either way, to refuse or to cascade. Swept rather
+        // than listed: the one that shipped without an index —
+        // fk_organizations_reporting_parent — was missed precisely because nothing
+        // swept.
         //
         // "Supporting" means one of two things, and both bound the scan:
         //
@@ -666,6 +717,13 @@ public sealed class TenancySchemaTests
         //   already yields at most one candidate row, so the second column adds
         //   nothing an index could.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+
+        (await SchemaQueries.CountAsync(connection,
+                $"""
+                 SELECT count(*) FROM pg_constraint
+                 WHERE contype = 'f' AND conrelid IN ({SchemaQueries.TableOids})
+                 """))
+            .Should().BeGreaterThan(0, "an index sweep over no foreign keys passes vacuously");
 
         var unindexed = await SchemaQueries.ReadStringsAsync(connection,
             """
@@ -693,7 +751,7 @@ public sealed class TenancySchemaTests
     public async Task TheGrantMatrixIsExactlyWhatTheMigrationsWrote()
     {
         // There is no ALTER DEFAULT PRIVILEGES, so every grant is one a migration
-        // wrote. All three non-owner grantees are asserted, across both chains:
+        // wrote. All three non-owner grantees are asserted, across every chain:
         // BYPASSRLS bypasses policies and not GRANTs, so for learnstack_platform
         // and learnstack_outbox_admin this matrix is the whole of the bound, and a
         // widened grant on either is invisible in any other assertion. Measured:
@@ -733,9 +791,17 @@ public sealed class TenancySchemaTests
             "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform outbox_messages DELETE,SELECT",
             "learnstack_platform idempotency_keys DELETE,SELECT",
+            "learnstack_app tenant_content_types DELETE,INSERT,SELECT,UPDATE",
+            "learnstack_app tenant_level_taxonomies DELETE,INSERT,SELECT,UPDATE",
+            "learnstack_app tenant_level_taxonomy_items DELETE,INSERT,SELECT,UPDATE",
+            "learnstack_app customization_generations INSERT,SELECT,UPDATE",
+            "learnstack_platform tenant_content_types SELECT",
+            "learnstack_platform tenant_level_taxonomies SELECT",
+            "learnstack_platform tenant_level_taxonomy_items SELECT",
+            "learnstack_platform customization_generations SELECT",
             "learnstack_outbox_admin outbox_messages SELECT",
         ],
-        "every line is one line of the two migrations' grant matrices, and "
+        "every line is one line of the three migrations' grant matrices, and "
         + "learnstack_outbox_admin holds nothing beyond the outbox");
     }
 }

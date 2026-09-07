@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using NetArchTest.Rules;
 using Xunit;
@@ -21,24 +22,13 @@ namespace LearnStack.Tests.Architecture;
 /// </summary>
 public sealed class ModuleDependencyTests
 {
-    private static readonly string[] ModuleNames =
-    [
-        "Tenancy",
-        "Identity",
-        "Customization",
-        "Audit",
-        "Content",
-        "Media",
-        "Education",
-    ];
-
     [Theory]
     [MemberData(nameof(EveryModule))]
     public void ModuleDomain_DoesNotDependOn_OtherModuleDomain(string moduleName)
     {
         var domainAssembly = LoadModuleAssembly(moduleName, layer: "Domain");
 
-        foreach (var other in ModuleNames)
+        foreach (var other in Modules.Names)
         {
             if (other == moduleName)
             {
@@ -54,6 +44,82 @@ public sealed class ModuleDependencyTests
                 $"Module {moduleName}.Domain references {other}.Domain. " +
                 "Cross-module Domain references are forbidden — talk through Application.Contracts or integration events.");
         }
+    }
+
+    /// <summary>
+    /// A command contract names no module's <c>Domain</c> — not another module's,
+    /// and not its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the rule that makes a <c>Guid</c> in a contract correct rather than
+    /// sloppy. <c>Backend Coding Standards § Naming</c> says never to expose a raw
+    /// <c>Guid</c> on a public surface, and a contract that named
+    /// <c>TenantContentTypeId</c> would obey it by putting
+    /// <c>Customization.Domain</c> into the IL of every module that sends the
+    /// command — the forbidden <c>Module A → Module B.Domain</c> edge, reached
+    /// through the one assembly whose whole purpose is to be referenced widely.
+    /// <see href="../../../docs/decisions/0023-strongly-typed-id-source-generator.md">ADR-0023
+    /// Amendment 4</see> settles which rule yields, and this is what holds it.
+    /// </para>
+    /// <para>
+    /// A <c>SharedKernel</c> identifier — <c>TenantId</c>, <c>OrganizationId</c>,
+    /// <c>UserId</c> — stays typed in a contract, because naming it creates no such
+    /// edge. The rule is about the assembly the type lives in, which is exactly
+    /// what this measures.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(EveryModule))]
+    public void ModuleContracts_DoNotDependOn_AnyModuleDomain(string moduleName)
+    {
+        var contractsAssembly = LoadModuleAssembly(moduleName, layer: "Application.Contracts");
+
+        foreach (var other in Modules.Names)
+        {
+            var result = Types.InAssembly(contractsAssembly)
+                .Should()
+                .NotHaveDependencyOn($"LearnStack.Modules.{other}.Domain")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"Module {moduleName}.Application.Contracts references {other}.Domain. "
+                + "A contract is the cross-module surface, so a Domain type named here "
+                + "reaches every sender: "
+                + string.Join(", ", result.FailingTypeNames ?? []));
+        }
+
+        // The second leg, and it is not redundant: NetArchTest (Mono.Cecil) walks IL
+        // TypeRefs, so it sees a Domain type USED and not a project reference that
+        // merely exists — Meta_NetArchTest_DetectsAPlantedViolation says as much in
+        // as many words. An unused reference is one edit away from the first use, and
+        // it exports the assembly to every consumer of the contracts besides. This is
+        // the leg ADR-0023 Amendment 8 rests on.
+        ProjectReferencesOf(moduleName, "Application.Contracts")
+            .Where(reference => reference.EndsWith(".Domain.csproj", StringComparison.Ordinal))
+            .Should().BeEmpty(
+                $"{moduleName}.Application.Contracts must not reference any Domain project — "
+                + "a module-local identifier crosses a contract as Guid precisely so that "
+                + "reference never has to exist (ADR-0023 Amendment 8)");
+    }
+
+    /// <summary>Every <c>ProjectReference</c> path one module project declares.</summary>
+    private static List<string> ProjectReferencesOf(string moduleName, string layer)
+    {
+        var path = Path.Combine(
+            RepositoryPaths.BackendSrc(),
+            "Modules",
+            moduleName,
+            $"LearnStack.Modules.{moduleName}.{layer}",
+            $"LearnStack.Modules.{moduleName}.{layer}.csproj");
+
+        File.Exists(path).Should().BeTrue(
+            $"{Path.GetFileName(path)} is where the module's references are declared — "
+            + "a renamed or moved project silently empties this leg");
+
+        return Regex.Matches(File.ReadAllText(path), @"ProjectReference\s+Include=""(?<path>[^""]+)""")
+            .Select(match => match.Groups["path"].Value.Replace('\\', '/'))
+            .ToList();
     }
 
     [Theory]
@@ -125,7 +191,7 @@ public sealed class ModuleDependencyTests
     private static readonly Type _plantedDependency = typeof(LearnStack.Domain.AssemblyMarker);
 
     public static IEnumerable<object[]> EveryModule() =>
-        ModuleNames.Select(m => new object[] { m });
+        Modules.Names.Select(m => new object[] { m });
 
     private static Assembly LoadModuleAssembly(string moduleName, string layer)
     {

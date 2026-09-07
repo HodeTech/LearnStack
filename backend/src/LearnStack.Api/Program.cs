@@ -30,12 +30,14 @@ builder.Configuration.RefuseAmbientForwardedHeaders();
 
 // The module assemblies MediatR scans for handlers. Tenancy's is here as of Packet 7,
 // which shipped the first production request types — and the parameter existed all along,
-// so the change was one argument rather than a new seam. A module whose assembly is missing here
-// has handlers nothing dispatches, which fails as "no handler for request" at the call
-// site rather than at startup.
+// so the change was one argument rather than a new seam. Customization's joined it in
+// Packet 8. A module whose assembly is missing here has handlers nothing dispatches, and
+// FluentValidation validators nothing runs — which fails as "no handler for request" at
+// the call site rather than at startup, and as a command that skipped its guards.
 builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
-    typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly);
+    typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly,
+    typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();

@@ -128,6 +128,77 @@ public sealed class SeederTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Every_seeded_tenant_starts_with_a_live_content_type_and_level_taxonomy()
+    {
+        // The built-ins exist so a tenant that has authored nothing still resolves
+        // something. Asserted as ACTIVE, not merely present: a draft is addressable and
+        // constrains nothing, so a seed that registered without publishing would leave
+        // the runtime with the same nothing it started with — and every structural
+        // check would still pass.
+        await using var dataSource = DataSource();
+
+        (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
+
+        foreach (var tenant in SeedData.All)
+        {
+            (await ScalarAsPlatformAsync("""
+                SELECT count(*) FROM tenant_content_types
+                WHERE tenant_id = @tenant AND key = 'card' AND status = 'Active'
+                  AND renderer_key = 'default-card' AND deleted_at IS NULL
+                """, "tenant", tenant.TenantId.Value))
+                .Should().Be(1L, "one live card content type per tenant");
+
+            (await ScalarAsPlatformAsync("""
+                SELECT count(*) FROM tenant_level_taxonomies
+                WHERE tenant_id = @tenant AND key = 'plain' AND status = 'Active'
+                  AND deleted_at IS NULL
+                """, "tenant", tenant.TenantId.Value))
+                .Should().Be(1L, "one live plain level taxonomy per tenant");
+
+            (await ScalarAsPlatformAsync("""
+                SELECT count(*) FROM tenant_level_taxonomy_items
+                WHERE tenant_id = @tenant AND taxonomy_key = 'plain'
+                """, "tenant", tenant.TenantId.Value))
+                .Should().Be(3L, "a level vocabulary with no bands resolves everything to nothing");
+
+            // The counter every cache key embeds. Four customization writes land four
+            // bumps, so a reader holding a key composed before the seed cannot reach a
+            // stale entry — and a generation still at its default would mean the writes
+            // happened without invalidating anything.
+            (await ScalarAsPlatformAsync("""
+                SELECT generation FROM customization_generations WHERE tenant_id = @tenant
+                """, "tenant", tenant.TenantId.Value))
+                .Should().Be(4L, "one bump per customization write, in that write's transaction");
+        }
+    }
+
+    [Fact]
+    public async Task The_built_ins_are_the_tenant_s_own_rows_and_not_shared()
+    {
+        // Both tenants get a `card` and a `plain`, and they are four rows rather than
+        // two: a built-in is a row a tenant may deprecate and succeed on its own, which
+        // is only true if it belongs to that tenant. A shared row would make one
+        // tenant's edit the other's.
+        await using var dataSource = DataSource();
+
+        (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
+
+        // Scoped to the seed's tenants: the shared fixture seeds customization rows
+        // for two others, and a global count would be measuring both.
+        var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
+
+        (await ScalarAsPlatformAsync(
+            "SELECT count(DISTINCT tenant_id) FROM tenant_content_types "
+            + "WHERE key = 'card' AND tenant_id = ANY(@ids)", "ids", ids))
+            .Should().Be(2L, "the built-in belongs to each tenant separately");
+
+        (await ScalarAsPlatformAsync(
+            "SELECT count(DISTINCT id) FROM tenant_content_types "
+            + "WHERE key = 'card' AND tenant_id = ANY(@ids)", "ids", ids))
+            .Should().Be(2L, "one row per tenant, each with its own id");
+    }
+
+    [Fact]
     public async Task Running_the_seed_twice_changes_nothing_and_still_succeeds()
     {
         // `make seed` is documented as safe to repeat, and it runs on every `make dev`.
@@ -144,6 +215,24 @@ public sealed class SeederTests : IAsyncLifetime
             .Should().Be(2L, "and it did not double anything");
         (await ScalarAsPlatformAsync("SELECT count(*) FROM organizations WHERE tenant_id = ANY(@ids)", "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
             .Should().Be(4L);
+
+        // The built-ins have two ways to double that the tenancy rows do not: the
+        // register conflicts on a versioned key, and the publish refuses because the
+        // definition is already live. Both are "already seeded" and neither may write.
+        // Scoped to the seed's own tenants: the shared fixture seeds customization rows
+        // for two OTHER tenants, and an unfiltered count would be measuring both.
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM tenant_content_types WHERE tenant_id = ANY(@ids)",
+            "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
+            .Should().Be(2L, "a second run registers nothing");
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM tenant_level_taxonomy_items WHERE tenant_id = ANY(@ids)",
+            "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
+            .Should().Be(6L, "and adds no bands");
+        (await ScalarAsPlatformAsync(
+            "SELECT max(generation) FROM customization_generations WHERE tenant_id = ANY(@ids)",
+            "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
+            .Should().Be(4L, "and invalidates nothing, because it changed nothing");
     }
 
     [Fact]
@@ -181,6 +270,77 @@ public sealed class SeederTests : IAsyncLifetime
             "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host",
             SeedData.English.Host))
             .Should().Be(0L);
+    }
+
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_built_in_whose_id_another_tenant_holds_stops_the_run(string subject)
+    {
+        // The ownership verification, for the two customization acts. A definition's
+        // id is a uuid primary key and therefore GLOBAL, while its key is per tenant —
+        // so a second tenant handed the first tenant's id conflicts on the primary key
+        // and the conflict looks exactly like a prior run of its own.
+        //
+        // Without the check the seeder logs "already present", exits 0, and leaves that
+        // tenant with no definition at all — the same masking defect the host act was
+        // given this verification for.
+        //
+        // BOTH arms, because they are two switch cases: measured, with only the
+        // taxonomy arm forced to report "owned", the whole 1461-test suite stayed
+        // green while half the defect this packet exists to close was still open.
+        await using var dataSource = DataSource();
+
+        // ONLY the first tenant, so the second genuinely has no definition of its own.
+        // Seeding both first would make the ownership check answer "yes, mine" about a
+        // row it wrote a moment earlier, and the case would prove nothing.
+        (await Runner(dataSource)
+            .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+
+        // The second tenant, re-declared with the first tenant's built-in id.
+        var collidingYoga = subject == "content-type"
+            ? SeedData.Yoga with { BuiltInContentTypeId = SeedData.English.BuiltInContentTypeId }
+            : SeedData.Yoga with { BuiltInTaxonomyId = SeedData.English.BuiltInTaxonomyId };
+
+        var seed = async () => await Runner(dataSource)
+            .RunAsync(CancellationToken.None, [collidingYoga]);
+
+        // Matched on the ownership refusal's own words, not on the act label: with the
+        // check gone the run still fails, one act later, because the publish cannot see
+        // a row it does not own — and an assertion on the label alone passes for that
+        // too. Measured: it did.
+        (await seed.Should().ThrowAsync<InvalidOperationException>(
+            "a conflict on a row this tenant does not own is not a prior run"))
+            .WithMessage("*the row that holds the name is not this tenant's*");
+    }
+
+    [Fact]
+    public async Task An_organization_whose_id_another_tenant_holds_stops_the_run()
+    {
+        // The same hole, in the act that predates this packet: `SecondOrganizationAct`'s
+        // ownership arm had no negative case either, and forcing it to report "owned"
+        // is invisible to the whole suite. It is not the slug that collides globally —
+        // ux_organizations_tenant_id_slug is per tenant — it is the primary key, the
+        // same shape as the two customization cases above.
+        await using var dataSource = DataSource();
+
+        (await Runner(dataSource)
+            .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+
+        var collidingYoga = SeedData.Yoga with
+        {
+            SecondOrganization = SeedData.Yoga.SecondOrganization with
+            {
+                OrganizationId = SeedData.English.SecondOrganization.OrganizationId,
+            },
+        };
+
+        var seed = async () => await Runner(dataSource)
+            .RunAsync(CancellationToken.None, [collidingYoga]);
+
+        (await seed.Should().ThrowAsync<InvalidOperationException>(
+            "an organization id another tenant holds is not this tenant's prior run"))
+            .WithMessage("*the row that holds the name is not this tenant's*");
     }
 
     [Fact]
@@ -337,40 +497,95 @@ public sealed class SeederTests : IAsyncLifetime
     private NpgsqlDataSource DataSource() =>
         NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
 
+    /// <summary>
+    /// Removes everything a case seeded, so the next one starts from nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two roles, because the grant matrix gives them different reach.
+    /// <c>learnstack_platform</c> holds <c>DELETE</c> on the tenancy tables and
+    /// <c>BYPASSRLS</c>, so it removes those without an announcement. It holds
+    /// <b>SELECT only</b> on the four customization tables
+    /// (<see href="../../../../docs/standards/05-database.md">Database Standards
+    /// § GRANT matrix</see>), so those go through the owner instead.
+    /// </para>
+    /// <para>
+    /// <b>And the owner needs the announcement.</b> Those tables are under
+    /// <c>FORCE ROW LEVEL SECURITY</c>, so <c>learnstack_migration</c> is subject
+    /// to its own policy and <c>USING</c> is the only gate a <c>DELETE</c> has —
+    /// measured, without <c>app.tenant_id</c> the statement reports
+    /// <c>DELETE 0</c> and every later case in this shared container runs against
+    /// rows a previous one left.
+    /// </para>
+    /// </remarks>
     private async Task CleanUpAsync()
     {
-        await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
-
         var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
 
-        foreach (var statement in new[]
+        await using (var platform = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString))
         {
-            "DELETE FROM platform_host_to_tenant WHERE tenant_id = ANY(@ids)",
-            "UPDATE tenants SET default_organization_id = NULL WHERE id = ANY(@ids)",
-            "DELETE FROM organizations WHERE tenant_id = ANY(@ids)",
-            "DELETE FROM tenants WHERE id = ANY(@ids)",
-        })
+            foreach (var statement in new[]
+            {
+                "DELETE FROM platform_host_to_tenant WHERE tenant_id = ANY(@ids)",
+                "UPDATE tenants SET default_organization_id = NULL WHERE id = ANY(@ids)",
+                "DELETE FROM organizations WHERE tenant_id = ANY(@ids)",
+                "DELETE FROM tenants WHERE id = ANY(@ids)",
+            })
+            {
+                await using var cleanup = new NpgsqlCommand(statement, (NpgsqlConnection)platform);
+                cleanup.Parameters.AddWithValue("ids", ids);
+                await cleanup.ExecuteNonQueryAsync();
+            }
+        }
+
+        await using var owner = await PostgresFixture.OpenAsync(
+            _schema.Postgres.MigrationConnectionString);
+
+        foreach (var tenant in SeedData.All)
         {
-            await using var cleanup = new NpgsqlCommand(statement, (NpgsqlConnection)platform);
-            cleanup.Parameters.AddWithValue("ids", ids);
-            await cleanup.ExecuteNonQueryAsync();
+            await using var transaction = await owner.BeginTransactionAsync();
+            await SchemaQueries.SetTenantAsync(owner, transaction, tenant.TenantId.Value);
+
+            // Items first: their foreign key cascades, but the cascade runs with row
+            // security bypassed and leaving it implicit hides which rows went.
+            foreach (var statement in new[]
+            {
+                "DELETE FROM tenant_level_taxonomy_items WHERE tenant_id = @tenant",
+                "DELETE FROM tenant_level_taxonomies WHERE tenant_id = @tenant",
+                "DELETE FROM tenant_content_types WHERE tenant_id = @tenant",
+                "DELETE FROM customization_generations WHERE tenant_id = @tenant",
+            })
+            {
+                await SchemaQueries.ExecuteAsync(owner, transaction, statement,
+                    ("tenant", tenant.TenantId.Value));
+            }
+
+            await transaction.CommitAsync();
         }
     }
 
-    /// <summary>A count, under the platform role, with one named parameter.</summary>
+    /// <summary>A scalar with no parameter, for the counts that need none.</summary>
+    private Task<long> ScalarAsPlatformAsync(string sql) =>
+        ScalarAsPlatformAsync(sql, parameterName: null, value: null);
+
+    /// <summary>A scalar under the platform role, with an optional named parameter.</summary>
     /// <remarks>
     /// The name is passed rather than inferred from the value's type. Inferring it bound
     /// every shape but <c>Guid[]</c> as <c>"tenant"</c>, so a caller adding a third
     /// parameter shape got a silent mis-binding instead of a compile error.
     /// </remarks>
     private async Task<long> ScalarAsPlatformAsync(
-        string sql, string parameterName, object value)
+        string sql, string? parameterName, object? value)
     {
         await using var platform = await PostgresFixture.OpenAsync(
             _schema.Postgres.PlatformConnectionString);
         await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
-        query.Parameters.AddWithValue(parameterName, value);
+
+        if (parameterName is not null)
+        {
+            query.Parameters.AddWithValue(parameterName, value!);
+        }
 
         return (long)(await query.ExecuteScalarAsync())!;
     }

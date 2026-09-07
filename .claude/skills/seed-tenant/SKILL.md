@@ -5,10 +5,14 @@ description: >
   the `tenants` row, its organizations, locales, settings, feature flags, domain,
   and its `platform_host_to_tenant` mapping. USE FOR: bringing up a demo tenant,
   adding a second tenant for cross-tenant isolation testing, reseeding after a
-  tenancy schema change. DO NOT USE FOR: production tenant provisioning (operator
-  action via Hub), Self-Hosted license issuance (Hub-side), customization data or
-  course content (later phases own those aggregates — see § What a later phase
-  adds), or domain-specific code (forbidden by ADR-0018 — everything is data).
+  tenancy schema change. Seeding the two shipped customization aggregates is part
+  of it as of Packet 8: `SeedRunner` registers and publishes the built-in
+  `card` content type and `plain` taxonomy through the module's own commands. DO
+  NOT USE FOR: production tenant provisioning (operator action via Hub),
+  Self-Hosted license issuance (Hub-side), the customization aggregates that have
+  no schema yet or course content (later phases own those — see § What a later
+  phase adds), or domain-specific code (forbidden by ADR-0018 — everything is
+  data).
 ---
 
 # Seeding a tenant
@@ -187,7 +191,7 @@ tenant eventually carries belongs to a phase that has not written its schema yet
 |---|---|
 | `User`, `Membership`, roles, invitations | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
 | Keycloak OIDC wiring and the realm's `tenant_id` claim mapper | [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) |
-| `TenantContentType`, `TenantLevelTaxonomy` | [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md) |
+| `TenantContentType`, `TenantLevelTaxonomy` | **Shipped** — [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). `SeedRunner` writes the built-in pair through `RegisterTenantContentTypeCommand` / `PublishTenantContentTypeCommand` and their taxonomy siblings, so a seeded tenant already has something to render |
 | `Course`, `Lesson` and their translation satellites | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
 | `TenantCustomFieldDef` | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
 | `TenantPageBlock` | [Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md) |

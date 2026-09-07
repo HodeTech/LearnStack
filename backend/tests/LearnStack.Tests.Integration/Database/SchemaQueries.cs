@@ -59,6 +59,24 @@ internal static class SchemaQueries
         return counts;
     }
 
+    /// <summary>
+    /// How many rows a catalogue query sees, for a sweep to prove it saw any.
+    /// </summary>
+    /// <remarks>
+    /// A sweep that asserts <c>BeEmpty()</c> passes twice: when nothing is wrong,
+    /// and when the query read nothing at all. The second is not hypothetical here —
+    /// a fixture applying a subset of the migration chains narrowed every structural
+    /// sweep to eight of ten tables, twice, in two different packets.
+    /// </remarks>
+    public static async Task<long> CountAsync(
+        DbConnection connection, string sql, DbTransaction? transaction = null)
+    {
+        await using var command = new NpgsqlCommand(
+            sql, (NpgsqlConnection)connection, (NpgsqlTransaction?)transaction);
+
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
+
     public static async Task<List<string>> ReadStringsAsync(
         DbConnection connection,
         string sql,

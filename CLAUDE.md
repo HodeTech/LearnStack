@@ -36,10 +36,10 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6 and 7 shipped; packets 3b–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
-[Packet 8](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — the Tenant
-Customization foundation — is next.**
+[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
+infrastructure and the entitlement socket — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -144,6 +144,20 @@ structural sweep is only as wide as the schema it runs on — a second permissiv
 policy on `outbox_messages` passed the whole suite — and that the transaction
 boundary was wrong in the two places it is hardest to see.
 
+**Packet 8** shipped the Tenant Customization foundation — the module that makes
+the genericity claim true. Two aggregates a tenant declares as data,
+`TenantContentType` and `TenantLevelTaxonomy`; the payload gate
+[ADR-0043](docs/decisions/0043-customization-payload-validation.md) decides, with
+`JsonSchema.Net` pinned behind `IJsonSchemaValidator` and four ordered gates a
+tenant document passes before a row is written; four tables in a third migration
+chain under the corrected RLS template; four commands and the generation counter
+that every cache key will embed; and a built-in seed so a tenant that has authored
+nothing still has something to render. Its record,
+[Delivery Record (Packet 8)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-8),
+is long for the reason Packets 5, 6 and 7's were: the defects are its own review
+rounds' findings, and the sharpest was a term added by one round that the next
+round found had no test — removing it left all 1390 cases green.
+
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
 
@@ -170,9 +184,11 @@ is the next user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
-**Tenancy is the only module holding domain code**, as of Packet 6: the
-`Tenant` and `Organization` aggregates, their entities, and
-`TenancyDbContext`. The other six module assemblies are still empty, and
+**Two modules hold domain code**, as of Packet 8: Tenancy — the `Tenant` and
+`Organization` aggregates, their entities, and `TenancyDbContext` — and
+Customization, with `TenantContentType`, `TenantLevelTaxonomy`, their
+generation counter and `CustomizationDbContext`. The other five module
+assemblies are still empty, and
 module-level references in the docs (e.g.
 `LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
 `ITenantSearch`) describe **intended** shape that the corpus anchors
@@ -224,7 +240,7 @@ let the entry point pick it.
 | `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments and the two bounded corrections in [Documentation Standards § Correcting and Amending ADRs](docs/standards/13-documentation.md) ([ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)). |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
 | `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
-| `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
+| `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6, and [Customization](docs/modules/customization/README.md), Packet 8. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
 | `docs/glossary.md` | Terminology source of truth. | Editable; new term goes here first, then used. |
 
 > `docs/analysis/` exists locally but is **gitignored** — it is a private scratchpad

@@ -497,6 +497,73 @@ quietly implied to be customization.
 The Decision above is unchanged: domain-specific shapes remain tenant customization
 data, and there is no `Verticals/` folder.
 
+### 2026-09-04 — Customization keys and item keys are lowercase
+
+The worked examples in this ADR predate any rule about the *shape* of a key, and
+two of them teach a shape the shipped code refuses. § Content type definition
+writes `"key": "vocabulary-card"`, which is correct; § Level taxonomy writes its
+items as `"key": "A1"` … `"C2"`, which is not.
+
+**The rule, as implemented in
+[Phase 02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md):** a customization
+key — a concept key and an item key alike — is lowercase alphanumeric with single
+interior hyphens, at most 100 characters. It is the shape
+[Database Standards](../standards/05-database.md) already applies to a slug, and
+the reasons are the same three: the key reaches a URL segment, it is a component
+of a cache key (where `CacheKey.EnsureValid` refuses a `:` because a separator
+inside a component collides two tuples), and it is part of a primary key — so
+`A1` and `a1` must not be two rows naming one band, exactly as `en-US` and
+`en-us` must not be two locales.
+
+**The band name is the `display_name`, not the key.** `display_name` is a Pattern
+B localized map ([Localization Standards](../standards/08-localization.md)), so
+`A1` is what a tenant writes there, in each locale it publishes — which is also
+the only place it can be translated.
+
+The Decision above is unchanged. What changes is that two illustrative JSON
+blocks in it show a key shape the platform does not accept; the corrected form is
+in [32-tenant-customization-model.md § 3](../architecture/32-tenant-customization-model.md),
+which is the document the implementation follows.
+
+> **Erratum (2026-09-07):** three statements above were false when they entered
+> the record, and the rule they support is not.
+>
+> - *"two of them teach a shape the shipped code refuses"* — the paragraph then
+>   names one correct example (`vocabulary-card`) and one wrong one (`A1`). **One**
+>   block teaches the wrong shape.
+> - *"`CacheKey.EnsureValid` refuses a `:`"* — it does not. `EnsureValid` splits on
+>   `:` and checks the resulting segments; a component carrying one simply produces
+>   an extra segment, which it accepts. What actually refuses the character is the
+>   key's own slug shape, which is this amendment's rule — so the sentence used the
+>   rule to justify itself. The collision it describes is real; nothing but this
+>   rule prevents it.
+> - *"the shape [Database Standards] already applies to a slug"* — Database
+>   Standards names `slug` columns and a `ck_…_slug_format` constraint but states
+>   no shape. The shape is `UrlSlug`'s, in code, and no document carries it.
+>
+> The rule stands as written: lowercase alphanumeric, single interior hyphens, at
+> most 100 characters, for a concept key and an item key alike.
+
+### 2026-09-06 — The aggregates ship phase by phase, not in one bundle
+
+§ Implementation notes lists all seven customization aggregates against "Phase 02
+— Platform kernel", as though they land together. They do not, and have not since
+the 2026-08-08 restructure: only the two the runtime needs before a browser can
+render two tenants ship in
+[Phase 02a Packet 8](../roadmap/phase-02a-kernel-tenancy.md) —
+`TenantContentType` and `TenantLevelTaxonomy` — and the rest land with their
+first consumer.
+
+**Where each one lands** is a single record, and it is not here:
+[Tenant Customization Model § 12](../architecture/32-tenant-customization-model.md)
+carries the phasing table, and the Packet 8 entry in the phase document carries
+the same mapping for the packet's own scope. This ADR's list is read as what the
+model contains, not as a delivery schedule.
+
+Nothing about the decision changes. The aggregates are still the whole
+customization surface, they are still tenant data rather than code, and the
+Option A model this ADR chose is what every one of them is delivered under.
+
 ## References
 
 - **Supersedes** ADR-0011 (Extension Points).

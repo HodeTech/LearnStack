@@ -17,7 +17,7 @@ namespace LearnStack.Tests.Unit.Api.Tenancy;
 /// <para>
 /// The level is load-bearing rather than a preference. The <c>Host</c> header is
 /// attacker-authored on every anonymous request, and
-/// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
+/// <see href="../../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036</see>
 /// keeps attacker-authored strings out of anything retained — it refuses to put
 /// them in <c>audit_log</c>, and an <c>Information</c> line an operator forwards to
 /// a shared sink is the same exposure by another route. A well-meaning bump "for

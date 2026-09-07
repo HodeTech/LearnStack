@@ -1,6 +1,7 @@
 using FluentValidation;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 
@@ -98,13 +99,13 @@ internal static class IdentifierRules
         this IRuleBuilderInitial<TCommand, TId> rule)
         where TId : struct, IStronglyTypedId<Guid> =>
         rule.Cascade(CascadeMode.Stop)
-            .Must(id => id.IsInitialized() && id.Value != Guid.Empty)
+            .Must(StronglyTypedId.IsAssigned)
             .WithErrorCode("lockey_identifier_required");
 
     internal static IRuleBuilderOptions<TCommand, TId?> MustBeAssignedWhenPresent<TCommand, TId>(
         this IRuleBuilderInitial<TCommand, TId?> rule)
         where TId : struct, IStronglyTypedId<Guid> =>
         rule.Cascade(CascadeMode.Stop)
-            .Must(id => id is not { } value || (value.IsInitialized() && value.Value != Guid.Empty))
+            .Must(StronglyTypedId.IsAssignedWhenPresent)
             .WithErrorCode("lockey_identifier_required");
 }

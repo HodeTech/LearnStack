@@ -1,6 +1,6 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-09-03).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6 and 7 shipped;
+> **Status (2026-09-06).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped;
 > the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -17,7 +17,7 @@
 > | 5 | Foundation ports and default implementations | ✅ [record](#delivery-record-packet-5) |
 > | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
-> | 8 | Tenant Customization foundation | ⏳ [scope](#packet-sequence) |
+> | 8 | Tenant Customization foundation | ✅ [record](#delivery-record-packet-8) |
 > | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
 > | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
 >
@@ -31,7 +31,8 @@
 > [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
 > [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
 > [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
-> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) — each kept separate
+> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) and Packet 8 in
+> [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -40,8 +41,11 @@ Build the runtime foundation everything else stands on — and **only** that.
 
 Shared kernel conventions, cross-cutting concerns, API conventions, tenant +
 organization resolution, tenant + organization isolation defense-in-depth, the
-customization runtime read paths, durable audit, and the foundation **ports** with
-their default implementations. Two seed tenants in unrelated domains, so that every
+customization **write** path and its schema, durable audit, and the foundation
+**ports** with their default implementations. The customization *read* path — the
+projection and its generation-keyed cache — lands with its first consumer in
+[Phase 02d](phase-02d-walking-skeleton.md); Packet 8 shipped the data and the
+isolation, which is what 02d needs to render two tenants that differ. Two seed tenants in unrelated domains, so that every
 later phase is tested against the genericity claim rather than assuming it.
 
 What this phase deliberately does **not** build: the Dapr, Kafka, APISIX and Vault
@@ -620,7 +624,7 @@ tenant-provisioning and platform-admin commands that legitimately run before a
 tenant is resolved, backed by an architecture test that the attribute appears
 only on that narrow command set.
 
-**Packet 8 — Tenant Customization foundation ⏳**
+**Packet 8 — Tenant Customization foundation ✅** — [record](#delivery-record-packet-8)
 `LearnStack.Modules.Customization` with **two** aggregates:
 `TenantContentType` (JSON Schema declaring a content shape) and
 `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary). These are
@@ -629,7 +633,8 @@ render two different tenants; the rest have no consumer for several phases.
 
 Both tables ship the versioned key shape —
 `UNIQUE (tenant_id, key, schema_version)` plus the partial index
-`UNIQUE (tenant_id, key) WHERE status = 'active'`. Not `UNIQUE (tenant_id, key)`:
+`UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL`. Not
+`UNIQUE (tenant_id, key)`:
 that rejects the second revision of any key. See
 [`## Scope` § Tenant Customization Foundation](#tenant-customization-foundation).
 
@@ -654,6 +659,14 @@ The remaining aggregates land with their consumers:
 | `TenantLessonItemType` | [Phase 05](phase-05-education-learning-content.md) |
 | `TenantScoringRule` / `TenantCompletionRule` — aggregates, tables and evaluation | [Phase 05](phase-05-education-learning-content.md) |
 | `TenantTemplateLibrary` | [Phase 08a](phase-08a-assessment-notifications.md) |
+
+The **write path's validator** lands with them, per
+[ADR-0043](../decisions/0043-customization-payload-validation.md): `IJsonSchemaValidator`
+in the shared kernel, `JsonSchema.Net` pinned at 8.0.5 behind it, and the four gates a
+tenant document passes before a row is written. The ADR is where this packet's schema
+profile is decided — the exact root `$schema`, an object root declaring `properties`, no
+`$id` and no regex keywords — and every clause of it is there because the library's
+behaviour without it was measured.
 
 A small built-in seed — one `default-card` composite renderer and a stock
 `Plain` level taxonomy — lets early phases exercise the customization runtime
@@ -1052,8 +1065,10 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
 
 - `LearnStack.Modules.Customization` ships with **two** aggregates —
   `TenantContentType` (a JSON Schema declaring a content shape) and
-  `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary) — plus their
-  schema tables and runtime read paths.
+  `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary) — their schema
+  tables, and the validated write path that fills them. The read path is
+  [Phase 02d](phase-02d-walking-skeleton.md)'s, with the renderer that is its first
+  consumer.
 - These are the two the runtime needs before
   [Phase 02d](phase-02d-walking-skeleton.md) can render two tenants that genuinely
   differ. The remaining aggregates ship with their consumers:
@@ -1064,7 +1079,7 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
   `TenantTemplateLibrary` in [Phase 08a](phase-08a-assessment-notifications.md).
 - Both aggregates carry the versioned key shape from their first migration:
   `UNIQUE (tenant_id, key, schema_version)` for the revision, plus the partial index
-  `UNIQUE (tenant_id, key) WHERE status = 'active'` for the live definition.
+  `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` for the live definition.
   [Phase 04](phase-04-cms-media-pages.md) § Customization Key Shape and Immutable Schema
   Versions is the authority; the constraint ships here because this is the table's first
   migration and ADR-0013's version history cannot be retrofitted onto
@@ -1265,7 +1280,8 @@ land in Phase 02b.
   Packet 7 entry above for why the command path replaced the `DbContext` this line
   originally named.
 - `LearnStack.Modules.Customization` with `TenantContentType` and
-  `TenantLevelTaxonomy` plus their runtime read paths.
+  `TenantLevelTaxonomy`, their schema, and the write path that validates what goes
+  into them — the read path lands in [Phase 02d](phase-02d-walking-skeleton.md).
 - `LearnStack.Modules.Audit` aggregates + `LearnStack.Infrastructure.Audit` pipeline
   writing MUST-class rows inside the business transaction, on a single correct
   `audit_log` table.
@@ -1323,7 +1339,8 @@ land in Phase 02b.
 - Tenant A cannot repoint tenant B's host even though the resolver policy can see it —
   the `UPDATE` affects zero rows and an `INSERT` naming tenant B is rejected by
   `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
-- All ten tenancy tables report `relrowsecurity` **and** `relforcerowsecurity` true in
+- Every tenant-owned table — ten from Packet 6, four more from Packet 8 — reports
+  `relrowsecurity` **and** `relforcerowsecurity` true in
   `pg_class`, with no exception list.
 - `make dev`, `make seed` and `make test` succeed on a clean checkout. `make seed` now
   writes the two demo tenants; it reads `ConnectionStrings__Default` from the
@@ -1369,7 +1386,17 @@ skips; the Packet 7 isolation suite green **connected as `learnstack_app`**, inc
 case that reads with `app.tenant_id` reset rather than merely unset; a MUST-class command
 whose audit store is unavailable rejected rather than committed; and two seed tenants in
 unrelated domains, two organizations each, resolvable by host and returning
-tenant-specific customization data through the runtime read paths.
+tenant-specific customization data — its own content type and its own level
+vocabulary — through the request path.
+
+The wording used to say "through the runtime read paths", and that was circular: the
+read path and its generation-keyed cache land with their first consumer in
+[Phase 02d](phase-02d-walking-skeleton.md), which begins when this phase exits. What
+Packet 8 shipped and what this phase can therefore gate on is the data being
+resolvable and isolated per tenant through a real request —
+`Tenant_A_cannot_read_Tenant_B_customizations` is the case that answers it.
+[The Customization module spec](../modules/customization/README.md) is the single
+record of where the read path lands.
 
 [Phase 02c](phase-02c-hub-foundation.md) is not gated on this phase's exit in the
 ordinary sense: it hangs off the spine and starts when its trigger fires (a tenant must
@@ -1402,9 +1429,9 @@ Seven further decisions were taken during the phase and are Accepted:
 | [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md) | Tenant provisioning as a bounded cross-aggregate transaction | **Accepted** (2026-09-01) | A standing exception to § Aggregate Ownership, bounded by **enumeration**: provisioning writes `Tenant` and its default `Organization` in one transaction, because `tenants.default_organization_id` carries an invariant an integration event cannot deliver. One operation, an allow-list of one, no child entity, no projection, no cross-**module** write |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
-`learnstack_app`, the durable audit pipeline, customization runtime read paths, API
-conventions, two seed tenants, architecture-test catalogue green) close as Packets
-3b–10 ship.
+`learnstack_app`, the durable audit pipeline, customization data resolvable and
+isolated per tenant through a real request, API conventions, two seed tenants,
+architecture-test catalogue green) close as Packets 3b–10 ship.
 
 ## Delivery Record (Packets 0–3)
 
@@ -2578,3 +2605,168 @@ rewriting history. `.githooks/commit-msg` enforces exactly what CI's `meta` job 
   change it was generated from, and cherry-picking it onto `main` conflicts through the
   marker and typed-identifier commits before it — a "migration PR" would have carried
   roughly the first thirty commits of the packet.
+
+## Delivery Record (Packet 8)
+
+Kept separate from the records above. Six steps, each reviewed twice — once by an
+Opus agent round, once by a Sonnet one — and, as in Packets 5, 6 and 7, the second
+round repeatedly found the first round's fix.
+
+> **Packet 8 — Tenant Customization foundation ✅**
+>
+> **Measured at merge: 1568 tests green** — 1 contract, 90 architecture, 1130 unit,
+> 347 integration. Counted from a run under `CI=true`, which makes warnings errors.
+> The packet's own review rounds account for the first 1465; three external reviews
+> of the pull request added the rest, and § What the pull-request review changed
+> says what they cover.
+
+### What shipped
+
+- **[ADR-0043](../decisions/0043-customization-payload-validation.md)**, written and
+  approved before any code: what happens to a tenant-authored payload. Six decisions,
+  three inline errata and three dated Amendments, every clause of it measured against
+  the library rather than reasoned about.
+- **Two aggregates.** `TenantContentType` — a tenant-authored JSON Schema plus the
+  composite renderer that draws it — and `TenantLevelTaxonomy` with its bands, sharing
+  a `CustomizationDefinition<TId>` base that owns the Draft → Active → Deprecated
+  lifecycle and the rule that a published body is frozen.
+- **The payload gate.** `IJsonSchemaValidator` in the shared kernel, `JsonSchema.Net`
+  pinned at 8.0.5 behind it in `LearnStack.Infrastructure.Validation`, and ADR-0043's
+  four ordered gates with the schema profile the library does not provide.
+- **The schema.** Four tables in a third migration chain, all under `ENABLE` **and**
+  `FORCE ROW LEVEL SECURITY` with the tenant-owned tenant-wide policy, the versioned
+  key as an alternate key the child foreign key reuses, and the partial
+  `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL`.
+- **The write path.** Four commands — register and publish, per aggregate — three
+  ports, and the generation counter bumped in the same transaction by one statement
+  whose increment PostgreSQL evaluates against the row it is about to write.
+- **A built-in seed.** A `card` content type drawn by `default-card` and a `plain`
+  level taxonomy with three bands, installed by the seeder through the same four
+  commands a tenant admin uses, so a tenant that has authored nothing still resolves
+  something.
+- **[The Customization module spec](../modules/customization/README.md)**, the
+  repository's second, with its permission and audit matrices.
+- **Three things moved rather than copied**, each when a second module needed them:
+  `SnakeCaseNaming`, `AuditColumnMapping` and `WriteStoreTracking` to
+  `LearnStack.Infrastructure`, and what "this identifier was supplied" means to
+  `SharedKernel`.
+
+### What this packet got wrong, and how it was found
+
+- **Two byte-identical unique indexes.** `HasPrincipalKey` invents an alternate key
+  when it cannot find one, so declaring a unique index over the same columns shipped
+  `tenant_level_taxonomies` with two b-trees under a name no source file spelled —
+  and the name PostgreSQL reports on a violation was the invented one.
+- **A partial index that ignored soft delete.** `SoftDelete` does not touch `Status`,
+  so a retired Active definition held its key against the tenant forever and the
+  successor it was retired for could never be published. Found by a review round;
+  the term it added then had **no test**, which the next round found — removing it
+  left all 1390 cases green.
+- **A fixture that applied two of three migration chains.** Eight catalogue-level
+  assertions stopped covering the tables this packet added, each staying green by
+  reading a schema that did not contain them. It happened a second time in the same
+  packet, in a different fixture, which is why all three now call one applier.
+- **Two cleanups that deleted nothing.** Under `FORCE ROW LEVEL SECURITY` the owner
+  is subject to its own policy and `USING` is the only gate a `DELETE` has —
+  measured, `DELETE 0` without an announcement and `DELETE 1` with one.
+- **Ownership checks nothing discriminated.** The seeder verifies that a uniqueness
+  conflict is its own prior run and not another tenant's row. Three of its four arms
+  could be replaced with `true` with the whole suite green — including one that
+  predates this packet.
+- **A regression test that passed for the wrong reason, twice.** The case covering
+  the ownership check was written three times: the first seeded both tenants, so the
+  check answered "yes, mine" about a row it had just written; the second matched on
+  an act label a later, unrelated failure also matched.
+- **Comments that claimed more than was measured.** A performance figure attributed
+  to the wrong method, a catch-clause ordering described as required when measurement
+  showed it defensive, an architecture rule cited as forcing a design it does not
+  constrain, and four surviving copies of a predicate — `WHERE status = 'active'` —
+  that would match no row.
+
+### What the pull-request review changed
+
+Three external review passes read the branch after the packet's own six rounds —
+two inline, one a thirty-three-lens report on the whole diff. Between them they
+found thirteen things the packet's rounds had not, and every one was reproduced
+before it was fixed. The third pass also **refuted its own highest-scored
+finding** by measurement, which is worth as much as the rest: `JsonDocument`'s
+keyed lookup returns the *last* of a duplicated pair, not the first, so the attack
+it described could not work. The defect underneath it was real and smaller.
+
+- **The gate's own traversal, in four ways.** The reference graph was costed per
+  edge and not across the document; an author-chosen `$defs` name hid real edges
+  from the cost model; a `$ref` could name a position inside a literal; and a
+  percent-encoded fragment was refused although RFC 6901 § 6 decodes the fragment
+  whole. One change closed all four: the traversal now mirrors the walk's own
+  alternation between keywords and author-chosen names.
+- **Well-formed JSON that the column refuses.** `U+0000`, an unpaired surrogate and
+  a number outside `numeric` all parse and none stores — `22P05`, `22P02`, `22003`,
+  measured on PostgreSQL 18.6 — so the refusal happened at the `INSERT`, as a 500.
+  The profile refuses them by pointer now, `JsonValue` answers the question it had
+  always claimed to, and `LocalizedText` refuses the same characters because a
+  surrogate it accepted was stored as `U+FFFD` with nothing raised at all
+  ([ADR-0043 Amendment 4](../decisions/0043-customization-payload-validation.md)).
+  An integration case asks the real column about eleven documents and asserts the
+  guard agrees in both directions.
+- **The extensions were admitted and never resolved.** § 8.1 requires every
+  `x-renderer` / `x-taxonomy` / `x-language` to resolve to a registry entry **on
+  saving**, and a content type naming a renderer or a taxonomy that does not exist
+  was stored, published and frozen. The validator now reports where each extension
+  sits — only the walk that separates schema positions from instance literals can —
+  and the module resolves it. `x-language` is admitted unresolved because its
+  registry does not exist; [Phase 04](phase-04-cms-media-pages.md) owns it.
+- **A publish that failed after retiring the incumbent** committed the retirement,
+  because an inner `Result.Fail` an outer handler absorbs does not roll back an
+  ambient transaction. Both publish handlers now mark it rollback-only.
+- **A null element in a taxonomy list** reached the aggregate as a
+  `NullReferenceException`: `SetValidator` skips a null rather than refusing it.
+- **`$` is not end-of-input in .NET.** It matches before a final newline, so
+  `card\n` was a url-safe customization key and `en\n` a well-formed locale tag.
+- **A raw `Guid` in a command contract had no record.** It is the right shape —
+  a contract naming the typed id puts that module's `Domain` in every sender's IL —
+  and now a decided one, with a test that measures the assembly reference rather
+  than the signature ([ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md)).
+- **An unpaired surrogate escape was a 500, from five places at once.**
+  `JsonElement.GetString()` raises rather than returning one, and the profile reads
+  a string out of `$schema`, a `$ref`, an extension value and every member name it
+  builds a pointer from. The storability clause — the one walk that reads nothing
+  unsafely — runs first now, so the rest of the profile cannot meet the character.
+  Enabling duplicate detection then found a sixth site inside the parse itself.
+- **A duplicated member meant two different documents.** A keyed lookup returns the
+  last and an enumeration yields both, so the profile audited a member `jsonb` then
+  discarded, and `$schema` declared twice was read one way by the gate and another
+  by the builder — admitted, measured, in one of the two orders. The parse refuses
+  duplicates now.
+- **The property ceiling counted only the root.** A nested object could declare as
+  many as the byte cap allowed, about seventeen thousand.
+- **`x-taxonomy` asked one query per key**, inside an open transaction, and a
+  document can name on the order of ten thousand. One `= ANY` now.
+- **Four tests that could not fail.** The successor's conflict arm behind `Undo`, a
+  band's `sort` and `metadata` reaching the aggregate, three structural sweeps that
+  passed over an empty result set, and the generation counter's whole reason for
+  being a single statement — the last needed a lock-wait synchronisation point,
+  because without one it passed against a read-modify-write.
+- **Two matrices disagreed with the standards they cite.** The audit matrix marked a
+  rename SHOULD beneath a baseline that makes these aggregates' updates MUST, and
+  the permission matrix put publication on `admin` — which no default role holds and
+  which the closed action set does not mean. Publication is a sub-resource, which is
+  Permission Standards' own worked example.
+
+### What it deliberately did not ship
+
+Each of these is recorded, with its owning phase, in
+[the module spec's § Risks](../modules/customization/README.md) rather than only here.
+
+- **The read path and its generation-keyed cache** — [Phase 02d](phase-02d-walking-skeleton.md),
+  with its first consumer.
+- **Deprecate, revise, rename and per-band editing** — they have no caller until the
+  Admin Studio editors, which [Phase 04](phase-04-cms-media-pages.md) and
+  [Phase 05](phase-05-education-learning-content.md) own and
+  [Phase 06](phase-06-renderer-admin-studio.md) consolidates.
+- **Permission keys** — [Phase 03](phase-03-identity-admin.md) brings the registry;
+  [permissions.md](../modules/customization/permissions.md) is the forward declaration.
+- **Audit rows** — Packet 9 lights up `AuditLogBehavior`;
+  [audit.md](../modules/customization/audit.md) classifies what it will write and
+  records what these handlers already do so that adding it is a wiring change.
+- **The remaining five customization aggregates** — each lands with its first
+  consumer, per [ADR-0018's 2026-09-06 Amendment](../decisions/0018-tenant-driven-customization-model.md).

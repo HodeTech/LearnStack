@@ -215,11 +215,15 @@ downward would be a tenant-deletion path nobody has designed — see the note in
 § GRANT matrix that tenant hard-deprovisioning has no owning phase. `RESTRICT`
 makes the absence loud.
 
-The one standing exception is a **translation satellite**, which cascades from
-its own parent (`ON DELETE CASCADE` in the `course_translations` fence above): a
-translation is not an independent row and outliving its parent would leave a
-title with nothing to title. That is deletion *within* an aggregate, not deletion
-*of* one, and it is why the two fences differ.
+The standing exception is a **child inside an aggregate boundary**, which
+cascades from its own root: it is not an independent row, and outliving its root
+would leave it referring to nothing. That is deletion *within* an aggregate, not
+deletion *of* one, and it is why the two fences differ. Two tables are in the
+class today — a **translation satellite** (`ON DELETE CASCADE` in the
+`course_translations` fence above), and `tenant_level_taxonomy_items`, whose
+composite key names the taxonomy revision it belongs to and which is meaningless
+without it. A cascade from anything that is *not* a root's own child is still a
+decision, not a convenience, and it needs a record.
 
 **The circular reference, and why it is still composite.**
 `tenants.default_organization_id` points at `organizations`, which points back at
@@ -378,7 +382,7 @@ migration states which one its table is.
 | Class | Rule | Tables |
 |---|---|---|
 | **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set |
-| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages` |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations` |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
 
@@ -679,6 +683,10 @@ privileges implicitly.
 | `platform_host_to_tenant` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after)` |
+| `tenant_content_types` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
+| `tenant_level_taxonomies` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
+| `tenant_level_taxonomy_items` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
+| `customization_generations` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
 
 Four things the matrix cannot express, and one it must not be asked to:
 

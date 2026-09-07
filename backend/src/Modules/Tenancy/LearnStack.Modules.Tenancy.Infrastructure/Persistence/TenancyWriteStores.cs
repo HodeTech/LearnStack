@@ -1,9 +1,9 @@
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Domain;
-using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
-using static LearnStack.Modules.Tenancy.Infrastructure.Persistence.WriteStoreTracking;
+using static LearnStack.Infrastructure.Persistence.WriteStoreTracking;
+using static LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyWriteStoreTracking;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 
@@ -98,8 +98,15 @@ public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHos
     }
 }
 
-/// <summary>Shared by the stores; see <see cref="TenantWriteStore"/> for why.</summary>
-internal static class WriteStoreTracking
+/// <summary>
+/// The one save this module needs that no other module does.
+/// </summary>
+/// <remarks>
+/// The general two — conflict translation and the tracked-aggregate guard — moved
+/// to <see cref="WriteStoreTracking"/> when a second module needed them. What is
+/// left names <c>TenantLocale</c> and belongs to Tenancy.
+/// </remarks>
+internal static class TenancyWriteStoreTracking
 {
     /// <summary>
     /// Saves, clearing an outgoing default locale before setting the incoming one.
@@ -165,71 +172,4 @@ internal static class WriteStoreTracking
         await SaveTranslatingConflictsAsync(db, cancellationToken);
     }
 
-    /// <summary>
-    /// Saves, turning a uniqueness violation into the port's own conflict type.
-    /// </summary>
-    /// <remarks>
-    /// The translation happens here because here is the only place allowed to name
-    /// <c>PostgresException</c>: the repository forbids importing a provider SDK
-    /// exception type outside an adapter's namespace, and `Application` cannot reference
-    /// this assembly regardless. Untranslated, a reused slug reaches the L1 handler as a
-    /// <c>DbUpdateException</c>, which <c>HttpStatusMap</c> has no arm for — a 500 for
-    /// something the caller can fix by choosing another slug.
-    ///
-    /// 23505 only. Every other SQLSTATE is a fault and stays one; a 42501 in particular
-    /// means a policy refused the write, which is never something to soften.
-    /// </remarks>
-    internal static async Task SaveTranslatingConflictsAsync(
-        TenancyDbContext db, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException failure)
-            when (failure.InnerException is PostgresException { SqlState: "23505" } conflict)
-        {
-            // Detach what the database refused, before the exception leaves. EF keeps a
-            // failed entry in the state it had — an Added row stays Added — so a caller
-            // that turns this into Result.Fail and carries on writing has the rejected
-            // INSERT still queued, and the NEXT SaveChanges on this context re-sends it.
-            //
-            // Reachable through nesting, which is the shape ADR-0040 permits: an outer
-            // handler may absorb an inner failure and keep going on the same scope, and
-            // the scope is one DbContext. The row is gone from the database either way —
-            // the statement was refused — so the tracker holding it is a claim that
-            // outlived its subject.
-            //
-            // Added only. A Modified entry's original values are what the database still
-            // holds, so leaving it tracked is correct; detaching it would discard a change
-            // the caller may legitimately retry.
-            foreach (var entry in failure.Entries)
-            {
-                if (entry.State == EntityState.Added)
-                {
-                    entry.State = EntityState.Detached;
-                }
-            }
-
-            throw new AggregateConflictException(
-                conflict.MessageText, conflict.ConstraintName, failure);
-        }
-    }
-
-    internal static void EnsureTracked<T>(TenancyDbContext db, T aggregate)
-        where T : class
-    {
-        ArgumentNullException.ThrowIfNull(aggregate);
-
-        if (db.Entry(aggregate).State != EntityState.Detached)
-        {
-            return;
-        }
-
-        throw new InvalidOperationException(
-            $"The {typeof(T).Name} passed to UpdateAsync is not tracked by this scope's "
-            + "context. Load it through the same context that saves it — under the "
-            + "ambient unit of work that is the ordinary case, and it is the only one "
-            + "with correct concurrency-token semantics.");
-    }
 }

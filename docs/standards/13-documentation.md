@@ -182,7 +182,7 @@ When a module reaches "design stable, ready to implement", it gets a spec under 
 - **Overview** — what the module owns, what it does not.
 - **Entity-relationship diagram** (Mermaid `erDiagram`) — aggregate roots, owned entities, cross-module id references.
 - **State diagram** (Mermaid `stateDiagram-v2`) — for entities with non-trivial lifecycle (CourseVersion publish state, Enrollment state, LiveSession state, etc.).
-- **Sequence diagram** (Mermaid `sequenceDiagram`) — for at least the primary write use case and the primary integration-event flow.
+- **Sequence diagram** (Mermaid `sequenceDiagram`) — for at least the primary write use case, and for the primary integration-event flow when the module publishes one. A module that publishes none says so in that section and links to its (empty) integration-event catalogue; a diagram of a flow that does not exist is worse than its absence, because a reader cannot tell which it is looking at.
 - **Component diagram** — modules / packages / external systems the module talks to.
 - **Integration-event catalogue** — published events with versioned schema and consumer list.
 - **Permission matrix** — Resource × Action, role defaults. See [19-permissions.md](19-permissions.md).

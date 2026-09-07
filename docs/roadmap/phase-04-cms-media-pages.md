@@ -78,6 +78,12 @@ Also in scope:
 - Built-in primitive field types composed by the JSON Schema: text, rich text, number,
   boolean, date/time, media reference, entry reference, select / multi-select, JSON /
   object. The set is closed and changes only with a LearnStack release.
+- **The closed set of languages a `code` field may declare**, and the `x-language`
+  resolution that then refuses an unknown one on save. Phase 02a Packet 8 resolves
+  `x-renderer` and `x-taxonomy` against registries that exist and admits `x-language`
+  unresolved, because nothing decides which languages LearnStack renders until the
+  field type that carries one lands here
+  ([32 § 8.1](../architecture/32-tenant-customization-model.md)).
 - `ContentEntry` CRUD per type, with draft and published states.
 - Schema-version migration path: lazy on entry save, plus bulk migration as a
   tenant-admin operation with a dry run.
@@ -101,7 +107,7 @@ The key shape LearnStack ships, for every versioned customization aggregate
 | Constraint | Purpose |
 |---|---|
 | `UNIQUE (tenant_id, key, schema_version)` | Identity of one immutable schema revision |
-| `UNIQUE (tenant_id, key) WHERE status = 'active'` (partial index) | At most one publishable revision per concept |
+| `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` (partial index) | At most one publishable revision per concept, and a retired one releases its key |
 
 `(tenant_id, key)` names the concept; `(tenant_id, key, schema_version)` names the
 revision. The partial index preserves what § 10's rule was actually protecting — a

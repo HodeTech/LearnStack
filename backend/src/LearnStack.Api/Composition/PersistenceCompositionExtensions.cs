@@ -1,6 +1,8 @@
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -142,6 +144,7 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+        services.AddModuleDbContext<CustomizationDbContext>();
 
         // The write side of the two Tenancy roots, beside the context they run on. A
         // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge
@@ -150,6 +153,19 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
+
+        // The same for Customization's two roots, plus the generation counter — which
+        // is a port of its own precisely because it is NOT an aggregate: it derives
+        // from nothing, so the rule that counts a handler's aggregate writes still
+        // counts one for a handler that bumps it (ADR-0043 § 7).
+        services.TryAddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
+        services.TryAddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
+        services.TryAddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
+
+        // And the catalogue an `x-taxonomy` resolves through, which is a read and
+        // therefore not the write store: a content-type handler holding that store
+        // would be a handler the cross-aggregate census counts as writing two roots.
+        services.TryAddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
 
         return services;
     }

@@ -51,7 +51,9 @@ public static class SeedData
             "besiktas",
             "Beşiktaş Branch"),
         "demo-english.learnstack.local",
-        MapHostToDefaultOrganization: false);
+        MapHostToDefaultOrganization: false,
+        Guid.Parse("01930000-0000-7000-8000-0000000000c1"),
+        Guid.Parse("01930000-0000-7000-8000-0000000000d1"));
 
     public static readonly SeedTenant Yoga = new(
         TenantId.From(Guid.Parse("01930000-0000-7000-8000-000000000002")),
@@ -66,7 +68,9 @@ public static class SeedData
             "studio-two",
             "Studio Two"),
         "demo-yoga.learnstack.local",
-        MapHostToDefaultOrganization: true);
+        MapHostToDefaultOrganization: true,
+        Guid.Parse("01930000-0000-7000-8000-0000000000c2"),
+        Guid.Parse("01930000-0000-7000-8000-0000000000d2"));
 
     public static readonly IReadOnlyList<SeedTenant> All = [English, Yoga];
 }
@@ -77,6 +81,24 @@ public static class SeedData
 /// Whether the host row carries an organization id. One tenant sets it and one leaves it
 /// null, so the seed covers both host classifications.
 /// </param>
+/// <param name="BuiltInContentTypeId">
+/// The id the built-in <c>card</c> content type takes for this tenant.
+/// </param>
+/// <param name="BuiltInTaxonomyId">
+/// The id the built-in <c>plain</c> level taxonomy takes for this tenant.
+/// </param>
+/// <remarks>
+/// The two customization ids are fixed literals for the same reason every other id
+/// here is: a re-run has to conflict on something it wrote last time. An id
+/// generated per run would not insert a second copy — the versioned key would
+/// still refuse it — but it would report the collision as
+/// <c>lockey_schema_version_taken</c> rather than <c>lockey_identifier_taken</c>,
+/// and the seed would then be idempotent by a different accident on every run.
+/// They are per tenant because the id is a global primary key while the key is
+/// unique only within a tenant: two tenants sharing an id is a collision, and the
+/// seeder's ownership check is what turns it into a stopped run rather than a
+/// silent "already present".
+/// </remarks>
 public sealed record SeedTenant(
     TenantId TenantId,
     string Slug,
@@ -84,7 +106,9 @@ public sealed record SeedTenant(
     SeedOrganization DefaultOrganization,
     SeedOrganization SecondOrganization,
     string Host,
-    bool MapHostToDefaultOrganization);
+    bool MapHostToDefaultOrganization,
+    Guid BuiltInContentTypeId,
+    Guid BuiltInTaxonomyId);
 
 public sealed record SeedOrganization(
     OrganizationId OrganizationId, string Slug, string DisplayName);

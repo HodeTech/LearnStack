@@ -2,13 +2,19 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 
-namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+namespace LearnStack.Infrastructure.Persistence;
 
 /// <summary>
 /// Rewrites every table, column, key, index and constraint name the model
 /// produces into <c>snake_case</c>.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>Shared, not per module.</b> It began inside Tenancy because Tenancy was the
+/// only module with a schema. The second module needed the identical convention,
+/// and two copies of a naming convention is two conventions the day one of them is
+/// edited — the same reason the domain guards moved to the shared kernel.
+/// </para>
 /// <para>
 /// <b>Why this is not the `EFCore.NamingConventions` package.</b> Measured: the
 /// only version compatible with EF Core 10 is <c>10.0.1</c>, and it requires
@@ -20,7 +26,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// <para>
 /// <b>Why a convention and not `HasColumnName` per property.</b> Every RLS policy
 /// predicate, every <c>GRANT</c> and every index name in
-/// <see href="../../../../../../docs/standards/05-database.md">Database Standards</see>
+/// <see href="../../../../docs/standards/05-database.md">Database Standards</see>
 /// is written against snake_case identifiers. Naming sixty columns by hand means a
 /// forgotten one is silently <c>PascalCase</c> — a column the policy does not
 /// mention and the grant does not cover.
@@ -29,7 +35,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// impossible rather than unlikely.
 /// </para>
 /// </remarks>
-internal static class SnakeCaseNaming
+public static class SnakeCaseNaming
 {
     public static void ApplySnakeCaseNames(this ModelBuilder modelBuilder)
     {

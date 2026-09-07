@@ -21,13 +21,13 @@ using Xunit;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// The five isolation cases, re-run through a real request.
+/// The isolation cases, re-run through a real request.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What Packet 7 owns that Packet 6 did not.</b> Packet 6 shipped all five against the
-/// schema, driving them with <c>set_config</c> in a test — statements about the migration
-/// and its policies. These drive the same five through
+/// <b>What Packet 7 owns that Packet 6 did not.</b> Packet 6 shipped the tenancy cases
+/// against the schema, driving them with <c>set_config</c> in a test — statements about
+/// the migration and its policies. These drive them through
 /// <c>HostClassificationMiddleware</c>, <c>TenantResolverMiddleware</c>,
 /// <c>TenantContextBehavior</c>, <c>TransactionBehavior</c>'s announcement and the EF
 /// query filters, which is the path a browser takes. Not because nothing else exercises
@@ -45,7 +45,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <b>The data is the seed, not a fixture.</b> The two demo tenants and their host rows
 /// come from <c>SeedRunner</c> — the same code <c>make seed</c> runs — so these cases also
 /// answer "does what the seeder writes actually serve a request?", which is the question
-/// [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) asks in a browser.
+/// [Phase 02d](../../../../docs/roadmap/phase-02d-walking-skeleton.md) asks in a browser.
 /// </para>
 /// <para>
 /// <b>No production endpoint ships in this packet.</b> The reads go through a test-only
@@ -55,10 +55,11 @@ namespace LearnStack.Tests.Integration.Database;
 /// <para>
 /// <b>What these cases constrain, measured in both directions.</b> They constrain the
 /// composite outcome — the answer a request gets — and each read is protected by two
-/// independent layers, so no single-layer mutation breaks one. Delete BOTH EF query
-/// filters and all five stay green, because Row Level Security alone holds; disable RLS on
-/// every tenancy table instead and the four reads stay green, because the filters alone
-/// hold. Remove both and all five go red. That is defense in depth behaving as designed
+/// independent layers, so no single-layer mutation breaks one. Delete the EF query
+/// filters and every case stays green, because Row Level Security alone holds; disable RLS
+/// instead and they stay green, because the filters alone hold. Remove both and they go
+/// red — measured for the tenancy tables when this file shipped, and again for the
+/// customization ones when Packet 8 added its two. That is defense in depth behaving as designed
 /// rather than a gap, and the two halves are separately constrained elsewhere: the filters
 /// by <c>Every_TenantOwned_Entity_HasFilterAndRlsPolicy</c>,
 /// <c>Every_OrgScoped_Entity_HasOrgIdAndFilter</c> and
@@ -196,6 +197,92 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
             value => value.StartsWith("smuggled", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Tenant_A_cannot_read_Tenant_B_customizations()
+    {
+        // The customization tables through the request path, which is the layer the
+        // schema suite cannot reach: two requests differing only in the host, a
+        // SECOND module context resolved in each, and neither naming a tenant.
+        //
+        // Both tenants hold a `card` and a `plain` with the same keys — the built-in
+        // seed gives every tenant the same two — so a leak does not show up as a
+        // foreign KEY appearing. It shows up as a doubled row, or, if a request read
+        // the other tenant's rows instead of its own, as nothing at all. So the
+        // projection carries each row's `tenant_id`: substitution and duplication
+        // both become visible, and an assertion on keys alone could see neither.
+        //
+        // Measured with `IgnoreQueryFilters()` on both reads: this case still passes,
+        // because the policy is what actually holds and the filter is the layer in
+        // front of it. That is the claim defence in depth makes, and it is the reason
+        // this case is worth having beside the schema suite's — those run raw SQL, so
+        // only this one puts BOTH layers of a real request in front of the same read.
+        var english = await ReadCustomizationsAsync(SeedData.English.Host);
+        var yoga = await ReadCustomizationsAsync(SeedData.Yoga.Host);
+
+        english.Should().BeEquivalentTo(BuiltIns(SeedData.English.TenantId),
+            "one of each, owned by this tenant — two of each would be both tenants', "
+            + "and the other tenant's id would be a substitution");
+
+        yoga.Should().BeEquivalentTo(BuiltIns(SeedData.Yoga.TenantId));
+
+        english.Should().NotIntersectWith(yoga,
+            "the keys are the same for both and the rows are not");
+    }
+
+    [Fact]
+    public async Task The_policy_holds_the_customization_tables_without_the_filter()
+    {
+        // One layer removed on purpose, so what remains is the policy plus the
+        // announcement `TransactionBehavior` made — which is the half the schema
+        // suite cannot reach, because it sets `app.tenant_id` itself.
+        //
+        // The read is raw SQL on the request's own connection, so there is no filter
+        // to reacquire and nothing to trust: what answers is the policy plus the
+        // announcement. `CustomizationSchemaTests` asks the policy the same question
+        // in isolation; what only this case can say is that the announcement a real
+        // request produced is the one the policy read.
+        var english = await GetAsync(SeedData.English.Host, "customizations-unfiltered");
+        var yoga = await GetAsync(SeedData.Yoga.Host, "customizations-unfiltered");
+
+        english.Should().BeEquivalentTo(BuiltIns(SeedData.English.TenantId));
+        yoga.Should().BeEquivalentTo(BuiltIns(SeedData.Yoga.TenantId));
+    }
+
+    [Fact]
+    public async Task An_unresolved_request_reads_no_customization()
+    {
+        // The fail-closed half. `[AllowsUnresolvedTenantContext]` lets the request
+        // through the pipeline; the filter and the policy are what leave it with
+        // nothing, and the policy is the one that still holds if the filter is
+        // dropped.
+        // `localhost`, not a tenant host: it is in `Tenancy:PlatformHosts`, so it
+        // classifies PlatformHost and the pipeline runs under
+        // UnresolvedTenantContext rather than refusing the request outright. On a
+        // tenant host the ceiling answers 404 before a handler ever reads — measured,
+        // and it is why this case names the host it does.
+        var rows = await GetAsync("localhost", "customizations-unresolved");
+
+        rows.Should().BeEmpty(
+            "no announcement means no tenant, and NULL is false for USING");
+
+        // And the same read on a resolved host is not empty, or this would pass
+        // against a probe that never queried anything.
+        (await ReadCustomizationsAsync(SeedData.English.Host)).Should().NotBeEmpty();
+    }
+
+    /// <summary>The built-in seed as the probe projects it, for one owner.</summary>
+    private static string[] BuiltIns(TenantId tenantId) =>
+    [
+        $"content-type:card@{tenantId}",
+        $"taxonomy:plain@{tenantId}",
+        $"band:beginner@{tenantId}",
+        $"band:intermediate@{tenantId}",
+        $"band:advanced@{tenantId}",
+    ];
+
+    private async Task<IReadOnlyList<string>> ReadCustomizationsAsync(string host) =>
+        await GetAsync(host, "customizations");
+
     private async Task<IReadOnlyList<string>> ReadOrganizationsAsync(string host) =>
         await GetAsync(host, "organizations");
 
@@ -237,24 +324,7 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
     {
         await _postgres.InitializeAsync();
 
-        await using (var tenancy = new TenancyDbContext(
-            new DbContextOptionsBuilder<TenancyDbContext>()
-                .UseNpgsql(_postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
-                .Options,
-            SharedKernel.Tenancy.StaticTenantContextAccessor.Unresolved))
-        {
-            await tenancy.Database.MigrateAsync();
-        }
-
-        await using (var platform = new PlatformDbContext(
-            new DbContextOptionsBuilder<PlatformDbContext>()
-                .UseNpgsql(_postgres.MigrationConnectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable))
-                .Options))
-        {
-            await platform.Database.MigrateAsync();
-        }
+        await MigrationChains.ApplyAllAsync(_postgres.MigrationConnectionString);
 
         // The seeder, not a fixture INSERT: these cases are about what a request sees, and
         // what a request sees should be what `make seed` wrote.
@@ -281,7 +351,7 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>These rows are what three of the five cases are about.</b> `tenant_settings` is
+    /// <b>These rows are what `Org_X_cannot_read_Org_Y_within_TenantA`, `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` and `Unsetting_tenant_context_returns_zero_rows_through_RLS` are about — named rather than counted, because a ratio against a total moves every time a case is added and this one already had.</b> `tenant_settings` is
     /// the organization-scoped table class — <c>TenantSetting</c> implements
     /// <c>IOrganizationScoped</c> and its policy carries an organization term — so it is
     /// the only seeded table where "organization X cannot read organization Y" is a
@@ -391,6 +461,10 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
                     SharedKernel.Results.Result<List<string>>>,
                 ProbeQueryHandler>();
             services.AddTransient<
+                MediatR.IRequestHandler<UnresolvedCustomizationProbeQuery,
+                    SharedKernel.Results.Result<List<string>>>,
+                ProbeQueryHandler>();
+            services.AddTransient<
                 MediatR.IRequestHandler<ForeignWriteCommand, SharedKernel.Results.Result<string>>,
                 ForeignWriteHandler>();
         });
@@ -423,6 +497,21 @@ public sealed class IsolationProbeController(MediatR.ISender sender)
         (await sender.Send(new ProbeQuery(ProbeSubject.Settings), cancellationToken))
             .ToActionResult();
 
+    [HttpGet("customizations")]
+    public async Task<IActionResult> Customizations(CancellationToken cancellationToken) =>
+        (await sender.Send(new ProbeQuery(ProbeSubject.Customizations), cancellationToken))
+            .ToActionResult();
+
+    [HttpGet("customizations-unfiltered")]
+    public async Task<IActionResult> CustomizationsUnfiltered(CancellationToken cancellationToken) =>
+        (await sender.Send(new ProbeQuery(ProbeSubject.CustomizationsUnfiltered), cancellationToken))
+            .ToActionResult();
+
+    [HttpGet("customizations-unresolved")]
+    public async Task<IActionResult> CustomizationsUnresolved(CancellationToken cancellationToken) =>
+        (await sender.Send(new UnresolvedCustomizationProbeQuery(), cancellationToken))
+            .ToActionResult();
+
     [HttpGet("settings-unresolved")]
     public async Task<IActionResult> SettingsUnresolved(CancellationToken cancellationToken) =>
         (await sender.Send(new UnresolvedProbeQuery(), cancellationToken)).ToActionResult();
@@ -442,15 +531,25 @@ public sealed class IsolationProbeController(MediatR.ISender sender)
 
 /// <summary>What the probe reads.</summary>
 /// <remarks>
-/// The unresolved-context read is a separate request type rather than a third member here,
-/// and the asymmetry is deliberate: what distinguishes it is not which rows it wants but
-/// which marker it carries, and a marker is a property of the type. Folding it in would
+/// The unresolved-context reads are separate request types rather than members here, and
+/// the asymmetry is deliberate: what distinguishes them is not which rows they want but
+/// which marker they carry, and a marker is a property of the type. Folding them in would
 /// mean one request type wearing two ceilings.
 /// </remarks>
 public enum ProbeSubject
 {
     Organizations,
     Settings,
+    Customizations,
+
+    /// <summary>The same read as raw SQL, with no EF in the path.</summary>
+    /// <remarks>
+    /// One of the four isolation layers taken away on purpose, so the one behind it
+    /// answers alone — and taken away by construction rather than by asking EF to
+    /// drop it, which is the difference between a case that proves something and a
+    /// case that trusts a call.
+    /// </remarks>
+    CustomizationsUnfiltered,
 }
 
 /// <remarks>
@@ -481,6 +580,19 @@ public sealed record ProbeQuery(ProbeSubject Subject)
 public sealed record UnresolvedProbeQuery
     : MediatR.IRequest<SharedKernel.Results.Result<List<string>>>;
 
+/// <summary>The customization read, on a request the pipeline runs with no tenant.</summary>
+/// <remarks>
+/// A second type rather than a subject on <see cref="UnresolvedProbeQuery"/>, and the
+/// honest reason is small: the pair is two lines of code, and <c>ProbeQuery</c> — which
+/// DOES discriminate a subject across both module contexts in one handler — shows that
+/// unifying them would work too. What would be wrong is unifying them with the
+/// <i>marker</i> as the discriminator: a request type wears one ceiling, and a subject
+/// that changed which ceiling applied would hide the thing this file exists to pin.
+/// </remarks>
+[SharedKernel.Tenancy.AllowsUnresolvedTenantContext]
+public sealed record UnresolvedCustomizationProbeQuery
+    : MediatR.IRequest<SharedKernel.Results.Result<List<string>>>;
+
 /// <summary>An INSERT naming a tenant other than the announced one.</summary>
 [SharedKernel.Tenancy.PublicSurface]
 public sealed record ForeignWriteCommand(Guid TenantId)
@@ -494,9 +606,14 @@ public sealed record ForeignWriteCommand(Guid TenantId)
 /// re-register the pipeline behaviors the composition root already added, and a doubled
 /// <c>TransactionBehavior</c> is a nested frame on every request.
 /// </remarks>
-public sealed class ProbeQueryHandler(TenancyDbContext db)
+public sealed class ProbeQueryHandler(
+    TenancyDbContext db,
+    LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext customization,
+    SharedKernel.Persistence.IUnitOfWork unitOfWork)
     : MediatR.IRequestHandler<ProbeQuery, SharedKernel.Results.Result<List<string>>>,
-      MediatR.IRequestHandler<UnresolvedProbeQuery, SharedKernel.Results.Result<List<string>>>
+      MediatR.IRequestHandler<UnresolvedProbeQuery, SharedKernel.Results.Result<List<string>>>,
+      MediatR.IRequestHandler<UnresolvedCustomizationProbeQuery,
+          SharedKernel.Results.Result<List<string>>>
 {
     public async Task<SharedKernel.Results.Result<List<string>>> Handle(
         ProbeQuery request, CancellationToken cancellationToken)
@@ -513,6 +630,16 @@ public sealed class ProbeQueryHandler(TenancyDbContext db)
             ProbeSubject.Settings => SharedKernel.Results.Result.Ok(
                 await ReadSettingsAsync(db, cancellationToken)),
 
+            // A SECOND module context in the same request, which is the half
+            // ADR-0040 § What Packet 6 can and cannot prove said needed a second
+            // module: both are enlisted on the one connection the unit of work owns,
+            // so what this read sees is the same announcement the tenancy read saw.
+            ProbeSubject.Customizations => SharedKernel.Results.Result.Ok(
+                await ReadCustomizationsAsync(customization, cancellationToken)),
+
+            ProbeSubject.CustomizationsUnfiltered => SharedKernel.Results.Result.Ok(
+                await ReadCustomizationsWithoutEfAsync(unitOfWork, cancellationToken)),
+
             // Exhaustive by construction, fail-closed on a member added without deciding
             // what it reads — the house style, and the opposite of falling through to
             // whichever subject happens to be last.
@@ -524,6 +651,95 @@ public sealed class ProbeQueryHandler(TenancyDbContext db)
     public async Task<SharedKernel.Results.Result<List<string>>> Handle(
         UnresolvedProbeQuery request, CancellationToken cancellationToken) =>
         SharedKernel.Results.Result.Ok(await ReadSettingsAsync(db, cancellationToken));
+
+    public async Task<SharedKernel.Results.Result<List<string>>> Handle(
+        UnresolvedCustomizationProbeQuery request, CancellationToken cancellationToken) =>
+        SharedKernel.Results.Result.Ok(
+            await ReadCustomizationsAsync(customization, cancellationToken));
+
+    /// <summary>
+    /// Every customization the request can see, as <c>kind:key</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three of the four tables, because the fourth is a counter with nothing to
+    /// name. No <c>Where</c>: what a request sees is the filters' and the policies'
+    /// answer, and narrowing it here would be the test testing itself.
+    /// </para>
+    /// <para>
+    /// <b>The bands come off the item table, not through the taxonomy.</b> Reading
+    /// them as <c>SelectMany(taxonomy =&gt; taxonomy.Items)</c> translates to a join
+    /// whose <c>ON</c> clause already carries <c>tenant_id</c>, so the parent's
+    /// isolation hides a band whatever the item table's own filter and policy say —
+    /// measured: with both of the item table's layers removed, that read still
+    /// returned only this tenant's bands. Reaching the entity directly is what puts
+    /// the child's two layers in front of the request.
+    /// </para>
+    /// </remarks>
+    private static async Task<List<string>> ReadCustomizationsAsync(
+        LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var contentTypes = await db.TenantContentTypes
+            .Select(contentType => "content-type:" + contentType.Key + "@" + contentType.TenantId)
+            .ToListAsync(cancellationToken);
+
+        var taxonomies = await db.TenantLevelTaxonomies
+            .Select(taxonomy => "taxonomy:" + taxonomy.Key + "@" + taxonomy.TenantId)
+            .ToListAsync(cancellationToken);
+
+        var bands = await db
+            .Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>()
+            .Select(item => "band:" + item.Key + "@" + item.TenantId)
+            .ToListAsync(cancellationToken);
+
+        return [.. contentTypes.Concat(taxonomies).Concat(bands).Order(StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// The same three tables, read with no EF in the path at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Raw SQL on the request's own connection, not <c>IgnoreQueryFilters()</c>.</b>
+    /// Both remove the query filter, and only one of them removes it by construction:
+    /// asking EF to drop a filter leaves EF deciding, so a call that silently stopped
+    /// applying would leave this case green while proving nothing. There is no filter
+    /// to reacquire here, and what answers is the policy plus the <c>SET LOCAL
+    /// app.tenant_id</c> that <c>TransactionBehavior</c> issued — which is the half
+    /// the schema suite cannot reach, because it announces the tenant itself.
+    /// </para>
+    /// <para>
+    /// It is also the pattern <c>No_IgnoreQueryFilters_Outside_PlatformAdminScope</c>
+    /// asks for. That rule scans <c>backend/src</c> and not this file, so the call was
+    /// legal — but a test is where the next person reads the idiom from.
+    /// </para>
+    /// </remarks>
+    private static async Task<List<string>> ReadCustomizationsWithoutEfAsync(
+        SharedKernel.Persistence.IUnitOfWork unitOfWork, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT 'content-type:' || key || '@' || tenant_id FROM tenant_content_types
+            UNION ALL
+            SELECT 'taxonomy:' || key || '@' || tenant_id FROM tenant_level_taxonomies
+            UNION ALL
+            SELECT 'band:' || key || '@' || tenant_id FROM tenant_level_taxonomy_items
+            ORDER BY 1
+            """,
+            (NpgsqlConnection)unitOfWork.Connection,
+            (NpgsqlTransaction?)unitOfWork.Transaction);
+
+        var rows = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            rows.Add(reader.GetString(0));
+        }
+
+        return rows;
+    }
 
     /// <summary>
     /// Every setting the request can see, as <c>key=scope</c>.
