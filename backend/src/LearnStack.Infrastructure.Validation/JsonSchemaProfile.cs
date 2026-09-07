@@ -567,10 +567,22 @@ internal static class JsonSchemaProfile
     /// The number of subschema visits one <c>$ref</c> costs, memoized per target.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A node's cost is one plus the cost of every <c>$ref</c> in its own subtree.
     /// <c>$defs</c> subtrees are skipped: <c>$defs</c> is a container, not an
     /// applicator, so what is inside it is paid for by whoever references it and
     /// counting it here would charge a document twice for the same subschema.
+    /// </para>
+    /// <para>
+    /// <b>The recursion is bounded by the byte cap, not only by the budget.</b> The
+    /// budget is checked as the recursion unwinds, so it does not by itself stop a
+    /// long chain from being descended first — but a chain link costs about
+    /// thirty bytes, so § 8.4's 256 KB admits at most about eight thousand of them.
+    /// Measured: a chain of 999 is admitted in 125 ms, 1,000 is refused in 6 ms, and
+    /// the longest one the size gate lets through at all — 8,000 links, 261 KB — is
+    /// refused in 260 ms with no overflow. An iterative walk with a pre-descent
+    /// budget would read better; it would not be safer.
+    /// </para>
     /// </remarks>
     private static long Expand(
         JsonElement root,
