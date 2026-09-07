@@ -293,6 +293,16 @@ public sealed class JsonSchemaNetValidatorTests
         // Two thousand links, 64 KB, inside every other declared limit. Before the
         // graph was costed this was ADMITTED after 6.7 seconds of the profile's own
         // walking — LearnStack's code, not the library's. The bound makes it bail.
+        //
+        // <b>The clock is the second assertion, and it is calibrated rather than
+        // guessed.</b> WHERE the bound stops is pinned deterministically one case
+        // above — 998 links admitted, 999 refused, one link apart — so this case is
+        // only about the walk bailing instead of finishing and reporting afterwards,
+        // which no return value distinguishes. Measured on this document: 21 ms
+        // bounded (61 ms on the first call, which is JIT), against 6.7 s unbounded.
+        // The threshold sits about thirty times above the one and three times below
+        // the other, and a machine slow enough to cross it would have taken twenty
+        // seconds unbounded.
         var defs = Enumerable.Range(0, 2000)
             .Select(i => $"\"a{i}\":{{\"$ref\":\"#/$defs/a{i + 1}\"}}")
             .Append("\"a2000\":{\"type\":\"object\"}");
@@ -304,7 +314,8 @@ public sealed class JsonSchemaNetValidatorTests
             .SelectMany(messages => messages)
             .Should().Contain(m => m.Key == "lockey_schema_reference_graph_too_large");
         clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2),
-            "the bound has to stop the walk, not merely report on it afterwards");
+            "the bound has to stop the walk, not merely report on it afterwards — "
+            + "measured at 21 ms bounded against 6.7 s unbounded");
     }
 
     [Fact]
