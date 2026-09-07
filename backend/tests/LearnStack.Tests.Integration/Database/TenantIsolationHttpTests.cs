@@ -236,13 +236,11 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         // announcement `TransactionBehavior` made — which is the half the schema
         // suite cannot reach, because it sets `app.tenant_id` itself.
         //
-        // <b>What it does not discriminate, stated rather than implied.</b> The
-        // filter and the policy scope on the same column with the same value, so no
-        // in-process read can tell "the filter answered" from "the policy answered":
-        // if `IgnoreQueryFilters()` ever stopped applying, this case would keep
-        // passing. The layer that proves the policy alone is the schema suite, which
-        // runs raw SQL as `learnstack_app` with no EF in the picture at all
-        // (`CustomizationSchemaTests`). This one adds the request path to it.
+        // The read is raw SQL on the request's own connection, so there is no filter
+        // to reacquire and nothing to trust: what answers is the policy plus the
+        // announcement. `CustomizationSchemaTests` asks the policy the same question
+        // in isolation; what only this case can say is that the announcement a real
+        // request produced is the one the policy read.
         var english = await GetAsync(SeedData.English.Host, "customizations-unfiltered");
         var yoga = await GetAsync(SeedData.Yoga.Host, "customizations-unfiltered");
 
@@ -544,13 +542,12 @@ public enum ProbeSubject
     Settings,
     Customizations,
 
-    /// <summary>The same read with the EF query filter removed.</summary>
+    /// <summary>The same read as raw SQL, with no EF in the path.</summary>
     /// <remarks>
     /// One of the four isolation layers taken away on purpose, so the one behind it
-    /// answers alone. <c>No_IgnoreQueryFilters_Outside_PlatformAdminScope</c> scans
-    /// <c>backend/src</c> and not this file — the rule exists so a production call
-    /// site is a deliberate edit, and a test that removes a layer to prove the next
-    /// one holds is the claim defence in depth makes.
+    /// answers alone — and taken away by construction rather than by asking EF to
+    /// drop it, which is the difference between a case that proves something and a
+    /// case that trusts a call.
     /// </remarks>
     CustomizationsUnfiltered,
 }
@@ -611,7 +608,8 @@ public sealed record ForeignWriteCommand(Guid TenantId)
 /// </remarks>
 public sealed class ProbeQueryHandler(
     TenancyDbContext db,
-    LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext customization)
+    LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext customization,
+    SharedKernel.Persistence.IUnitOfWork unitOfWork)
     : MediatR.IRequestHandler<ProbeQuery, SharedKernel.Results.Result<List<string>>>,
       MediatR.IRequestHandler<UnresolvedProbeQuery, SharedKernel.Results.Result<List<string>>>,
       MediatR.IRequestHandler<UnresolvedCustomizationProbeQuery,
@@ -640,7 +638,7 @@ public sealed class ProbeQueryHandler(
                 await ReadCustomizationsAsync(customization, cancellationToken)),
 
             ProbeSubject.CustomizationsUnfiltered => SharedKernel.Results.Result.Ok(
-                await ReadCustomizationsAsync(customization, cancellationToken, filtered: false)),
+                await ReadCustomizationsWithoutEfAsync(unitOfWork, cancellationToken)),
 
             // Exhaustive by construction, fail-closed on a member added without deciding
             // what it reads — the house style, and the opposite of falling through to
@@ -680,29 +678,68 @@ public sealed class ProbeQueryHandler(
     /// </remarks>
     private static async Task<List<string>> ReadCustomizationsAsync(
         LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext db,
-        CancellationToken cancellationToken,
-        bool filtered = true)
+        CancellationToken cancellationToken)
     {
-        var contentTypes = await Rows(db.TenantContentTypes, filtered)
+        var contentTypes = await db.TenantContentTypes
             .Select(contentType => "content-type:" + contentType.Key + "@" + contentType.TenantId)
             .ToListAsync(cancellationToken);
 
-        var taxonomies = await Rows(db.TenantLevelTaxonomies, filtered)
+        var taxonomies = await db.TenantLevelTaxonomies
             .Select(taxonomy => "taxonomy:" + taxonomy.Key + "@" + taxonomy.TenantId)
             .ToListAsync(cancellationToken);
 
-        var bands = await Rows(
-                db.Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>(), filtered)
+        var bands = await db
+            .Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>()
             .Select(item => "band:" + item.Key + "@" + item.TenantId)
             .ToListAsync(cancellationToken);
 
         return [.. contentTypes.Concat(taxonomies).Concat(bands).Order(StringComparer.Ordinal)];
     }
 
-    /// <summary>The same query, with the EF filter kept or taken away.</summary>
-    private static IQueryable<TEntity> Rows<TEntity>(IQueryable<TEntity> rows, bool filtered)
-        where TEntity : class =>
-        filtered ? rows : rows.IgnoreQueryFilters();
+    /// <summary>
+    /// The same three tables, read with no EF in the path at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Raw SQL on the request's own connection, not <c>IgnoreQueryFilters()</c>.</b>
+    /// Both remove the query filter, and only one of them removes it by construction:
+    /// asking EF to drop a filter leaves EF deciding, so a call that silently stopped
+    /// applying would leave this case green while proving nothing. There is no filter
+    /// to reacquire here, and what answers is the policy plus the <c>SET LOCAL
+    /// app.tenant_id</c> that <c>TransactionBehavior</c> issued — which is the half
+    /// the schema suite cannot reach, because it announces the tenant itself.
+    /// </para>
+    /// <para>
+    /// It is also the pattern <c>No_IgnoreQueryFilters_Outside_PlatformAdminScope</c>
+    /// asks for. That rule scans <c>backend/src</c> and not this file, so the call was
+    /// legal — but a test is where the next person reads the idiom from.
+    /// </para>
+    /// </remarks>
+    private static async Task<List<string>> ReadCustomizationsWithoutEfAsync(
+        SharedKernel.Persistence.IUnitOfWork unitOfWork, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT 'content-type:' || key || '@' || tenant_id FROM tenant_content_types
+            UNION ALL
+            SELECT 'taxonomy:' || key || '@' || tenant_id FROM tenant_level_taxonomies
+            UNION ALL
+            SELECT 'band:' || key || '@' || tenant_id FROM tenant_level_taxonomy_items
+            ORDER BY 1
+            """,
+            (NpgsqlConnection)unitOfWork.Connection,
+            (NpgsqlTransaction?)unitOfWork.Transaction);
+
+        var rows = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            rows.Add(reader.GetString(0));
+        }
+
+        return rows;
+    }
 
     /// <summary>
     /// Every setting the request can see, as <c>key=scope</c>.
