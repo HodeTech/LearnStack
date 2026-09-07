@@ -230,6 +230,27 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
     }
 
     [Fact]
+    public async Task The_policy_holds_the_customization_tables_without_the_filter()
+    {
+        // One layer removed on purpose, so what remains is the policy plus the
+        // announcement `TransactionBehavior` made — which is the half the schema
+        // suite cannot reach, because it sets `app.tenant_id` itself.
+        //
+        // <b>What it does not discriminate, stated rather than implied.</b> The
+        // filter and the policy scope on the same column with the same value, so no
+        // in-process read can tell "the filter answered" from "the policy answered":
+        // if `IgnoreQueryFilters()` ever stopped applying, this case would keep
+        // passing. The layer that proves the policy alone is the schema suite, which
+        // runs raw SQL as `learnstack_app` with no EF in the picture at all
+        // (`CustomizationSchemaTests`). This one adds the request path to it.
+        var english = await GetAsync(SeedData.English.Host, "customizations-unfiltered");
+        var yoga = await GetAsync(SeedData.Yoga.Host, "customizations-unfiltered");
+
+        english.Should().BeEquivalentTo(BuiltIns(SeedData.English.TenantId));
+        yoga.Should().BeEquivalentTo(BuiltIns(SeedData.Yoga.TenantId));
+    }
+
+    [Fact]
     public async Task An_unresolved_request_reads_no_customization()
     {
         // The fail-closed half. `[AllowsUnresolvedTenantContext]` lets the request
@@ -483,6 +504,11 @@ public sealed class IsolationProbeController(MediatR.ISender sender)
         (await sender.Send(new ProbeQuery(ProbeSubject.Customizations), cancellationToken))
             .ToActionResult();
 
+    [HttpGet("customizations-unfiltered")]
+    public async Task<IActionResult> CustomizationsUnfiltered(CancellationToken cancellationToken) =>
+        (await sender.Send(new ProbeQuery(ProbeSubject.CustomizationsUnfiltered), cancellationToken))
+            .ToActionResult();
+
     [HttpGet("customizations-unresolved")]
     public async Task<IActionResult> CustomizationsUnresolved(CancellationToken cancellationToken) =>
         (await sender.Send(new UnresolvedCustomizationProbeQuery(), cancellationToken))
@@ -517,6 +543,16 @@ public enum ProbeSubject
     Organizations,
     Settings,
     Customizations,
+
+    /// <summary>The same read with the EF query filter removed.</summary>
+    /// <remarks>
+    /// One of the four isolation layers taken away on purpose, so the one behind it
+    /// answers alone. <c>No_IgnoreQueryFilters_Outside_PlatformAdminScope</c> scans
+    /// <c>backend/src</c> and not this file — the rule exists so a production call
+    /// site is a deliberate edit, and a test that removes a layer to prove the next
+    /// one holds is the claim defence in depth makes.
+    /// </remarks>
+    CustomizationsUnfiltered,
 }
 
 /// <remarks>
@@ -603,6 +639,9 @@ public sealed class ProbeQueryHandler(
             ProbeSubject.Customizations => SharedKernel.Results.Result.Ok(
                 await ReadCustomizationsAsync(customization, cancellationToken)),
 
+            ProbeSubject.CustomizationsUnfiltered => SharedKernel.Results.Result.Ok(
+                await ReadCustomizationsAsync(customization, cancellationToken, filtered: false)),
+
             // Exhaustive by construction, fail-closed on a member added without deciding
             // what it reads — the house style, and the opposite of falling through to
             // whichever subject happens to be last.
@@ -641,23 +680,29 @@ public sealed class ProbeQueryHandler(
     /// </remarks>
     private static async Task<List<string>> ReadCustomizationsAsync(
         LearnStack.Modules.Customization.Infrastructure.Persistence.CustomizationDbContext db,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool filtered = true)
     {
-        var contentTypes = await db.TenantContentTypes
+        var contentTypes = await Rows(db.TenantContentTypes, filtered)
             .Select(contentType => "content-type:" + contentType.Key + "@" + contentType.TenantId)
             .ToListAsync(cancellationToken);
 
-        var taxonomies = await db.TenantLevelTaxonomies
+        var taxonomies = await Rows(db.TenantLevelTaxonomies, filtered)
             .Select(taxonomy => "taxonomy:" + taxonomy.Key + "@" + taxonomy.TenantId)
             .ToListAsync(cancellationToken);
 
-        var bands = await db
-            .Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>()
+        var bands = await Rows(
+                db.Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>(), filtered)
             .Select(item => "band:" + item.Key + "@" + item.TenantId)
             .ToListAsync(cancellationToken);
 
         return [.. contentTypes.Concat(taxonomies).Concat(bands).Order(StringComparer.Ordinal)];
     }
+
+    /// <summary>The same query, with the EF filter kept or taken away.</summary>
+    private static IQueryable<TEntity> Rows<TEntity>(IQueryable<TEntity> rows, bool filtered)
+        where TEntity : class =>
+        filtered ? rows : rows.IgnoreQueryFilters();
 
     /// <summary>
     /// Every setting the request can see, as <c>key=scope</c>.

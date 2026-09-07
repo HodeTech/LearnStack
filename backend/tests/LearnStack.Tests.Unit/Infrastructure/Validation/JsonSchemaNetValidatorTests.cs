@@ -739,6 +739,12 @@ public sealed class JsonSchemaNetValidatorTests
     [InlineData("12e131071", false)]
     [InlineData("1e-16383", true)]
     [InlineData("1e-16384", false)]
+    // An exponent that fits a long but not the arithmetic: `1 + long.MaxValue`
+    // wrapped negative and the number was admitted — measured — so the guard
+    // answered "inside numeric" about a value nine characters short of a 22003.
+    [InlineData("1e9223372036854775807", false)]
+    [InlineData("99e9223372036854775806", false)]
+    [InlineData("1e-9223372036854775808", false)]
     public void The_numeric_bound_is_where_postgresql_measured_it(string number, bool admitted)
     {
         // numeric holds 131,072 digits before the point and 16,383 after, and one
@@ -831,6 +837,38 @@ public sealed class JsonSchemaNetValidatorTests
         // never wrote as a keyword — the defect `const` and `enum` already had.
         Extensions(Schema("\"a\":{\"type\":\"string\",\"x-renderer\":{\"pattern\":\"(\"}}"))
             .Should().ContainSingle().Which.Value.Should().Be("{\"pattern\":\"(\"}");
+    }
+
+    [Fact]
+    public void A_reference_inside_an_extension_value_is_not_an_edge()
+    {
+        // The same trap a literal `$ref` beside a real one already sprang, one
+        // keyword later: an `x-renderer` value is not a subschema, so a key spelled
+        // `$ref` inside one is the tenant's data. Measured before this: the document
+        // was admitted alone and refused the moment a genuine `$ref` appeared
+        // anywhere else, because the document-level cost only runs when the walk
+        // found at least one real edge.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"type\":\"string\",\"x-renderer\":{\"$ref\":\"#/nope\"}},"
+            + "\"b\":{\"$ref\":\"#/$defs/t\"}},"
+            + "\"$defs\":{\"t\":{\"type\":\"string\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_genuine_reference_beside_that_one_is_still_resolved()
+    {
+        // The control the case above needs: the real edge is still an edge, so a
+        // rule that skipped the whole property would pass both and mean nothing.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"type\":\"string\",\"x-renderer\":{\"$ref\":\"#/$defs/t\"}},"
+            + "\"b\":{\"$ref\":\"#/nope\"}},"
+            + "\"$defs\":{\"t\":{\"type\":\"string\"}}}";
+
+        Refusal(_validator.AdmitSchema(document))
+            .Should().ContainKey("/properties/b/$ref").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_reference_unresolvable");
     }
 
     [Fact]

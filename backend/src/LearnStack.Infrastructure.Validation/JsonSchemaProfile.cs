@@ -691,8 +691,17 @@ internal static class JsonSchemaProfile
                 {
                     if (!namesAreAuthored)
                     {
+                        // The extension keywords belong on this list for the reason
+                        // the instance-valued ones do, and were missed when they were
+                        // added: an `x-renderer` value is not a subschema, so a
+                        // `$ref`-shaped key inside one is a tenant's data. Measured:
+                        // it was collected here, so a document carrying one was
+                        // admitted alone and refused as soon as a genuine `$ref`
+                        // appeared anywhere else — because the document-level cost
+                        // only runs when the walk found at least one real edge.
                         if (string.Equals(property.Name, "$defs", StringComparison.Ordinal)
-                            || Array.IndexOf(InstanceValuedKeywords, property.Name) >= 0)
+                            || Array.IndexOf(InstanceValuedKeywords, property.Name) >= 0
+                            || Array.IndexOf(ExtensionKeywords, property.Name) >= 0)
                         {
                             continue;
                         }

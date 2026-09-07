@@ -142,14 +142,23 @@ public static class JsonValue
         }
     }
 
+    /// <summary>Whether a value fits the size § 8.4 caps a customization row at.</summary>
+    /// <remarks>
+    /// Separate from <see cref="IsWellFormed"/> so a caller can say <i>which</i>
+    /// thing is wrong. "Not JSON" about a valid document that is merely too big
+    /// sends the author to fix the one thing that is not broken — the same reason
+    /// the uniqueness refusals name which index they hit.
+    /// </remarks>
+    public static bool IsWithinRowCap(string value) =>
+        value is not null && System.Text.Encoding.UTF8.GetByteCount(value) <= MaxRowBytes;
+
     /// <summary>Whether a value is JSON a <c>jsonb</c> column takes, and small enough to store.</summary>
     /// <remarks>
     /// The pair of <see cref="IsWellFormed"/> for the columns § 8.4 caps. Kept
     /// separate because not every <c>jsonb</c> column is a customization row.
     /// </remarks>
     public static bool IsStorableRow(string value) =>
-        IsWellFormed(value)
-        && System.Text.Encoding.UTF8.GetByteCount(value) <= MaxRowBytes;
+        IsWithinRowCap(value) && IsWellFormed(value);
 
     /// <summary>
     /// Refuses a customization row that is not storable JSON, or is too large.
@@ -162,16 +171,21 @@ public static class JsonValue
     /// </remarks>
     public static void EnsureStorableRow(string value, string parameterName)
     {
-        EnsureWellFormed(value, parameterName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
 
         var bytes = System.Text.Encoding.UTF8.GetByteCount(value);
 
+        // The cap before the parse, not after: the parse is the expensive half and
+        // the callers that reach a factory directly — the seeder, the Hub adapter,
+        // Phase 04's bulk importer — are the ones no request-body limit bounds.
         if (bytes > MaxRowBytes)
         {
             throw new ArgumentException(
                 $"The value is {bytes} bytes of UTF-8; a customization row holds {MaxRowBytes}.",
                 parameterName);
         }
+
+        EnsureWellFormed(value, parameterName);
     }
 
     public static void EnsureWellFormed(string value, string parameterName)
@@ -443,6 +457,16 @@ public static class JsonValue
             // whichever direction it points; there is no need to know which.
             if (!long.TryParse(token[at..], System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out var digits))
+            {
+                return false;
+            }
+
+            // And one that fits a long can still be far enough out to overflow the
+            // arithmetic below rather than fail it: `1e9223372036854775807` wrapped
+            // `1 + long.MaxValue` negative and was admitted — measured. An exponent
+            // past both caps together cannot land inside either, whichever way it
+            // points, so refusing it here is the same answer arrived at safely.
+            if (digits > MaxWholeDigits + MaxFractionDigits)
             {
                 return false;
             }

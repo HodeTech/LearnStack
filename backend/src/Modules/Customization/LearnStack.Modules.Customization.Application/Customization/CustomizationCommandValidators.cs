@@ -154,10 +154,18 @@ internal sealed class TaxonomyItemInputValidator : AbstractValidator<TaxonomyIte
         // JSON the column takes, because PostgreSQL would otherwise refuse it three
         // layers from here — 22P02 for the shape, 22P05 for a NUL — and it has to be
         // inside § 8.4's 256 KB, which nothing else on this path bounds.
+        //
+        // Two rules and two codes: "not JSON" about a valid document that is merely
+        // too big sends the author to fix the one thing that is not broken. The cap
+        // runs first because it is the cheap half, so an oversized document is
+        // refused without being parsed.
         RuleFor(item => item.Metadata!)
-            .Must(JsonValue.IsStorableRow)
-            .When(item => item.Metadata is not null)
-            .WithErrorCode("lockey_taxonomy_item_metadata_not_json");
+            .Cascade(CascadeMode.Stop)
+            .Must(JsonValue.IsWithinRowCap)
+            .WithErrorCode("lockey_taxonomy_item_metadata_too_large")
+            .Must(JsonValue.IsWellFormed)
+            .WithErrorCode("lockey_taxonomy_item_metadata_not_json")
+            .When(item => item.Metadata is not null);
     }
 }
 

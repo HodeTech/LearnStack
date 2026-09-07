@@ -379,7 +379,9 @@ public sealed class CustomizationCommandTests
 
         RefuseTaxonomy(RegisterTaxonomy(items:
                 [new TaxonomyItemInput("a1", Name, 0, wide)]))
-            .Should().Be("lockey_taxonomy_item_metadata_not_json");
+            .Should().Be("lockey_taxonomy_item_metadata_too_large",
+                "a valid document that is merely too big is not a malformed one, and "
+                + "an author told 'not JSON' about it is sent to fix what is not wrong");
 
         // And the aggregate refuses it too, so the validator is the first layer
         // rather than the only one.
@@ -391,6 +393,16 @@ public sealed class CustomizationCommandTests
             "a1", LocalizedText.From(Name), 0, wide, Clock, UserId.SystemActor);
 
         add.Should().Throw<ArgumentException>().WithParameterName("metadata");
+    }
+
+    [Fact]
+    public void A_band_whose_metadata_is_not_json_says_so()
+    {
+        // The other half of the pair. One code for both would be satisfied by
+        // either rule alone, and the size rule runs first.
+        RefuseTaxonomy(RegisterTaxonomy(items:
+                [new TaxonomyItemInput("a1", Name, 0, "{not json")]))
+            .Should().Be("lockey_taxonomy_item_metadata_not_json");
     }
 
     [Fact]
