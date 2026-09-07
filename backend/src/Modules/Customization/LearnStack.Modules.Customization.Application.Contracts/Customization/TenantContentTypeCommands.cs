@@ -41,6 +41,15 @@ namespace LearnStack.Modules.Customization.Application.Contracts.Customization;
 /// <c>OrganizationId</c>, which is a <c>SharedKernel</c> identifier, and never
 /// <c>TenantDomainId</c>, which is not. The handler constructs the typed id one
 /// layer in, where the module's own types are in scope.
+/// <para>
+/// It is a <b>bounded exception</b> to "never expose raw <c>Guid</c> on the public
+/// surface" rather than an oversight, decided in
+/// <see href="../../../../../../docs/decisions/0023-strongly-typed-id-source-generator.md">ADR-0023
+/// Amendment 8</see> and held by
+/// <c>ModuleContracts_DoNotDependOn_AnyModuleDomain</c>, which measures the
+/// assembly reference — the thing that would re-open the hole whatever these
+/// signatures said.
+/// </para>
 /// </para>
 /// </remarks>
 /// <param name="ContentTypeId">Assigned by the caller, so a retry is idempotent.</param>

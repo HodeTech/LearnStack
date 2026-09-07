@@ -269,7 +269,11 @@ public sealed class TenantLevelTaxonomyItem : ITenantOwned
 
         if (metadata is not null)
         {
-            JsonValue.EnsureWellFormed(metadata, nameof(metadata));
+            // The row cap, not only the shape. A band's metadata is a customization
+            // row and § 8.4 caps one at 256 KB; until this guard the only thing
+            // bounding it was the HTTP body limit, which the seeder, the Hub adapter
+            // and Phase 04's bulk importer all bypass.
+            JsonValue.EnsureStorableRow(metadata, nameof(metadata));
         }
 
         return new TenantLevelTaxonomyItem

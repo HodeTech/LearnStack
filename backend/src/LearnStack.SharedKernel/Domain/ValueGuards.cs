@@ -95,6 +95,20 @@ public enum JsonStorageFault
 /// </remarks>
 public static class JsonValue
 {
+    /// <summary>
+    /// The serialised size of one customization row, in bytes of UTF-8.
+    /// </summary>
+    /// <remarks>
+    /// <see href="../../../../docs/architecture/32-tenant-customization-model.md">§
+    /// 8.4</see>'s declared limit, named here because more than one writer needs it
+    /// and the schema gate is not the only one: a taxonomy band's <c>metadata</c> is
+    /// a customization row too, and the HTTP body limit — which was the only thing
+    /// bounding it — does not cover the seeder, the Hub adapter, or the bulk
+    /// importer <see href="../../../../docs/roadmap/phase-04-cms-media-pages.md">Phase
+    /// 04</see> brings.
+    /// </remarks>
+    public const int MaxRowBytes = 256 * 1024;
+
     /// <summary>Digits PostgreSQL <c>numeric</c> holds before the decimal point.</summary>
     private const int MaxWholeDigits = 131_072;
 
@@ -125,6 +139,38 @@ public static class JsonValue
         catch (System.Text.Json.JsonException)
         {
             return false;
+        }
+    }
+
+    /// <summary>Whether a value is JSON a <c>jsonb</c> column takes, and small enough to store.</summary>
+    /// <remarks>
+    /// The pair of <see cref="IsWellFormed"/> for the columns § 8.4 caps. Kept
+    /// separate because not every <c>jsonb</c> column is a customization row.
+    /// </remarks>
+    public static bool IsStorableRow(string value) =>
+        IsWellFormed(value)
+        && System.Text.Encoding.UTF8.GetByteCount(value) <= MaxRowBytes;
+
+    /// <summary>
+    /// Refuses a customization row that is not storable JSON, or is too large.
+    /// </summary>
+    /// <remarks>
+    /// A separate member rather than a cap inside <see cref="EnsureWellFormed"/>:
+    /// that guard also runs on a tenant setting's value and on
+    /// <c>LocalizedText.FromJson</c>, which reads a column back — capping there
+    /// would refuse a stored value on the way out.
+    /// </remarks>
+    public static void EnsureStorableRow(string value, string parameterName)
+    {
+        EnsureWellFormed(value, parameterName);
+
+        var bytes = System.Text.Encoding.UTF8.GetByteCount(value);
+
+        if (bytes > MaxRowBytes)
+        {
+            throw new ArgumentException(
+                $"The value is {bytes} bytes of UTF-8; a customization row holds {MaxRowBytes}.",
+                parameterName);
         }
     }
 
@@ -496,6 +542,12 @@ public static partial class UrlSlug
         }
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
+    /// <remarks>
+    /// Anchored with <c>\z</c> and not <c>$</c>. In .NET <c>$</c> matches at the end
+    /// of the input <b>or immediately before a final newline</b>, so
+    /// <c>"card\n"</c> was url-safe — measured — and that value reaches a URL
+    /// segment, a cache-key component and an <c>x-taxonomy</c> reference.
+    /// </remarks>
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*\z")]
     private static partial System.Text.RegularExpressions.Regex Pattern();
 }

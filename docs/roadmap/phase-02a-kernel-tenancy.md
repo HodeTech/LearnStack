@@ -41,8 +41,11 @@ Build the runtime foundation everything else stands on — and **only** that.
 
 Shared kernel conventions, cross-cutting concerns, API conventions, tenant +
 organization resolution, tenant + organization isolation defense-in-depth, the
-customization runtime read paths, durable audit, and the foundation **ports** with
-their default implementations. Two seed tenants in unrelated domains, so that every
+customization **write** path and its schema, durable audit, and the foundation
+**ports** with their default implementations. The customization *read* path — the
+projection and its generation-keyed cache — lands with its first consumer in
+[Phase 02d](phase-02d-walking-skeleton.md); Packet 8 shipped the data and the
+isolation, which is what 02d needs to render two tenants that differ. Two seed tenants in unrelated domains, so that every
 later phase is tested against the genericity claim rather than assuming it.
 
 What this phase deliberately does **not** build: the Dapr, Kafka, APISIX and Vault
@@ -1062,8 +1065,10 @@ Per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
 
 - `LearnStack.Modules.Customization` ships with **two** aggregates —
   `TenantContentType` (a JSON Schema declaring a content shape) and
-  `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary) — plus their
-  schema tables and runtime read paths.
+  `TenantLevelTaxonomy` (the tenant's level or difficulty vocabulary) — their schema
+  tables, and the validated write path that fills them. The read path is
+  [Phase 02d](phase-02d-walking-skeleton.md)'s, with the renderer that is its first
+  consumer.
 - These are the two the runtime needs before
   [Phase 02d](phase-02d-walking-skeleton.md) can render two tenants that genuinely
   differ. The remaining aggregates ship with their consumers:
@@ -1275,7 +1280,8 @@ land in Phase 02b.
   Packet 7 entry above for why the command path replaced the `DbContext` this line
   originally named.
 - `LearnStack.Modules.Customization` with `TenantContentType` and
-  `TenantLevelTaxonomy` plus their runtime read paths.
+  `TenantLevelTaxonomy`, their schema, and the write path that validates what goes
+  into them — the read path lands in [Phase 02d](phase-02d-walking-skeleton.md).
 - `LearnStack.Modules.Audit` aggregates + `LearnStack.Infrastructure.Audit` pipeline
   writing MUST-class rows inside the business transaction, on a single correct
   `audit_log` table.
@@ -1422,9 +1428,9 @@ Seven further decisions were taken during the phase and are Accepted:
 | [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md) | Tenant provisioning as a bounded cross-aggregate transaction | **Accepted** (2026-09-01) | A standing exception to § Aggregate Ownership, bounded by **enumeration**: provisioning writes `Tenant` and its default `Organization` in one transaction, because `tenants.default_organization_id` carries an invariant an integration event cannot deliver. One operation, an allow-list of one, no child entity, no projection, no cross-**module** write |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
-`learnstack_app`, the durable audit pipeline, customization runtime read paths, API
-conventions, two seed tenants, architecture-test catalogue green) close as Packets
-3b–10 ship.
+`learnstack_app`, the durable audit pipeline, customization data resolvable and
+isolated per tenant through a real request, API conventions, two seed tenants,
+architecture-test catalogue green) close as Packets 3b–10 ship.
 
 ## Delivery Record (Packets 0–3)
 

@@ -36,7 +36,7 @@ C# / .NET conventions for LearnStack backend code.
 - **Records** for immutable value-like data: DTOs, integration events, configuration options.
 - **Sealed classes** by default; open inheritance is the exception.
 - **Structs** only for small, immutable, frequently-allocated values (≤ 16 bytes).
-- **Strongly-typed ids** (`partial record struct CourseId : IStronglyTypedId<Guid>;` per the [Vogen pattern below](#strongly-typed-identifiers)) for all entity identifiers. Never expose raw `Guid` on the public surface.
+- **Strongly-typed ids** (`partial record struct CourseId : IStronglyTypedId<Guid>;` per the [Vogen pattern below](#strongly-typed-identifiers)) for all entity identifiers. Never expose raw `Guid` on the public surface — with **one bounded exception**: a **module-local** identifier crosses a cross-module command contract as `Guid`, because a contract naming it would put that module's `Domain` into the IL of every sender. `SharedKernel` identifiers stay typed everywhere. [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md) decides it and `ModuleContracts_DoNotDependOn_AnyModuleDomain` holds it.
 - **Value objects** for domain concepts with invariants (e.g. `Email`, `Slug`, `LocaleCode`).
 
 ## Strongly-Typed Identifiers

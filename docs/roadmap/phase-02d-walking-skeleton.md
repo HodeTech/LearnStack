@@ -18,7 +18,11 @@ shipped so the two never claim the same work twice.
 
 Depends on [Phase 02a](phase-02a-kernel-tenancy.md) — specifically the corrected Row
 Level Security template, tenant + organization resolution, the two seed tenants, and
-the customization runtime read paths. Runs **before**
+the customization aggregates with the validated write path that fills them. **The
+customization read path is this phase's own work**: the projection keyed on
+`customization_generations.generation` lands here with the renderer that is its first
+consumer, which is why 02a stops at the data being resolvable and isolated
+([the module spec](../modules/customization/README.md) is the single record of it). Runs **before**
 [Phase 02b](phase-02b-events-auth.md): the skeleton is deliberately anonymous, so it
 needs no identity provider.
 

@@ -30,16 +30,23 @@ rows beneath that baseline and classifies what the baseline leaves open; a tenan
 `AuditConfig` may then narrow SHOULD/MAY at runtime. Neither touches a baseline
 MUST.
 
+**Nothing here is SHOULD, and that is the baseline's doing rather than this
+file's caution.** The Customization row of § Baseline Coverage names these
+aggregates "created / updated / deleted" — every operation an aggregate has — so
+each row below is MUST because the floor already is. Two rows said SHOULD for
+being presentational; a rename is an update, and the class was the baseline's to
+set. The one row that is not MUST is not an aggregate operation at all.
+
 | Resource | Operation | Class | Why |
 |---|---|---|---|
 | `ContentType` | register | **MUST** | A tenant declaring a new shape for its own data; the row is what a later "who added this?" reads |
 | `ContentType` | publish | **MUST** | Retires the incumbent and changes what every subsequent content write is validated against — the highest-blast-radius act in the module |
 | `ContentType` | revise (additive) | **MUST** | Only a draft's body is mutable, but "additive" is claimed by the editor and not proved by the aggregate; the row is what makes a wrong claim traceable |
-| `ContentType` | rename | SHOULD | Presentational — the display name, not the shape |
+| `ContentType` | rename | **MUST** | The baseline lists these aggregates' **created / updated / deleted**, and a rename is an update. It is presentational, which changes the payload and not the class: the display name is what every Studio list, every editor and every renderer shows for the shape |
 | `ContentType` | soft delete | **MUST** | Frees the key for a successor, because the one-live-revision index is partial on `deleted_at IS NULL`; a retired definition releasing its name is the same class of act as a released domain |
 | `LevelTaxonomy` | register / publish | **MUST** | Same two reasons as the content type's; a level vocabulary is what every level reference in the tenant resolves through |
 | `LevelTaxonomy` | add / remove band | **MUST** | Removing a band strands every row that referenced it, and the aggregate permits it while the revision is a draft |
-| `LevelTaxonomy` | rename, band rename | SHOULD | Presentational |
+| `LevelTaxonomy` | rename, band rename | **MUST** | Same reason. A band's label is what a learner sees where a level is named, and renaming one is an update of the taxonomy |
 | `LevelTaxonomy` | soft delete | **MUST** | Same reason as the content type's |
 | `customization_generations` | bump | – | **Deliberately unaudited.** It is not an aggregate ([ADR-0043 § 7](../../decisions/0043-customization-payload-validation.md)), it carries no decision, and it is written exactly once per audited operation above — a row for it would be a second entry for the same act, in the same transaction, saying less |
 

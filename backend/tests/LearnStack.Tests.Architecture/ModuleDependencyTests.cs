@@ -45,6 +45,50 @@ public sealed class ModuleDependencyTests
         }
     }
 
+    /// <summary>
+    /// A command contract names no module's <c>Domain</c> — not another module's,
+    /// and not its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the rule that makes a <c>Guid</c> in a contract correct rather than
+    /// sloppy. <c>Backend Coding Standards § Naming</c> says never to expose a raw
+    /// <c>Guid</c> on a public surface, and a contract that named
+    /// <c>TenantContentTypeId</c> would obey it by putting
+    /// <c>Customization.Domain</c> into the IL of every module that sends the
+    /// command — the forbidden <c>Module A → Module B.Domain</c> edge, reached
+    /// through the one assembly whose whole purpose is to be referenced widely.
+    /// <see href="../../../docs/decisions/0023-strongly-typed-id-source-generator.md">ADR-0023
+    /// Amendment 4</see> settles which rule yields, and this is what holds it.
+    /// </para>
+    /// <para>
+    /// A <c>SharedKernel</c> identifier — <c>TenantId</c>, <c>OrganizationId</c>,
+    /// <c>UserId</c> — stays typed in a contract, because naming it creates no such
+    /// edge. The rule is about the assembly the type lives in, which is exactly
+    /// what this measures.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(EveryModule))]
+    public void ModuleContracts_DoNotDependOn_AnyModuleDomain(string moduleName)
+    {
+        var contractsAssembly = LoadModuleAssembly(moduleName, layer: "Application.Contracts");
+
+        foreach (var other in Modules.Names)
+        {
+            var result = Types.InAssembly(contractsAssembly)
+                .Should()
+                .NotHaveDependencyOn($"LearnStack.Modules.{other}.Domain")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"Module {moduleName}.Application.Contracts references {other}.Domain. "
+                + "A contract is the cross-module surface, so a Domain type named here "
+                + "reaches every sender: "
+                + string.Join(", ", result.FailingTypeNames ?? []));
+        }
+    }
+
     [Theory]
     [MemberData(nameof(EveryModule))]
     public void ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure(string moduleName)

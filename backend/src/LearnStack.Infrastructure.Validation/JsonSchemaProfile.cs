@@ -61,7 +61,12 @@ internal static class JsonSchemaProfile
     internal const int MaxProperties = 100;
 
     /// <summary>§ 8.4's per-row size cap, in bytes of UTF-8.</summary>
-    internal const int MaxBytes = 256 * 1024;
+    /// <remarks>
+    /// <see cref="JsonValue.MaxRowBytes"/>, not a second copy of it: a taxonomy
+    /// band's <c>metadata</c> is bounded by the same declared limit and by a
+    /// different guard, and two constants would be two answers.
+    /// </remarks>
+    internal const int MaxBytes = JsonValue.MaxRowBytes;
 
     /// <summary>
     /// Subschema visits one document's reference graph may cost when expanded.
@@ -286,8 +291,10 @@ internal static class JsonSchemaProfile
     /// </summary>
     /// <remarks>
     /// Depth is counted on the syntax tree, which is what § 8.4's limit measures.
-    /// A reference <b>cycle</b> needs no bound of its own: the builder raises
-    /// <c>Cycle detected starting with a reference to …</c> at gate 4, measured.
+    /// A reference <b>cycle</b> is not this walk's to catch —
+    /// <see cref="CheckReferences"/> refuses every one of them, and the builder does
+    /// not: ADR-0043 Amendment 1 measured a cycle reached through <c>properties</c>
+    /// building and then ending the process during evaluation.
     /// </remarks>
     private static void Walk(
         JsonElement element,

@@ -151,10 +151,11 @@ internal sealed class TaxonomyItemInputValidator : AbstractValidator<TaxonomyIte
             .GreaterThanOrEqualTo((short)0).WithErrorCode("lockey_taxonomy_item_sort_invalid");
 
         // Null is the absence of metadata and is allowed; a present value has to be
-        // JSON, because the column is jsonb and PostgreSQL would otherwise refuse it
-        // as a 22P02 three layers from here.
+        // JSON the column takes, because PostgreSQL would otherwise refuse it three
+        // layers from here — 22P02 for the shape, 22P05 for a NUL — and it has to be
+        // inside § 8.4's 256 KB, which nothing else on this path bounds.
         RuleFor(item => item.Metadata!)
-            .Must(JsonValue.IsWellFormed)
+            .Must(JsonValue.IsStorableRow)
             .When(item => item.Metadata is not null)
             .WithErrorCode("lockey_taxonomy_item_metadata_not_json");
     }

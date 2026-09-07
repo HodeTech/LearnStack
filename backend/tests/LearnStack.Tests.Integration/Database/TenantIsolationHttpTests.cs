@@ -205,9 +205,11 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         // SECOND module context resolved in each, and neither naming a tenant.
         //
         // Both tenants hold a `card` and a `plain` with the same keys — the built-in
-        // seed gives every tenant the same two — so an isolation failure here does
-        // not show up as a foreign key appearing. It shows up as a DOUBLED one, which
-        // is why the counts are asserted and not only the names.
+        // seed gives every tenant the same two — so a leak does not show up as a
+        // foreign KEY appearing. It shows up as a doubled row, or, if a request read
+        // the other tenant's rows instead of its own, as nothing at all. So the
+        // projection carries each row's `tenant_id`: substitution and duplication
+        // both become visible, and an assertion on keys alone could see neither.
         //
         // Measured with `IgnoreQueryFilters()` on both reads: this case still passes,
         // because the policy is what actually holds and the filter is the layer in
@@ -217,12 +219,14 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         var english = await ReadCustomizationsAsync(SeedData.English.Host);
         var yoga = await ReadCustomizationsAsync(SeedData.Yoga.Host);
 
-        english.Should().BeEquivalentTo(yoga,
-            "the built-in seed gives both tenants the same two definitions");
+        english.Should().BeEquivalentTo(BuiltIns(SeedData.English.TenantId),
+            "one of each, owned by this tenant — two of each would be both tenants', "
+            + "and the other tenant's id would be a substitution");
 
-        english.Should().BeEquivalentTo(
-            ["content-type:card", "taxonomy:plain", "band:beginner", "band:intermediate", "band:advanced"],
-            "one of each, from this tenant alone — two of each would be both tenants'");
+        yoga.Should().BeEquivalentTo(BuiltIns(SeedData.Yoga.TenantId));
+
+        english.Should().NotIntersectWith(yoga,
+            "the keys are the same for both and the rows are not");
     }
 
     [Fact]
@@ -246,6 +250,16 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         // against a probe that never queried anything.
         (await ReadCustomizationsAsync(SeedData.English.Host)).Should().NotBeEmpty();
     }
+
+    /// <summary>The built-in seed as the probe projects it, for one owner.</summary>
+    private static string[] BuiltIns(TenantId tenantId) =>
+    [
+        $"content-type:card@{tenantId}",
+        $"taxonomy:plain@{tenantId}",
+        $"band:beginner@{tenantId}",
+        $"band:intermediate@{tenantId}",
+        $"band:advanced@{tenantId}",
+    ];
 
     private async Task<IReadOnlyList<string>> ReadCustomizationsAsync(string host) =>
         await GetAsync(host, "customizations");
@@ -630,16 +644,16 @@ public sealed class ProbeQueryHandler(
         CancellationToken cancellationToken)
     {
         var contentTypes = await db.TenantContentTypes
-            .Select(contentType => "content-type:" + contentType.Key)
+            .Select(contentType => "content-type:" + contentType.Key + "@" + contentType.TenantId)
             .ToListAsync(cancellationToken);
 
         var taxonomies = await db.TenantLevelTaxonomies
-            .Select(taxonomy => "taxonomy:" + taxonomy.Key)
+            .Select(taxonomy => "taxonomy:" + taxonomy.Key + "@" + taxonomy.TenantId)
             .ToListAsync(cancellationToken);
 
         var bands = await db
             .Set<LearnStack.Modules.Customization.Domain.TenantLevelTaxonomyItem>()
-            .Select(item => "band:" + item.Key)
+            .Select(item => "band:" + item.Key + "@" + item.TenantId)
             .ToListAsync(cancellationToken);
 
         return [.. contentTypes.Concat(taxonomies).Concat(bands).Order(StringComparer.Ordinal)];

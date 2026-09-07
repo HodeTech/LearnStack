@@ -96,7 +96,10 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
                     Collect(meta, "lockey_schema_not_valid_json_schema"));
             }
 
-            // Gate 4 — it builds. Cycle detection lives here.
+            // Gate 4 — it builds. NOT where cycles are caught: gate 2 refuses every
+            // one, because the builder detects only a cycle reachable from the root
+            // and one reached through `properties` builds and then ends the process
+            // during evaluation (ADR-0043 Amendments 1 and 2).
             try
             {
                 JsonSchema.FromText(jsonSchema, BuildOptions());

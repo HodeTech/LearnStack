@@ -3,6 +3,7 @@ using FluentValidation;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -366,6 +367,41 @@ public sealed class CustomizationCommandTests
 
         result.Error!.Details!.Should().HaveCount(25,
             "a document that gets one thing wrong gets it wrong at every property");
+    }
+
+    [Fact]
+    public void A_band_carrying_more_metadata_than_a_row_holds_is_refused()
+    {
+        // § 8.4 caps a customization row at 256 KB and a band's metadata is one.
+        // Until this guard the only thing bounding it was the HTTP body limit,
+        // which the seeder, the Hub adapter and Phase 04's bulk importer bypass.
+        var wide = "{\"a\":\"" + new string('x', JsonValue.MaxRowBytes) + "\"}";
+
+        RefuseTaxonomy(RegisterTaxonomy(items:
+                [new TaxonomyItemInput("a1", Name, 0, wide)]))
+            .Should().Be("lockey_taxonomy_item_metadata_not_json");
+
+        // And the aggregate refuses it too, so the validator is the first layer
+        // rather than the only one.
+        var taxonomy = TenantLevelTaxonomy.Create(
+            TenantLevelTaxonomyId.From(TaxonomyId), Tenant, "proficiency", 1,
+            LocalizedText.From(Name), Clock, UserId.SystemActor);
+
+        var add = () => taxonomy.AddItem(
+            "a1", LocalizedText.From(Name), 0, wide, Clock, UserId.SystemActor);
+
+        add.Should().Throw<ArgumentException>().WithParameterName("metadata");
+    }
+
+    [Fact]
+    public void A_band_with_metadata_inside_the_row_cap_is_accepted()
+    {
+        // The pair. A cap asserted only from the failing side passes with the
+        // constant off by an order of magnitude in the permissive direction.
+        var wide = "{\"a\":\"" + new string('x', JsonValue.MaxRowBytes - 16) + "\"}";
+
+        RefuseTaxonomy(RegisterTaxonomy(items:
+            [new TaxonomyItemInput("a1", Name, 0, wide)])).Should().BeNull();
     }
 
     [Fact]
@@ -768,6 +804,10 @@ public sealed class CustomizationCommandTests
     [InlineData("", "lockey_customization_key_required")]
     [InlineData("Announcement", "lockey_customization_key_not_url_safe")]
     [InlineData("has space", "lockey_customization_key_not_url_safe")]
+    // `card\n`: in .NET `$` matches at the end of the input OR immediately before a
+    // final newline, so this key was url-safe until the pattern was anchored with
+    // `\z` — and it reaches a URL segment and a cache-key component.
+    [InlineData("card\n", "lockey_customization_key_not_url_safe")]
     public void A_key_that_is_not_a_slug_is_refused(string key, string expected)
     {
         Refuse(RegisterContentType(key: key)).Should().Be(expected);

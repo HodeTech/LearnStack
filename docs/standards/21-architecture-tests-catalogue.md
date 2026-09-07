@@ -140,6 +140,7 @@ against a host serving unversioned endpoints.
 | `Integration_Event_TopicNames_FollowConvention` | `CrossCuttingFoundationTests.cs` |
 | `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
+| `ModuleContracts_DoNotDependOn_AnyModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
 | `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
 | `Live_Majors_Are_At_Most_Two_Adjacent` | `ApiConventionTests.cs` |
 | `Unversioned_Route_Prefixes_Are_Declared_Once` | `ApiConventionTests.cs` |
@@ -629,6 +630,21 @@ otherwise).
 - **Type:** xUnit theory + NetArchTest, one case per module. **Kind:** structural.
 - **Status:** **Implemented** — `ModuleDependencyTests.cs`.
 - **Phase:** 02a (Packet 2).
+
+#### `ModuleContracts_DoNotDependOn_AnyModuleDomain`
+
+- **Asserts:** per module, `LearnStack.Modules.<X>.Application.Contracts` has no type
+  reference into **any** module's `Domain` — its own included. A contract is the
+  cross-module surface, so a `Domain` type named there reaches every sender, which is
+  `ModuleDomain_DoesNotDependOn_OtherModuleDomain`'s forbidden edge arrived at through
+  the one assembly meant to be referenced widely.
+- **Source:** ADR-0010; [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md),
+  which is what makes a `Guid` in a contract correct rather than sloppy — a module-local
+  identifier crosses as `Guid` and the handler types it one layer in, while a
+  `SharedKernel` identifier stays typed.
+- **Type:** xUnit theory + NetArchTest, one case per module. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`.
+- **Phase:** 02a (Packet 8).
 
 #### `Meta_NetArchTest_DetectsAPlantedViolation`
 

@@ -241,7 +241,7 @@ public sealed partial class VersionedRouteConvention : IApplicationModelConventi
     // CultureInvariant matters: IgnoreCase alone applies the current culture's
     // casing rules, and under tr-TR 'I' does not lower-case to 'i'. Route
     // shape must not depend on the machine's locale.
-    [GeneratedRegex(@"^api/v(?<major>\d+)(/|$)",
+    [GeneratedRegex(@"^api/v(?<major>\d+)(/|\z)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AlreadyVersioned();
 }

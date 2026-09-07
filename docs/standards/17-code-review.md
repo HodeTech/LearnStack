@@ -51,7 +51,7 @@ Before requesting reviews, run the relevant checklist on your own diff:
 - [ ] Every new integration event ships in the outbox in the same transaction as the domain change.
 - [ ] Every new background job has `TenantId` in its payload and restores ambient tenant context.
 - [ ] Every new provider call has an explicit timeout, retry policy, and `ProviderException` mapping at the adapter boundary.
-- [ ] Strongly-typed ids are used; no raw `Guid` on the public surface.
+- [ ] Strongly-typed ids are used; no raw `Guid` on the public surface — except a module-local id in a cross-module contract, which is [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md)'s bounded exception.
 - [ ] No `DateTime.UtcNow` / `DateTime.Now` in domain or application code (use `IClock` / `TimeProvider`).
 - [ ] Architecture tests still pass locally.
 - [ ] Tenant-isolation test added for the new surface.

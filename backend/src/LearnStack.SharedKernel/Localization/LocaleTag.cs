@@ -75,7 +75,10 @@ public static partial class LocaleTag
     // language[-script][-region][-variant…]: 2-3 letter (or 4-8 for registered
     // subtags) primary, optional 4-letter script, optional 2-letter or 3-digit
     // region, then variant subtags.
+    // `\z` and not `$`: in .NET `$` also matches immediately before a final
+    // newline, so "en\n" was a well-formed locale tag — measured — and a locale
+    // tag is a JSON member name in every localized column.
     [System.Text.RegularExpressions.GeneratedRegex(
-        "^[a-zA-Z]{2,8}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-([a-zA-Z0-9]{5,8}|[0-9][a-zA-Z0-9]{3}))*$")]
+        @"^[a-zA-Z]{2,8}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-([a-zA-Z0-9]{5,8}|[0-9][a-zA-Z0-9]{3}))*\z")]
     private static partial System.Text.RegularExpressions.Regex Pattern();
 }

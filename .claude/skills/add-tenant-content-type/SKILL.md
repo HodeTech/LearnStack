@@ -68,9 +68,11 @@ you, and every clause is there because the behaviour without it was measured:
 | Rule | Consequence of breaking it |
 |---|---|
 | Root carries `"$schema": "https://json-schema.org/draft/2020-12/schema"`, exactly | Without it, the evaluator picks a different dialect and 2020-12 keywords go silently inert |
-| Root is an object schema declaring `properties` | `true` / `false` / `{}` are legal schemas; the first and third switch validation off entirely |
+| Root is a JSON object declaring a non-empty `properties` | `true` / `false` / `{}` are legal schemas; the first and third switch validation off entirely. The rule is about the document being an object, not about a root `type: "object"` — declare that too, because an entry is an object and nothing else will satisfy the type you name |
 | No `pattern`, `patternProperties`, `propertyNames` | Tenant regexes run with an infinite match timeout; one property measured at 30.2 s |
-| No `$id`, `$dynamicRef`, `$dynamicAnchor` | `$id` is process-global state in the evaluator's registry |
+| No `$id`, `$anchor`, `$dynamicRef`, `$dynamicAnchor` | `$id` is process-global state in the evaluator's registry, and `$anchor` is a name a fragment resolves through |
+| No `$ref` cycle at all, and a reference graph costing at most 1,000 expansions | Every cycle ends the process during evaluation, and an acyclic graph of twenty doubling `$defs` entries — 1,401 bytes — costs 2^20 visits ([ADR-0043 Amendment 2](../../../docs/decisions/0043-customization-payload-validation.md)) |
+| Nothing a `jsonb` column refuses — no `U+0000`, no unpaired surrogate, no number outside `numeric` | All three parse and none stores; the refusal used to be a 500 from the `INSERT` ([ADR-0043 Amendment 4](../../../docs/decisions/0043-customization-payload-validation.md)) |
 | `$ref` is fragment-only (`#/$defs/…`) | An absolute `$ref` is a fetch attempt against an author-chosen address |
 | Within [§ 8.4's declared limits](../../../docs/architecture/32-tenant-customization-model.md) | Nesting depth 5, 100 properties, 256 KB per row |
 
@@ -167,15 +169,23 @@ did not happen.
 
 ### Step 3: Revise it — additively or breakingly
 
-The two paths are not interchangeable, and the editor decides which one you are on
-by diffing your submission against the current revision — it refuses an additive
-claim that removes or narrows anything
-([Phase 04 § Customization Key Shape](../../../docs/roadmap/phase-04-cms-media-pages.md)).
+**Today, both paths are a second `RegisterTenantContentTypeCommand`.** Packet 8
+ships two commands per aggregate, register and publish; `ReviseSchema` exists on
+the aggregate and no command reaches it, and the editor that would decide which
+path you are on lands in
+[Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md). So a new
+`schema_version` is registered and published like the first, and an additive
+revision waits for that editor rather than being faked with a breaking one.
 
 | Change | Path |
 |---|---|
-| New optional field, widened enum, added facet | `schema_revision` within the same `schema_version` |
-| Removed field, narrowed type, new required field, tightened enum | New `schema_version` |
+| New optional field, widened enum, added facet | `schema_revision` within the same `schema_version` — Phase 04 |
+| Removed field, narrowed type, new required field, tightened enum | New `schema_version` — available now |
+
+The two are not interchangeable, and the editor decides which one you are on by
+diffing your submission against the current revision — it refuses an additive
+claim that removes or narrows anything
+([Phase 04 § Customization Key Shape](../../../docs/roadmap/phase-04-cms-media-pages.md)).
 
 `(tenant_id, key, schema_version)` identifies one revision; the partial index
 `UNIQUE (tenant_id, key) WHERE status = 'Active' AND deleted_at IS NULL` keeps at most one live
@@ -183,9 +193,14 @@ definition per concept. Existing entries pin their `schema_version` at creation,
 so a breaking revision never invalidates a stored entry — it just stops being the
 one new entries are written against.
 
-### Step 4: Read it back
+### Step 4: Read it back — from [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md)
 
-The runtime reads through the module's query, which serves from the
+**There is no read path yet**, and the module spec is the single record of that:
+the projection and its generation-keyed cache land with their first consumer in
+Phase 02d. Today a definition is read back through the store the write path uses,
+or through SQL in a test.
+
+When it lands, the runtime reads through the module's query, which serves from the
 generation-keyed cache and falls back to one indexed query per tenant per
 definition set. There is **no** compiled-validator cache — compiling is measured
 cheaper than evaluating, so the adapter compiles per call
@@ -201,9 +216,15 @@ breaks the trust for every subsequent read.
 For a demo or fixture tenant:
 
 1. Provision the tenant.
-2. Register each `TenantContentType`.
-3. Write at least one entry per type, and one that must be rejected.
-4. Assert the rejection names the offending JSON pointer in Problem Details.
+2. Register each `TenantContentType`, and one document that must be refused.
+3. Assert the refusal names the offending JSON pointer in Problem Details.
+4. Assert the generation advanced by exactly one per accepted write.
+
+Steps about **content entries** — writing one per type and rejecting one — belong
+to [Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md), which brings
+`ContentEntry`. There is nothing to validate an instance against a stored schema
+from today, and `IJsonSchemaValidator.ValidateInstance` has no production caller
+yet.
 
 Isolation tests connect as **`learnstack_app`**. A test running as
 `learnstack_migration` or a `BYPASSRLS` role passes with every policy inert and
@@ -211,11 +232,13 @@ proves nothing.
 
 ## Validation
 
-- The schema passes all four gates; a profile violation returns
-  `Result.Fail(validation_failed, …)` naming the JSON pointer.
-- A valid entry round-trips; an invalid entry is rejected and **no row is written**.
-- A `v2` registered beside `v1` leaves `v1` entries valid.
+- The schema passes all four gates, and every `x-renderer` / `x-taxonomy` it
+  declares resolves; a violation returns `Result.Fail(validation_failed, …)`
+  naming the JSON pointer.
+- A refused document leaves **no row and no generation bump** behind.
+- A `v2` registered beside `v1` leaves `v1` addressable at its own version.
 - The generation counter advanced by exactly one per customization write.
+- Entry round-tripping is Phase 04's criterion, with the entries.
 
 ## Common pitfalls
 

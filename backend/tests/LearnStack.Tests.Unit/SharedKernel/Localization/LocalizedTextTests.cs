@@ -357,6 +357,17 @@ public sealed class LocalizedTextTests
     }
 
     [Fact]
+    public void A_locale_tag_with_a_trailing_newline_is_not_a_locale_tag()
+    {
+        // `$` in .NET matches at the end of the input OR immediately before a final
+        // newline, so "en\n" was well-formed — measured. A locale tag is a JSON
+        // member name in every localized column and a segment of a fallback chain.
+        var refusal = () => LocalizedText.From(("en\n", "Beginner"));
+
+        refusal.Should().Throw<ArgumentException>().WithParameterName("values");
+    }
+
+    [Fact]
     public void Has_reports_only_what_was_authored()
     {
         var text = LocalizedText.From(("en-US", "Color"));
