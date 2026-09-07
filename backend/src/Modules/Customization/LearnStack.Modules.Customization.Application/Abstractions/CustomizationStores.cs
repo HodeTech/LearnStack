@@ -71,6 +71,44 @@ public interface ITenantLevelTaxonomyStore
 }
 
 /// <summary>
+/// Whether the ambient tenant has declared a level taxonomy under a key.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>A second port rather than a member on <see cref="ITenantLevelTaxonomyStore"/>,
+/// and the reason is the census.</b> An <c>x-taxonomy</c> inside a content type's
+/// schema has to resolve before the content type is written
+/// (<see href="../../../../../../docs/architecture/32-tenant-customization-model.md">§
+/// 8.1</see>), so the content type's handler asks this question — and a handler
+/// holding a second <c>IAggregateWriteStore</c> is a handler
+/// <c>Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning</c> counts as
+/// writing two roots, which is exactly the thing
+/// <see href="../../../../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
+/// keeps at one entry. Asking a yes/no question about another aggregate is not
+/// writing it, and the port's shape is what makes that difference visible.
+/// </para>
+/// <para>
+/// <b>By key, across revisions and statuses.</b> An <c>x-taxonomy</c> names the
+/// concept — <c>cefr</c> — and the runtime resolves the live revision when it
+/// renders. Requiring an <c>Active</c> revision here would mean a tenant could not
+/// author a content type and its taxonomy in one sitting without publishing the
+/// taxonomy first, which is an ordering the model does not otherwise impose.
+/// Soft-deleted rows are excluded, for the reason the two <c>Find</c> methods
+/// exclude them: a thrown-away taxonomy is not a vocabulary to reference.
+/// </para>
+/// <para>
+/// The tenant is not a parameter. The query filter and the row-security policy
+/// scope it, so another tenant's <c>cefr</c> is invisible here — which is the
+/// answer this check needs and the one a parameter could get wrong.
+/// </para>
+/// </remarks>
+public interface ITenantLevelTaxonomyCatalog
+{
+    /// <summary>Whether any non-deleted revision of <paramref name="key"/> exists.</summary>
+    Task<bool> ContainsAsync(string key, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Advances the ambient tenant's customization generation.
 /// </summary>
 /// <remarks>

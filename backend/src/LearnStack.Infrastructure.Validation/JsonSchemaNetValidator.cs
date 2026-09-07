@@ -56,29 +56,33 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
         new() { OutputFormat = OutputFormat.List };
 
     /// <inheritdoc />
-    public Result<None> AdmitSchema(string jsonSchema)
+    public Result<IReadOnlyList<SchemaExtensionReference>> AdmitSchema(string jsonSchema)
     {
         // Gate 1 — it is JSON. JsonException, whose reader-depth subtype
         // JsonReaderException is internal and cannot be named in a catch.
         if (!TryParse(jsonSchema, out var document, out var malformed))
         {
-            return malformed;
+            return Fail<IReadOnlyList<SchemaExtensionReference>>(malformed);
         }
+
+        IReadOnlyList<SchemaExtensionReference> extensions;
 
         using (document)
         {
             if (Encoding.UTF8.GetByteCount(jsonSchema) > JsonSchemaProfile.MaxBytes)
             {
-                return Fail("", "lockey_schema_too_large");
+                return Fail<IReadOnlyList<SchemaExtensionReference>>("", "lockey_schema_too_large");
             }
 
             // Gate 2 — the LearnStack profile, which the library does not provide.
+            // It is also the only walk that can say WHERE an x-renderer sits, so the
+            // extension occurrences LearnStack has to resolve leave from here.
             var failures = new ProfileFailures();
-            JsonSchemaProfile.Check(document.RootElement, failures);
+            extensions = JsonSchemaProfile.Check(document.RootElement, failures);
 
             if (failures.Any)
             {
-                return Fail(failures);
+                return Fail<IReadOnlyList<SchemaExtensionReference>>(failures);
             }
 
             // Gate 3 — the meta-schema, which is where a structural mistake gets a
@@ -88,7 +92,8 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
 
             if (!meta.IsValid)
             {
-                return Fail(Collect(meta, "lockey_schema_not_valid_json_schema"));
+                return Fail<IReadOnlyList<SchemaExtensionReference>>(
+                    Collect(meta, "lockey_schema_not_valid_json_schema"));
             }
 
             // Gate 4 — it builds. Cycle detection lives here.
@@ -98,7 +103,8 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
             }
             catch (JsonSchemaException exception)
             {
-                return Fail("", "lockey_schema_not_buildable", exception.Message);
+                return Fail<IReadOnlyList<SchemaExtensionReference>>(
+                    "", "lockey_schema_not_buildable", exception.Message);
             }
             catch (ArgumentException exception)
             {
@@ -107,11 +113,12 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
                 // a $ref landing on a string. Gate 2 refuses that one now, and this
                 // clause exists so the next such shape is a 400 rather than the 500
                 // the port's own contract says it will never produce.
-                return Fail("", "lockey_schema_not_buildable", exception.Message);
+                return Fail<IReadOnlyList<SchemaExtensionReference>>(
+                    "", "lockey_schema_not_buildable", exception.Message);
             }
         }
 
-        return Result.Ok(None.Value);
+        return Result.Ok(extensions);
     }
 
     /// <inheritdoc />
@@ -119,7 +126,7 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     {
         if (!TryParse(instanceJson, out var document, out var malformed))
         {
-            return malformed;
+            return Fail<None>(malformed);
         }
 
         using (document)
@@ -131,12 +138,12 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
             // or the bulk importer Phase 04 brings, and both reach this method.
             if (Encoding.UTF8.GetByteCount(instanceJson) > MaxInstanceBytes)
             {
-                return Fail("", "lockey_instance_too_large");
+                return Fail<None>("", "lockey_instance_too_large");
             }
 
             if (Encoding.UTF8.GetByteCount(admittedSchema) > JsonSchemaProfile.MaxBytes)
             {
-                return Fail("", "lockey_schema_too_large");
+                return Fail<None>("", "lockey_schema_too_large");
             }
 
             try
@@ -146,7 +153,7 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
 
                 return evaluation.IsValid
                     ? Result.Ok(None.Value)
-                    : Fail(Collect(evaluation, "lockey_instance_does_not_match_schema"));
+                    : Fail<None>(Collect(evaluation, "lockey_instance_does_not_match_schema"));
             }
             catch (Exception exception)
                 when (exception is JsonSchemaException or JsonException or ArgumentException)
@@ -184,18 +191,24 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     private static BuildOptions BuildOptions() =>
         new() { Dialect = Dialect.Draft202012, SchemaRegistry = new SchemaRegistry() };
 
-    private static bool TryParse(string json, out JsonDocument document, out Result<None> failure)
+    /// <remarks>
+    /// Hands back the failure as <see cref="ProfileFailures"/> rather than as a
+    /// <c>Result</c>, because the two callers answer with different payload types
+    /// and the reason for the refusal is the same either way.
+    /// </remarks>
+    private static bool TryParse(string json, out JsonDocument document, out ProfileFailures malformed)
     {
         try
         {
             document = JsonDocument.Parse(json);
-            failure = default!;
+            malformed = default!;
             return true;
         }
         catch (JsonException exception)
         {
             document = default!;
-            failure = Fail("", "lockey_schema_not_well_formed_json", exception.Message);
+            malformed = new ProfileFailures();
+            malformed.Add("", "lockey_schema_not_well_formed_json", exception.Message);
             return false;
         }
     }
@@ -296,13 +309,13 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
         }
     }
 
-    private static Result<None> Fail(ProfileFailures failures) =>
-        Result.Fail<None>(new Error(new LocalizedMessage(ValidationFailedKey), failures.ToDetails()));
+    private static Result<T> Fail<T>(ProfileFailures failures) =>
+        Result.Fail<T>(new Error(new LocalizedMessage(ValidationFailedKey), failures.ToDetails()));
 
-    private static Result<None> Fail(string pointer, string localizationKey, string? detail = null)
+    private static Result<T> Fail<T>(string pointer, string localizationKey, string? detail = null)
     {
         var failures = new ProfileFailures();
         failures.Add(pointer, localizationKey, detail);
-        return Fail(failures);
+        return Fail<T>(failures);
     }
 }

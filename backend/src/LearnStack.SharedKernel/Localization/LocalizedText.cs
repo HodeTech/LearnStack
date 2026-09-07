@@ -92,6 +92,19 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
 
             MappedLength.EnsureAtMost(text, MaxValueLength, parameterName);
 
+            // The column is jsonb and ToJson is how this value reaches it. A NUL
+            // is 22P05 on the insert, three layers from here; an unpaired
+            // surrogate is worse than that, because JsonSerializer rewrites it to
+            // U+FFFD — measured — so the value stored is quietly not the value
+            // submitted, and no error is raised at all.
+            if (!JsonValue.IsStorableText(text))
+            {
+                throw new ArgumentException(
+                    $"The value for '{canonical}' carries a character a jsonb column "
+                    + "cannot store — U+0000, or an unpaired surrogate.",
+                    parameterName);
+            }
+
             // Two spellings of one locale is the defect canonicalization exists to
             // prevent; silently keeping the last would hide the author's mistake.
             if (!builder.TryAdd(canonical, text))

@@ -40,6 +40,7 @@ namespace LearnStack.Modules.Customization.Application.Customization;
 internal sealed class PublishTenantContentTypeCommandHandler(
     ITenantContentTypeStore contentTypes,
     ICustomizationGenerationStore generations,
+    IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
     IClock clock)
     : IRequestHandler<PublishTenantContentTypeCommand, Result<TenantContentTypeDto>>
@@ -76,6 +77,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
 
         var actor = tenantContext.UserId ?? UserId.SystemActor;
         var incumbent = await contentTypes.FindActiveAsync(successor.Key, cancellationToken);
+        var retired = false;
 
         // No identity comparison between the two: the guard above has already
         // established the successor is a Draft and this read returns an Active row,
@@ -83,6 +85,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         // here would be a branch no test can reach and therefore a comment.
         if (incumbent is not null)
         {
+            retired = true;
             incumbent.Deprecate(clock, actor);
 
             try
@@ -108,11 +111,11 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return CustomizationFailures.BusinessRule<TenantContentTypeDto>(field, reason);
+            return Undo(retired, CustomizationFailures.BusinessRule<TenantContentTypeDto>(field, reason));
         }
         catch (AggregateConcurrencyException)
         {
-            return CustomizationFailures.Stale<TenantContentTypeDto>();
+            return Undo(retired, CustomizationFailures.Stale<TenantContentTypeDto>());
         }
 
         await generations.BumpAsync(tenantContext.TenantId, cancellationToken);
@@ -123,5 +126,29 @@ internal sealed class PublishTenantContentTypeCommandHandler(
             successor.Key,
             successor.SchemaVersion,
             successor.Status.ToString()));
+    }
+
+    /// <summary>
+    /// Escalates a failure that arrives <b>after</b> the incumbent was retired.
+    /// </summary>
+    /// <remarks>
+    /// The deprecation is already saved by the time the successor's write can
+    /// fail, and
+    /// <see href="../../../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
+    /// § Nesting</see> is explicit that an inner <c>Result.Fail</c> an outer
+    /// handler absorbs does not roll the unit back — "only an exception, or an
+    /// explicit <c>MarkRollbackOnly</c>, does". Without it, an outer handler that
+    /// absorbs this and commits leaves the tenant with the incumbent deprecated,
+    /// the successor still a draft, and NO live revision for the key — measured
+    /// against a real database through the real pipeline.
+    /// </remarks>
+    private Result<TenantContentTypeDto> Undo(bool retired, Result<TenantContentTypeDto> failure)
+    {
+        if (retired)
+        {
+            unitOfWork.MarkRollbackOnly();
+        }
+
+        return failure;
     }
 }

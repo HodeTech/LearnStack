@@ -88,6 +88,7 @@ public static class SeedComposition
         services.AddModuleDbContext<CustomizationDbContext>();
         services.AddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
+        services.AddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
 
         // Its own short read-only transaction on its own connection, which is why it takes

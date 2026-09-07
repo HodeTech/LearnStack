@@ -51,15 +51,25 @@ public sealed class CustomizationRegistryTests
     }
 
     /// <summary>
-    /// The frontend primitive set is exactly the twelve
+    /// Both primitive sets are exactly the twelve
     /// <see href="../../../docs/decisions/0018-tenant-driven-customization-model.md">ADR-0018</see>
     /// § Renderer architecture grants.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The catalogue's name for this rule, rather than a description of what it
     /// currently counts: <c>Standards 21 § Canonical names</c> says one rule has one
     /// identifier, and a name carrying "twelve" would have to be renamed by the
     /// release that grants a thirteenth — which is a rename nobody would make.
+    /// </para>
+    /// <para>
+    /// <b>Equality in both copies, where the composite rule is containment.</b> A
+    /// composite may be declared before the phase that registers it, and an
+    /// unregistered one renders <c>UnknownBlock</c>. A primitive is different in
+    /// both directions: the backend refuses an <c>x-renderer</c> it has not
+    /// declared, so a key only the frontend knows cannot be saved — and a key only
+    /// the backend knows is saved and then drawn by nothing.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Generic_Primitives_Only_In_Renderer()
@@ -70,6 +80,11 @@ public sealed class CustomizationRegistryTests
         // literals so a thirteenth primitive fails rather than being absorbed.
         FrontendKeys("primitives.ts", "PRIMITIVE_KEYS")
             .Should().BeEquivalentTo(GrantedPrimitiveKeys);
+
+        PrimitiveRendererKey.All.Should().BeEquivalentTo(
+            GrantedPrimitiveKeys,
+            "an x-renderer resolves against the backend's copy on save, so a "
+            + "primitive missing from it cannot be authored at all");
     }
 
     /// <summary>

@@ -652,6 +652,43 @@ cost of 101 for that schema, because the cost model counts reference *expansion*
 and this is reference *reuse* — and it is stated here so the next person to
 choose those numbers knows what they buy.
 
+### Amendment 4 — the profile also refuses what the column refuses (2026-09-07)
+
+§ 3 lists the profile's clauses and every one of them is about JSON Schema. The
+gate is also the last thing standing between a tenant's document and a `jsonb`
+column, and **well-formed JSON is not the same as storable JSON**. Measured on
+PostgreSQL 18.6, all three parse and none stores:
+
+| Document | SQLSTATE | Message |
+|---|---|---|
+| `{"a":"\u0000"}` | `22P05` | unsupported Unicode escape sequence — `\u0000` cannot be converted to text |
+| `{"a":"\ud800"}` | `22P02` | invalid input syntax for type json — Unicode low surrogate must follow a high surrogate |
+| `{"a":1e1000000}` | `22003` | value overflows numeric format |
+
+The first two apply to member names as well as to values. `numeric`'s bounds were
+measured rather than assumed: 131,072 digits before the decimal point and 16,383
+after, so `1e131071` stores and `1e131072` does not, and `1e-16383` stores and
+`1e-16384` does not.
+
+**So the profile gains one clause: a document a `jsonb` column cannot hold is not
+admitted**, reported like every other clause — by JSON pointer, so § 8.1's "400
+naming the offending JSON pointer" holds for this failure too. Without it the
+refusal still happened, at the `INSERT`, as a 500 the author could not act on.
+
+Two details are the reason it is written where it is. The clause walks the
+**whole** document including `const`, `default`, `enum` and `examples` — the
+literals the schema walk deliberately stops at, which are stored in the same
+column as the schema around them. And it reads the **parsed** value rather than
+scanning the text: `"\\u0000"` is a backslash followed by five characters and
+stores, while `"\u0000"` is one character and does not, and only the parser tells
+them apart.
+
+The same rule is now `JsonValue`'s, which every aggregate writing a `jsonb`
+column already calls and which claimed to answer this question while only
+parsing. `LocalizedText.From` refuses the same characters for a sharper reason:
+`JsonSerializer` rewrites an unpaired surrogate to `U+FFFD`, so a display name
+containing one was stored **changed**, with nothing raised anywhere.
+
 ## References
 
 - [ADR-0018](0018-tenant-driven-customization-model.md) — the customization model

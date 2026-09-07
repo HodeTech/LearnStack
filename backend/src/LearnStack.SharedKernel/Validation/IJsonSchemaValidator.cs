@@ -59,10 +59,19 @@ public interface IJsonSchemaValidator
     /// its clauses prevents, all of it measured.
     /// </remarks>
     /// <returns>
-    /// <c>Ok</c>, or <c>Fail</c> carrying <c>validation_failed</c> whose details
-    /// are keyed by JSON pointer.
+    /// On success, every LearnStack extension keyword the document declares at a
+    /// schema position — the list <b>this port reports and does not resolve</b>,
+    /// per <see cref="SchemaExtensionReference"/>. Otherwise <c>Fail</c> carrying
+    /// <c>validation_failed</c> whose details are keyed by JSON pointer.
+    /// <para>
+    /// Returned from the admission rather than fetched by a second call, so a
+    /// caller cannot hold an admitted document and never learn what it references.
+    /// That was the defect: a content type naming a renderer, a taxonomy or a
+    /// language that does not exist was stored, published and frozen, and § 8.1's
+    /// read path is designed to trust what is stored.
+    /// </para>
     /// </returns>
-    Result<None> AdmitSchema(string jsonSchema);
+    Result<IReadOnlyList<SchemaExtensionReference>> AdmitSchema(string jsonSchema);
 
     /// <summary>
     /// Decides whether <paramref name="instanceJson"/> conforms to

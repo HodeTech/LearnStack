@@ -107,8 +107,16 @@ Rules of thumb:
   (`x-renderer`), and use `enum` / `minLength` / `maxLength` when you need the
   value constrained.
 - `x-renderer` / `x-taxonomy` / `x-language` are LearnStack extensions. The
-  meta-schema ignores them; LearnStack resolves them against the closed registries
-  after the gates, and an unresolvable one fails the save.
+  meta-schema ignores them, and LearnStack resolves them after the gates — an
+  `x-renderer` against the twelve generic primitives in
+  [32 § 2](../../../docs/architecture/32-tenant-customization-model.md), an
+  `x-taxonomy` against the tenant's own level taxonomies by key. An unresolvable one
+  fails the save, naming the JSON pointer. `x-language` is admitted without being
+  resolved because its registry does not exist yet;
+  [32 § 8.1](../../../docs/architecture/32-tenant-customization-model.md) says why and
+  names the phase that owns it.
+- The `x-taxonomy` you name has to exist **before** the content type that references
+  it — any revision of it, published or not. Register the taxonomy first.
 
 ### Step 2: Register it through the command
 

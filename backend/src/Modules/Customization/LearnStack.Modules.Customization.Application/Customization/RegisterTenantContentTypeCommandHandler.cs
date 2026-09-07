@@ -27,12 +27,15 @@ namespace LearnStack.Modules.Customization.Application.Customization;
 /// <b>One aggregate, one write port</b>, which is what keeps this handler off
 /// ADR-0042's allow-list. The generation counter is the second port and is
 /// deliberately not an aggregate one — see
-/// <see cref="ICustomizationGenerationStore"/>.
+/// <see cref="ICustomizationGenerationStore"/> — and
+/// <see cref="ITenantLevelTaxonomyCatalog"/> is the third, which asks a yes/no
+/// question about the other aggregate without being able to write it.
 /// </para>
 /// </remarks>
 internal sealed class RegisterTenantContentTypeCommandHandler(
     ITenantContentTypeStore contentTypes,
     ICustomizationGenerationStore generations,
+    ITenantLevelTaxonomyCatalog taxonomies,
     IJsonSchemaValidator schemas,
     ITenantContext tenantContext,
     IClock clock)
@@ -53,6 +56,19 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
         if (admitted.IsFailure)
         {
             return CustomizationFailures.SchemaRefused<TenantContentTypeDto>(admitted.Error!);
+        }
+
+        // The gates admit LearnStack's own keywords without resolving them —
+        // ADR-0043 § 4 — so the half that needs the registries happens here, before
+        // anything is written. A schema naming a renderer or a taxonomy that does
+        // not exist would otherwise be stored, published, and then trusted by a
+        // read path that never validates.
+        var unresolved = await SchemaExtensionResolution.UnresolvedAsync(
+            admitted.Value!, taxonomies, cancellationToken);
+
+        if (unresolved.Count > 0)
+        {
+            return CustomizationFailures.ExtensionsUnresolved<TenantContentTypeDto>(unresolved);
         }
 
         // The validator already proved this map builds, so From cannot throw here —

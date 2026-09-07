@@ -326,6 +326,36 @@ public sealed class LocalizedTextTests
         (lower == upper).Should().BeFalse();
     }
 
+    /// <param name="codeUnit">
+    /// The offending UTF-16 code unit, as a number. Written out as a character in
+    /// the attribute, xUnit's own data serialization rewrites the two surrogates to
+    /// U+FFFD before the test sees them — so the case would pass while asserting
+    /// nothing, which is how it first ran.
+    /// </param>
+    [Theory]
+    [InlineData(0x0000)]
+    [InlineData(0xD800)]
+    [InlineData(0xDC00)]
+    public void A_label_a_jsonb_column_cannot_hold_is_refused(int codeUnit)
+    {
+        // The column is jsonb and ToJson is the trip into it. Measured on
+        // PostgreSQL 18.6: a NUL is 22P05 on the insert. The unpaired surrogate is
+        // the worse of the two — JsonSerializer rewrites it to U+FFFD, so the value
+        // stored is quietly not the value submitted and nothing raises at all.
+        var refusal = () => LocalizedText.From(("en", "a" + (char)codeUnit + "b"));
+
+        refusal.Should().Throw<ArgumentException>().WithParameterName("values");
+    }
+
+    [Fact]
+    public void A_label_with_a_paired_surrogate_is_a_label()
+    {
+        // The guard refuses UNPAIRED surrogates. An emoji is two chars and one
+        // character, and a rule that counted chars would refuse every one of them.
+        LocalizedText.From(("en", "Yoga \ud83e\uddd8")).Resolve("en")
+            .Should().Be("Yoga \ud83e\uddd8");
+    }
+
     [Fact]
     public void Has_reports_only_what_was_authored()
     {

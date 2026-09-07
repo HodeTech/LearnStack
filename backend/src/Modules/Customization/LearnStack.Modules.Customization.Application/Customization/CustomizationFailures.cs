@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Validation;
 
 namespace LearnStack.Modules.Customization.Application.Customization;
 
@@ -17,6 +18,19 @@ namespace LearnStack.Modules.Customization.Application.Customization;
 internal static class CustomizationFailures
 {
     private const string BusinessRuleViolation = "lockey_business_rule_violation";
+
+    private const string ValidationFailed = "lockey_validation_failed";
+
+    /// <summary>
+    /// How many unresolved extensions one refusal names.
+    /// </summary>
+    /// <remarks>
+    /// The same bound the gate's own failures carry, for the same reason: a
+    /// document that gets one thing wrong gets it wrong at every property, and
+    /// three sinks read <c>Details</c>. Twenty-five positions is more than an
+    /// author needs to see the mistake.
+    /// </remarks>
+    private const int MaxReportedExtensions = 25;
 
     /// <summary>The context carried no tenant, so there is nothing to write into.</summary>
     /// <remarks>
@@ -58,6 +72,37 @@ internal static class CustomizationFailures
     /// needs to find the mistake.
     /// </remarks>
     internal static Result<T> SchemaRefused<T>(Error gate) => Result.FailFor<Result<T>>(gate);
+
+    /// <summary>The document is a schema, and names something that does not exist.</summary>
+    /// <remarks>
+    /// Answered as <c>validation_failed</c> keyed by JSON pointer — the same shape
+    /// the four gates answer with, because it is the same kind of mistake at the
+    /// same kind of position, and a client that renders one renders the other.
+    /// <see href="../../../../../../docs/architecture/32-tenant-customization-model.md">§
+    /// 8.1</see> asks for the pointer by name.
+    /// </remarks>
+    internal static Result<T> ExtensionsUnresolved<T>(
+        IReadOnlyList<SchemaExtensionReference> unresolved)
+    {
+        var byPointer =
+            new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal);
+
+        foreach (var extension in unresolved)
+        {
+            if (byPointer.Count >= MaxReportedExtensions)
+            {
+                break;
+            }
+
+            // TryAdd rather than an indexer: a JSON object may carry the same key
+            // twice and System.Text.Json enumerates both, so two occurrences can
+            // share one pointer.
+            byPointer.TryAdd(extension.Location, [new LocalizedMessage("lockey_schema_extension_unresolved")]);
+        }
+
+        return Result.FailFor<Result<T>>(
+            new Error(new LocalizedMessage(ValidationFailed), byPointer));
+    }
 
     /// <summary>The aggregate changed after this handler read it.</summary>
     /// <remarks>

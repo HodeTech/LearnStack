@@ -48,7 +48,11 @@ plan.
   chooses the language.
 - **Validation of instances against a schema.** `IJsonSchemaValidator` lives in
   the shared kernel because four modules need it, and this module is only its
-  first caller.
+  first caller. It admits LearnStack's own `x-renderer` / `x-taxonomy` /
+  `x-language` keywords and reports where each one sits; **resolving** them
+  against the registries is this module's, per
+  [ADR-0043 § 4](../../decisions/0043-customization-payload-validation.md), because
+  two of the registries are its own and the third is a tenant's rows.
 
 ## Entity-relationship diagram
 
@@ -268,6 +272,13 @@ solve none.
   half an aggregate can — that the body is still a draft — and leaves the diff
   that decides whether a change only *adds* to the editor,
   [Phase 04](../../roadmap/phase-04-cms-media-pages.md).
+- **`x-language` is admitted without resolving.** `x-renderer` resolves against
+  the twelve generic primitives and `x-taxonomy` against the tenant's own
+  taxonomies, both on save; the set of languages a `code` field may declare is
+  decided by nothing in the corpus and belongs to
+  [Phase 04](../../roadmap/phase-04-cms-media-pages.md) with the field type that
+  carries one. [§ 8.1](../../architecture/32-tenant-customization-model.md) records
+  the gap rather than leaving the invariant reading as though it were closed.
 - **A tenant can strand its own content.** Deprecating the only live revision of
   a key leaves content rows pinned to a version nothing publishes. The schema
   permits it and no command refuses it, because "is this key still needed?" is a

@@ -430,6 +430,78 @@ public sealed class JsonSchemaNetValidatorTests
         _validator.AdmitSchema(document).IsSuccess.Should().Be(admitted);
     }
 
+    [Theory]
+    [InlineData("\"default\":{\"x\":{\"pattern\":\"^safe$\"}}")]
+    [InlineData("\"const\":{\"x\":{\"$id\":\"https://example.test\"}}")]
+    [InlineData("\"enum\":[{\"x\":{\"propertyNames\":{}}}]")]
+    public void A_reference_may_not_reach_into_a_literal(string leaf)
+    {
+        // The other edge of "an instance is not a schema". Once the walk stopped
+        // reading a literal as one, a `$ref` INTO that literal made it a schema
+        // again — applied by the evaluator, and carrying whatever the profile
+        // bans, because nothing had checked it. Measured: admitted, with the
+        // banned `pattern` live.
+        //
+        // A pointer alone cannot tell the two apart, so the walk records which
+        // positions it reached AS schemas and a target must be one of them.
+        var pointer = leaf.StartsWith("\"enum\"", System.StringComparison.Ordinal)
+            ? "#/properties/a/enum/0/x"
+            : "#/properties/a/" + leaf[1..leaf.IndexOf('"', 1)] + "/x";
+
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"type\":\"object\"," + leaf + "},"
+            + "\"b\":{\"$ref\":\"" + pointer + "\"}}}";
+
+        Refusal(_validator.AdmitSchema(document))
+            .Values.SelectMany(reasons => reasons).Select(reason => reason.Key)
+            .Should().Contain("lockey_schema_reference_not_a_schema");
+    }
+
+    [Fact]
+    public void A_field_a_tenant_named_dollar_defs_does_not_leave_the_graph()
+    {
+        // The graph traversal skipped every property named `$defs`, wherever it
+        // sat. Inside `properties` that name is the author's, so renaming a field
+        // from `inner` to `$defs` took its edges out of the cycle check —
+        // measured, the same cycle went from refused to admitted, and ADR-0043
+        // § Context measures an admitted cycle ending the process at evaluation.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"allOf\":[{\"$ref\":\"#/$defs/loop\"}]}},"
+            + "\"$defs\":{\"loop\":{\"type\":\"object\",\"properties\":{"
+            + "\"$defs\":{\"allOf\":[{\"$ref\":\"#/$defs/loop\"}]}}}}}";
+
+        Refusal(_validator.AdmitSchema(document))
+            .Values.SelectMany(reasons => reasons).Select(reason => reason.Key)
+            .Should().Contain("lockey_schema_reference_cycles");
+    }
+
+    [Fact]
+    public void A_literal_reference_stays_literal_beside_a_real_one()
+    {
+        // The graph read a `$ref`-shaped key inside `const` as an edge. Nothing
+        // showed it while the document had no real reference — the loop returned
+        // early — so adding one elsewhere turned the tenant's own literal into an
+        // unresolvable reference.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"const\":{\"$ref\":\"#/nope\"}},"
+            + "\"b\":{\"$ref\":\"#/$defs/ok\"}},\"$defs\":{\"ok\":{\"type\":\"string\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_percent_encoded_fragment_resolves_the_pointer_it_names()
+    {
+        // RFC 6901 § 6 decodes the fragment as a whole and then splits it, so
+        // `#%2F$defs%2Ftext` is `#/$defs/text`. Splitting first left one token that
+        // matched nothing, and the evaluator — which resolves it — would then have
+        // been handed a schema this gate called unresolvable.
+        var document = "{\"$schema\":\"" + Dialect + "\",\"type\":\"object\",\"properties\":{"
+            + "\"a\":{\"$ref\":\"#%2F$defs%2Ftext\"}},\"$defs\":{\"text\":{\"type\":\"string\"}}}";
+
+        _validator.AdmitSchema(document).IsSuccess.Should().BeTrue();
+    }
+
     [Fact]
     public void A_reference_graph_is_costed_across_the_whole_document()
     {
@@ -625,6 +697,148 @@ public sealed class JsonSchemaNetValidatorTests
         Refusal(_validator.AdmitSchema(document))
             .Should().ContainKey("").WhoseValue.Should()
             .ContainSingle(m => m.Key == "lockey_schema_too_large");
+    }
+
+    // ── The column, not only the grammar ────────────────────────────────────
+
+    [Theory]
+    [InlineData("\"default\":\"\\u0000\"", "/properties/a/default", "lockey_schema_text_not_storable")]
+    [InlineData("\"const\":\"\\ud800\"", "/properties/a/const", "lockey_schema_text_not_storable")]
+    [InlineData("\"examples\":[\"\\udc00\"]", "/properties/a/examples/0", "lockey_schema_text_not_storable")]
+    [InlineData("\"default\":1e1000000", "/properties/a/default", "lockey_schema_number_not_storable")]
+    public void A_document_the_column_cannot_hold_is_refused_at_the_value(
+        string extra, string at, string reason)
+    {
+        // Measured on PostgreSQL 18.6, as jsonb: `\u0000` is 22P05, an unpaired
+        // surrogate is 22P02, and 1e1000000 is 22003 — while JsonDocument.Parse
+        // accepts all three. Without this clause the tenant's mistake arrived as a
+        // 500 from the INSERT, which is the one answer § 8.1 rules out.
+        //
+        // All four literals sit under keywords the schema walk deliberately does
+        // NOT descend into. That is the point: a `default` is stored in the same
+        // column as the schema around it.
+        Refusal(_validator.AdmitSchema(Schema("\"a\":{\"type\":\"string\"," + extra + "}")))
+            .Should().ContainKey(at).WhoseValue.Should().ContainSingle(m => m.Key == reason);
+    }
+
+    [Fact]
+    public void A_member_name_the_column_cannot_hold_is_refused_at_its_object()
+    {
+        // The object's pointer, not the member's: a pointer built from a name
+        // carrying a NUL would put that NUL into a Problem Details key, an audit
+        // row and a log line.
+        Refusal(_validator.AdmitSchema(
+                Schema("\"a\":{\"type\":\"object\",\"default\":{\"\\u0000\":1}}")))
+            .Should().ContainKey("/properties/a/default").WhoseValue.Should()
+            .ContainSingle(m => m.Key == "lockey_schema_text_not_storable");
+    }
+
+    [Theory]
+    [InlineData("1e131071", true)]
+    [InlineData("1e131072", false)]
+    [InlineData("12e131071", false)]
+    [InlineData("1e-16383", true)]
+    [InlineData("1e-16384", false)]
+    public void The_numeric_bound_is_where_postgresql_measured_it(string number, bool admitted)
+    {
+        // numeric holds 131,072 digits before the point and 16,383 after, and one
+        // more of either is 22003. The boundary is asserted on both sides because a
+        // guard that refused 1e131071 as well would be refusing what the column
+        // stores — which no failing INSERT would ever reveal.
+        _validator.AdmitSchema(Schema("\"a\":{\"type\":\"number\",\"default\":" + number + "}"))
+            .IsSuccess.Should().Be(admitted);
+    }
+
+    [Theory]
+    [InlineData("\"\\ud83d\\ude00\"")]
+    [InlineData("\"\\\\u0000\"")]
+    public void What_the_column_does_hold_is_still_admitted(string literal)
+    {
+        // A correctly paired surrogate stores, and so does the six-character
+        // literal `\u0000` written with an escaped backslash — measured. Reading
+        // the parsed value rather than scanning the document text is what tells
+        // those two apart from the escapes above.
+        _validator.AdmitSchema(Schema("\"a\":{\"type\":\"string\",\"default\":" + literal + "}"))
+            .IsSuccess.Should().BeTrue();
+    }
+
+    // ── LearnStack extensions: reported, not resolved ───────────────────────
+
+    [Theory]
+    [InlineData("x-renderer", "audio")]
+    [InlineData("x-taxonomy", "cefr")]
+    [InlineData("x-language", "python")]
+    public void An_extension_is_reported_with_the_pointer_that_locates_it(
+        string keyword, string value)
+    {
+        // ADR-0043 § 4: the pinned dialect admits these keywords and the validator
+        // has no opinion about them, but § 8.1 requires each to resolve to a
+        // registry entry ON SAVING. The module owns the registries; only this walk
+        // knows where the keyword sits, so it reports and the module decides.
+        Extensions(Schema($"\"a\":{{\"type\":\"string\",\"{keyword}\":\"{value}\"}}"))
+            .Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(
+                new SchemaExtensionReference($"/properties/a/{keyword}", keyword, value));
+    }
+
+    [Theory]
+    [InlineData("x-renderer")]
+    [InlineData("x-taxonomy")]
+    [InlineData("x-language")]
+    public void A_field_a_tenant_named_after_an_extension_is_still_a_field(string keyword)
+    {
+        // The same trap `properties/pattern` was: inside a name map the key is the
+        // author's. Reporting it would refuse the tenant's own field for naming
+        // something the platform cannot resolve — and there is nothing to resolve,
+        // because it is a field name.
+        Extensions(Schema($"\"{keyword}\":{{\"type\":\"string\"}}"))
+            .Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("const")]
+    [InlineData("default")]
+    [InlineData("examples")]
+    public void An_extension_inside_a_literal_is_the_tenants_own_data(string keyword)
+    {
+        // One level further in: the value of an instance-valued keyword is data the
+        // schema constrains, so an `x-renderer` there is a key of the tenant's own
+        // object and names no renderer.
+        var literal = keyword == "examples"
+            ? "[{\"x-renderer\":\"unicorn\"}]"
+            : "{\"x-renderer\":\"unicorn\"}";
+
+        Extensions(Schema($"\"a\":{{\"type\":\"object\",\"{keyword}\":{literal}}}"))
+            .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_non_string_extension_is_reported_as_the_json_it_is()
+    {
+        // Carried rather than refused here: the registries are the authority on
+        // what resolves, and `3` naming no renderer is the same answer a misspelled
+        // key gets. A nullable value would be a second failure mode for every
+        // caller to handle.
+        Extensions(Schema("\"a\":{\"type\":\"string\",\"x-renderer\":3}"))
+            .Should().ContainSingle().Which.Value.Should().Be("3");
+    }
+
+    [Fact]
+    public void An_extension_value_is_not_read_as_a_schema()
+    {
+        // It names a registry entry, so its contents are not keywords. Without the
+        // stop, this document is refused for a banned regex keyword the tenant
+        // never wrote as a keyword — the defect `const` and `enum` already had.
+        Extensions(Schema("\"a\":{\"type\":\"string\",\"x-renderer\":{\"pattern\":\"(\"}}"))
+            .Should().ContainSingle().Which.Value.Should().Be("{\"pattern\":\"(\"}");
+    }
+
+    [Fact]
+    public void A_document_the_gates_refuse_reports_no_extensions()
+    {
+        // The list is an admission's payload. A caller cannot reach it without a
+        // success, and this is what says so where a reader looks for it.
+        _validator.AdmitSchema("{\"type\":\"object\"}").IsSuccess.Should().BeFalse();
     }
 
     // ── Gate 3: the meta-schema ─────────────────────────────────────────────
@@ -837,8 +1051,23 @@ public sealed class JsonSchemaNetValidatorTests
             .Should().BeEmpty("the adapter compiles per call and remembers nothing");
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>> Refusal(
-        Result<None> result)
+    /// <summary>The extensions an admitted document declares.</summary>
+    private IReadOnlyList<SchemaExtensionReference> Extensions(string document)
+    {
+        var result = _validator.AdmitSchema(document);
+
+        result.IsSuccess.Should().BeTrue("the document under test must be admitted");
+
+        return result.Value!;
+    }
+
+    /// <remarks>
+    /// Generic over the payload because the two members answer with different
+    /// ones — an admission carries the extensions LearnStack has to resolve — while
+    /// a refusal is the same shape from both.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, IReadOnlyList<LocalizedMessage>> Refusal<T>(
+        Result<T> result)
     {
         result.IsSuccess.Should().BeFalse("the document under test must be refused");
         result.Error.Should().NotBeNull();

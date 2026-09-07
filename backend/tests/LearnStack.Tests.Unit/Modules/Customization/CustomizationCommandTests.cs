@@ -231,6 +231,143 @@ public sealed class CustomizationCommandTests
         result.Error!.Details.Should().ContainKey("/properties/body");
     }
 
+    // ── The extensions the gates admit and LearnStack resolves ────────────
+
+    [Fact]
+    public async Task A_schema_naming_a_renderer_that_does_not_exist_is_refused()
+    {
+        // § 8.1 requires every x-renderer / x-taxonomy / x-language to resolve to a
+        // registry entry ON SAVING, and ADR-0043 § 4 assigns it here rather than to
+        // the validator. Without it the row is stored, published and frozen — and
+        // the read path is designed to trust what is stored.
+        var (sender, stores) = Build(gate: Reporting(("/properties/a/x-renderer", "x-renderer", "unicorn")));
+
+        var result = await sender.Send(RegisterContentType());
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Message.Key.Should().Be("lockey_validation_failed");
+        result.Error.Details!["/properties/a/x-renderer"].Single().Key
+            .Should().Be("lockey_schema_extension_unresolved");
+        stores.Writes.Should().BeEmpty("an unresolvable reference leaves no row behind");
+    }
+
+    [Theory]
+    [InlineData("text")]
+    [InlineData("audio")]
+    [InlineData("embed-html")]
+    public async Task A_schema_naming_a_granted_primitive_is_registered(string primitive)
+    {
+        // The twelve ADR-0018 § Renderer architecture grants, and the spelling of
+        // the last one: `embed_html` was in the corpus for months and no tenant row
+        // could ever have matched it.
+        var (sender, stores) = Build(gate: Reporting(("/properties/a/x-renderer", "x-renderer", primitive)));
+
+        (await sender.Send(RegisterContentType())).IsSuccess.Should().BeTrue();
+        stores.Writes.Should().Equal("content-type:add", "generation:bump");
+    }
+
+    [Fact]
+    public async Task A_composite_renderer_is_not_a_field_renderer()
+    {
+        // `renderer_key` names what draws the whole row and is checked against the
+        // composite set. An x-renderer annotates one field, so admitting a
+        // composite here would let a field claim to be a page.
+        var (sender, _) = Build(gate: Reporting(("/properties/a/x-renderer", "x-renderer", "default-card")));
+
+        (await sender.Send(RegisterContentType())).IsFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_schema_naming_a_taxonomy_the_tenant_has_not_declared_is_refused()
+    {
+        var (sender, stores) = Build(gate: Reporting(("/properties/a/x-taxonomy", "x-taxonomy", "cefr")));
+
+        var result = await sender.Send(RegisterContentType());
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Details!["/properties/a/x-taxonomy"].Single().Key
+            .Should().Be("lockey_schema_extension_unresolved");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_schema_naming_a_taxonomy_the_tenant_has_declared_is_registered()
+    {
+        // A draft one, deliberately: an x-taxonomy names the concept and the
+        // runtime resolves the live revision when it renders, so requiring a
+        // published taxonomy would mean a tenant cannot author a content type and
+        // its vocabulary in one sitting.
+        var (sender, stores) = Build(gate: Reporting(("/properties/a/x-taxonomy", "x-taxonomy", "proficiency")));
+
+        await sender.Send(RegisterTaxonomy());
+        stores.Writes.Clear();
+
+        (await sender.Send(RegisterContentType())).IsSuccess.Should().BeTrue();
+        stores.Writes.Should().Equal("content-type:add", "generation:bump");
+    }
+
+    [Fact]
+    public async Task One_taxonomy_key_is_asked_about_once_however_often_it_appears()
+    {
+        // A content type at § 8.4's hundred-property ceiling may reference one
+        // vocabulary a hundred times, and the answer cannot differ between them
+        // inside a transaction that holds one connection.
+        var (sender, stores) = Build(gate: Reporting(
+            ("/properties/a/x-taxonomy", "x-taxonomy", "proficiency"),
+            ("/properties/b/x-taxonomy", "x-taxonomy", "proficiency"),
+            ("/properties/c/x-taxonomy", "x-taxonomy", "proficiency")));
+
+        await sender.Send(RegisterTaxonomy());
+        await sender.Send(RegisterContentType());
+
+        stores.TaxonomyLookups.Should().Equal("proficiency");
+    }
+
+    [Fact]
+    public async Task An_x_language_is_admitted_because_its_registry_does_not_exist()
+    {
+        // Deliberate, and recorded rather than silent: the set of languages a
+        // `code` field may declare is decided by nothing in the corpus, and Phase 04
+        // owns the closed set of built-in primitive field types it belongs to.
+        // Refusing the keyword until then would make the architecture doc's own
+        // worked example unsavable while deciding nothing.
+        var (sender, stores) = Build(gate: Reporting(
+            ("/properties/a/x-language", "x-language", "nothing-resolves-this")));
+
+        (await sender.Send(RegisterContentType())).IsSuccess.Should().BeTrue();
+        stores.Writes.Should().Equal("content-type:add", "generation:bump");
+    }
+
+    [Fact]
+    public async Task Every_unresolvable_reference_is_named_once()
+    {
+        // Two mistakes at two positions, and a document may carry the same key
+        // twice — System.Text.Json enumerates both — so the pointers are collapsed
+        // rather than collected into a dictionary that would throw on the duplicate.
+        var (sender, _) = Build(gate: Reporting(
+            ("/properties/a/x-renderer", "x-renderer", "unicorn"),
+            ("/properties/b/x-taxonomy", "x-taxonomy", "cefr"),
+            ("/properties/b/x-taxonomy", "x-taxonomy", "kyu")));
+
+        var result = await sender.Send(RegisterContentType());
+
+        result.Error!.Details!.Keys.Should().BeEquivalentTo(
+            "/properties/a/x-renderer", "/properties/b/x-taxonomy");
+    }
+
+    [Fact]
+    public async Task A_refusal_names_no_more_positions_than_an_author_can_read()
+    {
+        var (sender, _) = Build(gate: Reporting(
+            [.. Enumerable.Range(0, 30)
+                .Select(i => ($"/properties/p{i}/x-renderer", "x-renderer", "unicorn"))]));
+
+        var result = await sender.Send(RegisterContentType());
+
+        result.Error!.Details!.Should().HaveCount(25,
+            "a document that gets one thing wrong gets it wrong at every property");
+    }
+
     [Fact]
     public async Task A_uniqueness_collision_names_which_uniqueness_it_was()
     {
@@ -551,6 +688,73 @@ public sealed class CustomizationCommandTests
         stores.Writes.Should().NotContain("generation:bump");
     }
 
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_publish_that_fails_after_retiring_the_incumbent_poisons_the_unit(string subject)
+    {
+        // The incumbent's deprecation is already saved when the successor's write
+        // can fail, and ADR-0040 § Nesting says an inner Result.Fail an outer
+        // handler absorbs does NOT roll the unit back — only an exception or an
+        // explicit mark does. Without the mark, an outer handler that absorbs this
+        // and commits leaves the tenant with the incumbent deprecated, the
+        // successor still a draft, and no live revision for the key. Measured
+        // against a real database before this guard existed.
+        var (sender, stores, unit) = BuildWithUnit();
+
+        if (subject == "content-type")
+        {
+            await sender.Send(RegisterContentType(version: 1));
+            await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+            var successorId = Guid.Parse("0199a000-0000-7000-8000-0000000000c4");
+            await sender.Send(RegisterContentType(successorId, version: 2));
+
+            // Armed for the SUCCESSOR's update: the incumbent's is the first, so
+            // the flag is re-armed after it is consumed.
+            stores.NextStale = true;
+            stores.RearmStaleAfterFirst = true;
+
+            var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
+
+            result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+            unit.RolledBackOnly.Should().BeTrue(
+                "the incumbent was already deprecated when the successor's write failed");
+            return;
+        }
+
+        await sender.Send(RegisterTaxonomy(version: 1));
+        await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+        var successor = Guid.Parse("0199a000-0000-7000-8000-0000000000d4");
+        await sender.Send(RegisterTaxonomy(successor, version: 2));
+
+        stores.NextStale = true;
+        stores.RearmStaleAfterFirst = true;
+
+        var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(successor));
+
+        taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+        unit.RolledBackOnly.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_publish_that_never_retired_anything_leaves_the_unit_alone()
+    {
+        // The other edge. A first-ever publish writes only the successor, so a
+        // failure there has nothing committed behind it — marking the unit would
+        // roll back an outer handler's own work for no reason.
+        var (sender, stores, unit) = BuildWithUnit();
+
+        await sender.Send(RegisterContentType());
+        stores.NextStale = true;
+
+        var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+        result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+        unit.RolledBackOnly.Should().BeFalse("nothing was written before the failure");
+    }
+
     // ── What the validators refuse ────────────────────────────────────────
     //
     // Asserted through the validator resolved from the container, not through the
@@ -773,6 +977,24 @@ public sealed class CustomizationCommandTests
         TenantLevelTaxonomy.MaxItems.Should().Be(100);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void A_band_that_is_null_is_refused_rather_than_dereferenced(int position)
+    {
+        // `SetValidator` SKIPS a null element rather than refusing it, so `[null]`
+        // was valid input and the handler then dereferenced it — measured, a
+        // NullReferenceException out of FirstDuplicate, which is a 500 for a body
+        // the caller can fix. Both positions, because a rule that only guarded the
+        // first would pass the first case.
+        var items = position == 0
+            ? new TaxonomyItemInput[] { null!, new("a1", Label("First"), 0) }
+            : [new TaxonomyItemInput("a1", Label("First"), 0), null!];
+
+        RefuseTaxonomy(RegisterTaxonomy(items: items))
+            .Should().Be("lockey_taxonomy_item_required");
+    }
+
     [Fact]
     public void Every_command_has_a_validator_the_scan_can_find()
     {
@@ -824,6 +1046,32 @@ public sealed class CustomizationCommandTests
         return (Provider(stores, resolved, admitSchemas, gate).GetRequiredService<ISender>(), stores);
     }
 
+    /// <summary>A gate that admits, and reports the occurrences it was given.</summary>
+    /// <remarks>
+    /// Which occurrences a real document yields is
+    /// <c>JsonSchemaNetValidatorTests</c>'s subject — that walk is the only thing
+    /// that can tell an extension from a field a tenant named after one. What these
+    /// cases need is the handler's answer to each kind of occurrence.
+    /// </remarks>
+    private static StubGate Reporting(
+        params (string Location, string Keyword, string Value)[] extensions) =>
+        new StubGate(
+            admits: true,
+            [.. extensions.Select(extension => new SchemaExtensionReference(
+                extension.Location, extension.Keyword, extension.Value))]);
+
+    /// <summary>The same container, with the unit of work reachable.</summary>
+    private static (ISender Sender, RecordingStores Stores, RecordingUnitOfWork Unit) BuildWithUnit()
+    {
+        var stores = new RecordingStores();
+        var provider = Provider(stores);
+
+        return (
+            provider.GetRequiredService<ISender>(),
+            stores,
+            (RecordingUnitOfWork)provider.GetRequiredService<IUnitOfWork>());
+    }
+
     private static ServiceProvider Provider(
         RecordingStores? stores = null, bool resolved = true, bool admitSchemas = true,
         IJsonSchemaValidator? gate = null)
@@ -840,9 +1088,11 @@ public sealed class CustomizationCommandTests
         services.AddValidatorsFromAssembly(applicationAssembly, includeInternalTypes: true);
         services.AddSingleton<ITenantContentTypeStore>(stores);
         services.AddSingleton<ITenantLevelTaxonomyStore>(stores);
+        services.AddSingleton<ITenantLevelTaxonomyCatalog>(stores);
         services.AddSingleton<ICustomizationGenerationStore>(stores);
         services.AddSingleton(gate ?? new StubGate(admitSchemas));
         services.AddSingleton<IClock>(Clock);
+        services.AddSingleton<IUnitOfWork, RecordingUnitOfWork>();
         services.AddSingleton<ITenantContext>(
             resolved ? new ResolvedContext(Tenant) : new UnresolvedTenantContext());
 
@@ -860,7 +1110,8 @@ public sealed class CustomizationCommandTests
     /// the transaction constrains — went unobserved.
     /// </remarks>
     private sealed class RecordingStores
-        : ITenantContentTypeStore, ITenantLevelTaxonomyStore, ICustomizationGenerationStore
+        : ITenantContentTypeStore, ITenantLevelTaxonomyStore, ICustomizationGenerationStore,
+          ITenantLevelTaxonomyCatalog
     {
         private long _generation;
 
@@ -872,11 +1123,23 @@ public sealed class CustomizationCommandTests
 
         public List<TenantLevelTaxonomy> AddedTaxonomies { get; } = [];
 
+        /// <summary>Every key the catalogue was asked about, in order.</summary>
+        public List<string> TaxonomyLookups { get; } = [];
+
         /// <summary>The constraint the next write collides with, or nothing.</summary>
         public string? NextConflict { get; set; }
 
         /// <summary>Whether the next update loses a race.</summary>
         public bool NextStale { get; set; }
+
+        /// <summary>
+        /// Whether the stale flag re-arms once, so the SECOND update fails.
+        /// </summary>
+        /// <remarks>
+        /// The incumbent's update comes first, and a case about what happens
+        /// AFTER it has been written needs it to succeed.
+        /// </remarks>
+        public bool RearmStaleAfterFirst { get; set; }
 
         /// <summary>
         /// The status each update carried, in the order the store received them.
@@ -949,6 +1212,21 @@ public sealed class CustomizationCommandTests
                     && taxonomy.Status == CustomizationStatus.Active
                     && taxonomy.DeletedAt is null));
 
+        /// <remarks>
+        /// Answers from the same dictionary the writes fill, and by the same rule
+        /// the real query uses — any non-deleted revision, whatever its status. A
+        /// fake that answered <c>true</c> unconditionally would make every
+        /// extension case pass for the wrong reason.
+        /// </remarks>
+        Task<bool> ITenantLevelTaxonomyCatalog.ContainsAsync(
+            string key, CancellationToken cancellationToken)
+        {
+            TaxonomyLookups.Add(key);
+
+            return Task.FromResult(Taxonomies.Values.Any(
+                taxonomy => taxonomy.Key == key && taxonomy.DeletedAt is null));
+        }
+
         public Task<long> BumpAsync(TenantId tenantId, CancellationToken cancellationToken = default)
         {
             Writes.Add("generation:bump");
@@ -963,6 +1241,14 @@ public sealed class CustomizationCommandTests
             }
 
             NextStale = false;
+
+            if (RearmStaleAfterFirst)
+            {
+                RearmStaleAfterFirst = false;
+                NextStale = true;
+                return;
+            }
+
             throw new AggregateConcurrencyException("the row moved under this write");
         }
 
@@ -985,12 +1271,19 @@ public sealed class CustomizationCommandTests
     /// behaviour on each answer, and a document contrived to fail a particular gate
     /// would pin the library's message rather than the handler's response to it.
     /// </remarks>
-    private sealed class StubGate(bool admits) : IJsonSchemaValidator
+    /// <param name="extensions">
+    /// What the gate reports the document declares. Supplied by the test rather
+    /// than parsed, for the reason above: which occurrences a real document yields
+    /// is <c>JsonSchemaNetValidatorTests</c>'s subject, and what the handler does
+    /// with them is this one's.
+    /// </param>
+    private sealed class StubGate(
+        bool admits, IReadOnlyList<SchemaExtensionReference>? extensions = null) : IJsonSchemaValidator
     {
-        public Result<None> AdmitSchema(string jsonSchema) =>
+        public Result<IReadOnlyList<SchemaExtensionReference>> AdmitSchema(string jsonSchema) =>
             admits
-                ? Result.Ok(None.Value)
-                : Result.Fail<None>(new Error(
+                ? Result.Ok(extensions ?? [])
+                : Result.Fail<IReadOnlyList<SchemaExtensionReference>>(new Error(
                     new LocalizedMessage("lockey_validation_failed"),
                     new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
                     {
@@ -1001,15 +1294,59 @@ public sealed class CustomizationCommandTests
             Result.Ok(None.Value);
     }
 
+    /// <summary>
+    /// The ambient unit of work, recording the one member a handler calls.
+    /// </summary>
+    /// <remarks>
+    /// Only <c>MarkRollbackOnly</c> is reachable from a handler; the rest of the
+    /// port belongs to <c>TransactionBehavior</c> and the stores, and a fake that
+    /// pretended to implement it would be inviting a test to drive a transaction
+    /// that does not exist.
+    /// </remarks>
+    private sealed class RecordingUnitOfWork : IUnitOfWork
+    {
+        public bool RolledBackOnly { get; private set; }
+
+        public void MarkRollbackOnly() => RolledBackOnly = true;
+
+        public System.Data.Common.DbConnection Connection => throw new NotSupportedException();
+
+        public System.Data.Common.DbTransaction? Transaction => throw new NotSupportedException();
+
+        public bool HasActiveTransaction => throw new NotSupportedException();
+
+        public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task SetTenantContextAsync(
+            ITenantContext context, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public bool IsTenantContextIssuedOn(System.Data.Common.DbTransaction? transaction) =>
+            throw new NotSupportedException();
+
+        public Task CommitAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task RollbackAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task SetProvisioningTenantContextAsync(
+            TenantId tenantId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     /// <summary>A gate that admits everything and remembers what it saw.</summary>
     private sealed class RecordingGate : IJsonSchemaValidator
     {
         public List<string> Admitted { get; } = [];
 
-        public Result<None> AdmitSchema(string jsonSchema)
+        public Result<IReadOnlyList<SchemaExtensionReference>> AdmitSchema(string jsonSchema)
         {
             Admitted.Add(jsonSchema);
-            return Result.Ok(None.Value);
+            return Result.Ok<IReadOnlyList<SchemaExtensionReference>>([]);
         }
 
         public Result<None> ValidateInstance(string admittedSchema, string instanceJson) =>

@@ -448,10 +448,33 @@ discovering it on a page load.
 
 | Validation | When | Failure mode |
 |---|---|---|
-| The `json_schema` passes the four gates in [ADR-0043 § 2](../decisions/0043-customization-payload-validation.md) — it is JSON, it is inside the LearnStack schema profile, it satisfies the draft 2020-12 meta-schema, and it builds — and every `x-renderer` / `x-taxonomy` / `x-language` extension resolves to a registry entry | **On saving the content type / block / lesson item type** | 400 with Problem Details naming the offending JSON pointer |
+| The `json_schema` passes the four gates in [ADR-0043 § 2](../decisions/0043-customization-payload-validation.md) — it is JSON, it is inside the LearnStack schema profile, it satisfies the draft 2020-12 meta-schema, and it builds — and every `x-renderer` / `x-taxonomy` extension resolves to a registry entry | **On saving the content type / block / lesson item type** | 400 with Problem Details naming the offending JSON pointer |
 | A content entry conforms to its content type's schema at its pinned `schema_version` | **On saving the entry** | 400; the entry is not persisted |
 | The declared limits in § 8.3 | **On saving the schema** | 400 |
+| The document is JSON a `jsonb` column can hold — no `U+0000`, no unpaired surrogate, no number outside `numeric`'s 131,072 / 16,383 digits ([ADR-0043 Amendment 4](../decisions/0043-customization-payload-validation.md)) | **On saving the schema** | 400 naming the pointer, where it used to be a 500 from the `INSERT` |
 | Renderer resolution: does `renderer_key` exist in `COMPOSITE_RENDERERS`? | **On saving**, again on **server render** as a cheap dictionary lookup | Save is rejected; a stale reference renders a fallback block plus a logged warning, never an exception |
+
+**`x-language` is admitted and not resolved, because it has no registry.** The other
+two extensions resolve against sets that exist: `x-renderer` against the twelve
+primitives in § 2 ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)
+grants them and `Generic_Primitives_Only_In_Renderer` holds the frontend and backend
+copies equal), and `x-taxonomy` against the tenant's own `tenant_level_taxonomies`
+rows — by key, across revisions, because the keyword names the concept and the runtime
+resolves the live revision when it renders. The set of languages a `code` field may
+declare is decided by nothing in this corpus, and inventing one here would settle a
+product question in a validator. It is owed by
+[Phase 04](../roadmap/phase-04-cms-media-pages.md), which owns the closed set of
+built-in primitive field types the `code` field belongs to and the Studio editor that
+offers them.
+
+The split between the four gates and this resolution is
+[ADR-0043 § 4](../decisions/0043-customization-payload-validation.md)'s: unknown
+keywords pass the gates because the pinned dialect admits them, and the module that
+owns the registries resolves them afterwards. The validator reports **where** each
+extension sits — a field a tenant named `x-renderer` under `properties` is a field
+name, and one inside `const` or `examples` is the tenant's own data — because only the
+document walk that already separates schema positions from instance literals can tell
+the three apart.
 
 **Nothing is schema-validated on the read path.** A published content entry has already
 been validated against its pinned schema version, and re-validating it on every page load

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.SharedKernel.Domain;
 using Npgsql;
 using Xunit;
 
@@ -159,5 +160,72 @@ public sealed class CustomizationSchemaTests
 
         await succeed.Should().NotThrowAsync(
             "a deprecated revision is history, not a claim on the key");
+    }
+
+    /// <summary>
+    /// The document column, asked what it holds rather than told.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>JsonValue</c> claims to know what a <c>jsonb</c> column takes, and the
+    /// claim is worth exactly as much as the database's agreement with it. Three
+    /// documents <c>JsonDocument.Parse</c> accepts are rejected here — <c>22P05</c>
+    /// for <c>U+0000</c>, <c>22P02</c> for an unpaired surrogate, <c>22003</c> for
+    /// a number outside <c>numeric</c> — and the guard was measured against this
+    /// table before it was written.
+    /// </para>
+    /// <para>
+    /// <b>Both directions.</b> A guard that refused everything would satisfy a test
+    /// that only checked the refusals, and would refuse an emoji and a
+    /// hundred-thousand-digit number the column stores happily. The cases that
+    /// expect <c>true</c> are the ones that catch that, and they are where the
+    /// numeric boundary is pinned to the server rather than to a constant.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("{\"a\":1e131071}", true)]
+    [InlineData("{\"a\":1e131072}", false)]
+    [InlineData("{\"a\":12e131071}", false)]
+    [InlineData("{\"a\":1e-16383}", true)]
+    [InlineData("{\"a\":1e-16384}", false)]
+    [InlineData("{\"a\":\"\\u0000\"}", false)]
+    [InlineData("{\"a\":\"\\ud800\"}", false)]
+    [InlineData("{\"a\":\"\\udc00\"}", false)]
+    [InlineData("{\"\\u0000\":1}", false)]
+    [InlineData("{\"a\":\"\\ud83d\\ude00\"}", true)]
+    [InlineData("{\"a\":\"\\\\u0000\"}", true)]
+    public async Task TheJsonbGuardAgreesWithTheColumn(string document, bool storable)
+    {
+        JsonValue.IsWellFormed(document).Should().Be(
+            storable, "the guard is a claim about this column and nothing else");
+
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+
+        var insert = async () => await SchemaQueries.ExecuteAsync(
+            connection,
+            transaction,
+            """
+            INSERT INTO tenant_content_types
+                (id, tenant_id, key, schema_version, schema_revision, status, display_name,
+                 json_schema, renderer_key, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, 'probe-jsonb', 1, 0, 'Draft', '{"en":"probe"}',
+                    @document::jsonb, 'default-card', now(), @actor, 0)
+            """,
+            ("tenant", SchemaFixture.TenantA),
+            ("document", document),
+            ("actor", SchemaFixture.Actor));
+
+        if (storable)
+        {
+            await insert.Should().NotThrowAsync();
+            return;
+        }
+
+        (await insert.Should().ThrowAsync<PostgresException>(
+            "the guard exists because this INSERT is where the refusal used to happen"))
+            .Which.SqlState.Should().BeOneOf("22P05", "22P02", "22003");
     }
 }

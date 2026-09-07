@@ -74,6 +74,54 @@ public static class CustomizationKey
 }
 
 /// <summary>
+/// The closed set of generic primitives an <c>x-renderer</c> inside a
+/// tenant-authored schema may name.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The twelve
+/// <see href="../../../../../docs/decisions/0018-tenant-driven-customization-model.md">ADR-0018
+/// § Renderer architecture</see> grants, and the backend's copy of
+/// <c>primitives.ts</c> for the same reason <see cref="CompositeRendererKey"/> is
+/// the backend's copy of <c>composites.ts</c>:
+/// <see href="../../../../../docs/architecture/32-tenant-customization-model.md">§
+/// 8.1</see> requires the extension to resolve <b>on saving</b>, and the map that
+/// draws the component is a frontend one.
+/// <c>Generic_Primitives_Only_In_Renderer</c> holds the two copies and the ADR's
+/// list equal.
+/// </para>
+/// <para>
+/// <b>Primitives only, and composites deliberately not.</b> A composite is what a
+/// whole row is drawn by — <c>renderer_key</c>, checked by
+/// <see cref="CompositeRendererKey"/> — while <c>x-renderer</c> annotates one
+/// field of one schema. Admitting a composite here would let a field claim to be a
+/// page.
+/// </para>
+/// </remarks>
+public static class PrimitiveRendererKey
+{
+    /// <inheritdoc cref="CompositeRendererKey.All"/>
+    public static readonly FrozenSet<string> All = new[]
+    {
+        "text",
+        "markdown",
+        "image",
+        "video",
+        "audio",
+        "pdf",
+        "code",
+        "math",
+        "link",
+        "list",
+        "tabs",
+        "embed-html",
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    public static bool IsKnown(string value) =>
+        !string.IsNullOrWhiteSpace(value) && All.Contains(value);
+}
+
+/// <summary>
 /// The closed set of composite renderers a tenant row may point at.
 /// </summary>
 /// <remarks>

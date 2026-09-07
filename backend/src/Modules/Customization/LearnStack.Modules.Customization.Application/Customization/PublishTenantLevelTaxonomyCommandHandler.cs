@@ -25,6 +25,7 @@ namespace LearnStack.Modules.Customization.Application.Customization;
 internal sealed class PublishTenantLevelTaxonomyCommandHandler(
     ITenantLevelTaxonomyStore taxonomies,
     ICustomizationGenerationStore generations,
+    IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
     IClock clock)
     : IRequestHandler<PublishTenantLevelTaxonomyCommand, Result<TenantLevelTaxonomyDto>>
@@ -66,9 +67,11 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
 
         var actor = tenantContext.UserId ?? UserId.SystemActor;
         var incumbent = await taxonomies.FindActiveAsync(successor.Key, cancellationToken);
+        var retired = false;
 
         if (incumbent is not null)
         {
+            retired = true;
             incumbent.Deprecate(clock, actor);
 
             try
@@ -94,11 +97,11 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>(field, reason);
+            return Undo(retired, CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>(field, reason));
         }
         catch (AggregateConcurrencyException)
         {
-            return CustomizationFailures.Stale<TenantLevelTaxonomyDto>();
+            return Undo(retired, CustomizationFailures.Stale<TenantLevelTaxonomyDto>());
         }
 
         await generations.BumpAsync(tenantContext.TenantId, cancellationToken);
@@ -110,5 +113,29 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
             successor.SchemaVersion,
             successor.Status.ToString(),
             successor.Items.Count));
+    }
+
+    /// <summary>
+    /// Escalates a failure that arrives <b>after</b> the incumbent was retired.
+    /// </summary>
+    /// <remarks>
+    /// The deprecation is already saved by the time the successor's write can
+    /// fail, and
+    /// <see href="../../../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
+    /// § Nesting</see> is explicit that an inner <c>Result.Fail</c> an outer
+    /// handler absorbs does not roll the unit back — "only an exception, or an
+    /// explicit <c>MarkRollbackOnly</c>, does". Without it, an outer handler that
+    /// absorbs this and commits leaves the tenant with the incumbent deprecated,
+    /// the successor still a draft, and NO live revision for the key — measured
+    /// against a real database through the real pipeline.
+    /// </remarks>
+    private Result<TenantLevelTaxonomyDto> Undo(bool retired, Result<TenantLevelTaxonomyDto> failure)
+    {
+        if (retired)
+        {
+            unitOfWork.MarkRollbackOnly();
+        }
+
+        return failure;
     }
 }

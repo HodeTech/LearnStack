@@ -108,3 +108,19 @@ public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db) : ITenan
     private IQueryable<TenantLevelTaxonomy> WithItems() =>
         db.TenantLevelTaxonomies.Include(taxonomy => taxonomy.Items);
 }
+
+/// <summary>
+/// The key lookup an <c>x-taxonomy</c> resolves through.
+/// </summary>
+/// <remarks>
+/// <c>AnyAsync</c> rather than a <c>Find</c>: the question is whether the tenant
+/// has ever declared the vocabulary, so loading a revision — and, for this
+/// aggregate, its bands — would fetch a graph to throw away. It reads no items and
+/// tracks nothing, which is also why it does not belong on the write store.
+/// </remarks>
+public sealed class TenantLevelTaxonomyCatalog(CustomizationDbContext db) : ITenantLevelTaxonomyCatalog
+{
+    public Task<bool> ContainsAsync(string key, CancellationToken cancellationToken = default) =>
+        db.TenantLevelTaxonomies.AnyAsync(
+            taxonomy => taxonomy.Key == key && taxonomy.DeletedAt == null, cancellationToken);
+}

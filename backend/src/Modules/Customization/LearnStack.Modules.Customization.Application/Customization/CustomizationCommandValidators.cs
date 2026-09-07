@@ -130,7 +130,13 @@ internal sealed class RegisterTenantLevelTaxonomyCommandValidator
             .Must(items => items.Count <= TenantLevelTaxonomy.MaxItems)
             .WithErrorCode("lockey_taxonomy_items_too_many");
 
-        RuleForEach(command => command.Items).SetValidator(new TaxonomyItemInputValidator());
+        // NotNull first: `SetValidator` skips a null element rather than refusing
+        // it, so `[null]` was valid input and the handler dereferenced it —
+        // measured, a NullReferenceException out of FirstDuplicate, which is a 500
+        // for a body a caller can fix.
+        RuleForEach(command => command.Items)
+            .NotNull().WithErrorCode("lockey_taxonomy_item_required")
+            .SetValidator(new TaxonomyItemInputValidator());
     }
 }
 

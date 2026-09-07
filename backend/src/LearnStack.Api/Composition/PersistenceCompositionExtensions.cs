@@ -162,6 +162,11 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.TryAddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
 
+        // And the catalogue an `x-taxonomy` resolves through, which is a read and
+        // therefore not the write store: a content-type handler holding that store
+        // would be a handler the cross-aggregate census counts as writing two roots.
+        services.TryAddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
+
         return services;
     }
 

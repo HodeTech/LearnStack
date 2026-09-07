@@ -562,13 +562,19 @@ otherwise).
 
 #### `Generic_Primitives_Only_In_Renderer`
 
-- **Asserts:** the frontend `PRIMITIVE_RENDERERS` map contains only the documented closed
-  set of generic primitives. A new primitive is a LearnStack release guarded by
-  CODEOWNERS, not a tenant action — tenant-specific blocks are `TenantPageBlock` rows
-  pointing at a composite renderer key.
+- **Asserts:** the frontend `PRIMITIVE_RENDERERS` map and the backend's
+  `PrimitiveRendererKey.All` each contain exactly the documented closed set of generic
+  primitives. A new primitive is a LearnStack release guarded by CODEOWNERS, not a tenant
+  action — tenant-specific blocks are `TenantPageBlock` rows pointing at a composite
+  renderer key. Equality in both copies, where the composite rule below is containment:
+  an `x-renderer` resolves against the backend's copy **on save**
+  ([§ 8.1](../architecture/32-tenant-customization-model.md)), so a key only the frontend
+  knows cannot be authored, and a key only the backend knows is saved and drawn by
+  nothing.
 - **Source:** [ADR-0018 § Architecture tests](../decisions/0018-tenant-driven-customization-model.md);
   [32-tenant-customization-model.md § 2](../architecture/32-tenant-customization-model.md).
-  Named in shipped code at `frontend/apps/web/src/lib/customization/primitives.ts`.
+  Named in shipped code at `frontend/apps/web/src/lib/customization/primitives.ts` and
+  `LearnStack.Modules.Customization.Domain/Identifiers.cs`.
 - **Type:** xUnit + a bounded scan of the named `as const` declaration. **Kind:** structural.
 - **Status:** **Implemented** — `CustomizationRegistryTests.cs`. The set is written out
   as literals in the test rather than read from either registry, so a thirteenth

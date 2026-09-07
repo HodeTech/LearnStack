@@ -1,5 +1,7 @@
 using System.Text.Json;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Validation;
 
 namespace LearnStack.Infrastructure.Validation;
 
@@ -101,6 +103,31 @@ internal static class JsonSchemaProfile
         ["const", "default", "enum", "examples"];
 
     /// <summary>
+    /// LearnStack's own keywords, which the pinned dialect admits and no registry
+    /// here can resolve.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Collected rather than checked.
+    /// <see href="../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043
+    /// § 4</see> gives resolution to the module that owns the registries and keeps
+    /// it out of the validator, which has no opinion about these keywords — but
+    /// <b>where</b> one sits is this walk's knowledge and nothing else's, so the
+    /// occurrences leave from here and the verdict is formed elsewhere. An
+    /// <c>x-renderer</c> under <c>properties</c> is a field a tenant named that,
+    /// and one inside <c>const</c> is the tenant's own data; the alternation this
+    /// walk already maintains is what tells the three apart.
+    /// </para>
+    /// <para>
+    /// The value is not descended into. It names a registry entry, so it is a
+    /// string; an object there would otherwise have its keys read as keywords —
+    /// the same defect <see cref="InstanceValuedKeywords"/> records — and would
+    /// spend a level of the depth budget § 8.4 measures on the schema tree.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] ExtensionKeywords = ["x-renderer", "x-taxonomy", "x-language"];
+
+    /// <summary>
     /// Keywords that run a tenant-authored regular expression. Refused until the
     /// evaluator lets a caller bound one — ADR-0043 § 5 names the trigger.
     /// </summary>
@@ -138,7 +165,14 @@ internal static class JsonSchemaProfile
     private static readonly string[] NameMapKeywords =
         ["properties", "$defs", "patternProperties", "dependentSchemas", "dependentRequired"];
 
-    internal static void Check(JsonElement root, ProfileFailures failures)
+    /// <returns>
+    /// Every LearnStack extension keyword the document declares at a schema
+    /// position, for the caller that owns the registries — see
+    /// <see cref="ExtensionKeywords"/>. Empty when the document is refused before
+    /// the walk runs.
+    /// </returns>
+    internal static IReadOnlyList<SchemaExtensionReference> Check(
+        JsonElement root, ProfileFailures failures)
     {
         ArgumentNullException.ThrowIfNull(failures);
 
@@ -149,15 +183,52 @@ internal static class JsonSchemaProfile
             // entry of the type, and § 8.1's read-time structural pass has no field
             // list to walk without `properties`.
             failures.Add("", "lockey_schema_root_must_be_an_object");
-            return;
+            return [];
         }
 
         CheckDialect(root, failures);
         CheckRootProperties(root, failures);
+        CheckStorable(root, failures);
 
         var references = new List<(string Pointer, string Target)>();
-        Walk(root, "", 1, failures, references, namesAreAuthored: false);
-        CheckReferences(root, references, failures);
+        var schemaPositions = new HashSet<string>(StringComparer.Ordinal);
+        var extensions = new List<SchemaExtensionReference>();
+        Walk(root, "", 1, failures, references, schemaPositions, extensions, namesAreAuthored: false);
+        CheckReferences(root, references, schemaPositions, failures);
+
+        return extensions;
+    }
+
+    /// <summary>
+    /// Refuses a document the <c>jsonb</c> column would refuse.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The gates decide whether a document is a schema; this decides whether the
+    /// column can hold it, and the two are not the same question.
+    /// <c>JsonDocument.Parse</c> accepts <c>U+0000</c>, an unpaired surrogate and
+    /// <c>1e1000000</c>; PostgreSQL answers <c>22P05</c>, <c>22P02</c> and
+    /// <c>22003</c> — measured on 18.6, and recorded on
+    /// <see cref="JsonStorageFault"/>. Without this clause the tenant's authoring
+    /// mistake arrived as a 500 from the insert, which is the one answer § 8.1's
+    /// "400 naming the JSON pointer" rules out.
+    /// </para>
+    /// <para>
+    /// It walks the whole document, including the literals
+    /// <see cref="InstanceValuedKeywords"/> stops the schema walk at: a
+    /// <c>default</c> is stored in the same column as the schema around it.
+    /// </para>
+    /// </remarks>
+    private static void CheckStorable(JsonElement root, ProfileFailures failures)
+    {
+        foreach (var (location, fault) in JsonValue.Unstorable(root))
+        {
+            failures.Add(
+                location,
+                fault == JsonStorageFault.Number
+                    ? "lockey_schema_number_not_storable"
+                    : "lockey_schema_text_not_storable");
+        }
     }
 
     private static void CheckDialect(JsonElement root, ProfileFailures failures)
@@ -224,12 +295,25 @@ internal static class JsonSchemaProfile
         int depth,
         ProfileFailures failures,
         List<(string Pointer, string Target)> references,
+        HashSet<string> schemaPositions,
+        List<SchemaExtensionReference> extensions,
         bool namesAreAuthored)
     {
         if (depth > MaxDepth)
         {
             failures.Add(pointer, "lockey_schema_too_deep");
             return;
+        }
+
+        // A schema position is one this walk reaches AS a schema: the root, a
+        // name-map entry's value, an applicator's element. Recorded here because
+        // this is the only traversal that knows — a pointer alone cannot say
+        // whether `/properties/a/default/x` is a subschema or a literal the tenant
+        // is constraining data to, and `$ref` may only name the former.
+        if (!namesAreAuthored
+            && element.ValueKind is JsonValueKind.Object or JsonValueKind.True or JsonValueKind.False)
+        {
+            schemaPositions.Add(pointer);
         }
 
         switch (element.ValueKind)
@@ -253,6 +337,13 @@ internal static class JsonSchemaProfile
                         {
                             continue;
                         }
+
+                        if (Array.IndexOf(ExtensionKeywords, property.Name) >= 0)
+                        {
+                            extensions.Add(new SchemaExtensionReference(
+                                child, property.Name, ExtensionValue(property.Value)));
+                            continue;
+                        }
                     }
 
                     Walk(
@@ -261,6 +352,8 @@ internal static class JsonSchemaProfile
                         depth + 1,
                         failures,
                         references,
+                        schemaPositions,
+                        extensions,
                         namesAreAuthored: !namesAreAuthored
                             && Array.IndexOf(NameMapKeywords, property.Name) >= 0);
                 }
@@ -278,6 +371,8 @@ internal static class JsonSchemaProfile
                         depth + 1,
                         failures,
                         references,
+                        schemaPositions,
+                        extensions,
                         namesAreAuthored: false);
                     index++;
                 }
@@ -288,6 +383,21 @@ internal static class JsonSchemaProfile
                 break;
         }
     }
+
+    /// <summary>
+    /// What an extension keyword names, as text.
+    /// </summary>
+    /// <remarks>
+    /// A non-string value is carried as its raw JSON rather than rejected here.
+    /// The registries are the authority on what resolves, and <c>3</c> resolving
+    /// to nothing is the same answer, from the same place, as a misspelled key —
+    /// while a nullable value would add a second failure mode for every caller to
+    /// handle.
+    /// </remarks>
+    private static string ExtensionValue(JsonElement value) =>
+        value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : value.GetRawText();
 
     private static void CheckKeyword(
         JsonProperty property,
@@ -391,6 +501,7 @@ internal static class JsonSchemaProfile
     private static void CheckReferences(
         JsonElement root,
         List<(string Pointer, string Target)> references,
+        HashSet<string> schemaPositions,
         ProfileFailures failures)
     {
         if (references.Count == 0)
@@ -408,7 +519,8 @@ internal static class JsonSchemaProfile
         // unreachable but exponential subtree costing anything to discover.
         foreach (var (pointer, target) in references)
         {
-            var cost = Expand(root, target, costs, onStack, failures, pointer, ref reported);
+            var cost = Expand(
+                root, target, costs, onStack, schemaPositions, failures, pointer, ref reported);
 
             if (reported || cost > MaxExpansions)
             {
@@ -427,9 +539,10 @@ internal static class JsonSchemaProfile
         // this re-walks nothing the loop above already priced.
         var document = 1L;
 
-        foreach (var next in ReferencesWithin(root))
+        foreach (var next in ReferencesWithin(root, namesAreAuthored: false))
         {
-            document += Expand(root, next, costs, onStack, failures, "", ref reported);
+            document += Expand(
+                root, next, costs, onStack, schemaPositions, failures, "", ref reported);
 
             if (reported || document > MaxExpansions)
             {
@@ -457,6 +570,7 @@ internal static class JsonSchemaProfile
         string target,
         Dictionary<string, long> costs,
         HashSet<string> onStack,
+        HashSet<string> schemaPositions,
         ProfileFailures failures,
         string pointer,
         ref bool reported)
@@ -482,6 +596,18 @@ internal static class JsonSchemaProfile
                 return 0;
             }
 
+            // A pointer INTO a literal lands on an object often enough to pass the
+            // shape check below, and applying it makes the tenant's own data a
+            // schema the profile never saw. Measured: `#/properties/a/default/x`
+            // naming an object that carries `pattern` was admitted, and the
+            // regex the profile bans then ran.
+            if (!schemaPositions.Contains(Fragment(target)))
+            {
+                failures.Add(pointer, "lockey_schema_reference_not_a_schema");
+                reported = true;
+                return 0;
+            }
+
             if (node.ValueKind is not (JsonValueKind.Object or JsonValueKind.True or JsonValueKind.False))
             {
                 // A fragment may name any JSON value; only a schema may be applied.
@@ -495,9 +621,10 @@ internal static class JsonSchemaProfile
 
             var cost = 1L;
 
-            foreach (var next in ReferencesWithin(node))
+            foreach (var next in ReferencesWithin(node, namesAreAuthored: false))
             {
-                cost += Expand(root, next, costs, onStack, failures, pointer, ref reported);
+                cost += Expand(
+                    root, next, costs, onStack, schemaPositions, failures, pointer, ref reported);
 
                 if (reported || cost > MaxExpansions)
                 {
@@ -515,29 +642,54 @@ internal static class JsonSchemaProfile
     }
 
     /// <summary>
-    /// Every <c>$ref</c> string lexically inside <paramref name="node"/>, not
-    /// descending into a <c>$defs</c> container.
+    /// Every <c>$ref</c> a node's own subtree reaches, read with the same context
+    /// <see cref="Walk"/> reads keys with.
     /// </summary>
-    private static IEnumerable<string> ReferencesWithin(JsonElement node)
+    /// <remarks>
+    /// <para>
+    /// <b>Context-free, this traversal disagreed with the walk, and the disagreement
+    /// was exploitable.</b> It skipped every property named <c>$defs</c> and
+    /// descended into every other one, so a field a tenant happened to call
+    /// <c>$defs</c> dropped out of the graph entirely — measured: renaming a field
+    /// from <c>inner</c> to <c>$defs</c> turned a refused <c>$ref</c> cycle into an
+    /// admitted one, and ADR-0043 § Context measures an admitted cycle ending the
+    /// process at evaluation. In the other direction it read a <c>$ref</c>-shaped
+    /// key inside <c>const</c> as a real edge, so a literal became an unresolvable
+    /// reference as soon as the document carried a genuine one elsewhere.
+    /// </para>
+    /// <para>
+    /// So it alternates exactly as the walk does: inside a name map the keys are
+    /// the author's and mean nothing, and outside one an instance-valued keyword's
+    /// value is data the graph does not enter.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> ReferencesWithin(JsonElement node, bool namesAreAuthored)
     {
         switch (node.ValueKind)
         {
             case JsonValueKind.Object:
                 foreach (var property in node.EnumerateObject())
                 {
-                    if (string.Equals(property.Name, "$defs", StringComparison.Ordinal))
+                    if (!namesAreAuthored)
                     {
-                        continue;
+                        if (string.Equals(property.Name, "$defs", StringComparison.Ordinal)
+                            || Array.IndexOf(InstanceValuedKeywords, property.Name) >= 0)
+                        {
+                            continue;
+                        }
+
+                        if (string.Equals(property.Name, "$ref", StringComparison.Ordinal)
+                            && property.Value.ValueKind == JsonValueKind.String)
+                        {
+                            yield return property.Value.GetString()!;
+                            continue;
+                        }
                     }
 
-                    if (string.Equals(property.Name, "$ref", StringComparison.Ordinal)
-                        && property.Value.ValueKind == JsonValueKind.String)
-                    {
-                        yield return property.Value.GetString()!;
-                        continue;
-                    }
+                    var inner = !namesAreAuthored
+                        && Array.IndexOf(NameMapKeywords, property.Name) >= 0;
 
-                    foreach (var nested in ReferencesWithin(property.Value))
+                    foreach (var nested in ReferencesWithin(property.Value, inner))
                     {
                         yield return nested;
                     }
@@ -548,7 +700,7 @@ internal static class JsonSchemaProfile
             case JsonValueKind.Array:
                 foreach (var item in node.EnumerateArray())
                 {
-                    foreach (var nested in ReferencesWithin(item))
+                    foreach (var nested in ReferencesWithin(item, namesAreAuthored: false))
                     {
                         yield return nested;
                     }
@@ -559,6 +711,34 @@ internal static class JsonSchemaProfile
             default:
                 break;
         }
+    }
+
+    /// <summary>
+    /// The JSON Pointer a fragment-only reference names, or a sentinel that matches
+    /// no schema position.
+    /// </summary>
+    /// <remarks>
+    /// RFC 6901 § 6: the fragment is percent-decoded <b>as a whole</b> and then
+    /// split, which is why the decode cannot wait until after the split — measured,
+    /// <c>#%2F$defs%2Ftext</c> was refused as unresolvable while the evaluator
+    /// resolves it. The <c>~1</c> / <c>~0</c> unescaping stays per token, after the
+    /// split, because that is where the pointer grammar puts it.
+    /// </remarks>
+    private static string Fragment(string reference)
+    {
+        if (reference.Length == 0 || reference[0] != '#')
+        {
+            return "\u0000";
+        }
+
+        var fragment = Uri.UnescapeDataString(reference[1..]);
+
+        if (fragment.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return fragment[0] == '/' ? fragment : "\u0000";
     }
 
     /// <summary>
@@ -573,17 +753,15 @@ internal static class JsonSchemaProfile
     {
         node = root;
 
-        if (reference.Length == 0 || reference[0] != '#')
-        {
-            return false;
-        }
-
-        var fragment = reference[1..];
+        // One decode of the whole fragment, through the same helper the schema
+        // positions are keyed on, so resolution and admission cannot disagree
+        // about which pointer a reference names.
+        var fragment = Fragment(reference);
 
         if (fragment.Length == 0)
         {
             // `#` is the document itself.
-            return true;
+            return reference.Length > 0 && reference[0] == '#';
         }
 
         if (fragment[0] != '/')
@@ -595,7 +773,7 @@ internal static class JsonSchemaProfile
 
         foreach (var raw in fragment[1..].Split('/'))
         {
-            var token = Uri.UnescapeDataString(raw)
+            var token = raw
                 .Replace("~1", "/", StringComparison.Ordinal)
                 .Replace("~0", "~", StringComparison.Ordinal);
 
@@ -625,9 +803,13 @@ internal static class JsonSchemaProfile
     }
 
     /// <summary>RFC 6901: <c>~</c> and <c>/</c> are escaped inside a token.</summary>
+    /// <remarks>
+    /// One escaping, shared with <see cref="JsonValue.Unstorable(JsonElement)"/>:
+    /// both report into the same <c>Details</c> map, and a client reads one
+    /// grammar.
+    /// </remarks>
     private static string Pointer(string parent, string token) =>
-        parent + "/" + token.Replace("~", "~0", StringComparison.Ordinal)
-            .Replace("/", "~1", StringComparison.Ordinal);
+        JsonValue.Locate(parent, token);
 }
 
 /// <summary>
