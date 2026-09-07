@@ -330,6 +330,37 @@ The architecture deep dive, license-key payload schema, RSA key management proce
 operational runbook live in [26-hybrid-license-model.md](../architecture/26-hybrid-license-model.md)
 and [25-deployment-models.md](../architecture/25-deployment-models.md).
 
+## Amendments
+
+### 2026-09-07 — `NullEntitlementProvider` is the registered default in every mode
+
+**Status: Accepted.** Raised by [ADR-0045](0045-entitlement-and-feature-flag-socket.md),
+which ships the socket in Phase 02a Packet 9.
+
+§ Decision outcome describes `NullEntitlementProvider` as the "default in `Development`",
+and the composition-root switch below it registers `HubEntitlementProvider` for `SaaS`,
+`Dedicated` and `SelfHostedOnline` and `SignedLicenseKeyEntitlementProvider` for
+`SelfHostedAirGapped`. Read now as: **the mode switch describes the end state, and
+`NullEntitlementProvider` is the registered implementation in every mode until the
+implementation for that mode exists.**
+
+[ADR-0035](0035-demand-gated-infrastructure.md) (2026-08-08) is the later decision and
+names `NullEntitlementProvider` as this gate's *working default implementation*, with
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md) as the owning phase and "a tenant must
+be billed or plan-gated" as the trigger. That is the whole shape of demand-gating: the
+port and a default now, the adapter on a named condition. A mode-conditional registration
+in Packet 9 would instead make four of the five modes fail at startup for a capability
+none of them yet uses — there is no billing to enforce and no Hub to ask — which is not
+fail-fast, it is a hole where a default belongs.
+
+`IEntitlementProvider_Implementations_Are_Three` is unaffected. It bounds the ceiling and
+does not require the count: one implementation exists today, the second lands in Phase 02c
+and the third in [Phase 11](../roadmap/phase-11-production-hardening.md).
+
+**The Decision is unchanged** — one binary, three provider implementations, licence
+resolution through `IEntitlementProvider`, selection at the composition root and never
+inside a module.
+
 ## References
 
 - ADR-0014 — Adopt Dapr (entitlement-updated event via Dapr pub/sub).

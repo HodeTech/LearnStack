@@ -515,3 +515,47 @@ already exporting the assembly to every consumer. The second leg reads the
   — establishes the `backend/analyzers/` Roslyn analyzer location; future ID-shape
   analyzers live alongside.
 - [Vogen on GitHub](https://github.com/SteveDunn/Vogen) — upstream project (MIT).
+
+### Amendment 9 — `AuditEntryId` is the fourth cross-cutting identifier (2026-09-07)
+
+Amendment 2 named three identifiers that live in `LearnStack.SharedKernel.Identifiers`
+rather than in the module that owns their aggregate — `TenantId`, `OrganizationId`,
+`UserId` — because each appears in `ITenantContext`, on entity markers, in cache keys, in
+job payloads and in event envelopes, so a module-owned type would make every one of those
+a reference to that module. **`AuditEntryId` joins them**, decided by
+[ADR-0044 § 11](0044-audit-write-path.md).
+
+The structural argument is Amendment 2's own, and here it is not a matter of degree but
+of compilation. `AuditEntry` is the Audit module's aggregate, in
+`LearnStack.Modules.Audit.Domain` — but the id is named by three SharedKernel types that
+the write path is built from: `AuditIntent` and `IAuditStateCapture`, which ADR-0033 makes
+SharedKernel abstractions, and `AuditEntryDraft`, which its § Implementation Notes calls
+"a `SharedKernel` record". `LearnStack.Modules.Audit.Domain` already references
+SharedKernel, so a module-local `AuditEntryId` would require SharedKernel to reference it
+back: a project cycle, not a style preference. The same id is also named by
+`PostgresAuditStore` in `LearnStack.Infrastructure.Audit` and by `AuditLogBehavior` in
+`LearnStack.Application`, neither of which may reference a module assembly —
+`CoreInfrastructure_DoesNotDependOn_AnyModule` is the guard.
+
+The count in Amendment 2's prose is therefore **four**, not three. Nothing else about the
+placement rule changes: an id whose aggregate is module-owned and whose type is named
+only inside that module stays module-local, and Amendment 8's rule for how such an id
+crosses a contract is untouched.
+
+It is a UUIDv7-backed `[ValueObject<Guid>]` carrying `LearnStackVogenDefaults.IdMask`,
+like the other three, and it exposes no `New()` static — the call site is
+`AuditEntryId.From(guidFactory.NewUuidV7())`, per
+[Backend Coding Standards](../standards/02-backend-coding.md), so a test can fix it.
+
+**`audit_log` is minted app-side, and it is the one append-only table that is.**
+§ Decision routes UUIDv7 two ways: app-side through `IGuidFactory` for aggregates,
+DB-side for the high-volume append-only tables — and `audit_log` is squarely the second
+shape. It takes the first anyway, because its id has to exist **before** the row does.
+`AuditLogBehavior` mints it at pipeline step 3 to declare the intent, and ADR-0033's
+`Indeterminate` case requires the standalone re-write to carry *the same*
+`AuditEntryId` as the in-transaction attempt. A `DEFAULT` cannot do that: the two
+inserts are two statements on two connections, and a server-generated default would give
+them two identities, which is precisely the pair a reader is meant to recognise as one
+commit-in-doubt event. `DEFAULT uuidv7()` stays on the column as a backstop for a row
+inserted by something other than `PostgresAuditStore`; every row the store writes carries
+an id the store supplied.

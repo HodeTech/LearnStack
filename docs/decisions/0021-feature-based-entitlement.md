@@ -443,3 +443,43 @@ Architecture test renamed accordingly:
 `FeatureKey_AllReferences_AreInRegistry` (no `s` after `Key`; the Roslyn analyzer
 now matches on `FeatureKey` literal references instead of `FeatureKeys.*` string
 constants).
+
+### 2026-09-07 — The limit sentinel is normative, and the read interface is singular
+
+**Status: Accepted.** Raised by [ADR-0045](0045-entitlement-and-feature-flag-socket.md),
+which declares the socket Phase 02a Packet 9 ships.
+
+**1. `-1` is unlimited and `0` is denied.** § Decision outcome already says so beside the
+plan payload — "`-1` denotes *unlimited*; `0` denotes *feature off / not available*" — and
+that reading is now normative for the persisted `jsonb`, the Hub plan schema, and every
+call site. [Feature Flags § Rules](../architecture/21-feature-flags.md)'s "default `0`
+means *no limit imposed by this layer*" is the inverse and is corrected there. It was not
+a harmless disagreement: read that way, § Feature-flag fallback semantics' degraded mode
+below — "past `grace_until` … limit service returns `0` for all limits → read-only mode" —
+grants **unlimited** usage at exactly the moment the platform means to restrict it.
+
+**2. `NullEntitlementProvider` returns `-1`, not `null`.** The same section says it
+returns "all limits `null` (no limit)". `null` is not representable: Amendment 1 above
+fixes the read as `IFeatureFlags.GetLimitAsync` returning `long`. Read as `-1`, which is
+what the sentinel table now means by "no limit".
+
+**3. `IFeatureFlagService` and `IUsageLimitService` are withdrawn, not renamed.**
+§ Decision outcome § Runtime service contracts declares both, `string`-keyed, with
+`Task<long?> GetLimitAsync`. Amendment 1 above replaced them with a single `IFeatureFlags`
+taking typed `FeatureKey` / `LimitKey` — but the superseded pair still stands in the
+Decision section, which is what an implementer meets first. There is one read interface,
+it is `IFeatureFlags`, and it is the only one any module calls. `CheckLimitAsync`'s usage
+probe goes with them: the enforcement path lands with `IUsageReporter` in
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md), per ADR-0045 § 6.
+
+**The Decision is unchanged** — feature-based rather than module-based entitlement, plan-tier
+projection, typed keys, eager invalidation. What changes is the contract's arithmetic and
+its arity, both of which this ADR left stated two ways.
+
+### Carriers changed
+
+[ADR-0045](0045-entitlement-and-feature-flag-socket.md),
+[Feature Flags](../architecture/21-feature-flags.md),
+[Hybrid License Model](../architecture/26-hybrid-license-model.md),
+[Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) and
+[the glossary](../glossary.md).

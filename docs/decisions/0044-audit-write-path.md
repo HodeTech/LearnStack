@@ -462,8 +462,8 @@ neither can drift silently.
   [Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md):
   - [ADR-0033](0033-audit-durability-model.md) **Amendment 2** — intent multiplicity,
     the nesting rule, the `outcome` domain, the row's tenant source, the fourth write
-    method, the standalone writers' second GUC (§ 9), and the erratum on "a
-    read-sensitive query never reaches step 6" (false since Packet 6:
+    method, the standalone writers' second GUC (§ 9), and the correction of "a
+    read-sensitive query never reaches step 6" (stale since Packet 6:
     `TransactionBehavior` has no request-kind gate and opens the transaction for every
     request that reaches step 6).
   - [ADR-0023](0023-strongly-typed-id-source-generator.md) **Amendment 9** —
