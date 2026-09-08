@@ -259,6 +259,92 @@ public sealed class AuditSchemaTests
     }
 
     [Fact]
+    public async Task AnOrganizationScopedSessionReadsItsOwnRowsAndTheTenantWideOnes()
+    {
+        // The organization arm of the read predicate, in the only direction a count can
+        // constrain it. The suite already fails if the arm is WIDENED — Tenant A would see
+        // Tenant B's rows — but every mutation that silently NARROWS the read stayed green
+        // until this case: delete `OR organization_id = app.organization_id` and an
+        // organization-scoped audit screen shows the tenant-wide rows only, reporting
+        // success while omitting exactly the rows the caller's own organization produced.
+        //
+        // The seed gives Tenant A the pair this needs: one tenant-wide row and one under
+        // OrgA1 (SchemaFixture), the same shape tenant_settings carries.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        (await CountUnderAsync(connection, SchemaFixture.OrgA1, scope: null)).Should().Be(2L,
+            "an OrgA1 session sees the tenant-wide row and its own");
+
+        (await CountUnderAsync(connection, SchemaFixture.OrgA2, scope: null)).Should().Be(1L,
+            "OrgA2 has no rows of its own, and OrgA1's are not its to read");
+    }
+
+    [Fact]
+    public async Task TheTenantScopeHatchWidensTheReadAcrossOrganizations()
+    {
+        // `app.scope = 'tenant'` is the cross-organization READ hatch, and this is the
+        // case that kills its arm: an OrgA2 session sees one row without it and two with
+        // it. Deleting the arm leaves the first number unchanged and the second wrong,
+        // which no other assertion in the suite observes.
+        //
+        // Reads only. The two AS RESTRICTIVE guards are what stop the hatch widening
+        // writes, and TheOwnerIsStoppedOnlyByTheTrigger plus the runtime role's absent
+        // privilege already make every write path on this table refuse.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        (await CountUnderAsync(connection, SchemaFixture.OrgA2, scope: null)).Should().Be(1L);
+        (await CountUnderAsync(connection, SchemaFixture.OrgA2, scope: "tenant")).Should().Be(2L,
+            "the tenant-scope hatch is what a cross-organization audit read travels");
+    }
+
+    [Fact]
+    public async Task TheCompositeKeyAdmitsTheCommitInDoubtPairAndNothingElse()
+    {
+        // The composite primary key (id, timestamp) is load-bearing twice over, and until
+        // this case nothing observed it: reducing the key to `id` alone left all 215
+        // integration and 91 architecture cases green.
+        //
+        // What it buys, measured here rather than restated: the ADR-0033 Indeterminate
+        // pair is TWO rows carrying ONE AuditEntryId, because the in-transaction row and
+        // its standalone re-write have to be recognisable as the same operation across two
+        // connections. A single-column key rejects the second with 23505 — which
+        // PostgresAuditStore reads as positive evidence the first row is durable, so under
+        // a reduced key every commit-in-doubt would report the wrong thing.
+        //
+        // The second half is what keeps the key from being merely wider than it needs to
+        // be: the same id at the same instant is still a duplicate.
+        var id = Guid.CreateVersion7();
+        var first = DateTimeOffset.UtcNow;
+
+        await using var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+
+        try
+        {
+            await InsertAtAsync(connection, id, first);
+            await InsertAtAsync(connection, id, first.AddMilliseconds(1));
+
+            await using var count = new NpgsqlCommand(
+                "SELECT count(*) FROM audit_log WHERE id = @id", (NpgsqlConnection)connection);
+            count.Parameters.AddWithValue("id", id);
+
+            (await count.ExecuteScalarAsync()).Should().Be(2L,
+                "one AuditEntryId, two timestamps — the Indeterminate pair");
+
+            var act = async () => await InsertAtAsync(connection, id, first);
+
+            (await act.Should().ThrowAsync<PostgresException>())
+                .Which.SqlState.Should().Be(
+                    PostgresErrorCodes.UniqueViolation,
+                    "the key is (id, timestamp), so the same instant is still a duplicate");
+        }
+        finally
+        {
+            await DeleteProbeRowAsync(id);
+        }
+    }
+
+    [Fact]
     public async Task ThePlatformSentinelRowIsInvisibleToEveryTenant()
     {
         // What the sentinel is for. It names no tenant — `tenants` carries
@@ -456,6 +542,56 @@ public sealed class AuditSchemaTests
         keys.Should().BeEmpty(
             "the record of what happened to a tenant has to outlive the tenant, and the "
             + "platform-scope row's tenant has no `tenants` row by construction");
+    }
+
+    /// <summary>
+    /// Counts Tenant A's <c>audit_log</c> rows under one organization, optionally with the
+    /// tenant-scope hatch announced.
+    /// </summary>
+    /// <remarks>
+    /// As <c>learnstack_app</c>, which is the whole point: the announcement is what the
+    /// policy reads, and a count taken as the owner or under <c>BYPASSRLS</c> would be the
+    /// same number whether or not the policy existed.
+    /// </remarks>
+    private static async Task<long> CountUnderAsync(
+        System.Data.Common.DbConnection connection, Guid organizationId, string? scope)
+    {
+        await using var transaction = await connection.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.SetSettingAsync(
+            connection, transaction, "app.organization_id", organizationId.ToString());
+
+        if (scope is not null)
+        {
+            await SchemaQueries.SetSettingAsync(connection, transaction, "app.scope", scope);
+        }
+
+        await using var read = new NpgsqlCommand(
+            "SELECT count(*) FROM audit_log",
+            (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+
+        var count = (long)(await read.ExecuteScalarAsync())!;
+        await transaction.RollbackAsync();
+
+        return count;
+    }
+
+    private static async Task InsertAtAsync(
+        System.Data.Common.DbConnection connection, Guid id, DateTimeOffset timestamp)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO audit_log
+                (id, tenant_id, module, operation, operation_type, operation_class,
+                 outcome, timestamp)
+            VALUES (@id, @tenant, 'audit', 'audit.event.read', 'ReadSensitive', 'Should',
+                    'indeterminate', @timestamp)
+            """, (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("tenant", ProbeTenant);
+        command.Parameters.AddWithValue("timestamp", timestamp);
+
+        await command.ExecuteNonQueryAsync();
     }
 
     /// <summary>Adds one row under this class's own tenant, as the platform role.</summary>

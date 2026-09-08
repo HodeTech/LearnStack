@@ -34,11 +34,9 @@ know before touching it.
   model and for the Phase 03 read API.
 - **`audit_config`** — a tenant's per-`(module, operation)` override, tenant-owned and
   tenant-wide. It can narrow a SHOULD or a MAY and can never remove a MUST.
-- **The store and the capture** — `PostgresAuditStore` behind
-  `IAuditStore`, `AuditChangeTrackerInterceptor` behind `IAuditStateCapture`, and the
-  in-process catalogue behind `IAuditCatalog`. The **ports** live in
-  `LearnStack.SharedKernel.Audit` because every module's pipeline depends on them and
-  none may depend on this assembly.
+- **`AuditDbContext`** — the model those two tables are mapped by, and from
+  [Phase 03](../../roadmap/phase-03-identity-admin.md) the read side of the audit admin
+  API. Not a write path: nothing saves through it.
 
 **It does not own:**
 
@@ -52,6 +50,18 @@ know before touching it.
   `TransactionBehavior` flushes it immediately before `COMMIT`. A module that called
   `IAuditStore` from a handler would be writing outside the guarantee
   [ADR-0033](../../decisions/0033-audit-durability-model.md) makes.
+- **The store, the capture and the catalogue.** `PostgresAuditStore`,
+  `AuditStateCapture` and `AuditChangeTrackerInterceptor` live in
+  `LearnStack.Infrastructure.Audit`, not here
+  ([ADR-0044 § 11](../../decisions/0044-audit-write-path.md)), and the merged
+  `IAuditCatalog` is built at the composition root from every module's
+  `IAuditCatalogSource`. The reason is a reference edge rather than taste: the
+  interceptor is attached to **every** module's `DbContext` by `AddModuleDbContext`, so
+  a home for it inside this module would make every module reference the Audit module.
+  `LearnStack.Infrastructure.Audit`'s csproj references `LearnStack.SharedKernel` and
+  nothing else, which is what keeps that impossible. The **ports** those types implement
+  live in `LearnStack.SharedKernel.Audit`, beside the value types every module's
+  catalogue source names.
 - **The log's own retention or redaction.** Both are Phase 11, both run as
   `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, and
   both are already bounded by what this packet's migration grants: a `DELETE`, and an
@@ -205,7 +215,7 @@ sequenceDiagram
     A->>A: catalogue + tenant AuditConfig override, MUST floor re-applied
     A->>A: park AuditIntent (id, tenant, organization, declared at)
     A->>T: step 6 — open transaction
-    T->>D: BEGIN; SET LOCAL app.tenant_id, app.organization_id
+    T->>D: BEGIN, then SET LOCAL app.tenant_id + app.organization_id
     T->>H: handle
     H->>D: business write
     H-->>T: Result
@@ -238,10 +248,14 @@ graph TD
         TX["TransactionBehavior (step 6)"]
     end
 
-    subgraph AuditModule["Modules.Audit"]
+    subgraph InfraAudit["LearnStack.Infrastructure.Audit"]
         STORE["PostgresAuditStore"]
         CAP["AuditChangeTrackerInterceptor"]
-        CAT["AuditCatalog"]
+        CAT["AuditCatalog (merged at the composition root)"]
+    end
+
+    subgraph AuditModule["Modules.Audit"]
+        AGG["AuditEntry · AuditConfig"]
         CTX["AuditDbContext (model + Phase 03 reads)"]
     end
 
@@ -260,6 +274,7 @@ graph TD
     CAT --> PORTS
     STORE --> DB
     CTX --> DB
+    CTX --> AGG
     SCOPE --> PORTS
 ```
 
@@ -267,11 +282,14 @@ Text fallback: every arrow points at the ports in `LearnStack.SharedKernel.Audit
 no arrow points at this module's assembly. That is the whole shape.
 `AuditLogBehavior` and `TransactionBehavior` live in `LearnStack.Application` and reach
 the store through `IAuditStore`; each module's `IAuditCatalogSource` is discovered from
-DI; `PostgresAuditStore` and `AuditChangeTrackerInterceptor` are this module's
-implementations. Mapping `AuditEntry` into every module's context would need SharedKernel
-to reference this assembly, which already references SharedKernel — the circular
-reference ADR-0033 rejects, and the reason the ports and the aggregate are in different
-places.
+DI; `PostgresAuditStore`, `AuditChangeTrackerInterceptor` and the merged catalogue live in
+`LearnStack.Infrastructure.Audit`, whose csproj references `LearnStack.SharedKernel` and
+nothing else ([ADR-0044 § 11](../../decisions/0044-audit-write-path.md)). This **module**
+holds the two aggregates and the context that maps them, and that split is not
+bookkeeping: the interceptor is attached to every module's `DbContext`, so the assembly
+holding it must be one every module may reference. Mapping `AuditEntry` into every
+module's context would need SharedKernel to reference the Audit module, which already
+references SharedKernel — the circular reference ADR-0033 rejects.
 
 **The fourth external caller is not a behavior.** `EnterPlatformAdminScope(reason)`
 writes its own row through `IAuditStore.WritePlatformScopeAsync` on the scope's own
@@ -301,7 +319,7 @@ This module **consumes** none either. It has no inbox and no projection.
 
 ## Permission matrix
 
-[permissions.md](permissions.md) — four keys, all forward declarations. The registry
+[permissions.md](permissions.md) — seven keys, six Tenant-scope and one Platform-scope, all forward declarations. The registry
 that makes them enforceable lands with Identity in
 [Phase 03](../../roadmap/phase-03-identity-admin.md).
 
@@ -309,7 +327,9 @@ that makes them enforceable lands with Identity in
 
 [audit.md](audit.md). The module that owns the log is audited like any other: reading
 someone's audit trail is itself a `ReadSensitive` operation, and redacting or purging a
-row is a `PlatformAdmin` one.
+row is a `security-event` — the class
+[Audit Coverage § Retention](../../standards/18-audit-coverage.md) puts every
+platform-bypass invocation on, and the one a compliance query filters for.
 
 ## Performance budget
 

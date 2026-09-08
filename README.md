@@ -91,8 +91,8 @@ additive infrastructure later behind its ports
 ([ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)), and moved the
 genericity proof earlier — two seed tenants in Packet 7, rendered in a browser in
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md), the next user-visible
-milestone. Tenancy and Customization hold domain code; the other five module
-assemblies are still empty.
+milestone. Tenancy, Customization and Audit hold domain code; the other four
+module assemblies are still empty.
 
 ```bash
 make install   # one-time: deps + git hooks

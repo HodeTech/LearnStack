@@ -865,12 +865,12 @@ belonging to one behavior.
 ### `AuditEntry` aggregate
 
 ```csharp
-namespace LearnStack.Modules.Audit.Domain.Entities;
+namespace LearnStack.Modules.Audit.Domain;
 
 [TenantOwned]
 [OrganizationScoped]
 public sealed class AuditEntry            // NOT AuditableEntity — append-only
-    : Entity<AuditEntryId>, IOrganizationScoped
+    : Entity<AuditEntryId>, IOrganizationScoped, IAggregateRoot<AuditEntryId>
 {
     public TenantId TenantId { get; private set; }
     public OrganizationId? OrganizationId { get; private set; }
@@ -878,7 +878,10 @@ public sealed class AuditEntry            // NOT AuditableEntity — append-only
     public UserId? ActorUserId { get; private set; }
     public string? ActorEmail { get; private set; }
 
-    public string Module { get; private set; } = default!;
+    // ModuleName, not Module: CA1716 flags `Module` as colliding with a Visual Basic
+    // keyword and the solution builds with TreatWarningsAsErrors. The COLUMN stays
+    // `module` through an explicit HasColumnName — see below.
+    public string ModuleName { get; private set; } = default!;
     public string Operation { get; private set; } = default!;   // {module}.{resource}.{verb}
     public OperationType OperationType { get; private set; }
     public OperationClass OperationClass { get; private set; }
@@ -901,12 +904,14 @@ public sealed class AuditEntry            // NOT AuditableEntity — append-only
     public DateTimeOffset Timestamp { get; private set; }
     public string? Metadata { get; private set; }
 
+    // EF materialization, and the only way an instance comes to exist. There is NO
+    // factory and no mutator: rows are written by PostgresAuditStore as one
+    // parameterised INSERT from an AuditEntryDraft, never through this type, because
+    // mapping it into every module's DbContext would need SharedKernel to reference the
+    // Audit module (ADR-0033 § Implementation Notes). What the type is for is the model —
+    // the query filter, the isolation sweep and the migration — and the read side the
+    // Phase 03 admin API projects from.
     private AuditEntry() { }
-
-    public static AuditEntry Create(/* every field via parameters */)
-    {
-        // Validation guards; no public mutators.
-    }
 }
 ```
 

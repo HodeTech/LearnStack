@@ -209,7 +209,7 @@ public sealed class PersistenceConventionTests
             "Persistence/CustomizationDbContextFactory.cs",
             "Persistence/AuditDbContextFactory.cs",
 
-            // The sixth, and a deliberate entry rather than a discovered one: the seeder
+            // The seventh, and a deliberate entry rather than a discovered one: the seeder
             // is a second composition root, and building the one application data source
             // is the same act PersistenceCompositionExtensions performs for the API. It
             // is in the set — not exempted from it — so the next tool that reaches for a
@@ -437,9 +437,12 @@ public sealed class PersistenceConventionTests
     /// A faithful replay of the recipe rather than a reading of it: each
     /// <c>backend/src</c> token is expanded against the chains that actually exist —
     /// ordinal-sorted, which is what a shell does with a glob — and a chain already
-    /// visited is skipped, which is what the recipe's <c>applied</c> guard does. A
-    /// test that only looked for the literal prefix would pass on a recipe that named
-    /// Tenancy twice and Audit in between.
+    /// visited is skipped, which is what the recipe's <c>applied</c> guard does.
+    /// <b>Expanding the glob is the whole difference from a text search</b>, and it is
+    /// what catches the mutation that actually happened: deleting the explicit Tenancy
+    /// prefix leaves a recipe whose only token is the <c>Modules/*</c> glob, in which the
+    /// literal <c>Modules/Tenancy</c> does not appear at all — so a search for it finds
+    /// nothing to compare, while the replay expands the glob and reports Audit first.
     /// </remarks>
     private static List<string> MigrateChainOrder()
     {

@@ -93,13 +93,16 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Fifty-nine test methods exist in
+Sixty-seven test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6 and Packet 7 — 77 cases once the theories expand. Counted from a run at
-Packet 7's close; the previous figures were Packet 6's and were not updated when
-Packet 7 added its rules. Methods are not rows: a `[Theory]`
+Packet 6, Packet 7, Packet 8 and Packet 9 — 91 cases once the theories expand.
+Counted from a run at
+Packet 9 step 3's close; the figures before it were Packet 7's and were not updated when
+Packets 8 and 9 added their rules — the second time this sentence has gone stale, which
+is why it now names the run it was counted from rather than the packet it describes.
+Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
 assertion that stops it passing vacuously.
 
@@ -924,8 +927,12 @@ rules that need a second `DbContext` are owed by Phase 03.
   ahead of `Modules/Tenancy`. The rule replays the list rather than searching it for
   a literal: each `backend/src` token is expanded against the chains that exist,
   ordinal-sorted the way a shell sorts a glob, and a chain already visited is skipped,
-  which is what the recipe's own `applied` guard does. A recipe that named Tenancy
-  twice with Audit in between would fail here and pass a substring check.
+  which is what the recipe's own `applied` guard does. **Expanding the glob is the whole
+  difference from a text search**, and it is what catches the mutation that actually
+  happened: deleting the explicit Tenancy prefix leaves a recipe whose only token is the
+  `Modules/*` glob, in which the literal `Modules/Tenancy` does not appear at all — so a
+  search for it has nothing to compare, while the replay expands the glob and reports
+  Audit first.
 - **Why it is separate from the coverage rule:** coverage is not order.
   `Migrate_Target_Covers_Every_Migration_Chain` stays green when the Tenancy prefix
   is deleted, because the glob still reaches Tenancy — while every fresh deployment
@@ -1568,7 +1575,21 @@ which decides identity, multiplicity, capture and classification;
   [18-audit-coverage.md § Storage](18-audit-coverage.md);
   [31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (Packet 9 step 3, `LearnStack.Tests.Integration`,
+  `AuditSchemaTests`). Six cases carry it, one per clause rather than one per rule,
+  because the three layers fail with three different errors and a single case asserting
+  "refused" would not tell them apart: `TheRuntimeRoleCannotMutateTheLog` (the absent
+  privilege, three statements), `ARedactingUpdateByThePlatformRoleSucceeds` and
+  `ThePlatformRoleCannotUpdateAnythingElse` (the column GRANT, in both directions —
+  including the mixed `UPDATE` naming one redactable column and one other, which is
+  refused whole rather than applied in part), `TheRetentionDeleteByThePlatformRoleSucceeds`,
+  `TheOwnerIsStoppedOnlyByTheTrigger` (which asserts the trigger's message, so a case
+  passing on a policy refusal would fail), and
+  `ThePlatformRoleHoldsExactlyTheSixColumnUpdateGrant` — the last because
+  `information_schema.role_table_grants` reports table privileges only, so the column
+  list is invisible to the GRANT-matrix assertion in `TenancySchemaTests`.
+  `TruncateIsRefusedEvenForTheOwner` carries the second trigger, which no clause of this
+  rule named because a row trigger cannot see `TRUNCATE`.
 - **Phase:** 02a (Packet 9).
 
 #### `AuditStateCapture_ClearedPerRequest`
