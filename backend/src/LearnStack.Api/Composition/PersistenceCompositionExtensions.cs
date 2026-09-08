@@ -190,6 +190,12 @@ public static class PersistenceCompositionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
 
+        // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
+        // factory. AddMetrics is idempotent and the API host already calls it through
+        // AddOpenTelemetry; naming it here keeps this root self-sufficient, which is what
+        // lets the seeder build the same graph.
+        services.AddMetrics();
+
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
 
         // The write side of the two Tenancy roots, beside the context they run on. A

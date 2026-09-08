@@ -71,10 +71,15 @@ public readonly partial record struct TenantId : IStronglyTypedId<Guid>
     /// <c>SetProvisioningTenantContextAsync</c> and
     /// <c>TenantOwnership.EnsureRealTenant</c> — refuse it before the constraint is
     /// reached. A constraint cannot stop a session variable from being <em>announced</em>,
-    /// which is the half that actually matters, so two more cover that:
-    /// <c>EventTenantContext.FromEnvelope</c>, where a payload-supplied tenant enters,
-    /// and <c>SetTenantContextAsync</c> itself — deliberately redundant, at the one site
-    /// every announcement passes.
+    /// which is the half that actually matters, so three more cover that:
+    /// <c>EventTenantContext.FromEnvelope</c>, where a payload-supplied tenant enters;
+    /// <c>SetTenantContextAsync</c> itself — deliberately redundant, at the site every
+    /// request announcement passes; and <c>PostgresAuditStore</c>'s standalone writer,
+    /// which announces a tenant taken from a <em>draft</em> rather than from a context and
+    /// is therefore the one announcement the other four never see. That last one was
+    /// missing, and measured: a draft carrying the sentinel wrote a platform-scope row
+    /// through <c>learnstack_app</c>, into the one table that deliberately has no foreign
+    /// key to <c>tenants</c> and so had no backstop either.
     /// </para>
     /// </remarks>
     public static TenantId PlatformSentinel { get; } =

@@ -12,6 +12,8 @@ using LearnStack.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using LearnStack.Api.Composition;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
@@ -81,11 +83,21 @@ public sealed class AuditCaptureWiringTests
         change.BeforeJson.Should().BeNull("the tenant is being inserted");
         change.AfterJson.Should().Contain("wiring-probe");
 
-        // The bookkeeping columns the row already carries are not in the snapshot, and the
-        // ones that are the record still are.
-        change.Fields.Select(field => field.Path).Should().NotContain(
-            ["/Tenant/TenantId", "/Tenant/CreatedAt", "/Tenant/RowVersion"]);
-        change.Fields.Select(field => field.Path).Should().Contain("/Tenant/Slug");
+        // The bookkeeping the row already carries is not in the snapshot, and the record
+        // still is. The three paths asserted here are ones that CAN appear on this entity:
+        // Tenant derives from AuditableEntity<TId>, so CreatedAt, UpdatedAt and Version are
+        // real mapped properties. An earlier version of this assertion named
+        // /Tenant/TenantId and /Tenant/RowVersion — neither of which exists, because Tenant
+        // is self-keyed and the concurrency token's PROPERTY is Version — so it asserted
+        // the absence of three paths nothing could have produced.
+        var paths = change.Fields.Select(field => field.Path).ToList();
+
+        paths.Should().NotContain("/Tenant/CreatedAt");
+        paths.Should().NotContain("/Tenant/UpdatedAt");
+        paths.Should().NotContain("/Tenant/Version",
+            "the concurrency token moves on every write and buries what changed");
+        paths.Should().Contain("/Tenant/Slug");
+        paths.Should().Contain("/Tenant/CreatedBy", "who did it is the record, not bookkeeping");
 
         // Rolled back rather than committed: the shared fixture's counts are asserted by
         // the cases in this collection, and a probe tenant would move them.
@@ -113,6 +125,81 @@ public sealed class AuditCaptureWiringTests
         other.ServiceProvider.GetRequiredService<IAuditStateCapture>()
             .Should().NotBeSameAs(asInterface, "a second request gets a second buffer");
     }
+
+    [Fact]
+    public async Task The_synchronous_save_path_fills_the_capture_too()
+    {
+        // The interceptor overrides BOTH hooks and only the async one was covered: the
+        // synchronous SavingChanges body could be emptied with the whole suite green.
+        // Nothing in the request path calls SaveChanges today — but the seeder, a data
+        // migration and any future job may, and the failure would be silent, which is the
+        // one thing this seam exists to prevent.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+
+        var capture = scope.ServiceProvider.GetRequiredService<IAuditStateCapture>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await using var frame = await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(
+            scope.ServiceProvider.GetRequiredService<ITenantContext>());
+
+        var context = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        context.Add(Tenant.Create(
+            TenantId.From(WiringTenant),
+            "sync-probe",
+            "Sync Probe",
+            new SystemClock(),
+            UserId.From(SchemaFixture.Actor)));
+
+        // Deliberately NOT SaveChangesAsync.
+        context.SaveChanges();
+
+        capture.Changes.Should().ContainSingle(
+            "the synchronous hook captures exactly as the asynchronous one does");
+
+        await frame.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task The_real_composition_root_keeps_the_audit_interceptor_behind_another_one()
+    {
+        // The reason the registration is TryAddEnumerable and not TryAddScoped, asserted
+        // against the REAL AddLearnStackPersistence rather than a copy of its lines. Under
+        // TryAddScoped a second ISaveChangesInterceptor registered first makes the audit
+        // one silently absent, and every audit row then ships with empty snapshots and no
+        // error anywhere.
+        var services = new ServiceCollection();
+
+        // Registered FIRST, which is the whole point: TryAddScoped skips when any
+        // registration of the service type exists.
+        services.AddScoped<ISaveChangesInterceptor, HarmlessInterceptor>();
+
+        services.AddLogging();
+        services.AddSingleton<ITenantContextAccessor>(
+            new StaticTenantContextAccessor(new WiringContext()));
+        services.AddTransient<ITenantContext>(sp =>
+            sp.GetRequiredService<ITenantContextAccessor>().Current
+            ?? UnresolvedTenantContext.Instance);
+
+        services.AddLearnStackPersistence(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Default"] = _schema.Postgres.AppConnectionString,
+            })
+            .Build());
+
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+
+        scope.ServiceProvider.GetServices<ISaveChangesInterceptor>()
+            .Should().ContainSingle(interceptor => interceptor is AuditChangeTrackerInterceptor,
+                "the audit capture survives a second interceptor registered ahead of it");
+    }
+
+    /// <summary>An interceptor that does nothing, registered only to get in the way.</summary>
+    private sealed class HarmlessInterceptor : SaveChangesInterceptor;
 
     private static readonly Guid WiringTenant = Guid.Parse("cccccccc-9999-7999-8999-999999999999");
 

@@ -164,6 +164,56 @@ public sealed class AuditJsonTests
             .Should().Be("\"***REDACTED***\"");
     }
 
+    [Theory]
+    // A NUL cannot live in a PostgreSQL text column at all, and the jsonb input function
+    // refuses the escape that spells one even though System.Text.Json emits it happily —
+    // measured: 22P05 unsupported Unicode escape sequence. So a value carrying one is a
+    // value NO column holds; the business write carrying it fails too. What must not
+    // happen is the AUDIT write failing with it, because the audit write is what records
+    // that the business write failed.
+    [InlineData("Foo\0Bar")]
+    [InlineData("\0")]
+    [InlineData("trailing\0")]
+    public void A_value_PostgreSQL_cannot_hold_becomes_an_explicit_marker(string value)
+    {
+        var rendered = AuditJson.Render(value);
+
+        using var document = JsonDocument.Parse(rendered);
+
+        document.RootElement.GetProperty("_unstorable").GetBoolean().Should().BeTrue();
+        document.RootElement.GetProperty("chars").GetInt32().Should().Be(value.Length);
+        rendered.Should().NotContain(
+            "\\u0000",
+            "the marker replaces the value rather than escaping it, because the escape is "
+            + "exactly what jsonb refuses");
+    }
+
+    [Fact]
+    public void An_unpaired_surrogate_is_treated_the_same_way()
+    {
+        // The other half of what a text column cannot represent. Reachable from any string
+        // a caller built by slicing one.
+        AuditJson.Render("ok\ud800").Should().Contain("_unstorable");
+        AuditJson.Render("\udc00ok").Should().Contain("_unstorable");
+
+        // A well-formed pair is ordinary text and stays it.
+        AuditJson.Render("ok\U0001F600").Should().Be(JsonSerializer.Serialize("ok\U0001F600"));
+    }
+
+    [Fact]
+    public void A_jsonb_document_carrying_one_is_marked_rather_than_passed_through()
+    {
+        // The passthrough branch answers the same question by PARSING, which is what tells
+        // an escape from the six characters that spell one.
+        var hostile = "{\"a\":\"\0\"}";
+        var spelled = "{\"a\":\"\\\\u0000\"}";
+
+        AuditJson.Render(hostile, storedAsJson: true).Should().Contain("_unstorable");
+        AuditJson.Render(spelled, storedAsJson: true).Should().Be(
+            spelled,
+            "a backslash followed by u0000 is six ordinary characters and stores");
+    }
+
     private static string Document(int approximateBytes)
     {
         var padding = new string('x', Math.Max(0, approximateBytes - 10));

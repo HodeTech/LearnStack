@@ -5,6 +5,8 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -567,6 +569,151 @@ public sealed class AuditStoreTests
         }
     }
 
+
+    [Fact]
+    public async Task The_sentinel_is_refused_on_the_standalone_path()
+    {
+        // The FIFTH announcement site. TenantId's remarks enumerate four guards because a
+        // CHECK on `tenants` cannot stop a session variable from being announced — and
+        // this method announces one from a draft, on a learnstack_app connection, into a
+        // table that deliberately has no foreign key to `tenants`. Measured before the
+        // guard: the row was written, through the runtime role, under the sentinel — which
+        // is exactly what IAuditStore's own contract says cannot happen.
+        var draft = Draft(organizationId: null) with { TenantId = TenantId.PlatformSentinel };
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(new AuditStateCapture(), dataSource);
+
+        var standalone = async () => await store.WriteStandaloneAsync(draft);
+        var bestEffort = async () => await store.WriteBestEffortAsync(draft);
+
+        (await standalone.Should().ThrowAsync<AuditWriteFailedException>())
+            .WithMessage("*WritePlatformScopeAsync*");
+
+        // Best effort swallows a DATABASE failure; it must not swallow this one, which is
+        // a caller error rather than an outage.
+        await bestEffort.Should().ThrowAsync<AuditWriteFailedException>();
+
+        (await CountAsync(draft.Id)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_durable_duplicate_is_counted_as_well_as_logged()
+    {
+        // ADR-0033 § 4 and ADR-0044 § 5 both say "logged, counted, and swallowed". The
+        // count is the half that matters operationally: each one is a business COMMIT
+        // whose outcome the process could not observe, so a rate that moves is a signal
+        // about the connection rather than about any one request.
+        var draft = Draft(organizationId: null);
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(new AuditStateCapture(), dataSource);
+
+        var counted = 0L;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (instrument.Meter.Name == PostgresAuditStore.MeterName
+                && instrument.Name == PostgresAuditStore.DurableDuplicateCounterName)
+            {
+                active.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => counted += measurement);
+        listener.Start();
+
+        try
+        {
+            await store.WriteStandaloneAsync(draft);
+            await store.WriteStandaloneAsync(draft);
+
+            counted.Should().Be(1, "the second write hit the duplicate and counted it");
+        }
+        finally
+        {
+            await DeleteAsync(draft.Id);
+        }
+    }
+
+    [Fact]
+    public async Task Two_instances_of_one_type_under_one_intent_are_refused()
+    {
+        // Earliest and latest are meaningful for ONE instance across several flushes. Two
+        // different instances are not that, and the type-name filter cannot tell them
+        // apart — entity_id would name one while after_state described the other, and the
+        // pointers in `changes` carry no instance. That row is self-contradictory and
+        // permanent, so the mismatch is loud rather than composed.
+        var capture = new AuditStateCapture();
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-1", null, Step(1),
+            [new CapturedFieldChange("/ProbeTenant/step", null, "1")]));
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-2", null, Step(2),
+            [new CapturedFieldChange("/ProbeTenant/step", null, "2")]));
+
+        var intent = Intent(capture, "tenancy.tenant.create", entityType: typeof(ProbeTenant));
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(capture, dataSource);
+
+        await using var unitOfWork = new NpgsqlUnitOfWork(dataSource, NullLogger<NpgsqlUnitOfWork>.Instance);
+        await using var frame = await unitOfWork.BeginTransactionAsync();
+        await AnnounceAsync(unitOfWork);
+
+        var act = async () => await store.WritePendingAsync(unitOfWork);
+
+        (await act.Should().ThrowAsync<AuditWriteFailedException>())
+            .WithMessage("*different instances*");
+
+        (await CountAsync(intent.Id)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_row_takes_its_entity_id_from_the_captured_aggregate()
+    {
+        // entity_id is what a reader joins on. Composing it from the wrong capture — or
+        // leaving it null when a capture exists — makes the row unfindable from the
+        // aggregate it is about.
+        var capture = new AuditStateCapture();
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-42", null, Step(1),
+            [new CapturedFieldChange("/ProbeTenant/step", null, "1")]));
+
+        var intent = Intent(capture, "tenancy.tenant.create", entityType: typeof(ProbeTenant));
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(capture, dataSource);
+
+        try
+        {
+            await using (var unitOfWork = new NpgsqlUnitOfWork(dataSource, NullLogger<NpgsqlUnitOfWork>.Instance))
+            {
+                await using var scope = await unitOfWork.BeginTransactionAsync();
+                await AnnounceAsync(unitOfWork);
+
+                await store.WritePendingAsync(unitOfWork);
+                await scope.CompleteAsync();
+            }
+
+            await using var connection = await PostgresFixture.OpenAsync(
+                _schema.Postgres.PlatformConnectionString);
+            await using var read = new NpgsqlCommand(
+                "SELECT entity_id, entity_type FROM audit_log WHERE id = @id",
+                (NpgsqlConnection)connection);
+            read.Parameters.AddWithValue("id", intent.Id.Value);
+
+            await using var reader = await read.ExecuteReaderAsync();
+            (await reader.ReadAsync()).Should().BeTrue();
+
+            reader.GetString(0).Should().Be("t-42");
+            reader.GetString(1).Should().Be(nameof(ProbeTenant));
+        }
+        finally
+        {
+            await DeleteAsync(intent.Id);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string Step(int value) => $"{{\"step\":{value}}}";
@@ -613,7 +760,11 @@ public sealed class AuditStoreTests
     private sealed class ProbeTenant;
 
     private static PostgresAuditStore Store(AuditStateCapture capture, NpgsqlDataSource dataSource) =>
-        new(capture, dataSource, NullLogger<PostgresAuditStore>.Instance);
+        new(capture, dataSource, NullLogger<PostgresAuditStore>.Instance, MeterFactory);
+
+    /// <summary>A real meter factory, so the counter the store increments is a real one.</summary>
+    private static readonly IMeterFactory MeterFactory =
+        new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<IMeterFactory>();
 
     private static AuditIntent Intent(
         AuditStateCapture capture,

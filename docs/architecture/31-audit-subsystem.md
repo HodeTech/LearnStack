@@ -184,12 +184,17 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
         // Build Before/After snapshots and the per-property diff, and run the PII gate and
         // the size gate below on every value emitted.
         //
-        // FOUR PROPERTIES ARE LEFT OUT: TenantId, CreatedAt, UpdatedAt and RowVersion.
+        // FOUR PROPERTIES ARE LEFT OUT: TenantId, CreatedAt, UpdatedAt and Version.
         // The first is the row's own tenant_id, so repeating it says nothing; the other
         // three move on every write, so a diff carrying them buries the property that
         // actually changed under three that always do. The soft-delete pair is
         // deliberately NOT among them — DeletedAt moving is the whole content of a soft
         // delete, and DeletedBy is who did it.
+        //
+        // These are EF MODEL PROPERTY NAMES, not column names, because the filter matches
+        // on property.Metadata.Name. The concurrency token's column is row_version and its
+        // property is Version, and an entry spelled for the column excluded nothing at all
+        // on any shipped aggregate.
         //
         // A value is emitted as JSON decided by its COLUMN, never by its content: a jsonb
         // column passes through verbatim, everything else is serialised. Deciding from the
@@ -205,7 +210,17 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
         // {"Locales":["en","tr"]} — which records which languages exist and none of the
         // text. That path also unwraps a Vogen identifier to its Guid and renders an
         // enum mapped by HasEnumAsText() as the member name the column stores, so an
-        // audit row and the table it describes cannot disagree.
+        // audit row and the table it describes cannot disagree. entity_id goes through the
+        // same converter for the same reason — it is what a reader joins on.
+        //
+        // AND A VALUE POSTGRESQL CANNOT HOLD BECOMES AN EXPLICIT MARKER rather than
+        // failing the write: a NUL or an unpaired surrogate cannot live in a text column
+        // and cannot be parsed by the jsonb input function even escaped (22P05, measured).
+        // Such a value is one no column holds — the business write carrying it fails too —
+        // and the audit write must not fail with it, because the audit write is what
+        // records that the business write failed. The marker is
+        // {"_unstorable": true, "reason": …, "chars": n}, on the size cap's precedent:
+        // never a silent substitution.
     }
 }
 ```

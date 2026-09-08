@@ -4,6 +4,7 @@ using System.Text.Json;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
@@ -35,12 +36,45 @@ namespace LearnStack.Infrastructure.Audit;
 /// 3 § 2</see>).
 /// </para>
 /// </remarks>
-public sealed class PostgresAuditStore(
-    IAuditStateCapture capture,
-    NpgsqlDataSource dataSource,
-    ILogger<PostgresAuditStore> logger)
-    : IAuditStore
+public sealed class PostgresAuditStore : IAuditStore
 {
+    /// <summary>The meter every audit-write counter hangs off.</summary>
+    public const string MeterName = "LearnStack.Audit";
+
+    /// <summary>
+    /// Counts the duplicate-key outcome on a standalone re-write.
+    /// </summary>
+    /// <remarks>
+    /// ADR-0033 § 4 and ADR-0044 § 5 both say the <c>23505</c> is "logged, counted, and
+    /// swallowed", and the catch below said so too while counting nothing. The count is
+    /// the half that matters operationally: each one is a business <c>COMMIT</c> whose
+    /// outcome the process could not observe, so a rate that moves is a signal about the
+    /// database connection rather than about any one request — and a log line nobody
+    /// aggregates is not that signal.
+    /// </remarks>
+    public const string DurableDuplicateCounterName = "learnstack.audit.standalone.duplicate";
+
+    private readonly IAuditStateCapture _capture;
+    private readonly NpgsqlDataSource _dataSource;
+    private readonly ILogger<PostgresAuditStore> _logger;
+    private readonly Counter<long> _durableDuplicates;
+
+    public PostgresAuditStore(
+        IAuditStateCapture capture,
+        NpgsqlDataSource dataSource,
+        ILogger<PostgresAuditStore> logger,
+        IMeterFactory meterFactory)
+    {
+        ArgumentNullException.ThrowIfNull(meterFactory);
+
+        _capture = capture;
+        _dataSource = dataSource;
+        _logger = logger;
+
+        var meter = meterFactory.Create(MeterName);
+        _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);
+    }
+
     /// <summary>
     /// The one INSERT. Every write path uses it; only the connection differs.
     /// </summary>
@@ -73,7 +107,7 @@ public sealed class PostgresAuditStore(
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
 
-        var pending = capture.Intents
+        var pending = _capture.Intents
             .Where(intent => intent.OperationClass == OperationClass.Must)
             .ToList();
 
@@ -117,7 +151,7 @@ public sealed class PostgresAuditStore(
                 failure);
         }
 
-        capture.MarkWrittenInTransaction();
+        _capture.MarkWrittenInTransaction();
     }
 
     /// <inheritdoc />
@@ -138,7 +172,10 @@ public sealed class PostgresAuditStore(
             // rescue is durable. Logged, counted, and swallowed — it is not an audit
             // failure and must not produce audit_unavailable
             // (ADR-0044 § 5).
-            LogDurableDuplicate(logger, entry.Operation, duplicate);
+            // Logged AND counted, which is what the two ADRs say and what the comment
+            // above used to claim on its own.
+            LogDurableDuplicate(_logger, entry.Operation, duplicate);
+            _durableDuplicates.Add(1, new KeyValuePair<string, object?>("operation", entry.Operation));
         }
         catch (DbException failure)
         {
@@ -163,7 +200,7 @@ public sealed class PostgresAuditStore(
         {
             // The opposite posture to WriteStandaloneAsync, and the accepted loss is
             // written down in the module's coverage matrix rather than assumed here.
-            LogBestEffortLost(logger, entry.Operation, failure);
+            LogBestEffortLost(_logger, entry.Operation, failure);
         }
     }
 
@@ -218,7 +255,29 @@ public sealed class PostgresAuditStore(
     private async Task WriteOwnTransactionAsync(
         AuditEntryDraft entry, CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource
+        // The FIFTH announcement site, and it needs the same refusal the other four carry.
+        // TenantId's own remarks enumerate the guards — SetProvisioningTenantContextAsync,
+        // TenantOwnership.EnsureRealTenant, EventTenantContext.FromEnvelope and
+        // SetTenantContextAsync — because a CHECK on `tenants` cannot stop a session
+        // variable from being announced. This method announces one from a draft, on a
+        // learnstack_app connection, and audit_log deliberately has no foreign key to
+        // `tenants` — so nothing else in the stack refuses it. Measured before the guard:
+        // a draft carrying the sentinel wrote a platform-scope row through the runtime
+        // role, which is precisely what IAuditStore's own contract says cannot happen.
+        //
+        // The sentinel's rows have one writer: WritePlatformScopeAsync, on the scope's own
+        // platform-role connection (ADR-0044 § 10).
+        if (entry.TenantId == TenantId.PlatformSentinel)
+        {
+            throw new AuditWriteFailedException(
+                "A platform-scope row carries TenantId.PlatformSentinel and belongs to "
+                + "WritePlatformScopeAsync, which writes it on the scope's own "
+                + "platform-role connection. Announcing the sentinel on a runtime "
+                + "connection is refused here as it is at every other announcement site "
+                + "(ADR-0044 § 1, § 10).");
+        }
+
+        await using var connection = await _dataSource
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -268,10 +327,32 @@ public sealed class PostgresAuditStore(
     {
         var matching = intent.EntityType is null
             ? []
-            : capture.Changes
+            : _capture.Changes
                 .Where(change => string.Equals(
                     change.EntityType, intent.EntityType.Name, StringComparison.Ordinal))
                 .ToList();
+
+        // Earliest and latest are only meaningful for ONE instance captured across several
+        // flushes, which is the case ADR-0044 Amendment 5 § 2 is about. Two DIFFERENT
+        // instances of the same type under one intent are not that: the type-name filter
+        // cannot tell them apart, so entity_id would name one while after_state described
+        // the other, and the pointers in `changes` — which carry no instance — would be
+        // identical for both. That row is internally contradictory and permanent, so the
+        // mismatch is made loud here rather than composed into one.
+        var identities = matching
+            .Select(change => change.EntityId)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (identities.Count > 1)
+        {
+            throw new AuditWriteFailedException(
+                $"The intent for {intent.Operation} names {intent.EntityType?.Name} and the "
+                + $"request captured {identities.Count} different instances of it. An audit "
+                + "row is about one aggregate: composing these would put one instance's id "
+                + "beside another's state, on a table nothing can correct. Declare one "
+                + "intent per audited resource (ADR-0044 § 3).");
+        }
 
         var fields = matching.SelectMany(change => change.Fields).ToList();
 

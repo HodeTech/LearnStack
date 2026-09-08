@@ -218,7 +218,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             TenantId = Guid.Empty,
             CreatedAt = DateTimeOffset.UnixEpoch,
             UpdatedAt = DateTimeOffset.UnixEpoch,
-            RowVersion = 3,
+            Version = 3,
             DeletedAt = DateTimeOffset.UnixEpoch,
             Payload = "p",
         });
@@ -428,6 +428,95 @@ public sealed class AuditChangeTrackerInterceptorTests
         public DateTimeOffset UtcNow => now;
     }
 
+    [Fact]
+    public void The_real_concurrency_token_is_left_out_of_the_diff()
+    {
+        // Against AuditableEntity<TId> itself, not a stand-in that happens to share a
+        // name. The exclusion set read "RowVersion" — which is the COLUMN — while the EF
+        // model matches on the PROPERTY, and AuditableEntity declares `Version`. The entry
+        // therefore excluded nothing on any shipped aggregate, and every diff carried the
+        // token that moves on every write. A stand-in with the wrong name would have
+        // passed either way, which is why this one uses the real base class.
+        var options = new DbContextOptionsBuilder<CustomizationDbContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
+            .Options;
+
+        using var context = new CustomizationDbContext(options, StaticTenantContextAccessor.Unresolved);
+        var capture = new AuditStateCapture();
+
+        var contentType = TenantContentType.Create(
+            TenantContentTypeId.From(Guid.CreateVersion7()),
+            TenantId.From(Guid.CreateVersion7()),
+            "vocabulary-card",
+            1,
+            LocalizedText.From(("en", "Vocabulary Card")),
+            """{"type":"object"}""",
+            "default-card",
+            new FixedClock(DateTimeOffset.UnixEpoch),
+            UserId.From(Guid.CreateVersion7()));
+
+        context.Add(contentType);
+
+        // The property really is there and really is called Version, or this case would be
+        // asserting the absence of something that never existed — the shape of vacuous
+        // assertion this suite has already caught once.
+        context.Entry(contentType).Properties.Select(property => property.Metadata.Name)
+            .Should().Contain("Version");
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var paths = capture.Changes.Single().Fields.Select(field => field.Path).ToList();
+
+        paths.Should().NotContain("/TenantContentType/Version");
+        paths.Should().NotContain("/TenantContentType/CreatedAt");
+        paths.Should().NotContain("/TenantContentType/TenantId");
+        paths.Should().Contain("/TenantContentType/Key", "the record itself stays");
+    }
+
+    [Fact]
+    public void A_marker_on_a_private_base_property_is_honoured()
+    {
+        // The shape BindingFlags.NonPublic alone cannot see: Type.GetProperty searches the
+        // GIVEN type only, so a private property declared on a base class is invisible to
+        // it whatever flags are passed. The walk is what finds it, and a marker the lookup
+        // misses is a marker that reports success and writes the value.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        var hidden = new Hidden { Id = 1, Open = "public" };
+        hidden.SetSecret("private-personal-data");
+
+        context.Add(hidden);
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var change = capture.Changes.Single();
+        change.AfterJson.Should().NotContain("private-personal-data");
+        change.Fields.Single(field => field.Path == "/Hidden/Secret")
+            .AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
+    }
+
+    [Fact]
+    public void The_entity_id_is_rendered_the_way_the_key_column_stores_it()
+    {
+        // entity_id is what a reader joins on, so it must not be able to disagree with the
+        // row's own key column. Every key shipped today renders identically whether or not
+        // the converter runs — a Vogen id's ToString() equals its Guid's — which is exactly
+        // why the inconsistency would have gone unnoticed. This key uses a converter whose
+        // provider text DIFFERS from the model value's ToString(), which is the only shape
+        // that can tell the two mechanisms apart.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.Add(new Keyed { Code = new Code("abc"), Payload = "p" });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        capture.Changes.Single().EntityId.Should().Be(
+            "CODE:ABC",
+            "the column stores the converter's output, and entity_id points at the column");
+    }
+
     private static string Quoted(string value) => JsonSerializer.Serialize(value);
 
     private sealed class ProbeContext : DbContext
@@ -443,6 +532,14 @@ public sealed class AuditChangeTrackerInterceptorTests
             builder.Entity<Person>();
             builder.Entity<Band>().HasKey(band => new { band.TenantId, band.Taxonomy, band.Key });
             builder.Entity<Bookkept>();
+            builder.Entity<Hidden>(entity => entity.Property("Secret"));
+            builder.Entity<Keyed>(entity =>
+            {
+                entity.HasKey(keyed => keyed.Code);
+                entity.Property(keyed => keyed.Code).HasConversion(
+                    code => "CODE:" + code.Value.ToUpperInvariant(),
+                    stored => new Code(stored.Substring(5).ToLowerInvariant()));
+            });
             builder.Entity<Converted>(entity =>
             {
                 // Exactly the shape CustomizationMapping.HasLocalizedText() gives every
@@ -468,6 +565,25 @@ public sealed class AuditChangeTrackerInterceptorTests
             builder.Entity<AuditEntry>();
             builder.Entity<AuditConfig>();
         }
+    }
+
+    /// <summary>
+    /// Carries the marker on a property that is private AND declared on a base class —
+    /// mapped explicitly, the way EF maps a non-public member.
+    /// </summary>
+    private abstract class Concealing
+    {
+        [PiiSensitive]
+        private string Secret { get; set; } = string.Empty;
+
+        public void SetSecret(string value) => Secret = value;
+    }
+
+    private sealed class Hidden : Concealing
+    {
+        public int Id { get; set; }
+
+        public string Open { get; set; } = string.Empty;
     }
 
     private abstract class Traced
@@ -522,7 +638,12 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         public DateTimeOffset? DeletedAt { get; set; }
 
-        public long RowVersion { get; set; }
+        /// <summary>
+        /// <c>Version</c>, matching <c>AuditableEntity&lt;TId&gt;</c>. It was called
+        /// <c>RowVersion</c> — the COLUMN name — and so agreed with an exclusion entry
+        /// that was spelled the same wrong way and excluded nothing on any real aggregate.
+        /// </summary>
+        public long Version { get; set; }
 
         public string Payload { get; set; } = string.Empty;
     }
@@ -562,6 +683,19 @@ public sealed class AuditChangeTrackerInterceptorTests
         public string Text { get; set; } = string.Empty;
 
         public Grade Status { get; set; }
+    }
+
+    /// <summary>A key whose stored text differs from the model value's ToString().</summary>
+    private sealed record Code(string Value)
+    {
+        public override string ToString() => Value;
+    }
+
+    private sealed class Keyed
+    {
+        public Code Code { get; set; } = new(string.Empty);
+
+        public string Payload { get; set; } = string.Empty;
     }
 
     private sealed class Band

@@ -367,6 +367,12 @@ public static class JsonValue
     /// an escape from the six characters that spell one: <c>"\\u0000"</c> is a
     /// backslash followed by <c>u0000</c> and stores, measured.
     /// </remarks>
+    /// <remarks>
+    /// Reachable from <see cref="Audit.AuditJson"/> as well as from this file's own
+    /// gates: the audit capture has to answer the same question about a value it did not
+    /// validate, and a second implementation of "what PostgreSQL can hold" is a second
+    /// thing to keep true.
+    /// </remarks>
     internal static bool IsStorableText(string text)
     {
         for (var index = 0; index < text.Length; index++)

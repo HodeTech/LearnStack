@@ -62,8 +62,9 @@ public static class AuditJson
     /// <summary>Renders one property value as JSON text.</summary>
     /// <remarks>
     /// <para>
-    /// <b>The passthrough is decided by the column, never by the value.</b> A value stored
-    /// in a <c>jsonb</c> column is emitted verbatim, so a document does not arrive in the
+    /// <b>The passthrough is decided by the column, never by the value's content.</b> A
+    /// value stored in a <c>jsonb</c> column is emitted verbatim, so a document does not
+    /// arrive in the
     /// diff as one long escaped string; everything else is serialised, so a
     /// <c>varchar(200)</c> display name that happens to read as <c>[1,2,3]</c> stays the
     /// three-character string it is. Deciding from the value instead was wrong twice over
@@ -91,6 +92,15 @@ public static class AuditJson
     /// <param name="storedAsJson">
     /// Whether the property's column is <c>jsonb</c>. The caller reads it from the model,
     /// which is the only place the answer is knowable.
+    /// <para>
+    /// It gates the passthrough <b>together with the value being text</b>, and that pairing
+    /// is deliberate rather than a leftover value sniff. The caller hands over the value
+    /// the column holds — through the property's converter — so for a <c>jsonb</c> column
+    /// that is the document as a <c>string</c>. A <c>jsonb</c> column whose provider value
+    /// is something else is a mapping this repository does not have (Npgsql's native
+    /// <c>JsonDocument</c> support would be one), and serialising it is the safe answer
+    /// rather than emitting <c>ToString()</c> into a <c>jsonb</c> parameter.
+    /// </para>
     /// </param>
     public static string Render(object? value, bool storedAsJson = false)
     {
@@ -101,7 +111,10 @@ public static class AuditJson
 
         if (storedAsJson && value is string document)
         {
-            return document;
+            // Well-formedness is checked by PARSING, because that is what tells an escape
+            // from the six characters that spell one, and because the numeric bounds
+            // jsonb enforces are invisible in the text.
+            return JsonValue.IsWellFormed(document) ? document : Unstorable(document.Length);
         }
 
         if (value is Enum member)
@@ -109,8 +122,43 @@ public static class AuditJson
             return JsonSerializer.Serialize(member.ToString(), Options);
         }
 
+        // The VALUE, not the text it serialises to. `JsonSerializer` renders a NUL as the
+        // six-character escape \u0000, which is storable text and which PostgreSQL's
+        // jsonb input function then refuses while parsing — so a check on the output
+        // passes and the INSERT still fails.
+        if (value is string text && !JsonValue.IsStorableText(text))
+        {
+            return Unstorable(text.Length);
+        }
+
         return JsonSerializer.Serialize(value, value.GetType(), Options);
     }
+
+    /// <summary>
+    /// The marker that stands in for a value PostgreSQL cannot hold.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A <c>NUL</c> or an unpaired surrogate cannot be stored in a PostgreSQL <c>text</c>
+    /// column at all, and cannot be parsed by the <c>jsonb</c> input function even
+    /// escaped — measured: <c>22P05 unsupported Unicode escape sequence</c>. So a value
+    /// carrying one is a value <b>no column holds</b>: the business write carrying it
+    /// fails too. What must not happen is the AUDIT write failing with it, because the
+    /// audit write is what records that the business write failed. Before this marker
+    /// existed, a rolled-back write's reconcile row carried the captured value and the
+    /// standalone <c>INSERT</c> raised <c>22P05</c> — the record of the failure destroyed
+    /// by the same character that caused it.
+    /// </para>
+    /// <para>
+    /// An object rather than a truncated string, on the size cap's precedent: never a
+    /// silent substitution. The slot it sits in is already polymorphic — it mirrors
+    /// whatever the column holds, a number or a string or a document — so a marker
+    /// changes no reader's contract, unlike the two column-level shapes
+    /// <see cref="CapObject"/> and <see cref="CapArray"/> keep stable.
+    /// </para>
+    /// </remarks>
+    private static string Unstorable(int length) =>
+        $"{{\"_unstorable\":true,\"reason\":\"nul-or-unpaired-surrogate\",\"chars\":{length}}}";
 
     /// <summary>Renders a string that is already known to be JSON text.</summary>
     public static string Quote(string value) => JsonSerializer.Serialize(value, Options);

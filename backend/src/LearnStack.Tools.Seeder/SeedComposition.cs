@@ -122,6 +122,12 @@ public static class SeedComposition
         // idempotence this actually wants.
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
+        // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
+        // factory. AddMetrics is idempotent and the API host already calls it through
+        // AddOpenTelemetry; naming it here keeps this root self-sufficient, which is what
+        // lets the seeder build the same graph.
+        services.AddMetrics();
+
         services.AddScoped<IAuditStore, PostgresAuditStore>();
 
         // Its own short read-only transaction on its own connection, which is why it takes

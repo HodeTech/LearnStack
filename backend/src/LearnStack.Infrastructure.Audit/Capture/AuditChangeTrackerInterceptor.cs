@@ -76,9 +76,15 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// Bookkeeping the audit row already carries or does not want, named by
     /// <see href="../../../../docs/architecture/31-audit-subsystem.md">Audit Subsystem
     /// § 3</see>. <c>TenantId</c> is the row's own <c>tenant_id</c>, so repeating it in
-    /// the snapshot says nothing; <c>CreatedAt</c>, <c>UpdatedAt</c> and
-    /// <c>RowVersion</c> move on every write, so a diff carrying them buries the property
-    /// that actually changed under three that always do.
+    /// the snapshot says nothing; <c>CreatedAt</c>, <c>UpdatedAt</c> and <c>Version</c>
+    /// move on every write, so a diff carrying them buries the property that actually
+    /// changed under three that always do.
+    /// <para>
+    /// <b>These are EF model property names, not column names</b>, because
+    /// <c>Describe</c> matches on <c>property.Metadata.Name</c>. The distinction is not
+    /// pedantic: the concurrency token's column is <c>row_version</c> and its property is
+    /// <c>Version</c>, and an entry spelled for the column excluded nothing at all.
+    /// </para>
     /// <para>
     /// The soft-delete pair is deliberately <b>not</b> here. <c>DeletedAt</c> moving is
     /// the whole content of a soft delete, and the actor columns are who did it — both
@@ -90,7 +96,14 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         "TenantId",
         "CreatedAt",
         "UpdatedAt",
-        "RowVersion",
+
+        // `Version`, not `RowVersion`. The COLUMN is row_version — MapAuditColumns renames
+        // it — but this set is matched against the EF model's property name, and
+        // AuditableEntity<TId> declares `public long Version`. The entry read `RowVersion`
+        // and therefore excluded nothing on any shipped aggregate: every diff carried the
+        // concurrency token, which moves on every write, exactly the noise this set exists
+        // to remove.
+        "Version",
     };
 
     /// <summary>
@@ -279,8 +292,16 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
             return null;
         }
 
+        // Through the SAME converter every other field goes through. entity_id and the
+        // row's own key column must not be able to disagree, and they would the moment a
+        // key carried a converter whose provider text differs from the model value's
+        // ToString() — a non-Guid Vogen id, a normalising converter. Every shipped key
+        // renders identically either way today, which is exactly why the inconsistency
+        // would have gone unnoticed until it did not.
         var parts = key.Properties
-            .Select(property => entry.Property(property.Name).CurrentValue?.ToString() ?? string.Empty)
+            .Select(property => Stored(
+                property.GetValueConverter(),
+                entry.Property(property.Name).CurrentValue)?.ToString() ?? string.Empty)
             .ToList();
 
         return parts.Count == 0 ? null : string.Join('/', parts);
