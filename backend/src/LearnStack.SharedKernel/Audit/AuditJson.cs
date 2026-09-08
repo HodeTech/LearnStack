@@ -62,28 +62,51 @@ public static class AuditJson
     /// <summary>Renders one property value as JSON text.</summary>
     /// <remarks>
     /// <para>
-    /// A value already stored as JSON — a <c>jsonb</c> column mapped to <c>string</c> —
-    /// is passed through rather than re-encoded, so a document does not arrive in the
-    /// diff as one long escaped string. The check is a parse, because a <c>string</c>
-    /// property is far more often ordinary text than a document, and guessing from the
-    /// first character would render <c>"null"</c> the user typed as the JSON <c>null</c>.
+    /// <b>The passthrough is decided by the column, never by the value.</b> A value stored
+    /// in a <c>jsonb</c> column is emitted verbatim, so a document does not arrive in the
+    /// diff as one long escaped string; everything else is serialised, so a
+    /// <c>varchar(200)</c> display name that happens to read as <c>[1,2,3]</c> stays the
+    /// three-character string it is. Deciding from the value instead was wrong twice over
+    /// — it retyped ordinary text whose content parsed, contradicting this file's own rule
+    /// that <c>42</c> and <c>"42"</c> are different values, and it emitted text
+    /// <c>jsonb</c> refuses: <c>System.Text.Json</c> accepts the <c>\u0000</c> escape and
+    /// unbounded numeric exponents and PostgreSQL does not, so a display name containing
+    /// either failed the <c>INSERT</c> — inside the business transaction, on the path
+    /// whose whole job is that the record survives. Measured on PostgreSQL 18.6:
+    /// <c>22P05 unsupported Unicode escape sequence</c>.
+    /// </para>
+    /// <para>
+    /// <b>An enum renders as its name</b>, not its ordinal. The three closed-set columns
+    /// beside these store the name, and a snapshot that stored <c>1</c> where the row
+    /// stores <c>Denied</c> would make the two halves of the same record disagree — and
+    /// silently change meaning the day a member is inserted into the middle of the enum.
     /// </para>
     /// <para>
     /// Everything else goes through <c>JsonSerializer</c>, which is what makes a
-    /// <c>Guid</c>, a <c>DateTimeOffset</c> and an <c>IPAddress</c> land as quoted
-    /// strings the two readers can parse without knowing the CLR type.
+    /// <c>Guid</c>, a <c>DateTimeOffset</c>, an <c>IPAddress</c> and a Vogen identifier
+    /// land as quoted strings the two readers can parse without knowing the CLR type.
     /// </para>
     /// </remarks>
-    public static string Render(object? value)
+    /// <param name="value">The property's current or original value.</param>
+    /// <param name="storedAsJson">
+    /// Whether the property's column is <c>jsonb</c>. The caller reads it from the model,
+    /// which is the only place the answer is knowable.
+    /// </param>
+    public static string Render(object? value, bool storedAsJson = false)
     {
         if (value is null)
         {
             return Null;
         }
 
-        if (value is string text && LooksLikeStoredJson(text))
+        if (storedAsJson && value is string document)
         {
-            return text;
+            return document;
+        }
+
+        if (value is Enum member)
+        {
+            return JsonSerializer.Serialize(member.ToString(), Options);
         }
 
         return JsonSerializer.Serialize(value, value.GetType(), Options);
@@ -124,26 +147,4 @@ public static class AuditJson
         return $"{{\"_elided\":true,\"bytes\":{bytes.Length},\"sha256\":\"{digest}\"}}";
     }
 
-    private static bool LooksLikeStoredJson(string text)
-    {
-        // Objects and arrays only. A bare JSON scalar is indistinguishable from ordinary
-        // text a user typed — `null`, `true`, `42` — and treating those as stored JSON
-        // would silently retype a string column's value in the diff.
-        var trimmed = text.AsSpan().Trim();
-
-        if (trimmed.Length == 0 || (trimmed[0] != '{' && trimmed[0] != '['))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(text);
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
 }

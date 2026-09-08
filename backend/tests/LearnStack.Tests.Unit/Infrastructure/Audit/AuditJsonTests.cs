@@ -35,28 +35,56 @@ public sealed class AuditJsonTests
     }
 
     [Fact]
-    public void A_stored_document_passes_through_rather_than_being_escaped_again()
+    public void A_jsonb_column_passes_through_rather_than_being_escaped_again()
     {
-        // A jsonb column mapped to string. Re-encoding it would put the whole document in
-        // the diff as one long escaped string, which is legal JSON and useless to read.
+        // Re-encoding a document would put the whole thing in the diff as one long escaped
+        // string, which is legal JSON and useless to read.
         const string schema = """{"type":"object","properties":{"a":{"type":"string"}}}""";
 
-        AuditJson.Render(schema).Should().Be(schema);
+        AuditJson.Render(schema, storedAsJson: true).Should().Be(schema);
     }
 
     [Theory]
-    // A bare JSON scalar is indistinguishable from ordinary text somebody typed, so it is
-    // quoted rather than passed through. Guessing from the first character would retype a
-    // string column's value: a tenant whose display name is literally `null` must not
-    // arrive in the diff as the JSON null.
+    // The passthrough is decided by the COLUMN, never by the value. Deciding from the value
+    // was wrong twice: it retyped ordinary text whose content parsed — a display name of
+    // `[1,2,3]` became a JSON array, contradicting this file's own rule that 42 and "42"
+    // are different values — and it emitted text jsonb refuses, failing the INSERT inside
+    // the business transaction.
     [InlineData("null")]
     [InlineData("true")]
     [InlineData("123")]
+    [InlineData("[1,2,3]")]
+    [InlineData("""{"a":1}""")]
     [InlineData("not json at all")]
-    [InlineData("{ not: valid }")]
-    public void Text_that_is_not_a_stored_document_is_quoted(string value)
+    public void Text_from_a_non_json_column_is_quoted_however_it_reads(string value)
     {
         AuditJson.Render(value).Should().Be(JsonSerializer.Serialize(value));
+    }
+
+    [Fact]
+    public void The_escapes_PostgreSQL_refuses_never_reach_a_jsonb_parameter_from_a_text_column()
+    {
+        // Measured on PostgreSQL 18.6: `select '{"a": "\u0000"}'::jsonb` raises 22P05, and
+        // `select '{"a": 1e400000}'::jsonb` raises 22003 — both of which System.Text.Json
+        // parses without complaint. Under the old value-based passthrough a display name
+        // containing either was emitted verbatim into a jsonb parameter and failed the
+        // audit INSERT, on the path whose whole job is that the record survives.
+        const string hostile = """{"a":"\u0000"}""";
+
+        AuditJson.Render(hostile).Should().Be(JsonSerializer.Serialize(hostile));
+        AuditJson.Render(hostile).Should().NotBe(hostile);
+    }
+
+    [Theory]
+    // The three closed-set columns beside these store the member NAME. A snapshot storing
+    // the ordinal would make the two halves of one record disagree — and change meaning
+    // silently the day a member is inserted into the middle of the enum.
+    [InlineData(AuditOutcome.Success, "\"Success\"")]
+    [InlineData(AuditOutcome.Indeterminate, "\"Indeterminate\"")]
+    [InlineData(OperationClass.Must, "\"Must\"")]
+    public void An_enum_renders_as_its_name(object member, string expected)
+    {
+        AuditJson.Render(member).Should().Be(expected);
     }
 
     [Fact]
@@ -122,7 +150,8 @@ public sealed class AuditJsonTests
         Encoding.UTF8.GetByteCount(json).Should().BeGreaterThan(AuditJson.MaxBytes,
             "in bytes it does not, which is the measure that matters");
 
-        AuditJson.Render(json).Should().BeSameAs(json, "a stored document passes through");
+        AuditJson.Render(json, storedAsJson: true).Should().BeSameAs(json,
+            "a jsonb column passes through");
         AuditJson.CapObject(json).Should().Contain("_elided");
     }
 

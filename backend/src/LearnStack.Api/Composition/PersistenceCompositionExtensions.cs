@@ -179,7 +179,16 @@ public static class PersistenceCompositionExtensions
         // As ISaveChangesInterceptor, which is the type AddModuleDbContext resolves and
         // passes to AddInterceptors. A registration by its own concrete type would
         // resolve and never attach — measured on EF Core 10.
-        services.TryAddScoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>();
+        //
+        // TryAddEnumerable, not TryAddScoped. ISaveChangesInterceptor is a MULTI
+        // registration — AddModuleDbContext resolves the whole collection — and
+        // TryAddScoped skips when ANY registration of the service type exists, so the
+        // moment a second interceptor is registered first the audit capture is silently
+        // not added and every audit row ships with empty snapshots and no error anywhere.
+        // TryAddEnumerable is keyed on the (service, implementation) pair, which is the
+        // idempotence this actually wants.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
 
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
 

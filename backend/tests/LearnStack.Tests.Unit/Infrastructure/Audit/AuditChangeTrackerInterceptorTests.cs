@@ -42,7 +42,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             DisplayName = "Ada",
             Password = "hunter2",
             Notes = "first",
-            Secret = "s",
+            Nickname = "n",
         });
 
         new AuditChangeTrackerInterceptor(capture).Capture(context);
@@ -55,7 +55,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         change.Fields.Select(field => field.Path).Should().BeEquivalentTo(
             "/Person/Id", "/Person/DisplayName", "/Person/Password", "/Person/Notes",
-            "/Person/Secret");
+            "/Person/Nickname", "/Person/Inherited");
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
 
-        var person = new Person { Id = 7, DisplayName = "Ada", Password = "p", Notes = "n", Secret = "s" };
+        var person = new Person { Id = 7, DisplayName = "Ada", Password = "p", Notes = "n", Nickname = "n" };
         context.Attach(person);
         person.DisplayName = "Ada Lovelace";
 
@@ -88,7 +88,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
 
-        var person = new Person { Id = 3, DisplayName = "Ada", Password = "p", Notes = "n", Secret = "s" };
+        var person = new Person { Id = 3, DisplayName = "Ada", Password = "p", Notes = "n", Nickname = "n" };
         context.Attach(person);
         context.Remove(person);
 
@@ -106,7 +106,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
 
-        context.Attach(new Person { Id = 9, DisplayName = "Ada", Password = "p", Notes = "n", Secret = "s" });
+        context.Attach(new Person { Id = 9, DisplayName = "Ada", Password = "p", Notes = "n", Nickname = "n" });
 
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
@@ -122,14 +122,14 @@ public sealed class AuditChangeTrackerInterceptorTests
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
 
-        var person = new Person { Id = 1, DisplayName = "Ada", Password = "old", Notes = "n", Secret = "old" };
+        var person = new Person { Id = 1, DisplayName = "Ada", Password = "old", Notes = "n", Nickname = "old" };
         context.Attach(person);
-        person.Secret = "new";
+        person.Nickname = "new";
 
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         var field = capture.Changes.Single().Fields.Should().ContainSingle().Subject;
-        field.Path.Should().Be("/Person/Secret");
+        field.Path.Should().Be("/Person/Nickname");
         field.BeforeJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
         field.AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
 
@@ -152,7 +152,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             DisplayName = "Ada",
             Password = "hunter2",
             Notes = "n",
-            Secret = "s",
+            Nickname = "n",
         });
 
         new AuditChangeTrackerInterceptor(capture).Capture(context);
@@ -166,6 +166,100 @@ public sealed class AuditChangeTrackerInterceptorTests
         // redacting everything.
         change.Fields.Single(field => field.Path == "/Person/DisplayName")
             .AfterJson.Should().Be("\"Ada\"");
+    }
+
+    [Fact]
+    public void A_marker_declared_on_a_base_class_is_honoured()
+    {
+        // Every audit column in this repository is declared on AuditableEntity<TId> rather
+        // than on the aggregate, so a lookup that stopped at the entity type would miss
+        // every marker that matters and write the value it was asked to hide.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.People.Add(new Person
+        {
+            Id = 5,
+            DisplayName = "Ada",
+            Password = "p",
+            Notes = "n",
+            Nickname = "n",
+            Inherited = "personal",
+        });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var change = capture.Changes.Single();
+        change.AfterJson.Should().NotContain("personal");
+        change.Fields.Single(field => field.Path == "/Person/Inherited")
+            .AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
+    }
+
+    [Fact]
+    public void The_bookkeeping_columns_the_row_already_carries_are_not_snapshotted()
+    {
+        // TenantId is the row's own tenant_id, so repeating it says nothing; CreatedAt,
+        // UpdatedAt and RowVersion move on every write, so a diff carrying them buries the
+        // property that changed under three that always do (Audit Subsystem § 3). The
+        // soft-delete pair is deliberately NOT excluded — DeletedAt moving is the whole
+        // content of a soft delete.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.Add(new Bookkept
+        {
+            Id = 1,
+            TenantId = Guid.Empty,
+            CreatedAt = DateTimeOffset.UnixEpoch,
+            UpdatedAt = DateTimeOffset.UnixEpoch,
+            RowVersion = 3,
+            DeletedAt = DateTimeOffset.UnixEpoch,
+            Payload = "p",
+        });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        capture.Changes.Single().Fields.Select(field => field.Path).Should().BeEquivalentTo(
+            "/Bookkept/Id", "/Bookkept/DeletedAt", "/Bookkept/Payload");
+    }
+
+    [Fact]
+    public void A_jsonb_column_passes_through_and_a_text_column_that_looks_like_JSON_does_not()
+    {
+        // The passthrough is decided by the COLUMN, never by the value. Deciding from the
+        // value retyped ordinary text whose content happened to parse — contradicting the
+        // rule that 42 and "42" are different values — and emitted escapes PostgreSQL's
+        // jsonb refuses, failing the INSERT inside the business transaction.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.Add(new Documented { Id = 1, Document = "{\"a\":1}", Text = "[1,2,3]" });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var fields = capture.Changes.Single().Fields;
+        fields.Single(field => field.Path == "/Documented/Document")
+            .AfterJson.Should().Be("{\"a\":1}", "a jsonb column is emitted verbatim");
+        fields.Single(field => field.Path == "/Documented/Text")
+            .AfterJson.Should().Be("\"[1,2,3]\"", "a text column stays the string it is");
+    }
+
+    [Fact]
+    public void An_enum_is_captured_by_name_and_not_by_ordinal()
+    {
+        // The three closed-set columns beside these store the name. A snapshot storing 1
+        // where the row stores Denied would make the two halves of one record disagree —
+        // and change meaning silently the day a member is inserted into the enum.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.Add(new Documented { Id = 2, Document = "{}", Text = "t", Status = Grade.Second });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        capture.Changes.Single().Fields
+            .Single(field => field.Path == "/Documented/Status")
+            .AfterJson.Should().Be("\"Second\"");
     }
 
     [Theory]
@@ -217,7 +311,7 @@ public sealed class AuditChangeTrackerInterceptorTests
             DisplayName = "Ada",
             Password = "p",
             Notes = new string('x', AuditJson.MaxBytes + 1024),
-            Secret = "s",
+            Nickname = "n",
         });
 
         new AuditChangeTrackerInterceptor(capture).Capture(context);
@@ -237,10 +331,10 @@ public sealed class AuditChangeTrackerInterceptorTests
         var capture = new AuditStateCapture();
         var interceptor = new AuditChangeTrackerInterceptor(capture);
 
-        context.People.Add(new Person { Id = 1, DisplayName = "A", Password = "p", Notes = "n", Secret = "s" });
+        context.People.Add(new Person { Id = 1, DisplayName = "A", Password = "p", Notes = "n", Nickname = "n" });
         interceptor.Capture(context);
 
-        context.People.Add(new Person { Id = 2, DisplayName = "B", Password = "p", Notes = "n", Secret = "s" });
+        context.People.Add(new Person { Id = 2, DisplayName = "B", Password = "p", Notes = "n", Nickname = "n" });
         interceptor.Capture(context);
 
         capture.Changes.Should().HaveCount(3,
@@ -262,6 +356,12 @@ public sealed class AuditChangeTrackerInterceptorTests
         {
             builder.Entity<Person>();
             builder.Entity<Band>().HasKey(band => new { band.TenantId, band.Taxonomy, band.Key });
+            builder.Entity<Bookkept>();
+            builder.Entity<Documented>(entity =>
+            {
+                entity.Property(documented => documented.Document).HasColumnType("jsonb");
+                entity.Property(documented => documented.Text).HasColumnType("text");
+            });
             builder.Entity<OutboxMessage>();
             builder.Entity<IdempotencyKey>();
             builder.Entity<AuditEntry>();
@@ -269,7 +369,20 @@ public sealed class AuditChangeTrackerInterceptorTests
         }
     }
 
-    private sealed class Person
+    private abstract class Traced
+    {
+        /// <summary>Marked, and declared on a BASE class.</summary>
+        /// <remarks>
+        /// The shape this repository's aggregates have — every audit column is declared on
+        /// <c>AuditableEntity&lt;TId&gt;</c>, not on the aggregate. The lookup walks the
+        /// hierarchy with <c>DeclaredOnly</c> at each level, so a lookup that stopped at
+        /// the entity type would miss this one and write the value.
+        /// </remarks>
+        [PiiSensitive]
+        public string Inherited { get; set; } = string.Empty;
+    }
+
+    private sealed class Person : Traced
     {
         public int Id { get; set; }
 
@@ -280,9 +393,54 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         public string Notes { get; set; } = string.Empty;
 
-        /// <summary>Marked, and named for no token.</summary>
+        /// <summary>
+        /// Marked, and named for no token — which is the whole point of the case.
+        /// </summary>
+        /// <remarks>
+        /// It used to be called <c>Secret</c>, and <c>secret</c> is in
+        /// <see cref="SensitiveTokenCatalog"/>. The marker branch was therefore dead: the
+        /// token list redacted the value first and the case passed with
+        /// <see cref="PiiSensitiveAttribute"/> deleted. A name no token matches is what
+        /// makes the assertion about the marker.
+        /// </remarks>
         [PiiSensitive]
-        public string Secret { get; set; } = string.Empty;
+        public string Nickname { get; set; } = string.Empty;
+
+
+    }
+
+    private sealed class Bookkept
+    {
+        public int Id { get; set; }
+
+        public Guid TenantId { get; set; }
+
+        public DateTimeOffset CreatedAt { get; set; }
+
+        public DateTimeOffset? UpdatedAt { get; set; }
+
+        public DateTimeOffset? DeletedAt { get; set; }
+
+        public long RowVersion { get; set; }
+
+        public string Payload { get; set; } = string.Empty;
+    }
+
+    private enum Grade
+    {
+        First,
+        Second,
+    }
+
+    private sealed class Documented
+    {
+        public int Id { get; set; }
+
+        public string Document { get; set; } = string.Empty;
+
+        public string Text { get; set; } = string.Empty;
+
+        public Grade Status { get; set; }
     }
 
     private sealed class Band

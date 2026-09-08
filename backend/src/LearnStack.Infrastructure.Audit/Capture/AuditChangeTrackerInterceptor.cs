@@ -27,7 +27,7 @@ namespace LearnStack.Infrastructure.Audit.Capture;
 /// shipped entities the two module matrices classify MUST carry no such base class, and
 /// <c>PlatformHostMapping</c> — the row that decides whose data an anonymous request
 /// sees — is the one both matrices single out as mattering most
-/// (<see href="../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 7</see>).
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 7</see>).
 /// </para>
 /// <para>
 /// <b>It must be attached through <c>AddInterceptors</c> on the options.</b> Registering
@@ -38,7 +38,7 @@ namespace LearnStack.Infrastructure.Audit.Capture;
 /// </para>
 /// <para>
 /// <b>Two gates run inside the capture, before anything reaches the buffer</b>
-/// (<see href="../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 8</see>):
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 8</see>):
 /// the <see cref="PiiSensitiveAttribute"/> marker together with
 /// <see cref="SensitiveTokenCatalog"/>'s name tokens, and the size cap. A sensitive
 /// value is <em>replaced</em> rather than dropped, so the diff still records that it
@@ -66,6 +66,30 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         "IdempotencyKey",
         "AuditEntry",
         "AuditConfig",
+    };
+
+    /// <summary>
+    /// Properties left out of the snapshot and the diff.
+    /// </summary>
+    /// <remarks>
+    /// Bookkeeping the audit row already carries or does not want, named by
+    /// <see href="../../../../docs/architecture/31-audit-subsystem.md">Audit Subsystem
+    /// § 3</see>. <c>TenantId</c> is the row's own <c>tenant_id</c>, so repeating it in
+    /// the snapshot says nothing; <c>CreatedAt</c>, <c>UpdatedAt</c> and
+    /// <c>RowVersion</c> move on every write, so a diff carrying them buries the property
+    /// that actually changed under three that always do.
+    /// <para>
+    /// The soft-delete pair is deliberately <b>not</b> here. <c>DeletedAt</c> moving is
+    /// the whole content of a soft delete, and the actor columns are who did it — both
+    /// are the record rather than the bookkeeping around it.
+    /// </para>
+    /// </remarks>
+    private static readonly HashSet<string> NotSnapshotted = new(StringComparer.Ordinal)
+    {
+        "TenantId",
+        "CreatedAt",
+        "UpdatedAt",
+        "RowVersion",
     };
 
     /// <summary>
@@ -149,18 +173,27 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         var after = new StringBuilder("{");
         var first = true;
 
-        foreach (var property in entry.Properties.OrderBy(p => p.Metadata.Name, StringComparer.Ordinal))
+        var snapshotted = entry.Properties
+            .Where(property => !NotSnapshotted.Contains(property.Metadata.Name))
+            .OrderBy(property => property.Metadata.Name, StringComparer.Ordinal);
+
+        foreach (var property in snapshotted)
         {
             var name = property.Metadata.Name;
             var sensitive = IsSensitive(type, name);
 
+            // Whether the COLUMN is jsonb, read from the model — the only place the
+            // answer is knowable, and never guessed from the value.
+            var storedAsJson = string.Equals(
+                property.Metadata.GetColumnType(), "jsonb", StringComparison.OrdinalIgnoreCase);
+
             var beforeJson = entry.State == EntityState.Added
                 ? null
-                : Value(property.OriginalValue, sensitive);
+                : Value(property.OriginalValue, sensitive, storedAsJson);
 
             var afterJson = entry.State == EntityState.Deleted
                 ? null
-                : Value(property.CurrentValue, sensitive);
+                : Value(property.CurrentValue, sensitive, storedAsJson);
 
             if (!first)
             {
@@ -197,8 +230,10 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
             Fields: fields);
     }
 
-    private static string Value(object? value, bool sensitive) =>
-        sensitive ? AuditJson.Quote(SensitiveTokenCatalog.RedactedValue) : AuditJson.Render(value);
+    private static string Value(object? value, bool sensitive, bool storedAsJson) =>
+        sensitive
+            ? AuditJson.Quote(SensitiveTokenCatalog.RedactedValue)
+            : AuditJson.Render(value, storedAsJson);
 
     /// <summary>
     /// The entity's primary key rendered as text, or <c>null</c> for a keyless shape.
@@ -235,11 +270,39 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
                 // lookup. The token list runs beside it rather than instead of it: the
                 // list catches what nobody marked, the marker catches what the list's
                 // tokens do not name.
-                var property = type.GetProperty(
-                    name,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-                return property?.GetCustomAttribute<PiiSensitiveAttribute>() is not null
-                    || SensitiveTokenCatalog.IsSensitive(name);
+                return IsMarked(type, name) || SensitiveTokenCatalog.IsSensitive(name);
             });
+
+    /// <summary>
+    /// Whether the property carries <see cref="PiiSensitiveAttribute"/>, wherever in the
+    /// hierarchy it was declared.
+    /// </summary>
+    /// <remarks>
+    /// The walk is not decoration. <c>Type.GetProperty</c> with
+    /// <c>BindingFlags.NonPublic</c> searches the given type only — a <b>private</b>
+    /// property declared on a base class is invisible to it, and this repository's
+    /// aggregates put exactly that shape on <c>AuditableEntity&lt;TId&gt;</c>. A marker
+    /// the lookup cannot see is a marker that silently does nothing, which is the worst
+    /// failure a redaction gate has: it reports success and writes the value.
+    /// <c>Inherited = true</c> on the attribute does not help, because the problem is
+    /// finding the <c>PropertyInfo</c> rather than reading its attributes.
+    /// </remarks>
+    private static bool IsMarked(Type? type, string name)
+    {
+        const BindingFlags Flags =
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+            | BindingFlags.DeclaredOnly;
+
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            var property = current.GetProperty(name, Flags);
+
+            if (property?.GetCustomAttribute<PiiSensitiveAttribute>() is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

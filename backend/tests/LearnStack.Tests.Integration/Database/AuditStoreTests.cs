@@ -115,7 +115,12 @@ public sealed class AuditStoreTests
 
         var act = async () => await store.WritePendingAsync(unitOfWork);
 
-        await act.Should().ThrowAsync<AuditWriteFailedException>();
+        // The MESSAGE, not merely the type. Delete the guard and the INSERT still fails —
+        // in autocommit, with no tenant announced, refused by the policy — and throws the
+        // same exception type from the catch below it. A case asserting only the type
+        // passes against a deleted guard, which is the shape this suite has caught before.
+        (await act.Should().ThrowAsync<AuditWriteFailedException>())
+            .WithMessage("*no ambient transaction*");
     }
 
     [Fact]
@@ -456,7 +461,153 @@ public sealed class AuditStoreTests
         }
     }
 
+    [Fact]
+    public async Task An_insert_followed_by_an_update_still_records_a_creation()
+    {
+        // The case ADR-0044 Amendment 5 § 2 is actually about, and the one the earlier
+        // merge got wrong. ProvisionTenantCommand saves three times: Tenant is captured
+        // Added (BeforeJson null) and then Modified. Skipping the null "to find a real
+        // snapshot" walks past the only capture that says the entity did not exist, and
+        // the row then claims a complete prior state for something it calls a creation.
+        // On an append-only table that reading is permanent.
+        var capture = new AuditStateCapture();
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-1", null, Step(1),
+            [new CapturedFieldChange("/ProbeTenant/step", null, "1")]));
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-1", Step(1), Step(2),
+            [new CapturedFieldChange("/ProbeTenant/step", "1", "2")]));
+
+        var intent = Intent(capture, "tenancy.tenant.create", entityType: typeof(ProbeTenant));
+
+        var (before, after) = await WriteAndReadStatesAsync(capture, intent);
+
+        before.Should().BeNull("the earliest capture is the insert, and it has no prior state");
+        after.Should().Be("2", "the latest capture's after state");
+    }
+
+    [Fact]
+    public async Task An_update_followed_by_a_delete_records_that_the_row_is_gone()
+    {
+        // The mirror, and it fails the same way: keeping the last NON-NULL after state
+        // makes a `delete` row assert the entity still exists.
+        var capture = new AuditStateCapture();
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-1", Step(1), Step(2),
+            [new CapturedFieldChange("/ProbeTenant/step", "1", "2")]));
+        capture.Add(new CapturedEntityChange(
+            nameof(ProbeTenant), "t-1", Step(2), null,
+            [new CapturedFieldChange("/ProbeTenant/step", "2", null)]));
+
+        var intent = Intent(capture, "tenancy.tenant.delete", entityType: typeof(ProbeTenant));
+
+        var (before, after) = await WriteAndReadStatesAsync(capture, intent);
+
+        before.Should().Be("1");
+        after.Should().BeNull("the latest capture is the delete, and it has no new state");
+    }
+
+    [Fact]
+    public async Task A_capture_of_another_entity_type_does_not_reach_the_row()
+    {
+        // One request captures every entity it touched; an intent is about one of them.
+        // Without the type filter, ProvisionTenantCommand's tenant row would carry the
+        // organization's snapshot — and the trail would attribute one aggregate's change
+        // to another.
+        var capture = new AuditStateCapture();
+        capture.Add(new CapturedEntityChange(
+            "SomethingElse", "x-1", Step(9), Step(9),
+            [new CapturedFieldChange("/SomethingElse/step", "9", "9")]));
+
+        var intent = Intent(capture, "tenancy.tenant.create", entityType: typeof(ProbeTenant));
+
+        var (before, after) = await WriteAndReadStatesAsync(capture, intent);
+
+        before.Should().BeNull();
+        after.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task The_standalone_write_throws_when_the_row_cannot_be_written()
+    {
+        // Fail-closed is the whole difference between this method and the best-effort one,
+        // and without a case the two can be made identical. The refusal here is the
+        // CHECK's: an outcome outside the closed set, which is the shape a future writer
+        // would actually get wrong.
+        var draft = Draft(organizationId: null) with { Outcome = (AuditOutcome)99 };
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(new AuditStateCapture(), dataSource);
+
+        var act = async () => await store.WriteStandaloneAsync(draft);
+
+        await act.Should().ThrowAsync<AuditWriteFailedException>();
+        (await CountAsync(draft.Id)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_best_effort_write_actually_writes_the_row()
+    {
+        // The accepting half. Without it the method could be reduced to a no-op with the
+        // whole suite green, and every SHOULD/MAY row would be silently lost.
+        var draft = Draft(organizationId: StoreOrg);
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(new AuditStateCapture(), dataSource);
+
+        try
+        {
+            await store.WriteBestEffortAsync(draft);
+
+            (await CountAsync(draft.Id)).Should().Be(1);
+        }
+        finally
+        {
+            await DeleteAsync(draft.Id);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static string Step(int value) => $"{{\"step\":{value}}}";
+
+    /// <summary>Writes the intent's row and reads back the two snapshot columns.</summary>
+    private async Task<(string? Before, string? After)> WriteAndReadStatesAsync(
+        AuditStateCapture capture, AuditIntent intent)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(capture, dataSource);
+
+        try
+        {
+            await using (var unitOfWork = new NpgsqlUnitOfWork(dataSource, NullLogger<NpgsqlUnitOfWork>.Instance))
+            {
+                await using var scope = await unitOfWork.BeginTransactionAsync();
+                await AnnounceAsync(unitOfWork);
+
+                await store.WritePendingAsync(unitOfWork);
+                await scope.CompleteAsync();
+            }
+
+            await using var connection = await PostgresFixture.OpenAsync(
+                _schema.Postgres.PlatformConnectionString);
+            await using var read = new NpgsqlCommand(
+                "SELECT before_state ->> 'step', after_state ->> 'step' FROM audit_log WHERE id = @id",
+                (NpgsqlConnection)connection);
+            read.Parameters.AddWithValue("id", intent.Id.Value);
+
+            await using var reader = await read.ExecuteReaderAsync();
+            (await reader.ReadAsync()).Should().BeTrue();
+
+            return (
+                reader.IsDBNull(0) ? null : reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1));
+        }
+        finally
+        {
+            await DeleteAsync(intent.Id);
+        }
+    }
 
     /// <summary>A stand-in for the aggregate an intent names, so the merge has a type.</summary>
     private sealed class ProbeTenant;

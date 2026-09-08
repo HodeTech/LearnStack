@@ -175,16 +175,29 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
         "AuditConfig",     //   store writes parameterised SQL and never a DbContext
     ];
 
-    private static bool ShouldCapture(EntityEntry entry) =>
+    private static bool IsCaptured(EntityEntry entry) =>
         entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
-        && !Excluded.Contains(entry.Entity.GetType().Name);
+        && !Excluded.Contains(entry.Metadata.ClrType.Name);
 
-    private static CapturedEntityChange BuildChange(EntityEntry entry)
+    private static CapturedEntityChange Describe(EntityEntry entry)
     {
-        // Build Before/After snapshots and the per-property diff; exclude the bookkeeping
-        // columns (TenantId, CreatedAt, UpdatedAt, Version). Unwrap strongly-typed IDs to
-        // their underlying Guid for readable JSON. Run the PII gate and the size gate
-        // below on every value emitted.
+        // Build Before/After snapshots and the per-property diff, and run the PII gate and
+        // the size gate below on every value emitted.
+        //
+        // FOUR PROPERTIES ARE LEFT OUT: TenantId, CreatedAt, UpdatedAt and RowVersion.
+        // The first is the row's own tenant_id, so repeating it says nothing; the other
+        // three move on every write, so a diff carrying them buries the property that
+        // actually changed under three that always do. The soft-delete pair is
+        // deliberately NOT among them — DeletedAt moving is the whole content of a soft
+        // delete, and DeletedBy is who did it.
+        //
+        // A value is emitted as JSON decided by its COLUMN, never by its content: a jsonb
+        // column passes through verbatim, everything else is serialised. Deciding from the
+        // value retypes ordinary text whose content happens to parse — a varchar display
+        // name of "[1,2,3]" would become a JSON array — and emits escapes jsonb refuses,
+        // failing the INSERT inside the business transaction. An enum renders as its NAME,
+        // matching the three closed-set columns beside it. Strongly-typed identifiers need
+        // no unwrapping: measured, a Vogen id already serialises as its quoted Guid.
     }
 }
 ```
@@ -1517,9 +1530,9 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
         //
         //    Every member is `required`, so the compiler refuses a construction that
         //    omits one and every value arrives under its own name. That is a
-        //    correctness property, not a style: ten of the twenty-two fields are
-        //    string?, eight in one run, and a transposition among them lands in the one
-        //    table whose rows nothing can correct.
+        //    correctness property, not a style: ELEVEN of the twenty-two fields are
+        //    string?, six of them consecutive, and a transposition among those lands in
+        //    the one table whose rows nothing can correct.
         await auditStore.WriteStandaloneAsync(
             new AuditEntryDraft
             {

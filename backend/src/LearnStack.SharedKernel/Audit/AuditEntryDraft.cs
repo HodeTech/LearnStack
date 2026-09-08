@@ -26,8 +26,8 @@ namespace LearnStack.SharedKernel.Audit;
 /// </para>
 /// <para>
 /// <b>Every member is <c>required</c> and named at the call site, and that is a
-/// correctness property rather than a style.</b> The row has twenty-two fields and ten
-/// of them are <c>string?</c>, eight in one run — <c>EntityType</c>, <c>EntityId</c>,
+/// correctness property rather than a style.</b> The row has twenty-two fields and
+/// <b>eleven</b> of them are <c>string?</c>, six of those consecutive —
 /// <c>ErrorKey</c>, <c>Reason</c>, <c>BeforeState</c>, <c>AfterState</c>,
 /// <c>Changes</c>, <c>CorrelationId</c>. A positional constructor accepts any
 /// permutation of those without a diagnostic, and the mistake lands in the one table in

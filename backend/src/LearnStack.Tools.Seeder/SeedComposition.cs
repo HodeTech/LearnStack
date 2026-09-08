@@ -16,6 +16,7 @@ using LearnStack.SharedKernel.Validation;
 using LearnStack.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -112,7 +113,15 @@ public static class SeedComposition
         services.AddScoped<AuditStateCapture>();
         services.AddScoped<IAuditStateCapture>(
             provider => provider.GetRequiredService<AuditStateCapture>());
-        services.AddScoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>();
+        // TryAddEnumerable, not TryAddScoped. ISaveChangesInterceptor is a MULTI
+        // registration — AddModuleDbContext resolves the whole collection — and
+        // TryAddScoped skips when ANY registration of the service type exists, so the
+        // moment a second interceptor is registered first the audit capture is silently
+        // not added and every audit row ships with empty snapshots and no error anywhere.
+        // TryAddEnumerable is keyed on the (service, implementation) pair, which is the
+        // idempotence this actually wants.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
         services.AddScoped<IAuditStore, PostgresAuditStore>();
 
         // Its own short read-only transaction on its own connection, which is why it takes

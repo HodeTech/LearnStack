@@ -291,8 +291,16 @@ public sealed class PostgresAuditStore(
             Outcome = outcome,
             ErrorKey = null,
             Reason = null,
-            BeforeState = matching.Select(change => change.BeforeJson).FirstOrDefault(json => json is not null),
-            AfterState = matching.Select(change => change.AfterJson).LastOrDefault(json => json is not null),
+            // The EARLIEST capture's before and the LATEST capture's after, nulls
+            // included. Skipping nulls looks like tidying and is not: the interceptor sets
+            // BeforeJson to null to say the entity did not exist and AfterJson to null to
+            // say it no longer does, so those two are the only captures that carry that
+            // meaning. Walking past the first would give a `create` row a complete prior
+            // state — the tenant as it stood immediately after its own INSERT — and a
+            // reviewer diffing before to after would read a creation as an update. On an
+            // append-only table that reading is permanent.
+            BeforeState = matching.Count == 0 ? null : matching[0].BeforeJson,
+            AfterState = matching.Count == 0 ? null : matching[^1].AfterJson,
             Changes = fields.Count == 0 ? null : SerialiseChanges(fields),
             CorrelationId = null,
             IpAddress = null,
