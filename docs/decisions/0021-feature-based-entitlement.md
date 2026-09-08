@@ -483,3 +483,31 @@ its arity, both of which this ADR left stated two ways.
 [Hybrid License Model](../architecture/26-hybrid-license-model.md),
 [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) and
 [the glossary](../glossary.md).
+
+### 2026-09-08 — `LimitKeys` takes the vocabulary the Hub already ships
+
+**Status: Accepted.** Raised by [ADR-0045 Amendment 1](0045-entitlement-and-feature-flag-socket.md).
+
+The 2026-05-18 amendment above fixed the registry's *shape* — `LimitKey` value objects
+rather than `const string` — and, in doing so, fixed a set of key **strings**:
+`tenancy.max_learners`, `tenancy.max_instructors`, `tenancy.max_organizations`,
+`classroom.max_concurrent_sessions`, `classroom.minutes_per_month`, `media.storage_gb`,
+`integrations.api_rate`.
+
+Measured against the other side of the contract, that set shares **no** member with what
+the Hub sends. `LearnStack.Hub.SharedKernel/FeatureFlags/LimitKeys.cs` — merged, with two
+plan validators built on it — declares nine keys under a `limits.` prefix
+(`limits.max_users`, `limits.max_organizations`, `limits.classroom_minutes_per_month`,
+`limits.recording_storage_gb`, `limits.media_storage_gb`,
+`limits.media_bandwidth_gb_per_month`, `limits.api_rate_per_minute`,
+`limits.max_custom_content_types`, `limits.max_page_block_definitions`), which is also the
+spelling in this ADR's own § Decision outcome plan payload.
+
+**LearnStack's registry takes the `limits.` vocabulary.** The shape decision stands: typed
+`LimitKey` value objects, no magic strings, `IFeatureFlags.GetLimitAsync(LimitKey)`. What
+changes is the strings inside them, and it changes on this side because this side has no
+implementing code and the Hub has shipped. Packet 9 writes `LimitKeys` from that list, and
+only the members with a consumer.
+
+The **feature**-key set is not changed here: the two sides largely agree, and the gaps are
+keys neither has a consumer for.

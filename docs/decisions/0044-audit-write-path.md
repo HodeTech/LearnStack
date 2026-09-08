@@ -630,6 +630,122 @@ trigger is the only one that binds the owner.
 [the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md) and
 [the glossary](../glossary.md).
 
+## Amendment 3 — What the join binds to, and the types the ports carry (2026-09-08)
+
+**Status: Accepted.** Raised by the cross-corpus review of the carrier repair. Four
+questions § 6 and § 11 left open, each of which an implementer would otherwise answer by
+improvising. **§ Decision is unchanged.**
+
+### 1. The join has two directions and they have different domains
+
+§ 6 says "a verb in the catalogue with no matrix row fails, and a matrix row with no
+catalogue entry fails", and § 6 also keys the catalogue by **request type**. Both are
+right; together, as written, they are unsatisfiable. Measured: `backend/src/Modules`
+contains **seven** request types, and the two shipped matrices classify **thirty**
+operations — because both were deliberately written ahead of code and both say so in
+their second paragraph. Twenty-three rows therefore have no request type for a catalogue
+entry to be keyed on, and `Every_TenantOwned_Command_HasAuditCoverage` would be red on
+its first run against classification the corpus asked for.
+
+Read as two rules with two subjects:
+
+- **Catalogue → matrix, total.** Every entry a *module's* `IAuditCatalogSource`
+  registers has a row in that module's matrix carrying the same slug. No exemption. The
+  test-only request types of § Consequences register in their fixtures, not in a module
+  source, and are outside this direction.
+- **Matrix → catalogue, scoped to what exists.** A matrix row fails only when a request
+  type that raises it **exists** and no catalogue entry names it. A row classified ahead
+  of its command is not drift; it is the classification the standard requires *before*
+  the command ships, which is the whole reason § Consequences calls MUST/SHOULD/MAY "a
+  functional distinction, not a documentation one".
+- **Anti-rot, which is what stops the scoping from becoming a hole.** A row marked
+  `(planned)` whose command has since shipped **fails**. Marking is not an escape: it is
+  a claim the rule re-checks on every run.
+- **Off the request path entirely.** Some audited operations are not MediatR requests at
+  all — `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
+  `tenancy.entitlement.refresh`, and the two tenant-assertion keys ADR-0036 parks on this
+  packet. Their rows carry `(off-path)` and are outside the request-type join in both
+  directions; their catalogue entries are registered by slug rather than by type.
+
+`docs/modules/<module>/audit.md`'s `Operation` cell carries the marker. Both shipped
+matrices are corrected in the same change; the Tenancy matrix's claim that
+`platform.admin_scope.enter` is "the single row outside that join" was wrong when
+written and is corrected with them.
+
+### 2. `AuditIntent` carries the tenant
+
+§ 2 decides which tenant a row carries and § 11 places the ports, but nothing gives
+`PostgresAuditStore` the value on the in-transaction path: `WritePendingAsync(IUnitOfWork,
+CancellationToken)` takes only the unit of work, `IUnitOfWork` exposes no tenant, and
+`ITenantContextAccessor` — the source § 5 of the architecture document names — **throws**
+for the provisioning case, which is the one case § 2 exists to answer.
+
+`AuditIntent` therefore carries `TenantId TenantId` and `OrganizationId? OrganizationId`,
+resolved by `AuditLogBehavior` at step 3, which is the only place all four of § 2's cases
+are decidable and is where the intent is already minted. The store composes the row from
+the intent and never resolves a tenant itself. `WritePendingAsync`'s signature is
+untouched.
+
+### 3. `LearnStack.SharedKernel.Audit` holds the value types, not only the ports
+
+§ 11 enumerates the five ports and is silent on the types those ports carry. That silence
+is a project cycle: `AuditIntent` and `AuditEntryDraft` are SharedKernel records that name
+`OperationType`, `OperationClass` and the outcome, and every module's
+`IAuditCatalogSource` names the first two — while the only declaration of all three sits
+in `LearnStack.Modules.Audit.Domain`, which already references SharedKernel. It is the
+same cycle [ADR-0023 Amendment 9](0023-strongly-typed-id-source-generator.md) resolves for
+`AuditEntryId`, and it resolves the same way.
+
+`LearnStack.SharedKernel.Audit` additionally holds `OperationType`, `OperationClass`,
+`AuditOutcome`, `AuditClassification`, `AuditIntentState` and `CapturedEntityChange`. The
+Audit module's `AuditEntry` consumes them; it does not declare them.
+
+### 4. `AuditClassification` is the effective answer, `OperationClass` the declared tier
+
+§ 6 requires every request to be classified, "`Off` included", and no enum in the corpus
+has an `Off`. Two types, one distinction:
+
+- **`OperationClass { Must, Should, May }`** — what the catalogue and the matrix
+  *declare*.
+- **`AuditClassification { Off, May, Should, Must, Unclassified }`** — what
+  `IAuditConfigService.ClassifyAsync` *returns*, after the tenant's `audit_config`
+  override and the MUST floor. `Off` is how a request that writes no row is registered —
+  the eight test-only types among them — and `Unclassified` is the rejection.
+
+`IAuditCatalogBuilder` gains the registration that expresses it, so "register `Off`" is a
+call and not a convention.
+
+### 5. The sentinel invariant gets an enforcer
+
+§ 1 states that the sentinel "is never written by a tenant request path, never announced
+by `SetTenantContextAsync`" as though something enforced it. Nothing does, and the one
+announcement path that takes a caller-supplied id — `SetProvisioningTenantContextAsync` —
+is not the one § 1 names. Packet 9 adds the guard where the value enters:
+`SetProvisioningTenantContextAsync` refuses `TenantId.PlatformSentinel` exactly as it
+already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory. The `tenants`
+CHECK is the backstop, not the control — a constraint cannot stop a GUC from being
+announced.
+
+### 6. The slug grammar and ADR-0036's two keys
+
+§ 6 fixes the slug as `{module}.{resource}.{verb}`, lowercase, singular resource,
+snake_case within a segment. [ADR-0036](0036-tenant-resolution-trusted-inputs.md) names
+two operations this packet must emit — `tenancy.tenant-assertion.reject` and
+`tenancy.tenant-assertion.anonymous-burst` — which carry hyphens inside a segment and so
+do not parse under it. They are recorded in their snake_case form,
+`tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
+ADR-0036 carries a dated amendment saying so. Renaming the key rather than widening the
+grammar keeps one parser for every audit slug and every permission key.
+
+### Carriers changed
+
+[Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 4, 5, 7, 13,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md),
+[the glossary](../glossary.md), both module matrices,
+[ADR-0036](0036-tenant-resolution-trusted-inputs.md) (its own dated amendment) and
+`.claude/skills/add-audit-coverage/SKILL.md`.
+
 ## References
 
 - [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) — the durability

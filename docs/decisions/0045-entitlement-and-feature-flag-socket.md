@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+Accepted (**Amendment 1: 2026-09-08** — read against the Hub repository's merged code:
+the limit-key vocabulary is the Hub's, `expires_at` and `valid_until` are nullable, the
+generation guard admits the equal case, `platform_killswitches` ships **unwritten**, and
+every key descriptor carries its fail-open/fail-closed class and its killswitch by name.)
 
 **Date:** 2026-09-07
 **Deciders:** @platform
@@ -405,6 +408,105 @@ in anticipation of it. Nothing in the corpus asks for the distinction today.
   [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md), and
   [Phase 02c](../roadmap/phase-02c-hub-foundation.md), whose deliverables gain the limit
   enforcement path alongside `IUsageReporter`.
+
+
+## Amendment 1 — What the other repository already shipped (2026-09-08)
+
+**Status: Accepted.** Raised by the cross-corpus review, which read this ADR against the
+Hub repository's merged code rather than only against LearnStack's documents. Four of the
+five items below are cases where LearnStack's corpus and the Hub's *implementation*
+disagree, and the Hub is the side that has shipped. **§ Decision is unchanged.**
+
+### 1. The limit-key vocabulary is the Hub's
+
+§ 6 tells Packet 9 to ship `LimitKeys` "carrying only the keys the corpus already names".
+Measured, the intersection between what this corpus names and what the Hub sends is
+**empty**: LearnStack's four documents name `tenancy.max_learners`,
+`classroom.minutes_per_month`, `media.storage_gb` and four more; the Hub's
+`LearnStack.Hub.SharedKernel/FeatureFlags/LimitKeys.cs` names nine keys under a `limits.`
+prefix — `limits.max_users`, `limits.max_organizations`,
+`limits.classroom_minutes_per_month`, and six others — and its plan validators reject a
+plan whose limits are not from that set.
+
+**LearnStack adopts the Hub's spelling.** Not because it is better: because the Hub has
+merged code, a plan editor and two validators built on it, and LearnStack has a
+declaration in four documents and no implementing line. Freezing our spelling would make
+`GetLimitAsync` miss on every real projection and fall through to the catalog default —
+a paid tenant silently reading its plan as absent, which is the failure mode hardest to
+see from inside.
+
+The same check on **feature** keys found a narrower gap and it is left as it is: the two
+sides agree on most, and Packet 9 ships only keys with a consumer.
+
+### 2. `expires_at` is nullable, and so is `valid_until`
+
+§ 1 declares `DateTimeOffset? ExpiresAt` against a shipped `valid_until timestamptz NOT
+NULL`. The pinned wire schema makes `expires_at` required **and** nullable, the Hub's DTO
+carries `DateTimeOffset?`, and the Hub sends `null` for every tenant with no scheduled
+expiry — trials and perpetual licences, which is the cohort it creates first.
+
+A null `expires_at` means "no scheduled expiry". It persists as `valid_until NULL` and is
+never coerced to a sentinel, because a far-future date would silently become an expiry
+somebody eventually has to explain. **Packet 9 alters the column to `NULL` on the Tenancy
+chain** and makes `PlatformEntitlement.ValidUntil` nullable with it. This is a change to a
+table Packet 6 shipped, and it is cheap now precisely because no row exists.
+
+### 3. The generation guard admits the equal case
+
+§ 1 fixes the guard as `… WHERE generation < @generation`. Four other places — including
+the shipped entity's own remarks, the Hub's architecture document and the Hub's delivery
+doc — say a push applies when its generation is **at least** the stored one. The
+difference is only the equal case, and the equal case is the provisioning flow: the
+provisioning insert writes `generation` **default 1**, and the Hub's first real projection
+for that tenant also carries 1. Under strict `>` that projection is discarded and the
+tenant keeps an empty row while `RefreshAsync` reports `IgnoredAsStale` — a paid tenant
+reading as unentitled, reported as success.
+
+Read as `>=`: a push applies when its generation is greater than or equal to the stored
+one. Replay at the same generation is idempotent, which is what the Hub's own reasoning
+assumes.
+
+### 4. `platform_killswitches` ships unwritten, and says so
+
+§ 5 gives the table, the policies, the overlay and the cache family, and no document names
+the command, endpoint or operator surface that flips a switch. Packet 9 ships the table
+and the **read** path; it ships no writer, and the corpus stops claiming one.
+
+The reason is not scheduling, it is reachability: every killswitch write runs inside
+`EnterPlatformAdminScope(reason)`, and the registered `IPlatformAdminGate` is
+`DenyAllPlatformAdminGate` — nothing can enter that scope until the Platform-scope
+permission arrives with the registry in
+[Phase 03](../roadmap/phase-03-identity-admin.md). A toggle command shipped now would be
+unreachable code with a permission key nothing registers.
+
+`tenancy.killswitch.toggle` therefore carries `(planned)` in the Tenancy matrix under
+[ADR-0044 Amendment 3](0044-audit-write-path.md), and **Phase 03** owns the toggle command,
+its permission and its runbook. Every gated read still honours a flipped switch the day
+one exists; what is absent is the flipping.
+
+### 5. Two things every key descriptor carries
+
+- **Fail-open or fail-closed.** [ADR-0034](0034-hub-contract-surface-invariant.md)
+  § The entitlement read path requires that "each feature key class declares fail-open or
+  fail-closed explicitly". § 6's descriptor list omitted it. Every `FeatureKey` declares
+  it, and it is what the provider's degraded path reads when the projection is unavailable
+  past its grace window.
+- **Its killswitch, by name.** § 2's precedence applies "the corresponding killswitch"
+  and nothing said how a `FeatureKey` corresponds to one. The correspondence is declared
+  on the feature key's descriptor — a nullable `KillswitchKey` — not inferred from the
+  string, because inference would make a renamed key silently ungated.
+
+### Carriers changed
+
+[Feature Flags](../architecture/21-feature-flags.md),
+[Hybrid License Model](../architecture/26-hybrid-license-model.md),
+[ADR-0021](0021-feature-based-entitlement.md) (its own dated amendment, for the registry
+its 2026-05-18 amendment fixed),
+[Database Standards](../standards/05-database.md),
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md),
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md),
+[the glossary](../glossary.md) and `.claude/skills/add-feature-key/SKILL.md`. The Hub
+repository changes nothing.
 
 ## References
 
