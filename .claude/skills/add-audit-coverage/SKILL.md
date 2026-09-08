@@ -271,33 +271,48 @@ using LearnStack.SharedKernel.Audit;
 
 public sealed class EnrollmentAuditCatalogSource : IAuditCatalogSource
 {
+    // Every slug this source declares through a request-keyed registration starts with
+    // it, and it is the module whose docs/modules/<module>/audit.md the join reads.
+    public string ModuleName => "enrollment";
+
     public void Describe(IAuditCatalogBuilder builder)
     {
+        // The third argument is the aggregate the row is about. It is declared, never
+        // derived from the slug: the matrices drop the module's own prefix, so
+        // tenancy.feature_flag.write is TenantFeatureFlag — a slug-to-type rule is wrong
+        // for two shipped entities on the day it is written (ADR-0044 Amendment 5 § 2).
+        // It is what fills entity_type and entity_id.
         builder.MustAudit<CreateEnrollmentCommand>(
             operation: "enrollment.enrollment.create",
-            operationType: OperationType.Create);
+            operationType: OperationType.Create,
+            entityType: typeof(Enrollment));
 
         builder.MustAudit<SuspendEnrollmentCommand>(
             operation: "enrollment.enrollment.suspend",
             operationType: OperationType.Update,
-            capturesBeforeAfter: true);
+            entityType: typeof(Enrollment));
 
         builder.ShouldAudit<CancelEnrollmentCommand>(
             operation: "enrollment.enrollment.cancel",
-            operationType: OperationType.Update);
+            operationType: OperationType.Update,
+            entityType: typeof(Enrollment));
 
         builder.MustAudit<DeleteCohortCommand>(
             operation: "enrollment.cohort.delete",
-            operationType: OperationType.Delete);
+            operationType: OperationType.Delete,
+            entityType: typeof(Cohort));
 
         // One request, two audited resources — the ProvisionTenantCommand shape.
-        // Each triple becomes its own intent and its own row.
+        // Each registration becomes its own intent and its own row, and each names its
+        // own aggregate, which is how the two rows say what they are about.
         builder.MustAudit<EnrollCohortCommand>(
             operation: "enrollment.cohort.create",
-            operationType: OperationType.Create);
+            operationType: OperationType.Create,
+            entityType: typeof(Cohort));
         builder.MustAudit<EnrollCohortCommand>(
             operation: "enrollment.enrollment.create",
-            operationType: OperationType.Create);
+            operationType: OperationType.Create,
+            entityType: typeof(Enrollment));
 
         // Registered, never audited: AuditClassification.Off. A call, not a
         // convention — an unregistered request is rejected, not silently skipped.
@@ -308,8 +323,12 @@ public sealed class EnrollmentAuditCatalogSource : IAuditCatalogSource
 
 The registration tells `AuditLogBehavior` to:
 
-- Mint an `AuditEntryId` and park one intent per triple at step 3.
-- Capture `before` / `after` / `changes` snapshots (`capturesBeforeAfter: true`).
+- Mint an `AuditEntryId` and park one intent per registration at step 3.
+- Fill `entity_type` / `entity_id` from the declared aggregate, merging every capture of
+  that type: the **earliest** one's `before`, the **latest** one's `after`, their fields
+  concatenated. There is **no** per-registration opt-in for snapshots — the interceptor
+  captures every tracked entity unconditionally (ADR-0044 § 7), and a
+  `capturesBeforeAfter:` argument an earlier draft of this skill showed does not exist.
 - Apply the class — `MustAudit` registers a floor a tenant `AuditConfig` cannot demote.
 
 **Every request type must be registered.** There is no `RequestKind.Other` and no

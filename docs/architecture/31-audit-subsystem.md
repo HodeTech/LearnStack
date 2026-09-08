@@ -268,7 +268,7 @@ public interface IAuditStateCapture
     // many intents the scope holds.
     AuditIntentState State { get; }
 
-    void Declare(AuditIntent intent);       // AuditLogBehavior, step 3; appends
+    void DeclareIntent(AuditIntent intent); // AuditLogBehavior, step 3; appends
     void MarkWrittenInTransaction();        // IAuditStore.WritePendingAsync
     void MarkCommitted();                   // TransactionBehavior, OWNING FRAME ONLY
     void MarkRolledBack();                  // TransactionBehavior, OWNING FRAME ONLY
@@ -285,28 +285,41 @@ public interface IAuditStateCapture
 // itself ([ADR-0044 Amendment 3 § 2](../decisions/0044-audit-write-path.md)). A request
 // with no decidable tenant declares no intent, which is how § 7's fourth case — "no row"
 // — is enforced before anything can be written rather than after.
+//
+// EntityType is the aggregate the row is about, from the catalogue entry, and is what
+// fills entity_type / entity_id. The store selects every CapturedEntityChange whose
+// EntityType matches its name and merges them: the EARLIEST such capture's BeforeJson,
+// the LATEST one's AfterJson, and their Fields concatenated in capture order. The merge
+// is not hypothetical — ProvisionTenantCommand saves three times and captures Tenant
+// twice, so picking one arbitrarily records half of what happened
+// ([ADR-0044 Amendment 5 § 2](../decisions/0044-audit-write-path.md)).
 public sealed record AuditIntent(
-    AuditEntryId AuditEntryId,
+    AuditEntryId Id,
     TenantId TenantId,
     OrganizationId? OrganizationId,
-    string Module,
+    string ModuleName,
     string Operation,                       // {module}.{resource}.{verb}
     OperationType OperationType,
     OperationClass OperationClass,
+    Type? EntityType,                       // the aggregate the row is about, or null
     DateTimeOffset DeclaredAt);
 
 // The interceptor's unit of capture, declared beside the buffer that holds it.
-// `Changes` is what the audit row's `changes` column serialises to: a JSON ARRAY of
+// `Fields` is what the audit row's `changes` column serialises to: a JSON ARRAY of
 // { path, before, after }, `Path` an entity-qualified RFC 6901 pointer (§ 3).
+//
+// EVERY VALUE SLOT HERE HOLDS JSON TEXT, which is why each is named `…Json`. It is not
+// cosmetic: 42 and "42" are different values, a C# null is the JSON null rather than an
+// absent key, and the redaction sentinel therefore enters quoted. A slot holding a
+// rendered value would make `changes` unparseable by the two readers that consume it.
 public sealed record CapturedEntityChange(
     string EntityType,
     string? EntityId,
-    EntityChangeKind Kind,                  // Added | Modified | Deleted
-    JsonNode? BeforeState,                  // object, or the elision record
-    JsonNode? AfterState,                   // object, or the elision record
-    IReadOnlyList<PropertyChange> Changes);
+    string? BeforeJson,                     // object, or the elision record
+    string? AfterJson,                      // object, or the elision record
+    IReadOnlyList<CapturedFieldChange> Fields);
 
-public sealed record PropertyChange(string Path, JsonNode? Before, JsonNode? After);
+public sealed record CapturedFieldChange(string Path, string? BeforeJson, string? AfterJson);
 ```
 
 `State` is the only durability signal in the system, and it is deliberately **not**
@@ -391,9 +404,16 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // has none. Every IRequest<Result<T>> reaching step 3 must be classified, `Off`
         // included; an unregistered one is a deployment defect, test-only request types
         // included, and they register through the same builder in their fixture.
-        var descriptors = catalog.Describe(typeof(TRequest));   // 0..n per request
-        if (descriptors.Count == 0)                             // = Unclassified
+        // TryGet, not a count: `Off` and `Unclassified` are different answers and a
+        // zero-length descriptor list cannot tell them apart. A registered-and-silent
+        // request — the eight test-only types among them — returns true with
+        // WritesNoRow; an unregistered one returns false and is refused.
+        if (!catalog.TryGet(typeof(TRequest), out var registration))
             return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
+
+        if (registration.WritesNoRow) return await next();
+
+        var descriptors = registration.Entries;                 // 1..n per request
 
         // WHICH TENANT the rows carry, decided ONCE and here, because step 3 is the only
         // place all four of § 7's cases are decidable and is where the intent that carries
@@ -423,7 +443,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // security (§ 7). A read here would return ZERO ROWS SILENTLY — indistinguishable
         // from "this tenant has no overrides" — so no catch could ever fire. On a cache
         // miss the loader opens its OWN short transaction and sets app.tenant_id itself.
-        var classified = new List<(AuditOperation Descriptor, AuditClassification Class)>();
+        var classified = new List<(AuditCatalogEntry Descriptor, AuditClassification Class)>();
 
         foreach (var descriptor in descriptors)
         {
@@ -569,20 +589,23 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
 `IAuditCatalogSource` and describes its request types into an `IAuditCatalogBuilder`
 ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)); the composition root merges every
 source **once at startup** into the `IAuditCatalog` this behavior injects, so
-`Describe(typeof(TRequest))` is a dictionary lookup returning `AuditOperation` descriptors
-— `(Module, Operation, OperationType)` — with no merge, no allocation and no query on the
-request path. `IAuditConfigService.ClassifyAsync(AuditOperation, …)` is the second face:
+`TryGet(typeof(TRequest), out …)` is a dictionary lookup returning an `AuditRegistration`
+— a `WritesNoRow` flag and its `AuditCatalogEntry` entries,
+`(ModuleName, Operation, OperationType, OperationClass, EntityType)` — with no merge, no
+allocation and no query on the request path.
+`IAuditConfigService.ClassifyAsync(AuditCatalogEntry, …)` is the second face:
 it applies the tenant's cached `audit_config` override to a descriptor and re-applies the
 MUST floor, returning the `AuditClassification` the loop branches on. The merged catalogue
 is composition-root machinery a module author never writes.
 
 All five — `IAuditCatalog`, `IAuditCatalogSource`, `IAuditCatalogBuilder`,
-`AuditOperation` and `IAuditConfigService` — live in `LearnStack.SharedKernel.Audit` for
+`AuditCatalogEntry` and `IAuditConfigService` — live in `LearnStack.SharedKernel.Audit` for
 the reason [ADR-0044 Amendment 3 § 3](../decisions/0044-audit-write-path.md) gives for the
 value types: `LearnStack.Application` references only `LearnStack.SharedKernel`,
 `LearnStack.Domain` and `LearnStack.Application.Contracts`, and a module's `Application`
 project references only SharedKernel plus its own Domain and Contracts, so SharedKernel is
-the one assembly the behavior and every module source share.
+the one assembly the behavior and every module source share. Four of the five ship with
+the ports; `IAuditConfigService` lands with `AuditLogBehavior`, which is its only caller.
 
 **Three of `audit_log`'s columns have no source in Packet 9, and the document says so
 rather than implying one.** `actor_user_id` and `correlation_id` come from
@@ -593,7 +616,9 @@ and `actor_user_id` carries no foreign key. `ip_address` and `user_agent` need H
 enrichment `LearnStack.Application` cannot see — that project references no
 `Microsoft.AspNetCore.*` package, and must not begin to — so they stay `NULL` until
 [Phase 03](../roadmap/phase-03-identity-admin.md) adds the request-context port that
-carries them. When it does, that port's population sites are enumerated and counted the
+carries them — as `System.Net.IPAddress`, not `string`: the column is `inet`, Npgsql maps
+that type onto it with no configuration, and a `string` maps onto `text`, which
+PostgreSQL will not assign to `inet`. When it does, that port's population sites are enumerated and counted the
 way [ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) counts
 the ambient tenant context's four, and for the same reason: an ambient value anyone may
 write is an ambient value nobody can reason about.
@@ -1411,13 +1436,38 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
         // 6. Meta-audit. The redaction is itself a MUST-class security event, and a log
         //    line is not an audit row — the previous version of this handler logged and
         //    called it audited.
+        //
+        //    Constructed explicitly rather than through the five-argument factory an
+        //    earlier draft of this document showed. That shorthand could not be written:
+        //    AuditEntryDraft is a positional record with no factory, AuditEntryId has no
+        //    New() (ADR-0023 Amendment 9), and Timestamp comes from IClock — so a call
+        //    omitting all three had nothing to bind to. If Phase 03 wants a factory it
+        //    adds one there, taking the id and the clock.
         await auditStore.WriteStandaloneAsync(
-            AuditEntryDraft.SecurityEvent(
-                tenantId:  @event.TenantId,
-                module:    "audit",
-                operation: "audit.redaction.apply",
-                outcome:   AuditOutcome.Success,
-                metadata:  new { subjectUserId = @event.UserId }),
+            new AuditEntryDraft(
+                Id:              AuditEntryId.From(guidFactory.NewUuidV7()),
+                TenantId:        TenantId.From(@event.TenantId),
+                OrganizationId:  null,
+                ActorUserId:     null,
+                ActorEmail:      null,
+                ModuleName:      "audit",
+                Operation:       "audit.redaction.apply",
+                OperationType:   OperationType.SecurityEvent,
+                OperationClass:  OperationClass.Must,
+                EntityType:      null,
+                EntityId:        null,
+                Outcome:         AuditOutcome.Success,
+                ErrorKey:        null,
+                Reason:          $"gdpr-redaction:{@event.UserId}",
+                BeforeState:     null,
+                AfterState:      null,
+                Changes:         null,
+                CorrelationId:   null,
+                IpAddress:       null,
+                UserAgent:       null,
+                Timestamp:       clock.UtcNow,
+                Metadata:        JsonSerializer.Serialize(
+                                     new { subjectUserId = @event.UserId })),
             ct);
     }
 }
