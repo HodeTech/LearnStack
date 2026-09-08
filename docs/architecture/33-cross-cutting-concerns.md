@@ -97,7 +97,8 @@ Request
                                 latency histogram start
   ▼
 [3] AuditLogBehavior         ←  classify (module, operation) per audited resource;
-                                mint AuditEntryId; park the intents in
+                                mint AuditEntryId; resolve each intent's tenant +
+                                organization; park the intents in
                                 IAuditStateCapture; reconcile on the way out;
                                 catch { ExceptionDispatchInfo.Throw() }
   ▼
@@ -133,16 +134,27 @@ Why this order:
   **decides** on the way in and **reconciles** on the way out: it classifies each
   audited `(module, operation)`, mints the `AuditEntryId`, and parks an ordered
   list of intents in `IAuditStateCapture` — one per audited resource, not one per
-  request ([ADR-0033 Amendment 2](../decisions/0033-audit-durability-model.md)). On
-  the way out it re-writes standalone whichever intent the commit did not carry,
-  and it catches handler exceptions and rethrows via `ExceptionDispatchInfo` to
-  preserve the original stack. No separate `ExceptionHandlingBehavior` is
+  request ([ADR-0033 Amendment 2](../decisions/0033-audit-durability-model.md)).
+  Classification answers with an **`AuditClassification`**, which is not the declared
+  tier: `Off` registers a request that writes no row — the test-only request types
+  among them — and `Unclassified` is the rejection, `audit_unclassified_operation`.
+  `OperationClass` (`Must` / `Should` / `May`) is what the module's catalogue and its
+  coverage matrix *declare*
+  ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)). On the way out it
+  re-writes standalone whichever intent the commit did not carry, and it catches
+  handler exceptions and rethrows via `ExceptionDispatchInfo` to preserve the
+  original stack. No separate `ExceptionHandlingBehavior` is
   introduced — that responsibility already lives here, and the L1
   `IExceptionHandler` is the final catch site.
 - **`AuditLogBehavior` stays in `LearnStack.Application/Pipeline`.** Its ports —
   `IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent` — live in
-  `LearnStack.SharedKernel.Audit`, and `PostgresAuditStore`, `AuditStateCapture`
-  and `AuditChangeTrackerInterceptor` in `LearnStack.Infrastructure.Audit`
+  `LearnStack.SharedKernel.Audit` together with the value types they carry
+  (`OperationType`, `OperationClass`, `AuditOutcome`, `AuditClassification`,
+  `AuditIntentState`, `CapturedEntityChange`), which the Audit module consumes and
+  does **not** declare — declaring them in its `Domain` would be a project cycle
+  ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)).
+  `PostgresAuditStore`, `AuditStateCapture` and `AuditChangeTrackerInterceptor` live
+  in `LearnStack.Infrastructure.Audit`
   ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)). `AuditEntryId` is a
   **SharedKernel** identifier rather than a module-local one — the fourth
   cross-cutting id after `TenantId`, `OrganizationId` and `UserId`, because three
@@ -155,14 +167,21 @@ Why this order:
 - **Tenant context just inside audit.** The audit row carries the tenant the
   ambient transaction **announced** — `ITenantContext.TenantId`, or
   `IProvisionsTenant.ProvisioningTenantId` under an unresolved provisioning
-  context — so `actor`, `tenant_id` and `organization_id` must all be resolved
-  before step 6 composes it. The provisioning value *is* on the request, and is
-  safe for that reason rather than in spite of it: it is the same value that
-  drove the session variable, so the database refuses the write when the two
-  disagree. [ADR-0044 § 2](../decisions/0044-audit-write-path.md) tabulates all
-  four shapes, including the platform-scope row's `TenantId.PlatformSentinel` and
-  the unresolved non-provisioning request, which writes no row at all. The
-  behavior *only* validates the context — it asserts the middleware populated it.
+  context — and `AuditLogBehavior` resolves that value at **step 3**, onto the
+  intent: `AuditIntent` carries `TenantId` and `OrganizationId?`, and
+  `PostgresAuditStore` composes the row from the intent rather than resolving a
+  tenant of its own ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)).
+  It could not resolve one anyway — reading `ITenantContext.TenantId` on an
+  unresolved context throws, and the provisioning row is written under exactly such
+  a context. So `actor`, `tenant_id` and `organization_id` are settled at step 3 —
+  from the context the middleware populated before the pipeline ran and step 4
+  asserts, or, for a provisioning request, from the request itself — which is safe
+  for that reason rather than in spite of it: it is the same value that drove the
+  session variable, so the database refuses the write when the two disagree.
+  [ADR-0044 § 2](../decisions/0044-audit-write-path.md) tabulates all four shapes,
+  including the platform-scope row's `TenantId.PlatformSentinel` and the unresolved
+  non-provisioning request, which writes no row at all. `TenantContextBehavior`
+  *only* validates the context — it asserts the middleware populated it.
   It does **not** set the PostgreSQL session variables: `SET LOCAL` is
   transaction-local and step 4 runs before any transaction exists, so the
   variables are issued by `TransactionBehavior` at step 6 as the first statement
@@ -193,8 +212,8 @@ Why this order:
 The MediatR pipeline does **not** contain an `ExceptionHandlingBehavior`. Two
 catch sites are sufficient:
 
-- **Inside `AuditLogBehavior`** — to emit a failure audit row before
-  rethrowing.
+- **Inside `AuditLogBehavior`** — the owning frame reconciles the parked
+  intents, one `failed` row each, before rethrowing.
 - **At the L1 `IExceptionHandler`** — to translate to Problem Details and
   capture to error tracker.
 

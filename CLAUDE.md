@@ -39,7 +39,9 @@ repository holds only LearnStack's side of the boundary, in
 packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
 [Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
-infrastructure and the entitlement socket — is next.**
+infrastructure and the entitlement socket, decided by
+[ADR-0044](docs/decisions/0044-audit-write-path.md) and
+[ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md) — is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -389,16 +391,51 @@ rules:
   joiner that reports `Committed` claims durability for a row nothing committed.
   `ProvisionTenantCommand` is the shipped case: two aggregates, one transaction,
   two MUST rows.
+- **Declare an audit value type in the Audit module's `Domain`.**
+  `LearnStack.SharedKernel.Audit` holds the value types beside the ports —
+  `OperationType`, `OperationClass`, `AuditOutcome`, `AuditClassification`,
+  `AuditIntentState` and `CapturedEntityChange`
+  ([ADR-0044 Amendment 3](docs/decisions/0044-audit-write-path.md)) — because
+  `AuditIntent` and `AuditEntryDraft` are SharedKernel records that name them
+  and every module's `IAuditCatalogSource` names the first two. Declaring them
+  in the module is a project cycle. `AuditEntry` consumes them; it does not
+  declare them.
+- **Announce `TenantId.PlatformSentinel` as a request's tenant.** Exactly one
+  class of row carries it — a platform-scope operation with no resolvable
+  tenant, written standalone — and Packet 9 puts the guard where the value
+  enters: `SetProvisioningTenantContextAsync` refuses the sentinel exactly as it
+  already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory
+  ([ADR-0044 Amendment 3](docs/decisions/0044-audit-write-path.md)). The
+  `tenants` CHECK is the backstop, not the control — a constraint cannot stop a
+  GUC from being announced.
 - **Store a killswitch in `tenant_feature_flags`.** That table has a foreign key
   to `tenants` and the platform sentinel deliberately has no `tenants` row, so
   the write is refused — and a foreign key is a constraint no role and no
   `BYPASSRLS` moves. Killswitches live in the platform-scoped
   `platform_killswitches`
   ([ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Packet 9 ships that table, its policies, the overlay and its cache family —
+  and **no writer**: every toggle runs inside `EnterPlatformAdminScope(reason)`,
+  whose registered gate is `DenyAllPlatformAdminGate`, so nothing can enter that
+  scope until the Platform-scope permission arrives, and
+  [Phase 03](docs/roadmap/phase-03-identity-admin.md) owns the toggle command,
+  its permission and its runbook
+  ([ADR-0045 Amendment 1](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
 - **Read `platform_entitlement_cache` from a module, `IFeatureFlags` included.**
   The only sanctioned reader *and* writer is an `IEntitlementProvider`
   implementation; `IFeatureFlags` composes over the port, which is what makes
   swapping the registered provider change the answer.
+- **Spell a limit key in LearnStack's own vocabulary.** The limit-key set is the
+  Hub's, under the `limits.` prefix, because the Hub has merged code and two
+  plan validators built on it and this side has a declaration and no
+  implementing line
+  ([ADR-0045 Amendment 1](docs/decisions/0045-entitlement-and-feature-flag-socket.md),
+  [ADR-0021](docs/decisions/0021-feature-based-entitlement.md)). The earlier
+  `tenancy.max_learners` / `classroom.minutes_per_month` / `media.storage_gb`
+  spellings are withdrawn: a key the Hub never sends misses on every real
+  projection and falls through to the catalog default, so a paid tenant reads as
+  unentitled and the read reports success. The **feature**-key set is not
+  changed with it.
 - Inject `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` directly — use `IEventBus` / `ICacheService` /
   `ISecretProvider`.

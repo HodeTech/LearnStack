@@ -216,10 +216,12 @@ for the full strategy. Standards-side:
   `EnterPlatformAdminScope(reason)` call path, which is itself the record of the
   access: the scope writes its `security-event` row through
   `IAuditStore.WritePlatformScopeAsync` on its own platform-role connection **before**
-  the operation runs, so an operation that later fails is still recorded
-  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)). The architecture test
-  `No_IgnoreQueryFilters_Outside_PlatformAdminScope` is a **path check**: no
-  per-call-site attribute or comment marker exempts a call
+  the operation runs, and commits it on its own transaction rather than the scope's —
+  which an abandoned frame rolls back — so an operation that later fails is still
+  recorded ([ADR-0044 § 10](../decisions/0044-audit-write-path.md),
+  [05-database.md § How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`](05-database.md)).
+  The architecture test `No_IgnoreQueryFilters_Outside_PlatformAdminScope` is a
+  **path check**: no per-call-site attribute or comment marker exempts a call
   ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
   [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
@@ -482,8 +484,11 @@ which row today.
 
 429 responses include `Retry-After`. The edge half runs on **APISIX**
 (`limit-req` / `limit-count` plugins); the application half runs in ASP.NET, where
-plan-level `LimitKeys.MaxApiRequestsPerHour` can differ per tenant and the edge has
-no way to know it.
+the plan-level API-rate limit — `limits.api_rate_per_minute`, in the Hub's key
+vocabulary, which LearnStack adopts
+([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md),
+[ADR-0021](../decisions/0021-feature-based-entitlement.md)) — can differ per tenant
+and the edge has no way to know it.
 
 ## Webhooks (Inbound)
 
@@ -600,8 +605,11 @@ Security-relevant durability rules:
   `learnstack_app` holds `SELECT, INSERT` only and is stopped by the absent privilege;
   `learnstack_platform` holds `UPDATE` on the redaction columns alone — any other
   column is refused by the column-level grant, before the trigger runs — plus the
-  retention purge `DELETE`; and the table owner is stopped by neither: it holds every privilege implicitly, and under `FORCE` the policy constrains it by **tenant** rather than by immutability — measured, an owner `UPDATE` returns `UPDATE 0` with no tenant announced and `UPDATE 1` with one, so
-  `audit_log_append_only_guard` is the one layer binding `learnstack_migration`. GDPR redaction and retention purge are the only
+  retention purge `DELETE`; and the table owner is stopped by neither, because it holds
+  every privilege implicitly and, under `FORCE`, the policy constrains it by **tenant**
+  rather than by immutability — measured, an owner `UPDATE` returns `UPDATE 0` with no
+  tenant announced and `UPDATE 1` with one, so `audit_log_append_only_guard` is the one
+  layer binding `learnstack_migration`. GDPR redaction and retention purge are the only
   sanctioned mutations, and `IAuditStore` has no update method
   ([ADR-0044 § 9](../decisions/0044-audit-write-path.md),
   [18-audit-coverage.md § Storage](18-audit-coverage.md); asserted by

@@ -22,9 +22,14 @@ document is the rule that prevents the audit story from drifting.
   resource, when, from where, with what outcome**" for every meaningful state change.
 - If omitting an audit entry would embarrass a compliance officer, it **MUST** be
   audited.
-- Audit entries are append-only, immutable, tenant-scoped (and org-scoped when the
-  resource is org-scoped per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
-  and queryable by tenant admins for their own tenant (org admins for their org).
+- Audit entries are append-only, immutable and tenant-scoped. `audit_log` is org-scoped,
+  and the row's organization is the one the ambient context announced: `AuditIntent`
+  carries `TenantId` and `OrganizationId?`, both resolved by `AuditLogBehavior` at step 3
+  ([ADR-0044 Amendment 3 § 2](../decisions/0044-audit-write-path.md)) — which is before
+  the handler runs, so it is the request's organization and never one read back off the
+  resource. Entries are queryable by tenant admins for their own tenant, and by org admins
+  for their own organization
+  ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)).
 - Every module owns a Resource × Operation classification table for its resources — the
   audit verb is not the permission action ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)).
   The matrix is reviewed when the module is built and again when it is extended.
@@ -59,6 +64,16 @@ catalogue that enum is compared against by
 so a member missing from either side fails the build; adding an eighth type is a change
 to this table first.
 
+**The row labels above are documentation slugs, not the stored value.** What reaches
+`audit_log.operation_type` — and what the audit query API accepts and returns — is the
+C# enum member name: `ReadSensitive` for `read-sensitive`, `SecurityEvent` for
+`security-event`. `operation_class` stores `Must` / `Should` / `May` the same way. That is
+the relationship the shipped `ck_tenants_status` already has to `TenantStatus`, and it is
+why neither column needs a custom value converter. `OperationType_Enum_Matches_Catalog`
+compares members, not spellings. `outcome` is the one closed set that does not follow this
+rule: [ADR-0044 § 5](../decisions/0044-audit-write-path.md) fixes its four values in
+lowercase and puts them in the column's `CHECK`.
+
 `read-sensitive` is not "any GET request" — it's the read paths a regulator would ask about. Examples: guardian viewing a student's grades; instructor exporting a class roster with PII; admin viewing learner email list; admin downloading a recording.
 
 ## Classification Matrix Template
@@ -76,11 +91,13 @@ class and a reason, the `Operation` cell then carrying each of their slugs separ
 | `ResourceA` | `module.resource_a.create` | **MUST** | What the row lets a reader reconstruct |
 | `ResourceA` | `module.resource_a.rename` | SHOULD | Presentational |
 | `ResourceB` | `module.resource_b.archive` / `module.resource_b.soft_delete` | **MUST** | Deletes are always MUST, and two operations that share a class and a reason share a row |
+| `ResourceC` | `module.resource_c.publish` `(planned)` | **MUST** | Classified ahead of the command that will raise it; the marker is what scopes the join |
 
 Legend: **MUST** = audit entry required for every occurrence. **SHOULD** = audit by default; module may justify an opt-out per-operation. **MAY** = audit is allowed but not required. **–** = operation does not apply.
 
-The `Operation` cell carries **catalogue slugs** and nothing else
-([ADR-0044 § 6](../decisions/0044-audit-write-path.md)):
+The `Operation` cell carries **catalogue slugs**, plus the `(planned)` and `(off-path)`
+markers § The join below defines
+([ADR-0044 § 6 and Amendment 3 § 1](../decisions/0044-audit-write-path.md)):
 
 - The slug is `{module}.{resource}.{verb}` — `tenancy.tenant.create`,
   `customization.content_type.publish`. It borrows the *shape* of a permission key from
@@ -102,9 +119,39 @@ discovered from DI and keyed by request type, mapping one request type to one or
 `(operation, OperationType, OperationClass)` triples. Neither artifact is parsed from the
 other, and
 [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
-joins them on this column in both directions, reading a cell as the list of slugs it
-holds: a matrix row with no catalogue entry fails, and a catalogue entry with no matrix
-row fails.
+joins them on this column, reading a cell as the list of slugs it holds.
+
+### The join
+
+**It has two directions, and they have different domains**
+([ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md)). A single rule reading
+"a matrix row with no catalogue entry fails, and a catalogue entry with no matrix row
+fails" is unsatisfiable while a module classifies operations ahead of the commands that
+will raise them — which this standard requires it to do.
+
+- **Catalogue → matrix is total.** Every entry a module's `IAuditCatalogSource` registers
+  has a row in that module's matrix carrying the same slug. There is no exemption: shipped
+  code auditing an operation no matrix classifies is the drift worth failing a build over,
+  and adding the row always satisfies it. Test-only request types register in their own
+  fixtures rather than in a module source, and are outside this direction.
+- **Matrix → catalogue binds to what exists.** A matrix row fails only when a request type
+  that raises it **exists** and no catalogue entry names it. A row classified ahead of its
+  command is not drift; it carries **`(planned)`** in the `Operation` cell beside its slug.
+- **`(planned)` is re-checked, not an escape.** A row still marked `(planned)` whose
+  command has since shipped **fails**. The marker is a claim the rule tests on every run,
+  which is what stops the scoping from becoming a hole.
+- **`(off-path)` is for operations that are not MediatR requests at all** —
+  `platform.admin_scope.enter`, `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`
+  and the two tenant-assertion keys of § Baseline Coverage. They sit outside the
+  request-type join in **both** directions, and their catalogue entries are registered by
+  slug rather than by type.
+- **A row can carry both markers**, and one does. `tenancy.killswitch.toggle` is
+  `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
+  than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
+  and the read path but no writer —
+  [Phase 03](../roadmap/phase-03-identity-admin.md) owns the toggle command, its
+  Platform-scope permission and its runbook
+  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 
 ## Baseline Coverage (LearnStack Core Modules)
 
@@ -113,7 +160,7 @@ The following operations are MUST-audit across LearnStack regardless of which mo
 | Domain | MUST-audit operation |
 |--------|----------------------|
 | Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
-| Tenancy | Tenant created / suspended / deleted; organization created / archived; tenant setting changed; custom domain added / verified / removed; feature flag toggled; entitlement projection refresh (`tenancy.entitlement.refresh`); killswitch toggled. |
+| Tenancy | Tenant created / suspended / deleted; organization created / archived; tenant setting changed; custom domain added / verified / removed; feature flag toggled; entitlement projection refresh (`tenancy.entitlement.refresh`); killswitch toggled (`tenancy.killswitch.toggle`). |
 | Customization | `TenantContentType` / `TenantPageBlock` / `TenantLessonItemType` / `TenantLevelTaxonomy` / `TenantScoringRule` / `TenantCompletionRule` / `TenantCustomFieldDef` / `TenantTemplateLibrary` created / updated / deleted (schema changes are MUST; both `before` and `after` snapshots required). |
 | Content / Pages | Page published / unpublished; content type schema changed; redirect created / changed. |
 | Catalog / Learning | Course published / unpublished; CourseVersion published; lesson item replaced post-publish. |
@@ -123,10 +170,10 @@ The following operations are MUST-audit across LearnStack regardless of which mo
 | Classroom | Room opened / ended; participant joined / left (security-event); join token issued; consent state changed. |
 | Recording | Recording started / stopped; recording downloaded; retention policy changed; legal hold applied / removed. |
 | Billing | Order paid / refunded; subscription created / cancelled; payment provider account changed. |
-| Hub contract | Inbound Hub command received (`tenancy.tenant.create-from-hub`, `tenancy.entitlement.push`); outbound usage report (`platform.usage.report`); license verification result. |
+| Hub contract | Inbound Hub command received (`tenancy.tenant.create_from_hub`, and the entitlement push, which is the Tenancy row's `tenancy.entitlement.refresh` — one operation, one slug); outbound usage report (`platform.usage.report`); license verification result. |
 | Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). |
 | Integrations | External provider credential created / rotated / revoked; webhook secret rotated. |
-| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`. |
+| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`). |
 
 There are **no vertical modules**. Tenant-specific extensions land as data via the
 Customization aggregates and inherit the MUST-audit rules above for schema changes.
@@ -153,8 +200,8 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
     "module": "enrollment",
     "resource": "Enrollment",
     "resourceId": "enr_01K...",
-    "operationType": "create",
-    "class": "MUST"
+    "operationType": "Create",
+    "class": "Must"
   },
   "request": {
     "correlationId": "01H...",
@@ -178,7 +225,9 @@ Rules:
 - `before` and `after` are **mandatory** for `update` on permission, money, content-publication, recording-policy, and consent fields. Snapshots are JSON, redacted for PII fields the module marks as `[PiiSensitive]`.
 - `operation.key` is the catalogue slug of § Classification Matrix Template, and
   `operation.class` is the MUST / SHOULD / MAY tier — not a repeat of `operationType`,
-  which carries one of the seven values of § Operation Types.
+  which carries one of the seven values of § Operation Types. Both render as the enum
+  member name on the wire and in the column, which is why the example above reads `Create`
+  and `Must` where the tables read `create` and **MUST**.
 - `outcome` is one of `success`, `denied`, `failed`, `indeterminate`
   ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's `is_success boolean`
   is superseded, because a boolean cannot carry `denied`). `denied` is used when an
@@ -194,11 +243,12 @@ Rules:
 - `changes` is always a JSON **array** of `{ path, before, after }` with an
   entity-qualified RFC 6901 pointer, never the polymorphic object-or-array shape ADR-0016
   described. A reader that has to branch on the shape gets it wrong once.
-- PII fields are listed in the module's audit spec. The pipeline **redacts rather than
-  strips**: a property marked `[PiiSensitive]`, or matched by the shipped
-  `SensitiveTokenCatalog`, keeps its place in `before`, `after` and `changes` and loses
-  its value to `SensitiveTokenCatalog.RedactedValue`, so the diff still records *that*
-  it changed. Name the constant, never the string: the shipped value is `***REDACTED***`.
+- A module that holds a PII column names it in that module's audit spec. The pipeline
+  **redacts rather than strips**: a property marked `[PiiSensitive]`, or matched by the
+  shipped `SensitiveTokenCatalog`, keeps its place in `before`, `after` and `changes` and
+  loses its value to `SensitiveTokenCatalog.RedactedValue`, so the diff still records
+  *that* it changed. Name the constant, never the string: the shipped value is
+  `***REDACTED***`.
 - **Not every field above is a column.** The `audit_log` DDL
   ([31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md)) carries
   `occurredAt` as `timestamp`, `resource` / `resourceId` as `entity_type` / `entity_id`,
@@ -369,10 +419,20 @@ table above is the policy those deliverables implement, not a description of tod
   logged and surfaced on the audit health check. An operation the catalogue does not
   classify at all is **rejected** with `500 audit_unclassified_operation`
   ([09-error-handling.md](09-error-handling.md)): every `IRequest<Result<T>>` that reaches
-  step 3 must be classified, there is no residual `RequestKind.Other`, and test-only
-  request types register through the same builder in their fixture
+  step 3 must be classified, `Off` included, there is no residual `RequestKind.Other`, and
+  test-only request types register through the same builder in their fixture
   ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)). A tenant override may narrow
   SHOULD/MAY coverage and may never remove baseline MUST coverage.
+- **Two enums carry one distinction**
+  ([ADR-0044 Amendment 3 § 4](../decisions/0044-audit-write-path.md)).
+  `OperationClass { Must, Should, May }` is the tier the catalogue and the matrix
+  *declare*; `AuditClassification { Off, May, Should, Must, Unclassified }` is what
+  `IAuditConfigService.ClassifyAsync` *returns*, once the tenant's `audit_config` override
+  and the MUST floor have been applied. `Off` is how a request that writes no row is
+  registered — a builder call rather than a convention, which is what makes "classified,
+  `Off` included" checkable — and `Unclassified` is the rejection above. `OperationClass`
+  gains no fourth member: it is the persisted tier, and no row can hold a value meaning
+  "no row".
 - Fan-out to external sinks rides the outbox and is best-effort; the **local audit row**
   is not.
 - Failed `denied` outcomes are audited even though no state changed.
@@ -383,7 +443,12 @@ table above is the policy those deliverables implement, not a description of tod
   `IAuditStore.WritePlatformScopeAsync` — a fourth **write** method, not an update
   method — on the scope's own platform-role connection and **before** the operation
   runs, so an operation that later fails is still recorded
-  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)).
+  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)). The `DbTransaction` that
+  method takes is the audit write's **own**, begun and committed on that connection before
+  the scope's working transaction begins — never the handle's transaction, which a frame
+  disposed without `CommitAsync` rolls back, taking the record of the bypass with it. That
+  is the row [Database Standards § How `EnterPlatformAdminScope(reason)` reaches
+  `learnstack_platform`](05-database.md) calls "committed on its own".
 - **The row's tenant is the tenant the ambient transaction announced**, never a value off
   the request payload: `ITenantContext.TenantId` under a resolved context,
   `IProvisionsTenant.ProvisioningTenantId` for provisioning under an unresolved one, and
@@ -391,7 +456,17 @@ table above is the policy those deliverables implement, not a description of tod
   the nil UUID — for a platform-scope operation with no resolvable tenant. An unresolved,
   non-provisioning context writes **no row**: there is no tenant whose admin could read it,
   and [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) forbids inventing
-  one ([ADR-0044 § 1, § 2](../decisions/0044-audit-write-path.md)).
+  one ([ADR-0044 § 1, § 2](../decisions/0044-audit-write-path.md)). `AuditLogBehavior`
+  decides it at step 3 and puts it on the `AuditIntent`, which is the only point at which
+  all four cases are decidable; the store composes the row from the intent and resolves no
+  tenant of its own
+  ([ADR-0044 Amendment 3 § 2](../decisions/0044-audit-write-path.md)).
+- **The sentinel has an enforcer, not only a constraint.** Packet 9 puts the guard where
+  the value enters: `SetProvisioningTenantContextAsync` refuses
+  `TenantId.PlatformSentinel` as it already refuses `Guid.Empty`, and `Tenant.Create`
+  refuses it in the factory. The
+  `tenants` CHECK is the backstop — a constraint cannot stop a GUC from being announced
+  ([ADR-0044 Amendment 3 § 5](../decisions/0044-audit-write-path.md)).
 - The outbox dispatcher attaches the actor and the correlation id to every event it
   dispatches.
 
@@ -415,7 +490,8 @@ observes neither a rollback nor a `42501`.
   — the enum and § Operation Types carry the same seven members.
 - [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
   — every command touching a `[TenantOwned]` aggregate is classified, and the in-code
-  catalogue and the module matrix agree on the `Operation` slug in both directions.
+  catalogue and the module matrix agree on the `Operation` slug, in the two directions of
+  § The join.
 - [`Every_Module_Has_An_AuditCoverage_Matrix`](21-architecture-tests-catalogue.md#every_module_has_an_auditcoverage_matrix)
   — every module ships `docs/modules/<module>/audit.md`.
 - [`Modules_Do_Not_Write_AuditLog_Directly`](21-architecture-tests-catalogue.md#modules_do_not_write_auditlog_directly)
@@ -486,6 +562,9 @@ Platform admins additionally see cross-tenant entries through a separate route g
   `OperationType` enum.
 - [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md) —
   `organization_id` in audit entries.
+- [ADR-0036 Tenant Resolution and Trusted Inputs](../decisions/0036-tenant-resolution-trusted-inputs.md) —
+  the two tenant-assertion operations of § Baseline Coverage; Amendment 7 is where their
+  snake_case spelling is decided.
 - [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) — subsystem deep dive
   (interceptor, state capture, MediatR behavior, retention job).
 - [05-database.md](05-database.md) — the canonical RLS template, the table classes, the

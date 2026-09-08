@@ -25,7 +25,9 @@ the socket; [ADR-0021](../../../docs/decisions/0021-feature-based-entitlement.md
   `platform_entitlement_cache` itself.
 - **Tenant-flag** keys read `tenant_feature_flags` (per-tenant rollout / opt-in).
 - **Killswitches** read `platform_killswitches`, a platform-scoped table with no
-  tenant column and no foreign key, through the L1 cache.
+  tenant column and no foreign key, through the L1 cache. Packet 9 ships that table
+  **unwritten** — read path only, no toggle — and Phase 03 owns the command that flips a
+  switch (Step 6).
 
 `IFeatureFlags` is the **only** module-facing read and it **composes** over the port
 rather than querying a table; the catalogue's `Source` descriptor says which half a key
@@ -34,13 +36,17 @@ registered `IEntitlementProvider` changes the answer without touching module cod
 
 Resolution precedence, in order: tenant from `ITenantContext` (no tenant throws
 `TenantContextMissingException`) → plan-projected through the provider → tenant-flag
-from `tenant_feature_flags` → **killswitch overlay last, and it wins**.
+from `tenant_feature_flags` → **killswitch overlay last, and it wins**. The overlay
+consults exactly the `KillswitchKeys` entry the key's descriptor names, and a key whose
+descriptor names none has no overlay — the correspondence is declared, never derived
+from the string
+([ADR-0045 Amendment 1 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08)).
 
 ## When to use
 
 - A plan now includes / excludes a capability (`FeatureKeys.SsoSaml`,
   `FeatureKeys.CustomDomain`).
-- A new numeric limit must be enforced (`LimitKeys.MaxConcurrentLiveSessions`).
+- A new numeric limit must be enforced (`LimitKeys.MaxCustomContentTypes`).
 - A killswitch is needed for a new expensive code path
   (`KillswitchKeys.RecordingEnabled`).
 - A code path is rolling out gradually (`FeatureKeys.LessonPlayerV2`).
@@ -64,6 +70,8 @@ from `tenant_feature_flags` → **killswitch overlay last, and it wins**.
 | Key name | Yes | C# field name (`ClassroomRecording`) + wire-format string (`classroom.recording`). |
 | Source | Yes | `PlanProjected` (through `IEntitlementProvider`), `TenantFlag` (`tenant_feature_flags`), or killswitch (`platform_killswitches`). |
 | Default | Yes | The catalogue default when the key is absent from the projection. For a `LimitKey`: `-1` unlimited, `0` denied, `> 0` the allowance. Killswitch default is `true`. |
+| Failure posture | Feature and limit keys | Fail-open / fail-closed, per [26-hybrid-license-model.md § Failure policy by key class](../../../docs/architecture/26-hybrid-license-model.md#failure-policy-by-key-class). Lives in the registry, never at the call site ([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md)). A killswitch declares none — a failed read already resolves to its default, `true`. |
+| Killswitch | Feature only | The `KillswitchKeys` entry that can override this key, or none. Declared on the descriptor, never derived from the key string. |
 | Limit enforcement | Limit only | `Soft` (banner + `usage.alert.soft_limit_reached`) or `Hard` (403 ProblemDetails). Declared here in Packet 9; **enforced** from Phase 02c. |
 | Affected modules | Yes | Where the key is read. |
 
@@ -71,8 +79,11 @@ from `tenant_feature_flags` → **killswitch overlay last, and it wins**.
 
 ### Step 1: Pick the key
 
-Format: `{scope}.{feature}.{name}`, no `.enabled` suffix (every `FeatureKey` is
-implicitly boolean).
+A `FeatureKey` is `{scope}.{feature}.{name}`, with no `.enabled` suffix (every
+`FeatureKey` is implicitly boolean). **A `LimitKey` is not free-form: its vocabulary
+belongs to the Hub**, under a `limits.` prefix
+([ADR-0045 Amendment 1 § 1](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08),
+[ADR-0021, 2026-09-08](../../../docs/decisions/0021-feature-based-entitlement.md)).
 
 Examples:
 
@@ -83,12 +94,12 @@ tenancy.custom_domain                  # FeatureKey, PlanProjected
 identity.sso.saml                      # FeatureKey, PlanProjected
 learning.lesson_player.v2              # FeatureKey, TenantFlag (rollout)
 
-tenancy.max_learners                   # LimitKey
-classroom.max_concurrent_sessions      # LimitKey
-classroom.minutes_per_month            # LimitKey, Soft enforcement
+limits.max_users                       # LimitKey
+limits.max_organizations               # LimitKey
+limits.classroom_minutes_per_month     # LimitKey, Soft enforcement
 
-killswitch.classroom.recording         # FeatureKey, KillswitchKeys
-killswitch.notifications.email         # FeatureKey, KillswitchKeys
+killswitch.classroom.recording         # KillswitchKey, overrides classroom.recording
+killswitch.notifications.email         # KillswitchKey, gates a path with no FeatureKey
 ```
 
 Rules:
@@ -97,10 +108,26 @@ Rules:
 - No domain term (English, yoga, kyu/dan, asana).
 - No trailing `.enabled` — booleans are implicit (this rule was clarified by
   [ADR-0021 Amendment 1](../../../docs/decisions/0021-feature-based-entitlement.md)).
+- **A limit key comes from the Hub's set, and inventing one is a cross-repository
+  change.** The nine the Hub ships are `limits.max_users`, `limits.max_organizations`,
+  `limits.classroom_minutes_per_month`, `limits.recording_storage_gb`,
+  `limits.media_storage_gb`, `limits.media_bandwidth_gb_per_month`,
+  `limits.api_rate_per_minute`, `limits.max_custom_content_types` and
+  `limits.max_page_block_definitions`; its plan validators reject a plan whose limits
+  are not from that set. LearnStack's earlier spellings — `tenancy.max_learners`,
+  `classroom.minutes_per_month`, `media.storage_gb` and the rest — are **withdrawn**: a
+  key the Hub never sends misses on every real projection and silently falls through to
+  its catalog default, which reads as a paid tenant having no plan.
 
 ### Step 2: Register in the catalogue
 
-In `LearnStack.SharedKernel.FeatureFlags`:
+The socket's ports are declared in `LearnStack.SharedKernel.Entitlements`
+([ADR-0045 § 1–2](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+The registries' own namespace is the one placement question the corpus has not closed:
+[ADR-0021](../../../docs/decisions/0021-feature-based-entitlement.md)'s typed-registry
+fence still reads `LearnStack.SharedKernel.FeatureFlags`, and its `const string` shape is
+what that ADR's Amendment 1 replaced. Packet 9 settles the pair; do not spread one socket
+over two namespace segments without recording which one won.
 
 ```csharp
 public static class FeatureKeys
@@ -115,16 +142,16 @@ public static class FeatureKeys
 }
 ```
 
-For limits:
+For limits — the strings are the Hub's, not ours (Step 1):
 
 ```csharp
 public static class LimitKeys
 {
-    public static readonly LimitKey MaxLearners =
-        new("tenancy.max_learners");
+    public static readonly LimitKey MaxUsers =
+        new("limits.max_users");
 
-    public static readonly LimitKey MaxClassroomMinutesPerMonth =
-        new("classroom.minutes_per_month");
+    public static readonly LimitKey ClassroomMinutesPerMonth =
+        new("limits.classroom_minutes_per_month");
 }
 ```
 
@@ -133,15 +160,15 @@ For killswitches:
 ```csharp
 public static class KillswitchKeys
 {
-    public static readonly FeatureKey RecordingEnabled =
+    public static readonly KillswitchKey RecordingEnabled =
         new("killswitch.classroom.recording");   // default true
 }
 ```
 
 Pair each key with a **catalogue descriptor** so the runtime knows whether the key is
-plan-projected, tenant-flag-level or a killswitch, its default, and — for a `LimitKey` —
-its `LimitEnforcement`. The three catalogs, the two value objects and the descriptors
-ship in **Phase 02a Packet 9**
+plan-projected, tenant-flag-level or a killswitch, its default, its failure posture, the
+killswitch that can override it, and — for a `LimitKey` — its `LimitEnforcement`. The
+three catalogs, the two value objects and the descriptors ship in **Phase 02a Packet 9**
 ([ADR-0045 § 6](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md));
 the property names below are illustrative, the **values** are not.
 
@@ -151,20 +178,42 @@ descriptors.Add(FeatureKeys.ClassroomRecording, new FeatureKeyDescriptor
 {
     Source = FeatureSource.PlanProjected,
     Default = false,
+    Posture = FailurePosture.FailClosedOnColdStart,   // required — see below
+    Killswitch = KillswitchKeys.RecordingEnabled,     // nullable; declared, never derived
     Description = "Enable in-app classroom recording",
     Phase = "02c",
     OwningAdr = "0021",
 });
 
-descriptors.Add(LimitKeys.MaxClassroomMinutesPerMonth, new LimitKeyDescriptor
+descriptors.Add(LimitKeys.ClassroomMinutesPerMonth, new LimitKeyDescriptor
 {
-    Default = -1,                                 // -1 = unlimited; 0 = denied
+    Default = 500,                                // the Starter floor compiled in.
+                                                  // Not -1 (a gift) and not 0 (an outage)
     Enforcement = LimitEnforcement.Soft,
+    Posture = FailurePosture.BuiltInFloor,        // required — see below
     Description = "Total classroom participant minutes per calendar month",
     Phase = "02c",
     OwningAdr = "0021",
 });
 ```
+
+**Two descriptor members are required, and both were added by
+[ADR-0045 Amendment 1 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08):**
+
+- **The failure posture**, because
+  [ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md) requires
+  every key class to declare fail-open or fail-closed *in the registry, not at the call
+  site*. Which posture a key takes comes from
+  [Hybrid License Model § Failure policy by key class](../../../docs/architecture/26-hybrid-license-model.md#failure-policy-by-key-class)
+  — do not restate that table here, read it. Packet 9 ships the **declaration**; what
+  the provider does with it past `grace_until` ships with `HubEntitlementProvider` in
+  [Phase 02c](../../../docs/roadmap/phase-02c-hub-foundation.md).
+- **The killswitch, by name.** Precedence step 4 applies "the corresponding killswitch",
+  and the correspondence is this member — a nullable reference to the `KillswitchKeys`
+  entry that gates the key. It is never inferred from the string: a renamed key would go
+  silently ungated, and two of the shipped killswitches guard code paths that have no
+  `FeatureKeys` counterpart at all, so no prefix rule could reach them. A key with no
+  declared killswitch has no overlay.
 
 **The limit sentinel, normative
 ([ADR-0045 § 3](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md),
@@ -196,13 +245,13 @@ if (!await featureFlags.IsEnabledAsync(FeatureKeys.ClassroomRecording, ct))
 ```
 
 ```csharp
-var limit = await featureFlags.GetLimitAsync(LimitKeys.MaxConcurrentLiveSessions, ct);
+var limit = await featureFlags.GetLimitAsync(LimitKeys.MaxUsers, ct);
 // -1 is unlimited, 0 is denied, > 0 is the allowance. Handle -1 explicitly:
-// `currentConcurrent >= -1` is true for every non-negative count, which would
+// `currentUsers >= -1` is true for every non-negative count, which would
 // refuse exactly the tenants the plan means to let through.
-if (limit != -1 && currentConcurrent >= limit)
-    return Result.Fail<LiveSessionDto>(
-        new Error(LocalizedMessage.Of("lockey_limit_exceeded_classroom_concurrent")));
+if (limit != -1 && currentUsers >= limit)
+    return Result.Fail<UserDto>(
+        new Error(LocalizedMessage.Of("lockey_limit_exceeded_max_users")));
 ```
 
 The gate ships **with the feature it gates**, never speculatively. The enforcement path
@@ -216,7 +265,7 @@ Frontend (`apps/web`):
 
 ```tsx
 const recordingEnabled = useFeatureFlag(FeatureKeys.ClassroomRecording);
-const { current, limit, soft } = useLimit(LimitKeys.MaxClassroomMinutesPerMonth);
+const { current, limit, soft } = useLimit(LimitKeys.ClassroomMinutesPerMonth);
 ```
 
 See [add-feature-gated-ui](../add-feature-gated-ui/SKILL.md) for hook usage.
@@ -236,14 +285,29 @@ When you add a new plan-projected key:
    set the default state for the new key.
 3. Coordinate the LearnStack PR with the Hub PR to land in the same release window.
 
+**A new *limit* key starts on the Hub side, not this one.** The Hub owns the `limits.`
+registry and its plan validators reject a plan carrying a key they do not know, so a
+`LimitKeys` member added here alone would never appear in a projection. Land the Hub PR
+first, then mirror the string verbatim.
+
 ### Step 5: Refresh and eager invalidation
 
 A push arrives on `PUT /api/internal/tenants/{id}/entitlements` and reaches
 `IEntitlementProvider.RefreshAsync(EntitlementProjection)`, which is
-**generation-guarded inside the write statement** (`… WHERE generation < @generation`,
-never a read-then-write) and returns `IgnoredAsStale` for a projection that is not newer.
-A retried or reordered delivery therefore cannot resurrect a revoked plan. No new wiring
-is required per key — the projection carries them all.
+**generation-guarded inside the write statement** (`… WHERE
+platform_entitlement_cache.generation <= @generation`, never a read-then-write) and
+returns `IgnoredAsStale` for a **strictly older** projection. A reordered delivery
+therefore cannot resurrect a revoked plan. No new wiring is required per key — the
+projection carries them all.
+
+**The guard admits the equal case, and that is deliberate**
+([ADR-0045 Amendment 1 § 3](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08)).
+A push applies when its generation is greater than or **equal to** the stored one:
+`generation` defaults to `1` on the provisioning insert and the Hub's first real
+projection for that tenant also carries `1`, so a strictly-newer guard would discard it
+and leave a paid tenant reading as unentitled — reported as success. Replay at the same
+generation rewrites the same bytes, because the Hub is the single writer and increments
+once per recompute.
 
 Invalidation rides `IEventBus` — `InProcessEventBus` today, the Dapr/Kafka adapter on its
 [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md) trigger. The
@@ -277,7 +341,26 @@ the key's default (`true`, enabled) and logs at `Error`: a cache outage must not
 every gated path platform-wide. A flip is eventually consistent across instances,
 bounded by the TTL and the invalidation event.
 
-Every killswitch ships with a runbook entry in `docs/runbooks/` describing:
+**Packet 9 ships the table unwritten, and nothing in it flips a switch**
+([ADR-0045 Amendment 1 § 4](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08)).
+The table, the policies, the overlay, the cache family and the three `KillswitchKeys`
+ship; no writer does. The reason is reachability rather than scheduling: every killswitch
+write runs inside `EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate`
+is `DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope
+permission arrives with the registry in
+[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md). A toggle command shipped
+now would be unreachable code with a permission key nothing registers. **Phase 03 owns
+the toggle command, its permission and its runbook**; until it lands,
+`tenancy.killswitch.toggle` carries `(planned)` in the Tenancy matrix beside the
+`(off-path)` marker it keeps permanently
+([Audit Coverage § The join](../../../docs/standards/18-audit-coverage.md),
+[ADR-0044 Amendment 3](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+Every gated read honours a flipped switch the day one exists; what is absent is the
+flipping.
+
+So a killswitch key added before Phase 03 is read-only, and its runbook lands with the
+command that makes it flippable. The runbook entry — in `docs/runbooks/`, a directory
+[Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) owns — describes:
 
 - When to use it (the incident shape).
 - How to flip it — the operator action through `EnterPlatformAdminScope(reason)`, never
@@ -285,7 +368,7 @@ Every killswitch ships with a runbook entry in `docs/runbooks/` describing:
   table.
 - How to restore (revert + observability check).
 
-A killswitch without a runbook is incomplete.
+A flippable killswitch without a runbook is incomplete.
 
 ### Step 7: Tests
 
@@ -304,10 +387,23 @@ public async Task FeatureKey_PlanProjected_ResolvesThroughTheProvider()
 [Fact]
 public async Task FeatureKey_Killswitch_OverridesProjection()
 {
-    // arrange: features.classroom.recording = true, platform_killswitches row
-    //          'killswitch.classroom.recording' with is_enabled = false
+    // arrange: features.classroom.recording = true; the descriptor for
+    //          FeatureKeys.ClassroomRecording names KillswitchKeys.RecordingEnabled;
+    //          that switch's platform_killswitches row has is_enabled = false.
+    //          Assert against the DECLARED reference, never the shared name fragment —
+    //          a test that passes on the string coincidence passes on nothing.
     // act:     IFeatureFlags.IsEnabledAsync(FeatureKeys.ClassroomRecording)
     // assert:  false  (the overlay is applied last and wins)
+}
+
+[Fact]
+public async Task FeatureKey_WithNoDeclaredKillswitch_HasNoOverlay()
+{
+    // arrange: a flipped-off killswitch whose key shares a name fragment with the
+    //          feature key, but which no descriptor names.
+    // act:     IFeatureFlags.IsEnabledAsync(that feature key)
+    // assert:  the projection's answer, unchanged. This is the case that fails if
+    //          anyone re-derives the correspondence from the string.
 }
 
 [Fact]
@@ -318,11 +414,20 @@ public async Task NullEntitlementProvider_ReturnsUnlimited()
 }
 
 [Fact]
-public async Task RefreshAsync_IgnoresAStalePush()
+public async Task RefreshAsync_IgnoresAStrictlyOlderPush()
 {
     // arrange: generation 42 applied
     // act:     RefreshAsync with generation 41
     // assert:  EntitlementRefreshOutcome.IgnoredAsStale, every column unchanged
+}
+
+[Fact]
+public async Task RefreshAsync_AppliesAnEqualGenerationPush()
+{
+    // arrange: generation 1 written by provisioning (the column default)
+    // act:     RefreshAsync with the Hub's first projection, also generation 1
+    // assert:  Applied, and the plan is readable. This is the case the two spellings
+    //          of the guard disagree on, and the one a paid tenant loses under `<`.
 }
 ```
 
@@ -363,7 +468,21 @@ public async Task RefreshAsync_IgnoresAStalePush()
   load-bearing; the Valkey-backed L2 adapter is demand-gated to its
   [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md) trigger. See
   Standards 20 § Configuration / Eager invalidation.
-- **Killswitch without runbook.** The runbook is part of the deliverable. CI does
-  not enforce its presence today; review must.
+- **A limit key in LearnStack's old spelling.** `tenancy.max_learners` and its siblings
+  are withdrawn; the `limits.` vocabulary is the Hub's. A key it never sends resolves to
+  the catalog default on every projection, so the tenant reads as unplanned and nothing
+  errors.
+- **Deriving a killswitch from the feature key's string.** The descriptor names it or
+  nothing does. Two of the three shipped killswitches gate paths with no `FeatureKeys`
+  entry, so no prefix rule reaches them, and a renamed key would go silently ungated.
+- **Omitting the failure posture.** ADR-0034 puts it in the registry; a key that leaves
+  it to the call site has no answer for the unresolved case, which is the one case the
+  member exists for.
+- **A killswitch without a runbook, once one can be flipped.** The runbook belongs with
+  the command Phase 03 lands, not with the key Packet 9 registers. CI does not enforce
+  its presence; review must.
+- **Writing a killswitch toggle in Packet 9.** The table ships unwritten and
+  `DenyAllPlatformAdminGate` is registered, so the command would be unreachable code
+  gated by a permission nothing registers.
 - **Removing a key without a deprecation cycle.** A rename / remove follows the
   same one-release-deprecation-warning rule as permissions.

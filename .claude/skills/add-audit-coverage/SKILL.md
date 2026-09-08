@@ -71,7 +71,7 @@ scope.
 | Resource | Yes | Aggregate or sub-resource name. |
 | Operation slug | Yes | `{module}.{resource}.{verb}` — the catalogue key and the matrix's `Operation` cell. |
 | `OperationType` | Yes | `Create` / `Update` / `Delete` / `ReadSensitive` / `SecurityEvent` / `PlatformAdmin` / `Action`. |
-| `OperationClass` | Yes | `Must` / `Should` / `May`. |
+| `OperationClass` | Yes | `Must` / `Should` / `May` — the tier the catalogue and the matrix **declare**. A request that writes no row is registered `Off` instead (Step 3). |
 | Before/after snapshot? | If `Update` on sensitive fields | Yes/no. |
 | PII fields | If applicable | The properties to mark `[PiiSensitive]`. |
 
@@ -83,9 +83,33 @@ scope.
 **`Operation` column holding the catalogue's slug**
 ([ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md)). The matrix is the
 human-readable artifact and the in-code catalogue is the executable one; neither is
-parsed from the other, and `Every_TenantOwned_Command_HasAuditCoverage` asserts they
-agree — a matrix row with no catalogue entry fails, and a catalogue entry with no matrix
-row fails.
+parsed from the other, and `Every_TenantOwned_Command_HasAuditCoverage` joins them.
+
+**The join has two directions and they have different domains**
+([ADR-0044 Amendment 3 § 1](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)):
+
+- **Catalogue → matrix, total.** Every entry a *module's* `IAuditCatalogSource`
+  registers has a matrix row carrying the same slug. No exemption. Test-only request
+  types register in their fixtures rather than in a module source and are outside this
+  direction.
+- **Matrix → catalogue, scoped to what exists.** A matrix row fails only when a request
+  type that raises it **exists** and no catalogue entry names it. A row classified ahead
+  of its command is the classification the standard asks for before the command ships,
+  not drift.
+- **`(planned)`, beside the slug in the `Operation` cell**, marks such a row — and the
+  marker is a claim the rule re-checks on every run, not an escape: a `(planned)` row
+  whose command has since shipped **fails**.
+- **`(off-path)`** marks an operation that is not a MediatR request at all. Those rows
+  sit outside the request-type join in both directions and their catalogue entries are
+  registered by slug rather than by type. Today: `platform.admin_scope.enter`,
+  `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`, and the two ADR-0036 parks
+  on Packet 9 — `tenancy.tenant_assertion.reject` and
+  `tenancy.tenant_assertion.anonymous_burst`.
+- **A row carries both markers where both are true** — off the request path *and* ahead
+  of the code that will write it.
+
+[Audit Coverage § The join](../../../docs/standards/18-audit-coverage.md) is the standard
+that carries this; read it before inventing a third marker.
 
 The two shipped matrices are the model — [Tenancy](../../../docs/modules/tenancy/audit.md)
 and [Customization](../../../docs/modules/customization/audit.md):
@@ -95,8 +119,14 @@ and [Customization](../../../docs/modules/customization/audit.md):
 |---|---|---|---|
 | `Enrollment` | `enrollment.enrollment.create` | **MUST** | Grants access to paid content |
 | `Enrollment` | `enrollment.enrollment.suspend` | **MUST** | Withdraws it again |
+| `Enrollment` | `enrollment.enrollment.cancel` | **SHOULD** | Reversible, and the learner asked for it |
+| `Cohort` | `enrollment.cohort.create` | **MUST** | Raised alongside the enrollment, on one transaction |
 | `Cohort` | `enrollment.cohort.delete` | **MUST** | Deletes are always MUST |
+| `Cohort` | `enrollment.cohort.archive` `(planned)` | **MUST** | No command raises it yet |
 ```
+
+Every unmarked row above has a catalogue entry in Step 3's snippet, and the marked one
+has none — which is the whole of the join.
 
 Legend:
 
@@ -104,9 +134,13 @@ Legend:
 - **SHOULD** — audited by default; opt-out requires a code comment + justification.
 - **MAY** — allowed but not required.
 - **–** — operation doesn't apply to the resource.
+- **`(planned)`** — classification ahead of the command that will raise it. Drop the
+  marker in the same commit that lands the command and its catalogue entry.
+- **`(off-path)`** — not a MediatR request; catalogued by slug.
 
 Keep the format [18-audit-coverage.md](../../../docs/standards/18-audit-coverage.md)
-carries; whatever the column layout, the `Operation` cell holds the slug verbatim.
+carries; whatever the column layout, the `Operation` cell holds the slug verbatim,
+followed by its marker where it has one.
 
 ### Step 1b: Name the operation
 
@@ -158,6 +192,14 @@ signal. When it is tempting because the operation does two things at once, the
 *resource* is usually what needs splitting — see
 [add-permission § Step 1](../add-permission/SKILL.md).
 
+**Two enums, one distinction** ([ADR-0044 Amendment 3
+§ 4](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+`OperationClass { Must, Should, May }` is what the catalogue and the matrix *declare* —
+the field this step picks. `AuditClassification { Off, May, Should, Must, Unclassified }`
+is what `IAuditConfigService.ClassifyAsync` *returns*, after the tenant's `audit_config`
+override and the MUST floor: `Off` is a request that writes no row, `Unclassified` is
+the rejection. Do not reach for `Off` here — it is a registration (Step 3), not a tier.
+
 ### Step 2b: What a MUST classification now costs
 
 Under [ADR-0033](../../../docs/decisions/0033-audit-durability-model.md) the class is
@@ -168,6 +210,10 @@ Under [ADR-0033](../../../docs/decisions/0033-audit-durability-model.md) the cla
   not at all, and Row Level Security accepts it. Its `tenant_id` is the tenant the
   transaction **announced**, never a value off the request payload
   ([ADR-0044 § 2](../../../docs/decisions/0044-audit-write-path.md)).
+  `AuditLogBehavior` resolves that tenant at step 3 and puts it on the intent —
+  `AuditIntent` carries `TenantId` and `OrganizationId?` — so the store composes the row
+  from the intent and never resolves a tenant itself
+  ([ADR-0044 Amendment 3 § 2](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
 - If the transaction rolls back, the row is **re-written standalone** with outcome
   `failed`. A MUST-class operation is never left with no row, including on the ordinary
   path where a handler saves and then returns `Result.Fail(...)`.
@@ -204,6 +250,15 @@ keyed by **request type**; the builder maps one request type to one or more
 `(operation, OperationType, OperationClass)` triples
 ([ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md)).
 
+**The types the triple names live in `LearnStack.SharedKernel.Audit`**, beside the ports
+— `OperationType`, `OperationClass`, `AuditOutcome`, `AuditClassification`,
+`AuditIntentState` and `CapturedEntityChange`
+([ADR-0044 Amendment 3 § 3](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+They are **not** declared in the Audit module's Domain: a module's `Application` project
+references only SharedKernel, its own Domain and its own Contracts, and a SharedKernel
+back-edge to a module is a project cycle. The Audit module's `AuditEntry` consumes them;
+it does not declare them.
+
 > **The seam lands with Phase 02a Packet 9.** `IAuditCatalogSource`,
 > `IAuditCatalogBuilder` and `IAuditStore` do not exist in `backend/src` yet, and the
 > `AuditLogBehavior` shipped in Packet 3 is a logging shell. The **triple** and the
@@ -212,6 +267,8 @@ keyed by **request type**; the builder maps one request type to one or more
 
 ```csharp
 // LearnStack.Modules.Enrollment.Application/EnrollmentAuditCatalogSource.cs
+using LearnStack.SharedKernel.Audit;
+
 public sealed class EnrollmentAuditCatalogSource : IAuditCatalogSource
 {
     public void Describe(IAuditCatalogBuilder builder)
@@ -241,6 +298,10 @@ public sealed class EnrollmentAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<EnrollCohortCommand>(
             operation: "enrollment.enrollment.create",
             operationType: OperationType.Create);
+
+        // Registered, never audited: AuditClassification.Off. A call, not a
+        // convention — an unregistered request is rejected, not silently skipped.
+        builder.NotAudited<GetEnrollmentCountQuery>();
     }
 }
 ```
@@ -254,9 +315,23 @@ The registration tells `AuditLogBehavior` to:
 **Every request type must be registered.** There is no `RequestKind.Other` and no
 implicit "unaudited" default: an `IRequest<Result<T>>` that reaches step 3 without a
 catalogue entry is rejected with `audit_unclassified_operation` (500), which is a
-deployment defect rather than something the caller can act on. Register the `Off` cases
-too, and register **test-only request types through the same builder in their fixture** —
-eight of them across the four suites already need it.
+deployment defect rather than something the caller can act on.
+
+Two registrations are easy to skip and neither is optional:
+
+- **The `Off` cases.** A request that writes no row is registered `Off` through the
+  builder's own call — "register `Off`" is a call, not a convention
+  ([ADR-0044 Amendment 3 § 4](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+  `Off` is an `AuditClassification` and never an `OperationClass`, so it is not a tier
+  the matrix can carry: the matrix legend closes at MUST / SHOULD / MAY / `–`.
+- **Test-only request types, through the same builder in their fixture** — eight of them
+  across the four suites already need it. They register in the fixture and not in a
+  module's `IAuditCatalogSource`, which is what keeps them outside the catalogue → matrix
+  direction of Step 1's join.
+
+An operation that is **not** a MediatR request — the `(off-path)` rows of Step 1 — is
+registered by slug rather than by request type, and earns no `builder.…<TRequest>()`
+call at all.
 
 ### Step 4: Sensitive-field redaction
 
@@ -383,8 +458,10 @@ passes even when every policy is inert. See
     `LearnStack.SharedKernel.Audit` ports are explicitly out of scope) — Registered,
     Packet 10.
   - `Every_TenantOwned_Command_HasAuditCoverage` — Registered, backfilled in Packet 9.
-    This is the rule that holds the matrix and the catalogue together, in both
-    directions.
+    This is the rule that holds the matrix and the catalogue together. Both directions
+    run, on the two domains of Step 1: catalogue → matrix is total for a module's
+    source, matrix → catalogue binds only where the request type exists, and a
+    `(planned)` row whose command has shipped fails.
   - `OperationType_Enum_Matches_Catalog` — Registered, Packet 9, if you touched the
     `OperationType` list.
   - There is **no** registered PII-redaction rule. Redaction is proved by the
@@ -415,8 +492,14 @@ passes even when every policy is inert. See
   elision record of Step 4b, in the column's own JSON type. Never an empty object, never
   a silent cut, and never a pointer to a blob store that does not exist.
 - **Skipping the matrix update.** `Every_TenantOwned_Command_HasAuditCoverage` fails a
-  catalogue entry with no matrix row *and* a matrix row with no catalogue entry, once
-  Packet 9 backfills it; until then review is the only gate.
+  catalogue entry with no matrix row, and a matrix row whose request type exists with no
+  catalogue entry, once Packet 9 backfills it; until then review is the only gate.
+- **Leaving `(planned)` on a row whose command has landed.** The marker is anti-rot, and
+  the rule re-checks it: the commit that adds the command adds the catalogue entry and
+  drops the marker, or the build goes red.
+- **Marking a row `(planned)` to get past a red build.** It buys nothing — the rule
+  looks for the request type, not for the marker's promise — and it moves a live
+  operation out of the join that exists to hold it.
 - **Using a permission action for the verb.** `customization.content_type.write` for a
   publication is the failure mode the split exists to prevent. The verb comes from the
   matrix; only `{module}` and `{resource}` match the permission key.

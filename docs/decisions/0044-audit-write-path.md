@@ -746,6 +746,71 @@ grammar keeps one parser for every audit slug and every permission key.
 [ADR-0036](0036-tenant-resolution-trusted-inputs.md) (its own dated amendment) and
 `.claude/skills/add-audit-coverage/SKILL.md`.
 
+## Amendment 4 — Three things Packet 9 must not be left to invent (2026-09-08)
+
+**Status: Accepted.** Raised by the round that applied Amendment 3, where the carrier
+editors correctly refused to decide these from a standard or an architecture document.
+Each is a question this ADR left open rather than answered wrongly. **§ Decision is
+unchanged.**
+
+### 1. `[PiiSensitive]` is property-granular, and that includes a `jsonb` property
+
+§ 8 says a marked property's *value* is replaced. It does not say what happens when the
+value is a `jsonb` column holding a document — and one already exists on a MUST-class
+operation: `tenant_settings.value`.
+
+The whole value is replaced. The marker does not descend, and the redactor never walks a
+tenant-authored document looking for personal data.
+
+The alternative — descending, and redacting the paths inside that look sensitive — is
+worse in the way that matters: it *appears* to work. It would pass a review, redact the
+fields a reviewer thought of, and leave the ones a tenant invented, in a column whose
+shape is by construction unknown to us ([ADR-0018](0018-tenant-driven-customization-model.md)
+makes it tenant data). A whole-value redaction is legible in the snapshot — the reader
+sees that the property changed and that its content is withheld — and it cannot miss.
+
+A module that needs a finer grain models the sensitive part as its own property. That is a
+schema decision, taken where the schema is, and not a guess taken at capture time.
+
+### 2. `audit_config` ships with no writer, and the corpus says so
+
+§ 9 grants `SELECT` and nothing else on `audit_config`, to both roles. That is deliberate
+and it means Packet 9 creates a table nothing can write. Say it rather than leave a reader
+to discover it: Packet 9 ships the table, its policy, and the **cached read** the
+classifier uses; the tenant-admin surface that authors an override lands with the Studio
+in [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), on the permission registry
+[Phase 03](../roadmap/phase-03-identity-admin.md) brings.
+
+Nothing is lost by the gap. The in-process catalogue carries the MUST floor, an absent
+override reads exactly as "this tenant has no overrides", and § Decision's fallback makes
+that the safe answer. What a reader must not conclude is that the write path was
+forgotten.
+
+The same shape covers `platform_killswitches`
+([ADR-0045 Amendment 1 § 4](0045-entitlement-and-feature-flag-socket.md)): a table and a
+read path in Packet 9, the writer with the permission that gates it.
+
+### 3. `Every_Module_Has_An_AuditCoverage_Matrix` binds to modules that have code
+
+Five of the seven module directories hold an `AssemblyMarker` and nothing else. A rule
+reading "every module directory has a matrix" is red on all five the day it is written,
+and the repair an implementer reaches for — five matrices classifying no operations — is
+five files that say nothing and rot unread.
+
+The rule's subject is a module that has shipped **an aggregate or a request type**. Today
+that is Tenancy, Customization, and — from this packet — Audit, whose spec directory
+`docs/modules/audit/` Packet 9 creates with the three files the documentation standard
+fixes. A module gains the obligation with its first aggregate, which is also when it has
+something to classify.
+
+### Carriers changed
+
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md),
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 3, 7, 14,
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and
+`.claude/skills/add-audit-coverage/SKILL.md`.
+
 ## References
 
 - [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) — the durability

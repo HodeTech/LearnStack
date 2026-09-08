@@ -18,9 +18,11 @@ session from tenant-wide rows**),
 [ADR-0040 The Ambient Unit of Work](../decisions/0040-ambient-unit-of-work.md),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (§ 9 with Amendment 1: `audit_log` is tenant-owned and org-scoped, `audit_config`
-tenant-owned and tenant-wide),
+tenant-owned and tenant-wide; **Amendment 3: the platform sentinel's guards sit on the
+write path, not on the `tenants` CHECK**),
 [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
-(§ 5: `platform_killswitches` is the second platform-scoped table).
+(§ 5: `platform_killswitches` is the second platform-scoped table; **Amendment 1: it
+ships unwritten**).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -527,11 +529,18 @@ Two departures from what the rest of this document assumes, each for its own rea
   must never name a row in the table every other tenant id names. What the `CHECK` buys
   is that the sentinel never enters the registry: `platform_host_to_tenant` carries
   `fk_platform_host_to_tenant_tenant`, so no host can map to it, no request context
-  resolves it, and no tenant-keyed policy matches the rows it owns. Keeping the value
-  out of `app.tenant_id` is the write path's job rather than the constraint's —
-  `SetProvisioningTenantContextAsync` announces whatever id it is handed — and
-  ADR-0044 § 1 states that rule where it belongs, on the writer: the sentinel is
-  announced by no tenant request path.
+  resolves it, and no tenant-keyed policy matches the rows it owns.
+
+  **The `CHECK` is the backstop, not the control.** A constraint on `tenants` cannot
+  stop the sentinel from being *announced* on `app.tenant_id`, and the one announcement
+  path that takes a caller-supplied id — `SetProvisioningTenantContextAsync` — passes on
+  whatever it is handed. The guards therefore sit where the value enters:
+  `SetProvisioningTenantContextAsync` refuses `TenantId.PlatformSentinel` exactly as it
+  already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory
+  ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)). Neither guard stands
+  in the way of the writer the sentinel exists for: `WritePlatformScopeAsync` issues
+  parameterised SQL on the scope's own platform-role connection and touches neither the
+  unit of work nor an aggregate factory.
 
 #### `platform_host_to_tenant` — platform-scoped
 
@@ -672,7 +681,7 @@ CREATE POLICY platform_killswitches_read ON platform_killswitches
 -- No write policy for learnstack_app, and no write privilege either — see the matrix
 -- below. Every toggle runs as learnstack_platform inside
 -- EnterPlatformAdminScope(reason), which is what gives tenancy.killswitch.toggle a real
--- actor and a MUST-class audit row.
+-- actor and a MUST-class audit row. No such caller ships in Packet 9 — see below.
 ```
 
 `USING (true)` widens nothing: there is no tenant term to widen, and the `GRANT` is what
@@ -680,6 +689,34 @@ bounds the role instead — `learnstack_app` holds `SELECT` and nothing else, so
 policy is the only policy it can exercise. The owner is denied by the same mechanism as
 on `platform_host_to_tenant`: the policy names `learnstack_app`, so under `FORCE` none
 applies to `learnstack_migration`.
+
+**This is the first table for which "no tenant context ⇒ zero rows" is deliberately
+false**, and the shipped whole-schema sweep has to be taught the difference.
+`platform_host_to_tenant` satisfies that property without being asked to — both arms
+of its read are `NULL` when nothing is announced — so
+`Unsetting_tenant_context_returns_zero_rows_through_RLS` has swept every ordinary
+table in `public` with no exception at all, which is what makes it worth having. The
+first killswitch row turns it red for correct behaviour. It is taught the distinction
+**without** a name-based inclusion list: it keeps enumerating the catalogue, and what
+changes is the expectation — every table it finds answers zero except the one declared
+exception, and a second assertion pins the set of `public` policies whose predicate is
+`true` to exactly that exception. A sweep over a hand-written list of names fails open,
+which is how a second permissive policy on `outbox_messages` once passed the whole
+suite. The positive half is worth asserting too, because nothing asserts it today: with
+no context, `learnstack_app` reads **all** of `platform_killswitches`, which is what
+`USING (true)` exists to guarantee.
+
+**Packet 9 ships the table and the read path, and no writer.** The reason is
+reachability rather than scheduling: every toggle runs inside
+`EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate` is
+`DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope
+permission arrives with the registry in
+[Phase 03](../roadmap/phase-03-identity-admin.md) — which owns the toggle command, its
+permission and its runbook
+([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)). The
+`learnstack_platform` write grant in the matrix below is written ahead of its caller,
+and no runtime path puts a row in the table until that phase lands. Every gated read
+honours a flipped switch the day one exists; what is absent is the flipping.
 
 The overlay is read through the L1 cache and invalidated on toggle, so the table itself
 is touched on a cache miss rather than on every request
@@ -823,7 +860,7 @@ only by the `audit_log_append_only_guard` trigger. The trigger is not redundant 
 grant: it is the layer that still binds `learnstack_migration` once that session has a
 tenant to announce ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Four things the matrix cannot express, and one it must not be asked to:
+Five things the matrix cannot express, and one it must not be asked to:
 
 - **A `GRANT` names a role, not a code path.** "Reserved to the provisioning path" is
   not something PostgreSQL can enforce — every handler in the API process runs as the
@@ -849,6 +886,16 @@ Four things the matrix cannot express, and one it must not be asked to:
   it lands it will need `DELETE` for `learnstack_platform` across every tenant-owned
   table; that is a deliberate widening of a `BYPASSRLS` role and is recorded in the ADR
   that introduces it, not slipped into a migration.
+- **`audit_config` has no writer in the matrix**, and that is deliberate rather than an
+  omission. Packet 9 creates the table and both runtime roles hold `SELECT`, so the only
+  role that can insert a row is the owner and the table is empty until a tenant authors
+  one. The editor that authors it lands with the Studio tenant-settings screens in
+  [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), gated by an audit permission
+  from the registry [ADR-0044](../decisions/0044-audit-write-path.md) places in
+  [Phase 03](../roadmap/phase-03-identity-admin.md). `INSERT, UPDATE, DELETE` for
+  `learnstack_app` lands in that phase's migration, beside the command that needs it —
+  not ahead of it. Packet 9's own test for the override branch seeds the row as the
+  migration role.
 
 #### How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`
 
@@ -1091,6 +1138,17 @@ changes `xmin` while leaving `row_version` intact.
 - Destructive migrations (drop column, change type) require:
   1. ADR or PR description explaining the data plan.
   2. Two-step deploy: tolerant code → migration → strict code.
+- **Chain application order is load-bearing, and the Tenancy chain applies first.**
+  `audit_config` references `tenants`
+  ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)), which is the schema's only
+  foreign key crossing two migration chains, so a run that reaches the Audit chain first
+  fails on a clean database with `relation "tenants" does not exist`. Alphabetical order
+  produces exactly that run — `Modules/Audit` sorts before `Modules/Tenancy` — so
+  `make migrate` names the Tenancy chain ahead of the glob that finds the rest, and
+  `Migrate_Target_Applies_Tenancy_Before_Any_Chain_That_References_It` is what keeps the
+  recipe honest. The integration fixture that applies the chains orders them the same
+  way, for the same reason: a fixture that hand-orders what the recipe globs is how a
+  suite goes green over a deployment path that cannot build the schema.
 
 ## Data Migrations
 

@@ -5,7 +5,9 @@ file. Part of the [module spec](README.md).
 
 Four of the operations below now exist, all written by Phase 02a Packet 8's
 handlers: `ContentType` register and publish, and `LevelTaxonomy` register and
-publish. The rest are classification ahead of code.
+publish. Eight more rows are classification ahead of code and carry `(planned)` in the
+`Operation` column ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md));
+the last row carries no slug at all, and its own cell says why.
 
 **All four are unaudited today**, and publication is the one that matters most:
 it retires the incumbent and makes every subsequent write of that content type
@@ -17,6 +19,16 @@ rather than parsing this file — the catalogue is the executable artifact, this
 matrix is the human-readable one, and
 `Every_TenantOwned_Command_HasAuditCoverage` asserts the two agree
 ([ADR-0044 § 6](../../decisions/0044-audit-write-path.md)).
+
+**That join runs in two directions and they have different domains**
+([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). Catalogue → matrix
+is total: every entry this module's `IAuditCatalogSource` registers has a row here
+carrying the same slug, and one that does not fails. Matrix → catalogue binds only to a
+slug whose request type **exists**, so the eight `(planned)` rows are classification and
+not drift — and a `(planned)` row whose command has since shipped fails, which is what
+keeps the marker from becoming a hole rather than a claim. Nothing in this module is
+written off the request path, so no row here carries the `(off-path)` marker the
+[Tenancy matrix](../tenancy/audit.md) needs for five of its own.
 
 **What these handlers already do so that Packet 9 is a wiring change and not a
 rewrite:** every one runs inside the ambient transaction
@@ -60,23 +72,24 @@ an audit operation records what happened. One slug per cell and one row per audi
 `(resource, operation)` — the column is read as a column of slugs and not parsed as
 prose
 ([Audit Coverage § Classification Matrix Template](../../standards/18-audit-coverage.md)),
-and the legend's `–` is what the last row carries, because it has no audited operation
-at all.
+a cell carrying `(planned)` beside its slug where the command that will raise it does
+not exist yet, and the legend's `–` is what the last row carries, because it has no
+audited operation at all.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
 | `ContentType` | `customization.content_type.register` | **MUST** | A tenant declaring a new shape for its own data; the row is what a later "who added this?" reads |
 | `ContentType` | `customization.content_type.publish` | **MUST** | Retires the incumbent and changes what every subsequent content write is validated against — the highest-blast-radius act in the module |
-| `ContentType` | `customization.content_type.revise` | **MUST** | Only a draft's body is mutable, but "additive" is claimed by the editor and not proved by the aggregate; the row is what makes a wrong claim traceable |
-| `ContentType` | `customization.content_type.rename` | **MUST** | The baseline lists these aggregates' **created / updated / deleted**, and a rename is an update. It is presentational, which changes the payload and not the class: the display name is what every Studio list, every editor and every renderer shows for the shape |
-| `ContentType` | `customization.content_type.soft_delete` | **MUST** | Frees the key for a successor, because the one-live-revision index is partial on `deleted_at IS NULL`; a retired definition releasing its name is the same class of act as a domain releasing its host |
+| `ContentType` | `customization.content_type.revise` `(planned)` | **MUST** | Only a draft's body is mutable, but "additive" is claimed by the editor and not proved by the aggregate; the row is what makes a wrong claim traceable |
+| `ContentType` | `customization.content_type.rename` `(planned)` | **MUST** | The baseline lists these aggregates' **created / updated / deleted**, and a rename is an update. It is presentational, which changes the payload and not the class: the display name is what every Studio list, every editor and every renderer shows for the shape |
+| `ContentType` | `customization.content_type.soft_delete` `(planned)` | **MUST** | Frees the key for a successor, because the one-live-revision index is partial on `deleted_at IS NULL`; a retired definition releasing its name is the same class of act as a domain releasing its host |
 | `LevelTaxonomy` | `customization.level_taxonomy.register` | **MUST** | Same reason as the content type's registration: a tenant declaring a vocabulary of its own, and the row is what a later "who added this?" reads |
 | `LevelTaxonomy` | `customization.level_taxonomy.publish` | **MUST** | Same reason as the content type's publication, and with a wider reach: every level reference in the tenant resolves through the vocabulary this retires and replaces |
-| `LevelTaxonomy` | `customization.level_taxonomy.add_band` | **MUST** | Extends the vocabulary every level reference resolves against, and the aggregate permits it while the revision is a draft |
-| `LevelTaxonomy` | `customization.level_taxonomy.remove_band` | **MUST** | Removing a band strands every row that referenced it, and the aggregate permits it while the revision is a draft |
-| `LevelTaxonomy` | `customization.level_taxonomy.rename` | **MUST** | Same reason as the content type's rename: the baseline lists these aggregates' **created / updated / deleted**, and a rename is an update |
-| `LevelTaxonomy` | `customization.level_taxonomy.rename_band` | **MUST** | A band's label is what a learner sees where a level is named, so renaming one is an update of the taxonomy and not of its presentation |
-| `LevelTaxonomy` | `customization.level_taxonomy.soft_delete` | **MUST** | Same reason as the content type's |
+| `LevelTaxonomy` | `customization.level_taxonomy.add_band` `(planned)` | **MUST** | Extends the vocabulary every level reference resolves against, and the aggregate permits it while the revision is a draft |
+| `LevelTaxonomy` | `customization.level_taxonomy.remove_band` `(planned)` | **MUST** | Removing a band strands every row that referenced it, and the aggregate permits it while the revision is a draft |
+| `LevelTaxonomy` | `customization.level_taxonomy.rename` `(planned)` | **MUST** | Same reason as the content type's rename: the baseline lists these aggregates' **created / updated / deleted**, and a rename is an update |
+| `LevelTaxonomy` | `customization.level_taxonomy.rename_band` `(planned)` | **MUST** | A band's label is what a learner sees where a level is named, so renaming one is an update of the taxonomy and not of its presentation |
+| `LevelTaxonomy` | `customization.level_taxonomy.soft_delete` `(planned)` | **MUST** | Same reason as the content type's |
 | `customization_generations` | – | – | **The bump is deliberately unaudited.** It is not an aggregate ([ADR-0043 § 7](../../decisions/0043-customization-payload-validation.md)), it carries no decision, and it is written exactly once per audited operation above — a row for it would be a second entry for the same act, in the same transaction, saying less. Nor does the broad capture predicate pick it up: `CustomizationGenerationStore` bumps the row with one `ON CONFLICT … DO UPDATE` statement on the ambient connection, so it is never a `ChangeTracker` entry for `AuditChangeTrackerInterceptor` to see |
 
 **A refused schema is not an operation of its own.** A document the four gates

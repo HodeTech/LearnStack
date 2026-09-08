@@ -119,15 +119,29 @@ The ordering is the design, not an optimisation:
   cached row for the tenant does not throw out of a feature-flag check and does not block
   the request. It resolves against the per-key-class policy below and records the
   degradation.
-- **Each feature-key class declares fail-open or fail-closed explicitly**, in the key
-  registry, not at the call site. Presentation and convenience keys fail open — a
-  temporarily visible tab is cheaper than a broken page. Keys that gate paid capacity,
-  data retention, or compliance behaviour fail closed. A key with no declared class does
-  not compile.
+- **Each feature key declares fail-open or fail-closed explicitly**, in the key registry
+  and not at the call site. The **declaration** ships in
+  [Phase 02a Packet 9](phase-02a-kernel-tenancy.md), as a required member of every
+  `FeatureKey` descriptor alongside the killswitch it names
+  ([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)),
+  so a key with no declared class does not compile and no key written here can omit one.
+  What this phase adds is the **behaviour**: what `HubEntitlementProvider` does with the
+  class when no usable projection is available — a cold start with nothing cached, or a
+  stored projection past its grace window. The classes themselves, and the key families
+  that carry each one, are the table in
+  [Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md)
+  and are not restated here — read it before assuming a key fails open.
 - **`RefreshAsync` is generation-guarded, and the guard is inside the write statement.**
-  A push whose `generation` is not newer than the stored one changes no column and
-  returns `IgnoredAsStale`, so a retried or reordered delivery cannot resurrect a revoked
-  plan. Packet 9 declares that contract; the internal-API handler below is its caller.
+  A push applies when its `generation` is **at least** the stored one; a strictly older
+  one changes no column and returns `IgnoredAsStale`, so a reordered delivery cannot
+  resurrect a revoked plan. The equal case is deliberate, and it is the provisioning
+  flow: the provisioning insert defaults `generation` to `1` and the Hub's first real
+  projection for that tenant also carries `1`, so a strict comparison would discard the
+  projection a paying tenant needs and report it as success
+  ([ADR-0045 Amendment 1 § 3](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Replay at the same generation is idempotent, by the Hub's own one-writer-per-tenant
+  invariant. Packet 9 declares that contract; the internal-API handler below is its
+  caller.
 - **Writes go through `IEntitlementProvider.RefreshAsync` only.** An
   `IEntitlementProvider` implementation is the only sanctioned reader **and** writer of
   `platform_entitlement_cache` — no module, Tenancy included
@@ -161,6 +175,13 @@ tenant.
   diverge: the record's `PlanCode` is the wire's `tier` and persists to the `plan_code`
   column, and its `ExpiresAt` persists to `valid_until`
   ([21-feature-flags.md](../architecture/21-feature-flags.md)).
+- **Required is not the same as non-null.** `expires_at` and `grace_until` are both
+  required **and** nullable, and the schema's `required` list alone does not carry that
+  distinction. A null `expires_at` means *no scheduled expiry* — what the Hub sends for
+  every trial and perpetual licence — and it persists as `valid_until NULL`, never
+  coerced to a far-future sentinel somebody later has to explain. Packet 9 alters that
+  column to nullable for it
+  ([ADR-0045 Amendment 1 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 - The LearnStack-side snapshot test asserts that the serialized shape the handler accepts
   — `EntitlementProjection` as Packet 9 declares it — still matches the schema, and that
   every declared feature key resolves to a registered `FeatureKey` / `LimitKey`.
@@ -378,8 +399,9 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 - An operation gated by a `Hard` limit key is refused with `403 limit_exceeded` once
   usage reaches the limit; an operation gated by a `Soft` one succeeds and produces a
   `usage.alert.soft_limit_reached` report.
-- A projection push carrying a `generation` no newer than the stored one leaves every
-  column unchanged and reports `IgnoredAsStale`.
+- A projection push carrying a `generation` **older** than the stored one leaves every
+  column unchanged and reports `IgnoredAsStale`; one carrying the stored generation
+  applies, and applying it twice leaves the same bytes.
 - A request missing any one of mTLS, the signed JWT, or the HMAC body signature is
   rejected, and a replayed `jti` is rejected.
 - An `/api/internal/*` request bearing a `learnstack` realm token is rejected; a

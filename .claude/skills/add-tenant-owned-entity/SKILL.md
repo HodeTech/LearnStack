@@ -473,9 +473,12 @@ See [add-integration-test](../add-integration-test/SKILL.md).
 - The module's `docs/modules/<module>/audit.md` carries a row for each of the new
   entity's audited operations, with the `{module}.{resource}.{verb}` slug in its
   `Operation` cell. From Packet 9 the module's `IAuditCatalogSource` registers the same
-  slugs and `Every_TenantOwned_Command_HasAuditCoverage` fails either side alone; that
-  type does not exist in `backend/src` yet, so today the matrix row is the whole of it.
-  See [add-audit-coverage](../add-audit-coverage/SKILL.md).
+  slugs and `Every_TenantOwned_Command_HasAuditCoverage` joins the two: a catalogue
+  entry with no matrix row always fails, and a matrix row fails once the request type
+  that raises it exists. A row written ahead of its command carries `(planned)` and is
+  outside that direction until the command lands — at which point the marker must go.
+  `IAuditCatalogSource` does not exist in `backend/src` yet, so today the matrix row is
+  the whole of it. See [add-audit-coverage](../add-audit-coverage/SKILL.md).
 - Glossary updated if the entity name is a new domain term.
 
 ## Common pitfalls

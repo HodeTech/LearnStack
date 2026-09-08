@@ -206,10 +206,14 @@ adapter trigger.
   entitlement socket. Every other family requires a tenant id.
   Compose with `CacheKey.ForTenant` / `CacheKey.ForOrganization` /
   `CacheKey.ForHostMapping`; the killswitch overlay's factory and its `EnsureValid`
-  entry land with Packet 9. Every `ICacheService` implementation calls
-  `CacheKey.EnsureValid`, and none re-prefixes. There is no query filter and no RLS
-  policy in front of a dictionary, so the key is the entire isolation boundary —
-  which is why the shape is validated rather than left to each call site to remember.
+  entry land with Packet 9, which ships the read side only — `platform_killswitches`,
+  the overlay and this family. The toggle that invalidates it arrives with the
+  Platform-scope permission in [Phase 03](../roadmap/phase-03-identity-admin.md)
+  ([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Every `ICacheService` implementation calls `CacheKey.EnsureValid`, and none
+  re-prefixes. There is no query filter and no RLS policy in front of a dictionary, so
+  the key is the entire isolation boundary — which is why the shape is validated rather
+  than left to each call site to remember.
 - TTL defaults: 60s for hot-path reads (entitlement projection cache,
   permission cache), 5min for medium-warm reads, 1h for cold lookups. Anything
   longer needs explicit justification in code review.
@@ -463,8 +467,12 @@ are the Hub's public API, governed by the Hub repository.
   in front of the projection, never the write path
   ([ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
   `RefreshAsync` compares the incoming `generation` **inside** the write statement and
-  reports `IgnoredAsStale` for a push that is not newer — a stale push must not
-  resurrect a revoked plan.
+  applies a push whose generation is **at least** the stored one; a strictly older push
+  changes no column and reports `IgnoredAsStale`, because a stale push must not
+  resurrect a revoked plan. The equal case is the provisioning flow — the provisioning
+  insert writes `generation` default 1 and the Hub's first projection for that tenant
+  also carries 1 — and re-applying the current generation is idempotent
+  ([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 - `IFeatureFlags` — `IsEnabledAsync(FeatureKey)` and `GetLimitAsync(LimitKey)` — is the
   only module-facing read path, and it **composes** over the provider rather than
   querying the table: a plan-projected key resolves through
@@ -477,8 +485,13 @@ are the Hub's public API, governed by the Hub repository.
   `L1 in-process → L2 ICacheService → platform_entitlement_cache → Hub`. The durable
   projection sits **between** the caches and the Hub precisely so a cold cache during a
   Hub outage falls through to a stored answer with a recorded `grace_until`, rather than
-  throwing out of a feature-flag check. Each feature-key class declares fail-open or
-  fail-closed explicitly. Walking that order is the **provider's** job, not
+  throwing out of a feature-flag check. Every `FeatureKey` descriptor declares its
+  **failure class** — fail-open or fail-closed — in the registry rather than at the call
+  site, and names the killswitch that gates it as a nullable `KillswitchKey`. Neither is
+  inferred from the key string: inference would leave a renamed key silently ungated
+  ([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md),
+  [21-feature-flags.md § Typed Catalog](../architecture/21-feature-flags.md)).
+  Walking that order is the **provider's** job, not
   `IFeatureFlags`'s: `HubEntitlementProvider` implements it in
   [Phase 02c](../roadmap/phase-02c-hub-foundation.md), and `NullEntitlementProvider`
   answers from constants and reads no table.
@@ -519,7 +532,12 @@ are the Hub's public API, governed by the Hub repository.
   `LearnStack.Application/Pipeline`, because either `Infrastructure` home the corpus
   named would invert the Application → Infrastructure dependency the canonical pipeline
   order rests on; the ports — `IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`,
-  `AuditIntent`, `AuditEntryId` — live in `LearnStack.SharedKernel.Audit`;
+  `AuditIntent`, `AuditEntryId` — live in `LearnStack.SharedKernel.Audit`, and so do the
+  value types those ports carry: `OperationType`, `OperationClass`, `AuditOutcome`,
+  `AuditClassification`, `AuditIntentState` and `CapturedEntityChange`
+  ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)). Declaring them in the
+  Audit module's `Domain` instead is a project cycle — that project already references
+  SharedKernel — so `AuditEntry` consumes them and does not declare them.
   `PostgresAuditStore`, `AuditStateCapture` and `AuditChangeTrackerInterceptor` live in
   `LearnStack.Infrastructure.Audit`; and `AuditEntry`, `AuditConfig` and `AuditDbContext`
   live in the Audit module.
@@ -531,8 +549,11 @@ are the Hub's public API, governed by the Hub repository.
   methods and no update method: `WritePendingAsync` on the ambient transaction, the two
   standalone writers (`WriteStandaloneAsync`, `WriteBestEffortAsync`), and
   `WritePlatformScopeAsync`, whose only caller is `EnterPlatformAdminScope(reason)` —
-  it writes its security-event row on its own platform-role connection, before the
-  operation runs ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)).
+  it writes its security-event row on its own platform-role connection before the
+  operation runs, and commits it there rather than on the scope's transaction, so an
+  operation that later fails is still recorded
+  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md),
+  [05-database.md § How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`](05-database.md)).
 
 ## Background Jobs and Hangfire
 

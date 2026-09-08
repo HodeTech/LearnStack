@@ -291,7 +291,11 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 
 ### Reliability
 
-- Health checks and readiness / liveness endpoints.
+- Health checks and readiness / liveness endpoints. `GET /readyz` is promised by
+  [API Standards § Health Endpoints](../standards/04-api-design.md) and served by no
+  phase before this one — the API maps `/healthz` only — so this is where it lands, with
+  the `audit` check [Packet 9](phase-02a-kernel-tenancy.md) registers as one of its
+  entries.
 - Background job retry policy.
 - Dead-letter handling (outbox DLQ + Hangfire DLQ), including the subscriber-side
   dead-letter destination for events that exhaust their retries.
@@ -309,7 +313,10 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   and `grace_until`) → Hub. The distributed-cache TTL is a refresh cadence; the durable
   projection and its grace window are the degradation buffer, and a cold cache during an
   outage falls through to the projection rather than throwing out of a feature-flag
-  check. Each feature-key class declares fail-open or fail-closed explicitly.
+  check. Each feature key declares fail-open or fail-closed explicitly, on the descriptor
+  [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) ships; the classes themselves, and
+  the key families that carry each one, are the table in
+  [Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md).
 - **Self-Hosted phone-home failure tolerance** — the 30-day grace period from
   [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md) validated end to end
   as part of licence-key hardening above.

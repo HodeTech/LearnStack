@@ -43,7 +43,7 @@ so the handler stays focused on its own business logic.
 |-------|----------|-------------|
 | Operation name | Yes | `<Verb><Aggregate><Command/Query>`, e.g. `CreateEnrollmentCommand`. |
 | Owning module | Yes | Determines folder + DbContext. |
-| Audit operation slug | Yes | `{module}.{resource}.{verb}` — the catalogue key and the matrix's `Operation` cell. |
+| Audit operation slug | Yes, unless the request registers `Off` | `{module}.{resource}.{verb}` — the catalogue key and the matrix's `Operation` cell. |
 | `OperationType` | Yes | `Create` / `Update` / `Delete` / `ReadSensitive` / `SecurityEvent` / `PlatformAdmin` / `Action` per [18-audit-coverage.md](../../../docs/standards/18-audit-coverage.md). |
 | Permission | Yes | `{module}.{resource}.{action}` from the closed action set — same first two segments as the audit slug, different third. |
 | Integration events | No | What it publishes (if any). |
@@ -195,13 +195,24 @@ Rules:
 > `IAuditCatalogBuilder`, `IAuditStore` and `OperationType` do not exist in
 > `backend/src` yet, and the `AuditLogBehavior` shipped in Packet 3 is a logging shell
 > that rejects nothing. The matrix row is writable today; the catalogue registration
-> below is the shape it takes once Packet 9 lights the seam up.
+> below is the shape it takes once Packet 9 lights the seam up. `IAuditStore` and the
+> value types the triple names — `OperationType` and `OperationClass` among them — land
+> in `LearnStack.SharedKernel.Audit` and not in the Audit module's Domain, because a
+> module's `Application` project references only SharedKernel, its own Domain and its own
+> Contracts
+> ([ADR-0044 § 11](../../../docs/decisions/0044-audit-write-path.md) and
+> [Amendment 3 § 3](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
 
 **From Packet 9, every request type must be classified.** There is no exempt kind and
 no implicit default: an `IRequest<Result<T>>` that reaches pipeline step 3 without a
 catalogue entry is rejected with `audit_unclassified_operation` (500)
 ([ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md)). This step is not
-optional even when the answer is "not audited".
+optional even when the answer is "not audited" — that answer is a registration of its
+own, `AuditClassification.Off`, made through the builder's own call rather than by
+leaving the request out
+([ADR-0044 Amendment 3 § 4](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+`Off` is what `IAuditConfigService.ClassifyAsync` returns; `OperationClass { Must,
+Should, May }` stays the tier the catalogue and the matrix declare.
 
 Open the module's `audit.md` (under `docs/modules/<name>/audit.md`). Add a row carrying
 the operation slug:

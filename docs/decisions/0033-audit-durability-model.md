@@ -8,7 +8,9 @@ failure changes the response only when the operation would otherwise have succee
 writes them and reports the commit boundary, `outcome` is four values, the writer
 supplies `timestamp`, both standalone writers announce two session variables, a fourth
 write method serves `EnterPlatformAdminScope`, and a read-sensitive query **does** reach
-step 6. Both at the bottom of the document.)
+step 6. **Amendment 3: 2026-09-08**: Packet 9 ships the audit health check, its metric and
+its `Critical` line; the deployment-level stop-serving backstop is demand-gated to Phase
+11 with a written trigger. All three at the bottom of the document.)
 
 **Date:** 2026-08-08
 **Supersedes:** [ADR-0016](0016-audit-log-subsystem.md)
@@ -463,6 +465,59 @@ non-mutating-security-event examples in § Decision remain correct.
 [ADR-0021](0021-feature-based-entitlement.md) and
 [ADR-0020](0020-triple-deployment-hybrid-license.md) each carry their own dated amendment
 for the part of ADR-0044 and ADR-0045 that touches them.
+
+## Amendment 3 — The audit health check, and who owns the backstop (2026-09-08)
+
+**Status: Accepted.** Raised by the review of the carrier documents for
+[ADR-0044](0044-audit-write-path.md), which found the mechanism named in three places and
+owned in none.
+
+### What was unowned
+
+Amendment 1 and § Fail-closed both lean on an "audit health check", and Amendment 1 adds
+that "beyond a configured maximum unhealthy window the deployment fails closed at the
+**deployment** level — it stops serving". Nothing in the corpus names the check's
+registration site, its identifier, the counter beside it, the configuration key that sets
+the window, or the phase that builds any of it. A rule that stops a deployment from
+serving is not a rule to leave unassigned.
+
+### How it should be read
+
+**Phase 02a Packet 9 ships the observable half**, because it is what makes the failure
+visible and it is cheap next to the writer it observes:
+
+- an `IHealthCheck` registered as `audit`, unhealthy while the most recent MUST-class
+  standalone write has failed and no later one has succeeded;
+- the standalone-write-failure counter, `learnstack_audit_standalone_write_failures_total`,
+  a `learnstack_`-prefixed metric with no PII and no attacker-chosen label, per
+  [Observability Standards](../standards/10-observability.md);
+- the `Critical` log line Amendment 1 already requires.
+
+**The deployment-level backstop is demand-gated to
+[Phase 11](../roadmap/phase-11-production-hardening.md)**, with all four of
+[ADR-0035](0035-demand-gated-infrastructure.md)'s requirements rather than three: the
+*port* is the health check above, shipped here; the *default* is to stay serving and stay
+unhealthy, which is what a Phase 02a deployment does; the *owning phase* is Phase 11,
+where the readiness surface and the orchestrator that reads it are built; the *trigger* is
+the first deployment that serves tenant traffic under a support commitment.
+
+Stopping a process is the one operational act that cannot be undone by the next request,
+and Phase 02a has neither a readiness endpoint nor an operator to answer the page it would
+raise. Shipping the window now would give the platform a self-inflicted outage with no
+runbook.
+
+**§ Decision is unchanged**, and so is Amendment 1: a standalone MUST-class write failure
+still logs at `Critical`, still increments the counter, and still marks the check
+unhealthy. What is deferred is only the act of ceasing to serve.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) § 14,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Observability Standards](../standards/10-observability.md),
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and
+[Phase 11](../roadmap/phase-11-production-hardening.md).
 
 ## References
 

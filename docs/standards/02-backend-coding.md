@@ -280,13 +280,22 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    step 3 no transaction is open, `app.tenant_id` is unset, and `audit_config`
    is RLS-protected, so a read there would return zero rows silently; an
    override read that fails falls back to the in-process catalogue, which
-   carries the same MUST floor, so nothing proceeds unaudited. A request the
-   catalogue does not classify at all is rejected with
-   `500 audit_unclassified_operation`. For MUST it parks **one intent per
-   audited `(resource, operation)`** in the scoped `IAuditStateCapture`, each
-   minted with its own `AuditEntryId` — an ordered list, not one intent per
-   request ([ADR-0044 § 3](../decisions/0044-audit-write-path.md);
-   `ProvisionTenantCommand` declares two) — touching no `DbContext`.
+   carries the same MUST floor, so nothing proceeds unaudited. Every request type
+   is registered, `Off` included — `Off` is how an operation that writes no row is
+   declared — and a request nothing registered is rejected with
+   `500 audit_unclassified_operation`. The catalogue and the module matrix declare
+   `OperationClass`; the classifier returns `AuditClassification`, whose
+   `Unclassified` is that rejection
+   ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)). For MUST it
+   parks **one intent per audited `(resource, operation)`** in the scoped
+   `IAuditStateCapture`, each minted with its own `AuditEntryId` and carrying the
+   tenant — and the organization, where the row has one — that this step resolves:
+   step 3 is the only place all four of
+   [ADR-0044 § 2](../decisions/0044-audit-write-path.md)'s cases are decidable, and
+   the store composes the row from the intent rather than resolving a tenant of its
+   own. The intents are an ordered list, not one per request
+   ([ADR-0044 § 3](../decisions/0044-audit-write-path.md);
+   `ProvisionTenantCommand` declares two), and parking them touches no `DbContext`.
 
    On the way out the **owning** unit-of-work frame reconciles, gated on
    `IUnitOfWorkScope.IsOwner`: every intent whose state is anything other than

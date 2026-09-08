@@ -79,7 +79,7 @@ import { useLimit } from "@learnstack/sdk/hooks";
 import { LimitKeys } from "@learnstack/sdk/limit-keys";
 
 export function UsageMeter() {
-  const { current, limit, soft } = useLimit(LimitKeys.MaxLearners);
+  const { current, limit, soft } = useLimit(LimitKeys.MaxUsers);
   if (limit === -1) return null;  // -1 = unlimited: nothing to meter
   if (limit === 0) return <DeniedNotice />;   // 0 = denied, not "no limit"
 
@@ -149,7 +149,9 @@ honestly:
 
 ```tsx
 const recordingEnabled = useFeatureFlag(FeatureKeys.ClassroomRecording);
-// useFeatureFlag returns the *effective* answer: killswitch overlay applied.
+// useFeatureFlag returns the *effective* answer: the overlay for the killswitch this
+// key's descriptor names is already applied. A key that names none has no overlay —
+// the correspondence is declared in the catalogue, never derived from the string.
 if (!recordingEnabled) {
   return <p>Recording is currently disabled platform-wide. Please try again later.</p>;
 }
@@ -185,9 +187,9 @@ test("Custom domain tab is hidden when feature is off", async () => {
   expect(queryByText("Custom domain")).toBeNull();
 });
 
-test("Learner limit shows danger tone at 96%", async () => {
+test("User limit shows danger tone at 96%", async () => {
   const { container } = renderWithEntitlement(<UsageMeter />, {
-    limits: { "tenancy.max_learners": 100 },
+    limits: { "limits.max_users": 100 },
     state: { current: 96 },
   });
   expect(container.querySelector(".usage-meter--danger")).not.toBeNull();

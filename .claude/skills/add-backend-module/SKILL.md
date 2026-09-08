@@ -105,8 +105,9 @@ Forbidden references (architecture test will catch them):
 
 > **`IModule` does not exist.** No type by that name is in `backend/src`, no packet in
 > Phase 02a ships one, and neither does anything named `AddMediatRFromModule`,
-> `IAuditCatalog` or a `modules.Add(...)` call site. The glossary entry describes an
-> intended shape; do not write code against it. Two real seams replace it:
+> `IModule.RegisterAuditDefaults()` or a `modules.Add(...)` call site. The glossary
+> entry describes an intended shape; do not write code against it. Two real seams
+> replace it:
 >
 > - **Handlers and validators** are registered today by passing the module's assembly
 >   marker to `AddLearnStackMediatRPipeline(params Assembly[])` from the composition
@@ -115,7 +116,9 @@ Forbidden references (architecture test will catch them):
 > - **The audit catalogue** is a module-owned `IAuditCatalogSource` discovered from DI,
 >   landing with **Phase 02a Packet 9** per
 >   [ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md). It is not a method
->   on a module-loading interface.
+>   on a module-loading interface. The merged `IAuditCatalog` that `AuditLogBehavior`
+>   injects is composition-root machinery built once at startup from every source; a
+>   module author never writes one, and must not re-merge the sources per request.
 >
 > `IPermissionRegistry` lands later still, with the Identity module in
 > [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) — see the note at the
@@ -246,10 +249,13 @@ create the spec files under `docs/modules/<name>/`:
   own. (The standard names the *section*, not a filename; the one shipped spec,
   `docs/modules/tenancy/README.md`, is the model.)
 - `audit.md` — audit-coverage matrix, each row carrying the
-  `{module}.{resource}.{verb}` operation slug its `IAuditCatalogSource` registers
-  (use the [add-audit-coverage](../add-audit-coverage/SKILL.md) skill; the matrix and
-  the catalogue are checked against each other by
-  `Every_TenantOwned_Command_HasAuditCoverage`).
+  `{module}.{resource}.{verb}` operation slug its `IAuditCatalogSource` registers,
+  plus a `(planned)` marker on rows classified ahead of the command that will raise
+  them and `(off-path)` on operations that are not MediatR requests (use the
+  [add-audit-coverage](../add-audit-coverage/SKILL.md) skill; the matrix and the
+  catalogue are checked against each other by
+  `Every_TenantOwned_Command_HasAuditCoverage`, in the two directions that skill's
+  Step 1 sets out).
 - `permissions.md` — permission matrix (use the
   [add-permission](../add-permission/SKILL.md) skill).
 - ER diagram, state diagrams, integration-event catalogue per the standard.

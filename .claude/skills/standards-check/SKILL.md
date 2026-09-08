@@ -330,6 +330,13 @@ domain the diff doesn't touch.
   registers the same slug with an `OperationType` (`create` / `update` /
   `delete` / `read-sensitive` / `security-event` / `platform-admin` / `action`)
   and an `OperationClass` (MUST / SHOULD / MAY) — the two are different fields.
+- [ ] A matrix row written ahead of its command carries `(planned)`, and a row
+  whose command lands in this diff **loses** the marker and gains its catalogue
+  entry in the same commit. `(off-path)` marks operations that are not MediatR
+  requests and are catalogued by slug.
+- [ ] Every request type the diff adds is registered, `Off` included — an
+  unregistered one is rejected at runtime with `audit_unclassified_operation`,
+  not silently unaudited.
 - [ ] No module names `audit_log` or `AuditEntry` outside
   `LearnStack.Modules.Audit.*`, and no handler calls `IAuditStore` itself — the
   pipeline writes for it, and `WritePlatformScopeAsync` belongs to

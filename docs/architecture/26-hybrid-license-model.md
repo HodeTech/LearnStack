@@ -24,16 +24,27 @@ projection: `classroom.recording` versus `classroom.recording.enabled`, and
 payload is parsed by two repositories and cached in a third place, "close enough" means a
 feature silently reads `false`.
 
-**One form is canonical, and it is the one fixed by
-[ADR-0021 Amendment 1 (2026-05-18)](../decisions/0021-feature-based-entitlement.md) and
-[21-feature-flags.md](21-feature-flags.md):**
+**One form is canonical. Feature keys take the shape
+[ADR-0021 Amendment 1 (2026-05-18)](../decisions/0021-feature-based-entitlement.md)
+fixed; limit keys take the Hub's `limits.` prefix, adopted by
+[ADR-0045 Amendment 1 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md) and
+[ADR-0021 § Amendments (2026-09-08)](../decisions/0021-feature-based-entitlement.md).
+[21-feature-flags.md](21-feature-flags.md) carries both registries:**
 
 | Rule | Canonical | Not canonical |
 |---|---|---|
 | Every key is `{area}.{name}`, lowercase, dot-separated, `snake_case` within a segment | `classroom.recording` | `recording`, `Classroom.Recording` |
 | Feature keys carry **no** `.enabled` suffix — a `FeatureKey` is boolean by construction | `classroom.recording` | `classroom.recording.enabled` |
-| Limit keys are prefixed by their **subject area**, never by the word `limits` | `tenancy.max_learners` | `limits.max_users`, `max_users` |
-| The area is the capability's owner, not the payload section it appears in | `media.storage_gb` | `limits.media_storage_gb` |
+| Every limit key is prefixed `limits.`, and the subject follows in one segment | `limits.max_users` | `tenancy.max_learners`, `max_users` |
+| The subject is named the way the Hub's plan editor names it, since the Hub authors the payload | `limits.media_storage_gb` | `media.storage_gb` |
+
+The limit half changed direction on 2026-09-08, and the reason is worth keeping: measured
+against the other side of the contract, LearnStack's subject-area set shared **no** member
+with the nine keys the Hub sends. The Hub has merged code, a plan editor and two plan
+validators built on its spelling; LearnStack had a declaration in four documents and no
+implementing line. Freezing the LearnStack spelling would have made `GetLimitAsync` miss
+on every real projection and fall through to the catalog default — a paid tenant silently
+reading its plan as absent.
 
 Two further rules make the vocabulary enforceable rather than aspirational:
 
@@ -48,7 +59,8 @@ Two further rules make the vocabulary enforceable rather than aspirational:
   an unregistered key.
 
 Every older spelling elsewhere in the corpus is superseded by this table. Where a
-document still shows `limits.max_users`, it is stale, not an alternative.
+document still shows `tenancy.max_learners`, `classroom.minutes_per_month` or
+`media.storage_gb`, it is stale, not an alternative.
 
 ## 1. License key payload
 
@@ -85,13 +97,15 @@ pinned by `entitlement-v1.schema.json` (see [§ 5](#5-entitlement-read-path-and-
         "compliance.data_residency": true
       },
       "limits": {
-        "tenancy.max_learners": 50000,
-        "tenancy.max_organizations": 100,
-        "classroom.minutes_per_month": -1,
-        "classroom.recording_storage_gb": 10000,
-        "media.storage_gb": 50000,
-        "media.bandwidth_gb_per_month": -1,
-        "integrations.api_rate": 60000
+        "limits.max_users": 50000,
+        "limits.max_organizations": 100,
+        "limits.classroom_minutes_per_month": -1,
+        "limits.recording_storage_gb": 10000,
+        "limits.media_storage_gb": 50000,
+        "limits.media_bandwidth_gb_per_month": -1,
+        "limits.api_rate_per_minute": 60000,
+        "limits.max_custom_content_types": -1,
+        "limits.max_page_block_definitions": -1
       },
       "compliance": {
         "caps": {
@@ -194,8 +208,8 @@ public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
             var refreshed = await _hubClient.RefreshAsync(parameters.TenantId, ct);
 
             // The generation guard lives inside the write statement, never in the job:
-            // an out-of-order push leaves every column unchanged and reports
-            // IgnoredAsStale (ADR-0045 § 1).
+            // a strictly older push leaves every column unchanged and reports
+            // IgnoredAsStale (ADR-0045 § 1 + Amendment 1 § 3).
             var outcome = await _entitlements.RefreshAsync(refreshed, ct);
             if (outcome is EntitlementRefreshOutcome.Applied)
             {
@@ -222,9 +236,13 @@ public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
 is read and written by an `IEntitlementProvider` implementation and by nothing else
 ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)), so this
 job never writes the table behind the provider that owns it. The push path goes through
-`RefreshAsync`, whose generation guard lives inside the write statement
-([ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md)), so a
-replayed or reordered push is a no-op rather than a downgrade.
+`RefreshAsync`, whose generation guard lives inside the write statement and admits a
+generation greater than **or equal to** the stored one
+([ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md) and its
+[Amendment 1 § 3](../decisions/0045-entitlement-and-feature-flag-socket.md)). A replay
+at the same generation therefore re-applies the same bytes — the Hub is the single
+writer and bumps by one per recompute — while a strictly older push is a no-op rather
+than a downgrade.
 
 **Jitter**: in a SaaS deployment with many tenants, the daily refresh would otherwise all
 hit Hub at the same time. The job adds a random 0-119 minute offset per tenant when first
@@ -278,7 +296,9 @@ public async Task<EntitlementProjection> GetAsync(
     var durable = await _entitlementCacheStore.FindAsync(tenantId, ct);
 
     // 4. Hub — only when the durable row is missing or stale, and never unguarded.
-    if (durable is null || _clock.UtcNow >= durable.ValidUntil)
+    //    A null ValidUntil is "no scheduled expiry", not "expired": such a row is never
+    //    stale, so it does not reach this leg (ADR-0045 Amendment 1 § 2).
+    if (durable is null || (durable.ValidUntil is { } until && _clock.UtcNow >= until))
     {
         try
         {
@@ -302,10 +322,18 @@ public async Task<EntitlementProjection> GetAsync(
 }
 ```
 
-`Evaluate` applies the lifecycle from [§ 3](#3-lifecycle): fresh → serve; past
-`valid_until` but within `grace_until` → serve, with `GraceUntil` driving the banner in
-[§ UI surface](#ui-surface); past `grace_until` → the read-only projection, every
-feature `false` and every limit `0`.
+`Evaluate` applies the lifecycle from [§ 3](#3-lifecycle) in four cases: a null
+`valid_until` → serve, always fresh, never grace and never read-only, because the plan
+carries no scheduled expiry; fresh → serve; past `valid_until` but within `grace_until`
+→ serve, with `GraceUntil` driving the banner in [§ UI surface](#ui-surface); past
+`grace_until` → the read-only projection, every feature `false` and every limit `0`.
+
+The null case is the Hub's most common one, not an edge: the wire field `expires_at` is
+required **and** nullable, the Hub sends null for every trial and every perpetual
+licence, and `valid_until` is nullable to hold it
+([ADR-0045 Amendment 1 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+It is never coerced to a far-future date — a sentinel expiry is one somebody eventually
+has to explain, and it would put a perpetual tenant into grace on a day nobody chose.
 
 The provider **never throws** out of a feature-flag or limit check, and it has one
 return type: the `EntitlementProjection`
@@ -321,14 +349,20 @@ case, and it is not a second return type either: `Unresolved(tenantId)` is an
 `EntitlementProjection` for that tenant with empty `Features`, empty `Limits` and
 `Generation` `0`, so every key falls through to what its own registry entry says. One
 blanket answer would be wrong there, so each key class declares its posture
-**explicitly**, and the behaviour is a property of the key rather than of the call site:
+**explicitly**, and the behaviour is a property of the key rather than of the call site.
+For a `FeatureKey` the posture is a member of its descriptor in the
+[typed catalog](21-feature-flags.md), shipped with the registry in Phase 02a Packet 9
+([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)),
+so no call site infers one and no later phase has to add the member to keys already
+written. Limits and compliance caps are not per-key choices: the fourth row below fixes
+one posture for every limit and the first fixes one for every cap.
 
 | Key class | Posture when unresolved | Why |
 |---|---|---|
 | Compliance caps (`compliance.*`, `audit.retention.days`, `data.residency.region`) | **Fail closed** — reject the operation that depends on the cap | An unknown residency or retention cap must never be read as permissive; a wrong answer here is a regulatory finding |
 | Security-surface features (`identity.sso.saml`, `identity.scim`, `audit.export`, `integrations.api_access`) | **Fail closed** — treat as disabled | An unknown answer must not open an export or an API surface |
 | Product capability features (`classroom.recording`, `classroom.breakout_rooms`, `tenancy.custom_domain`, `analytics.advanced_reporting`) | **Fail closed on a cold start, fail open to the last known value otherwise** | A paying tenant mid-class should not lose recording because the Hub is down — but the platform must not invent an entitlement it has never seen |
-| Numeric limits (`tenancy.*`, `classroom.*`, `media.*`, `integrations.api_rate`) | **Fall back to the built-in floor** — the Starter-tier defaults compiled into the binary. Never `-1`, never `0` | Unlimited is a gift; zero is an outage. The floor keeps a tenant working at the smallest plan's ceiling until the answer arrives |
+| Numeric limits (every `limits.*` key) | **Fall back to the built-in floor** — the Starter-tier defaults compiled into the binary. Never `-1`, never `0` | Unlimited is a gift; zero is an outage. The floor keeps a tenant working at the smallest plan's ceiling until the answer arrives |
 
 Two consequences worth naming:
 
@@ -492,7 +526,7 @@ and each implementation ships against a written trigger.
 | Phase | Deliverable | Trigger |
 |-------|-------------|---------|
 | [02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | `platform_entitlement_cache` table; `DeploymentMode` config enum | One-way door — the durable projection's schema and ownership |
-| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | The socket [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) scopes: `IEntitlementProvider` + `EntitlementProjection` + `NullEntitlementProvider` (every feature `true`, every limit `-1`) as the **only** implementation, registered in **every** deployment mode; `IFeatureFlags` composing over the port, with its L1 cache; `FeatureKey` / `LimitKey` and the three typed catalogs, each key carrying its `Source`, its default and — for a limit — its `LimitEnforcement` (`Soft` \| `Hard`); `platform_killswitches` and the killswitch overlay | — |
+| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | The socket [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) scopes: `IEntitlementProvider` + `EntitlementProjection` + `NullEntitlementProvider` (every feature `true`, every limit `-1`) as the **only** implementation, registered in **every** deployment mode; `IFeatureFlags` composing over the port, with its L1 cache; `FeatureKey` / `LimitKey` and the three typed catalogs, each key carrying its `Source`, its default, its failure class, its killswitch reference or none, and — for a limit — its `LimitEnforcement` (`Soft` \| `Hard`); the `AlterColumn` relaxing `valid_until` to `NULL`; `platform_killswitches` and the killswitch overlay, read-only until Phase 03 ships the toggle | — |
 | [02c](../roadmap/phase-02c-hub-foundation.md) | `HubEntitlementProvider` with the four-layer read path above; `entitlement-v1.schema.json` in both repositories; Hub-side `Entitlement` recompute on subscription change; the limit **enforcement** path — the refusal and the `usage.alert.soft_limit_reached` signal — alongside `IUsageReporter`, which is the first place a soft limit has to report to; the `SignedLicenseKeyEntitlementProvider` **skeleton**, arriving as a coordinated pull request from the Hub repository's `P02c-6` ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)) | A tenant must be billed or plan-gated |
 | [09b](../roadmap/phase-09b-hub-billing.md) | License-key issuance UI in the Hub operator portal | Commercial billing needed |
 | [11](../roadmap/phase-11-production-hardening.md) | `SignedLicenseKeyEntitlementProvider` hardened into `SelfHostedAirGapped`'s registered implementation; revocation-list signing + distribution; phone-home retry / backoff tuning; grace-period integration tests; SIGHUP hot-reload; key-rotation procedure | A Self-Hosted contract is signed |
@@ -521,7 +555,9 @@ schedule.
 ## References
 
 - ADR-0020 — Triple Deployment + Hybrid License.
-- ADR-0021 (Amendment 1) — Feature-Based Entitlement; the canonical key vocabulary.
+- ADR-0021 — Feature-Based Entitlement. Amendment 1 (2026-05-18) fixes the feature-key
+  shape; the 2026-09-08 amendment moves the limit-key vocabulary to the Hub's `limits.`
+  prefix.
 - ADR-0019 — LearnStack Hub.
 - [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) — the normative
   entitlement read path and the Hub contract surface invariants.
@@ -529,7 +565,9 @@ schedule.
   implementation ships when.
 - [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) — the
   `IEntitlementProvider` / `IFeatureFlags` socket, the `-1` / `0` limit sentinels, and
-  what Phase 02a Packet 9 ships.
+  what Phase 02a Packet 9 ships. Amendment 1 (2026-09-08) settles the limit vocabulary,
+  `valid_until`'s nullability, the generation guard's equal case, the unwritten
+  killswitch table, and the two members every key descriptor carries.
 - [21-feature-flags.md](21-feature-flags.md) — the `FeatureKeys` / `LimitKeys` registries.
 - [25-deployment-models.md](25-deployment-models.md) — three-mode topology.
 - [24-learnstack-hub.md](24-learnstack-hub.md) — Hub architecture.

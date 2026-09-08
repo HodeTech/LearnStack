@@ -138,8 +138,14 @@ that map exists to prevent.
   `AuditWriteFailedException : InfrastructureException` carrying the `Error`, and
   `HttpStatusMap.For(Exception)`'s existing `LearnStackException known =>
   For(known.Error)` branch maps it — `AuditLogBehavior`'s catch-and-rethrow contract
-  is untouched. The response carries `Retry-After` like every other 503
-  ([04-api-design.md § Status Codes](04-api-design.md)).
+  is untouched. [04-api-design.md § Status Codes](04-api-design.md) requires
+  `Retry-After` on a 503, and no 503 path sets one today — the rate limiter's 429 is the
+  only response in the codebase that carries the header.
+  [Packet 9](../roadmap/phase-02a-kernel-tenancy.md), which adds both codes to
+  `HttpStatusMap.For(string)`, sets it on the **shared** Problem Details path that this
+  503 and `dependency_unavailable` both travel; setting it only where
+  `audit_unavailable` is minted would leave the idempotency-capacity 503 that already
+  ships without one.
 - **[ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md) narrows when
   that 503 is returned at all.** A **standalone** MUST-class write failure changes
   the response only when the operation would otherwise have **succeeded** — a
@@ -155,7 +161,10 @@ that map exists to prevent.
   written durably still rolls the business transaction back and answers 503.
 - **`audit_unclassified_operation` (500)** is a deployment defect — an
   `IRequest<Result<T>>` reached the pipeline's audit step with no catalogue entry.
-  The caller cannot act on it, which is why it is a 5xx and not a 4xx.
+  The caller cannot act on it, which is why it is a 5xx and not a 4xx. Absence is the
+  defect, not silence: an operation that writes no row is **registered** as `Off`, and
+  the classifier returns `Unclassified` only for a request type nothing registered
+  ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)).
 
 ## Exceptions
 

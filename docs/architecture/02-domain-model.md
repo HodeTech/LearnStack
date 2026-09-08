@@ -21,7 +21,9 @@ This document describes the first domain shape. It is intentionally conceptual a
 >    [32-tenant-customization-model.md](32-tenant-customization-model.md) for the data
 >    model.
 > 3. **`AuditEntry` aggregate** in `LearnStack.Modules.Audit` per
->    [ADR-0016](../decisions/0016-audit-log-subsystem.md). Inherits `Entity<TId>` (not
+>    [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes
+>    [ADR-0016](../decisions/0016-audit-log-subsystem.md), with the write path decided
+>    by [ADR-0044](../decisions/0044-audit-write-path.md). Inherits `Entity<TId>` (not
 >    `AuditableEntity<T>`) — append-only by design. See
 >    [31-audit-subsystem.md](31-audit-subsystem.md).
 > 4. **Hub-side aggregates** (`Plan`, `HubSubscription`, `Entitlement`, `HubInvoice`,
@@ -427,14 +429,19 @@ classified.
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
 | `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per audited `(resource, operation)`: a command, sensitive query or security event may declare several on one transaction (`ProvisionTenantCommand` declares two). Tenant-owned and organization-scoped — it implements `ITenantOwned`, through `IOrganizationScoped` since the row carries an organization — and takes that class's canonical policy from [Database Standards § Table classes](../standards/05-database.md) unmodified. Fields: `id` (`AuditEntryId`, minted app-side by `AuditLogBehavior` so a commit-in-doubt pair shares one identity — [ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)), `tenant_id` (`TenantId`; the tenant the ambient transaction announced, or `TenantId.PlatformSentinel` for a platform-scope row — and **no foreign key** to `tenants`, because the sentinel has no row there and the record outlives the tenant), `organization_id?` (`OrganizationId?`), `actor_user_id?` (`UserId?`), `actor_email?`, `module`, `operation` (the dotted slug `{module}.{resource}.{verb}`), `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed` \| `indeterminate`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
-| `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement. Tenant-overridable within MUST/SHOULD/MAY classification. Classification overrides only: it carries no retention column, and retention arrives with the purge job in [Phase 11](../roadmap/phase-11-production-hardening.md). |
+| `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement, keyed `(tenant_id, module, operation)`. Tenant-owned and **tenant-wide** — it carries no `organization_id`, so it takes the tenant term only and none of the restrictive write guards ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)); `audit_log` is the org-scoped half of the pair. Tenant-overridable within MUST/SHOULD/MAY classification. Classification overrides only: it carries no retention column, and retention arrives with the purge job in [Phase 11](../roadmap/phase-11-production-hardening.md). Packet 9 ships the aggregate, the table and the read path, but **no writer**: `learnstack_app` and `learnstack_platform` hold `SELECT` and nothing else, so the table stays empty until the Studio tenant-settings editor in [Phase 06](../roadmap/phase-06-renderer-admin-studio.md) lands it together with the DML grant, gated by an `audit.config.write` key from the audit permission registry [Phase 03](../roadmap/phase-03-identity-admin.md) owns. |
 
 `AuditEntry`, `AuditConfig` and `AuditDbContext` live in the Audit module, in a
-migration chain of their own. The capture pipeline is split by layer: the ports
-(`IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent`, `AuditEntryId`)
-live in `LearnStack.SharedKernel.Audit`; `AuditChangeTrackerInterceptor`,
-`AuditStateCapture` and `PostgresAuditStore` in `LearnStack.Infrastructure.Audit`; and
-`AuditLogBehavior` in `LearnStack.Application`'s pipeline. Full deep
+migration chain of their own. The capture pipeline is split by layer:
+`LearnStack.SharedKernel.Audit` holds the ports (`IAuditStore`, `IAuditStateCapture`,
+`AuditEntryDraft`, `AuditIntent`, `AuditEntryId`) **and the value types those ports
+carry** — `OperationType`, `OperationClass`, `AuditOutcome`, `AuditClassification`,
+`AuditIntentState` and `CapturedEntityChange`. The module consumes them and declares
+none of them: a SharedKernel record naming a type declared in the module's `Domain`
+would be a project cycle ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)).
+`AuditChangeTrackerInterceptor`, `AuditStateCapture` and `PostgresAuditStore` live in
+`LearnStack.Infrastructure.Audit`, and `AuditLogBehavior` in
+`LearnStack.Application`'s pipeline. Full deep
 dive: [31-audit-subsystem.md](31-audit-subsystem.md).
 
 ## External: LearnStack Hub aggregates (mirrored, not owned)
