@@ -1510,35 +1510,43 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
         //
         //    Constructed explicitly rather than through the five-argument factory an
         //    earlier draft of this document showed. That shorthand could not be written:
-        //    AuditEntryDraft is a positional record with no factory, AuditEntryId has no
-        //    New() (ADR-0023 Amendment 9), and Timestamp comes from IClock — so a call
-        //    omitting all three had nothing to bind to. If Phase 03 wants a factory it
-        //    adds one there, taking the id and the clock.
+        //    AuditEntryDraft has no factory, AuditEntryId has no New() (ADR-0023
+        //    Amendment 9), and Timestamp comes from IClock — so a call omitting all
+        //    three had nothing to bind to. If Phase 03 wants a factory it adds one
+        //    there, taking the id and the clock.
+        //
+        //    Every member is `required`, so the compiler refuses a construction that
+        //    omits one and every value arrives under its own name. That is a
+        //    correctness property, not a style: ten of the twenty-two fields are
+        //    string?, eight in one run, and a transposition among them lands in the one
+        //    table whose rows nothing can correct.
         await auditStore.WriteStandaloneAsync(
-            new AuditEntryDraft(
-                Id:              AuditEntryId.From(guidFactory.NewUuidV7()),
-                TenantId:        TenantId.From(@event.TenantId),
-                OrganizationId:  null,
-                ActorUserId:     null,
-                ActorEmail:      null,
-                ModuleName:      "audit",
-                Operation:       "audit.redaction.apply",
-                OperationType:   OperationType.SecurityEvent,
-                OperationClass:  OperationClass.Must,
-                EntityType:      null,
-                EntityId:        null,
-                Outcome:         AuditOutcome.Success,
-                ErrorKey:        null,
-                Reason:          $"gdpr-redaction:{@event.UserId}",
-                BeforeState:     null,
-                AfterState:      null,
-                Changes:         null,
-                CorrelationId:   null,
-                IpAddress:       null,
-                UserAgent:       null,
-                Timestamp:       clock.UtcNow,
-                Metadata:        JsonSerializer.Serialize(
-                                     new { subjectUserId = @event.UserId })),
+            new AuditEntryDraft
+            {
+                Id              = AuditEntryId.From(guidFactory.NewUuidV7()),
+                TenantId        = TenantId.From(@event.TenantId),
+                OrganizationId  = null,
+                ActorUserId     = null,
+                ActorEmail      = null,
+                ModuleName      = "audit",
+                Operation       = "audit.redaction.apply",
+                OperationType   = OperationType.SecurityEvent,
+                OperationClass  = OperationClass.Must,
+                EntityType      = null,
+                EntityId        = null,
+                Outcome         = AuditOutcome.Success,
+                ErrorKey        = null,
+                Reason          = $"gdpr-redaction:{@event.UserId}",
+                BeforeState     = null,
+                AfterState      = null,
+                Changes         = null,
+                CorrelationId   = null,
+                IpAddress       = null,
+                UserAgent       = null,
+                Timestamp       = clock.UtcNow,
+                Metadata        = JsonSerializer.Serialize(
+                                      new { subjectUserId = @event.UserId }),
+            },
             ct);
     }
 }

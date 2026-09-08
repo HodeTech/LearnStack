@@ -2,15 +2,19 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Validation;
+using LearnStack.Infrastructure.Audit;
+using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
 using LearnStack.SharedKernel.Time;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -99,6 +103,17 @@ public static class SeedComposition
         // already produced once: a second composition root that lacks a service the API
         // has does not fail to compile, it fails at the first command that needs it.
         services.AddModuleDbContext<AuditDbContext>();
+
+        // The audit write path, on the same three registrations the API makes and for the
+        // same reason this file already registers the schema gate: a second composition
+        // root that lacks a service the API has does not fail to compile, it fails at the
+        // first command that needs it. The seeder writes through the request path, so
+        // when AuditLogBehavior lights up these are what keep `make seed` working.
+        services.AddScoped<AuditStateCapture>();
+        services.AddScoped<IAuditStateCapture>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+        services.AddScoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>();
+        services.AddScoped<IAuditStore, PostgresAuditStore>();
 
         // Its own short read-only transaction on its own connection, which is why it takes
         // a Lazy data source rather than the ambient unit of work: it answers "is this

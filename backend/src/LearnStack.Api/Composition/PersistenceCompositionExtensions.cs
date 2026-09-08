@@ -1,3 +1,5 @@
+using LearnStack.Infrastructure.Audit;
+using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
@@ -5,9 +7,11 @@ using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace LearnStack.Api.Composition;
@@ -154,6 +158,30 @@ public static class PersistenceCompositionExtensions
         // through the same helper is what keeps it on the ambient connection — a context
         // that opened its own would never see the SET LOCAL the audit insert depends on.
         services.AddModuleDbContext<AuditDbContext>();
+
+        // ── The audit write path ─────────────────────────────────────────────
+        //
+        // All three scoped, and all three registered here rather than in the Audit
+        // module, because none of them is the module's: the ports are SharedKernel's and
+        // the implementations live in LearnStack.Infrastructure.Audit, whose csproj
+        // references SharedKernel and nothing else (ADR-0044 § 11). The interceptor
+        // attaches to EVERY module's DbContext, so a home inside the Audit module would
+        // make every module reference it.
+        //
+        // The capture is scoped because its lifetime is the REQUEST, not the
+        // transaction: a rollback leaves it intact, which is what lets the reconcile step
+        // see that rows it wrote are gone. Registering it as a singleton would share one
+        // request's snapshots with the next.
+        services.TryAddScoped<AuditStateCapture>();
+        services.TryAddScoped<IAuditStateCapture>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+
+        // As ISaveChangesInterceptor, which is the type AddModuleDbContext resolves and
+        // passes to AddInterceptors. A registration by its own concrete type would
+        // resolve and never attach — measured on EF Core 10.
+        services.TryAddScoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>();
+
+        services.TryAddScoped<IAuditStore, PostgresAuditStore>();
 
         // The write side of the two Tenancy roots, beside the context they run on. A
         // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge
