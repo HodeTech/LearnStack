@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -65,6 +66,8 @@ namespace LearnStack.Application.Pipeline;
 public sealed class TransactionBehavior<TRequest, TResponse>(
     IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
+    IAuditStore auditStore,
+    IAuditStateCapture capture,
     ILogger<TransactionBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -145,16 +148,69 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
                 // may have written before deciding it could not finish. It does
                 // not mark the unit — see the class remarks.
                 await scope.FailAsync(CancellationToken.None);
+
+                // The rows go with it, and AuditLogBehavior's reconcile writes the
+                // attempt standalone — a `denied` row is what makes a probe visible, and
+                // it cannot ride a transaction that is being discarded.
+                if (scope.IsOwner)
+                {
+                    capture.MarkRolledBack();
+                }
+
                 return response;
             }
 
-            // TODO(2026-08-28, @platform, phase-02a-packet-9): the MUST-class
-            // audit write goes here, immediately before the commit —
-            // await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
-            // It throws on failure, which reaches the catch below and rolls the
-            // business write back, which is what ADR-0033 means by fail-closed.
+            // The MUST-class write, immediately before the commit and ON THE OWNING FRAME
+            // ONLY. A joiner's CompleteAsync commits nothing, so a joiner writing here
+            // would insert a row and then report a durability it does not have
+            // (ADR-0044 § 4). The owner flushes every intent in the scope, not only its
+            // own.
+            //
+            // It THROWS on failure, which reaches the catch below, rolls the business
+            // write back and answers 503 audit_unavailable. That is what ADR-0033 means by
+            // fail-closed: the state change and the record of it commit together or
+            // neither does.
+            if (scope.IsOwner)
+            {
+                await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
+            }
+
             committing = true;
-            await scope.CompleteAsync(cancellationToken);
+
+            try
+            {
+                await scope.CompleteAsync(cancellationToken);
+            }
+            catch (Exception commitFailure)
+            {
+                // The COMMIT faulted, so the rows' fate is genuinely unknown — the server
+                // may have applied it and lost the acknowledgement. Indeterminate prefers
+                // a duplicate to a loss: the reconcile writes each row again with a fresh
+                // timestamp, and the 23505 that may follow is positive evidence the first
+                // one landed.
+                //
+                // A CANCELLATION is this case, not a separate one. ADR-0032 requires the
+                // OperationCanceledException to leave with its type intact, so the mark
+                // happens here rather than in a catch filter AuditLogBehavior would have
+                // to widen — and the exception is rethrown untouched
+                // (ADR-0033 Amendment 4 § 2). Before this, a client disconnecting
+                // mid-COMMIT skipped the reconcile entirely and dropped a MUST-class row
+                // for an operation that may well have committed.
+                if (scope.IsOwner)
+                {
+                    capture.MarkIndeterminate(commitFailure);
+                }
+
+                throw;
+            }
+
+            if (scope.IsOwner)
+            {
+                // The only place durability is claimed, and only the owning frame may say
+                // it: CommitAsync returned.
+                capture.MarkCommitted();
+            }
+
             return response;
         }
         catch when (!committing)
@@ -185,6 +241,16 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             catch (Exception rollbackFailure)
             {
                 LogRollbackFailure(logger, typeof(TRequest).Name, rollbackFailure);
+            }
+
+            // Rolled back, and the intents survive it: the capture lives in the DI scope
+            // rather than in the transaction, which is exactly what lets the reconcile see
+            // that the rows it wrote are gone. Not marked when the commit was already in
+            // doubt — Indeterminate is the stronger statement and this catch runs for the
+            // failures BEFORE the commit.
+            if (scope.IsOwner && capture.State != AuditIntentState.Indeterminate)
+            {
+                capture.MarkRolledBack();
             }
 
             // Rethrown, not swallowed: AuditLogBehavior — three behaviors out,

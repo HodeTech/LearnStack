@@ -5,6 +5,7 @@ using LearnStack.Api.Common;
 using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
@@ -201,6 +202,10 @@ public sealed class AuthorityCeilingFixture : WebApplicationFactory<Program>
 
             services.RemoveAll<IHostToTenantResolver>();
             services.AddSingleton<IHostToTenantResolver>(new OneHostResolver());
+
+            // Registered as audited-nothing: the pipeline refuses a request the catalogue
+            // does not know, and these two exist only to exercise the authority ceiling.
+            services.AddSingleton<IAuditCatalogSource, TestAuditCatalogSource>();
 
             // TransactionBehavior opens a real transaction on every request that
             // reaches step 6, and this host has no database — the ceiling refusal

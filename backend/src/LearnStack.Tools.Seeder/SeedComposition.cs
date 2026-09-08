@@ -2,7 +2,11 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Validation;
+using System.Diagnostics.Metrics;
 using LearnStack.Infrastructure.Audit;
+using LearnStack.Infrastructure.Caching;
+using LearnStack.Modules.Customization.Application.Audit;
+using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
@@ -10,6 +14,8 @@ using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
@@ -69,6 +75,11 @@ public static class SeedComposition
         services.AddSingleton(loggerFactory);
         services.AddLogging();
         services.AddSingleton<IClock, SystemClock>();
+
+        // AuditLogBehavior mints the audit entry id app-side at step 3 — the one
+        // high-volume append-only table whose id is, because a commit-in-doubt pair has to
+        // carry one identity across two connections.
+        services.AddSingleton<IGuidFactory, SystemGuidFactory>();
         services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(context));
         services.AddTransient<ITenantContext>(provider =>
             provider.GetRequiredService<ITenantContextAccessor>().Current
@@ -128,7 +139,31 @@ public static class SeedComposition
         // lets the seeder build the same graph.
         services.AddMetrics();
 
+        // The classifier reads overrides through the cache, so the seeder needs the same
+        // implementation the API's DeploymentMode socket selects today. A seeder that
+        // resolved a different one would be classifying against a different projection
+        // than the request path does.
+        services.AddSingleton<ICacheService>(provider => new InMemoryCacheService(
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<IMeterFactory>()));
+
         services.AddScoped<IAuditStore, PostgresAuditStore>();
+
+        // The catalogue, merged once from every module's source. A singleton: it is built
+        // at composition time and read on every request, and rebuilding it per scope would
+        // pay the merge — and its enforcement — on every call.
+        services.TryAddEnumerable([
+            ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+        ]);
+
+        services.TryAddSingleton<IAuditCatalog>(provider =>
+            new AuditCatalog(provider.GetServices<IAuditCatalogSource>()));
+
+        // The classifier is scoped because its cache reads are per request, and it holds
+        // no state of its own between them.
+        services.TryAddScoped<IAuditConfigService, AuditConfigService>();
+
 
         // Its own short read-only transaction on its own connection, which is why it takes
         // a Lazy data source rather than the ambient unit of work: it answers "is this

@@ -55,13 +55,13 @@ public sealed class PostgresAuditStore : IAuditStore
     public const string DurableDuplicateCounterName = "learnstack.audit.standalone.duplicate";
 
     private readonly IAuditStateCapture _capture;
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly Lazy<NpgsqlDataSource> _dataSource;
     private readonly ILogger<PostgresAuditStore> _logger;
     private readonly Counter<long> _durableDuplicates;
 
     public PostgresAuditStore(
         IAuditStateCapture capture,
-        NpgsqlDataSource dataSource,
+        Lazy<NpgsqlDataSource> dataSource,
         ILogger<PostgresAuditStore> logger,
         IMeterFactory meterFactory)
     {
@@ -277,7 +277,7 @@ public sealed class PostgresAuditStore : IAuditStore
                 + "(ADR-0044 § 1, § 10).");
         }
 
-        await using var connection = await _dataSource
+        await using var connection = await _dataSource.Value
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 

@@ -760,7 +760,8 @@ public sealed class AuditStoreTests
     private sealed class ProbeTenant;
 
     private static PostgresAuditStore Store(AuditStateCapture capture, NpgsqlDataSource dataSource) =>
-        new(capture, dataSource, NullLogger<PostgresAuditStore>.Instance, MeterFactory);
+        new(capture, new Lazy<NpgsqlDataSource>(() => dataSource),
+            NullLogger<PostgresAuditStore>.Instance, MeterFactory);
 
     /// <summary>A real meter factory, so the counter the store increments is a real one.</summary>
     private static readonly IMeterFactory MeterFactory =

@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -301,6 +302,8 @@ public sealed class TenantProvisioningTests
         var behavior = new TransactionBehavior<Probe, Result<string>>(
             unitOfWork,
             UnresolvedTenantContext.Instance,
+            new NoOpAuditStore(),
+            new AuditStateCapture(),
             NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
 
         var write = () => behavior.Handle(
@@ -506,6 +509,8 @@ public sealed class TenantProvisioningTests
         var behavior = new TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>(
             services.GetRequiredService<IUnitOfWork>(),
             context ?? UnresolvedTenantContext.Instance,
+            new NoOpAuditStore(),
+            new AuditStateCapture(),
             NullLogger<TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>>
                 .Instance);
 

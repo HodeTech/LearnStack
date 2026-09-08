@@ -1,6 +1,7 @@
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -272,8 +273,15 @@ public sealed class TransactionBehaviorTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
-    private static TransactionBehavior<DummyCommand, Result<string>> Build(IUnitOfWork unitOfWork) =>
-        new(unitOfWork, UnresolvedTenantContext.Instance,
+    private static TransactionBehavior<DummyCommand, Result<string>> Build(
+        IUnitOfWork unitOfWork,
+        RecordingAuditStore? store = null,
+        AuditStateCapture? capture = null) =>
+        new(
+            unitOfWork,
+            UnresolvedTenantContext.Instance,
+            store ?? new RecordingAuditStore(),
+            capture ?? new AuditStateCapture(),
             NullLogger<TransactionBehavior<DummyCommand, Result<string>>>.Instance);
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)

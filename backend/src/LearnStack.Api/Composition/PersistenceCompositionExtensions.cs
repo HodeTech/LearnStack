@@ -1,4 +1,6 @@
 using LearnStack.Infrastructure.Audit;
+using LearnStack.Modules.Customization.Application.Audit;
+using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
@@ -109,6 +111,12 @@ public static class PersistenceCompositionExtensions
 
         services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
 
+        // And the Lazy the audit write path takes. Same instance, deferred: a request on a
+        // platform host is answered from Tenancy:PlatformHosts and must not pay for a
+        // credential it does not use — and the Docker-free host suites have none at all.
+        services.TryAddSingleton(provider =>
+            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+
         // The platform credential — the second, separately-credentialed data source
         // ADR-0003 requires, keyed so only PlatformAdminScope resolves it. Validated at
         // boot when present, for the same reason the application one is: a credential
@@ -197,6 +205,22 @@ public static class PersistenceCompositionExtensions
         services.AddMetrics();
 
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
+
+        // The catalogue, merged once from every module's source. A singleton: it is built
+        // at composition time and read on every request, and rebuilding it per scope would
+        // pay the merge — and its enforcement — on every call.
+        services.TryAddEnumerable([
+            ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+        ]);
+
+        services.TryAddSingleton<IAuditCatalog>(provider =>
+            new AuditCatalog(provider.GetServices<IAuditCatalogSource>()));
+
+        // The classifier is scoped because its cache reads are per request, and it holds
+        // no state of its own between them.
+        services.TryAddScoped<IAuditConfigService, AuditConfigService>();
+
 
         // The write side of the two Tenancy roots, beside the context they run on. A
         // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge

@@ -2,6 +2,7 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
@@ -531,13 +532,21 @@ public sealed class UnitOfWorkTests
             await using (var scope = provider.CreateAsyncScope())
             {
                 var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                // ONE capture for both frames, which is what a DI scope gives them: the
+                // owner/joiner distinction is about which frame may mark it, and two
+                // buffers would let the joiner mark its own and prove nothing.
+                var capture = new AuditStateCapture();
                 var outer = new TransactionBehavior<Probe, Result<string>>(
                     unitOfWork,
                     Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+                    new NoOpAuditStore(),
+                    capture,
                     NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
                 var inner = new TransactionBehavior<Probe, Result<string>>(
                     unitOfWork,
                     Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+                    new NoOpAuditStore(),
+                    capture,
                     NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
 
                 var result = await outer.Handle(

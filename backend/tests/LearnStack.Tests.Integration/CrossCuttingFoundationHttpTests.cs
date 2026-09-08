@@ -12,6 +12,7 @@ using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Results;
 using FluentValidation;
 using LearnStack.SharedKernel.Identifiers;
@@ -226,6 +227,11 @@ public sealed class CrossCuttingHttpFixture : WebApplicationFactory<Program>
                 IRequestHandler<TestValidationCommand, Result<string>>,
                 TestValidationHandler>();
             services.AddTransient<IValidator<TestValidationCommand>, TestValidationValidator>();
+
+            // Registered as audited-nothing, because the pipeline refuses a request the
+            // catalogue does not know — silence included. Appended to the catalogue's
+            // sources rather than replacing them, so the shipped modules' entries stay.
+            services.AddSingleton<IAuditCatalogSource, TestAuditCatalogSource>();
 
             // TenantContextBehavior short-circuits when ITenantContext is not
             // resolved, and again when the resolved context's origin does not reach
