@@ -1,5 +1,6 @@
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
@@ -145,6 +146,14 @@ public static class PersistenceCompositionExtensions
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddModuleDbContext<CustomizationDbContext>();
+
+        // Audit's context is registered for the model, not for a writer. Rows reach
+        // audit_log as PostgresAuditStore's parameterised INSERT on the ambient
+        // transaction; what this registration buys is the query filter, the isolation
+        // sweep, and the read side the Phase 03 admin API projects from. Registering it
+        // through the same helper is what keeps it on the ambient connection — a context
+        // that opened its own would never see the SET LOCAL the audit insert depends on.
+        services.AddModuleDbContext<AuditDbContext>();
 
         // The write side of the two Tenancy roots, beside the context they run on. A
         // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge

@@ -162,6 +162,7 @@ against a host serving unversioned endpoints.
 | `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` | `PersistenceConventionTests.cs` |
 | `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
+| `Migrate_Target_Applies_The_Tenancy_Chain_First` | `PersistenceConventionTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
@@ -914,6 +915,30 @@ rules that need a second `DbContext` are owed by Phase 03.
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
   Mutation-checked: narrowing the loop back to `src/Modules` fails this case.
 
+#### `Migrate_Target_Applies_The_Tenancy_Chain_First`
+
+- **Asserts:** the `migrate` recipe visits the Tenancy chain before the Audit chain.
+  From Phase 02a Packet 9 the chains are no longer independent — `audit_config`
+  carries the schema's only foreign key crossing two chains, to `tenants` — and the
+  recipe's project list is a glob that expands alphabetically, with `Modules/Audit`
+  ahead of `Modules/Tenancy`. The rule replays the list rather than searching it for
+  a literal: each `backend/src` token is expanded against the chains that exist,
+  ordinal-sorted the way a shell sorts a glob, and a chain already visited is skipped,
+  which is what the recipe's own `applied` guard does. A recipe that named Tenancy
+  twice with Audit in between would fail here and pass a substring check.
+- **Why it is separate from the coverage rule:** coverage is not order.
+  `Migrate_Target_Covers_Every_Migration_Chain` stays green when the Tenancy prefix
+  is deleted, because the glob still reaches Tenancy — while every fresh deployment
+  fails on `relation "tenants" does not exist` from that commit onward. On a database
+  that already has the schema the difference is invisible, which is what makes a
+  named rule the only thing that catches it.
+- **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
+- **Type:** xUnit + Makefile and directory inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 9 step 3,
+  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Mutation-checked: deleting the Tenancy prefix from the recipe fails this case and
+  no other.
+
 #### `Every_Foreign_Key_Has_A_Supporting_Index`
 
 - **Asserts:** every foreign key in schema `public` has an index whose **leading**
@@ -947,19 +972,19 @@ rules that need a second `DbContext` are owed by Phase 03.
 
 #### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
 
-> Widened to **six** files, keyed by directory, in Packet 8 step 3: a third
-> design-time factory — Customization's — joined the allow-list, because one lands
-> with every migration chain.
+> Widened to **six** files, keyed by directory, in Packet 8 step 3, and to **seven**
+> in Packet 9 step 3: a design-time factory lands with every migration chain, so
+> Customization's joined the allow-list and then Audit's.
 
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly **six** files may reach for a
-  connection at all: the three design-time factories — one per migration chain, where a
+  its own connection. And under `backend/src`, exactly **seven** files may reach for a
+  connection at all: the four design-time factories — one per migration chain, where a
   connection string is the point; the shared helper, which passes a *connection*; and the
   two composition roots — `LearnStack.Api`'s, which builds the one application data
   source behind its credential guard, and `LearnStack.Tools.Seeder`'s, which is the same
-  act for a host with no HTTP surface. A seventh is a new decision. A context on its own connection never saw the
+  act for a host with no HTTP surface. An eighth is a new decision. A context on its own connection never saw the
   announcement, so every read through it returns zero rows under the corrected policy —
   silently.
 

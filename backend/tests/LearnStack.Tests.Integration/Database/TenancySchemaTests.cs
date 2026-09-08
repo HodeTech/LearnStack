@@ -283,7 +283,56 @@ public sealed class TenancySchemaTests
             INSERT INTO customization_generations (tenant_id, generation)
             VALUES (@foreign, 99)
             """,
+        // The Audit chain. A row written into another tenant's log is worse than a
+        // missing one: it is a false record of what that tenant did, in the table an
+        // investigator treats as authoritative, and no later write can correct it —
+        // tenant_id sits outside learnstack_platform's column-restricted UPDATE grant.
+        ["audit_log"] =
+            """
+            INSERT INTO audit_log
+                (id, tenant_id, module, operation, operation_type, operation_class,
+                 outcome, timestamp)
+            VALUES (uuidv7(), @foreign, 'tenancy', 'tenancy.tenant.provision',
+                    'Create', 'Must', 'success', now())
+            """,
     };
+
+    /// <summary>
+    /// The same, for the one table no runtime role may write at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>audit_config</c> carries a <c>WITH CHECK</c> and, in this packet, no writer:
+    /// both runtime roles hold <c>SELECT</c> and nothing more, because the editor that
+    /// authors an override lands with the Studio in Phase 06
+    /// (<see href="../../../../docs/standards/05-database.md">Database Standards
+    /// § GRANT matrix</see>). Running its foreign write as <c>learnstack_app</c> would
+    /// pass on the absent privilege — also <c>42501</c> — and prove nothing about the
+    /// policy, which is the shape of test this suite has already caught twice.
+    /// </para>
+    /// <para>
+    /// <b>So it runs as the owner, and that is sound here rather than a precedent.</b>
+    /// The standing rule — never run an isolation test as the owner or a
+    /// <c>BYPASSRLS</c> role — exists because such a test passes when the policies are
+    /// inert. This one is the opposite shape: it asserts a <b>refusal</b>, and under
+    /// <c>FORCE ROW LEVEL SECURITY</c> the owner is bound by the policy like anyone
+    /// else (measured on PostgreSQL 18.6). Drop <c>FORCE</c> and the write succeeds and
+    /// this case fails. A <c>SELECT</c>-count assertion run as the owner would have the
+    /// vacuous shape the rule is about; this one cannot.
+    /// </para>
+    /// </remarks>
+    public static readonly Dictionary<string, string> OwnerForeignTenantWrites =
+        new(StringComparer.Ordinal)
+        {
+            ["audit_config"] =
+                """
+                INSERT INTO audit_config
+                    (id, tenant_id, module, operation, is_enabled, created_at, created_by,
+                     row_version)
+                VALUES (uuidv7(), @foreign, 'tenancy', 'tenancy.tenant.provision', false,
+                        now(), @actor, 0)
+                """,
+        };
 
     public static TheoryData<string> TablesWithAWithCheck()
     {
@@ -297,11 +346,32 @@ public sealed class TenancySchemaTests
         return data;
     }
 
+    public static TheoryData<string> TablesWithAWithCheckAndNoRuntimeWriter()
+    {
+        var data = new TheoryData<string>();
+
+        foreach (var table in OwnerForeignTenantWrites.Keys)
+        {
+            data.Add(table);
+        }
+
+        return data;
+    }
+
     [Theory]
     [MemberData(nameof(TablesWithAWithCheck))]
     public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
     {
-        await ExpectForeignWriteRefusedAsync(ForeignTenantWrites[table]);
+        await ExpectForeignWriteRefusedAsync(
+            ForeignTenantWrites[table], _schema.Postgres.AppConnectionString);
+    }
+
+    [Theory]
+    [MemberData(nameof(TablesWithAWithCheckAndNoRuntimeWriter))]
+    public async Task Owner_Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
+    {
+        await ExpectForeignWriteRefusedAsync(
+            OwnerForeignTenantWrites[table], _schema.Postgres.MigrationConnectionString);
     }
 
     [Theory]
@@ -311,7 +381,7 @@ public sealed class TenancySchemaTests
     [InlineData("UPDATE tenant_settings SET tenant_id = @foreign WHERE tenant_id <> @foreign")]
     public async Task Reassigning_An_Owned_Row_To_Another_Tenant_Is_Rejected(string statement)
     {
-        await ExpectForeignWriteRefusedAsync(statement);
+        await ExpectForeignWriteRefusedAsync(statement, _schema.Postgres.AppConnectionString);
     }
 
     [Fact]
@@ -340,18 +410,25 @@ public sealed class TenancySchemaTests
 
         guarded.Should().NotBeEmpty("the sweep must be reading the applied schema, not an empty result set");
         guarded.Should().BeEquivalentTo(
-            ForeignTenantWrites.Keys,
+            ForeignTenantWrites.Keys.Concat(OwnerForeignTenantWrites.Keys),
             "every table whose policy constrains a write has a write that proves it, "
             + "and every case here names a table that still has one");
     }
 
     /// <summary>
-    /// Runs a statement as <c>learnstack_app</c> under tenant B's context, with
-    /// tenant A as <c>@foreign</c>, and asserts the policy refuses it.
+    /// Runs a statement under tenant B's context, with tenant A as <c>@foreign</c>,
+    /// and asserts the policy refuses it.
     /// </summary>
-    private async Task ExpectForeignWriteRefusedAsync(string statement)
+    /// <remarks>
+    /// <c>learnstack_app</c> for every table it may write; the owner for the one it may
+    /// not, where an absent privilege would answer <c>42501</c> before the policy did.
+    /// See <see cref="OwnerForeignTenantWrites"/> for why that is not the vacuous shape
+    /// the owner-role rule forbids.
+    /// </remarks>
+    private static async Task ExpectForeignWriteRefusedAsync(
+        string statement, string connectionString)
     {
-        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var connection = await PostgresFixture.OpenAsync(connectionString);
         await using var transaction = await connection.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);
 
@@ -800,6 +877,17 @@ public sealed class TenancySchemaTests
             "learnstack_platform tenant_level_taxonomy_items SELECT",
             "learnstack_platform customization_generations SELECT",
             "learnstack_outbox_admin outbox_messages SELECT",
+
+            // The Audit chain. learnstack_platform's column-restricted UPDATE on
+            // audit_log does NOT appear here — information_schema.role_table_grants
+            // reports table-level privileges only — so the six-column list has its own
+            // assertion in AuditSchemaTests, the way the dispatcher's four-column grant
+            // on outbox_messages does in PlatformSchemaTests. A matrix row missing its
+            // column half reads as a narrower grant than the one that shipped.
+            "learnstack_app audit_log INSERT,SELECT",
+            "learnstack_platform audit_log DELETE,INSERT,SELECT",
+            "learnstack_app audit_config SELECT",
+            "learnstack_platform audit_config SELECT",
         ],
         "every line is one line of the three migrations' grant matrices, and "
         + "learnstack_outbox_admin holds nothing beyond the outbox");

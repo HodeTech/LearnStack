@@ -1,4 +1,5 @@
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -44,12 +45,25 @@ internal static class MigrationChains
             await platform.Database.MigrateAsync();
         }
 
-        await using var customization = new CustomizationDbContext(
+        await using (var customization = new CustomizationDbContext(
             Options<CustomizationDbContext>(
                 migrationConnectionString, CustomizationDbContextFactory.HistoryTable),
+            StaticTenantContextAccessor.Unresolved))
+        {
+            await customization.Database.MigrateAsync();
+        }
+
+        // Audit is last, and Tenancy first, and that order is not cosmetic: audit_config
+        // carries the schema's only foreign key crossing two chains, to `tenants`. A
+        // fixture that hand-orders what `make migrate` globs is how a suite goes green
+        // over a deployment path that cannot build the schema, so this method orders them
+        // the way the recipe does — Tenancy ahead of everything else
+        // (Standards 05 § Migrations).
+        await using var audit = new AuditDbContext(
+            Options<AuditDbContext>(migrationConnectionString, AuditDbContextFactory.HistoryTable),
             StaticTenantContextAccessor.Unresolved);
 
-        await customization.Database.MigrateAsync();
+        await audit.Database.MigrateAsync();
     }
 
     /// <summary>The history table every chain declares, for a fixture that counts them.</summary>
@@ -58,6 +72,7 @@ internal static class MigrationChains
         TenancyDbContextFactory.HistoryTable,
         PlatformDbContextFactory.HistoryTable,
         CustomizationDbContextFactory.HistoryTable,
+        AuditDbContextFactory.HistoryTable,
     ];
 
     private static DbContextOptions<TContext> Options<TContext>(

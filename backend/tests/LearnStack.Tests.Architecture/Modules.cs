@@ -1,4 +1,6 @@
 using System.Reflection;
+using LearnStack.Modules.Audit.Domain;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
@@ -62,6 +64,7 @@ internal static class Modules
     [
         (typeof(Tenant).Assembly, ModelOnly<TenancyDbContext>),
         (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>),
+        (typeof(AuditEntry).Assembly, ModelOnly<AuditDbContext>),
     ];
 
     /// <summary>

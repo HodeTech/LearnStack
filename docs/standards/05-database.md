@@ -54,12 +54,21 @@ PostgreSQL schema, EF Core, and migration conventions.
 
 `learnstack_` prefix reserved for system-wide objects (roles, extensions).
 
-One trigger name diverges and is not a precedent: `audit_log_append_only_guard`, carried
-in that spelling by [ADR-0033](../decisions/0033-audit-durability-model.md),
-[ADR-0044 § 9](../decisions/0044-audit-write-path.md) and the DDL in
-[Audit Subsystem § 7](../architecture/31-audit-subsystem.md). Two Accepted records fix
-the name, so it stays as written; every trigger a migration adds from here takes
-`tg_<table>_<purpose>`.
+Two names on `audit_log` diverge, both because two Accepted records fix them, and
+neither is a precedent:
+
+- the trigger `audit_log_append_only_guard`, carried in that spelling by
+  [ADR-0033](../decisions/0033-audit-durability-model.md),
+  [ADR-0044 § 9](../decisions/0044-audit-write-path.md) and the DDL in
+  [Audit Subsystem § 7](../architecture/31-audit-subsystem.md);
+- the primary key `audit_log_pkey`, written that way in
+  [ADR-0033](../decisions/0033-audit-durability-model.md) and
+  [ADR-0016](../decisions/0016-audit-log-subsystem.md).
+
+Everything else on that table takes the forms above — `ck_audit_log_outcome`,
+`ix_audit_log_tenant_id_timestamp`, `fn_audit_log_append_only`,
+`tg_audit_log_no_truncate` — and so does every trigger, function and constraint a
+migration adds from here.
 
 ## Tenant-Owned and Organization-Scoped Tables
 
@@ -500,6 +509,13 @@ class; its Amendment 1 corrects that, and this is the corrected reading.
 
 Both take their policy from the class, so none is restated here: a template copied for
 one more table is how the corpus last shipped a broken policy into four files at once.
+
+`audit_log` takes the class's **policy** unmodified and deliberately not the template's
+`ix_<table>_tenant_id_organization_id`: its readers are tenant-scope, so the arm that
+fires is `app.scope = 'tenant'`, which no index serves, and a fifth index on a
+high-volume append-only table is a write cost paid on every row for a predicate arm
+nothing shipped takes. The four indexes it does carry, and the reasoning, are in
+[Audit Subsystem § 7](../architecture/31-audit-subsystem.md).
 
 They ship in a **fourth migration chain**, owned by
 `LearnStack.Modules.Audit.Infrastructure`'s `AuditDbContext`, on the pattern Packet 8 set
@@ -1145,11 +1161,15 @@ changes `xmin` while leaving `row_version` intact.
   fails on a clean database with `relation "tenants" does not exist`. Alphabetical order
   produces exactly that run — `Modules/Audit` sorts before `Modules/Tenancy` — so
   `make migrate` names the Tenancy chain ahead of the glob that finds the rest. The
-  ordering is held by the recipe and by the fixture below rather than by a named rule:
-  `Migrate_Target_Covers_Every_Migration_Chain` already fails when a chain is added and
-  the recipe is not, which is the failure that would otherwise hide this one. The integration fixture that applies the chains orders them the same
-  way, for the same reason: a fixture that hand-orders what the recipe globs is how a
-  suite goes green over a deployment path that cannot build the schema.
+  ordering is held by `Migrate_Target_Applies_The_Tenancy_Chain_First`, which replays
+  the recipe's project list — expanding each glob against the chains that exist, and
+  skipping one already visited, exactly as the recipe does — and fails when Tenancy is
+  not reached before Audit. A coverage rule cannot stand in for it:
+  `Migrate_Target_Covers_Every_Migration_Chain` stays green when the Tenancy prefix is
+  deleted, because the glob still reaches Tenancy, while every fresh deployment breaks
+  from that commit onward. The integration fixture that applies the chains orders them
+  the same way, for the same reason: a fixture that hand-orders what the recipe globs is
+  how a suite goes green over a deployment path that cannot build the schema.
 
 ## Data Migrations
 

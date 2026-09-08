@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The fourteen tables the three chains create, used only to prove that a
+    /// The sixteen tables the four chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
@@ -74,6 +74,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         "outbox_messages", "idempotency_keys",
         "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items",
         "customization_generations",
+        "audit_log", "audit_config",
     ];
 
     /// <summary>What tenant A sees with its tenant context set and no organization scope.</summary>
@@ -95,6 +96,12 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
+        // Two rows exist. One is organization-scoped and invisible without
+        // app.organization_id, exactly as tenant_settings' pair is — audit_log is the
+        // second org-scoped table in the schema and the only one whose rows a tenant
+        // never writes directly.
+        ["audit_log"] = 1,
+        ["audit_config"] = 1,
     };
 
     /// <summary>What tenant B sees with its tenant context set.</summary>
@@ -114,6 +121,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
+        ["audit_log"] = 1,
+        ["audit_config"] = 1,
     };
 
     public PostgresFixture Postgres { get; } = new();
@@ -229,6 +238,34 @@ public sealed class SchemaFixture : IAsyncLifetime
 
         INSERT INTO customization_generations (tenant_id, generation)
         VALUES ('11111111-1111-7111-8111-111111111111', 1);
+
+        -- The Audit chain. audit_log is the schema's second organization-scoped table,
+        -- so tenant A gets the same pair tenant_settings has: one tenant-wide row and
+        -- one under an organization, which is what makes the org half of the predicate
+        -- a number rather than an assumption. Neither is written by any command — the
+        -- runtime writer is PostgresAuditStore — so the seed is the owner's, and it
+        -- announces app.organization_id for the org-scoped row exactly as that writer
+        -- does. audit_config carries no organization_id and takes one row.
+        SET LOCAL app.organization_id = '';
+        INSERT INTO audit_log
+            (id, tenant_id, organization_id, module, operation, operation_type,
+             operation_class, outcome, timestamp)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111', NULL,
+                'tenancy','tenancy.tenant.provision','Create','Must','success', now());
+
+        SET LOCAL app.organization_id = 'aaaaaaaa-1111-7111-8111-111111111111';
+        INSERT INTO audit_log
+            (id, tenant_id, organization_id, module, operation, operation_type,
+             operation_class, outcome, timestamp)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111',
+                'aaaaaaaa-1111-7111-8111-111111111111',
+                'tenancy','tenancy.organization.create','Create','Must','success', now());
+
+        INSERT INTO audit_config
+            (id, tenant_id, module, operation, is_enabled, created_at, created_by, row_version)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111',
+                'tenancy','tenancy.organization.create', false, now(),
+                '00000000-0000-7000-8000-000000000001', 0);
         COMMIT;
 
         BEGIN;
@@ -299,6 +336,21 @@ public sealed class SchemaFixture : IAsyncLifetime
 
         INSERT INTO customization_generations (tenant_id, generation)
         VALUES ('22222222-2222-7222-8222-222222222222', 2);
+
+        -- The Audit chain, tenant-wide on both tables. A count assertion against an
+        -- empty table passes whether or not the policy that should have emptied it
+        -- exists, so tenant B holds rows here too.
+        INSERT INTO audit_log
+            (id, tenant_id, organization_id, module, operation, operation_type,
+             operation_class, outcome, timestamp)
+        VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222', NULL,
+                'tenancy','tenancy.tenant.provision','Create','Must','success', now());
+
+        INSERT INTO audit_config
+            (id, tenant_id, module, operation, is_enabled, created_at, created_by, row_version)
+        VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222',
+                'tenancy','tenancy.organization.create', false, now(),
+                '00000000-0000-7000-8000-000000000001', 0);
         COMMIT;
         """;
 

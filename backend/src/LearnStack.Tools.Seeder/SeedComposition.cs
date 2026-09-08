@@ -2,6 +2,7 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Validation;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -90,6 +91,14 @@ public static class SeedComposition
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.AddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
+
+        // The Audit module's context, on the same helper and for the same reason as the
+        // other two. Nothing in the seeder writes an audit row today — AuditLogBehavior
+        // is not in this composition root's pipeline — and the registration is here
+        // anyway, because the failure mode of omitting it is the one this file has
+        // already produced once: a second composition root that lacks a service the API
+        // has does not fail to compile, it fails at the first command that needs it.
+        services.AddModuleDbContext<AuditDbContext>();
 
         // Its own short read-only transaction on its own connection, which is why it takes
         // a Lazy data source rather than the ambient unit of work: it answers "is this

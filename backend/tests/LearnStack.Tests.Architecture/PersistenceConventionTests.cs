@@ -168,13 +168,13 @@ public sealed class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Six files under backend/src may reach for a connection at all: the three
+        // Seven files under backend/src may reach for a connection at all: the four
         // design-time factories, where a connection string is the point — one per
         // migration chain, and a module that ships a schema ships one; the shared
         // helper, which passes a connection rather than a string; and the two
         // composition roots — the API's, which builds the one application data
         // source behind its credential guard, and the seeder's, which is the same act
-        // for a host with no HTTP surface. A seventh is a new decision.
+        // for a host with no HTTP surface. An eighth is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -203,9 +203,11 @@ public sealed class PersistenceConventionTests
             "Persistence/TenancyDbContextFactory.cs",
 
             // One design-time factory per migration chain. Customization's is the
-            // third, and it is here rather than exempted for the same reason the
-            // seeder is: the list is what makes the next one a reviewed diff.
+            // third and Audit's the fourth, and both are here rather than exempted for
+            // the same reason the seeder is: the list is what makes the next one a
+            // reviewed diff.
             "Persistence/CustomizationDbContextFactory.cs",
+            "Persistence/AuditDbContextFactory.cs",
 
             // The sixth, and a deliberate entry rather than a discovered one: the seeder
             // is a second composition root, and building the one application data source
@@ -378,13 +380,7 @@ public sealed class PersistenceConventionTests
         // rather than in a deployment.
         var recipe = ReadMigrateRecipe();
 
-        var chains = Directory
-            .EnumerateDirectories(RepositoryPaths.BackendSrc(), "Migrations", SearchOption.AllDirectories)
-            .Where(path => Path.GetFileName(Path.GetDirectoryName(path)) == "Persistence")
-            .Select(path => Path.GetDirectoryName(Path.GetDirectoryName(path))!)
-            .Select(project => Path.GetRelativePath(RepositoryPaths.RepoRoot(), project)
-                .Replace(Path.DirectorySeparatorChar, '/'))
-            .ToList();
+        var chains = MigrationChains();
 
         chains.Should().NotBeEmpty("the tenancy and platform chains both exist");
 
@@ -396,6 +392,93 @@ public sealed class PersistenceConventionTests
             "`make migrate` applies every chain, or the ones it misses are "
             + "unmigrated on the only path Standards 05 § Database roles documents");
     }
+
+    /// <summary>
+    /// <c>make migrate</c> applies the Tenancy chain before the Audit chain.
+    /// </summary>
+    [Fact]
+    public void Migrate_Target_Applies_The_Tenancy_Chain_First()
+    {
+        // From Phase 02a Packet 9 the chains are no longer independent: audit_config
+        // carries the schema's only foreign key crossing two chains, to `tenants`,
+        // which the Tenancy chain creates (ADR-0044 § 9). A run that reaches the Audit
+        // chain first fails on a clean database with `relation "tenants" does not
+        // exist` — and alphabetical order produces exactly that run, because
+        // `Modules/Audit` sorts before `Modules/Tenancy` and the recipe's project list
+        // is a glob.
+        //
+        // Coverage is not order, and this rule exists because the difference is
+        // invisible on a database that already has the schema.
+        // Migrate_Target_Covers_Every_Migration_Chain stays green when the Tenancy
+        // prefix is deleted from the recipe — the glob still reaches Tenancy — while
+        // every fresh deployment breaks from that commit onward. So does every suite
+        // whose fixture applies the chains in its own order.
+        var order = MigrateChainOrder();
+
+        order.Should().Contain(TenancyChain).And.Contain(AuditChain);
+
+        order.IndexOf(TenancyChain).Should().BeLessThan(
+            order.IndexOf(AuditChain),
+            "`make migrate` names the Tenancy chain ahead of the glob that finds the "
+            + "rest, because audit_config references tenants and the glob expands "
+            + "alphabetically (Standards 05 § Migrations)");
+    }
+
+    private const string TenancyChain =
+        "backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure";
+
+    private const string AuditChain =
+        "backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure";
+
+    /// <summary>
+    /// The chains <c>make migrate</c> visits, in the order it visits them.
+    /// </summary>
+    /// <remarks>
+    /// A faithful replay of the recipe rather than a reading of it: each
+    /// <c>backend/src</c> token is expanded against the chains that actually exist —
+    /// ordinal-sorted, which is what a shell does with a glob — and a chain already
+    /// visited is skipped, which is what the recipe's <c>applied</c> guard does. A
+    /// test that only looked for the literal prefix would pass on a recipe that named
+    /// Tenancy twice and Audit in between.
+    /// </remarks>
+    private static List<string> MigrateChainOrder()
+    {
+        var chains = MigrationChains();
+        var visited = new List<string>();
+
+        var tokens = ReadMigrateRecipe()
+            .Split([' ', '\n', '\t', ';'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(token => token.StartsWith("backend/src", StringComparison.Ordinal));
+
+        foreach (var token in tokens)
+        {
+            var pattern = "^" + string.Join(
+                "[^/]*",
+                token.Split('*').Select(System.Text.RegularExpressions.Regex.Escape)) + "$";
+
+            foreach (var chain in chains.Where(chain =>
+                System.Text.RegularExpressions.Regex.IsMatch(chain, pattern)))
+            {
+                if (!visited.Contains(chain, StringComparer.Ordinal))
+                {
+                    visited.Add(chain);
+                }
+            }
+        }
+
+        return visited;
+    }
+
+    /// <summary>Every project under <c>backend/src</c> carrying a migration chain.</summary>
+    private static List<string> MigrationChains() =>
+        Directory
+            .EnumerateDirectories(RepositoryPaths.BackendSrc(), "Migrations", SearchOption.AllDirectories)
+            .Where(path => Path.GetFileName(Path.GetDirectoryName(path)) == "Persistence")
+            .Select(path => Path.GetDirectoryName(Path.GetDirectoryName(path))!)
+            .Select(project => Path.GetRelativePath(RepositoryPaths.RepoRoot(), project)
+                .Replace(Path.DirectorySeparatorChar, '/'))
+            .Order(StringComparer.Ordinal)
+            .ToList();
 
     [Theory]
     // Npgsql parses every one of these into Username / Password — measured

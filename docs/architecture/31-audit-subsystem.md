@@ -1042,16 +1042,16 @@ CREATE TABLE audit_log (
     -- caller would then be told `audit_unavailable` for an operation that in fact
     -- committed. Closed-set text columns carry a CHECK per Database Standards
     -- § Constraints.
-    CONSTRAINT audit_log_outcome_check
+    CONSTRAINT ck_audit_log_outcome
         CHECK (outcome IN ('success', 'denied', 'failed', 'indeterminate')),
     -- The other two closed-set text columns take the same rule, and the value lists
     -- below ARE the stored rendering: the C# enum member name unchanged, on the
     -- ck_tenants_status precedent, so EF's HasConversion<string>() needs no custom
     -- converter and § 11's ?operationType=SecurityEvent filter is the same string.
-    CONSTRAINT audit_log_operation_type_check
+    CONSTRAINT ck_audit_log_operation_type
         CHECK (operation_type IN ('Create', 'Update', 'Delete', 'ReadSensitive',
                                   'SecurityEvent', 'PlatformAdmin', 'Action')),
-    CONSTRAINT audit_log_operation_class_check
+    CONSTRAINT ck_audit_log_operation_class
         CHECK (operation_class IN ('Must', 'Should', 'May'))
 );
 -- Phase 11 does NOT alter this table in place: PostgreSQL has no
@@ -1060,12 +1060,12 @@ CREATE TABLE audit_log (
 -- lock. The composite key above is what keeps that a data operation rather than
 -- a key migration (ADR-0033 § Corrected audit_log DDL).
 
-CREATE INDEX ix_audit_log_tenant_timestamp
+CREATE INDEX ix_audit_log_tenant_id_timestamp
     ON audit_log (tenant_id, timestamp DESC);
-CREATE INDEX ix_audit_log_actor_timestamp
+CREATE INDEX ix_audit_log_actor_user_id_timestamp
     ON audit_log (actor_user_id, timestamp DESC)
     WHERE actor_user_id IS NOT NULL;
-CREATE INDEX ix_audit_log_correlation
+CREATE INDEX ix_audit_log_correlation_id
     ON audit_log (correlation_id)
     WHERE correlation_id IS NOT NULL;
 CREATE INDEX ix_audit_log_module_operation_timestamp
@@ -1080,6 +1080,36 @@ CREATE INDEX ix_audit_log_module_operation_timestamp
 -- Cross-tenant reads run as learnstack_platform, entered through the audited
 -- EnterPlatformAdminScope(reason) path.
 ```
+
+**Four indexes, and deliberately not the org-scoped template's fifth.** The canonical
+template carries `ix_<table>_tenant_id_organization_id` so the organization arm of the
+policy has an index to read. This table does not take it. Every read the admin API
+issues is tenant-scope — `audit.event.read` is a Tenant-scope permission
+([§ 11](#11-querying-audit-log)) — so the arm that fires is
+`current_setting('app.scope') = 'tenant'`, which no index serves, and the four above all
+lead with a column those queries filter on. A fifth index on a high-volume append-only
+table is a write cost paid on every row for a predicate arm the shipped readers do not
+take. Phase 03's admin API is the place to revisit it, against a measured plan rather
+than this paragraph.
+
+**`module` is the column; `ModuleName` is the CLR property.** The names differ in exactly
+one direction and for one reason: `CA1716` flags `Module` as an identifier that collides
+with a Visual Basic keyword, and the solution builds with `TreatWarningsAsErrors` under
+CI. An analyzer rule about C# identifiers is not a reason to rename a database column, so
+the mapping carries an explicit `HasColumnName("module")` and the catalogue key
+[ADR-0044 § 6](../decisions/0044-audit-write-path.md) fixes — `(module, operation)` —
+reads the same in SQL as it does in the record. `audit_config` takes the same pair for
+the same reason.
+
+**One constraint name diverges from
+[Database Standards § Naming](../standards/05-database.md), and it is not a precedent.**
+The primary key is `audit_log_pkey` rather than `pk_audit_log`, because
+[ADR-0033](../decisions/0033-audit-durability-model.md) and
+[ADR-0016](../decisions/0016-audit-log-subsystem.md) both write it that way and two
+Accepted records fix a name. The three `CHECK`s and the four indexes take the standard's
+`ck_<table>_<rule>` and `ix_<table>_<columns>` forms, and so does the `TRUNCATE` trigger;
+the only other divergence on this table is `audit_log_append_only_guard`, which two
+Accepted records fix in the same way.
 
 The policy shape is [Database Standards § Table classes](../standards/05-database.md)'s,
 which also carries `audit_log`'s GRANT-matrix row and the class it belongs to. Two
@@ -1194,7 +1224,7 @@ GRANT UPDATE (actor_email, ip_address, user_agent, before_state, after_state, ch
 --   1. GDPR redaction  — UPDATE, restricted to the redactable columns (§ 10).
 --   2. Retention purge — DELETE of rows past retention (§ 9). After Phase 11
 --      partitioning this becomes DETACH + DROP PARTITION and issues no DELETE at all.
-CREATE OR REPLACE FUNCTION audit_log_append_only()
+CREATE FUNCTION fn_audit_log_append_only()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
@@ -1227,14 +1257,14 @@ $$;
 
 CREATE TRIGGER audit_log_append_only_guard
     BEFORE UPDATE OR DELETE ON audit_log
-    FOR EACH ROW EXECUTE FUNCTION audit_log_append_only();
+    FOR EACH ROW EXECUTE FUNCTION fn_audit_log_append_only();
 
 -- The second half of layer 3. TRUNCATE fires neither an UPDATE nor a DELETE trigger,
 -- and row security does not apply to it at all, so the guard above never sees it. No
 -- role in the GRANT matrix holds TRUNCATE on audit_log — learnstack_platform included,
 -- whose retention purge is a per-tenant, per-retention-class DELETE and needs none — so
 -- this guard takes no current_user test and admits no exception: it is unconditional.
-CREATE OR REPLACE FUNCTION audit_log_no_truncate()
+CREATE FUNCTION fn_audit_log_no_truncate()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
@@ -1244,9 +1274,9 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER audit_log_no_truncate_guard
+CREATE TRIGGER tg_audit_log_no_truncate
     BEFORE TRUNCATE ON audit_log
-    FOR EACH STATEMENT EXECUTE FUNCTION audit_log_no_truncate();
+    FOR EACH STATEMENT EXECUTE FUNCTION fn_audit_log_no_truncate();
 ```
 
 Four properties worth stating, because a careless copy loses each of them:
@@ -1265,7 +1295,7 @@ Four properties worth stating, because a careless copy loses each of them:
   trigger is a **statement** trigger on the table it was created on: the parent's guard
   answers `TRUNCATE audit_log`, and nothing answers `TRUNCATE audit_log_2027_03`. Phase
   11's `learnstack:audit:partition-management` job therefore creates
-  `audit_log_no_truncate_guard` on every partition it creates, which is the one place
+  `tg_audit_log_no_truncate` on every partition it creates, which is the one place
   partitioning is not additive for this table.
 - **The triggers are the third layer, and they are the only one that binds the table
   owner.** `learnstack_app` is stopped by the absent privilege and a stray
@@ -1291,9 +1321,21 @@ CREATE TABLE audit_config (
     module            text NOT NULL,
     operation         text NOT NULL,
     is_enabled        boolean NOT NULL,
-    created_at        timestamptz NOT NULL DEFAULT now(),
-    updated_at        timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (tenant_id, module, operation),
+    -- The seven audit columns, unconditionally: AuditConfig derives from
+    -- AuditableEntity<TId>, so EF maps the full set and a table that carried only
+    -- created_at / updated_at would fail to materialize its own entity
+    -- (Database Standards § Audit Columns). updated_at is NULL until the first
+    -- change — MarkCreated stamps only the created pair — so NOT NULL DEFAULT now()
+    -- would be wrong here as well as unnecessary.
+    created_at        timestamptz NOT NULL,
+    created_by        uuid NOT NULL,
+    updated_at        timestamptz NULL,
+    updated_by        uuid NULL,
+    deleted_at        timestamptz NULL,
+    deleted_by        uuid NULL,
+    row_version       bigint NOT NULL DEFAULT 0,
+    CONSTRAINT ux_audit_config_tenant_id_module_operation
+        UNIQUE (tenant_id, module, operation),
     -- Unlike audit_log this table keeps its foreign key: it is live configuration rather
     -- than history, and a row is meaningless without the tenant it configures. RESTRICT,
     -- because the standing cascade exception is a child inside an aggregate boundary and
@@ -1538,9 +1580,16 @@ job is modelled as a sub-resource rather than as a verb:
 | `audit.event_export.read` | Tenant | Fetching the export's download URL |
 | `platform.audit.read` | Platform | The cross-tenant query |
 
-The registry that makes these enforceable lands with the Identity module in
+Three more gate the override table rather than the query API, so they are listed with
+the module's own matrix rather than here: `audit.config.read`, `audit.config.write` and
+`audit.config.delete`, which
+[Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s Studio editor needs and which
+narrow a SHOULD or a MAY without ever removing a MUST.
+
+The registry that makes all of these enforceable lands with the Identity module in
 [Phase 03](../roadmap/phase-03-identity-admin.md); Packet 9 forward-declares them in
-`docs/modules/audit/permissions.md`.
+[docs/modules/audit/permissions.md](../modules/audit/permissions.md), which is the
+module's authoritative matrix.
 
 ## 12. Hub-side audit stream
 
