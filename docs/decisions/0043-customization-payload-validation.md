@@ -165,7 +165,7 @@ the draft requires it.
 | `$ref` is fragment-only (`#…`) | An absolute `$ref` is a resolution attempt against something outside the document. `$defs` and `#/$defs/…` remain available |
 | No `$dynamicRef` / `$dynamicAnchor` | Their whole purpose is late binding across documents; there is no second document |
 | Nesting and reference limits per § 8.4 | Measured on the syntax tree. A reference **cycle** needs no separate limit: the builder detects it (§ Context) |
-| **Erratum (2026-09-04):** the row above is false as written, and Amendment 1 replaces the rule it states. The builder detects a cycle only from the document root; a cycle reached through `properties` builds and then overflows the stack during evaluation. Measured while implementing this ADR |
+| **Erratum (2026-09-04):** the row above is false as written, and Amendment 1 replaces the rule it states | The builder detects a cycle only from the document root; a cycle reached through `properties` builds and then overflows the stack during evaluation. Measured while implementing this ADR |
 
 ### 4. Unknown keywords pass — because the pinned dialect says so
 

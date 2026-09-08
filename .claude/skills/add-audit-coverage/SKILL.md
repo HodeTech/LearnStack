@@ -182,7 +182,7 @@ MUST / SHOULD / MAY coverage tier. Use the defaults in
 - **`Action`**: SHOULD, unless § Baseline Coverage names the operation. A genuine
   in-tenant non-CRUD act that fits none of the rows above — recording start where no
   consent state changes is the example
-  [ADR-0016 Amendment 1](../../../docs/decisions/0016-audit-log-subsystem.md) gives.
+  [ADR-0016's 2026-05-19 amendment](../../../docs/decisions/0016-audit-log-subsystem.md) gives.
 
 `OperationType_Enum_Matches_Catalog` asserts the seven-member enum and that standard's
 list carry the same members, so an eighth type is a standards change first.

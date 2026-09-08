@@ -53,10 +53,10 @@ which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
 | `read-sensitive` | Read of another user's PII, financial data, learner progress, recording, or consent state | MUST |
 | `security-event` | Login, MFA challenge, role grant/revoke, permission change, tenant impersonation, token revocation, RLS bypass | MUST |
 | `platform-admin` | Any operation performed by a platform admin against a tenant they are not a member of | MUST |
-| `action` | A genuine in-tenant non-CRUD act that fits none of the rows above — recording start where no consent state changes is the example ADR-0016 Amendment 1 gives | SHOULD, unless § Baseline Coverage names the operation |
+| `action` | A genuine in-tenant non-CRUD act that fits none of the rows above — recording start where no consent state changes is the example ADR-0016's 2026-05-19 amendment gives | SHOULD, unless § Baseline Coverage names the operation |
 
 `platform-admin` does **not** subsume `action`.
-[ADR-0016 Amendment 1](../decisions/0016-audit-log-subsystem.md) adds `platform-admin`
+[ADR-0016's 2026-05-19 amendment](../decisions/0016-audit-log-subsystem.md) adds `platform-admin`
 **beside** `action` — "the `Action` value remains for genuine in-tenant non-CRUD
 actions" — and calls the resulting seven-member enum binding. The table above is the
 catalogue that enum is compared against by

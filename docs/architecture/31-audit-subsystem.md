@@ -45,8 +45,15 @@ transaction for everything that reaches step 6, reads included, because a read n
 `SET LOCAL` as much as a write does — so the durable path is the one a granted read takes
 ([ADR-0033 Amendment 2 § 7](../decisions/0033-audit-durability-model.md)).
 `WriteStandaloneAsync` is reached by three shapes and only these: a short-circuit at step
-1, 4 or 5; a non-MediatR caller (`TenantAssertionMiddleware`, `EnterPlatformAdminScope`);
-and the reconcile step after a `RolledBack` or `Indeterminate` outcome. A step-4
+1, 4 or 5; a non-MediatR caller, of which `TenantAssertionMiddleware` is the one Packet 9
+ships; and the reconcile step after a `RolledBack` or `Indeterminate` outcome.
+`EnterPlatformAdminScope(reason)` is **not** among them: its row takes the fourth write
+method, `IAuditStore.WritePlatformScopeAsync`, on the scope's own platform-role connection
+and **before** the operation runs — so an operation that later fails is still recorded
+([ADR-0044 § 10](../decisions/0044-audit-write-path.md),
+[ADR-0033 Amendment 2 § 6](../decisions/0033-audit-durability-model.md)). None of the
+other three could serve it: the row runs on a connection the request path does not own, as
+a role the other three never use, and ahead of what it describes. A step-4
 short-circuit reaches it only when a tenant is decidable — the ceiling refusal on a
 *resolved* context does, the `tenant_mismatch` refusal of an unresolved one does not,
 because § 7's fourth case leaves it with no tenant to write under.
@@ -873,7 +880,7 @@ public enum OperationType
     Delete,
     ReadSensitive,
     SecurityEvent,
-    PlatformAdmin,   // cross-tenant operator action — see ADR-0016 Amendment 1
+    PlatformAdmin,   // cross-tenant operator action — ADR-0016, 2026-05-19
     Action,          // generic non-CRUD action that doesn't fit above
 }
 

@@ -1144,9 +1144,10 @@ changes `xmin` while leaving `row_version` intact.
   foreign key crossing two migration chains, so a run that reaches the Audit chain first
   fails on a clean database with `relation "tenants" does not exist`. Alphabetical order
   produces exactly that run — `Modules/Audit` sorts before `Modules/Tenancy` — so
-  `make migrate` names the Tenancy chain ahead of the glob that finds the rest, and
-  `Migrate_Target_Applies_Tenancy_Before_Any_Chain_That_References_It` is what keeps the
-  recipe honest. The integration fixture that applies the chains orders them the same
+  `make migrate` names the Tenancy chain ahead of the glob that finds the rest. The
+  ordering is held by the recipe and by the fixture below rather than by a named rule:
+  `Migrate_Target_Covers_Every_Migration_Chain` already fails when a chain is added and
+  the recipe is not, which is the failure that would otherwise hide this one. The integration fixture that applies the chains orders them the same
   way, for the same reason: a fixture that hand-orders what the recipe globs is how a
   suite goes green over a deployment path that cannot build the schema.
 
