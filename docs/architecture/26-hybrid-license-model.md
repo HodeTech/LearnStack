@@ -2,7 +2,8 @@
 
 **Derives from:** [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0021](../decisions/0021-feature-based-entitlement.md),
-[ADR-0019](../decisions/0019-learnstack-hub.md).
+[ADR-0019](../decisions/0019-learnstack-hub.md),
+[ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md).
 
 LearnStack uses a **hybrid license model** combining:
 
@@ -188,13 +189,16 @@ public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
 {
     protected override async Task ExecuteAsync(LicenseRefreshJobParams parameters, CancellationToken ct)
     {
-        var current = await _entitlementCache.GetAsync(parameters.TenantId, ct);
         try
         {
             var refreshed = await _hubClient.RefreshAsync(parameters.TenantId, ct);
-            if (refreshed.Generation > (current?.Generation ?? 0))
+
+            // The generation guard lives inside the write statement, never in the job:
+            // an out-of-order push leaves every column unchanged and reports
+            // IgnoredAsStale (ADR-0045 § 1).
+            var outcome = await _entitlements.RefreshAsync(refreshed, ct);
+            if (outcome is EntitlementRefreshOutcome.Applied)
             {
-                await _entitlementCache.SetAsync(parameters.TenantId, refreshed, ct);
                 await _eventBus.PublishAsync(new EntitlementUpdatedIntegrationEvent
                 {
                     TenantId = parameters.TenantId,
@@ -203,7 +207,6 @@ public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
                 _logger.LogInformation("Entitlement refreshed for tenant {TenantId} to gen {Gen}",
                     parameters.TenantId, refreshed.Generation);
             }
-            await _entitlementCache.SetLastSuccessAsync(parameters.TenantId, DateTimeOffset.UtcNow, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -214,6 +217,14 @@ public sealed class LicenseRefreshJob : LearnStackJob<LicenseRefreshJobParams>
     }
 }
 ```
+
+`_entitlements` is the registered `IEntitlementProvider`. `platform_entitlement_cache`
+is read and written by an `IEntitlementProvider` implementation and by nothing else
+([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)), so this
+job never writes the table behind the provider that owns it. The push path goes through
+`RefreshAsync`, whose generation guard lives inside the write statement
+([ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md)), so a
+replayed or reordered push is a no-op rather than a downgrade.
 
 **Jitter**: in a SaaS deployment with many tenants, the daily refresh would otherwise all
 hit Hub at the same time. The job adds a random 0-119 minute offset per tenant when first
@@ -254,10 +265,11 @@ L1 in-process cache                 (per pod; seconds)
 ```
 
 ```csharp
-public async Task<EntitlementLookup> GetAsync(TenantId tenantId, CancellationToken ct)
+public async Task<EntitlementProjection> GetAsync(
+    TenantId tenantId, CancellationToken ct)
 {
     // 1-2. L1 → L2, both pure freshness layers.
-    if (await _cache.GetAsync<Entitlement>(CacheKey(tenantId), ct) is { } cached)
+    if (await _cache.GetAsync<EntitlementProjection>(CacheKey(tenantId), ct) is { } cached)
         return Evaluate(cached, source: EntitlementSource.Cache);
 
     // 3. Durable projection. This is the layer that makes grace real: it survives pod
@@ -281,7 +293,7 @@ public async Task<EntitlementLookup> GetAsync(TenantId tenantId, CancellationTok
             _logger.LogWarning(ex, "Hub verify failed for {TenantId}; falling back", tenantId);
             _metrics.HubVerifyFailed();
             if (durable is null)
-                return EntitlementLookup.Unresolved(tenantId);   // policy table below decides
+                return Unresolved(tenantId);   // policy table below decides
         }
     }
 
@@ -291,18 +303,25 @@ public async Task<EntitlementLookup> GetAsync(TenantId tenantId, CancellationTok
 ```
 
 `Evaluate` applies the lifecycle from [§ 3](#3-lifecycle): fresh → serve; past
-`valid_until` but within `grace_until` → serve with `InGracePeriod = true`; past
-`grace_until` → read-only.
+`valid_until` but within `grace_until` → serve, with `GraceUntil` driving the banner in
+[§ UI surface](#ui-surface); past `grace_until` → the read-only projection, every
+feature `false` and every limit `0`.
 
-The provider **never throws** out of a feature-flag or limit check. Every path returns an
-`EntitlementLookup` carrying the values, the source, and whether the answer is degraded.
+The provider **never throws** out of a feature-flag or limit check, and it has one
+return type: the `EntitlementProjection`
+[ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md) declares.
+`source` is provider-internal — it labels `learnstack_entitlement_source_total` below
+and never reaches the caller — and whether an answer is degraded is read from the
+projection itself, whose `ExpiresAt` and `GraceUntil` place it in the lifecycle above.
 
 ### Failure policy by key class
 
-`EntitlementLookup.Unresolved` — no cache, no durable row, no Hub — is the only genuinely
-hard case, and one blanket answer is wrong for it. Each key class declares its posture
-**explicitly in the registry**, so the behaviour is a property of the key rather than of
-the call site:
+The unresolved answer — no cache, no durable row, no Hub — is the only genuinely hard
+case, and it is not a second return type either: `Unresolved(tenantId)` is an
+`EntitlementProjection` for that tenant with empty `Features`, empty `Limits` and
+`Generation` `0`, so every key falls through to what its own registry entry says. One
+blanket answer would be wrong there, so each key class declares its posture
+**explicitly**, and the behaviour is a property of the key rather than of the call site:
 
 | Key class | Posture when unresolved | Why |
 |---|---|---|
@@ -440,13 +459,20 @@ Hub operator portal exposes:
 
 ## 10. Architecture tests
 
-1. `LicenseKey_Validation_RequiresRSA2048OrStronger` — verifier rejects RS128, none, weak
-   algorithms.
+1. `LicenseKey_Validation_Is_Pinned_RSA2048` — verification pins RSA-2048 and rejects an
+   algorithm the token names for itself (`none`, `RS128`).
 2. `LicenseKey_Validation_ChecksRevocationList` — integration test: a license id in the
    revocation set is rejected.
-3. `NullEntitlementProvider_RejectedInProduction` — runtime startup check: in any non-
-   Development environment, `IEntitlementProvider` is `HubEntitlementProvider` or
-   `SignedLicenseKeyEntitlementProvider`; never `NullEntitlementProvider`.
+3. `NullEntitlementProvider_NotRegistered_OutsideDevelopment` — the canonical name in
+   [the catalogue](../standards/21-architecture-tests-catalogue.md). It binds **per
+   mode**, from the phase that lands that mode's own implementation:
+   [Phase 02c](../roadmap/phase-02c-hub-foundation.md) for `SaaS`, `Dedicated` and
+   `SelfHostedOnline`, which `HubEntitlementProvider` serves, and
+   [Phase 11](../roadmap/phase-11-production-hardening.md) for `SelfHostedAirGapped`,
+   whose `SignedLicenseKeyEntitlementProvider` is hardened there. Until a mode's
+   implementation exists, `NullEntitlementProvider` is what that mode registers
+   ([ADR-0020 § Amendments (2026-09-07)](../decisions/0020-triple-deployment-hybrid-license.md);
+   [ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 4. `LicenseKey_Payload_MatchesSchema` — `entitlement-v1.schema.json` snapshot test, run
    in **both** repositories against the same checked-in schema; any breaking change
    requires a schema-version bump and a coordinated change in both. A snapshot test in
@@ -466,13 +492,24 @@ and each implementation ships against a written trigger.
 | Phase | Deliverable | Trigger |
 |-------|-------------|---------|
 | [02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | `platform_entitlement_cache` table; `DeploymentMode` config enum | One-way door — the durable projection's schema and ownership |
-| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `IEntitlementProvider` socket; `NullEntitlementProvider` (all features enabled, no limits) as the **only** implementation | — |
-| [02c](../roadmap/phase-02c-hub-foundation.md) | `HubEntitlementProvider` with the four-layer read path above; `entitlement-v1.schema.json` in both repositories; Hub-side `Entitlement` recompute on subscription change | A tenant must be billed or plan-gated |
+| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | The socket [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) scopes: `IEntitlementProvider` + `EntitlementProjection` + `NullEntitlementProvider` (every feature `true`, every limit `-1`) as the **only** implementation, registered in **every** deployment mode; `IFeatureFlags` composing over the port, with its L1 cache; `FeatureKey` / `LimitKey` and the three typed catalogs, each key carrying its `Source`, its default and — for a limit — its `LimitEnforcement` (`Soft` \| `Hard`); `platform_killswitches` and the killswitch overlay | — |
+| [02c](../roadmap/phase-02c-hub-foundation.md) | `HubEntitlementProvider` with the four-layer read path above; `entitlement-v1.schema.json` in both repositories; Hub-side `Entitlement` recompute on subscription change; the limit **enforcement** path — the refusal and the `usage.alert.soft_limit_reached` signal — alongside `IUsageReporter`, which is the first place a soft limit has to report to; the `SignedLicenseKeyEntitlementProvider` **skeleton**, arriving as a coordinated pull request from the Hub repository's `P02c-6` ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)) | A tenant must be billed or plan-gated |
 | [09b](../roadmap/phase-09b-hub-billing.md) | License-key issuance UI in the Hub operator portal | Commercial billing needed |
-| [11](../roadmap/phase-11-production-hardening.md) | `SignedLicenseKeyEntitlementProvider` (air-gapped); revocation-list signing + distribution; phone-home retry / backoff tuning; grace-period integration tests; SIGHUP hot-reload; key-rotation procedure | A Self-Hosted contract is signed |
+| [11](../roadmap/phase-11-production-hardening.md) | `SignedLicenseKeyEntitlementProvider` hardened into `SelfHostedAirGapped`'s registered implementation; revocation-list signing + distribution; phone-home retry / backoff tuning; grace-period integration tests; SIGHUP hot-reload; key-rotation procedure | A Self-Hosted contract is signed |
 
-`NullEntitlementProvider` must not be registered outside `Development` once Phase 02c
-lands (`NullEntitlementProvider_NotRegistered_OutsideDevelopment`).
+`NullEntitlementProvider` is the registered implementation in **every** deployment mode
+until the implementation for that mode exists — the working default
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md) names for this gate,
+generalised from "`Development` only" by
+[ADR-0020 § Amendments (2026-09-07)](../decisions/0020-triple-deployment-hybrid-license.md)
+and [ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md). `SaaS`,
+`Dedicated` and `SelfHostedOnline` leave it behind when
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md) registers `HubEntitlementProvider`;
+`SelfHostedAirGapped` leaves it behind when
+[Phase 11](../roadmap/phase-11-production-hardening.md) hardens
+`SignedLicenseKeyEntitlementProvider` into that mode's registered implementation.
+`NullEntitlementProvider_NotRegistered_OutsideDevelopment` binds mode by mode, on that
+schedule.
 
 ## 12. Operational runbook (Phase 11)
 
@@ -490,6 +527,9 @@ lands (`NullEntitlementProvider_NotRegistered_OutsideDevelopment`).
   entitlement read path and the Hub contract surface invariants.
 - [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — which entitlement
   implementation ships when.
+- [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) — the
+  `IEntitlementProvider` / `IFeatureFlags` socket, the `-1` / `0` limit sentinels, and
+  what Phase 02a Packet 9 ships.
 - [21-feature-flags.md](21-feature-flags.md) — the `FeatureKeys` / `LimitKeys` registries.
 - [25-deployment-models.md](25-deployment-models.md) — three-mode topology.
 - [24-learnstack-hub.md](24-learnstack-hub.md) — Hub architecture.

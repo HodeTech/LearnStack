@@ -265,9 +265,9 @@ await _fx.RunOutboxProcessorOnceAsync();
 
 using (_fx.AsTenant(_fx.TenantA, _fx.OrgA1)) {
     var auditEntry = await _fx.Audit
-        .Where(x => x.Operation == "enrollment.create")
+        .Where(x => x.Operation == "enrollment.enrollment.create")
         .SingleAsync();
-    Assert.Equal("create", auditEntry.OperationClass);
+    Assert.Equal(OperationType.Create, auditEntry.OperationType);
 }
 ```
 
@@ -281,10 +281,14 @@ public async Task CreateEnrollment_writes_audit_entry_with_after_snapshot()
         await _fx.Mediator.Send(new CreateEnrollmentCommand(...));
 
         var entry = await _fx.Audit
-            .Where(x => x.Operation == "enrollment.create")
+            .Where(x => x.Operation == "enrollment.enrollment.create")
             .SingleAsync();
 
-        Assert.Equal("create", entry.OperationClass);
+        // `Operation` is the `{module}.{resource}.{verb}` slug; `OperationType` is
+        // what kind of act produced the row and `OperationClass` is the MUST /
+        // SHOULD / MAY tier — never the same value.
+        Assert.Equal(OperationType.Create, entry.OperationType);
+        Assert.Equal(AuditOutcome.Success, entry.Outcome);
         Assert.NotNull(entry.After);
         Assert.Null(entry.Before);
         Assert.Contains("\"learnerId\":", entry.After);

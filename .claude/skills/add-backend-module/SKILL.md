@@ -3,8 +3,8 @@ name: add-backend-module
 description: >
   Scaffold a new LearnStack backend module under `backend/src/Modules/<Name>/` with
   the four-package layout (`Application.Contracts`, `Application`, `Domain`,
-  `Infrastructure`) plus the module's `IModule` registration, audit-coverage matrix,
-  and permission catalogue. USE FOR: introducing a brand-new module (rare;
+  `Infrastructure`) plus the module's composition-root registration, audit-coverage
+  matrix and catalogue source, and permission matrix. USE FOR: introducing a brand-new module (rare;
   pre-implementation we have ~15 modules already named). DO NOT USE FOR: adding an
   aggregate inside an existing module (use `add-tenant-owned-entity` /
   `add-mediatr-handler`), adding domain-specific code to any module (forbidden by
@@ -19,9 +19,9 @@ description: >
 Stand up a new modular-monolith module that complies with
 [03-module-boundaries.md](../../../docs/architecture/03-module-boundaries.md) and
 [01-architecture-standards.md](../../../docs/standards/01-architecture-standards.md)
-out of the gate: four packages, the right project references, an `IModule`
-registration, a permission catalogue, an audit matrix, and a place for the module's
-EF DbContext.
+out of the gate: four packages, the right project references, the composition-root
+registration, a permission matrix, an audit matrix and its catalogue source, and a
+place for the module's EF DbContext.
 
 ## When to use
 
@@ -101,48 +101,46 @@ Forbidden references (architecture test will catch them):
 - Module A → Module B.Domain
 - Module A → Module B.Infrastructure
 
-### Step 3: Author the `IModule` registration
+### Step 3: Register the module's services
 
-> **The shape, not today's API.** `IModule`, `AddMediatRFromModule`,
-> `IPermissionRegistry`, `IAuditCatalog` and the `modules.Add(...)` call site do
-> not exist yet — the registration seam lands with **Phase 02a Packet 9**, which
-> is what ships `IAuditStore` and the audit catalogue, and the permission
-> registry with it. `AddModuleDbContext<T>` **does** exist and the warning below
-> it is live today. Until Packet 9, a module registers its handlers and
-> validators from the composition root directly.
+> **`IModule` does not exist.** No type by that name is in `backend/src`, no packet in
+> Phase 02a ships one, and neither does anything named `AddMediatRFromModule`,
+> `IAuditCatalog` or a `modules.Add(...)` call site. The glossary entry describes an
+> intended shape; do not write code against it. Two real seams replace it:
+>
+> - **Handlers and validators** are registered today by passing the module's assembly
+>   marker to `AddLearnStackMediatRPipeline(params Assembly[])` from the composition
+>   root — one call, all modules, and it registers the validators from the same
+>   assemblies.
+> - **The audit catalogue** is a module-owned `IAuditCatalogSource` discovered from DI,
+>   landing with **Phase 02a Packet 9** per
+>   [ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md). It is not a method
+>   on a module-loading interface.
+>
+> `IPermissionRegistry` lands later still, with the Identity module in
+> [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) — see the note at the
+> top of [docs/modules/tenancy/permissions.md](../../../docs/modules/tenancy/permissions.md).
+> `AddModuleDbContext<T>` **does** exist and the warning below it is live today.
 
-In `LearnStack.Modules.<Name>.Application/<Name>Module.cs`:
+Composition root (`LearnStack.Api/Program.cs` and its `Composition/` extensions):
 
 ```csharp
-public sealed class <Name>Module : IModule
-{
-    public void Register(IServiceCollection services, IConfiguration configuration)
-    {
-        // The DbContext is NOT registered here — see below. Application may not
-        // reference Infrastructure, and the registration helper lives there.
-        services.AddMediatRFromModule(typeof(<Name>Module).Assembly);
-        services.AddValidatorsFromAssembly(typeof(<Name>Module).Assembly);
+// Handlers + validators for every module, one call.
+services.AddLearnStackMediatRPipeline(
+    typeof(LearnStack.Modules.<Name>.Application.AssemblyMarker).Assembly,
+    /* … the other module markers … */);
 
-        // Provider adapters (composition root chooses concrete adapter):
-        // services.AddScoped<I<Name>Provider, <Name>Provider>();
-    }
-
-    public void RegisterPermissions(IPermissionRegistry registry)
-    {
-        // see add-permission skill
-    }
-
-    public void RegisterAuditCoverage(IAuditCatalog catalog)
-    {
-        // see add-audit-coverage skill
-    }
-}
+// Provider adapters the module needs — the composition root picks the adapter,
+// the module never branches on DeploymentMode.
+// services.AddScoped<I<Name>Provider, <Name>Provider>();
 ```
 
-Call this from the composition root (`LearnStack.Api/Program.cs`):
+And, from Packet 9, the module's audit catalogue — one class in the module's
+`Application` project, registered like any other DI service
+(see [add-audit-coverage](../add-audit-coverage/SKILL.md)):
 
 ```csharp
-modules.Add(new <Name>Module());
+services.AddSingleton<IAuditCatalogSource, <Name>AuditCatalogSource>();
 ```
 
 **The `DbContext` registration is a composition-root concern, not a module one.**
@@ -163,6 +161,13 @@ context is built on the connection `IUnitOfWork` owns, and
 `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` fails the build if you reach
 for the EF default instead — from both sides: the registration, and the fact that
 only three files under `backend/src` may mention `UseNpgsql` at all.
+
+That one call site is also how the audit capture reaches your context. From Packet 9
+`AddModuleDbContext` resolves `IEnumerable<ISaveChangesInterceptor>` from the provider
+and attaches `AuditChangeTrackerInterceptor` beside the shipped
+`TenantContextGuardInterceptor`. Registering an interceptor in DI **alone does not
+attach it** — measured on EF Core 10 against this repository's hand-built options shape —
+so a context registered any other way is a context whose writes are never captured.
 
 ### Step 4: Module DbContext
 
@@ -240,8 +245,11 @@ create the spec files under `docs/modules/<name>/`:
 - `README.md` with an `## Overview` section — what the module owns and does not
   own. (The standard names the *section*, not a filename; the one shipped spec,
   `docs/modules/tenancy/README.md`, is the model.)
-- `audit.md` — audit-coverage matrix (use the
-  [add-audit-coverage](../add-audit-coverage/SKILL.md) skill).
+- `audit.md` — audit-coverage matrix, each row carrying the
+  `{module}.{resource}.{verb}` operation slug its `IAuditCatalogSource` registers
+  (use the [add-audit-coverage](../add-audit-coverage/SKILL.md) skill; the matrix and
+  the catalogue are checked against each other by
+  `Every_TenantOwned_Command_HasAuditCoverage`).
 - `permissions.md` — permission matrix (use the
   [add-permission](../add-permission/SKILL.md) skill).
 - ER diagram, state diagrams, integration-event catalogue per the standard.
@@ -290,8 +298,12 @@ See [add-ef-migration](../add-ef-migration/SKILL.md) for migration conventions
   extraction reversible.
 - **Cross-module EF navigation properties.** Use id references only; cross-module
   reads go through repository contracts or read-model projections.
-- **Forgetting the `IModule` registration in the composition root.** The module
-  builds but no handlers run; takes hours to diagnose.
+- **Forgetting the module's assembly marker in the composition root.** The module
+  builds, MediatR scans nothing, and no handler and no validator runs; takes hours to
+  diagnose.
+- **Writing code against `IModule`.** The type does not exist. Register through
+  `AddLearnStackMediatRPipeline` and an `IAuditCatalogSource`; a module-loading
+  interface is not what Phase 02a ships.
 - **Missing `docs/modules/<name>/` spec files.** Nothing fails.
   `Every_Module_Has_An_AuditCoverage_Matrix` is Registered against Packet 9 and
   there is no permission-matrix rule at all, so review is the only gate until then.

@@ -1,7 +1,9 @@
 # Cross-Cutting Concerns — Errors, Logs, Traces, Metrics
 
 **Derives from:** [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md),
-[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md), [ADR-0016](../decisions/0016-audit-log-subsystem.md),
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md),
+[ADR-0033](../decisions/0033-audit-durability-model.md),
+[ADR-0044](../decisions/0044-audit-write-path.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -57,6 +59,16 @@ The exception hierarchy
   `Domain_Methods_Do_Not_Throw_For_Expected_Cases` walks
   `Result<T>`-returning methods to confirm.
 - `InfrastructureException` — transient DB / Valkey / SeaweedFS fault.
+  - `AuditWriteFailedException` — a MUST-class audit row could not be written
+    durably. It carries the `audit_unavailable` `Error`, which
+    `HttpStatusMap.For(Exception)`'s existing `LearnStackException known =>
+    For(known.Error)` branch routes to the explicit `audit_unavailable` arm that
+    [ADR-0044 § 11](../decisions/0044-audit-write-path.md) adds to
+    `HttpStatusMap.For(string)` — **503**, never by fallthrough. A
+    **standalone** write failure recording an operation that is *already* being
+    refused keeps its own 403 / 404, logs at `Critical` and marks the audit health
+    check unhealthy
+    ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
 - `ProviderException` — upstream provider error; `IsClientError` flag splits
   4xx (provider's user mistake; do not Sentry) from 5xx (provider's infra
   fault; Sentry).
@@ -84,9 +96,10 @@ Request
                                 Activity.StartActivity(name);
                                 latency histogram start
   ▼
-[3] AuditLogBehavior         ←  try { handler outcome } catch {
-                                  audit FAILED entry; ExceptionDispatchInfo.Throw();
-                                }
+[3] AuditLogBehavior         ←  classify (module, operation) per audited resource;
+                                mint AuditEntryId; park the intents in
+                                IAuditStateCapture; reconcile on the way out;
+                                catch { ExceptionDispatchInfo.Throw() }
   ▼
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
                                 carry tenant + organization forward (touches no connection)
@@ -94,8 +107,11 @@ Request
 [5] AuthorizationBehavior    ←  IAuthorizationService.AuthorizeAsync;
                                 Result.Fail(forbidden) on deny
   ▼
-[6] TransactionBehavior      ←  DbContext.Database.BeginTransactionAsync();
-                                commit on success-Result; rollback on fail-Result or exception
+[6] TransactionBehavior      ←  IUnitOfWork.BeginTransactionAsync(); announce
+                                app.tenant_id + app.organization_id first;
+                                IAuditStore.WritePendingAsync just before COMMIT;
+                                commit on success-Result, rollback on fail-Result
+                                or exception
   ▼
 [7] OutboxFlushBehavior      ←  enrol IOutbox messages in current tx;
                                 they ship via DaprEventBus on commit
@@ -109,28 +125,63 @@ Why this order:
   resolution. Cheap to reject, expensive to roll back.
 - **Logging before audit.** The structured-log scope (8 correlation fields)
   must exist *before* audit's catch-rethrow runs so audit entries inherit the
-  trace context. If audit's snapshot fails too, the operator wants the failure
-  reported with the same `correlation_id` as the original request.
+  trace context. If the audit write or the change-tracker capture fails too, the
+  operator wants the failure reported with the same `correlation_id` as the
+  original request.
 - **Audit wraps everything inside it.** Per
-  [ADR-0016](../decisions/0016-audit-log-subsystem.md), `AuditLogBehavior`
-  catches handler exceptions, writes a failure-class audit entry, and
-  rethrows via `ExceptionDispatchInfo` to preserve the original stack. No
-  separate `ExceptionHandlingBehavior` is introduced — that responsibility
-  already lives here, and the L1 `IExceptionHandler` is the final catch site.
-- **Tenant context just inside audit.** Audit needs `actor`, `tenant_id`,
-  `organization_id` to build a row; those must be resolved before the audit
-  snapshot runs. The behavior *only* validates the context — it asserts the
-  middleware populated it. It does **not** set the PostgreSQL session variables:
-  `SET LOCAL` is transaction-local and step 4 runs before any transaction exists,
-  so the variables are issued by `TransactionBehavior` at step 6 as the first
-  statement inside the transaction. A `DbConnectionInterceptor` cannot do it
-  either — it fires at connection open, not at transaction start. See
+  [ADR-0033](../decisions/0033-audit-durability-model.md), `AuditLogBehavior`
+  **decides** on the way in and **reconciles** on the way out: it classifies each
+  audited `(module, operation)`, mints the `AuditEntryId`, and parks an ordered
+  list of intents in `IAuditStateCapture` — one per audited resource, not one per
+  request ([ADR-0033 Amendment 2](../decisions/0033-audit-durability-model.md)). On
+  the way out it re-writes standalone whichever intent the commit did not carry,
+  and it catches handler exceptions and rethrows via `ExceptionDispatchInfo` to
+  preserve the original stack. No separate `ExceptionHandlingBehavior` is
+  introduced — that responsibility already lives here, and the L1
+  `IExceptionHandler` is the final catch site.
+- **`AuditLogBehavior` stays in `LearnStack.Application/Pipeline`.** Its ports —
+  `IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent` — live in
+  `LearnStack.SharedKernel.Audit`, and `PostgresAuditStore`, `AuditStateCapture`
+  and `AuditChangeTrackerInterceptor` in `LearnStack.Infrastructure.Audit`
+  ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)). `AuditEntryId` is a
+  **SharedKernel** identifier rather than a module-local one — the fourth
+  cross-cutting id after `TenantId`, `OrganizationId` and `UserId`, because three
+  SharedKernel types name it
+  ([ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)).
+  A behavior on the `Infrastructure` side would invert the Application →
+  Infrastructure dependency that
+  `MediatRPipelineRegistration.CanonicalBehaviorOrder` and its architecture test
+  depend on.
+- **Tenant context just inside audit.** The audit row carries the tenant the
+  ambient transaction **announced** — `ITenantContext.TenantId`, or
+  `IProvisionsTenant.ProvisioningTenantId` under an unresolved provisioning
+  context — so `actor`, `tenant_id` and `organization_id` must all be resolved
+  before step 6 composes it. The provisioning value *is* on the request, and is
+  safe for that reason rather than in spite of it: it is the same value that
+  drove the session variable, so the database refuses the write when the two
+  disagree. [ADR-0044 § 2](../decisions/0044-audit-write-path.md) tabulates all
+  four shapes, including the platform-scope row's `TenantId.PlatformSentinel` and
+  the unresolved non-provisioning request, which writes no row at all. The
+  behavior *only* validates the context — it asserts the middleware populated it.
+  It does **not** set the PostgreSQL session variables: `SET LOCAL` is
+  transaction-local and step 4 runs before any transaction exists, so the
+  variables are issued by `TransactionBehavior` at step 6 as the first statement
+  inside the transaction. A `DbConnectionInterceptor` cannot do it either — it
+  fires at connection open, not at transaction start. See
   [Security Standards § Tenant Context](../standards/11-security.md), the single
   authority for this placement.
 - **Authorization after tenant.** A permission decision usually keys on
   `(tenant_id, user_id, resource)` — those must be ambient first.
 - **Transaction after authorization.** No transaction is opened for a
-  forbidden request.
+  forbidden request; the `denied` MUST-class row for that request is written
+  standalone, in its own short transaction.
+- **The MUST-class audit row is written inside the transaction, not after it.**
+  `TransactionBehavior` calls `IAuditStore.WritePendingAsync` immediately before
+  `COMMIT`, so the row commits with the state change it describes or not at all
+  ([ADR-0033](../decisions/0033-audit-durability-model.md)). Only the **owning**
+  unit-of-work frame (`IUnitOfWorkScope.IsOwner`) writes and reports the commit
+  boundary, and it flushes every intent in the scope; a joiner writes nothing,
+  signals nothing, and does not clear the capture.
 - **Outbox flush inside the transaction.** Per
   [15-event-and-outbox.md](15-event-and-outbox.md), outbox rows write in the
   same transaction as the originating domain change; the behavior is the
@@ -170,7 +221,7 @@ sequenceDiagram
     Adapter--xHandler: ProviderException(5xx, retryable=true)
     Note over Handler: handler throws
     Handler--xAudit: ProviderException
-    Audit->>Audit: write audit entry (outcome=Failed)
+    Audit->>Audit: reconcile: WriteStandaloneAsync (outcome=failed)
     Audit--xPipeline: ExceptionDispatchInfo.Throw()
     Pipeline--xAPI: rethrown
     API->>L1: IExceptionHandler.TryHandleAsync(ex)
@@ -450,6 +501,7 @@ Two integration points
 | `IErrorTrackingProvider` socket | Phase 02a | Three implementations registered per `DeploymentMode` |
 | `IProviderResilience<TPort>` collaborator | Phase 02a | Foundation for every adapter |
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
+| MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
 | Outbox / Hangfire correlation propagation | Phase 02b | Row schema + activator |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |
@@ -460,7 +512,9 @@ Two integration points
 
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 - [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md)
-- [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md)
+- [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+  (supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md))
+- [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
 - [09-error-handling.md](../standards/09-error-handling.md)
 - [10-observability.md](../standards/10-observability.md)

@@ -324,13 +324,16 @@ domain the diff doesn't touch.
   Domain/Application, job without TenantId, …).
 
 #### `18-audit-coverage.md`
-- [ ] Module's `docs/modules/<m>/audit.md` matrix updated for new
-  operations.
-- [ ] MUST / SHOULD / MAY classification matches the operation class
-  (`create` / `update` / `delete` / `read-sensitive` / `security-event` /
-  `platform-admin`).
-- [ ] No direct `IAuditStore.WriteAsync` call from outside the audit
-  infrastructure.
+- [ ] Each new operation has a row in the module's `docs/modules/<m>/audit.md`
+  matrix whose `Operation` cell holds the
+  `{module}.{resource}.{verb}` slug, and the module's `IAuditCatalogSource`
+  registers the same slug with an `OperationType` (`create` / `update` /
+  `delete` / `read-sensitive` / `security-event` / `platform-admin` / `action`)
+  and an `OperationClass` (MUST / SHOULD / MAY) — the two are different fields.
+- [ ] No module names `audit_log` or `AuditEntry` outside
+  `LearnStack.Modules.Audit.*`, and no handler calls `IAuditStore` itself — the
+  pipeline writes for it, and `WritePlatformScopeAsync` belongs to
+  `EnterPlatformAdminScope` alone.
 - [ ] `[PiiSensitive]` fields redacted in snapshots.
 
 #### `19-permissions.md`

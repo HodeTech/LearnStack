@@ -667,11 +667,63 @@ otherwise).
 
 #### `Modules_Do_Not_Read_Entitlement_Cache_Directly`
 
-- **Asserts:** `platform_entitlement_cache` is referenced only from the Tenancy module's
-  infrastructure. Every other read goes through `IFeatureFlags`.
-- **Source:** [20-infrastructure-stack.md § Entitlement Projection](20-infrastructure-stack.md);
+- **Asserts:** `platform_entitlement_cache` is named — in source or in SQL — only by an
+  `IEntitlementProvider` implementation, which is its only sanctioned **reader and
+  writer**. No module may query it, **Tenancy included**. Module code reads entitlement
+  through `IFeatureFlags`, and `IFeatureFlags` reads the plan half through
+  `IEntitlementProvider.GetAsync` rather than through the table.
+- **Tenancy is inside the ban, not outside it.** `IFeatureFlags`'s implementation lives in
+  `LearnStack.Modules.Tenancy.Infrastructure` because `tenant_feature_flags` is that
+  module's table — which makes Tenancy the assembly most likely to reach for the
+  entitlement table next door. It may not: a plan-projected key that resolved by SELECT
+  would bypass the registered provider, so swapping the provider would stop changing the
+  answer — the Phase 02a completion criterion — and ADR-0034's normative L1 →
+  `ICacheService` → durable row honouring its grace window → Hub order would be
+  evaluated by nobody.
+- **Source:** [ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md);
+  [20-infrastructure-stack.md § Entitlement Projection](20-infrastructure-stack.md);
   [ADR-0021](../decisions/0021-feature-based-entitlement.md).
 - **Type:** xUnit + source / SQL scan. **Kind:** structural.
+- **Status:** **Registered.** The rule gets its subject from the socket Packet 9 ships:
+  the table has been unread since Packet 6 created it, and until there was a port allowed
+  to name it there was nothing for the exclusion to exclude. `NullEntitlementProvider`
+  answers from constants and touches no table; the first implementation that reads the row
+  is `HubEntitlementProvider`, in Phase 02c.
+- **Phase:** 02a (Packet 10).
+
+#### `FeatureKey_AllReferences_AreInRegistry`
+
+- **Asserts:** every `FeatureKey` and `LimitKey` reachable from a call site resolves to a
+  member of the `FeatureKeys` / `LimitKeys` registries. A key constructed anywhere else —
+  a free-form string at a call site, a key invented in a payload — fails the build.
+- **Canonical name.** No `s` after `Key`: the rule matches `FeatureKey` **references**,
+  not `FeatureKeys.*` string constants
+  ([ADR-0021 Amendment 1](../decisions/0021-feature-based-entitlement.md)). One document
+  already cites this catalogue as its home —
+  [26-hybrid-license-model.md § 0 and § 10](../architecture/26-hybrid-license-model.md) —
+  and until this row existed, it cited a row that did not.
+- **Source:** ADR-0021 Amendment 1;
+  [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md);
+  [21-feature-flags.md](../architecture/21-feature-flags.md).
+- **Type:** xUnit + source scan over `FeatureKey` / `LimitKey` construction sites.
+  **Kind:** structural.
+- **Status:** **Registered** — the registries ship in Packet 9, carrying only the keys the
+  corpus already names.
+- **Phase:** 02a (Packet 10).
+
+#### `PlanProjected_Keys_NotInTenantFlags`
+
+- **Asserts:** no key whose catalog descriptor declares a plan-projected `Source` is
+  written to `tenant_feature_flags`. The registry's `Source` descriptor is the join: a
+  plan-projected key resolves through `IEntitlementProvider`, a tenant-flag key through
+  the table, and never the other way round.
+- **Why it matters:** the two halves answer with different authority. A plan-projected key
+  served from the tenant table is a tenant editing its own entitlement, which is the one
+  thing the projection exists to prevent.
+- **Source:** [ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md);
+  [21-feature-flags.md](../architecture/21-feature-flags.md).
+- **Type:** xUnit + reflection over the key registries, cross-checked against the
+  `tenant_feature_flags` write path. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 10).
 
@@ -1344,7 +1396,10 @@ because the filters hold, and removing both turns all five red.
 ### Audit
 
 Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
-(supersedes ADR-0016); [18-audit-coverage.md](18-audit-coverage.md). Introduced by
+(supersedes ADR-0016; Amendment 2 restates its write path against the code that shipped
+after it) and [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md),
+which decides identity, multiplicity, capture and classification;
+[18-audit-coverage.md](18-audit-coverage.md). Introduced by
 [Phase 02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md).
 
 #### `AuditEntry_Inherits_Entity_Not_AuditableEntity`
@@ -1361,9 +1416,21 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
 
 - **Asserts:** a MUST-class audit row is inserted on the **same transaction** as the
   business write it records. The proof is behavioural: one command produces exactly one
-  `audit_log` row; a command whose durable audit write is forced to fail produces **zero**
-  business rows and returns `503 audit_unavailable`; a denied MUST-class command produces
-  exactly one row carrying the `denied` outcome and zero business rows.
+  row **per declared intent**, all on that transaction — `ProvisionTenantCommand` declares
+  two, `tenancy.tenant.create` and `tenancy.organization.create`, and produces two; a
+  command whose durable audit write is forced to fail produces **zero** business rows and
+  returns `503 audit_unavailable`; a denied MUST-class command produces exactly one row
+  carrying the `denied` outcome and zero business rows, and keeps its own `403` — the 503
+  is for a write that would otherwise have **succeeded**
+  ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
+- **One row per intent, not one per request.** `IAuditStateCapture` holds an ordered list
+  of intents, one per audited `(resource, operation)`, and only the **owning**
+  unit-of-work frame (`IUnitOfWorkScope.IsOwner`) flushes it — draining every intent in
+  the scope rather than only its own. A joiner writes nothing and signals nothing
+  ([ADR-0044 § 3 and § 4](../decisions/0044-audit-write-path.md)). "Exactly one
+  `audit_log` row per command" was this row's earlier assertion and is retired: it makes
+  the `Organization | create` row [the Tenancy matrix](../modules/tenancy/audit.md)
+  classifies MUST unwritable.
 - **Why it matters:** ADR-0016's "audit never blocks business logic" applied uniformly,
   which meant a privileged operation could commit while its audit row was lost. It also
   meant the audit insert could run outside the transaction that sets `app.tenant_id` —
@@ -1371,17 +1438,25 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
   the commit boundary, and this test is what holds the line.
 - **Runs as `learnstack_app`.** A non-owning, `NOBYPASSRLS` role; connecting as the owner
   would pass against inert policies and prove nothing about the RLS half of the claim.
-- **Source:** ADR-0033 § Decision + Implementation Notes.
+- **Source:** ADR-0033 § Decision + Implementation Notes, Amendments 1 and 2;
+  [ADR-0044 § 3, § 4, § 11](../decisions/0044-audit-write-path.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
 
 #### `Audit_Survives_Transaction_Rollback`
 
-- **Asserts:** a MUST-class command whose transaction rolls back produces **zero**
-  business rows and **exactly one** `audit_log` row, with outcome `failed`. Two cases: a
-  forced fault at `COMMIT`, and the ordinary path where the handler calls `SaveChanges`
-  and then returns `Result.Fail(...)`.
+- **Asserts:** a MUST-class command whose transaction does not commit still leaves the
+  record behind, and the row says **which** of the two happened:
+  - a **rollback** — including the ordinary path where the handler calls `SaveChanges`
+    and then returns `Result.Fail(...)` — produces **zero** business rows and **exactly
+    one** `audit_log` row per declared intent, outcome **`failed`**;
+  - a **faulted `COMMIT`**, whose server-side result is unknown, produces the standalone
+    re-write with outcome **`indeterminate`**, carrying the **same** `AuditEntryId` as
+    the in-transaction attempt and a **fresh** `IClock` reading — which is what keeps the
+    deliberate duplicate-id pair legal under the composite primary key `(id, timestamp)`.
+    A `23505` on that re-write is positive evidence the `COMMIT` landed: it is logged at
+    `Warning`, counted and swallowed, never surfaced as `audit_unavailable`.
 - **Why it matters:** the durable write happens before `COMMIT`, so a row that has been
   inserted is not yet durable. A design that marks the intent "consumed" at insert time
   and skips the standalone write on the way out loses the audit **and** the business
@@ -1389,7 +1464,8 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
   cannot observe a database rollback. This test is the only thing that distinguishes a
   correct implementation from that one.
 - **Runs as `learnstack_app`.**
-- **Source:** ADR-0033 § Decision.
+- **Source:** ADR-0033 § Decision and Amendment 2;
+  [ADR-0044 § 5](../decisions/0044-audit-write-path.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
@@ -1419,33 +1495,91 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
   `42501` (the role holds neither privilege). As `learnstack_platform`, an `UPDATE`
   touching only `actor_email`, `ip_address`, `user_agent`, `before_state`, `after_state`
   and `changes` succeeds; an `UPDATE` touching any other column — `actor_user_id`,
-  `operation`, `outcome`, `timestamp` — is rejected by `audit_log_append_only_guard`; and
-  a `DELETE` succeeds, because the retention purge needs it.
+  `operation`, `outcome`, `timestamp` — is rejected before the trigger runs, by the
+  **column-level GRANT**; and a `DELETE` succeeds, because the retention purge needs it.
+  As the table **owner** (`learnstack_migration`), the same off-list `UPDATE` is stopped
+  **only** by `audit_log_append_only_guard`.
+- **Three layers, three different actors** — measured on PostgreSQL 18.6
+  ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)): `learnstack_app` is stopped by
+  the absent privilege (`42501`); `learnstack_platform` by the column-level GRANT; and the
+  owner — who holds every privilege implicitly, and whom `FORCE` constrains by tenant
+  rather than by immutability — by the trigger.
+  The trigger is not redundant with the grant — it is the only layer that binds
+  `learnstack_migration`, which is the role every migration runs as.
 - **Why it matters:** "append-only" stated as "no `UPDATE` or `DELETE` anywhere" is
   unimplementable — the corpus itself ships two mutating paths (GDPR redaction, retention
   purge). This test pins what is actually allowed so the rule is enforceable rather than
   aspirational.
-- **Source:** ADR-0033; [18-audit-coverage.md § Storage](18-audit-coverage.md);
+- **Source:** ADR-0033; [ADR-0044 § 9](../decisions/0044-audit-write-path.md);
+  [18-audit-coverage.md § Storage](18-audit-coverage.md);
   [31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
 
+#### `AuditStateCapture_ClearedPerRequest`
+
+- **Asserts:** after a request completes, success or failure, the scoped
+  `IAuditStateCapture` holds no changes and no intent, and its state reads `None` for the
+  next request. `Clear()` is called exactly once, by the **outermost** `AuditLogBehavior`,
+  in its `finally`.
+- **A joiner never clears.** Under [ADR-0040](../decisions/0040-ambient-unit-of-work.md)
+  a nested dispatch reaches a joiner frame, and a joiner that cleared would erase the
+  outer request's intents and every snapshot **before** the owner committed — the same
+  hole [ADR-0044 § 4](../decisions/0044-audit-write-path.md) closes for the write and the
+  commit signal. The nested case is therefore part of the assertion, not a variant of it.
+- **Source:** [ADR-0033 Amendment 2 § 2](../decisions/0033-audit-durability-model.md);
+  [ADR-0044 § 4](../decisions/0044-audit-write-path.md);
+  [31-audit-subsystem.md § 13](../architecture/31-audit-subsystem.md), which names this
+  rule as blocker-level.
+- **Type:** xUnit over the behavior and the scoped capture, with a nested-dispatch case.
+  **Kind:** behavioural.
+- **Status:** **Registered.** Named as blocker-level in architecture 31 § 13 since that
+  section was written, and carried by no catalogue row until ADR-0044 registered it here
+  — the drift this document exists to prevent, in its own subject area.
+- **Phase:** 02a (Packet 9).
+
 #### `Every_TenantOwned_Command_HasAuditCoverage`
 
-- **Asserts:** every command touching a `[TenantOwned]` aggregate appears in its
-  module's audit-coverage matrix with a MUST / SHOULD / MAY classification. An
-  unclassified command fails the build rather than defaulting to silence.
-- **Source:** [18-audit-coverage.md](18-audit-coverage.md); ADR-0033.
-- **Type:** xUnit + reflection over commands cross-checked against the matrix.
-  **Kind:** structural.
+- **Asserts:** every command touching a `[TenantOwned]` aggregate is classified, with a
+  MUST / SHOULD / MAY class, in the **in-code** audit catalogue — the one each module
+  registers through `IAuditCatalogSource.Describe(IAuditCatalogBuilder)`, discovered from
+  DI, which maps a **request type** to one or more `(operation, OperationType,
+  OperationClass)` triples. An unclassified command fails the build rather than defaulting
+  to silence, and at runtime reaching step 3 unclassified is
+  `audit_unclassified_operation` — there is no `RequestKind.Other`.
+- **The join key it lacked.** The key is `(module, operation)`, where `operation` is the
+  dotted slug `{module}.{resource}.{verb}` — `tenancy.tenant.create`,
+  `customization.content_type.publish`. The rule joins on the **request type** in code,
+  then cross-checks in both directions against the `Operation` column of
+  `docs/modules/<module>/audit.md`: a matrix row with no catalogue entry fails, and a
+  catalogue entry with no matrix row fails.
+- **It is a structural rule over the catalogue, not a Markdown parser.** The comparison
+  reads one column of slugs; it does not legislate a matrix grammar, which the two shipped
+  matrices do not share and which would make every documentation edit a potential build
+  break. The catalogue is the executable artifact, the matrix is the human-readable one,
+  and neither is derived from the other — so neither can drift silently
+  ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)).
+- **The verb is not the permission action set, deliberately.** Audit verbs come from the
+  module's own coverage matrix — `create`, `publish`, `revise`, `rename`, `soft_delete`,
+  … — because a set closed at Standards 19's `read | write | delete | admin` would
+  record a rename and a publication as one operation. Only `{module}` and `{resource}` are
+  required to match the permission key for the same resource; see
+  [19-permissions.md](19-permissions.md) for the permission side of the pair.
+- **Source:** [18-audit-coverage.md](18-audit-coverage.md); ADR-0033;
+  [ADR-0044 § 6](../decisions/0044-audit-write-path.md).
+- **Type:** xUnit + reflection over commands and the registered catalogue, cross-checked
+  against the matrix's `Operation` column. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Module_Has_An_AuditCoverage_Matrix`
 
 - **Asserts:** every module directory contains `docs/modules/<module>/audit.md` with a
-  parseable coverage matrix.
+  coverage matrix. The file's existence is the assertion; the one column read from it is
+  `Operation`, and reading it is
+  [`Every_TenantOwned_Command_HasAuditCoverage`](#every_tenantowned_command_hasauditcoverage)'s
+  job, not this rule's.
 - **Source:** [18-audit-coverage.md](18-audit-coverage.md).
 - **Type:** xUnit + file scan. **Kind:** structural.
 - **Status:** **Registered.**
@@ -1453,9 +1587,31 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
 
 #### `Modules_Do_Not_Write_AuditLog_Directly`
 
-- **Asserts:** no module assembly references the `audit_log` table or the `AuditEntry`
-  type outside `LearnStack.Infrastructure.Audit`. `IAuditStore` is the only write path.
+- **Asserts:** no module assembly **other than `LearnStack.Modules.Audit.*`** names the
+  `audit_log` table or the `AuditEntry` type, with one further exclusion — a module's
+  registered `IUserReferenceLocator`, whose column-restricted redaction `UPDATE`s are
+  enumerated by [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly). `IAuditStore` —
+  implemented by `PostgresAuditStore` in `LearnStack.Infrastructure.Audit` — is the only
+  path by which a module writes an audit row of its own. Inside the Audit module, direct
+  `audit_log` SQL is confined to `LearnStack.Modules.Audit.Infrastructure` and bounded by
+  that same closed list.
+- **Why the exclusions are named.** `AuditEntry`, `AuditConfig` and `AuditDbContext` live
+  in the Audit module ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)), so a rule
+  reading "no module assembly, outside `LearnStack.Infrastructure.Audit`" forbade the
+  assembly the corpus puts the aggregate in — and contradicted the entry below,
+  [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), which names the sites where a
+  mutating statement may appear. The locators are the second exclusion and the one the
+  Audit-module wording alone would miss: each lives in the module whose snapshots carry
+  the user reference, so a rule bounded by `LearnStack.Modules.Audit.*` would fail on the
+  first locator [Phase 03](../roadmap/phase-03-identity-admin.md) lands. Naming both makes
+  the pair say one thing; widening the list past them requires an ADR.
+- **Out of scope:** `AuditEntryId` and the `LearnStack.SharedKernel.Audit` ports
+  (`IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent`). Every module
+  may name those — `AuditEntryId` is a SharedKernel cross-cutting identifier
+  ([ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)) — so a
+  scan matching type names by prefix would flag the id for the aggregate's sake.
 - **Source:** ADR-0033 (carried from ADR-0016);
+  [ADR-0044 § 11](../decisions/0044-audit-write-path.md);
   [20-infrastructure-stack.md § Audit Plumbing](20-infrastructure-stack.md).
 - **Type:** xUnit + NetArchTest + SQL scan. **Kind:** structural.
 - **Status:** **Registered.**
@@ -1464,28 +1620,68 @@ Source: [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-mod
 #### `AuditEntry_Is_AppendOnly`
 
 - **Asserts:** no `UPDATE` or `DELETE` statement targets `audit_log` anywhere in the
-  codebase or in any migration **except** inside
-  `LearnStack.Modules.Audit.Infrastructure` — the GDPR redaction handler, the per-module
-  `IUserReferenceLocator` implementations, and the retention purge job. Every such site
-  must be inside an `IPlatformAdminScope` block. `IAuditStore` is asserted to expose no
-  update method at all.
+  codebase or in any migration **except** at three named sites: the GDPR redaction
+  handler and the retention purge job, both in `LearnStack.Modules.Audit.Infrastructure`,
+  and a module's registered `IUserReferenceLocator`, which redacts the payload columns of
+  its own module's snapshots and therefore lives in that module rather than in the Audit
+  one ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)). Every such
+  site must be inside an `IPlatformAdminScope` block. `IAuditStore` is asserted to expose
+  no update method at all.
 - **Why the exception list is closed and named:** the earlier phrasing ("anywhere in the
-  codebase") contradicted two paths the corpus ships by design and would have failed on
-  its first green run. Naming the two sites keeps the rule enforceable; widening the list
-  requires an ADR. The database-level guard is
+  codebase") contradicted paths the corpus ships by design and would have failed on its
+  first green run. Naming the three sites keeps the rule enforceable and gives
+  [`Modules_Do_Not_Write_AuditLog_Directly`](#modules_do_not_write_auditlog_directly) the
+  same sites to exclude; widening the list requires an ADR. The database-level guard is
   [`AuditLog_Update_Is_Column_Restricted`](#auditlog_update_is_column_restricted), which
   is what actually constrains *which columns* may change.
-- **Source:** ADR-0033 (carried from ADR-0016).
+- **Source:** ADR-0033 (carried from ADR-0016);
+  [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
 
+#### `Every_PII_Module_RegistersUserReferenceLocator`
+
+- **Asserts:** every module whose audit payloads carry a user reference registers an
+  `IUserReferenceLocator` implementation. A module that stores such a reference and ships
+  no locator leaves rows a GDPR erasure cannot reach — the redaction handler redacts the
+  actor columns centrally and delegates the payload columns to the module that knows
+  which JSON paths in its own snapshots name a user
+  ([31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md)).
+- **Registered here, asserted in Phase 03.** `IUserReferenceLocator` and
+  `UserGdprDeletedIntegrationEventHandler` land with the `users` table they need
+  ([ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md)), so
+  until then there is no locator to count and no module obliged to have one. The name is
+  registered now because
+  [31-audit-subsystem.md § 13](../architecture/31-audit-subsystem.md) lists it as
+  blocker-level and says this catalogue registers it — an unregistered rule is how a
+  second spelling starts.
+- **Source:** [31-audit-subsystem.md § 10 and § 13](../architecture/31-audit-subsystem.md);
+  [ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md).
+- **Type:** xUnit + reflection over the registered locators, cross-checked against the
+  modules whose audit payloads carry a user reference. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 03 — the phase that lands the interface and the handler that drives it.
+
 #### `OperationType_Enum_Matches_Catalog`
 
 - **Asserts:** the `OperationType` enum and the audit-operation catalogue in
-  [18-audit-coverage.md](18-audit-coverage.md) contain the same members.
+  [18-audit-coverage.md § Operation Types](18-audit-coverage.md) contain the same members.
+- **Both sides carry seven.** The enum in
+  [31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md) — `Create`,
+  `Update`, `Delete`, `ReadSensitive`, `SecurityEvent`, `PlatformAdmin`, `Action` —
+  matches [18-audit-coverage.md § Operation Types](18-audit-coverage.md) row for row.
+  `platform-admin` does **not** subsume `action`:
+  [ADR-0016's 2026-05-19 amendment](../decisions/0016-audit-log-subsystem.md) adds the
+  first beside the second and calls the resulting seven-member enum binding. Adding an
+  eighth type is a change to that table first; a member present on one side only is what
+  this rule fails the build on.
+- **Not the classification catalogue.** This rule reads the seven-row
+  `OperationType` table, not a module's coverage matrix — so it is unaffected by
+  [ADR-0044 § 6](../decisions/0044-audit-write-path.md)'s move of *classification* into
+  code, and it legislates no matrix grammar.
 - **Source:** ADR-0033 (carried from ADR-0016).
-- **Type:** xUnit + reflection + Markdown parse. **Kind:** structural.
+- **Type:** xUnit + reflection + a parse of that one table. **Kind:** structural.
 - **Status:** **Registered.**
 - **Phase:** 02a (Packet 9).
 
@@ -1545,21 +1741,41 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
   `NullEntitlementProvider`, `HubEntitlementProvider`,
   `SignedLicenseKeyEntitlementProvider` — and the composition root selects one by
   `DeploymentMode`.
-- **Source:** ADR-0020; ADR-0034.
+- **It bounds the ceiling; it does not require the count.** One implementation exists
+  today and the rule is not vacuous: a **fourth** implementation fails it now. The second
+  lands in Phase 02c and the third in
+  [Phase 11](../roadmap/phase-11-production-hardening.md), and the composition-root
+  clause describes the end state — until
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s trigger fires,
+  `NullEntitlementProvider` is what every mode registers
+  ([ADR-0020 Amendment 2026-09-07](../decisions/0020-triple-deployment-hybrid-license.md)).
+- **Source:** ADR-0020 (and its 2026-09-07 Amendment); ADR-0034;
+  [ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Registered** — vacuous until the second implementation exists; only
-  `NullEntitlementProvider` ships before Phase 02c
-  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+- **Status:** **Registered.**
 - **Phase:** 02c.
 
 #### `NullEntitlementProvider_NotRegistered_OutsideDevelopment`
 
-- **Asserts:** once Phase 02c lands, `NullEntitlementProvider` is registered only under
-  `DeploymentMode.Development`.
-- **Source:** ADR-0020; ADR-0035 § Implementation Notes.
+- **Asserts:** for each `DeploymentMode`, once that mode's own `IEntitlementProvider`
+  implementation exists, `NullEntitlementProvider` is no longer registered for it —
+  leaving `Development`, the one mode that keeps it permanently, as the end state the
+  rule's name describes.
+- **It asserts nothing in Phase 02a, by decision.** Packet 9 registers
+  `NullEntitlementProvider` in **every** deployment mode — it is the gate's working
+  default implementation under
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md), and a mode-conditional
+  registration would make four of the five modes unbootable for a capability none of them
+  yet uses. The rule binds per mode, from the phase that lands that mode's own
+  implementation: Phase 02c for the three Hub-backed modes,
+  [Phase 11](../roadmap/phase-11-production-hardening.md) for `SelfHostedAirGapped`
+  ([ADR-0020 Amendment 2026-09-07](../decisions/0020-triple-deployment-hybrid-license.md);
+  [ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+- **Source:** ADR-0020 (and its 2026-09-07 Amendment); ADR-0035 § Implementation Notes.
 - **Type:** xUnit + service-collection inspection per mode. **Kind:** structural.
 - **Status:** **Registered.**
-- **Phase:** 02c.
+- **Phase:** 02c for the three Hub-backed modes — `SaaS`, `Dedicated`,
+  `SelfHostedOnline`; 11 for `SelfHostedAirGapped`.
 
 #### `LicenseKey_Validation_Is_Pinned_RSA2048`
 
@@ -2477,7 +2693,14 @@ structural test proves — and what it does not.
   [Phase 02b](../roadmap/phase-02b-events-auth.md), and the Platform-scope permission
   with the Identity module in [Phase 03](../roadmap/phase-03-identity-admin.md). So
   nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
-  this packet ships — Packet 9's GDPR redaction is the first real caller and inherits it.
+  this packet ships. Packet 9 brings the first real entry and inherits the gate: the
+  platform-scope `security-event` row the scope writes on entry through
+  `IAuditStore.WritePlatformScopeAsync`
+  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)), and the
+  `tenancy.killswitch.toggle` write that scope guards
+  ([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)). The GDPR
+  redaction handler is not that caller: it lands in
+  [Phase 03](../roadmap/phase-03-identity-admin.md) with the `users` table it needs.
 
   *Marker clause, still vacuous — but for a narrower reason since Packet 7 step 9:* no
   handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.

@@ -1,6 +1,6 @@
 # Feature Flags & Entitlements
 
-LearnStack distinguishes two related-but-separate concerns at the same read interface:
+LearnStack distinguishes three related-but-separate concerns behind one read interface:
 
 - **Plan-level features and limits** are projected from the **Hub** into the
   `platform_entitlement_cache` table per
@@ -11,14 +11,19 @@ LearnStack distinguishes two related-but-separate concerns at the same read inte
   plan editor**, not by tenants.
 - **Per-tenant feature flags** are owned by the Tenancy module's
   `tenant_feature_flags` table. They answer: *should this tenant get this code path
-  right now?* — gradual rollouts, killswitches, and per-tenant experimental opt-ins.
-  They are managed by **platform admins** (and, where the flag is explicitly tenant-
-  overridable, by tenant admins).
+  right now?* — gradual rollouts and per-tenant experimental opt-ins. They are managed
+  by **platform admins** (and, where the flag is explicitly tenant-overridable, by
+  tenant admins).
+- **Killswitches** belong to neither source. They answer: *is this code path safe to run
+  at all right now?* — one platform-wide row per key in `platform_killswitches`, with no
+  tenant column and no foreign key, flipped by **platform admins** during an incident
+  ([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)). See
+  § Killswitch Pattern.
 
-A single `IFeatureFlags` interface reads from both sources with a defined precedence so
-caller code doesn't care which storage backs the answer. This document defines the
-catalog, the runtime, the lifecycle, and the rules that prevent flags from becoming
-permanent technical debt.
+A single `IFeatureFlags` interface reads both sources and applies the killswitch overlay
+last, in a defined precedence, so caller code doesn't care which storage backs the
+answer. This document defines the catalog, the runtime, the lifecycle, and the rules
+that prevent flags from becoming permanent technical debt.
 
 ## Scope
 
@@ -88,12 +93,15 @@ Rules:
 
 - Keys are dotted: `{scope}.{feature}.{name}`.
 - Plan-level keys (`FeatureKeys.*` whose catalog descriptor marks them as
-  plan-projected) **never** appear in `tenant_feature_flags`; they read only from
-  `platform_entitlement_cache`. A direct write to `tenant_feature_flags` for such a key
-  fails an architecture test.
+  plan-projected) **never** appear in `tenant_feature_flags`; they resolve only through
+  `IEntitlementProvider`, which owns the projection's storage. A direct write to
+  `tenant_feature_flags` for such a key fails an architecture test.
 - Tenant-flag-level keys default to `false` and can be set per tenant.
-- Limit keys are `long`; default `0` means "no limit imposed by this layer" — the API's
-  policy can still cap.
+- Limit keys are `long`, and the sentinel encoding is normative
+  ([ADR-0045 § 3](../decisions/0045-entitlement-and-feature-flag-socket.md)): `-1` is
+  unlimited, `0` is denied — the plan grants no allowance at all — and any value `> 0`
+  is the allowance. A key absent from the projection resolves to its catalog default,
+  which each `LimitKey` declares.
 - Killswitch keys default to `true` (the safe / enabled state); flipping to `false`
   short-circuits the gated path.
 - Adding a key requires a comment in the catalog file linking to the ADR / phase that
@@ -103,7 +111,9 @@ Rules:
 
 ## Storage
 
-Two tables, both in the Tenancy module schema:
+Two tables, both in the Tenancy module schema. A third, `platform_killswitches`, joins
+them in Packet 9 and is described with the pattern it serves — see § Killswitch
+Pattern.
 
 ```sql
 -- Tenant-level flag overrides (experimental, rollout, opt-in).
@@ -160,8 +170,10 @@ rendering is in the `learnstack-hub` repository's
 
 Rules:
 
-- `tenant_id = NULL` is **not** allowed. Platform-wide flags use a sentinel "platform"
-  tenant id, never `NULL`.
+- `tenant_id = NULL` is **not** allowed, and neither is the platform sentinel:
+  `tenant_feature_flags` carries `fk_tenant_feature_flags_tenant FOREIGN KEY (tenant_id)
+  REFERENCES tenants (id)`, which a sentinel with no `tenants` row cannot satisfy.
+  Platform-wide switches live in `platform_killswitches` instead.
 - The Hub is the **owner** of `platform_entitlement_cache`; the LearnStack core only
   reads + invalidates. Writes happen through `IEntitlementProvider.RefreshAsync`
   only, driven by the HTTP push (`PUT /api/internal/tenants/{id}/entitlements`) or by a
@@ -170,9 +182,14 @@ Rules:
   ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). See
   [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
   [29-dapr-integration.md](29-dapr-integration.md).
-- `ICacheService` fronts both tables for hot-path reads. Today that is the process-local
-  `InMemoryCacheService`; Phase 11 adds Valkey-backed L2 and cross-instance invalidation
-  when ADR-0035's replica trigger fires.
+- `ICacheService` fronts `tenant_feature_flags` and the killswitch overlay for hot-path
+  reads. Today that is the process-local `InMemoryCacheService`; Phase 11 adds
+  Valkey-backed L2 and cross-instance invalidation when ADR-0035's replica trigger fires.
+  Caching of the plan half belongs to the `IEntitlementProvider` implementation instead:
+  `NullEntitlementProvider` answers from constants and touches no table, and Phase 02c's
+  `HubEntitlementProvider` implements the L1 → L2 → durable → Hub order that
+  [ADR-0034 § The entitlement read path](../decisions/0034-hub-contract-surface-invariant.md#the-entitlement-read-path)
+  declares normative.
 
 ## Evaluation
 
@@ -190,9 +207,11 @@ Resolution precedence for `IsEnabledAsync(FeatureKey key, ct)`:
    (`TenantContextMissingException`). Hub admin / Self-Hosted operator paths that
    genuinely need to read cross-tenant go through a separate
    `IEntitlementAdminQuery` interface.
-2. **If the key's catalog descriptor says `Source = PlanProjected`:** read from
-   `platform_entitlement_cache.features` (via `ICacheService` → Postgres). A missing entry
-   resolves to the catalog default. Per-tenant `tenant_feature_flags` are **never**
+2. **If the key's catalog descriptor says `Source = PlanProjected`:** resolve through
+   `IEntitlementProvider.GetAsync(tenantId)` — never by reading
+   `platform_entitlement_cache`, whose storage belongs to the provider that owns it
+   ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)). A missing
+   entry resolves to the catalog default. Per-tenant `tenant_feature_flags` are **never**
    consulted for plan-projected keys.
 3. **If the key's catalog descriptor says `Source = TenantFlag`:** read from
    `tenant_feature_flags` (via `ICacheService` → Postgres). Missing entry → catalog
@@ -203,13 +222,22 @@ Resolution precedence for `IsEnabledAsync(FeatureKey key, ct)`:
 5. Resolution is logged at `Debug` (sampled) with `flag_key`, `tenant_id`, `value`,
    `source` (`plan`, `tenant`, `killswitch`, `default`).
 
-`GetLimitAsync` reads only from `platform_entitlement_cache.limits` and ignores
-`tenant_feature_flags` — limits are always plan-projected.
+`IFeatureFlags` therefore **composes** rather than queries: it asks the provider for the
+plan half, reads `tenant_feature_flags` for the tenant half, applies the overlay, and
+caches. Swapping the registered `IEntitlementProvider` changes the answer without
+touching module code.
+
+`GetLimitAsync` resolves through the same provider and ignores `tenant_feature_flags` —
+limits are always plan-projected. It returns `long`, never `long?`: "not projected" is
+not a third state a caller can act on, so an absent key resolves to its catalog
+default.
 
 Architecture tests:
 
-- Direct SQL reads against `tenant_feature_flags` or `platform_entitlement_cache`
-  outside the Tenancy module's infrastructure are forbidden.
+- `platform_entitlement_cache` is read **and** written by an `IEntitlementProvider`
+  implementation and by nothing else — no module, Tenancy included
+  (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). Direct SQL against
+  `tenant_feature_flags` outside the Tenancy module's infrastructure is forbidden.
 - A key must exist in `FeatureKeys` / `LimitKeys` before `IFeatureFlags` can reference
   it (compile-time guarantee through `FeatureKey` / `LimitKey` value objects).
 - Tests that depend on a flag use `FeatureFlagsFixture` (overrides), not direct DB
@@ -222,11 +250,16 @@ Architecture tests:
 Each `LimitKey` in the catalog declares a `LimitEnforcement` (`Soft` | `Hard`):
 
 - **Hard** — the gated operation refuses with `403 ProblemDetails`
-  `type=urn:learnstack:errors:limit-exceeded` when current >= limit. Example:
-  `MaxLearners`.
+  `type=urn:learnstack:errors:limit-exceeded` when the limit is `> 0` and current usage
+  has reached it. `-1` never refuses and `0` refuses outright. Example: `MaxLearners`.
 - **Soft** — the operation succeeds; a banner is surfaced and a Hub-side
   `usage.alert.soft_limit_reached` event is emitted to the Hub via
   `POST /api/v1/usage/report`. Example: `MaxClassroomMinutesPerMonth`.
+
+Packet 9 ships the descriptor and the read; the **enforcement path** — the `403` and the
+usage signal — lands in [Phase 02c](../roadmap/phase-02c-hub-foundation.md), the first
+phase in which `IUsageReporter` and `POST /api/v1/usage/report` exist for a soft limit to
+report to. Each individual gate ships with the feature it gates, never speculatively.
 
 The frontend's `useLimit(key)` hook surfaces both `current` / `limit` and the
 enforcement mode so the UI can present the right message.
@@ -234,14 +267,53 @@ enforcement mode so the UI can present the right message.
 ## Killswitch Pattern
 
 A killswitch is a `KillswitchKeys.*` entry whose default is `true` and that gates an
-expensive code path. When triggered, it is flipped to `false` for the sentinel
-"platform" tenant. Examples:
+expensive code path. When triggered, it is flipped to `false` platform-wide. Examples:
 
 - `KillswitchKeys.RecordingEnabled` — flip off during a storage incident.
 - `KillswitchKeys.EmailDispatchEnabled` — flip off during an upstream email provider
   outage.
 - `KillswitchKeys.AnalyticsIngestEnabled` — flip off when the analytics pipeline is
   back-pressured.
+
+**A killswitch is not tenant data and does not live in `tenant_feature_flags`**
+([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)). That table's
+`fk_tenant_feature_flags_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)` cannot
+be satisfied by the platform sentinel, which
+[ADR-0044](../decisions/0044-audit-write-path.md) keeps out of `tenants` by `CHECK`. A
+foreign key is a constraint and not a policy, so neither `learnstack_platform` nor
+`BYPASSRLS` moves it.
+
+Killswitches ship instead as `platform_killswitches`, a platform-scoped table Packet 9
+adds to the Tenancy migration chain:
+
+```sql
+-- One platform-wide switch per key. No tenant column and no foreign key: a killswitch
+-- belongs to no tenant, so there is nothing for a tenant predicate to isolate.
+CREATE TABLE platform_killswitches (
+    key         text PRIMARY KEY,
+    is_enabled  boolean NOT NULL,
+    reason      text NULL,
+    toggled_at  timestamptz NOT NULL,
+    toggled_by  uuid NULL
+);
+```
+
+- **Policies** are role-qualified in the `platform_host_to_tenant` shape, with the read
+  widened rather than keyed — a killswitch is global by construction, and hiding it from
+  the role that must honour it would only fail open. Every write is reserved to
+  `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, which
+  is what gives `tenancy.killswitch.toggle` a real actor. The class and its policy DDL
+  live in [Database Standards § Table classes](../standards/05-database.md); the clauses
+  are deliberately not restated here.
+- **Reads go through the L1 cache**, not to the table per request, and are invalidated on
+  toggle. Holding the answer needs a second allowed platform cache-key family,
+  `platform:tenancy:killswitch`; `CacheKey.EnsureValid` admits that family and the host
+  mapping, and nothing else.
+- **A read failure resolves to the key's default** — `true`, the enabled state — and
+  logs at `Error`. A cache outage must not disable every gated path platform-wide.
+- **The toggle is eventually consistent** across instances, bounded by the cache TTL and
+  the invalidation event. A flip is not instantaneous, which is worth knowing before the
+  incident the killswitch exists for.
 
 A killswitch always pairs with a runbook entry in `docs/runbooks/` describing when to
 use it and how to restore. The killswitch overlay in `IFeatureFlags` resolution wins
@@ -300,13 +372,23 @@ Both surfaces are MUST-audit security-events (see
 
 ## Roadmap Touchpoints
 
-- **Phase 02a** — `tenant_feature_flags` table created in the Tenancy module; the
-  `FeatureKeys` / `LimitKeys` / `KillswitchKeys` catalogs land here. `IFeatureFlags`,
-  the `ICacheService`-backed L1 cache, and the architecture tests ship here.
-- **Phase 02c** (parallel Hub Foundation) —
-  `platform_entitlement_cache`, `IEntitlementProvider` with `NullEntitlementProvider`
-  default + `HubEntitlementProvider` + `SignedLicenseKeyEntitlementProvider`
-  implementations. The HTTPS projection push is the refresh path here.
+- **Phase 02a Packet 6** — `tenant_feature_flags` **and** `platform_entitlement_cache`
+  created in the Tenancy migration chain, with their policies and grants. Both ship
+  there; Packet 9 gives them their reader.
+- **Phase 02a Packet 9** — the socket
+  ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)):
+  `IEntitlementProvider` + `EntitlementProjection` + `NullEntitlementProvider`;
+  `IFeatureFlags` and its Tenancy implementation over the `ICacheService`-backed L1
+  cache; the `FeatureKeys` / `LimitKeys` / `KillswitchKeys` catalogs, each key carrying
+  its `Source`, its default and — for a `LimitKey` — its `LimitEnforcement`;
+  `platform_killswitches`, the overlay and its cache family; the architecture tests.
+- **Phase 02c** (parallel Hub Foundation) — `HubEntitlementProvider` and the HTTPS
+  projection push (`PUT /api/internal/tenants/{id}/entitlements`) that drives
+  `RefreshAsync`. Limit **enforcement** lands here too — the `403` refusal and the
+  `usage.alert.soft_limit_reached` signal — alongside `IUsageReporter` and
+  `POST /api/v1/usage/report`. `IEntitlementAdminQuery` ships with the operator surface
+  that needs it. `SignedLicenseKeyEntitlementProvider` lands here as a skeleton; its
+  operational hardening is [Phase 11](../roadmap/phase-11-production-hardening.md).
 - **Phase 06** — Admin Studio surface for editing per-tenant flag overrides and
   viewing the entitlement projection. The Studio screen for `platform_entitlement_cache`
   is **read-only** — actual plan edits happen in the operator portal
@@ -319,9 +401,13 @@ Both surfaces are MUST-audit security-events (see
 
 ## References
 
+- [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
+  — the port, the read interface, the limit sentinel and the killswitch table.
 - [ADR-0021 Feature-Based Entitlement Model](../decisions/0021-feature-based-entitlement.md)
 - [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
+- [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md) — the platform
+  sentinel tenant id, and the MUST-class row a `tenancy.killswitch.toggle` writes.
 - [24-learnstack-hub.md](24-learnstack-hub.md) — Hub plan editor and the source of the
   entitlement projection.
 - [25-deployment-models.md](25-deployment-models.md) — how each deployment mode loads

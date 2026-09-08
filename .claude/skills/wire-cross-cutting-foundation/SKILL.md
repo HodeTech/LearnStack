@@ -57,7 +57,7 @@ tests pass.
 | `DeploymentMode` | Yes | Determines `IErrorTrackingProvider` + OTLP exporter target. |
 | Sentry DSN source | Conditional | If `DeploymentMode ∈ { SaaS, Dedicated, SelfHostedOnline }` and Sentry is enabled, the DSN comes from `ISecretProvider`. |
 | OTel Collector endpoint | Yes (non-Dev) | OTLP gRPC endpoint; falls back to a local file exporter in `SelfHostedAirGapped`. |
-| Module list | Yes | The set of modules the host loads — each module's `IModule.RegisterServices` must be called after the foundation registers. |
+| Module list | Yes | The modules the host loads. Their assembly markers go to `AddLearnStackMediatRPipeline` (one call, all modules) and their `DbContext`s to `AddModuleDbContext<T>()`. There is no `IModule` and no per-module `Add<Module>Module` extension; from Packet 9 a module also owns an `IAuditCatalogSource`. |
 
 ## Workflow
 
@@ -307,9 +307,11 @@ Warning in Phase 02a, escalates to Error after Phase 03 exit.
 
 ### Step 12: Register module services last
 
-Each module's `IModule` registration runs **after** the foundation is in
-place, so behaviors and instrumentation are already wired before
-module-specific code lights up:
+Module assemblies reach the foundation as arguments, not as separate registration
+calls. `AddLearnStackCrossCuttingFoundation` discovers their integration-event
+handlers and hands the same assemblies to `AddLearnStackMediatRPipeline` as its
+**last** statement, so behaviors and instrumentation are already wired before any
+module handler is registered:
 
 ```csharp
 // The shipped entry point, and the only one: AddLearnStackCrossCuttingFoundation
@@ -322,9 +324,10 @@ builder.AddLearnStackCrossCuttingFoundation(
 
 `AddCrossCuttingFoundation`, `AddModuleAudit`, `AddModuleTenancy`,
 `AddModuleCustomization` and `AddModuleApi` do **not** exist — an earlier version of
-this file named all five. Per-module registration arrives with the first module that
-has something to register (Phase 02a Packet 6 for Tenancy); until then there is one
-call.
+this file named all five. What a module contributes today is its assembly marker and
+one `AddModuleDbContext<T>()` line in `Composition/PersistenceCompositionExtensions.cs`
+— `TenancyDbContext` since Packet 6, `CustomizationDbContext` since Packet 8 — which
+`Program.cs` reaches through `AddLearnStackPersistence`, after the foundation call.
 
 ## Validation
 

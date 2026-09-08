@@ -86,7 +86,7 @@ Walk every change against the project's
 | **XSS** | No `dangerouslySetInnerHTML` outside a sanitisation wrapper; CSP nonces in place; markdown via allowlist. |
 | **CSRF** | Server Actions / Auth.js session check; non-Action mutating fetches carry CSRF tokens. |
 | **Secrets** | No secret in source / appsettings / env-file-committed; reads through `ISecretProvider`. No log of token / password / national id. |
-| **PII redaction** | `[PiiSensitive]` fields stripped from audit snapshots; logs don't carry raw PII. |
+| **PII redaction** | `[PiiSensitive]` fields carry `SensitiveTokenCatalog.RedactedValue` in audit snapshots — the property stays, so the diff still records *that* it changed; logs don't carry raw PII. |
 | **File upload** | MIME sniff + extension allowlist + size limit + EXIF strip + tenant-scoped key. |
 | **Webhook receivers** | HMAC verification + replay protection + tenant id from stored provider account, never from payload. |
 | **Hub HTTPS surface** | The 4-endpoint set unchanged unless a new ADR added a 5th. mTLS + JWT + HMAC verifications all run. |
@@ -155,8 +155,11 @@ This is the lens that generic reviewers miss. Walk:
 - The architecture-test set: would any of them fail on this diff? (Run them if
   in doubt — see [run-tests-locally](../run-tests-locally/SKILL.md).)
 - Four sanctioned cross-module mechanisms only. No fifth.
-- `IModule.Register` / `RegisterPermissions` / `RegisterAuditCoverage` updated
-  consistently.
+- Module registration updated consistently: the module's DI extension, its
+  `IAuditCatalogSource` (every request type classified — an unregistered one is
+  rejected at runtime), and its permission registration when Phase 03 lands one.
+  There is no `IModule` type in `backend/src`; a diff that names one is writing
+  against a contract nobody has built.
 - `docs/modules/<m>/audit.md` / `permissions.md` updated.
 - For frontend changes: route group is correct, SDK is the only API path,
   middleware-resolved `x-tenant-id` / `x-organization-id` honoured, no

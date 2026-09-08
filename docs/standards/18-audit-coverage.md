@@ -4,6 +4,7 @@
 **Derives from:** [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md), which remains the
 subsystem's context),
+[ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md),
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [11-security.md](11-security.md) § Audit Log,
 [01-architecture-standards.md](01-architecture-standards.md).
@@ -24,7 +25,8 @@ document is the rule that prevents the audit story from drifting.
 - Audit entries are append-only, immutable, tenant-scoped (and org-scoped when the
   resource is org-scoped per [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)),
   and queryable by tenant admins for their own tenant (org admins for their org).
-- Every module owns a Permission × Operation classification table for its resources.
+- Every module owns a Resource × Operation classification table for its resources — the
+  audit verb is not the permission action ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)).
   The matrix is reviewed when the module is built and again when it is extended.
 - Coverage is configured in the **catalog** (`AuditConfig` per-tenant override of the
   module/operation MUST/SHOULD/MAY mapping) and **enforced by the MediatR
@@ -45,7 +47,17 @@ which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
 | `delete` | Aggregate removed or soft-deleted | MUST |
 | `read-sensitive` | Read of another user's PII, financial data, learner progress, recording, or consent state | MUST |
 | `security-event` | Login, MFA challenge, role grant/revoke, permission change, tenant impersonation, token revocation, RLS bypass | MUST |
-| `platform-admin` | Any operation performed by a platform admin against a tenant they are not a member of (subsumes the generic `action` type from ADR-0016's initial enum; see ADR-0016 Amendment 1) | MUST |
+| `platform-admin` | Any operation performed by a platform admin against a tenant they are not a member of | MUST |
+| `action` | A genuine in-tenant non-CRUD act that fits none of the rows above — recording start where no consent state changes is the example ADR-0016 Amendment 1 gives | SHOULD, unless § Baseline Coverage names the operation |
+
+`platform-admin` does **not** subsume `action`.
+[ADR-0016 Amendment 1](../decisions/0016-audit-log-subsystem.md) adds `platform-admin`
+**beside** `action` — "the `Action` value remains for genuine in-tenant non-CRUD
+actions" — and calls the resulting seven-member enum binding. The table above is the
+catalogue that enum is compared against by
+[`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog),
+so a member missing from either side fails the build; adding an eighth type is a change
+to this table first.
 
 `read-sensitive` is not "any GET request" — it's the read paths a regulator would ask about. Examples: guardian viewing a student's grades; instructor exporting a class roster with PII; admin viewing learner email list; admin downloading a recording.
 
@@ -53,12 +65,46 @@ which carries the MUST/SHOULD/MAY audit-coverage tier. Both fields live on
 
 Every module ships this table in its module spec under `docs/modules/<module>/audit.md` (or equivalent). The matrix is part of the module's PR; reviewers refuse merges without it. The `docs/modules/` directory was created with the first module spec — [Tenancy](../modules/tenancy/README.md), in Phase 02a Packet 6.
 
-| Resource | create | update | delete | read-sensitive | security-event |
-|----------|:------:|:------:|:------:|:--------------:|:--------------:|
-| `ResourceA` | MUST | MUST | MUST | – | – |
-| `ResourceB` | SHOULD | MUST | MUST | MUST | – |
+One row per audited resource — or one row per group of its operations that share a
+class and a reason, the `Operation` cell then carrying each of their slugs separated by
+`/`. That is the grammar the two shipped matrices —
+[Tenancy](../modules/tenancy/audit.md) and
+[Customization](../modules/customization/audit.md) — already use:
+
+| Resource | Operation | Class | Why |
+|---|---|:---:|---|
+| `ResourceA` | `module.resource_a.create` | **MUST** | What the row lets a reader reconstruct |
+| `ResourceA` | `module.resource_a.rename` | SHOULD | Presentational |
+| `ResourceB` | `module.resource_b.archive` / `module.resource_b.soft_delete` | **MUST** | Deletes are always MUST, and two operations that share a class and a reason share a row |
 
 Legend: **MUST** = audit entry required for every occurrence. **SHOULD** = audit by default; module may justify an opt-out per-operation. **MAY** = audit is allowed but not required. **–** = operation does not apply.
+
+The `Operation` cell carries **catalogue slugs** and nothing else
+([ADR-0044 § 6](../decisions/0044-audit-write-path.md)):
+
+- The slug is `{module}.{resource}.{verb}` — `tenancy.tenant.create`,
+  `customization.content_type.publish`. It borrows the *shape* of a permission key from
+  [19-permissions.md](19-permissions.md) — three segments, lowercase, singular resource,
+  snake_case inside a segment — and its first two segments match the permission key that
+  gates the same resource. That is the part a cross-reference needs, and the only part
+  required to match.
+- The third segment is **not** the permission action set. Permissions close at
+  `read | write | delete | admin`; audit verbs come from this matrix — `create`,
+  `publish`, `revise`, `rename`, `soft_delete`, `toggle` — because a permission bounds
+  what a principal *may do* and an audit operation records *what happened*. A closed set
+  would record a rename and a publication as one `write`.
+- No domain terms, in any segment
+  ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).
+
+**The matrix is the prose artifact; the catalogue is the executable one.** Each module
+registers its defaults in code through `IAuditCatalogSource.Describe(IAuditCatalogBuilder)`,
+discovered from DI and keyed by request type, mapping one request type to one or more
+`(operation, OperationType, OperationClass)` triples. Neither artifact is parsed from the
+other, and
+[`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
+joins them on this column in both directions, reading a cell as the list of slugs it
+holds: a matrix row with no catalogue entry fails, and a catalogue entry with no matrix
+row fails.
 
 ## Baseline Coverage (LearnStack Core Modules)
 
@@ -103,12 +149,12 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
     "hubOperator": false
   },
   "operation": {
+    "key": "enrollment.enrollment.create",
     "module": "enrollment",
     "resource": "Enrollment",
     "resourceId": "enr_01K...",
-    "action": "create",
-    "class": "create",
-    "operationType": "command"
+    "operationType": "create",
+    "class": "MUST"
   },
   "request": {
     "correlationId": "01H...",
@@ -120,7 +166,7 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
   "before": null,
   "after": { "courseVersionId": "...", "userId": "...", "status": "active" },
   "changes": [
-    { "path": "/status", "before": null, "after": "active" }
+    { "path": "/Enrollment/status", "before": null, "after": "active" }
   ],
   "reason": null,
   "metadata": { "source": "tenant-admin-studio" }
@@ -130,10 +176,36 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
 Rules:
 
 - `before` and `after` are **mandatory** for `update` on permission, money, content-publication, recording-policy, and consent fields. Snapshots are JSON, redacted for PII fields the module marks as `[PiiSensitive]`.
-- `outcome` is one of `success`, `denied`, `failed`. `denied` is used when an authorisation check rejects the operation — these MUST be audited so we can detect probing.
+- `operation.key` is the catalogue slug of § Classification Matrix Template, and
+  `operation.class` is the MUST / SHOULD / MAY tier — not a repeat of `operationType`,
+  which carries one of the seven values of § Operation Types.
+- `outcome` is one of `success`, `denied`, `failed`, `indeterminate`
+  ([ADR-0044 § 5](../decisions/0044-audit-write-path.md); ADR-0016's `is_success boolean`
+  is superseded, because a boolean cannot carry `denied`). `denied` is used when an
+  authorisation check rejects the operation — these MUST be audited so we can detect
+  probing. `indeterminate` is the commit whose server-side outcome is unknown: the
+  standalone re-write carries the **same** `id` as the in-transaction attempt, and the
+  pair is what a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies
+  `occurredAt` from `IClock` — the intent's declaration time in the transaction, a fresh
+  reading for a standalone re-write — which is what keeps that pair legal under the
+  composite primary key `(id, timestamp)`.
 - `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. Free-text, surfaced in the tenant admin's audit view.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
-- PII fields are listed in the module's audit spec; the audit pipeline strips them before persistence.
+- `changes` is always a JSON **array** of `{ path, before, after }` with an
+  entity-qualified RFC 6901 pointer, never the polymorphic object-or-array shape ADR-0016
+  described. A reader that has to branch on the shape gets it wrong once.
+- PII fields are listed in the module's audit spec. The pipeline **redacts rather than
+  strips**: a property marked `[PiiSensitive]`, or matched by the shipped
+  `SensitiveTokenCatalog`, keeps its place in `before`, `after` and `changes` and loses
+  its value to `SensitiveTokenCatalog.RedactedValue`, so the diff still records *that*
+  it changed. Name the constant, never the string: the shipped value is `***REDACTED***`.
+- **Not every field above is a column.** The `audit_log` DDL
+  ([31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md)) carries
+  `occurredAt` as `timestamp`, `resource` / `resourceId` as `entity_type` / `entity_id`,
+  `sourceIp` as `ip_address`, and `operation.key` as `operation`. `actor.membershipId`,
+  `actor.roles`, `actor.platformAdmin`, `actor.hubOperator` and `request.route` have no
+  column of their own; where `PostgresAuditStore` puts them is Packet 9's to settle when
+  it writes the store.
 
 ## Storage
 
@@ -145,15 +217,43 @@ Rules:
   one" was the earlier plan and [ADR-0033](../decisions/0033-audit-durability-model.md)
   changed it: PostgreSQL has no `ALTER TABLE … PARTITION BY`, so the conversion is a
   new table either way, and partitioning on day one would force every partition-key
-  column into the primary key before the schema that shape has to serve exists. RLS
-  isolates rows by `tenant_id` in both shapes.
-- Append-only. The `AuditEntry` aggregate inherits `Entity<TId>` **not**
-  `AuditableEntity<T>` and exposes no mutators; `IAuditStore` has no update method; and
-  the runtime database role `learnstack_app` holds no `UPDATE` or `DELETE` privilege on
-  `audit_log` at all. Exactly **two** mutating paths exist, both owned by the Audit
-  module, both running as `learnstack_platform` through the audited
-  `EnterPlatformAdminScope(reason)` path, and both constrained by the
-  `audit_log_append_only_guard` trigger rather than by convention:
+  column into the primary key before the schema that shape has to serve exists. The
+  policy shape is the same in both.
+- **Table class and chain.** `audit_log` is **tenant-owned, org-scoped** and takes the
+  canonical policy template from
+  [Database Standards § Tenant-Owned and Organization-Scoped Tables](05-database.md)
+  unmodified — one `AND`-ed policy, `ENABLE` **and** `FORCE`, explicit `WITH CHECK`, both
+  `AS RESTRICTIVE` write guards. `audit_config` is **tenant-owned, tenant-wide**: it has
+  no `organization_id`, so it takes the same shape with the organization half omitted and
+  no restrictive guards — there is no organization to guard
+  ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). No document
+  hand-writes either a second time. They ship in a
+  fourth migration chain owned by `LearnStack.Modules.Audit.Infrastructure`'s
+  `AuditDbContext`. `audit_log` carries **no** foreign key to `tenants`: the platform
+  sentinel has no `tenants` row by construction, and the record of what happened to a
+  tenant has to outlive the tenant. `audit_config` keeps its FK — it is live
+  configuration, not history ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
+- Append-only, enforced in **three layers**, each stopping a different actor — measured
+  on PostgreSQL 18.6 ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)):
+  - **The grant.** `learnstack_app` holds `SELECT, INSERT` on `audit_log` and nothing
+    else, so an `UPDATE` or `DELETE` from the runtime role raises `42501` before any
+    policy or trigger runs. On `audit_config` both roles hold `SELECT` only.
+  - **The column-level grant.** `learnstack_platform` holds `SELECT, INSERT, DELETE` and
+    `UPDATE (actor_email, ip_address, user_agent, before_state, after_state, changes)`,
+    so an `UPDATE` touching any other column is refused by the grant, before the trigger
+    runs.
+  - **The trigger.** The table **owner** holds every privilege implicitly, and under
+    `FORCE` the policy constrains it by **tenant** rather than by immutability —
+    measured: an owner `UPDATE` returns `UPDATE 0` with no tenant announced and
+    `UPDATE 1` with one. `audit_log_append_only_guard` is the only layer that binds
+    `learnstack_migration`. It is not redundant with the grant — it is what stops the one
+    actor the grants cannot.
+
+  The aggregate carries its own half: `AuditEntry` inherits `Entity<TId>` **not**
+  `AuditableEntity<T>` and exposes no mutators, and `IAuditStore` has no update method
+  (its fourth *write* method is a different thing — see § Required Behaviours). Exactly
+  **two** mutating paths exist, both owned by the Audit module, both running as
+  `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path:
   - **GDPR redaction** — an `UPDATE` that may change only `actor_email`, `ip_address`,
     `user_agent`, `before_state`, `after_state` and `changes`. The trigger rejects an
     `UPDATE` altering any other column, including `actor_user_id`, `operation`, `outcome`
@@ -171,15 +271,38 @@ Rules:
   surface's perspective and their reads are themselves audited.
 - The audit log is **never** the source of truth for application state; downstream
   consumers project from integration events, not from audit entries.
+- **Snapshots are bounded, never silently truncated.** Each of `before_state`,
+  `after_state` and `changes` is capped independently at `JsonValue.MaxRowBytes`
+  (256 KiB). Above the cap the value becomes an explicit elision record —
+  `{"_elided": true, "bytes": <n>, "sha256": "<hex>"}` — which **preserves the column's
+  JSON type**: an elided `changes` is `[{"_elided": …}]`, an elided `before_state` or
+  `after_state` is the object form, so a reader parses one contract either side of the
+  cap. There is no external blob pointer
+  ([ADR-0044 § 8](../decisions/0044-audit-write-path.md)).
 - Capture pipeline — **decide → write → reconcile**
-  ([ADR-0033](../decisions/0033-audit-durability-model.md)): `AuditLogBehavior` (step 3)
-  classifies and declares a MUST-class intent in `IAuditStateCapture`;
+  ([ADR-0033](../decisions/0033-audit-durability-model.md),
+  [ADR-0044](../decisions/0044-audit-write-path.md)): `AuditLogBehavior` (step 3)
+  classifies and declares **one MUST-class intent per audited `(resource, operation)`** in
+  `IAuditStateCapture`'s ordered list — `ProvisionTenantCommand` declares two;
   `AuditChangeTrackerInterceptor` snapshots each `SaveChanges` into the same buffer and
   writes nothing; `TransactionBehavior` (step 6) calls `IAuditStore.WritePendingAsync`
-  immediately before `COMMIT`, inserting the complete row on the ambient transaction, and
-  then records whether the commit succeeded; `AuditLogBehavior` reconciles on the way out,
-  re-writing the row standalone whenever the transaction did not commit. Modules see none
-  of this plumbing.
+  immediately before `COMMIT`, inserting every pending intent as a complete row on the
+  ambient transaction, and then records whether the commit succeeded; `AuditLogBehavior`
+  reconciles on the way out, re-writing standalone whichever rows the transaction did not
+  carry. Only the **owning** unit-of-work frame (`IUnitOfWorkScope.IsOwner`) writes,
+  reports the commit boundary and clears the buffer; a joiner does none of the three,
+  because a joiner that reported `Committed` would claim durability for a row nothing has
+  committed and a joiner that cleared would erase the outer request's intents. Modules see
+  none of this plumbing.
+- The interceptor captures **every** `ChangeTracker` entry in state `Added`, `Modified` or
+  `Deleted`, minus a named exclusion list — `OutboxMessage` and `IdempotencyKey`
+  (machinery) and `AuditEntry` / `AuditConfig` (the audit tables themselves). The
+  "`AuditableEntity<>` descendants only" predicate is **withdrawn**: it was blind to
+  `PlatformHostMapping`, `TenantLocale`, `TenantFeatureFlag`, `PlatformEntitlement`,
+  `CustomizationGeneration` and `TenantLevelTaxonomyItem` — four of them MUST in the
+  shipped matrices, `TenantLocale` SHOULD, and the generation counter deliberately
+  unaudited — and it could snapshot none of the six. A module opts no entity in, and the
+  interceptor constructs no row and issues no SQL.
 
 ## Retention
 
@@ -189,10 +312,19 @@ Rules:
 | `platform-admin` | **7 years** | Cross-tenant operations |
 | Financial (`Billing.*`) | **7 years** | Tax and invoice retention |
 | `read-sensitive` | **2 years** | Sufficient for typical investigation cycles |
-| `create` / `update` / `delete` (other domains) | **2 years** | Tenant-configurable down to 6 months or up to 7 years |
+| `create` / `update` / `delete` / `action` (other domains) | **2 years** | Tenant-configurable down to 6 months or up to 7 years |
 | Recording-policy and consent changes | **7 years** | Lives with the recording itself if longer. **Note:** this is the retention of the *audit-log entry* about a recording policy or consent change — not the retention of the recording **file** itself. Recording files follow the per-tenant retention policy declared in [16-media-pipeline.md § Recordings](../architecture/16-media-pipeline.md) (default 30 days; tenant-configurable up to the platform cap). The two retentions are independent: the audit entry persists for compliance reconstruction even after the recording file is purged. |
 
 A tenant cannot reduce retention below the platform-defined floor for `security-event`, `platform-admin`, or financial entries. Retention is enforced by a daily Hangfire job; deletions are batched, logged, and themselves audited (`security-event`).
+
+**None of this schedule runs in Phase 02a.** Packet 9 ships `audit_log` with no retention
+column, no purge job and no per-tenant override, and `audit_config` carries classification
+overrides only. The daily `learnstack:audit:retention-purge` job, the per-tenant override
+and the partition lifecycle are owned by
+[Phase 11](../roadmap/phase-11-production-hardening.md)
+([ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md),
+[ADR-0028 Amendment 2026-09-07](../decisions/0028-audit-log-partition-management.md)). The
+table above is the policy those deliverables implement, not a description of today.
 
 ## Required Behaviours
 
@@ -208,48 +340,119 @@ A tenant cannot reduce retention below the platform-defined floor for `security-
   a handler saves and then returns a failure `Result` — the audit row goes with it and is
   re-written standalone with outcome `failed`. A MUST-class operation is never left with
   no row.
-- MUST-class events with **no** business transaction — `denied` outcomes, read-sensitive
-  queries, non-mutating security events — are written standalone, in a short transaction
-  that issues `SET LOCAL app.tenant_id` as its first statement, on a connection outside
-  any business transaction.
+- MUST-class events with **no committed business transaction** — a pipeline
+  short-circuit at step 1, 4 or 5, a non-mutating security event, a non-MediatR caller
+  such as `TenantAssertionMiddleware`, and the reconcile re-write after a rollback or an
+  indeterminate commit — are written standalone, in a short transaction on a connection
+  outside any business transaction. That writer announces **both** session variables from
+  the draft — `app.tenant_id` **and** `app.organization_id` — as its first statements:
+  `audit_log` is org-scoped, so a row whose `organization_id` is non-null while the
+  organization GUC is unset fails `WITH CHECK`
+  ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md)). Two things
+  are **not** on this path: a **granted** `read-sensitive` query, which rides the
+  in-transaction path because `TransactionBehavior` has no request-kind gate (Amendment 2
+  § 7), and `EnterPlatformAdminScope`, whose row takes the fourth write method below.
+- **A standalone MUST-class write failure changes the response only when the operation
+  would otherwise have succeeded**
+  ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)). A row recording
+  an access being *granted* still rejects with `503 audit_unavailable`; a row recording an
+  operation *already being refused* — a `denied` authorisation outcome, a rejected tenant
+  assertion — keeps its own `403` / `404`, because the refusal is the security outcome and
+  downgrading it hands an anonymous caller an availability signal it controls. Either way
+  the failure logs at `Critical`, increments the standalone-write-failure counter and
+  marks the audit health check unhealthy. **The in-transaction class is untouched:** its
+  failure still rolls the operation back and answers `503`.
 - Classification does not read the database on the request path. The MUST/SHOULD/MAY
   catalogue is in-process; per-tenant `audit_config` overrides are a cached projection
   whose loader sets its own tenant GUC. A failure to read a tenant override falls back to
   the catalogue — which carries the MUST floor, so nothing proceeds unaudited — and is
   logged and surfaced on the audit health check. An operation the catalogue does not
-  classify at all is **rejected**. A tenant override may narrow SHOULD/MAY coverage and
-  may never remove baseline MUST coverage.
+  classify at all is **rejected** with `500 audit_unclassified_operation`
+  ([09-error-handling.md](09-error-handling.md)): every `IRequest<Result<T>>` that reaches
+  step 3 must be classified, there is no residual `RequestKind.Other`, and test-only
+  request types register through the same builder in their fixture
+  ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)). A tenant override may narrow
+  SHOULD/MAY coverage and may never remove baseline MUST coverage.
 - Fan-out to external sinks rides the outbox and is best-effort; the **local audit row**
   is not.
 - Failed `denied` outcomes are audited even though no state changed.
 - Background jobs that mutate MUST-audit resources receive the `actor` via job payload (operator id, or the seed of a system actor with a stable id) and write the entry under that identity.
 - Integration event handlers that mutate state are treated as actors of type `system` and audited accordingly.
 - Platform-bypass code paths (`IgnoreQueryFilters()` etc.) write a `security-event` entry on every invocation.
+- Entering `EnterPlatformAdminScope(reason)` writes that row through
+  `IAuditStore.WritePlatformScopeAsync` — a fourth **write** method, not an update
+  method — on the scope's own platform-role connection and **before** the operation
+  runs, so an operation that later fails is still recorded
+  ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)).
+- **The row's tenant is the tenant the ambient transaction announced**, never a value off
+  the request payload: `ITenantContext.TenantId` under a resolved context,
+  `IProvisionsTenant.ProvisioningTenantId` for provisioning under an unresolved one, and
+  `TenantId.PlatformSentinel` — the reserved `00000000-0000-7000-8000-000000000002`, not
+  the nil UUID — for a platform-scope operation with no resolvable tenant. An unresolved,
+  non-provisioning context writes **no row**: there is no tenant whose admin could read it,
+  and [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) forbids inventing
+  one ([ADR-0044 § 1, § 2](../decisions/0044-audit-write-path.md)).
+- The outbox dispatcher attaches the actor and the correlation id to every event it
+  dispatches.
 
-## Architecture Tests
+## Architecture and Integration Tests
 
-The following tests live in `LearnStack.Tests.Architecture` and run on every PR:
+Canonical names and each rule's kind live in
+[21-architecture-tests-catalogue.md § Audit](21-architecture-tests-catalogue.md), which is
+authoritative for both. The two lists below split by assembly: a structural rule runs in
+`LearnStack.Tests.Architecture`; the four rules that prove runtime behaviour against a
+real database cannot, because that assembly has no database and a structural assertion
+observes neither a rollback nor a `42501`.
 
-- A MUST-class command writes exactly one `audit_log` row, on the same transaction as the
-  business write
-  ([`MustClass_Audit_Writes_Share_The_Business_Transaction`](21-architecture-tests-catalogue.md)).
-- A MUST-class command whose transaction rolls back still produces exactly one row, with
-  outcome `failed` ([`Audit_Survives_Transaction_Rollback`](21-architecture-tests-catalogue.md)).
-- `audit_log` accepts no `UPDATE` or `DELETE` from `learnstack_app`, and accepts from
-  `learnstack_platform` only a column-restricted redaction `UPDATE` and a purge `DELETE`
-  ([`AuditLog_Update_Is_Column_Restricted`](21-architecture-tests-catalogue.md)).
-- `IAuditStore` is the only sanctioned write path: `Modules_Do_Not_Write_AuditLog_Directly`.
-- Every module ships an `audit.md` matrix at the path expected by the doc-coverage
-  check.
-- Outbox dispatcher attaches `actor` and `correlation_id` to every event.
-- `AuditEntry_Inherits_Entity_Not_AuditableEntity` ensures the audit aggregate is
-  append-only by inheritance.
+**`LearnStack.Tests.Architecture` — structural, on every PR:**
+
+- [`AuditEntry_Inherits_Entity_Not_AuditableEntity`](21-architecture-tests-catalogue.md#auditentry_inherits_entity_not_auditableentity)
+  — the audit aggregate is append-only by inheritance.
+- [`AuditEntry_Is_AppendOnly`](21-architecture-tests-catalogue.md#auditentry_is_appendonly)
+  — no `UPDATE` or `DELETE` targets `audit_log` outside the two named sites, and
+  `IAuditStore` exposes no update method.
+- [`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog)
+  — the enum and § Operation Types carry the same seven members.
+- [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
+  — every command touching a `[TenantOwned]` aggregate is classified, and the in-code
+  catalogue and the module matrix agree on the `Operation` slug in both directions.
+- [`Every_Module_Has_An_AuditCoverage_Matrix`](21-architecture-tests-catalogue.md#every_module_has_an_auditcoverage_matrix)
+  — every module ships `docs/modules/<module>/audit.md`.
+- [`Modules_Do_Not_Write_AuditLog_Directly`](21-architecture-tests-catalogue.md#modules_do_not_write_auditlog_directly)
+  — `IAuditStore` is the only sanctioned write path.
+
+**`LearnStack.Tests.Integration` — Testcontainers against a real PostgreSQL:**
+
+- [`MustClass_Audit_Writes_Share_The_Business_Transaction`](21-architecture-tests-catalogue.md#mustclass_audit_writes_share_the_business_transaction)
+  — exactly one row per declared intent, all on the business transaction.
+- [`Audit_Survives_Transaction_Rollback`](21-architecture-tests-catalogue.md#audit_survives_transaction_rollback)
+  — a rolled-back MUST-class command leaves zero business rows and exactly one row with
+  outcome `failed`.
+- [`Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`](21-architecture-tests-catalogue.md#audit_classification_does_not_read_the_database_on_the_request_path)
+  — an unreadable `audit_config` does not stop a MUST-class command, and an uncatalogued
+  operation is rejected.
+- [`AuditLog_Update_Is_Column_Restricted`](21-architecture-tests-catalogue.md#auditlog_update_is_column_restricted)
+  — `learnstack_app` gets `42501`; `learnstack_platform` gets the column-restricted
+  redaction `UPDATE` and the purge `DELETE`, and nothing else; the table owner is stopped
+  only by the trigger.
+
+One further catalogue rule holds a claim made above and belongs to neither list:
+[`AuditStateCapture_ClearedPerRequest`](21-architecture-tests-catalogue.md#auditstatecapture_clearedperrequest)
+is behavioural — `Clear()` is called exactly once, by the outermost `AuditLogBehavior`,
+and never by a joiner.
+
+These drive the runtime path as `learnstack_app`, except where the privilege model is
+itself the subject: `AuditLog_Update_Is_Column_Restricted` measures three layers that bind
+three different roles, so it connects as `learnstack_app`, as `learnstack_platform` and as
+the owner in turn. Everywhere else the rule of [05-database.md](05-database.md) holds — an
+**isolation** assertion that connects as the owner or as a `BYPASSRLS` role passes even
+when every policy is inert, so it proves nothing.
 
 ## Tenant-Admin Visibility
 
 A tenant admin's audit view supports:
 
-- Filter by actor user, module, resource, action, outcome, date range.
+- Filter by actor user, module, resource, operation, operation type, outcome, date range.
 - Detail view shows `before`, `after`, `request`, `reason`.
 - CSV export limited by retention class (security-event entries do not export to non-admin roles).
 - Search across `resource`, `route`, `correlationId`, `userId`.
@@ -259,7 +462,14 @@ Platform admins additionally see cross-tenant entries through a separate route g
 ## Forbidden
 
 - Writing a MUST-class audit entry **after** the controlling transaction commits, so that a commit failure can lose it. The standalone path is not this: it exists precisely for the cases where no business transaction committed, and it opens its own.
-- Truncating `before`/`after` snapshots silently — if the diff is too large, store an external pointer (`audit_blob_id`) but never an empty object.
+- Truncating `before` / `after` / `changes` snapshots silently, or writing an empty object
+  in place of one that was too large. Over `JsonValue.MaxRowBytes` the value becomes the
+  elision record of § Storage, in the column's own JSON type. There is **no**
+  `audit_blob_id`: it exists in no DDL, names no blob store, and is struck from this
+  standard ([ADR-0044 § 8](../decisions/0044-audit-write-path.md)).
+- Dropping a PII property from a snapshot instead of redacting its value.
+  `SensitiveTokenCatalog.RedactedValue`
+  keeps the fact that the field changed; deletion loses it.
 - Mutating an audit row in place from anywhere other than the two sanctioned paths (GDPR redaction, retention purge), or widening the trigger's redactable column set without an ADR. Granting `learnstack_app` `UPDATE` or `DELETE` on `audit_log`.
 - Storing audit entries in the same module's read schema (the audit aggregate is global / cross-module).
 - Reducing retention without an ADR.
@@ -267,12 +477,21 @@ Platform admins additionally see cross-tenant entries through a separate route g
 
 ## References
 
+- [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md) — the platform
+  sentinel tenant, intent multiplicity, the nesting rule, `outcome` and `timestamp`, the
+  classification key, the capture predicate, redaction and size, the table class and its
+  GRANTs, the fourth write method, and the two error codes.
 - [ADR-0016 Audit Log Subsystem](../decisions/0016-audit-log-subsystem.md) — capture
-  pipeline, retention policy, partitioning strategy.
+  pipeline, retention policy, partitioning strategy; Amendment 1 fixes the seven-member
+  `OperationType` enum.
 - [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md) —
   `organization_id` in audit entries.
 - [31-audit-subsystem.md](../architecture/31-audit-subsystem.md) — subsystem deep dive
   (interceptor, state capture, MediatR behavior, retention job).
+- [05-database.md](05-database.md) — the canonical RLS template, the table classes, the
+  four database roles and the GRANT matrix.
+- [09-error-handling.md](09-error-handling.md) — `audit_unavailable` (503) and
+  `audit_unclassified_operation` (500) in the error-code table.
 - [11-security.md](11-security.md) — security headers, authorization, tenant isolation,
   secrets.
 - [02-domain-model.md](../architecture/02-domain-model.md) § Audit — `AuditEntry`

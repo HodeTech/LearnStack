@@ -36,10 +36,13 @@ entitlement from a control plane, the internal-API handlers that a control plane
 and the projection tables both write into.
 
 **This phase hangs off the spine; it never sits in it.** LearnStack runs on
-`NullEntitlementProvider` — every feature enabled, no limits — from
-[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) onward, and every phase from
-[Phase 02d](phase-02d-walking-skeleton.md) through [Phase 11](phase-11-production-hardening.md)
-works without a Hub. Nothing in the product spine waits on this document.
+`NullEntitlementProvider` — every feature enabled, every limit `-1` (unlimited) — from
+[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) onward, registered in **every**
+deployment mode until this phase's trigger fires
+([ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)), and every
+phase from [Phase 02d](phase-02d-walking-skeleton.md) through
+[Phase 11](phase-11-production-hardening.md) works without a Hub. Nothing in the product
+spine waits on this document.
 
 **The trigger is written down.**
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates the Hub-backed
@@ -70,6 +73,9 @@ Decisions this phase implements:
   mTLS-guarded internal API. Its "closed at four endpoints" rule is replaced by ADR-0034.
 - [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md) —
   the projection contract and the grace window.
+- [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
+  — the port this phase implements, declared in Packet 9, and the limit-enforcement path
+  this phase owns.
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
   — the three `IEntitlementProvider` implementations.
 - [ADR-0022 Custom Domain + TLS](../decisions/0022-custom-domain-tls.md), as amended by
@@ -83,7 +89,15 @@ tracked in `../LearnStack-Hub/docs/roadmap/`.
 ### `HubEntitlementProvider`
 
 The Hub-backed implementation of `IEntitlementProvider`, in
-`LearnStack.Infrastructure.Hub`. Its read path is **normative** and fixed by
+`LearnStack.Infrastructure.Hub`. **This phase inherits the port; it does not declare
+one.** `IEntitlementProvider` — `GetAsync(TenantId)` and
+`RefreshAsync(EntitlementProjection) → EntitlementRefreshOutcome` — and the
+`EntitlementProjection` record ship in
+[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) under
+[ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md), so the second
+implementation is written against a declared contract rather than an inferred one.
+
+Its read path is **normative** and fixed by
 [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md):
 
 ```text
@@ -110,12 +124,26 @@ The ordering is the design, not an optimisation:
   temporarily visible tab is cheaper than a broken page. Keys that gate paid capacity,
   data retention, or compliance behaviour fail closed. A key with no declared class does
   not compile.
-- **Writes go through `IEntitlementProvider.RefreshAsync` only.** No module reads or
-  writes `platform_entitlement_cache` directly
-  (`Modules_Do_Not_Read_Entitlement_Cache_Directly`).
+- **`RefreshAsync` is generation-guarded, and the guard is inside the write statement.**
+  A push whose `generation` is not newer than the stored one changes no column and
+  returns `IgnoredAsStale`, so a retried or reordered delivery cannot resurrect a revoked
+  plan. Packet 9 declares that contract; the internal-API handler below is its caller.
+- **Writes go through `IEntitlementProvider.RefreshAsync` only.** An
+  `IEntitlementProvider` implementation is the only sanctioned reader **and** writer of
+  `platform_entitlement_cache` — no module, Tenancy included
+  (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). Module code reaches the plan half
+  through `IFeatureFlags`, which composes over the port rather than querying the table.
 
-`NullEntitlementProvider` stops being registrable outside `Development` once this phase
-lands (`NullEntitlementProvider_NotRegistered_OutsideDevelopment`).
+`NullEntitlementProvider` is the registered implementation in **every** deployment mode
+until the implementation for that mode exists
+([ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md),
+[ADR-0020 Amendment](../decisions/0020-triple-deployment-hybrid-license.md)) — a
+mode-conditional registration before then makes four of the five modes unbootable for a
+capability none of them yet uses. The rule binds **per mode**: it stops being registrable
+outside `Development` for the three Hub-backed modes once this phase ships
+`HubEntitlementProvider`, and for `SelfHostedAirGapped` once the signed-licence provider
+that mode needs exists ([Phase 11](phase-11-production-hardening.md)) — which is how
+`NullEntitlementProvider_NotRegistered_OutsideDevelopment` binds.
 
 ### `entitlement-v1.schema.json`
 
@@ -125,13 +153,17 @@ services that agree on a payload only in prose disagree on it within one release
 schema is the artefact that makes a breaking change fail a build instead of a production
 tenant.
 
-- The schema covers the feature set, the limit set, the compliance caps, `expires_at`,
-  `grace_until` and the monotonic `generation`. On the wire the fields are `tier` and
-  `expires_at`; they persist to the `plan_code` and `valid_until` columns of
-  `platform_entitlement_cache` ([21-feature-flags.md](../architecture/21-feature-flags.md)).
+- The schema requires `tenant_id`, `tier`, `features`, `limits`, `compliance`,
+  `expires_at`, `grace_until` and the monotonic `generation`, and Packet 9's
+  `EntitlementProjection` carries every one of them — `Compliance` and `Generation`
+  included, because `platform_entitlement_cache` declares both columns `NOT NULL`
+  ([ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md)). Two names
+  diverge: the record's `PlanCode` is the wire's `tier` and persists to the `plan_code`
+  column, and its `ExpiresAt` persists to `valid_until`
+  ([21-feature-flags.md](../architecture/21-feature-flags.md)).
 - The LearnStack-side snapshot test asserts that the serialized shape the handler accepts
-  still matches the schema, and that every declared feature key resolves to a registered
-  `FeatureKey` / `LimitKey`.
+  — `EntitlementProjection` as Packet 9 declares it — still matches the schema, and that
+  every declared feature key resolves to a registered `FeatureKey` / `LimitKey`.
 - Versioning is in the filename. `entitlement-v2.schema.json` is a new file and a new
   ADR-gated contract change, not an edit.
 
@@ -146,6 +178,31 @@ never a reason to fail a tenant's request.
   a dispatch backlog instead of latency on the operation being metered.
 - The adapter is the **only** type holding a usage-reporting Hub client
   (`Hub_Client_Referenced_Only_By_Named_Adapters`).
+
+### Limit enforcement
+
+[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) ships the read and the descriptor:
+`IFeatureFlags.GetLimitAsync` returns the allowance — `-1` unlimited, `0` denied, `> 0`
+the allowance — and every `LimitKey` declares its `LimitEnforcement` (`Soft` | `Hard`).
+It ships no gate. The **enforcement path** lands here, because this is the first phase in
+which a soft limit has anywhere to report to
+([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+
+- **Hard** — the gated operation refuses with `403` and an RFC 7807 body carrying
+  `code=limit_exceeded` when current usage has reached the limit. The code lands with
+  the first gate, in [Error Handling Standards](../standards/09-error-handling.md) and in
+  `HttpStatusMap` explicitly rather than by fallthrough — which is what makes the status
+  a `403` instead of a `500`. Its `type` URI is minted from the code, as every other
+  error's is.
+- **Soft** — the operation succeeds; a banner is surfaced and a
+  `usage.alert.soft_limit_reached` signal goes to the Hub through `IUsageReporter` and
+  `POST /api/v1/usage/report`.
+- **Each individual gate ships with the feature it gates**, never speculatively. The
+  trigger is the first limit key with a consumer that can exceed it; a key whose consumer
+  does not exist yet gets no gate.
+- [Phase 09b](phase-09b-hub-billing.md) is **not** the owner. Its LearnStack-side scope
+  is deliberately almost nothing and its exit condition is that LearnStack does not
+  change; it consumes the usage stream this phase produces.
 
 ### Internal-API handlers LearnStack hosts
 
@@ -248,11 +305,15 @@ load-bearing here:
 - `Internal_API_Endpoints_AreNot_Public` — `/api/internal/*` is not reachable from the
   tenant-facing surface.
 - `IEntitlementProvider_Implementations_Are_Three` — Null, Hub-backed, signed licence key;
-  no fourth appears without an ADR.
-- `NullEntitlementProvider_NotRegistered_OutsideDevelopment` — becomes enforceable the
-  moment the Hub-backed implementation exists.
+  no fourth appears without an ADR. It bounds the ceiling rather than requiring the count:
+  one implementation exists until this phase ships the second.
+- `NullEntitlementProvider_NotRegistered_OutsideDevelopment` — binds per mode, from the
+  phase that lands that mode's own implementation: this phase for the three Hub-backed
+  modes, [Phase 11](phase-11-production-hardening.md) for `SelfHostedAirGapped`.
 - `Modules_Do_Not_Read_Entitlement_Cache_Directly` — `platform_entitlement_cache` is
-  read-only to modules, through `IFeatureFlags`.
+  read **and** written by an `IEntitlementProvider` implementation and by nothing else;
+  no module, Tenancy included, touches it, and module code reaches the plan half through
+  `IFeatureFlags`.
 
 `Hub_NeverStores_TenantData` is the Hub-side invariant and is asserted in the Hub
 repository, against the Hub schema. Its LearnStack-side counterpart is this list.
@@ -278,6 +339,16 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 - `HubEntitlementProvider` implementing the ADR-0034 read path, with cold-start fallback
   and per-key-class fail-open / fail-closed policy resolved from the key registry.
 - `IUsageReporter` adapter dispatching through the outbox.
+- The limit-enforcement path: the `403 limit_exceeded` refusal for a `Hard` limit key
+  and the `usage.alert.soft_limit_reached` signal through `IUsageReporter` for a `Soft`
+  one, each gate shipping with the feature it gates.
+- `IEntitlementAdminQuery`, the cross-tenant operator read, landing with the operator
+  surface that needs it — the operator portal, tracked as the Hub repository's `P02c-4`,
+  so it arrives with that packet and not before
+  ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)). It reaches
+  rows no tenant context makes visible the way every operator list screen does: through
+  the audited `EnterPlatformAdminScope(reason)` path as `learnstack_platform`, never from
+  an ambient tenant context ([Database Standards](../standards/05-database.md)).
 - The Hub → LearnStack internal-API handlers, on an internal-only listener, behind the
   full mTLS + RS256 JWT + HMAC + replay-protection chain.
 - `entitlement-v1.schema.json` checked in, with a snapshot test asserting the accepted
@@ -304,6 +375,11 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
   not throw.
 - Past `grace_until` with the Hub still unreachable, fail-open keys stay enabled and
   fail-closed keys are refused — each according to its declared class, and each recorded.
+- An operation gated by a `Hard` limit key is refused with `403 limit_exceeded` once
+  usage reaches the limit; an operation gated by a `Soft` one succeeds and produces a
+  `usage.alert.soft_limit_reached` report.
+- A projection push carrying a `generation` no newer than the stored one leaves every
+  column unchanged and reports `IgnoredAsStale`.
 - A request missing any one of mTLS, the signed JWT, or the HMAC body signature is
   rejected, and a replayed `jti` is rejected.
 - An `/api/internal/*` request bearing a `learnstack` realm token is rejected; a

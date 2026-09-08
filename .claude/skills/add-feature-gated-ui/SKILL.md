@@ -80,7 +80,8 @@ import { LimitKeys } from "@learnstack/sdk/limit-keys";
 
 export function UsageMeter() {
   const { current, limit, soft } = useLimit(LimitKeys.MaxLearners);
-  if (limit === 0) return null;   // 0 means "no limit imposed"
+  if (limit === -1) return null;  // -1 = unlimited: nothing to meter
+  if (limit === 0) return <DeniedNotice />;   // 0 = denied, not "no limit"
 
   const pct = (current / limit) * 100;
   const tone =
@@ -99,6 +100,12 @@ export function UsageMeter() {
   );
 }
 ```
+
+**The sentinel is normative and it is not symmetrical**
+([ADR-0045 § 3](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)):
+`-1` is unlimited, `0` is **denied — the plan grants no allowance at all**, and `> 0` is
+the allowance. Rendering `0` as "no limit" shows an unrestricted meter to exactly the
+tenant the plan means to stop, and it is the reading ADR-0021 Amendment 2 corrects.
 
 Tone:
 
@@ -152,13 +159,19 @@ The killswitch overlay logic lives in the hook, not in the page — don't replic
 
 ### Step 5: Cache + invalidation
 
-The hooks read from the `platform_entitlement_cache` projection via the SDK. The
-client-side cache:
+The hooks read the API's entitlement answer — the backend's `IFeatureFlags`, which
+composes over `IEntitlementProvider` and applies the killswitch overlay. They do **not**
+read a table, and `platform_entitlement_cache` is not a client-side concept: the provider
+owns that storage and is the only component allowed to touch it
+([ADR-0045 § 2](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+
+The client-side cache:
 
 - 60s TTL.
-- Eagerly invalidated when the SDK receives a server-sent
-  `learnstack.hub.entitlement` event (the BFF translates the Dapr event into an
-  SSE notification).
+- Eagerly invalidated when the SDK receives a server-sent entitlement-changed event
+  (the BFF translates the backend's `IEventBus` notification into SSE —
+  `InProcessEventBus` today, the Dapr/Kafka adapter on its
+  [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md) trigger).
 
 Plan upgrades reflect within seconds, not 60s; the TTL is the safety net.
 
@@ -210,3 +223,5 @@ test("Learner limit shows danger tone at 96%", async () => {
   same UI as missing feature.
 - **Re-rendering on every entitlement change.** The hooks memoise; don't wrap in
   extra state.
+- **Treating `limit === 0` as unlimited.** `0` is denied. `-1` is unlimited. Inverting
+  them shows an open meter to a tenant with no allowance.

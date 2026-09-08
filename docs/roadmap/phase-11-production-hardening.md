@@ -91,8 +91,14 @@ lands, the equivalent controls run as ASP.NET middleware in the application itse
 signed.* The provider skeleton — `.lic` parsing, `kid` resolution, RS256
 verification, payload-schema validation, and serving lookups from the embedded
 projection — lands with the Hub repository's `P02c-6` as a coordinated pull request.
-The provider is not this phase's deliverable; what follows is what that skeleton is
-missing:
+Until that skeleton lands, `NullEntitlementProvider` is the registered implementation for
+the Self-Hosted modes as it is for every other one — the default in **every** mode, not
+`Development` only
+([ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md),
+[ADR-0020 Amendment](../decisions/0020-triple-deployment-hybrid-license.md)) — and
+`IEntitlementProvider_Implementations_Are_Three` bounds the ceiling rather than requiring
+the count. The provider is not this phase's deliverable; what follows is what that
+skeleton is missing:
 
 - Signing-key rotation procedure, including how a key issued under the previous
   generation stays verifiable through its remaining validity.
@@ -126,15 +132,24 @@ reads `platform_host_to_tenant` and nothing else, and that is already true from
 
 **`audit_log` monthly partitioning and the retention job** — *trigger: measured
 `audit_log` growth justifies partition maintenance.*
-[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) ships `audit_log` as a single plain
-table with the corrected composite primary key `(id, timestamp)` from
-[ADR-0033](../decisions/0033-audit-durability-model.md). This phase converts it to a
-range-partitioned table and lands the two Hangfire jobs
+[Phase 02a Packet 9](phase-02a-kernel-tenancy.md) ships `audit_log` as a single **plain,
+unpartitioned** table with the composite primary key `(id, timestamp)` from
+[ADR-0033](../decisions/0033-audit-durability-model.md); nothing in ADR-0028 is executed
+by that migration
+([ADR-0028 Amendment, 2026-09-07](../decisions/0028-audit-log-partition-management.md)).
+This phase creates the partitioned parent, attaches the Packet 9 table to it, and
+recreates the indexes and the Row Level Security policy on the parent — the operation the
+composite key exists to keep cheap, since PostgreSQL has no `ALTER TABLE … PARTITION BY`.
+It also lands the two Hangfire jobs
 [ADR-0028](../decisions/0028-audit-log-partition-management.md) specifies:
 `learnstack:audit:partition-management` (two-month create-ahead horizon, platform-maximum
 drop policy) and `learnstack:audit:retention-purge` (per-tenant, per-class row deletes
-inside still-attached partitions), both on a daily cadence, plus the
-`Partition_Manager_Job_Is_Registered_AtStartup` architecture test.
+inside still-attached partitions), both on a daily cadence.
+`Partition_Manager_Job_Is_Registered_AtStartup` moves with the job it guards: it is a
+**Phase 11** rule, registered in
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md) by
+this phase rather than by Packet 9 — a rule registered against a job no phase has built
+can only be satisfied by deleting it.
 **ADR-0028 stands as a decision** — Hangfire over `pg_partman`, monthly range partitions,
 the create-ahead and drop policies — and nothing in it is reopened. Only its schedule
 moved: audit *correctness* is a Phase 02a concern, audit *scale* is this phase's.
@@ -231,7 +246,12 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 - CORS policy enforced at APISIX (`cors` plugin) + per-handler ASP.NET layer.
 - CSRF strategy for non-Action mutating routes.
 - Rate limiting at APISIX (`limit-req` / `limit-count`) + per-handler ASP.NET layer
-  for plan-level `LimitKeys.MaxApiRequestsPerHour`.
+  for plan-level `LimitKeys.MaxApiRequestsPerHour`. The enforcement **path** — the
+  refusal a `Hard` limit key produces and the `usage.alert.soft_limit_reached` signal a
+  `Soft` one produces — lands in [Phase 02c](phase-02c-hub-foundation.md)
+  ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)); what this
+  phase ships is that key's own gate, which arrives with the edge rate limiting it pairs
+  with.
 - Keycloak hardening review for **both realms** (`learnstack` + `learnstack-hub`):
   password policy, brute-force protection, MFA enforcement for tenant-admin /
   platform-admin / Hub-operator roles, refresh-token rotation. See
@@ -242,9 +262,15 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   env files committed. The Vault adapter itself lands in this phase — see
   **Demand-gated building blocks** above.
 - Audit log coverage review against the per-module matrices, including confirmation that
-  no tenant `AuditConfig` override has narrowed baseline MUST coverage and that a
-  config-store failure still fails closed
-  ([ADR-0033](../decisions/0033-audit-durability-model.md)).
+  no tenant `AuditConfig` override has narrowed baseline MUST coverage. A tenant-override
+  **read** failure does not reject the request: classification falls back to the
+  in-process catalogue, which carries the same MUST floor, and the failure is logged at
+  `Error` and surfaced on the audit health check
+  ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md)).
+  What fails closed is an unclassified operation, and a MUST-class row that cannot be
+  written durably for an operation that would otherwise have **succeeded** — a standalone
+  row recording an operation already being refused keeps its own 403 / 404
+  ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
 - Tenant + **organization** isolation regression suite (expansion of the Phase 02a
   CI gate to cover every module from Phases 04–09). The suite runs as `learnstack_app`,
   the non-owning application role — a suite that runs as the table owner passes even when
@@ -377,7 +403,10 @@ same `ILiveClassProvider`.
 - Recording retention and purge jobs.
 - `audit_log` retention and partition lifecycle — see **Demand-gated building blocks**
   above; the jobs and their cadence are specified by
-  [ADR-0028](../decisions/0028-audit-log-partition-management.md).
+  [ADR-0028](../decisions/0028-audit-log-partition-management.md). Per-tenant retention
+  enforcement lands here too: Packet 9's `audit_config` carries classification overrides
+  only, and no retention column, job or per-tenant override ships before this phase
+  ([ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md)).
 
 ### Deployment
 
@@ -424,8 +453,10 @@ same `ILiveClassProvider`.
   with the `DeploymentMode` composition root resolving each per mode.
 - Integration suites for `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped`, and
   the support claim updated from two modes to five.
-- `audit_log` converted to monthly range partitions, with the partition-management and
-  retention-purge jobs registered and monitored.
+- `audit_log` converted to monthly range partitions — the parent created, the Packet 9
+  table attached, indexes and policy recreated on it — with the partition-management and
+  retention-purge jobs registered and monitored, and
+  `Partition_Manager_Job_Is_Registered_AtStartup` catalogued here and green.
 - Licence-key operational surround: rotation procedure, revocation-list distribution,
   hot-reload runbook, grace-period load-test results.
 - Custom-domain TLS automation — ACME client, DNS provider adapters, renewal job, and

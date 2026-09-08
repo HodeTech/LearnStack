@@ -109,6 +109,8 @@ matching localization key adds the `lockey_` prefix.
 | `resource_scope_violation` | Resource-level authorization failure | 403 |
 | `rate_limited` | Too many requests | 429 |
 | `dependency_unavailable` | Upstream provider down | 503 |
+| `audit_unavailable` | A MUST-class audit row could not be written durably | 503 |
+| `audit_unclassified_operation` | Operation absent from the audit catalogue | 500 |
 | `recording_consent_required` | Live session requires consent | 409 |
 | `unsupported_locale` | Locale not enabled for tenant | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
@@ -122,6 +124,39 @@ rejected the request before an `Error` could exist, so the code is derived from
 the status by `HttpStatusMap.CanonicalCodeFor`. See § API Surface below for the
 full mapping and for why a 4xx never carries `internal_error`.
 
+The two **audit** codes carry the fail-closed rule of
+[ADR-0033](../decisions/0033-audit-durability-model.md); their statuses are fixed by
+[ADR-0044 § 11](../decisions/0044-audit-write-path.md), which also adds them to the
+localization catalogue as `lockey_audit_unavailable` /
+`lockey_audit_unclassified_operation` under the prefix rule above. Both are explicit
+arms of `HttpStatusMap.For(string)` rather than fallthrough: a body whose `code`
+reads `audit_unavailable` under a `500` is exactly the status-and-code disagreement
+that map exists to prevent.
+
+- **`audit_unavailable` (503)** reaches the client as an exception, not a `Result`.
+  `IAuditStore.WritePendingAsync` throws
+  `AuditWriteFailedException : InfrastructureException` carrying the `Error`, and
+  `HttpStatusMap.For(Exception)`'s existing `LearnStackException known =>
+  For(known.Error)` branch maps it — `AuditLogBehavior`'s catch-and-rethrow contract
+  is untouched. The response carries `Retry-After` like every other 503
+  ([04-api-design.md § Status Codes](04-api-design.md)).
+- **[ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md) narrows when
+  that 503 is returned at all.** A **standalone** MUST-class write failure changes
+  the response only when the operation would otherwise have **succeeded** — a
+  standalone row recording an access that is being *granted* still answers
+  `503 audit_unavailable`. A standalone row recording an operation that is already
+  being refused (a `denied` authorisation outcome, a rejected tenant assertion) keeps
+  its own 403 / 404; the failure logs at `Critical`, increments the
+  standalone-write-failure counter, and marks the audit health check unhealthy. A
+  granted read-sensitive query is not one of those rows — since Packet 6 it rides the
+  in-transaction path
+  ([ADR-0033 Amendment 2 § 7](../decisions/0033-audit-durability-model.md)). The
+  in-transaction class is untouched by that narrowing: a MUST row that cannot be
+  written durably still rolls the business transaction back and answers 503.
+- **`audit_unclassified_operation` (500)** is a deployment defect — an
+  `IRequest<Result<T>>` reached the pipeline's audit step with no catalogue entry.
+  The caller cannot act on it, which is why it is a 5xx and not a 4xx.
+
 ## Exceptions
 
 ### Hierarchy
@@ -130,6 +165,7 @@ full mapping and for why a 4xx never carries `internal_error`.
 LearnStackException                  (base)
 ├── DomainException                  (domain invariant broken from inside, programmer error)
 ├── InfrastructureException          (DB, Valkey, SeaweedFS transient)
+│   └── AuditWriteFailedException    (MUST-class audit row not durable → 503 audit_unavailable)
 ├── ProviderException                (upstream provider error)
 │   ├── PaymentProviderException
 │   ├── LiveClassProviderException
@@ -353,6 +389,8 @@ type AppError =
   | { code: "unsupported_media_type" }
   | { code: "request_rejected" }
   | { code: "dependency_unavailable"; provider?: string; retryAfter?: number }
+  | { code: "audit_unavailable"; retryAfter?: number }
+  | { code: "audit_unclassified_operation"; correlationId?: string }
   | { code: "rate_limited"; retryAfter?: number }
   | { code: "forbidden" }
   | { code: "unauthorized" }

@@ -361,9 +361,9 @@ rules:
 - Write a MUST-class audit row outside the business transaction. MUST-class
   audit is written on the **same transaction** as the state change it describes
   ([ADR-0033](docs/decisions/0033-audit-durability-model.md)) — `AuditLogBehavior`
-  classifies and parks the intent, `TransactionBehavior` writes it immediately
-  before `COMMIT` — so it commits with that change or not at all, and so it
-  executes while `app.tenant_id` is set and RLS accepts it. "The same
+  classifies and parks the intents, `TransactionBehavior` writes them immediately
+  before `COMMIT` — so they commit with that change or not at all, and so they
+  execute while `app.tenant_id` is set and RLS accepts it. "The same
   `SaveChanges` as the business write" was the earlier formulation and ADR-0033
   **withdraws** it: the guarantee is the transaction, which is what a reader of
   `audit_log` observes and which needs no cross-`DbContext` machinery. A tenant `AuditConfig` may
@@ -372,7 +372,33 @@ rules:
   classify at all, and a MUST-class row that cannot be written durably. A
   tenant-override **read** failure does not — it falls back to the in-process
   catalogue, which carries the same MUST floor, so nothing proceeds unaudited
-  and a cache outage does not deny every request platform-wide.
+  and a cache outage does not deny every request platform-wide. The second of
+  those two is **narrowed for the standalone class** by
+  [ADR-0033 Amendment 1](docs/decisions/0033-audit-durability-model.md): a
+  standalone MUST-class write failure changes the response only when the
+  operation would otherwise have **succeeded**. A row recording an operation
+  already being refused — a `denied` authorisation outcome, a rejected tenant
+  assertion — keeps its own 403 / 404 and logs at `Critical`; downgrading a
+  refusal to a `503` an anonymous caller can provoke tells them more, not less.
+  The in-transaction class is untouched.
+- **Write one audit row per request when the request audits two resources.**
+  Intents are plural ([ADR-0044](docs/decisions/0044-audit-write-path.md), and
+  [ADR-0033 Amendment 2](docs/decisions/0033-audit-durability-model.md)): one per
+  audited `(resource, operation)`, held as an ordered list, and only the
+  **owning** unit-of-work frame writes them or reports the commit boundary — a
+  joiner that reports `Committed` claims durability for a row nothing committed.
+  `ProvisionTenantCommand` is the shipped case: two aggregates, one transaction,
+  two MUST rows.
+- **Store a killswitch in `tenant_feature_flags`.** That table has a foreign key
+  to `tenants` and the platform sentinel deliberately has no `tenants` row, so
+  the write is refused — and a foreign key is a constraint no role and no
+  `BYPASSRLS` moves. Killswitches live in the platform-scoped
+  `platform_killswitches`
+  ([ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+- **Read `platform_entitlement_cache` from a module, `IFeatureFlags` included.**
+  The only sanctioned reader *and* writer is an `IEntitlementProvider`
+  implementation; `IFeatureFlags` composes over the port, which is what makes
+  swapping the registered provider change the answer.
 - Inject `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` directly — use `IEventBus` / `ICacheService` /
   `ISecretProvider`.

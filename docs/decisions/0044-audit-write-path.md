@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted
+Accepted (**Amendment 1: 2026-09-08** — `audit_config` is tenant-**wide**, not
+org-scoped; it has no `organization_id` column and § 9's "both" was wrong when written.
+`audit_log` is unchanged. **Amendment 2: 2026-09-08** — the redaction sentinel is
+`SensitiveTokenCatalog.RedactedValue`, not a second literal; and `FORCE ROW LEVEL
+SECURITY` *does* constrain the owner, which changes the trigger's reason and not its
+necessity. Errata sit beside both statements; both amendments are at the bottom.)
 
 **Date:** 2026-09-07
 **Deciders:** @platform
@@ -240,8 +245,13 @@ Two gates run inside the capture, before anything reaches `IAuditStateCapture`:
 
 - **`[PiiSensitive]`**, a new SharedKernel property attribute, plus the shipped
   `SensitiveTokenCatalog` name-token list. A marked or name-matched property's value is
-  replaced with `"[REDACTED]"` in `before`, `after` and `changes` — the property is not
-  dropped, so the diff still records *that* it changed.
+  replaced with **`SensitiveTokenCatalog.RedactedValue`** in `before`, `after` and
+  `changes` — the property is not dropped, so the diff still records *that* it changed.
+  > **Erratum (2026-09-08).** This clause first wrote the sentinel as the literal
+  > `"[REDACTED]"`, which was wrong when written: the constant it cites in the same
+  > sentence is `"***REDACTED***"`, and three shipped components already emit that one.
+  > Naming the constant rather than a literal is the correction; see
+  > [Amendment 2](#amendment-2--two-statements-that-were-wrong-when-written-2026-09-08).
 - **Size.** Each of `before_state`, `after_state` and `changes` is capped by Packet 8's
   `JsonValue.MaxRowBytes` (256 KiB). Above the cap the value is replaced by an explicit
   elision record — `{"_elided": true, "bytes": <n>, "sha256": "<hex>"}` — never an
@@ -268,6 +278,14 @@ canonical template unmodified — one `AND`-ed permissive policy, `ENABLE` **and
 `FORCE`, explicit `WITH CHECK`, and both `AS RESTRICTIVE` write guards. `audit_log`
 carries `organization_id`, and the class follows the column. The hand-written policy in
 Audit Subsystem § 7 is deleted, not corrected: the template lives in one file.
+
+> **Erratum (2026-09-08).** "Both" was wrong when it was written. `audit_config` has no
+> `organization_id` column — not in Audit Subsystem § 7's DDL, not anywhere in the
+> corpus — so it cannot take a template whose predicate `AND`s an organization term.
+> **`audit_log` is org-scoped; `audit_config` is tenant-owned, tenant-wide**, and
+> therefore carries no organization term and no restrictive write guards. See
+> [Amendment 1](#amendment-1--audit_config-is-tenant-wide-2026-09-08). The rest of this
+> section stands, `audit_config`'s foreign key included.
 
 They ship in a **fourth migration chain**, owned by
 `LearnStack.Modules.Audit.Infrastructure`'s `AuditDbContext`, on the Packet 8 pattern.
@@ -309,9 +327,19 @@ Append-only is enforced in three layers and each stops a different actor — mea
 PostgreSQL 18.6: `learnstack_app` is stopped by the absent privilege (`42501`); a
 `learnstack_platform` `UPDATE` touching any other column is stopped by the
 **column-level GRANT**, before the trigger runs; and the table **owner**, who holds
-every privilege and whom row security never constrains, is stopped only by
-`audit_log_append_only_guard`. The trigger is not redundant with the grant — it is the
-only layer that binds `learnstack_migration`.
+every privilege implicitly, is stopped only by `audit_log_append_only_guard`. The
+trigger is not redundant with the grant — it is the only layer that binds
+`learnstack_migration`.
+
+> **Erratum (2026-09-08).** "Whom row security never constrains" was wrong when
+> written. Under `FORCE ROW LEVEL SECURITY` the policy applies to the owner like anyone
+> else — measured: a `learnstack_migration`-shaped owner's `UPDATE` with no
+> `app.tenant_id` announced returns `UPDATE 0`. What the policy constrains it **by** is
+> the tenant, not immutability: with the tenant announced the same `UPDATE` returns
+> `UPDATE 1`. So the conclusion stands and its reason changes — the owner is the one
+> actor no grant and no tenant predicate can stop from rewriting a row it is entitled to
+> see, and the trigger is the only layer that does. See
+> [Amendment 2](#amendment-2--two-statements-that-were-wrong-when-written-2026-09-08).
 
 ### 10. The fourth write path
 
@@ -504,6 +532,103 @@ neither can drift silently.
   [the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md),
   [the glossary](../glossary.md), [CLAUDE.md](../../CLAUDE.md) and
   [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md).
+
+
+## Amendment 1 — `audit_config` is tenant-wide (2026-09-08)
+
+**Status: Accepted.** Raised by the verification round over the carrier documents this
+ADR changes, one day after acceptance.
+
+### What was wrong
+
+§ 9's first sentence puts **both** `audit_log` and `audit_config` in the tenant-owned,
+**org-scoped** class. That is false for `audit_config` and was false when it entered the
+record.
+
+### How it was shown wrong
+
+`audit_config`'s DDL — [Audit Subsystem § 7](../architecture/31-audit-subsystem.md), the
+only declaration of the table in the corpus — is
+`(id, tenant_id, module, operation, is_enabled, created_at, updated_at)` under
+`UNIQUE (tenant_id, module, operation)`. There is no `organization_id`, and a grep of
+`docs/` returns no statement anywhere that an audit classification override is scoped to
+an organization. The org-scoped template's predicate `AND`s
+`organization_id IS NULL OR organization_id = …`, so applying it to this table names a
+column that does not exist and the migration would not run.
+
+### How it should be read
+
+- **`audit_log`** is tenant-owned, **org-scoped**: it carries `organization_id`, and the
+  class follows the column, exactly as § 9 says. Unchanged.
+- **`audit_config`** is tenant-owned, **tenant-wide**: the tenant term only, no
+  organization term, and therefore no `AS RESTRICTIVE` write guards — the class that
+  carries none, for the reason Database Standards gives, which is that there is no
+  organization to guard.
+
+Adding an organization dimension instead was considered and rejected: nothing in the
+corpus asks a tenant to classify one organization's operations differently from
+another's, and inventing the column to satisfy a sentence would be the more expensive
+error of the two — it would reach the migration, the aggregate and the cache key.
+
+### Carriers changed
+
+[Audit Subsystem § 7](../architecture/31-audit-subsystem.md),
+[Database Standards § Table classes and § GRANT matrix](../standards/05-database.md),
+[Security Standards](../standards/11-security.md) and [the glossary](../glossary.md) —
+each of which had taken the claim from this ADR before it was corrected.
+
+
+## Amendment 2 — Two statements that were wrong when written (2026-09-08)
+
+**Status: Accepted.** Both raised by the verification round over this ADR's carrier
+documents. Neither changes a decision; both correct a reason or a literal that would have
+reached code.
+
+### 1. The redaction sentinel is a constant, not a literal
+
+§ 8 wrote the replacement value as `"[REDACTED]"` while, in the same sentence, telling the
+implementer to use the shipped `SensitiveTokenCatalog`. That catalogue's constant is
+`RedactedValue = "***REDACTED***"`, and three shipped components already emit it —
+`RedactSensitiveFieldsEnricher`, `SentryErrorTracker` and `LocalFileErrorTracker`. An
+implementer following § 8 literally would have introduced a second sentinel for one
+purpose, so a log line and an audit snapshot would disagree about what a redacted value
+looks like.
+
+**Read as:** the value is `SensitiveTokenCatalog.RedactedValue`. The corpus names the
+constant and never the string, which is what keeps one answer. Phase 03's GDPR redaction
+`UPDATE` writes the same constant.
+
+### 2. `FORCE ROW LEVEL SECURITY` does constrain the owner
+
+§ 9 justified the trigger by saying the table owner is one "whom row security never
+constrains". That is false, and `FORCE` exists precisely to make it false.
+
+**Measured** on PostgreSQL 18.6, with a `NOSUPERUSER NOBYPASSRLS` role owning a table
+under `ENABLE` + `FORCE` and the canonical tenant policy: an owner `UPDATE` with no
+`app.tenant_id` announced returns **`UPDATE 0`**; the same `UPDATE` inside a transaction
+that announces the tenant returns **`UPDATE 1`** and the row changes. (An earlier probe
+appeared to show the opposite because it ran as a **superuser**, which bypasses row
+security whatever `FORCE` says — the same trap
+[the roles script](../../infra/compose/postgres-init/02-create-roles.sql) documents for
+`learnstack_app`.)
+
+**Read as:** the policy constrains the owner **by tenant**, not by immutability. Announce
+a tenant and the owner satisfies the policy; hold the table and it satisfies every
+privilege check implicitly. Nothing in the grant layer or the policy layer then stands
+between `learnstack_migration` and a rewritten audit row — which is the whole of the
+trigger's job, and a sharper reason for it than the one first given.
+
+**§ 9's conclusion is unchanged**: three layers, each stopping a different actor, and the
+trigger is the only one that binds the owner.
+
+### Carriers changed
+
+[Audit Subsystem § 7](../architecture/31-audit-subsystem.md),
+[Database Standards](../standards/05-database.md),
+[Security Standards](../standards/11-security.md),
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md) and
+[the glossary](../glossary.md).
 
 ## References
 

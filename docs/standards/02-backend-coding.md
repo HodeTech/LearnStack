@@ -63,8 +63,15 @@ Construction:
   `CourseId.From(guidFactory.NewUuidV7())`. **Never call `Guid.CreateVersion7()` /
   `Guid.NewGuid()` directly in `Domain` / `Application` code** — Standards 02
   § Time bans the symmetric `DateTime.UtcNow` for the same reason (deterministic
-  tests). High-volume append-only tables (`audit_log`, `outbox_messages`) prefer
-  DB-side `uuidv7()` (per [ADR-0031](../decisions/0031-postgresql-major-version.md)).
+  tests). High-volume append-only tables prefer DB-side `uuidv7()` (per
+  [ADR-0031](../decisions/0031-postgresql-major-version.md)) — `outbox_messages`
+  does. **`audit_log` is the one that does not.** `AuditLogBehavior` mints
+  `AuditEntryId.From(guidFactory.NewUuidV7())` at pipeline step 3, because the id
+  has to exist before the row does and the `Indeterminate` pair re-writes the same
+  id on a second connection, which a server-side `DEFAULT` cannot do
+  ([ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)).
+  `DEFAULT uuidv7()` stays on that column as a backstop for a row
+  `PostgresAuditStore` did not write.
 - ID types do **not** expose a `New()` static — explicit `From(guidFactory.NewUuidV7())`
   at the call site keeps the dependency surface honest.
 
@@ -197,6 +204,10 @@ Rules:
 ## EF Core
 
 - One `DbContext` per module (no monolithic context).
+- Interceptors attach through `AddModuleDbContext`'s options builder — the single
+  site that builds every module context. Registering an interceptor in DI alone
+  does **not** attach it; measured on EF Core 10, for both interceptor kinds and
+  both registration shapes ([ADR-0044 § 7](../decisions/0044-audit-write-path.md)).
 - Entity configurations in dedicated `*Configuration : IEntityTypeConfiguration<T>` classes; never inline in `OnModelCreating` body.
 - Global query filters configured via a base configuration method for tenant-owned entities.
 - Migrations generated per module; CI checks that the migration is included when a config changes.
@@ -246,7 +257,8 @@ Standard MediatR pipeline (in order; outermost first, innermost last). Bound by
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 and consistent with [ADR-0033](../decisions/0033-audit-durability-model.md), which keeps
 this order and changes only the durability contract of what step 3 records
-(ADR-0033 supersedes ADR-0016):
+(ADR-0033 supersedes ADR-0016). [ADR-0044](../decisions/0044-audit-write-path.md)
+decides what happens *inside* the steps ADR-0033 named; the order is untouched:
 
 1. **`ValidationBehavior`** — FluentValidation. Invalid input → returns
    `Result.Fail(validation_failed, errors)`; never throws
@@ -262,21 +274,41 @@ this order and changes only the durability contract of what step 3 records
 
    Per [ADR-0033](../decisions/0033-audit-durability-model.md) this behavior
    keeps its position and **decides**; it does not own the durable write. On
-   the way in it classifies `(module, operation)` from the in-process audit
-   catalogue plus the tenant's cached `audit_config` overrides — it issues no
-   query, because at step 3 no transaction is open, `app.tenant_id` is unset,
-   and `audit_config` is RLS-protected, so a read there would return zero rows
-   silently. For MUST it mints the audit id and parks a pending intent in the
-   scoped `IAuditStateCapture`, touching no `DbContext`.
+   the way in it classifies `(module, operation)` — `operation` is the dotted
+   slug `{module}.{resource}.{verb}` — from the in-process audit catalogue plus
+   the tenant's cached `audit_config` overrides. It issues no query, because at
+   step 3 no transaction is open, `app.tenant_id` is unset, and `audit_config`
+   is RLS-protected, so a read there would return zero rows silently; an
+   override read that fails falls back to the in-process catalogue, which
+   carries the same MUST floor, so nothing proceeds unaudited. A request the
+   catalogue does not classify at all is rejected with
+   `500 audit_unclassified_operation`. For MUST it parks **one intent per
+   audited `(resource, operation)`** in the scoped `IAuditStateCapture`, each
+   minted with its own `AuditEntryId` — an ordered list, not one intent per
+   request ([ADR-0044 § 3](../decisions/0044-audit-write-path.md);
+   `ProvisionTenantCommand` declares two) — touching no `DbContext`.
 
-   On the way out it **reconciles**: if the intent's state is anything other
-   than `Committed` — never written, rolled back, or a commit whose outcome is
-   unknown — it writes the row standalone with the real outcome, in its own
-   short transaction. "Written" is not "committed", and a per-request flag
-   cannot observe a rollback. A MUST-class audit that cannot be written at all
-   **fails closed**: the caller receives `503 audit_unavailable`.
-   **SHOULD/MAY-class** entries stay best-effort — written on the same outbound
-   pass, logged on failure, never blocking the business operation.
+   On the way out the **owning** unit-of-work frame reconciles, gated on
+   `IUnitOfWorkScope.IsOwner`: every intent whose state is anything other than
+   `Committed` — never written, rolled back, or a commit whose outcome is
+   unknown — is written standalone with the real outcome, in its own short
+   transaction. "Written" is not "committed", and a per-request flag cannot
+   observe a rollback. A joiner frame reconciles nothing, signals nothing, and
+   does not call `Clear()`; the outermost behavior clears the capture in its
+   `finally` ([ADR-0044 § 4](../decisions/0044-audit-write-path.md)).
+
+   **Fail-closed is narrower than it reads.** An **in-transaction** MUST-class
+   write that fails rolls the operation back and answers
+   `503 audit_unavailable`. A **standalone** MUST-class write that fails changes
+   the response only when the operation would otherwise have **succeeded**
+   ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)): a row
+   recording an operation already being refused — a `denied` authorisation
+   outcome, a rejected tenant assertion — keeps its own 403 / 404. Neither
+   standalone branch is silent: the failure logs at `Critical`, increments the
+   standalone-write-failure counter, and marks the audit health check
+   unhealthy. **SHOULD/MAY-class** entries stay best-effort — written on the
+   same outbound pass, logged on failure, never blocking the business
+   operation.
 4. **`TenantContextBehavior`** — Asserts `ITenantContext.IsResolved` (the
    `TenantResolverMiddleware` populated it from the inbound HTTP request,
    the Hangfire `JobActivator` populated it from the job payload, or the
@@ -316,11 +348,16 @@ this order and changes only the durability contract of what step 3 records
 
    This behavior owns the **commit boundary**, and therefore owns two further
    responsibilities per
-   [ADR-0033](../decisions/0033-audit-durability-model.md). First, immediately
-   before `COMMIT` it calls `IAuditStore.WritePendingAsync`, which inserts the
-   complete MUST-class audit row on this transaction — a no-op when no intent
-   is pending, and a rollback plus `audit_unavailable` when it fails. Placing
-   the write here rather than in the EF interceptor is deliberate: at
+   [ADR-0033](../decisions/0033-audit-durability-model.md), both on the
+   **owning** frame only (`IUnitOfWorkScope.IsOwner`) — a joiner's
+   `CompleteAsync` is a no-op, so a joiner that reported the boundary would
+   claim durability for a row nothing has committed. First, immediately before
+   `COMMIT` it calls `IAuditStore.WritePendingAsync`, which inserts **every**
+   pending intent in the scope as a complete MUST-class audit row on this
+   transaction — a no-op when none is pending, and a rollback plus
+   `audit_unavailable` when it fails, raised as
+   `AuditWriteFailedException : InfrastructureException` carrying that `Error`.
+   Placing the write here rather than in the EF interceptor is deliberate: at
    pre-commit every flush has happened, so the row's snapshots are complete
    however many times the handler saved. Second, it records the outcome on
    `IAuditStateCapture` — `Committed` once `CommitAsync` returns, `RolledBack`

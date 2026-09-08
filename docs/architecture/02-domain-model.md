@@ -420,15 +420,21 @@ examples live in [32-tenant-customization-model.md](32-tenant-customization-mode
 Per [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes
 [ADR-0016](../decisions/0016-audit-log-subsystem.md), the Audit module owns the
 append-only platform-level audit trail and MUST-class rows commit with the state change
-they describe.
+they describe. [ADR-0044](../decisions/0044-audit-write-path.md) decides the write path:
+row identity, intent multiplicity, what the capture sees, and how an operation is
+classified.
 
 | Entity | Aggregate root? | Notes |
 |--------|-----------------|-------|
-| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per command/sensitive query/security event. Fields: `tenant_id`, `organization_id?`, `actor_user_id?`, `module`, `operation`, `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
-| `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement. Tenant-overridable within MUST/SHOULD/MAY classification. |
+| `AuditEntry` | Yes (append-only — inherits `Entity<TId>` NOT `AuditableEntity<T>`) | One row per audited `(resource, operation)`: a command, sensitive query or security event may declare several on one transaction (`ProvisionTenantCommand` declares two). Tenant-owned and organization-scoped — it implements `ITenantOwned`, through `IOrganizationScoped` since the row carries an organization — and takes that class's canonical policy from [Database Standards § Table classes](../standards/05-database.md) unmodified. Fields: `id` (`AuditEntryId`, minted app-side by `AuditLogBehavior` so a commit-in-doubt pair shares one identity — [ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)), `tenant_id` (`TenantId`; the tenant the ambient transaction announced, or `TenantId.PlatformSentinel` for a platform-scope row — and **no foreign key** to `tenants`, because the sentinel has no row there and the record outlives the tenant), `organization_id?` (`OrganizationId?`), `actor_user_id?` (`UserId?`), `actor_email?`, `module`, `operation` (the dotted slug `{module}.{resource}.{verb}`), `operation_type`, `operation_class`, `entity_type?`, `entity_id?`, `outcome` (`success` \| `denied` \| `failed` \| `indeterminate`), `error_key?`, `before_state` (jsonb), `after_state` (jsonb), `changes` (jsonb), `correlation_id?`, `ip_address?`, `user_agent?`, `reason?`, `timestamp`, `metadata?`. Stored in the `audit_log` table — a single plain table with the composite key `(id, timestamp)` in Phase 02a; partitioned by month from [Phase 11](../roadmap/phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). |
+| `AuditConfig` | Yes | Per-tenant override of per-(module, operation) audit enablement. Tenant-overridable within MUST/SHOULD/MAY classification. Classification overrides only: it carries no retention column, and retention arrives with the purge job in [Phase 11](../roadmap/phase-11-production-hardening.md). |
 
-Capture pipeline (`AuditChangeTrackerInterceptor` → `IAuditStateCapture` →
-`AuditLogBehavior` → `IAuditStore`) lives in `LearnStack.Infrastructure.Audit`. Full deep
+`AuditEntry`, `AuditConfig` and `AuditDbContext` live in the Audit module, in a
+migration chain of their own. The capture pipeline is split by layer: the ports
+(`IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`, `AuditIntent`, `AuditEntryId`)
+live in `LearnStack.SharedKernel.Audit`; `AuditChangeTrackerInterceptor`,
+`AuditStateCapture` and `PostgresAuditStore` in `LearnStack.Infrastructure.Audit`; and
+`AuditLogBehavior` in `LearnStack.Application`'s pipeline. Full deep
 dive: [31-audit-subsystem.md](31-audit-subsystem.md).
 
 ## External: LearnStack Hub aggregates (mirrored, not owned)

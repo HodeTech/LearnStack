@@ -10,15 +10,21 @@
 [ADR-0030 Redis-compatible Store — Valkey](../decisions/0030-redis-compatible-store-valkey.md),
 [ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md),
 [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md),
-[ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md).
+[ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md),
+[ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md),
+[ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md).
 
-Two audit decisions are referenced here but **not owned** here, and the split matters
-because the two are easy to conflate:
+Three audit decisions are referenced here but **not owned** here, and the split matters
+because they are easy to conflate:
 [ADR-0033](../decisions/0033-audit-durability-model.md) owns the audit **durability
-contract** — what must commit with what — and
+contract** — what must commit with what —
+[ADR-0044](../decisions/0044-audit-write-path.md) owns the **write path** — row identity,
+intent multiplicity, capture, classification, and which assembly each type lives in — and
 [ADR-0028](../decisions/0028-audit-log-partition-management.md) owns the `audit_log`
-**partition lifecycle**. This standard only records that partitioning is demand-gated
-and that modules never write `audit_log` directly.
+**partition lifecycle**. This standard records that partitioning is demand-gated, where
+the audit types live, and that modules never write `audit_log` directly. Assembly
+placement and the four-method write path in § Audit Plumbing are ADR-0044's, which is
+why it — alone of the three — is also named in the header above.
 
 This standard defines how application code uses the foundation infrastructure introduced
 in the 2026-05-18 redesign: Dapr building blocks, the APISIX gateway, the Hub HTTPS
@@ -52,10 +58,10 @@ named phase when a written trigger fires.
 | Dapr state / Valkey | `ICacheService` | `InMemoryCacheService` | [Phase 11](../roadmap/phase-11-production-hardening.md) | More than one application instance runs concurrently |
 | Vault | `ISecretProvider` | `ConfigurationSecretProvider` (**startup-only**, see below) | [Phase 11](../roadmap/phase-11-production-hardening.md) | A production secret must rotate without a redeploy, **or** more than one operator needs access to production secrets |
 | APISIX | composition root | ASP.NET middleware | [Phase 11](../roadmap/phase-11-production-hardening.md) | A non-dev deployment needs edge rate limiting, host routing, or JWT pre-validation |
-| Hub entitlement | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) | A tenant must be billed or plan-gated |
-| Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
+| Hub entitlement | `IEntitlementProvider` | `NullEntitlementProvider` (**every mode**, from [Packet 9](../roadmap/phase-02a-kernel-tenancy.md)) | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) | A tenant must be billed or plan-gated |
+| Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` (the same registration) | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
 | Custom-domain TLS automation | `IHostToTenantResolver` + `ITlsCertificateProvider` | `platform_host_to_tenant` rows managed by configuration | [Phase 11](../roadmap/phase-11-production-hardening.md) | A tenant needs its own domain in production |
-| `audit_log` partitioning + retention | schema-internal | Single correct table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
+| `audit_log` partitioning + retention | schema-internal | Single unpartitioned table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
 | Durable idempotency store | `IIdempotencyStore` | `InMemoryIdempotencyStore` | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | The first endpoint carrying `[Idempotent]`, **or** more than one application instance runs concurrently |
 | Meilisearch | `ITenantSearch` | PostgreSQL full-text search | [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | Search quality or scale exceeds PostgreSQL FTS |
 | LiveKit | `ILiveClassProvider` | none — scheduled, not gated; see the exception below | [Phase 08c](../roadmap/phase-08c-classroom.md) | Live classes become a product requirement |
@@ -107,8 +113,13 @@ Rules:
   `DeploymentMode` directly. If a module needs different behavior in different modes,
   the answer is two adapter implementations of the same interface registered in the
   composition root — not a runtime `if`.
-- A failure to pick an implementation (e.g. `Production` mode with no
-  `IEntitlementProvider` registered) fails fast at startup, not at first request.
+- A failure to pick an implementation fails fast at startup, not at first request — a
+  missing registration is a boot failure, never a first-request null reference.
+  `IEntitlementProvider` is **not** an instance of it:
+  [ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md) and
+  [ADR-0020's 2026-09-07 Amendment](../decisions/0020-triple-deployment-hybrid-license.md)
+  register `NullEntitlementProvider` in **every** mode until ADR-0035's Phase 02c
+  trigger fires, so no mode boots without one.
 - An architecture test
   (`Modules_Do_Not_Reference_DeploymentMode`) ensures no module assembly references the
   enum.
@@ -128,7 +139,10 @@ Rules:
 cell resolves to the `Development` column's default implementation until that block's
 trigger fires (§ Demand-Gated Building Blocks). The branch structure is real and
 exercised from [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md); the
-right-hand implementations arrive with their adapters.
+right-hand implementations arrive with their adapters. The `Entitlement` row reads the
+same way and for the same reason: `NullEntitlementProvider` is the registered
+implementation in **every** mode until the Phase 02c trigger fires
+([ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 
 ## Dapr Building Blocks
 
@@ -185,10 +199,14 @@ adapter trigger.
 - Cache keys are `{tenant_id}:{module}:{logical-name}`, or
   `{tenant_id}:{organization_id}:{module}:{logical-name}` when the value is scoped to
   one organization. The `tenant_id` segment comes **first** and is mandatory even when
-  a value is platform-wide. The only platform-wide family is the normalized Hub host
-  map, which uses the sentinel `"platform"`; every other family requires a tenant id.
+  a value is platform-wide. Two families are platform-wide and carry the sentinel
+  `"platform"` in its place: the normalized Hub host map, and the killswitch overlay
+  `platform:tenancy:killswitch` that
+  [ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md) adds with the
+  entitlement socket. Every other family requires a tenant id.
   Compose with `CacheKey.ForTenant` / `CacheKey.ForOrganization` /
-  `CacheKey.ForHostMapping`; every `ICacheService` implementation calls
+  `CacheKey.ForHostMapping`; the killswitch overlay's factory and its `EnsureValid`
+  entry land with Packet 9. Every `ICacheService` implementation calls
   `CacheKey.EnsureValid`, and none re-prefixes. There is no query filter and no RLS
   policy in front of a dictionary, so the key is the entire isolation boundary —
   which is why the shape is validated rather than left to each call site to remember.
@@ -211,6 +229,7 @@ different decisions:
 | Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Valkey) | Eager invalidation event |
 |---|---|---|---|
 | `platform:hub:host-map:{normalized-host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
+| `platform:tenancy:killswitch` (overlay; lands with Packet 9) | 60 s (hot-path default) | L1 only — no L2 figure | invalidated on toggle |
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | generation key — see the rule below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
@@ -223,6 +242,7 @@ drifts:
 | Family | Composed by |
 |---|---|
 | `platform:hub:host-map:{normalized-host}` | `CacheKey.ForHostMapping(normalizedHost)` |
+| `platform:tenancy:killswitch` | the second platform factory, landing with Packet 9 ([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)) |
 | `{tenant_id}:hub:entitlement` | `CacheKey.ForTenant(tenantId, "hub", "entitlement")` |
 | `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |
@@ -244,12 +264,14 @@ separator injection are checked. The host segment is the normalized host per
 already had its port stripped; a host that still carried `:8443` would be
 refused rather than silently splitting into two segments.
 
-The host lookup is the **one** family that legitimately carries the `platform`
-sentinel, and it is worth saying why: it answers "which tenant is this?", so by
-construction there is no tenant to key it by. Every other family knows its tenant,
-so a `platform` sentinel there would be a bug wearing the sentinel's clothes —
-and `CacheKey.EnsureValid` now refuses every platform family except the exact normalized
-host-map shape.
+A family carries the `platform` sentinel only when the value belongs to no tenant,
+and it is worth saying why each of the two qualifies: the host lookup answers "which
+tenant is this?", so by construction there is no tenant to key it by, and a killswitch
+is one platform-wide switch per key, so there is none to key it by either. Every other
+family knows its tenant, so a `platform` sentinel there would be a bug wearing the
+sentinel's clothes — and `CacheKey.EnsureValid` admits platform families by
+**enumeration**, not by shape: the normalized host-map family today, the killswitch
+family with Packet 9's entitlement socket.
 
 > An earlier version of this table listed these as `hub:host:{host}`,
 > `hub:entitlement:{tenant_id}` and `tenant_feature_flags:{tenant_id}` — module
@@ -423,25 +445,43 @@ are the Hub's public API, governed by the Hub repository.
   a snapshot test in **both** repositories. A shape change that lands in one repository
   and not the other is a contract break, and the snapshot tests are what catch it.
 - The Hub-backed adapters themselves are demand-gated: `NullEntitlementProvider` is the
-  registered implementation until a tenant must be billed or plan-gated, at which point
-  the adapters land in [Phase 02c](../roadmap/phase-02c-hub-foundation.md)
-  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+  registered implementation in **every** deployment mode until a tenant must be billed or
+  plan-gated, at which point the adapters land in
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md)
+  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md),
+  [ADR-0045 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 
 ## Entitlement Projection
 
-- `platform_entitlement_cache` is **read-only** from every module. Writes happen only
-  via `IEntitlementProvider.RefreshAsync` (called by the Dapr event handler for
-  `learnstack.hub.entitlement` and by the periodic 15-min sweep).
-- `IFeatureFlags.IsEnabledAsync(FeatureKey)` is the only sanctioned read path. Direct
-  SQL against `platform_entitlement_cache` outside the Tenancy module's infrastructure
-  is forbidden (architecture test `Modules_Do_Not_Read_Entitlement_Cache_Directly`).
+- `platform_entitlement_cache` belongs to `IEntitlementProvider`. The only sanctioned
+  reader **and** writer of it is an `IEntitlementProvider` implementation — no module
+  reads or writes that table, Tenancy included
+  ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)). Writes go
+  through `IEntitlementProvider.RefreshAsync`, driven by the Hub's push to
+  `PUT /api/internal/tenants/{id}/entitlements`, which carries the tenant in its path;
+  the `learnstack.hub.entitlement` event is the eager invalidation signal for the caches
+  in front of the projection, never the write path
+  ([ADR-0045 § 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+  `RefreshAsync` compares the incoming `generation` **inside** the write statement and
+  reports `IgnoredAsStale` for a push that is not newer — a stale push must not
+  resurrect a revoked plan.
+- `IFeatureFlags` — `IsEnabledAsync(FeatureKey)` and `GetLimitAsync(LimitKey)` — is the
+  only module-facing read path, and it **composes** over the provider rather than
+  querying the table: a plan-projected key resolves through
+  `IEntitlementProvider.GetAsync`, a tenant-flag key reads `tenant_feature_flags`, and
+  the killswitch overlay is applied last. Direct SQL against
+  `platform_entitlement_cache` from any module is forbidden (architecture test
+  `Modules_Do_Not_Read_Entitlement_Cache_Directly`).
 - The resolution order is **normative**
   ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)):
   `L1 in-process → L2 ICacheService → platform_entitlement_cache → Hub`. The durable
   projection sits **between** the caches and the Hub precisely so a cold cache during a
   Hub outage falls through to a stored answer with a recorded `grace_until`, rather than
   throwing out of a feature-flag check. Each feature-key class declares fail-open or
-  fail-closed explicitly.
+  fail-closed explicitly. Walking that order is the **provider's** job, not
+  `IFeatureFlags`'s: `HubEntitlementProvider` implements it in
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md), and `NullEntitlementProvider`
+  answers from constants and reads no table.
 - Cache TTLs: **L1 (in-process `IMemoryCache`)** = 60s; **L2 (Dapr state → Valkey)** =
   15-minute upper bound. Eager invalidation flows from the Dapr event
   (`learnstack.hub.entitlement` / `learnstack.cache.invalidation`); the TTLs are the
@@ -473,13 +513,26 @@ are the Hub's public API, governed by the Hub repository.
 
 ## Audit Plumbing
 
-- Audit capture is wired through the shared `LearnStack.Infrastructure.Audit`
-  pipeline. Modules do **not** write to `audit_log` directly.
+- Audit capture is wired through one shared pipeline; modules do **not** write to
+  `audit_log` directly. Assembly placement is settled by
+  [ADR-0044 § 11](../decisions/0044-audit-write-path.md): `AuditLogBehavior` stays in
+  `LearnStack.Application/Pipeline`, because either `Infrastructure` home the corpus
+  named would invert the Application → Infrastructure dependency the canonical pipeline
+  order rests on; the ports — `IAuditStore`, `IAuditStateCapture`, `AuditEntryDraft`,
+  `AuditIntent`, `AuditEntryId` — live in `LearnStack.SharedKernel.Audit`;
+  `PostgresAuditStore`, `AuditStateCapture` and `AuditChangeTrackerInterceptor` live in
+  `LearnStack.Infrastructure.Audit`; and `AuditEntry`, `AuditConfig` and `AuditDbContext`
+  live in the Audit module.
 - A command/query/event becomes audited by the **catalog** (MUST/SHOULD/MAY
   classification per [18-audit-coverage.md](18-audit-coverage.md)) and the MediatR
   `AuditLogBehavior`; there is no per-module audit code.
 - `IAuditStore` is the only sanctioned write path; the architecture test
-  `Modules_Do_Not_Write_AuditLog_Directly` enforces this.
+  `Modules_Do_Not_Write_AuditLog_Directly` enforces this. It carries **four** write
+  methods and no update method: `WritePendingAsync` on the ambient transaction, the two
+  standalone writers (`WriteStandaloneAsync`, `WriteBestEffortAsync`), and
+  `WritePlatformScopeAsync`, whose only caller is `EnterPlatformAdminScope(reason)` —
+  it writes its security-event row on its own platform-role connection, before the
+  operation runs ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)).
 
 ## Background Jobs and Hangfire
 
@@ -520,7 +573,9 @@ are the Hub's public API, governed by the Hub repository.
   payload LearnStack caches, logs, audits or mirrors.
 - Writing `outbox_messages` from outside the `IOutbox` interface.
 - Writing `audit_log` from outside the `IAuditStore` interface.
-- Writing `platform_entitlement_cache` from outside `IEntitlementProvider.RefreshAsync`.
+- Reading or writing `platform_entitlement_cache` from any module. The only sanctioned
+  reader and writer is an `IEntitlementProvider` implementation, and it writes through
+  `RefreshAsync`.
 - Adding a fifth Dapr building block without a new ADR.
 - Adding an endpoint to the Hub contract surface without a new ADR.
 - Promoting a demand-gated adapter without recording which trigger fired, and amending
@@ -536,6 +591,8 @@ are the Hub's public API, governed by the Hub repository.
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 - [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
+- [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
+- [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
 - [29-dapr-integration.md](../architecture/29-dapr-integration.md)
 - [30-api-gateway.md](../architecture/30-api-gateway.md)
 - [33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md)
