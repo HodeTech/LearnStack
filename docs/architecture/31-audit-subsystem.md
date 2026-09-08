@@ -195,9 +195,17 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
         // column passes through verbatim, everything else is serialised. Deciding from the
         // value retypes ordinary text whose content happens to parse — a varchar display
         // name of "[1,2,3]" would become a JSON array — and emits escapes jsonb refuses,
-        // failing the INSERT inside the business transaction. An enum renders as its NAME,
-        // matching the three closed-set columns beside it. Strongly-typed identifiers need
-        // no unwrapping: measured, a Vogen id already serialises as its quoted Guid.
+        // failing the INSERT inside the business transaction.
+        //
+        // AND THE VALUE IS THE ONE THE COLUMN HOLDS, not the one the entity holds: a
+        // converted property's model value and provider value are different objects with
+        // different shapes, so every value goes through the property's ValueConverter
+        // first. Measured: a LocalizedText display name stores
+        // {"en":"Vocabulary Card","tr":"Kelime Kartı"} and serialises from its CLR side as
+        // {"Locales":["en","tr"]} — which records which languages exist and none of the
+        // text. That path also unwraps a Vogen identifier to its Guid and renders an
+        // enum mapped by HasEnumAsText() as the member name the column stores, so an
+        // audit row and the table it describes cannot disagree.
     }
 }
 ```

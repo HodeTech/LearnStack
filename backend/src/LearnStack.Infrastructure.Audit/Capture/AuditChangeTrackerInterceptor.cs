@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Secrets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace LearnStack.Infrastructure.Audit.Capture;
 
@@ -187,13 +188,25 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
             var storedAsJson = string.Equals(
                 property.Metadata.GetColumnType(), "jsonb", StringComparison.OrdinalIgnoreCase);
 
+            // The converter, so the snapshot records WHAT THE COLUMN HOLDS rather than
+            // what the CLR object looks like. `Property.CurrentValue` is the model value,
+            // and for a converted property the two are different objects with different
+            // shapes — measured, and the difference is not cosmetic: a `LocalizedText`
+            // display name stores {"en":"Vocabulary Card","tr":"Kelime Kartı"} and
+            // serialises from its CLR side as {"Locales":["en","tr"]}, which records which
+            // languages exist and none of the text. Every display name in Customization —
+            // the tenant-authored values that module exists for — would have been audited
+            // as a list of locale codes, and the row is append-only so nothing could
+            // recover the words afterwards.
+            var converter = property.Metadata.GetValueConverter();
+
             var beforeJson = entry.State == EntityState.Added
                 ? null
-                : Value(property.OriginalValue, sensitive, storedAsJson);
+                : Value(Stored(converter, property.OriginalValue), sensitive, storedAsJson);
 
             var afterJson = entry.State == EntityState.Deleted
                 ? null
-                : Value(property.CurrentValue, sensitive, storedAsJson);
+                : Value(Stored(converter, property.CurrentValue), sensitive, storedAsJson);
 
             if (!first)
             {
@@ -229,6 +242,20 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
                 : AuditJson.CapObject(after.ToString()),
             Fields: fields);
     }
+
+    /// <summary>
+    /// The value as the column holds it, through the property's converter when it has one.
+    /// </summary>
+    /// <remarks>
+    /// Three shipped shapes go through here and each lands right only because of it: a
+    /// Vogen identifier becomes its <c>Guid</c>, an enum mapped by
+    /// <c>HasEnumAsText()</c> becomes the member name the column stores, and a
+    /// <c>LocalizedText</c> becomes the JSON document its <c>jsonb</c> column holds. An
+    /// audit row that recorded the CLR side would disagree with the table it describes,
+    /// and a reader has no way to tell which of the two is the record.
+    /// </remarks>
+    private static object? Stored(ValueConverter? converter, object? value) =>
+        converter is null || value is null ? value : converter.ConvertToProvider(value);
 
     private static string Value(object? value, bool sensitive, bool storedAsJson) =>
         sensitive

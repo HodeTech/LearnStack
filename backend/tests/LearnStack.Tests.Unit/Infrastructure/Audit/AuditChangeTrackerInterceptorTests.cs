@@ -3,7 +3,13 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.Modules.Customization.Domain;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
 using LearnStack.SharedKernel.Secrets;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -262,6 +268,43 @@ public sealed class AuditChangeTrackerInterceptorTests
             .AfterJson.Should().Be("\"Second\"");
     }
 
+    [Fact]
+    public void A_converted_property_is_captured_as_the_column_holds_it()
+    {
+        // The defect this case exists for was measured, not imagined: `CurrentValue` is the
+        // MODEL value, and for a converted property the model and the column are different
+        // objects with different shapes. A LocalizedText display name stores
+        // {"en":"Vocabulary Card","tr":"Kelime Kartı"} and serialises from its CLR side as
+        // {"Locales":["en","tr"]} — which records which languages exist and none of the
+        // text. Every display name in Customization is one of these, they are the
+        // tenant-authored values that module exists for, and audit_log is append-only, so
+        // nothing could recover the words afterwards.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.Add(new Converted
+        {
+            Id = 1,
+            Label = Label.From("Vocabulary Card"),
+            Grade = Grade.Second,
+        });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var fields = capture.Changes.Single().Fields;
+
+        fields.Single(field => field.Path == "/Converted/Label")
+            .AfterJson.Should().Be(
+                """{"text":"Vocabulary Card"}""",
+                "the jsonb column holds the converter's output, not the CLR object's shape");
+
+        fields.Single(field => field.Path == "/Converted/Grade")
+            .AfterJson.Should().Be(
+                "\"Second\"",
+                "an enum mapped as text is stored by name, and the snapshot must agree "
+                + "with the column it describes");
+    }
+
     [Theory]
     // By name and with a reason each (ADR-0044 § 7). The audit tables cannot arise
     // anyway — the store writes parameterised SQL and never a DbContext — and they are
@@ -342,6 +385,49 @@ public sealed class AuditChangeTrackerInterceptorTests
             + "— the store merges by entity type, earliest before and latest after");
     }
 
+    [Fact]
+    public void Every_shipped_localized_display_name_is_captured_as_its_stored_document()
+    {
+        // The stand-in above kills the mutation; this one keeps the stand-in honest. It
+        // runs the real interceptor over the REAL Customization model, so a change to
+        // CustomizationMapping.HasLocalizedText() — the mapping every display name in the
+        // schema shares — is caught here rather than by a reader of audit_log noticing the
+        // words are gone.
+        var options = new DbContextOptionsBuilder<CustomizationDbContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
+            .Options;
+
+        using var context = new CustomizationDbContext(options, StaticTenantContextAccessor.Unresolved);
+        var capture = new AuditStateCapture();
+
+        var label = LocalizedText.From(("en", "Vocabulary Card"), ("tr", "Kelime Kartı"));
+
+        context.Add(TenantContentType.Create(
+            TenantContentTypeId.From(Guid.CreateVersion7()),
+            TenantId.From(Guid.CreateVersion7()),
+            "vocabulary-card",
+            1,
+            label,
+            """{"type":"object"}""",
+            "default-card",
+            new FixedClock(DateTimeOffset.UnixEpoch),
+            UserId.From(Guid.CreateVersion7())));
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        capture.Changes.Single().Fields
+            .Single(field => field.Path.EndsWith("/DisplayName", StringComparison.Ordinal))
+            .AfterJson.Should().Be(
+                label.ToJson(),
+                "the snapshot records what the jsonb column holds — the words, not the "
+                + "list of locales the CLR object exposes");
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : IClock
+    {
+        public DateTimeOffset UtcNow => now;
+    }
+
     private static string Quoted(string value) => JsonSerializer.Serialize(value);
 
     private sealed class ProbeContext : DbContext
@@ -357,6 +443,21 @@ public sealed class AuditChangeTrackerInterceptorTests
             builder.Entity<Person>();
             builder.Entity<Band>().HasKey(band => new { band.TenantId, band.Taxonomy, band.Key });
             builder.Entity<Bookkept>();
+            builder.Entity<Converted>(entity =>
+            {
+                // Exactly the shape CustomizationMapping.HasLocalizedText() gives every
+                // display name: a value converter onto a string, in a jsonb column.
+                entity.Property(converted => converted.Label)
+                    .HasConversion(
+                        label => label.ToJson(),
+                        json => Label.FromJson(json))
+                    .HasColumnType("jsonb");
+
+                // And the shape HasEnumAsText() gives every closed-set column.
+                entity.Property(converted => converted.Grade)
+                    .HasConversion(grade => grade.ToString(), text => Enum.Parse<Grade>(text))
+                    .HasColumnType("text");
+            });
             builder.Entity<Documented>(entity =>
             {
                 entity.Property(documented => documented.Document).HasColumnType("jsonb");
@@ -424,6 +525,26 @@ public sealed class AuditChangeTrackerInterceptorTests
         public long RowVersion { get; set; }
 
         public string Payload { get; set; } = string.Empty;
+    }
+
+    /// <summary>A stand-in for <c>LocalizedText</c>: a value object stored as JSON.</summary>
+    private sealed record Label(string Text)
+    {
+        public static Label From(string text) => new(text);
+
+        public string ToJson() => $$"""{"text":{{JsonSerializer.Serialize(Text)}}}""";
+
+        public static Label FromJson(string json) =>
+            new(JsonDocument.Parse(json).RootElement.GetProperty("text").GetString()!);
+    }
+
+    private sealed class Converted
+    {
+        public int Id { get; set; }
+
+        public Label Label { get; set; } = Label.From(string.Empty);
+
+        public Grade Grade { get; set; }
     }
 
     private enum Grade
