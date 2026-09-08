@@ -712,7 +712,8 @@ Key invariants enforced by this behavior:
   in-process catalogue, which carries the MUST floor, and the failure is logged at `Error`
   and surfaced on the audit health check. Rejecting every request platform-wide because a
   cache is unavailable is a worse compliance outcome than losing one tenant's voluntary
-  SHOULD→MUST elevation; the property ADR-0016 lost — silently switching auditing *off* —
+  narrowing of a SHOULD or a MAY; the property ADR-0016 lost — silently switching
+  auditing *off* —
   is impossible here either way.
 - **An in-transaction MUST-class audit failure fails the operation, as an exception.**
   `IAuditStore.WritePendingAsync` throws
@@ -744,7 +745,10 @@ Key invariants enforced by this behavior:
   flags it.
 - **A tenant override cannot remove MUST coverage.** `IAuditConfigService.ClassifyAsync`
   applies the per-tenant `audit_config` override and then re-applies the catalogue's MUST
-  floor. A tenant may audit *more* than the baseline, never less.
+  floor. A tenant may audit *less* of what the baseline leaves optional, and never less
+  than the MUST floor — `is_enabled = false` silences a SHOULD or a MAY, `true` is the
+  baseline, and elevation is not expressible and is deliberately not wanted
+  ([ADR-0033 Amendment 4 § 1](../decisions/0033-audit-durability-model.md)).
 
 ## 6. Pipeline order
 

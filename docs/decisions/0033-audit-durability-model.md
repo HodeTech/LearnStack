@@ -263,6 +263,13 @@ the architecture document is the outlier and is corrected.
   [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) deliverable that
   `TransactionBehavior`'s shipped shell already presumes; named here because the durable
   audit write depends on it.
+> **Erratum — 2026-09-08.** The bullet below reads "refreshed out of band and invalidated
+> by the tenant-configuration integration event". No such event exists in the corpus and
+> no phase owns such a refresher, so it was false when written. § Decision's mechanism
+> governs: the loader runs on a cache miss, on its own short transaction. The Decision is
+> unchanged. Current authority:
+> [Amendment 4 § 3](#amendment-4--three-questions-the-light-up-had-to-answer-2026-09-08).
+
 - **`AuditConfig` overrides are a cached projection**, refreshed out of band and
   invalidated by the tenant-configuration integration event — never a request-path query.
   The loader sets its own `app.tenant_id`.
@@ -518,6 +525,82 @@ unhealthy. What is deferred is only the act of ceasing to serve.
 [Observability Standards](../standards/10-observability.md),
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and
 [Phase 11](../roadmap/phase-11-production-hardening.md).
+
+## Amendment 4 — Three questions the light-up had to answer (2026-09-08)
+
+Phase 02a Packet 9 Step 5 lights up `AuditLogBehavior` and `TransactionBehavior`. Reading
+this ADR against the code that now exists surfaced three points where the corpus said two
+things, or said one thing it had no mechanism for. Each is settled here; none changes the
+Decision.
+
+### 1. A tenant override narrows and never elevates
+
+§ Fail-closed calls the thing a cache outage costs "one tenant's voluntary SHOULD→MUST
+elevation", and the glossary, `add-audit-coverage` and Audit Subsystem § 5 describe the
+same capability. **The shipped schema cannot express it.** `audit_config` carries one
+`is_enabled boolean` and no tier column, so a row cannot name a target class;
+[Audit Coverage Standards](../standards/18-audit-coverage.md) § Required Behaviours
+already said narrowing only, and it is the reading that governs.
+
+`is_enabled = false` silences a SHOULD or a MAY and does nothing to a MUST.
+`is_enabled = true` is the baseline — a no-op row, which is also what an **absent** row
+means, so a tenant that has authored nothing and a tenant that has authored `true` are
+answered identically.
+
+**Elevation is refused rather than deferred**, and the reason is not the schema. An
+override that could move an operation onto the MUST tier would hand a tenant admin a
+lever onto the in-transaction durable path, where `IAuditStore.WritePendingAsync` throwing
+rolls the business transaction back and answers `503 audit_unavailable`. That is a
+tenant-controlled availability risk on operations the platform deliberately classified
+MAY, and it is the wrong direction for a control whose whole purpose is that a
+compromised tenant admin cannot reduce what the log records. A later phase that wants
+elevation owes an ADR for the lever, not a column.
+
+### 2. A cancelled `COMMIT` is `Indeterminate`
+
+§ Decision says a faulted `CommitAsync` leaves the rows' fate genuinely unknown, so the
+standalone row is written anyway. `AuditLogBehavior`'s catch excludes
+`OperationCanceledException` — [ADR-0032](0032-exception-handling-logging-and-observability.md)
+requires that type to survive — so until now a client that disconnected mid-`COMMIT`
+skipped the reconcile **and** the `finally` that clears the capture. An ordinary client
+action could drop a MUST-class row for an operation that may well have committed.
+
+**A cancellation during `CommitAsync` is a faulted commit like any other.**
+`TransactionBehavior` marks the capture `Indeterminate` **before** rethrowing, so the
+reconcile step runs and `Clear()` still happens in its `finally`. ADR-0032's contract is
+untouched: the exception leaves `Handle` as the `OperationCanceledException` it was, with
+its type, its message and its stack intact. What changes is only that the audit record is
+written on the way out.
+
+A cancellation raised **before** `CommitAsync` is not this case. Nothing was committed,
+the state is `RolledBack`, and the reconcile step already covers it.
+
+### 3. The override loader runs on a cache miss
+
+This ADR describes the override read twice and the two are different mechanisms.
+§ Decision: "read through `ICacheService`; on a miss the loader opens **its own** short
+transaction and sets `app.tenant_id` itself." § Implementation Notes: "refreshed out of
+band and invalidated by the tenant-configuration integration event — never a request-path
+query."
+
+> **Erratum (2026-09-08).** The § Implementation Notes clause was wrong when written.
+> There is no tenant-configuration integration event in the corpus and no phase owns an
+> out-of-band refresher, so the mechanism it describes has never existed. **§ Decision
+> governs**: the loader runs on a cache miss. Recorded in this Amendment.
+
+"Never a request-path query" survives as what it was reaching for — a query **per
+request** is what it forbids, and a loader that runs once per `(tenant, generation)` and
+caches the answer is not one. The distinction is the same one
+[ADR-0043](0043-customization-payload-validation.md)'s generation counter already draws
+for every other cached projection.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 3 and 5,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[the glossary](../glossary.md),
+[the Audit module spec](../modules/audit/README.md), and the `add-audit-coverage` skill.
 
 ## References
 

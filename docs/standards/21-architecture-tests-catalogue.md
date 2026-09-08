@@ -1519,6 +1519,16 @@ which decides identity, multiplicity, capture and classification;
   carrying the `denied` outcome and zero business rows, and keeps its own `403` — the 503
   is for a write that would otherwise have **succeeded**
   ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
+- **The `denied` clause lands with Phase 03, and the rest lands in Packet 9.** Nothing in
+  the Packet 9 pipeline can produce a `403`: `AuthorizationBehavior` is still the Packet 3
+  pass-through, because the permission registry arrives with Identity in
+  [Phase 03](../roadmap/phase-03-identity-admin.md). A case written now could only reach
+  the `denied` outcome by returning `Result.Fail(forbidden)` from a **handler** — which
+  produces the right row and the right standalone path, and proves nothing about the
+  authorization step the clause is about. Splitting the rule's implementation is the
+  honest answer: Packet 9 implements the first two clauses against the real pipeline, and
+  the `denied` clause is written the day step 5 can refuse. Recording it here is what
+  stops a later reader taking the whole rule as satisfied.
 - **One row per intent, not one per request.** `IAuditStateCapture` holds an ordered list
   of intents, one per audited `(resource, operation)`, and only the **owning**
   unit-of-work frame (`IUnitOfWorkScope.IsOwner`) flushes it — draining every intent in

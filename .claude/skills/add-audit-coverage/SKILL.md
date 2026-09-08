@@ -46,7 +46,8 @@ scope.
 ## When to use
 
 - A new command / query in the module should be MUST or SHOULD audited.
-- A previously SHOULD-audited operation is being promoted to MUST.
+- A previously SHOULD-audited operation is being reclassified MUST **in the module's
+  catalogue** — which is a code change here, not a tenant setting.
 - A column previously not snapshotted should now have `before` / `after` captured
   on update.
 - A new module is shipping its first audit matrix.
@@ -407,8 +408,13 @@ Two shapes are binding on anything that reads the columns:
 Tenants can override MUST/SHOULD/MAY per `(module, operation)` via `AuditConfig`,
 **but cannot relax MUST**. This is enforced at the catalogue level:
 
-- A tenant can promote `SHOULD` → `MUST` (stricter).
-- A tenant can promote `MAY` → `SHOULD` or `MUST`.
+- A tenant can **silence** a `SHOULD` or a `MAY` — `is_enabled = false`. That is the only
+  thing an override does.
+- A tenant can **not** promote anything. `audit_config` carries one boolean and no tier
+  column, so a row cannot name a target class; and a lever that moved an operation onto
+  the MUST tier would put a tenant admin in reach of the `503` an in-transaction audit
+  failure produces, on operations the platform classified `MAY`
+  ([ADR-0033 Amendment 4 § 1](../../../docs/decisions/0033-audit-durability-model.md)).
 - A tenant cannot demote `MUST` → `SHOULD` / `MAY`. The catalogue method
   `MustAudit<T>` registers a floor.
 
