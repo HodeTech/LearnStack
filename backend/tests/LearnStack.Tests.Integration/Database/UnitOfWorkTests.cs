@@ -69,6 +69,32 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task The_ordinary_setter_refuses_the_platform_sentinel()
+    {
+        // The announcement choke point. The two guards ADR-0044 Amendment 3 § 5 named
+        // sit where the value is minted; this one sits where every announcement passes,
+        // and it is the sentence § 1 actually writes. It is what makes the invariant
+        // true of the system rather than true of the paths we enumerated — the path it
+        // closes is an integration-event envelope, which reaches a *resolved* context
+        // without touching either of the other two guards (Amendment 5 § 1).
+        //
+        // Fail-closed to the empty string, like the two arms beside it: a context
+        // carrying the sentinel reads zero rows rather than the platform's.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(
+            Resolved(TenantId.PlatformSentinel.Value, SchemaFixture.OrgA1));
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
     public async Task The_provisioning_setter_refuses_the_platform_sentinel()
     {
         // The guard ADR-0044 Amendment 3 § 5 assigns an owner to, and the one that

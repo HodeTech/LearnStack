@@ -49,6 +49,17 @@ namespace LearnStack.SharedKernel.Audit;
 /// </param>
 /// <param name="OperationType">What kind of act this was.</param>
 /// <param name="OperationClass">The tier the module's catalogue declared.</param>
+/// <param name="EntityType">
+/// The aggregate this row is about, from the catalogue entry, or <c>null</c> when it is
+/// about none. The store selects every <see cref="CapturedEntityChange"/> whose
+/// <c>EntityType</c> matches its name: <c>entity_id</c> is the captured id,
+/// <c>before_state</c> the <b>earliest</b> such capture's and <c>after_state</c> the
+/// <b>latest</b>, with <c>changes</c> their concatenation in capture order. The merge is
+/// not hypothetical — <c>ProvisionTenantCommand</c> saves three times and captures
+/// <c>Tenant</c> twice, and picking one arbitrarily records half of what happened
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment
+/// 5 § 2</see>).
+/// </param>
 /// <param name="DeclaredAt">
 /// Stamped from <c>IClock</c> at step 3 and written to <c>timestamp</c> for the
 /// in-transaction row. A standalone re-write takes a <b>fresh</b> reading, which is
@@ -62,4 +73,5 @@ public sealed record AuditIntent(
     string Operation,
     OperationType OperationType,
     OperationClass OperationClass,
+    Type? EntityType,
     DateTimeOffset DeclaredAt);

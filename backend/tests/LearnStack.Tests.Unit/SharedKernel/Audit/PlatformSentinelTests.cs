@@ -29,6 +29,21 @@ public sealed class PlatformSentinelTests
     }
 
     [Fact]
+    public void The_sentinel_is_the_value_ADR_0044_fixes()
+    {
+        // The literal, spelled out, because it is the one-way door. ADR-0044 § 1 fixes
+        // it; a later step writes the same literal a second time as the SQL of
+        // ck_tenants_not_platform_sentinel; and every platform-scope audit_log row ever
+        // written will carry it. Nothing else binds the two spellings.
+        //
+        // The three property cases beside this one do not: measured, "…0003" and
+        // UserId.SystemActor's own "…0001" satisfy all three — not the nil uuid, reads
+        // as assigned, uuid-v7-shaped — so without this case a transposed digit ships.
+        TenantId.PlatformSentinel.Value
+            .Should().Be(Guid.Parse("00000000-0000-7000-8000-000000000002"));
+    }
+
+    [Fact]
     public void The_sentinel_reads_as_assigned()
     {
         // Not decoration: the standalone writer announces this value as app.tenant_id and

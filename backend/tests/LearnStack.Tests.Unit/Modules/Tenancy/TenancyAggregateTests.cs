@@ -449,6 +449,20 @@ public sealed class TenancyAggregateTests
         create.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void The_platform_sentinel_is_not_a_tenant()
+    {
+        // ADR-0044 Amendment 3 § 5 names this factory as one of the two enforcers of the
+        // sentinel invariant. The refusal itself lives in TenantOwnership.EnsureRealTenant,
+        // so removing the arm there is already caught one layer down — but what is not
+        // caught is this factory being re-inlined with the two older arms and not the
+        // third, which is exactly how the nil-uuid case above came to exist.
+        var create = () => TenancyDomain.Tenant.Create(
+            TenantId.PlatformSentinel, "platform", "Platform", Clock, Actor);
+
+        create.Should().Throw<ArgumentException>();
+    }
+
     [Theory]
     // The one type in the module carrying audit columns without deriving from
     // AuditableEntity, and so the one that skipped its guard. The accepted actor

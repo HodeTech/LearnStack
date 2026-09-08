@@ -26,6 +26,14 @@ public sealed record CapturedEntityChange(
 /// </summary>
 /// <remarks>
 /// <para>
+/// <b>Every value slot in this file holds JSON text, not a rendered value</b>, which is
+/// why each is named <c>…Json</c>. The distinction is not cosmetic: <c>42</c> and
+/// <c>"42"</c> are different values, a C# <c>null</c> is the JSON <c>null</c> rather
+/// than an absent key, and the redaction sentinel therefore enters quoted as
+/// <c>"***REDACTED***"</c>. A slot that held a rendered value would make the
+/// <c>changes</c> column unparseable by the two readers that consume it.
+/// </para>
+/// <para>
 /// Serialises into the <c>changes</c> column as a JSON <b>array</b> of
 /// <c>{ path, before, after }</c>, single-entity and multi-entity alike, with an
 /// entity-qualified RFC 6901 pointer in <see cref="Path"/>. ADR-0016 made the column
@@ -42,6 +50,6 @@ public sealed record CapturedEntityChange(
 /// </para>
 /// </remarks>
 /// <param name="Path">An entity-qualified RFC 6901 pointer.</param>
-/// <param name="Before">The prior value, already redacted if the property is sensitive.</param>
-/// <param name="After">The new value, already redacted if the property is sensitive.</param>
-public sealed record CapturedFieldChange(string Path, string? Before, string? After);
+/// <param name="BeforeJson">The prior value as JSON, already redacted if the property is sensitive.</param>
+/// <param name="AfterJson">The new value as JSON, already redacted if the property is sensitive.</param>
+public sealed record CapturedFieldChange(string Path, string? BeforeJson, string? AfterJson);

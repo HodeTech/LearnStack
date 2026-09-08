@@ -190,9 +190,17 @@ public sealed class NpgsqlUnitOfWork(
         // the all-zero id by hand (TenantOwned.EnsureRealTenant). An all-zero
         // tenant would otherwise cast cleanly and match every row a bug wrote
         // under it.
+        // The sentinel arm is deliberately redundant with the guards at the sites where
+        // the value can enter a context: this is the single site every announcement
+        // passes through, and it is the sentence ADR-0044 § 1 actually writes. A guard
+        // here is what makes that invariant true of the system rather than true of the
+        // paths we happened to enumerate — and it fails the way the other two arms do,
+        // to the empty string, so a context carrying it reads zero rows rather than the
+        // platform's (ADR-0044 Amendment 5 § 1).
         var tenant = context.IsResolved
             && context.TenantId.IsInitialized()
             && context.TenantId.Value != Guid.Empty
+            && context.TenantId != TenantId.PlatformSentinel
                 ? context.TenantId.Value.ToString()
                 : string.Empty;
 

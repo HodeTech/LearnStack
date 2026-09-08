@@ -7,7 +7,9 @@ org-scoped; it has no `organization_id` column and § 9's "both" was wrong when 
 `audit_log` is unchanged. **Amendment 2: 2026-09-08** — the redaction sentinel is
 `SensitiveTokenCatalog.RedactedValue`, not a second literal; and `FORCE ROW LEVEL
 SECURITY` *does* constrain the owner, which changes the trigger's reason and not its
-necessity. Errata sit beside both statements; both amendments are at the bottom.)
+necessity. Errata sit beside both statements. **Amendments 3–5: 2026-09-08** — the join's two
+domains and the value types' home; three things Packet 9 must not invent; and the
+sentinel's third producer plus what fills `entity_type` / `entity_id`. All at the bottom.)
 
 **Date:** 2026-09-07
 **Deciders:** @platform
@@ -810,6 +812,80 @@ something to classify.
 [Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 3, 7, 14,
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and
 `.claude/skills/add-audit-coverage/SKILL.md`.
+
+## Amendment 5 — The guard set, and what a row is about (2026-09-08)
+
+**Status: Accepted.** Raised by the review of the commit that declared the ports. Two
+questions the earlier amendments answered incompletely rather than wrongly. **§ Decision
+is unchanged.**
+
+### 1. The sentinel needs a guard at the announcement site, not only where it is minted
+
+Amendment 3 § 5 assigned two enforcers — `SetProvisioningTenantContextAsync` and
+`Tenant.Create` — on the reasoning that the sentinel should be refused "where the value
+enters". Both shipped, and both are right. The premise was not complete.
+
+**Measured**, against the shipped code: `EventTenantContext.FromEnvelope` builds a
+**resolved** context from `envelope.Event.TenantId`, a raw `Guid` off an integration
+event, refusing `Guid.Empty` and nothing else. `InProcessEventBus` assigns that context
+to `ITenantContextAccessor.Current`, and `TransactionBehavior` passes it to
+`SetTenantContextAsync` — which has no sentinel arm. A throwaway console project against
+the real assemblies returns `IsResolved=True` for a sentinel-bearing envelope and
+announces `app.tenant_id = 00000000-0000-7000-8000-000000000002`; on a container carrying
+the canonical org-scoped policy and exactly the GRANTs § 9 assigns, a `NOSUPERUSER
+NOBYPASSRLS` role announcing that value **read a seeded `platform.admin_scope.enter` row
+and inserted a forged one**.
+
+So the invariant § 1 states — "never written by a tenant request path, never announced by
+`SetTenantContextAsync`" — has a third producer of a resolved context that no guard sees.
+Two more refusals close it, and both are one clause:
+
+- **`EventTenantContext.FromEnvelope`** refuses the sentinel beside `Guid.Empty`. This is
+  where the value enters, which is the principle Amendment 3 § 5 was already applying.
+- **`NpgsqlUnitOfWork.SetTenantContextAsync`** refuses it too. This one is not
+  where-it-enters and is deliberately redundant: it is the single site every announcement
+  passes through, and it is the sentence § 1 actually writes. A guard there is what makes
+  the invariant true of the system rather than true of the paths we enumerated.
+
+**Why this is not urgent and is still done now.** Nothing can reach the exposure until
+`audit_log` exists or the outbox carries a real envelope, so no shipped behaviour is
+wrong today. It is done now because the cost of the guard is one clause and the cost of
+discovering it later is a row nobody can explain.
+
+### 2. `entity_type` and `entity_id` come from the intent's declared aggregate
+
+`AuditEntryDraft` carries both columns and nothing said what fills them. The slug's
+resource segment cannot: the module matrices drop the module's own prefix, so
+`tenancy.feature_flag.write` is `TenantFeatureFlag` and `tenancy.hostmapping.write` is
+`PlatformHostMapping` — a slug-to-type rule is wrong for two shipped entities on the day
+it is written.
+
+**A request-keyed registration declares the aggregate it is about.** § 6's
+`(operation, OperationType, OperationClass)` triple becomes a quadruple: the module's
+`IAuditCatalogSource` passes `typeof(Tenant)`, which it can because it lives in the
+module, and SharedKernel sees only `Type`. `DeclareOffPath` takes it as optional and
+normally omits it — a scope entry is about no aggregate.
+
+**The composer then has a rule rather than a guess.** For each intent, take every
+`CapturedEntityChange` whose `EntityType` matches the declared aggregate's name:
+
+- `entity_type` is that name and `entity_id` the captured id;
+- `before_state` is the **earliest** such capture's, `after_state` the **latest**, and
+  `changes` their concatenation in capture order;
+- an intent with no declared aggregate leaves both columns null, which is correct for the
+  off-path rows and for a security event that is about no row.
+
+The merge matters and is not hypothetical. `ProvisionTenantCommandHandler` issues three
+writes and the store saves per call, so the interceptor runs three times and captures
+`Tenant` **twice** — Added, then Modified when the default organization is assigned. One
+intent, two captures, and without the rule an implementer picks one arbitrarily and the
+row records half of what happened.
+
+### Carriers changed
+
+[Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 4–5 and § 7,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[the glossary](../glossary.md) and `.claude/skills/add-audit-coverage/SKILL.md`.
 
 ## References
 

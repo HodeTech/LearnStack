@@ -5,16 +5,35 @@ namespace LearnStack.SharedKernel.Audit;
 /// </summary>
 /// <param name="ModuleName">The declaring module's short name.</param>
 /// <param name="Operation">
-/// The dotted slug <c>{module}.{resource}.{verb}</c>. Its first segment equals
-/// <paramref name="ModuleName"/>, which the builder enforces rather than trusts.
+/// The dotted slug <c>{module}.{resource}.{verb}</c>. For a <b>request-keyed</b>
+/// registration its first segment equals <paramref name="ModuleName"/>, which the
+/// builder enforces rather than trusts. An entry from
+/// <see cref="IAuditCatalogBuilder.DeclareOffPath"/> takes its
+/// <paramref name="ModuleName"/> from the slug's own first segment instead:
+/// <c>platform.admin_scope.enter</c> belongs to no module's request path, and off-path
+/// entries sit outside the join in both directions
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment
+/// 3 § 1</see>).
 /// </param>
 /// <param name="OperationType">What kind of act it is.</param>
 /// <param name="OperationClass">The declared coverage tier.</param>
+/// <param name="EntityType">
+/// The aggregate this operation is about, or <c>null</c> when it is about none — an
+/// off-path scope entry, or a security event that records no row. It is what fills
+/// <c>entity_type</c> and <c>entity_id</c>, and it is declared rather than derived
+/// because the slug's resource segment cannot supply it: the matrices drop the module's
+/// own prefix, so <c>tenancy.feature_flag.write</c> is <c>TenantFeatureFlag</c> and
+/// <c>tenancy.hostmapping.write</c> is <c>PlatformHostMapping</c> — a slug-to-type rule
+/// is wrong for two shipped entities on the day it is written
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment
+/// 5 § 2</see>).
+/// </param>
 public sealed record AuditCatalogEntry(
     string ModuleName,
     string Operation,
     OperationType OperationType,
-    OperationClass OperationClass);
+    OperationClass OperationClass,
+    Type? EntityType);
 
 /// <summary>
 /// What the catalogue knows about one request type.
@@ -94,9 +113,21 @@ public interface IAuditCatalog
 public interface IAuditCatalogSource
 {
     /// <summary>
-    /// The module's short name. Every slug this source declares starts with it, and it
-    /// is the module whose <c>docs/modules/&lt;module&gt;/audit.md</c> the join reads.
+    /// The module's short name. Every slug this source declares <b>through a
+    /// request-keyed registration</b> starts with it, and it is the module whose
+    /// <c>docs/modules/&lt;module&gt;/audit.md</c> the join reads.
     /// </summary>
+    /// <remarks>
+    /// <see cref="IAuditCatalogBuilder.DeclareOffPath"/> is exempt, and has to be: the
+    /// first slug it exists for is <c>platform.admin_scope.enter</c>, which the Tenancy
+    /// matrix carries because that is where a reader looks for it, while its module
+    /// segment is <c>platform</c> because the scope belongs to no module's request path.
+    /// Requiring the prefix there would make the operation unregistrable from the only
+    /// source that could declare it — there is no <c>platform</c> module, and inventing
+    /// one would owe a <c>docs/modules/platform/audit.md</c> that
+    /// <see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment
+    /// 4 § 3</see> forbids.
+    /// </remarks>
     string ModuleName { get; }
 
     /// <summary>Declares this module's audited operations.</summary>
@@ -114,15 +145,18 @@ public interface IAuditCatalogSource
 public interface IAuditCatalogBuilder
 {
     /// <summary>Declares that this request audits an operation at MUST.</summary>
-    IAuditCatalogBuilder MustAudit<TRequest>(string operation, OperationType operationType)
+    IAuditCatalogBuilder MustAudit<TRequest>(
+        string operation, OperationType operationType, Type entityType)
         where TRequest : notnull;
 
     /// <summary>Declares that this request audits an operation at SHOULD.</summary>
-    IAuditCatalogBuilder ShouldAudit<TRequest>(string operation, OperationType operationType)
+    IAuditCatalogBuilder ShouldAudit<TRequest>(
+        string operation, OperationType operationType, Type entityType)
         where TRequest : notnull;
 
     /// <summary>Declares that this request audits an operation at MAY.</summary>
-    IAuditCatalogBuilder MayAudit<TRequest>(string operation, OperationType operationType)
+    IAuditCatalogBuilder MayAudit<TRequest>(
+        string operation, OperationType operationType, Type entityType)
         where TRequest : notnull;
 
     /// <summary>
@@ -140,6 +174,7 @@ public interface IAuditCatalogBuilder
     /// Declares an operation that is not a MediatR request at all.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>platform.admin_scope.enter</c>, <c>tenancy.killswitch.toggle</c>,
     /// <c>tenancy.entitlement.refresh</c> and the two tenant-assertion keys are performed
     /// by middleware, by a scope, or by a provider — never by a handler — so there is no
@@ -147,9 +182,17 @@ public interface IAuditCatalogBuilder
     /// and sit outside the request-type join in both directions
     /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044
     /// Amendment 3 § 1</see>).
+    /// </para>
+    /// <para>
+    /// The entry's <see cref="AuditCatalogEntry.ModuleName"/> is the slug's own first
+    /// segment, not the declaring source's — which is what makes
+    /// <c>platform.admin_scope.enter</c> registrable from Tenancy's source, where its
+    /// matrix row already lives.
+    /// </para>
     /// </remarks>
     IAuditCatalogBuilder DeclareOffPath(
         string operation,
         OperationType operationType,
-        OperationClass operationClass);
+        OperationClass operationClass,
+        Type? entityType = null);
 }

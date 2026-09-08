@@ -1,3 +1,4 @@
+using System.Net;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Audit;
@@ -49,7 +50,12 @@ namespace LearnStack.SharedKernel.Audit;
 /// <param name="AfterState">The new snapshot, redacted and size-capped.</param>
 /// <param name="Changes">The per-field diff, always a JSON array.</param>
 /// <param name="CorrelationId">Matches the trace id in logs and the Problem Details body.</param>
-/// <param name="IpAddress">Redactable under the GDPR path.</param>
+/// <param name="IpAddress">
+/// Redactable under the GDPR path. <c>System.Net.IPAddress</c>, not <c>string</c>: the
+/// column is <c>inet</c>, Npgsql maps this type onto it with no configuration, and a
+/// <c>string</c> maps onto <c>text</c> — which PostgreSQL will not assign to <c>inet</c>.
+/// The same call the aggregate that reads this column already made.
+/// </param>
 /// <param name="UserAgent">Redactable under the GDPR path.</param>
 /// <param name="Timestamp">
 /// Always supplied by the store from <c>IClock</c> — the intent's <c>DeclaredAt</c> for
@@ -80,7 +86,7 @@ public sealed record AuditEntryDraft(
     string? AfterState,
     string? Changes,
     string? CorrelationId,
-    string? IpAddress,
+    IPAddress? IpAddress,
     string? UserAgent,
     DateTimeOffset Timestamp,
     string? Metadata);

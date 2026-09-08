@@ -236,6 +236,32 @@ public sealed class IntegrationEventContractTests
     }
 
     [Fact]
+    public void An_Envelope_Naming_The_Platform_Sentinel_Is_Refused()
+    {
+        // The third producer of a *resolved* context, and the only one fed from a
+        // payload. Without this the envelope's tenant reaches
+        // ITenantContextAccessor.Current and then app.tenant_id — and a session holding
+        // the sentinel reads the cross-tenant access log and can forge a row in it,
+        // measured against the shipped audit_log policy and grants.
+        //
+        // Refused here as well as at the announcement site, because this is where the
+        // value enters and that is the principle the other two guards already apply
+        // (ADR-0044 Amendment 5 § 1).
+        var sample = new Sample
+        {
+            EventId = Guid.Parse("018f4d40-0000-7000-8000-0000000000e3"),
+            TenantId = TenantId.PlatformSentinel.Value,
+            OccurredAt = DateTimeOffset.UnixEpoch,
+            LearnerName = "Ada",
+        };
+
+        var act = () => EventTenantContext.FromEnvelope(
+            new IntegrationEventEnvelope(sample, Trace));
+
+        act.Should().Throw<ArgumentException>().WithParameterName("envelope");
+    }
+
+    [Fact]
     public void A_Null_Envelope_Is_Refused()
     {
         var act = () => EventTenantContext.FromEnvelope(null!);
