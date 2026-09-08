@@ -97,11 +97,14 @@ Sixty-seven test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 91 cases once the theories expand.
-Counted from a run at
-Packet 9 step 3's close; the figures before it were Packet 7's and were not updated when
-Packets 8 and 9 added their rules — the second time this sentence has gone stale, which
-is why it now names the run it was counted from rather than the packet it describes.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 92 cases once the theories expand.
+Counted from
+`dotnet test --list-tests` at Packet 9 step 3's close, de-duplicated by method name; the
+figures before it were Packet 7's and were not updated when Packets 8 and 9 added their
+rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 67 and is wrong:
+two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
+which greps the suite for those very attributes. The runner is the authority here, which
+is why this sentence now names the command rather than the packet.
 Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
 assertion that stops it passing vacuously.
@@ -166,6 +169,7 @@ against a host serving unversioned endpoints.
 | `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Applies_The_Tenancy_Chain_First` | `PersistenceConventionTests.cs` |
+| `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` | `AuditConventionTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
@@ -945,6 +949,37 @@ rules that need a second `DbContext` are owed by Phase 03.
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
   Mutation-checked: deleting the Tenancy prefix from the recipe fails this case and
   no other.
+
+#### `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits`
+
+- **Asserts:** for each of `audit_log`'s three closed-set text columns — `outcome`,
+  `operation_type`, `operation_class` — the set of values the property's EF value
+  converter can write equals the set its own `CHECK` constraint admits, and every value
+  round-trips back to the member it came from. Both sets are read from the **design-time**
+  model rather than from the source, so the rule sees what EF will emit; the `CHECK`
+  literals are parsed out of the constraint's own SQL rather than restated, because a
+  third copy of the list is the one nothing compares.
+- **Why it exists:** the three columns are rendered in **two different cases**, on
+  purpose. `outcome` stores `success | denied | failed | indeterminate` because
+  [ADR-0033 § 3](../decisions/0033-audit-durability-model.md) and
+  [ADR-0044 § 5](../decisions/0044-audit-write-path.md) both write it lowercase;
+  `operation_type` and `operation_class` store the C# member name unchanged, on the
+  `ck_tenants_status` precedent, which is what lets the admin API's
+  `?operationType=SecurityEvent` filter be the same string on both sides. An asymmetry
+  held by nothing but two comments drifts, and it drifts silently in both directions: a
+  converter that stopped lowercasing writes rows every `INSERT` rejects with `23514`, on
+  the write path whose whole job is that the record survives; a parse that stopped being
+  case-insensitive throws on **every** row the Phase 03 read API materialises; and an enum
+  member added without its `CHECK` is a value the code can produce and the column cannot
+  hold.
+- **Source:** [ADR-0033 § 3](../decisions/0033-audit-durability-model.md);
+  [ADR-0044 § 5](../decisions/0044-audit-write-path.md);
+  [05-database.md § Constraints](05-database.md).
+- **Type:** xUnit + EF design-time model inspection. **Kind:** structural.
+- **Status:** **Implemented** (Packet 9 step 3, `LearnStack.Tests.Architecture`,
+  `AuditConventionTests`). Mutation-checked three ways, each failing this case alone:
+  flipping `ignoreCase` to `false`, dropping the `ToLowerInvariant()` from the write half,
+  and removing one member from the `operation_class` `CHECK`.
 
 #### `Every_Foreign_Key_Has_A_Supporting_Index`
 

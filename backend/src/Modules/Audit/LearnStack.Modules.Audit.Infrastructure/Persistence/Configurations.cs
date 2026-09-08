@@ -93,9 +93,15 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
         builder.Property(x => x.OperationClass).HasEnumAsText().IsRequired();
 
         // Lowercase, and therefore not HasEnumAsText(): two Accepted ADRs write the
-        // stored values as `success | denied | failed | indeterminate`. Reading back is
-        // case-insensitive so a row hand-written by an operator in either case still
-        // materialises; writing is always the lowercase form the CHECK admits.
+        // stored values as `success | denied | failed | indeterminate`.
+        //
+        // ignoreCase is REQUIRED, not a convenience. The stored form is lowercase and the
+        // member names are PascalCase, so Enum.Parse without it throws on EVERY row —
+        // including the first row the Phase 03 read API materialises. It buys nothing on
+        // the tolerance side that it might look like it buys: ck_audit_log_outcome admits
+        // the four lowercase literals and nothing else, and a CHECK binds every role
+        // including the owner, so there is no such thing as a row stored in another case
+        // for a lenient parse to rescue.
         builder.Property(x => x.Outcome)
             .HasConversion(
                 value => value.ToString().ToLowerInvariant(),

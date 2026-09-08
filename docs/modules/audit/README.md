@@ -1,10 +1,18 @@
 # Module Spec — Audit
 
-**Status:** Design stable, partially implemented. Phase 02a Packet 9 ships the two
-tables, their isolation, the three append-only layers, the SharedKernel ports, the
-capture and the store, and the pipeline that fills them. The **read** side — the query
-API of [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its
-permission registry — lands with Identity in
+**Status:** Design stable, partially implemented — and the partition matters, because
+this file describes a write path that is not yet wired. Shipped today: the two tables and
+their isolation, the three append-only layers, the SharedKernel ports and value types, and
+`AuditDbContext`. **Still open inside Packet 9**: `PostgresAuditStore`,
+`AuditChangeTrackerInterceptor` and `AuditStateCapture` in
+`LearnStack.Infrastructure.Audit`, the merged `IAuditCatalog`, and the two pipeline steps
+that call them — `AuditLogBehavior` and `TransactionBehavior` still carry the Packet 3
+shells and their Packet 9 `TODO`s, so **the running system writes no `audit_log` row
+today**. Everything below that is written in the present tense describes the design those
+steps implement; where a sentence would otherwise read as delivered, it says so.
+The **read** side — the query API of
+[§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission
+registry — lands with Identity in
 [Phase 03](../../roadmap/phase-03-identity-admin.md). Partitioning, the retention purge
 and the GDPR redaction path land in
 [Phase 11](../../roadmap/phase-11-production-hardening.md) against written triggers
@@ -29,9 +37,10 @@ know before touching it.
 **It owns:**
 
 - **`audit_log`** — one row per audited operation, append-only, tenant-owned and
-  organization-scoped. `AuditEntry` maps it; nothing constructs that type. Rows arrive
-  as `PostgresAuditStore`'s parameterised `INSERT`, and the aggregate exists for the
-  model and for the Phase 03 read API.
+  organization-scoped. `AuditEntry` maps it; nothing constructs that type. Rows will
+  arrive as `PostgresAuditStore`'s parameterised `INSERT` — that class is the next step
+  of this packet and does not exist yet — and the aggregate exists for the model and for
+  the Phase 03 read API.
 - **`audit_config`** — a tenant's per-`(module, operation)` override, tenant-owned and
   tenant-wide. It can narrow a SHOULD or a MAY and can never remove a MUST.
 - **`AuditDbContext`** — the model those two tables are mapped by, and from
@@ -328,8 +337,8 @@ that makes them enforceable lands with Identity in
 [audit.md](audit.md). The module that owns the log is audited like any other: reading
 someone's audit trail is itself a `ReadSensitive` operation, and redacting or purging a
 row is a `security-event` — the class
-[Audit Coverage § Retention](../../standards/18-audit-coverage.md) puts every
-platform-bypass invocation on, and the one a compliance query filters for.
+[Audit Coverage § Required Behaviours](../../standards/18-audit-coverage.md) puts every
+platform-bypass code path on, and the one a compliance query filters for.
 
 ## Performance budget
 
