@@ -289,9 +289,9 @@ public async Task CreateEnrollment_writes_audit_entry_with_after_snapshot()
         // SHOULD / MAY tier — never the same value.
         Assert.Equal(OperationType.Create, entry.OperationType);
         Assert.Equal(AuditOutcome.Success, entry.Outcome);
-        Assert.NotNull(entry.After);
-        Assert.Null(entry.Before);
-        Assert.Contains("\"learnerId\":", entry.After);
+        Assert.NotNull(entry.AfterState);
+        Assert.Null(entry.BeforeState);
+        Assert.Contains("\"learnerId\":", entry.AfterState);
     }
 }
 ```

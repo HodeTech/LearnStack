@@ -67,9 +67,14 @@ public readonly partial record struct TenantId : IStronglyTypedId<Guid>
     /// </para>
     /// <para>
     /// No tenant can be provisioned under it: <c>tenants</c> carries
-    /// <c>ck_tenants_not_platform_sentinel</c>, and the two writer-side guards refuse it
-    /// before the constraint is reached — a constraint cannot stop a session variable
-    /// from being announced, which is the half that actually matters.
+    /// <c>ck_tenants_not_platform_sentinel</c>, and two writer-side guards —
+    /// <c>SetProvisioningTenantContextAsync</c> and
+    /// <c>TenantOwnership.EnsureRealTenant</c> — refuse it before the constraint is
+    /// reached. A constraint cannot stop a session variable from being <em>announced</em>,
+    /// which is the half that actually matters, so two more cover that:
+    /// <c>EventTenantContext.FromEnvelope</c>, where a payload-supplied tenant enters,
+    /// and <c>SetTenantContextAsync</c> itself — deliberately redundant, at the one site
+    /// every announcement passes.
     /// </para>
     /// </remarks>
     public static TenantId PlatformSentinel { get; } =

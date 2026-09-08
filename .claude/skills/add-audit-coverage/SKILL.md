@@ -259,11 +259,12 @@ references only SharedKernel, its own Domain and its own Contracts, and a Shared
 back-edge to a module is a project cycle. The Audit module's `AuditEntry` consumes them;
 it does not declare them.
 
-> **The seam lands with Phase 02a Packet 9.** `IAuditCatalogSource`,
-> `IAuditCatalogBuilder` and `IAuditStore` do not exist in `backend/src` yet, and the
-> `AuditLogBehavior` shipped in Packet 3 is a logging shell. The **triple** and the
-> registration site are decided; the builder's exact method names are not, so treat the
-> snippet below as the shape.
+> **The ports exist; the behavior does not yet.** `IAuditCatalogSource`,
+> `IAuditCatalogBuilder` and `IAuditStore` ship in `LearnStack.SharedKernel.Audit`, and
+> the builder's method names are fixed — `MustAudit` / `ShouldAudit` / `MayAudit`,
+> `Off` and `DeclareOffPath`. Write against them as spelled. What is still a Packet 3
+> logging shell is `AuditLogBehavior`, which rejects nothing until Packet 9 lights it
+> up, so a registration written today is correct and inert.
 
 ```csharp
 // LearnStack.Modules.Enrollment.Application/EnrollmentAuditCatalogSource.cs
@@ -316,7 +317,7 @@ public sealed class EnrollmentAuditCatalogSource : IAuditCatalogSource
 
         // Registered, never audited: AuditClassification.Off. A call, not a
         // convention — an unregistered request is rejected, not silently skipped.
-        builder.NotAudited<GetEnrollmentCountQuery>();
+        builder.Off<GetEnrollmentCountQuery>();
     }
 }
 ```
@@ -438,8 +439,8 @@ public async Task CreateEnrollment_writes_audit_entry()
         // enum's type name lands with Packet 9.
         Assert.Equal(AuditOutcome.Success, entry.Outcome);
         Assert.Equal(actorId, entry.ActorUserId);
-        Assert.NotNull(entry.After);
-        Assert.Null(entry.Before);   // create has no prior state
+        Assert.NotNull(entry.AfterState);
+        Assert.Null(entry.BeforeState);   // create has no prior state
     }
 }
 

@@ -7,7 +7,7 @@ Four writes below exist today, between them raising three of the slugs. `Tenant`
 create and `Organization` create, written together by `ProvisionTenantCommand`
 ([ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md))
 ; a second `Organization` create, written alone by `CreateOrganizationCommand`;
-and `platform_host_to_tenant` write, by `MapHostToTenantCommand`. Thirteen more rows
+and `platform_host_to_tenant` write, by `MapHostToTenantCommand`. Fourteen more rows
 are classification ahead of code and carry `(planned)`; five name operations no
 MediatR request raises and carry `(off-path)`.
 
@@ -127,7 +127,7 @@ matrix stays the human-readable artifact, and
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). Catalogue → matrix
 is total: every entry this module's `IAuditCatalogSource` registers has a row here
 carrying the same slug, and one that does not fails. Matrix → catalogue binds only to a
-slug whose request type **exists**, which is why the thirteen `(planned)` rows are
+slug whose request type **exists**, which is why the fourteen `(planned)` rows are
 classification and not drift — and a `(planned)` row whose command has since shipped
 fails, so the marker is a claim the rule re-checks on every run rather than an
 exemption.

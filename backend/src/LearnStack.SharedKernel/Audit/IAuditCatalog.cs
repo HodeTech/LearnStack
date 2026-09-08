@@ -3,7 +3,12 @@ namespace LearnStack.SharedKernel.Audit;
 /// <summary>
 /// One audited operation, as a module declared it.
 /// </summary>
-/// <param name="ModuleName">The declaring module's short name.</param>
+/// <param name="ModuleName">
+/// The module this entry belongs to: the declaring
+/// <see cref="IAuditCatalogSource.ModuleName"/> for a request-keyed registration, or the
+/// slug's own first segment for an entry from
+/// <see cref="IAuditCatalogBuilder.DeclareOffPath"/> — see <paramref name="Operation"/>.
+/// </param>
 /// <param name="Operation">
 /// The dotted slug <c>{module}.{resource}.{verb}</c>. For a <b>request-keyed</b>
 /// registration its first segment equals <paramref name="ModuleName"/>, which the

@@ -191,11 +191,11 @@ Rules:
 
 ### Step 4: Audit matrix row + catalogue entry
 
-> **The seam lands with Phase 02a Packet 9.** `IAuditCatalogSource`,
-> `IAuditCatalogBuilder`, `IAuditStore` and `OperationType` do not exist in
-> `backend/src` yet, and the `AuditLogBehavior` shipped in Packet 3 is a logging shell
-> that rejects nothing. The matrix row is writable today; the catalogue registration
-> below is the shape it takes once Packet 9 lights the seam up. `IAuditStore` and the
+> **The ports exist; the behavior does not yet.** `IAuditCatalogSource`,
+> `IAuditCatalogBuilder`, `IAuditStore`, `OperationType` and the rest ship in
+> `LearnStack.SharedKernel.Audit` — write against them as spelled. What is still a
+> Packet 3 logging shell is `AuditLogBehavior`, which rejects nothing until Phase 02a
+> Packet 9 lights it up, so a registration written today is correct and inert. `IAuditStore` and the
 > value types the triple names — `OperationType` and `OperationClass` among them — land
 > in `LearnStack.SharedKernel.Audit` and not in the Audit module's Domain, because a
 > module's `Application` project references only SharedKernel, its own Domain and its own
@@ -228,7 +228,7 @@ the operation slug:
 builder.MustAudit<CreateEnrollmentCommand>(
     operation: "enrollment.enrollment.create",   // {module}.{resource}.{verb}
     operationType: OperationType.Create,
-    capturesBeforeAfter: false);   // no prior state to capture for create
+    entityType: typeof(Enrollment));             // fills entity_type / entity_id
 ```
 
 The slug shares its first two segments with the permission key that gates the same

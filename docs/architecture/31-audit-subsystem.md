@@ -362,10 +362,29 @@ public sealed class AuditStateCapture : IAuditStateCapture
     public IReadOnlyList<CapturedEntityChange> Changes => _changes;
     public IReadOnlyList<AuditIntent> Intents => _intents;
 
-    public void Add(CapturedEntityChange change) => _changes.Add(change);
-    public void Declare(AuditIntent intent) => _intents.Add(intent);
+    public AuditIntentState State { get; private set; } = AuditIntentState.None;
 
-    public void Clear() { _changes.Clear(); _intents.Clear(); }
+    public void Add(CapturedEntityChange change) => _changes.Add(change);
+    public void DeclareIntent(AuditIntent intent)
+    {
+        _intents.Add(intent);
+        State = AuditIntentState.Pending;
+    }
+
+    // Set by the frame that owns the commit, and by nothing else. A joiner's
+    // CompleteAsync commits nothing, so a joiner calling MarkCommitted would claim a
+    // durability no transaction has (ADR-0033 Amendment 2 § 2).
+    public void MarkWrittenInTransaction() => State = AuditIntentState.WrittenInTransaction;
+    public void MarkCommitted() => State = AuditIntentState.Committed;
+    public void MarkRolledBack() => State = AuditIntentState.RolledBack;
+    public void MarkIndeterminate(Exception cause) => State = AuditIntentState.Indeterminate;
+
+    public void Clear()
+    {
+        _changes.Clear();
+        _intents.Clear();
+        State = AuditIntentState.None;
+    }
 }
 ```
 
@@ -464,14 +483,15 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             // in-transaction row and any standalone replacement carry the same identity
             // (ADR-0023 Amendment 9). Nothing is written yet; no DbContext is touched.
             if (classification == AuditClassification.Must)
-                stateCapture.Declare(new AuditIntent(
-                    AuditEntryId:   AuditEntryId.From(guidFactory.NewUuidV7()),
+                stateCapture.DeclareIntent(new AuditIntent(
+                    Id:             AuditEntryId.From(guidFactory.NewUuidV7()),
                     TenantId:       owner.Value.Tenant,
                     OrganizationId: owner.Value.Organization,
-                    Module:         descriptor.Module,
+                    ModuleName:     descriptor.ModuleName,
                     Operation:      descriptor.Operation,   // {module}.{resource}.{verb}
                     OperationType:  descriptor.OperationType,
                     OperationClass: OperationClass.Must,
+                    EntityType:     descriptor.EntityType,  // fills entity_type / entity_id
                     DeclaredAt:     clock.UtcNow));
         }
 
@@ -1106,8 +1126,10 @@ row through the fourth write path. `tenancy.killswitch.toggle` — the operation
 [Phase 03](../roadmap/phase-03-identity-admin.md), which owns the toggle command
 ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 [The Tenancy matrix](../modules/tenancy/audit.md) classifies it MUST and marks it
-`(off-path)`, because the scope is entered by a service method rather than by a MediatR
-request and there is no request type to key a catalogue entry on (§ 13).
+**both** `(off-path)` and `(planned)`: off-path because the scope is entered by a service
+method rather than by a MediatR request, so there is no request type to key a catalogue
+entry on (§ 13); planned because no writer performs it in this packet. A cell carries
+every marker that applies, and this is the row that carries two.
 
 The organization column is decided from the same source as the tenant and at the same
 moment, which is what keeps the two paths agreeing. On the in-transaction path the
@@ -1380,6 +1402,8 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
     IPlatformAdminScope platformScope,
     IAuditStore auditStore,
     IInboxGuard inboxGuard,
+    IClock clock,                    // the draft's Timestamp; the column's DEFAULT is a backstop
+    IGuidFactory guidFactory,        // AuditEntryId has no New() (ADR-0023 Amendment 9)
     IEnumerable<IUserReferenceLocator> userReferenceLocators)
     : IIntegrationEventHandler<UserGdprDeletedIntegrationEvent>
 {
@@ -1643,7 +1667,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 
 | Phase | Deliverable |
 |-------|-------------|
-| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the two guards that enforce its invariant; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
+| [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |

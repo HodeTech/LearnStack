@@ -187,7 +187,7 @@ public sealed class NpgsqlUnitOfWork(
         // Guid.Empty is refused alongside the uninitialized case, because
         // IsInitialized() is only half the test: Vogen validates the *shape* of
         // the value, not that it names anything, and the domain already refuses
-        // the all-zero id by hand (TenantOwned.EnsureRealTenant). An all-zero
+        // the all-zero id by hand (TenantOwnership.EnsureRealTenant). An all-zero
         // tenant would otherwise cast cleanly and match every row a bug wrote
         // under it.
         // The sentinel arm is deliberately redundant with the guards at the sites where
