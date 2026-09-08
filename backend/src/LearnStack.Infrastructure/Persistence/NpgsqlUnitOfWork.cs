@@ -273,7 +273,16 @@ public sealed class NpgsqlUnitOfWork(
         // '[UNINITIALIZED]'::uuid, which raises 22P02 rather than filtering. Guid.Empty is
         // refused beside it because Vogen validates the shape of a value, not that it
         // names anything, and the domain refuses the all-zero tenant by hand.
-        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        // The platform sentinel is refused beside them, and this is the guard that
+        // matters most of the three. ADR-0044 § 1 states that the sentinel is never
+        // announced by a request path, and this is the only announcement path that takes
+        // a caller-supplied id — so without the refusal a provisioning command naming it
+        // would announce it on app.tenant_id, and every MUST row that request declares
+        // would be written into the pseudo-tenant no tenant admin watches. The `tenants`
+        // CHECK cannot reach that: a constraint bounds a row, not a session variable.
+        if (!tenantId.IsInitialized()
+            || tenantId.Value == Guid.Empty
+            || tenantId == TenantId.PlatformSentinel)
         {
             throw new ArgumentException(
                 "A provisioning tenant id must be a real, registry-assigned id.",

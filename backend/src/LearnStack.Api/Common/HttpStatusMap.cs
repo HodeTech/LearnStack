@@ -41,6 +41,16 @@ public static class HttpStatusMap
         "recording_consent_required" => (int)HttpStatusCode.Conflict,
         "rate_limited" => (int)HttpStatusCode.TooManyRequests,
         "dependency_unavailable" => (int)HttpStatusCode.ServiceUnavailable,
+        "audit_unavailable" => (int)HttpStatusCode.ServiceUnavailable,
+
+        // Explicit, though the fallthrough would answer the same. A code the switch does
+        // not carry is one this class's contract calls undeclared, and a future reader
+        // deleting it as dead would silently take `audit_unclassified_operation` out of
+        // the table the tests pin. It is a 500 rather than a retryable 503 because it is
+        // a deployment defect the caller cannot act on: the operation is absent from the
+        // audit catalogue, which `Every_TenantOwned_Command_HasAuditCoverage` exists to
+        // make unreachable before a deployment.
+        "audit_unclassified_operation" => (int)HttpStatusCode.InternalServerError,
         _ => (int)HttpStatusCode.InternalServerError,
     };
 

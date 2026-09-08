@@ -25,6 +25,8 @@ public sealed class HttpStatusMapTests
     [InlineData("business_rule_violation", 409)]
     [InlineData("rate_limited", 429)]
     [InlineData("dependency_unavailable", 503)]
+    [InlineData("audit_unavailable", 503)]
+    [InlineData("audit_unclassified_operation", 500)]
     [InlineData("unknown_code", 500)]
     public void For_Code_Matches_StandardsTable(string code, int expected)
     {

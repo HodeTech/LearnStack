@@ -69,6 +69,60 @@ public sealed class UnitOfWorkTests
     }
 
     [Fact]
+    public async Task The_provisioning_setter_refuses_the_platform_sentinel()
+    {
+        // The guard ADR-0044 Amendment 3 § 5 assigns an owner to, and the one that
+        // matters of the three. § 1 states that the sentinel "is never written by a
+        // tenant request path, never announced by SetTenantContextAsync" as though
+        // something enforced it; nothing did, and the one announcement path that takes a
+        // caller-supplied id is this one, which that sentence does not name.
+        //
+        // Without the refusal a ProvisionTenantCommand carrying the sentinel announces it
+        // on app.tenant_id, and every MUST row that request declares is written into the
+        // pseudo-tenant no tenant admin watches. The `tenants` CHECK cannot reach that: a
+        // constraint bounds a row, not a session variable.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var announce = async () => await unitOfWork.SetProvisioningTenantContextAsync(
+            TenantId.PlatformSentinel);
+
+        await announce.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("tenantId");
+
+        // And nothing was announced — the refusal is not a log line beside a write.
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task The_provisioning_setter_announces_a_real_tenant()
+    {
+        // The arm that stops the case above from passing against a setter that refuses
+        // everything. A provisioning command announces the tenant it is creating — an id
+        // that names nothing resolvable yet — and that is the whole point of this setter
+        // existing beside the ordinary one.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        var newTenant = TenantId.From(Guid.CreateVersion7());
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetProvisioningTenantContextAsync(newTenant);
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().Be(newTenant.Value.ToString());
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
     [Trait(RequiresDocker.Key, RequiresDocker.Value)]
     public async Task A_resolved_context_holding_an_uninitialized_id_still_writes_the_empty_string()
     {
