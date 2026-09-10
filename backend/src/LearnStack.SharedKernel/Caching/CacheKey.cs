@@ -27,6 +27,28 @@ public static class CacheKey
     /// <summary>The tenant segment a platform-wide value carries.</summary>
     public const string PlatformTenant = "platform";
 
+    /// <summary>The killswitch overlay: <c>platform:tenancy:killswitch</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One entry holds the WHOLE switch set</b>, which is why this family has no
+    /// per-key fourth segment and why the four-segment spelling is refused rather than
+    /// merely unused. A toggle then invalidates a single key — and it has to, because
+    /// <see cref="ICacheService"/> deliberately has no <c>RemoveByPrefixAsync</c>
+    /// (<see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038</see>),
+    /// so a per-key family would leave a set nothing could sweep.
+    /// </para>
+    /// <para>
+    /// The second and last platform family
+    /// (<see href="../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
+    /// § 5</see>). Widening this guard is a decision rather than an edit, and the family is
+    /// <b>enumerated</b>, not opened: relaxing the shape to admit any three-segment
+    /// platform key would let <c>platform:tenancy:settings</c> — a tenant-owned family
+    /// whose whole point is one entry per tenant — collapse every tenant into one bucket.
+    /// </para>
+    /// </remarks>
+    public static string ForKillswitchOverlay() =>
+        Compose([PlatformTenant, "tenancy", "killswitch"]);
+
     /// <summary>The separator between the three segments.</summary>
     public const char Separator = ':';
 
@@ -112,6 +134,16 @@ public static class CacheKey
         }
     }
 
+    /// <summary>
+    /// Whether a key under the platform sentinel is one of the two enumerated families.
+    /// </summary>
+    /// <remarks>
+    /// Dispatches on the FAMILY, never on the shape. A guard written as "three or four
+    /// segments" would admit <c>platform:tenancy:settings</c> and every other tenant-owned
+    /// family under the sentinel, which is the one collision this whole class exists to
+    /// make impossible — and it would do it by widening the rule rather than by adding to
+    /// the list, so nobody would have to decide anything.
+    /// </remarks>
     private static bool IsAllowedPlatformFamily(string[] segments)
     {
         if (!segments[0].Equals(PlatformTenant, StringComparison.Ordinal))
@@ -119,14 +151,18 @@ public static class CacheKey
             return true;
         }
 
-        if (segments.Length != 4
-            || !segments[1].Equals("hub", StringComparison.Ordinal)
-            || !segments[2].Equals("host-map", StringComparison.Ordinal))
+        return (segments.Length, segments[1], segments[2]) switch
         {
-            return false;
-        }
+            // The normalized host map: one entry per host, so the host IS the fourth segment.
+            (4, "hub", "host-map") => IsNormalizedHost(segments[3]),
 
-        return IsNormalizedHost(segments[3]);
+            // The killswitch overlay: one entry for the whole set, so there is no fourth
+            // segment and a four-segment spelling of it is refused here rather than left
+            // to a caller's discretion.
+            (3, "tenancy", "killswitch") => true,
+
+            _ => false,
+        };
     }
 
     private static void EnsureNormalizedHost(string normalizedHost, string parameterName)
