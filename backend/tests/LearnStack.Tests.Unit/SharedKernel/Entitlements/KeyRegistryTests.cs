@@ -88,6 +88,19 @@ public sealed class KeyRegistryTests
     }
 
     [Fact]
+    public void The_two_limit_sentinels_are_the_values_the_wire_carries()
+    {
+        // Asserted as LITERALS. Every other site reads these constants back, so the
+        // sentinel's VALUE was unconstrained: turning Unlimited into 0 left the whole
+        // suite green while making the working default project a hard Denied ceiling for
+        // every tenant in every deployment mode — and silently breaking the -1 / 0 /
+        // positive three-way contract with the Hub's payload.
+        LimitKeys.Unlimited.Should().Be(-1);
+        LimitKeys.Denied.Should().Be(0);
+        LimitKeys.Unlimited.Should().NotBe(LimitKeys.Denied);
+    }
+
+    [Fact]
     public void No_limit_floor_is_unlimited_or_denied()
     {
         // "Never -1, never 0" — architecture/26 § the degraded read. Unlimited is a gift

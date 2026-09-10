@@ -3025,8 +3025,8 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1849 tests green** — 1 contract, 95 architecture, 1303 unit,
-> 450 integration. Counted from a run under `CI=true`, which makes warnings errors.
+> **Measured at close: 1856 tests green** — 1 contract, 95 architecture, 1304 unit,
+> 456 integration. Counted from a run under `CI=true`, which makes warnings errors.
 
 ### The four decisions, and why the corpus did not settle them
 
@@ -3046,7 +3046,10 @@ validators, in persisted `jsonb` and in a wire schema pinned in both repositorie
 **membership** has a written exit, the deprecation cycle
 [Feature Flags § Removing a key](../architecture/21-feature-flags.md) already fixes. The
 floor clause's own rationale is drift risk, and drift risk is zero for the twenty-three
-Hub-pinned strings and non-zero only for the two that exist on no other side.
+Hub-pinned strings — fourteen features and nine limits — and non-zero only for the five
+that exist on no other side: the two tenant-flag keys and the three killswitches. Those
+five are LearnStack's alone by construction, since the Hub projects neither a tenant flag
+nor a platform switch, so there is no second spelling for them to drift from.
 
 **2. The limit floors are Starter-*shaped*, not the Hub's Starter row.**
 [Hybrid License Model](../architecture/26-hybrid-license-model.md) requires the fallback

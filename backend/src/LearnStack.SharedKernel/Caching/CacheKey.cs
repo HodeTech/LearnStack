@@ -17,9 +17,13 @@ namespace LearnStack.SharedKernel.Caching;
 /// call site to remember.
 /// </para>
 /// <para>
-/// The only platform-wide family is the Hub host map, composed by
-/// <see cref="ForHostMapping"/>. A generic platform factory would let an ordinary
-/// tenant-owned family accidentally collapse every tenant into one cache bucket.
+/// There are exactly two platform-wide families, and they are admitted by
+/// <b>enumeration</b> rather than by a shape rule: the Hub host map, composed by
+/// <see cref="ForHostMapping"/>, and the killswitch overlay, composed by
+/// <see cref="ForKillswitchOverlay"/>. A generic platform factory — or a guard widened to
+/// "any three-segment platform key" — would let an ordinary tenant-owned family such as
+/// <c>tenancy:settings</c> collapse every tenant into one cache bucket. A third family is
+/// a decision, not an edit.
 /// </para>
 /// </remarks>
 public static class CacheKey
@@ -127,9 +131,11 @@ public static class CacheKey
                 $"'{key}' is not a cache key. Standards 20 fixes the shape as "
                 + $"'{{tenant_id}}{Separator}{{module}}{Separator}{{logical-name}}', and the "
                 + $"tenant segment is mandatory even for a platform-wide value — use the "
-                + $"'{PlatformTenant}' sentinel rather than omitting it. The sentinel is "
-                + "reserved for 'platform:hub:host-map:{normalized-host}'; every other "
-                + "family must carry a real tenant id.",
+                + $"'{PlatformTenant}' sentinel rather than omitting it. The sentinel "
+                + "admits exactly two enumerated families, "
+                + "'platform:hub:host-map:{normalized-host}' and "
+                + "'platform:tenancy:killswitch'; every other family must carry a real "
+                + "tenant id.",
                 nameof(key));
         }
     }

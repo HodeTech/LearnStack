@@ -748,8 +748,10 @@ otherwise).
   [21-feature-flags.md](../architecture/21-feature-flags.md).
 - **Type:** xUnit + source scan over `FeatureKey` / `LimitKey` construction sites.
   **Kind:** structural.
-- **Status:** **Registered** — the registries ship in Packet 9, carrying only the keys
-  that have a consumer. `LimitKeys` takes its strings from the Hub's `limits.`
+- **Status:** **Registered** — the registries shipped in Packet 9 carrying the **full
+  vocabulary**, not only the keys with a consumer, which measured empty at that point; the
+  reading and its reasoning are in the Packet 9 delivery record. `LimitKeys` takes its
+  strings from the Hub's `limits.`
   vocabulary, not from the `tenancy.max_learners` / `classroom.minutes_per_month`
   spellings this corpus used to name and
   [ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)

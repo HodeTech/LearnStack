@@ -221,14 +221,18 @@ public static class PersistenceCompositionExtensions
         // changes the answer without touching module code, which is only true because
         // IFeatureFlags composes over the PORT rather than reading
         // platform_entitlement_cache itself.
-        // The killswitch overlay's read path. SCOPED, because it reads through the
-        // module DbContext that is scoped — the cache entry it fronts is process-wide, so
-        // the scoped instance costs one resolution and shares the one entry.
-        // The only module-facing read. SCOPED, because it composes over the scoped module
-        // DbContext and reads the scoped ITenantContext — and because the tenant half is
-        // per tenant, which is per request.
+        // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
+        // and answers for one tenant, which is one request. It does NOT take a module
+        // DbContext: both halves it reads are policy-guarded tables it reaches on
+        // connections of its own, so resolving it does not require an open unit-of-work
+        // frame — middleware, an endpoint filter, a health check and the anonymous rate
+        // limiter are all natural readers and none of them is inside one.
         services.TryAddScoped<IFeatureFlags, FeatureFlags>();
 
+        // The killswitch overlay's read path, and the same reasoning one level down. The
+        // cache entry it fronts is process-wide, so a scoped instance costs one resolution
+        // and shares the one entry — and the load runs on its own connection, because the
+        // cache flight that runs it outlives the caller that started it.
         services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
 
         services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();

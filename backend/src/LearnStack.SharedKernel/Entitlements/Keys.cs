@@ -76,6 +76,15 @@ public enum FeatureSource
 /// explicitly, and ADR-0045 Amendment 1 § 5 makes it a required member of every
 /// descriptor rather than a table somebody consults. A posture nobody wrote down is a
 /// posture nobody re-reads.
+/// <para>
+/// <b>Declared here, read in <see href="../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase
+/// 02c</see>.</b> Nothing in this packet reads it, and that is not an oversight: the
+/// degraded path belongs to a provider that can be unreachable, and the only provider
+/// shipped here answers from constants and cannot be. `HubEntitlementProvider` is the
+/// first reader. The member ships now because the posture is per key and a key added
+/// later without one would be a key whose failure behaviour nobody decided — which is
+/// exactly what Amendment 1 § 5 exists to prevent.
+/// </para>
 /// </remarks>
 public enum DegradedPosture
 {

@@ -132,6 +132,90 @@ public sealed class FeatureFlagsTests
     }
 
     [Fact]
+    public async Task A_killswitch_can_only_narrow_and_never_grants()
+    {
+        // The half the first version missed. Its companion above drives granted = true
+        // through a FLIPPED overlay; this drives granted = FALSE through an ENABLED one,
+        // which is the direction that matters: a switch exists to close a capability
+        // during an incident, never to open one. With a plain assignment instead of `&=`,
+        // an unbought feature reads as granted the moment nobody has flipped its switch.
+        (await Flags(provider: new DenyingProvider()).IsEnabledAsync(FeatureKeys.ClassroomRecording))
+            .Should().BeFalse("the plan does not grant it, and no switch can");
+    }
+
+    [Fact]
+    public async Task One_tenants_flags_are_never_answered_from_anothers()
+    {
+        // The cache is a process-wide singleton and the key is the ONLY isolation boundary
+        // in front of it, so the tenant segment is load-bearing. Nothing constrained it:
+        // every case used one tenant and a fresh cache, so a key with a hard-coded tenant
+        // read identically. Both callers share ONE cache here, which is what makes the
+        // second answer evidence.
+        var cache = new InMemoryCacheService(
+            new SystemClock(),
+            new ServiceCollection().AddMetrics().BuildServiceProvider()
+                .GetRequiredService<IMeterFactory>());
+
+        await using (var seeded = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString))
+        await using (var transaction = await seeded.BeginTransactionAsync())
+        {
+            await SchemaQueries.SetTenantAsync(seeded, transaction, SchemaFixture.TenantA);
+            await using var write = new NpgsqlCommand(
+                """
+                INSERT INTO tenant_feature_flags (tenant_id, key, value, updated_by)
+                VALUES (@tenant, 'learning.lesson_player.v2', 'true',
+                        '00000000-0000-7000-8000-000000000001')
+                ON CONFLICT (tenant_id, key) DO UPDATE SET value = 'true'
+                """,
+                (NpgsqlConnection)seeded, (NpgsqlTransaction)transaction);
+            write.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            await write.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+
+        try
+        {
+            (await Flags(cache: cache).IsEnabledAsync(FeatureKeys.LessonPlayerV2))
+                .Should().BeTrue("tenant A set it");
+
+            (await Flags(cache: cache, tenantContext: new TenantBContext())
+                .IsEnabledAsync(FeatureKeys.LessonPlayerV2))
+                .Should().BeFalse("tenant B set nothing, and must not read tenant A's set");
+        }
+        finally
+        {
+            await CleanFlagAsync();
+        }
+    }
+
+    [Fact]
+    public async Task An_undeclared_limit_key_is_refused_rather_than_read_as_unlimited()
+    {
+        // The sibling of the feature-side guard, and the one nothing killed. `LimitKey` is
+        // a plain record struct over a string, so a key deleted from the registry leaves
+        // every call site compiling — and a resolver that answered instead of refusing
+        // would hand back -1 and let the gated operation run unbounded.
+        var act = async () => await Flags().GetLimitAsync(new LimitKey("limits.nobody.declared"));
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public async Task A_limit_read_with_no_tenant_is_refused_rather_than_guessed()
+    {
+        // Covered on the feature path and not on this one. A guess here is worse than a
+        // guess there: once a persisting provider lands in Phase 02c, an invented tenant
+        // becomes a real lookup key on platform_entitlement_cache — and the obvious
+        // invention, the platform sentinel, is a value the hard rules forbid announcing
+        // as a request's tenant at all.
+        var act = async () =>
+            await Flags(tenantContext: UnresolvedTenantContext.Instance)
+                .GetLimitAsync(LimitKeys.MaxUsers);
+
+        await act.Should().ThrowAsync<TenantContextMissingException>();
+    }
+
+    [Fact]
     public async Task A_limit_comes_from_the_projection_and_ignores_the_tenant_table()
     {
         (await Flags().GetLimitAsync(LimitKeys.MaxUsers))
@@ -194,17 +278,34 @@ public sealed class FeatureFlagsTests
     private FeatureFlags Flags(
         IEntitlementProvider? provider = null,
         IKillswitchOverlay? killswitches = null,
-        ITenantContext? tenantContext = null) =>
+        ITenantContext? tenantContext = null,
+        ICacheService? cache = null) =>
         new(tenantContext ?? Resolved,
             provider ?? new NullEntitlementProvider(),
             killswitches ?? new EnabledOverlay(),
             new Lazy<NpgsqlDataSource>(
                 () => NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString)),
-            new InMemoryCacheService(
+            cache ?? new InMemoryCacheService(
                 new SystemClock(),
                 new ServiceCollection().AddMetrics().BuildServiceProvider()
                     .GetRequiredService<IMeterFactory>()),
             NullLogger<FeatureFlags>.Instance);
+
+    /// <summary>Tenant B, resolved. The second tenant the cache key has to separate.</summary>
+    private sealed class TenantBContext : ITenantContext
+    {
+        public bool IsResolved => true;
+
+        public TenantId TenantId => TenantId.From(SchemaFixture.TenantB);
+
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => "00-feature-flags-b1";
+
+        public string? ModuleName => "tenancy";
+    }
 
     /// <summary>Grants nothing and projects no limit — the opposite of the default.</summary>
     private sealed class DenyingProvider : IEntitlementProvider

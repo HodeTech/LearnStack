@@ -72,7 +72,14 @@ public sealed class FeatureFlags(
         // `killswitch.` prefix is derived from the feature key's own string.
         if (granted && descriptor.Killswitch is { } killswitch)
         {
-            granted = await killswitches.IsEnabledAsync(killswitch, ct).ConfigureAwait(false);
+            // `&=`, not `=`. A killswitch may only NARROW: it exists to close a capability
+            // during an incident, never to open one. With a plain assignment the
+            // `granted &&` short-circuit was load-bearing for CORRECTNESS — dropping it
+            // made an ungranted feature read as granted whenever its switch was on, which
+            // is an unbought capability opened by the very mechanism meant to close one.
+            // Now the short-circuit is load-bearing only for cost, and the narrowing is in
+            // the assignment where it cannot be lost.
+            granted &= await killswitches.IsEnabledAsync(killswitch, ct).ConfigureAwait(false);
         }
 
         return granted;

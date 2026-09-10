@@ -281,8 +281,15 @@ Resolution precedence for `IsEnabledAsync(FeatureKey key, ct)`:
    prefix is derived from the feature key's own string
    ([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
    Killswitches override the projection.
-5. Resolution is logged at `Debug` (sampled) with `flag_key`, `tenant_id`, `value`,
-   `source` (`plan`, `tenant`, `killswitch`, `default`).
+5. Resolution emits **no log of its own**, and that is deliberate rather than pending. A
+   line per flag read is a line per request per gate; the fields that would carry it —
+   `flag_key`, `tenant_id`, `value`, `source` — are already the shape a future
+   `learnstack_feature_resolution_total` counter would take, and a counter is what an
+   operator actually reads. What *is* logged is the exceptional: a tenant flag holding a
+   value that is not a JSON boolean (`Warning`), an unreadable killswitch overlay
+   (`Error`), and a killswitch key no registry declares (`Error`). The instrument lands
+   with the first consumer that needs it, per
+   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
 
 `IFeatureFlags` therefore **composes** rather than queries: it asks the provider for the
 plan half, reads `tenant_feature_flags` for the tenant half, applies the overlay, and

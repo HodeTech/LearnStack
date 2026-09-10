@@ -1,8 +1,7 @@
-using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Entitlements;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure;
 
@@ -25,8 +24,29 @@ namespace LearnStack.Modules.Tenancy.Infrastructure;
 /// this packet can write, and every gated read honours a flipped switch the day one exists.
 /// </para>
 /// </remarks>
+/// <param name="dataSource">
+/// The application data source, built on first use.
+/// <para>
+/// <b>Its own connection, and NOT the module <c>DbContext</c>.</b> Two reasons, each
+/// sufficient. First, <c>AddModuleDbContext</c>'s factory throws when there is no ambient
+/// transaction — so injecting the context made resolving <see cref="IFeatureFlags"/>
+/// anywhere outside an open unit-of-work frame throw before a single flag was read, which
+/// is the opposite of what this port promises: middleware, an endpoint filter, a health
+/// check and the anonymous rate limiter are all natural readers and none of them is inside
+/// one. It threw even for a plan key with no killswitch, which never touches the overlay.
+/// </para>
+/// <para>
+/// Second, the cache flight that runs the load is process-wide and detached — it survives
+/// the abandonment of the caller that started it. A factory closing over a request-scoped
+/// context would keep reading through a connection the request's unit of work has since
+/// disposed: a race between a live reader and a connection returning to the pool. Opening
+/// and disposing a connection INSIDE the factory means an abandoned flight owns and
+/// releases everything it touches, exactly as <c>FeatureFlags.LoadTenantFlagsAsync</c>
+/// does.
+/// </para>
+/// </param>
 public sealed class KillswitchOverlay(
-    TenancyDbContext context,
+    Lazy<NpgsqlDataSource> dataSource,
     ICacheService cache,
     ILogger<KillswitchOverlay> logger)
     : IKillswitchOverlay
@@ -79,18 +99,35 @@ public sealed class KillswitchOverlay(
     }
 
     /// <summary>
-    /// The whole switch set, in one query.
+    /// The whole switch set, in one query, on a connection of this method's own.
     /// </summary>
     /// <remarks>
     /// One entry rather than one per key, so a toggle invalidates a single cache key.
-    /// <c>AsNoTracking</c> because nothing here writes and a tracked entity would sit in
-    /// the request's change tracker where the audit interceptor would snapshot it.
+    /// <b>No tenant announcement, and none is possible</b>: <c>platform_killswitches</c>
+    /// carries no tenant column and its only policy is
+    /// <c>FOR SELECT TO learnstack_app USING (true)</c> — the switch is global by
+    /// construction, so there is nothing to announce and the <c>GRANT</c> bounds the role
+    /// instead.
     /// </remarks>
-    private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(CancellationToken ct) =>
-        await context.PlatformKillswitches
-            .AsNoTracking()
-            .ToDictionaryAsync(row => row.Key, row => row.IsEnabled, StringComparer.Ordinal, ct)
-            .ConfigureAwait(false);
+    private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(CancellationToken ct)
+    {
+        await using var connection = await dataSource.Value
+            .OpenConnectionAsync(ct).ConfigureAwait(false);
+
+        await using var read = new NpgsqlCommand(
+            "SELECT key, is_enabled FROM platform_killswitches", connection);
+
+        var switches = new Dictionary<string, bool>(StringComparer.Ordinal);
+
+        await using var reader = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            switches[reader.GetString(0)] = reader.GetBoolean(1);
+        }
+
+        return switches;
+    }
 
     private static readonly Action<ILogger, string, Exception?> LogReadFailed =
         LoggerMessage.Define<string>(

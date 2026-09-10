@@ -46,6 +46,14 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 nullable: true,
                 oldClrType: typeof(DateTimeOffset),
                 oldType: "timestamp with time zone");
+
+            // Down() installs a column DEFAULT to fill the nulls it cannot represent, and
+            // ALTER COLUMN ... DROP NOT NULL does not remove one. Without this line a
+            // down-then-up cycle leaves the column nullable AND carrying a default that no
+            // migration and no model snapshot declares — a schema state nothing describes,
+            // reached only by a rollback drill, which is exactly when nobody is looking.
+            migrationBuilder.Sql(
+                "ALTER TABLE platform_entitlement_cache ALTER COLUMN valid_until DROP DEFAULT;");
         }
 
         /// <inheritdoc />

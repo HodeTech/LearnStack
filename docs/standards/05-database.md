@@ -670,10 +670,15 @@ The two differ in *when* they are read, which is exactly why they cannot share o
 #### `platform_killswitches` — platform-scoped
 
 A killswitch is one platform-wide switch per key, and it is not tenant data:
-`key text PRIMARY KEY`, `is_enabled boolean NOT NULL`, `reason text NULL`,
+`key varchar(150) PRIMARY KEY`, `is_enabled boolean NOT NULL`, `reason text NULL`,
 `toggled_at timestamptz NOT NULL`, `toggled_by uuid NULL` — no `tenant_id` and no
 foreign key. It ships in the **Tenancy** migration chain
 ([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+
+The cap on `key` is the migration's, on the precedent `platform_entitlement_cache` set:
+an unbounded primary key is an unbounded index, and 150 characters holds any
+`{module}.{capability}` key the registry declares. Bare `text` is what this section first
+declared and is the bound it did not carry.
 
 The table exists because the alternative cannot be written at all. A killswitch held in
 `tenant_feature_flags` "for the sentinel platform tenant" fails

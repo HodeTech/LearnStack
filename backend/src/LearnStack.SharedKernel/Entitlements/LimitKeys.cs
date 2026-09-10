@@ -108,6 +108,13 @@ public static class LimitKeys
     /// allowance. It is a named constant because the three-way meaning is not guessable
     /// from a bare integer at a call site (ADR-0045 § 3).
     /// </remarks>
+    /// <remarks>
+    /// The VALUE is the contract, not just the name: it is what the Hub's wire payload
+    /// carries and what every enforcement point will compare against. A test pins the
+    /// literal rather than reading this constant back, because a constant read back agrees
+    /// with whatever it became — and becoming <see cref="Denied"/> would turn "no ceiling"
+    /// into "no allowance" on every tenant in every deployment mode at once.
+    /// </remarks>
     public const long Unlimited = -1;
 
     /// <summary>The value meaning "the plan grants no allowance at all".</summary>

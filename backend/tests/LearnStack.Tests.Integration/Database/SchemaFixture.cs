@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The sixteen tables the four chains create, used only to prove that a
+    /// The seventeen tables the four chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>

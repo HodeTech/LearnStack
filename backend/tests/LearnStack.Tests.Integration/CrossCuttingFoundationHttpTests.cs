@@ -213,6 +213,31 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
     }
 
     [Fact]
+    public void The_Flag_Socket_Resolves_Outside_An_Open_Transaction()
+    {
+        // The property IFeatureFlags' own remarks promise: it can be read at any point in
+        // a request, including before TransactionBehavior opens anything. Middleware, an
+        // endpoint filter, a health check and the anonymous rate limiter are all natural
+        // readers and none of them is inside a unit-of-work frame.
+        //
+        // Measured before the fix: KillswitchOverlay injected the module DbContext, whose
+        // scoped factory THROWS when IUnitOfWork.Transaction is null — so resolving
+        // IFeatureFlags here threw before a single flag was read, even for a plan key with
+        // no killswitch that never touches the overlay.
+        using var scope = fixture.Services.CreateScope();
+
+        var resolve = () =>
+        {
+            scope.ServiceProvider.GetRequiredService<IKillswitchOverlay>();
+            scope.ServiceProvider.GetRequiredService<IFeatureFlags>();
+        };
+
+        resolve.Should().NotThrow(
+            "the socket reads on connections of its own, so it does not depend on where in "
+            + "the pipeline the caller happens to sit");
+    }
+
+    [Fact]
     public void The_Entitlement_Provider_Is_A_Singleton_Across_Request_Scopes()
     {
         // It holds two frozen dictionaries built from the registries and no per-request
