@@ -1,17 +1,21 @@
 # Module Spec — Audit
 
-**Status:** Design stable, partially implemented — and the partition matters, because
-this file describes a write path that is not yet reached. Shipped today: the two tables
-and their isolation, the three append-only layers, the SharedKernel ports and value types,
+**Status:** Design stable, write path implemented. Shipped today: the two tables and
+their isolation, the three append-only layers, the SharedKernel ports and value types,
 `AuditDbContext`, and — in `LearnStack.Infrastructure.Audit` — `AuditStateCapture`,
-`AuditChangeTrackerInterceptor` and `PostgresAuditStore` with all four write methods,
-registered at both composition roots and attached to every module's `DbContext`.
-**Still open inside Packet 9**: the merged `IAuditCatalog` and the two pipeline steps that
-call the store — `AuditLogBehavior` and `TransactionBehavior` still carry the Packet 3
-shells and their Packet 9 `TODO`s, so **no request writes an `audit_log` row yet**. The
-store is exercised by its own suite against the real table rather than by the pipeline.
-Everything below that is written in the present tense describes the design those steps
-implement; where a sentence would otherwise read as delivered, it says so.
+`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all four write methods, the
+merged `AuditCatalog` and `AuditConfigService`, registered at both composition roots and
+attached to every module's `DbContext`. The pipeline is lit: `AuditLogBehavior`
+classifies and parks intents at step 3 and reconciles in its `finally`,
+`TransactionBehavior` flushes the MUST-class rows on the owning frame immediately before
+`COMMIT`, and `PlatformAdminScope.EnterAsync` writes its own `security-event` row on the
+scope's platform-role connection before the operation runs. The observable half of the
+fail-closed rule ships with it — the `audit` health check, the two counters, and the
+`Critical` line ([ADR-0033 Amendment 3](../../decisions/0033-audit-durability-model.md)).
+**Still open inside Packet 9**: `AuditingTenantAssertionRecorder`, which turns the two
+`tenancy.tenant_assertion.*` slugs from declared into written, and the entitlement socket
+of [ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md). Rows marked
+`(planned)` in [the coverage matrix](audit.md) belong to the phase their cell names.
 The **read** side — the query API of
 [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission
 registry — lands with Identity in

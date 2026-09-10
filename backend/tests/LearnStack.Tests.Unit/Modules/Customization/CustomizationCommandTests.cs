@@ -801,7 +801,7 @@ public sealed class CustomizationCommandTests
             var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
 
             result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-            unit.RolledBackOnly.Should().BeTrue(
+            unit.IsRollbackOnly.Should().BeTrue(
                 "the incumbent was already deprecated when the successor's write failed");
             return;
         }
@@ -818,7 +818,7 @@ public sealed class CustomizationCommandTests
         var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(successor));
 
         taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-        unit.RolledBackOnly.Should().BeTrue();
+        unit.IsRollbackOnly.Should().BeTrue();
     }
 
     [Fact]
@@ -841,7 +841,7 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
 
         result.IsFailure.Should().BeTrue();
-        unit.RolledBackOnly.Should().BeTrue(
+        unit.IsRollbackOnly.Should().BeTrue(
             "the incumbent was already deprecated on this transaction, and committing "
             + "that alone leaves the key with no live revision at all");
     }
@@ -860,7 +860,7 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
 
         result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-        unit.RolledBackOnly.Should().BeFalse("nothing was written before the failure");
+        unit.IsRollbackOnly.Should().BeFalse("nothing was written before the failure");
     }
 
     // ── What the validators refuse ────────────────────────────────────────
@@ -1438,12 +1438,19 @@ public sealed class CustomizationCommandTests
     /// </remarks>
     private sealed class RecordingUnitOfWork : IUnitOfWork
     {
-        public bool RolledBackOnly { get; private set; }
-
-        /// <summary>The read half, set by MarkRollbackOnly and never reset.</summary>
+        /// <summary>
+        /// Set by <see cref="MarkRollbackOnly"/> and never reset, as the real unit's is.
+        /// </summary>
+        /// <remarks>
+        /// ONE property, because there were two: a <c>RolledBackOnly</c> the cases asserted
+        /// and the interface's <c>IsRollbackOnly</c>, which <c>MarkRollbackOnly</c> never
+        /// touched. Every case read the one the mark set and none read the one
+        /// <c>TransactionBehavior</c> branches on, so this double reported a mark it would
+        /// have denied to the code under test.
+        /// </remarks>
         public bool IsRollbackOnly { get; private set; }
 
-        public void MarkRollbackOnly() => RolledBackOnly = true;
+        public void MarkRollbackOnly() => IsRollbackOnly = true;
 
         public System.Data.Common.DbConnection Connection => throw new NotSupportedException();
 

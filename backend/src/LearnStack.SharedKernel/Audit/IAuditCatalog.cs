@@ -90,6 +90,27 @@ public interface IAuditCatalog
     bool TryGet(Type requestType, out AuditRegistration registration);
 
     /// <summary>
+    /// What the catalogue declared for one <b>off-path</b> slug, or <c>false</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The lookup an operation performed by a scope, by middleware or by a provider needs,
+    /// because there is no request type for <see cref="TryGet"/> to be keyed on. It reads
+    /// <see cref="IAuditCatalogBuilder.DeclareOffPath"/>'s entries and <b>only</b> those: a
+    /// request-keyed slug reached by a non-request writer would be a second writer for a
+    /// row the pipeline already writes, which is how one operation ends up audited twice
+    /// and neither row agrees about the outcome.
+    /// </para>
+    /// <para>
+    /// <c>false</c> is the rejection, and the caller fails closed on it: entering a
+    /// cross-tenant scope whose slug no module declared is exactly the case
+    /// <see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>
+    /// exists to make impossible.
+    /// </para>
+    /// </remarks>
+    bool TryGetOffPath(string operation, out AuditCatalogEntry entry);
+
+    /// <summary>
     /// Every entry, from every module. What
     /// <c>Every_TenantOwned_Command_HasAuditCoverage</c> joins against the module
     /// matrices' <c>Operation</c> column.

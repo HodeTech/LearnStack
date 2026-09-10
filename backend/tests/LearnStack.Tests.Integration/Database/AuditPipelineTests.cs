@@ -42,8 +42,18 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
     public Task DisposeAsync() => CleanUpAsync();
 
+    /// <summary>
+    /// Provisioning a tenant writes the two rows its matrix promises, on the business
+    /// transaction.
+    /// </summary>
+    /// <remarks>
+    /// Named for the catalogue rather than for the scenario: this is
+    /// <see href="../../../../docs/standards/21-architecture-tests-catalogue.md">Standards
+    /// 21</see>'s canonical rule, and a second spelling is the drift that document exists
+    /// to prevent.
+    /// </remarks>
     [Fact]
-    public async Task Provisioning_a_tenant_writes_the_two_rows_its_matrix_promises()
+    public async Task MustClass_Audit_Writes_Share_The_Business_Transaction()
     {
         // ONE command, TWO rows — the case ADR-0033 Amendment 2 § 1 exists for.
         // ProvisionTenantCommand writes two aggregate roots on one transaction and the
@@ -129,8 +139,19 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         tenantRow.AfterState.Should().NotContain("\"DefaultOrganizationId\":null");
     }
 
+    /// <summary>
+    /// A refused second run leaves the first run's rows alone and puts its own refusal on
+    /// the record, written standalone after the transaction went away.
+    /// </summary>
+    /// <remarks>
+    /// The catalogue's canonical name. The fresh-instant half of the rule — the
+    /// commit-in-doubt pair under one id, and the <c>23505</c> that is positive evidence
+    /// rather than a failure — is asserted against the real table by
+    /// <c>AuditStoreTests.The_indeterminate_pair_is_two_rows_under_one_id</c> and
+    /// <c>A_duplicate_on_the_standalone_re_write_is_positive_evidence_and_is_swallowed</c>.
+    /// </remarks>
     [Fact]
-    public async Task A_second_run_of_the_same_seed_writes_no_second_pair()
+    public async Task Audit_Survives_Transaction_Rollback()
     {
         // The seed is idempotent, so the second run refuses before it writes — and a
         // refusal that produced a success row would be worse than no row at all.

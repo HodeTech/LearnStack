@@ -52,27 +52,48 @@ public sealed class PostgresAuditStore : IAuditStore
     /// database connection rather than about any one request — and a log line nobody
     /// aggregates is not that signal.
     /// </remarks>
-    public const string DurableDuplicateCounterName = "learnstack.audit.standalone.duplicate";
+    public const string DurableDuplicateCounterName = "learnstack_audit_standalone_duplicates_total";
+
+    /// <summary>
+    /// Counts MUST-class standalone writes that failed outright.
+    /// </summary>
+    /// <remarks>
+    /// The metric <see href="../../../docs/decisions/0033-audit-durability-model.md">ADR-0033
+    /// Amendment 3</see> names, beside the <c>audit</c> health check and the
+    /// <c>Critical</c> line. It answers a different question from the check: the check says
+    /// whether the path is working <i>now</i>, and this says how often it has not — which
+    /// is the one an alert threshold is written against. Labelled by operation and nothing
+    /// else: the slug set is the catalogue's, so it is bounded and attacker-chosen by
+    /// nobody (<see href="../../../docs/standards/10-observability.md">Observability
+    /// Standards</see>).
+    /// </remarks>
+    public const string StandaloneWriteFailureCounterName =
+        "learnstack_audit_standalone_write_failures_total";
 
     private readonly IAuditStateCapture _capture;
     private readonly Lazy<NpgsqlDataSource> _dataSource;
     private readonly ILogger<PostgresAuditStore> _logger;
+    private readonly IAuditHealth _health;
     private readonly Counter<long> _durableDuplicates;
+    private readonly Counter<long> _standaloneWriteFailures;
 
     public PostgresAuditStore(
         IAuditStateCapture capture,
         Lazy<NpgsqlDataSource> dataSource,
         ILogger<PostgresAuditStore> logger,
-        IMeterFactory meterFactory)
+        IMeterFactory meterFactory,
+        IAuditHealth health)
     {
         ArgumentNullException.ThrowIfNull(meterFactory);
 
         _capture = capture;
         _dataSource = dataSource;
         _logger = logger;
+        _health = health ?? throw new ArgumentNullException(nameof(health));
 
         var meter = meterFactory.Create(MeterName);
         _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);
+        _standaloneWriteFailures = meter.CreateCounter<long>(StandaloneWriteFailureCounterName);
     }
 
     /// <summary>
@@ -136,7 +157,10 @@ public sealed class PostgresAuditStore : IAuditStore
                 command.CommandText = InsertSql;
                 command.Transaction = unitOfWork.Transaction;
 
-                Bind(command, Compose(intent, AuditOutcome.Success, intent.DeclaredAt));
+                // The shared composer, because the reconcile writes the other rows and the two
+                // must not diverge — they did, and only this path carried a snapshot.
+                Bind(command, AuditDraftComposer.Compose(
+                    intent, _capture.Changes, AuditOutcome.Success, intent.DeclaredAt));
 
                 await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -176,14 +200,32 @@ public sealed class PostgresAuditStore : IAuditStore
             // above used to claim on its own.
             LogDurableDuplicate(_logger, entry.Operation, duplicate);
             _durableDuplicates.Add(1, new KeyValuePair<string, object?>("operation", entry.Operation));
+
+            // And healthy: the row is durable, which is the opposite of the state the
+            // check reports. Reporting a failure here would take the deployment unhealthy
+            // on the one outcome that proves the write path worked.
+            _health.ReportStandaloneWriteSucceeded();
+
+            return;
         }
         catch (DbException failure)
         {
+            // The three ADR-0033 Amendment 3 assigns to this packet, at the one site that
+            // can leave an operation SUCCEEDED and unrecorded: Critical, counted, and the
+            // health check unhealthy. What is deferred to Phase 11 is only the act of
+            // ceasing to serve past a configured unhealthy window.
+            LogStandaloneWriteFailed(_logger, entry.Operation, failure);
+            _standaloneWriteFailures.Add(
+                1, new KeyValuePair<string, object?>("operation", entry.Operation));
+            _health.ReportStandaloneWriteFailed(entry.Operation);
+
             throw new AuditWriteFailedException(
                 $"A MUST-class audit row for {entry.Operation} could not be written "
                 + "standalone.",
                 failure);
         }
+
+        _health.ReportStandaloneWriteSucceeded();
     }
 
     /// <inheritdoc />
@@ -311,107 +353,6 @@ public sealed class PostgresAuditStore : IAuditStore
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Turns one intent plus the request's captured changes into the row to insert.
-    /// </summary>
-    /// <remarks>
-    /// The merge is not hypothetical: <c>ProvisionTenantCommand</c> saves three times and
-    /// captures <c>Tenant</c> twice, so picking one capture arbitrarily records half of
-    /// what happened. <c>before_state</c> is the <b>earliest</b> matching capture's and
-    /// <c>after_state</c> the <b>latest</b>, with <c>changes</c> their concatenation in
-    /// capture order (<see href="../../../docs/decisions/0044-audit-write-path.md">ADR-0044
-    /// Amendment 5 § 2</see>).
-    /// </remarks>
-    private AuditEntryDraft Compose(
-        AuditIntent intent, AuditOutcome outcome, DateTimeOffset timestamp)
-    {
-        var matching = intent.EntityType is null
-            ? []
-            : _capture.Changes
-                .Where(change => string.Equals(
-                    change.EntityType, intent.EntityType.Name, StringComparison.Ordinal))
-                .ToList();
-
-        // Earliest and latest are only meaningful for ONE instance captured across several
-        // flushes, which is the case ADR-0044 Amendment 5 § 2 is about. Two DIFFERENT
-        // instances of the same type under one intent are not that: the type-name filter
-        // cannot tell them apart, so entity_id would name one while after_state described
-        // the other, and the pointers in `changes` — which carry no instance — would be
-        // identical for both. That row is internally contradictory and permanent, so the
-        // mismatch is made loud here rather than composed into one.
-        var identities = matching
-            .Select(change => change.EntityId)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        if (identities.Count > 1)
-        {
-            throw new AuditWriteFailedException(
-                $"The intent for {intent.Operation} names {intent.EntityType?.Name} and the "
-                + $"request captured {identities.Count} different instances of it. An audit "
-                + "row is about one aggregate: composing these would put one instance's id "
-                + "beside another's state, on a table nothing can correct. Declare one "
-                + "intent per audited resource (ADR-0044 § 3).");
-        }
-
-        var fields = matching.SelectMany(change => change.Fields).ToList();
-
-        return new AuditEntryDraft
-        {
-            Id = intent.Id,
-            TenantId = intent.TenantId,
-            OrganizationId = intent.OrganizationId,
-            ActorUserId = null,
-            ActorEmail = null,
-            ModuleName = intent.ModuleName,
-            Operation = intent.Operation,
-            OperationType = intent.OperationType,
-            OperationClass = intent.OperationClass,
-            EntityType = intent.EntityType?.Name,
-            EntityId = matching.Count == 0 ? null : matching[0].EntityId,
-            Outcome = outcome,
-            ErrorKey = null,
-            Reason = null,
-            // The EARLIEST capture's before and the LATEST capture's after, nulls
-            // included. Skipping nulls looks like tidying and is not: the interceptor sets
-            // BeforeJson to null to say the entity did not exist and AfterJson to null to
-            // say it no longer does, so those two are the only captures that carry that
-            // meaning. Walking past the first would give a `create` row a complete prior
-            // state — the tenant as it stood immediately after its own INSERT — and a
-            // reviewer diffing before to after would read a creation as an update. On an
-            // append-only table that reading is permanent.
-            BeforeState = matching.Count == 0 ? null : matching[0].BeforeJson,
-            AfterState = matching.Count == 0 ? null : matching[^1].AfterJson,
-            Changes = fields.Count == 0 ? null : SerialiseChanges(fields),
-            CorrelationId = null,
-            IpAddress = null,
-            UserAgent = null,
-            Timestamp = timestamp,
-            Metadata = null,
-        };
-    }
-
-    /// <summary>
-    /// The <c>changes</c> column: a JSON <b>array</b> of <c>{ path, before, after }</c>,
-    /// single-entity and multi-entity alike.
-    /// </summary>
-    /// <remarks>
-    /// Composed as text rather than serialised from objects, because each slot already
-    /// holds JSON text — re-serialising would quote a document into one long escaped
-    /// string. ADR-0016's polymorphic object-or-array shape is withdrawn: two readers
-    /// parse this column, and a shape that changes with the row's arity is a shape each
-    /// of them gets wrong once (ADR-0044 § 7).
-    /// </remarks>
-    private static string SerialiseChanges(IReadOnlyList<CapturedFieldChange> fields)
-    {
-        var entries = fields.Select(field =>
-            "{\"path\":" + JsonSerializer.Serialize(field.Path)
-            + ",\"before\":" + (field.BeforeJson ?? "null")
-            + ",\"after\":" + (field.AfterJson ?? "null") + "}");
-
-        return AuditJson.CapArray("[" + string.Join(',', entries) + "]");
-    }
-
     private static void Bind(DbCommand command, AuditEntryDraft entry)
     {
         Add(command, "id", entry.Id.Value);
@@ -477,6 +418,12 @@ public sealed class PostgresAuditStore : IAuditStore
             LogLevel.Warning,
             new EventId(1, nameof(LogDurableDuplicate)),
             "The standalone audit re-write for {Operation} hit a duplicate key, which is positive evidence that the business COMMIT landed: the in-transaction row is durable.");
+
+    private static readonly Action<ILogger, string, Exception?> LogStandaloneWriteFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Critical,
+            new EventId(3, nameof(LogStandaloneWriteFailed)),
+            "A MUST-class audit row for {Operation} could not be written standalone. The operation is not on the record, the audit health check is unhealthy, and it stays unhealthy until a later standalone write succeeds (ADR-0033 Amendment 1, Amendment 3).");
 
     private static readonly Action<ILogger, string, Exception?> LogBestEffortLost =
         LoggerMessage.Define<string>(

@@ -131,6 +131,13 @@ and a rule belongs where it can actually fail: the route-shape rule was
 originally written as a reflection scan in the architecture assembly and passed
 against a host serving unversioned endpoints.
 
+Packet 9 added **two** more behavioural rows to that assembly, both in
+`AuditPipelineTests` and both under § Audit: `MustClass_Audit_Writes_Share_The_Business_Transaction`
+and `Audit_Survives_Transaction_Rollback`. They are integration rows for the reason the
+route-shape rule is: a reflection scan cannot see whether a row committed with the
+business write, and a unit test against doubles passes whether or not Row Level Security
+would have accepted the insert. Both connect as `learnstack_app`.
+
 | Test | File |
 |---|---|
 | `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | `CrossCuttingFoundationTests.cs` |
@@ -1548,7 +1555,12 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 § Decision + Implementation Notes, Amendments 1 and 2;
   [ADR-0044 § 3, § 4, § 11](../decisions/0044-audit-write-path.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `AuditPipelineTests.cs`, Packet 9. Its companions in the
+  same file assert the halves that would otherwise let it pass vacuously: the row carries
+  the tenant the transaction announced, and it carries the snapshot the interceptor
+  captured. The owner-only half — a joiner frame writes no MUST rows and claims no commit
+  — is `TransactionBehaviorTests.A_joiner_frame_writes_no_MUST_rows_and_claims_no_commit`,
+  where a joiner can be constructed without a database.
 - **Phase:** 02a (Packet 9).
 
 #### `Audit_Survives_Transaction_Rollback`
@@ -1574,7 +1586,12 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 § Decision and Amendment 2;
   [ADR-0044 § 5](../decisions/0044-audit-write-path.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `AuditPipelineTests.cs`, Packet 9: the seed's second run
+  is refused, and the refusal is on the record beside the first run's untouched rows. The
+  fresh-instant half is asserted against the real table by
+  `AuditStoreTests.The_indeterminate_pair_is_two_rows_under_one_id` and
+  `A_duplicate_on_the_standalone_re_write_is_positive_evidence_and_is_swallowed`, which
+  also holds the `23505`-is-evidence rule and its counter.
 - **Phase:** 02a (Packet 9).
 
 #### `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`
@@ -1593,7 +1610,15 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 § Decision;
   [31-audit-subsystem.md § 5](../architecture/31-audit-subsystem.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered.**
+- **Status:** **Registered** — and the name still has no code, but it is no longer "no
+  code yet" in the ordinary sense, which is worth saying so a reader does not conclude the
+  rule is unenforced. Both halves are held apart today:
+  `AuditConfigServiceTests.A_read_failure_falls_back_to_the_declared_tier` drives the
+  service against a dead data source and gets the declared tier back, and
+  `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
+  holds the rejection. What is missing is the end-to-end case this row names: a real MUST
+  command through the real pipeline with `audit_config` made unreadable. It lands with the
+  rest of Packet 9's rule work.
 - **Phase:** 02a (Packet 9).
 
 #### `AuditLog_Update_Is_Column_Restricted`
@@ -1657,7 +1682,11 @@ which decides identity, multiplicity, capture and classification;
   **Kind:** behavioural.
 - **Status:** **Registered.** Named as blocker-level in architecture 31 § 13 since that
   section was written, and carried by no catalogue row until ADR-0044 registered it here
-  — the drift this document exists to prevent, in its own subject area.
+  — the drift this document exists to prevent, in its own subject area. The joiner half is
+  already held by
+  `AuditLogBehaviorTests.A_nested_frame_does_not_clear_the_outer_request_buffer`; what
+  this row still owes is the four-outcome sweep — success, business failure, refusal and
+  exception each leaving the capture empty and its state `None`.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_TenantOwned_Command_HasAuditCoverage`

@@ -295,6 +295,35 @@ public sealed class TransactionBehaviorTests
     }
 
     [Fact]
+    public async Task A_joiner_frame_writes_no_MUST_rows_and_claims_no_commit()
+    {
+        // ADR-0044 § 4, and until now nothing held it: removing the `scope.IsOwner` guard
+        // from the WritePendingAsync call left the whole suite green. A joiner's
+        // CompleteAsync commits nothing, so a joiner that wrote here would insert rows and
+        // then report a durability it does not have — and the owner flushes every intent
+        // in the scope afterwards anyway, so the rows would also be duplicated.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var unitOfWork = new RecordingUnitOfWork();
+
+        // The outer frame, opened by whatever dispatched this request. The behaviour's own
+        // BeginTransactionAsync then returns frame 2 — a joiner.
+        await using var outer = await unitOfWork.BeginTransactionAsync();
+
+        var response = await Build(unitOfWork, store: store, capture: capture).Handle(
+            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+        response.IsSuccess.Should().BeTrue();
+
+        store.PendingWrites.Should().Be(0,
+            "a joiner commits nothing, so it has nothing to write MUST rows onto");
+        capture.State.Should().NotBe(AuditIntentState.Committed,
+            "only the owning frame may claim durability");
+
+        await outer.CompleteAsync();
+    }
+
+    [Fact]
     public async Task A_commit_refused_because_the_unit_is_rollback_only_is_not_indeterminate()
     {
         // NOT a faulted COMMIT. CompleteAsync refuses to commit a unit an inner frame
@@ -306,15 +335,17 @@ public sealed class TransactionBehaviorTests
         // the re-write is positive evidence it did. Neither is true, and neither can be
         // corrected afterwards.
         var capture = new AuditStateCapture();
-        var unitOfWork = new RecordingUnitOfWork
-        {
-            CommitFailure = new InvalidOperationException(
-                "The ambient transaction is marked rollback-only and has been rolled back."),
-        };
+        var unitOfWork = new RecordingUnitOfWork();
 
-        // What an inner frame's catch does before the outer frame reaches its commit. The
-        // FLAG is what separates the two cases, not the exception type — a genuine COMMIT
-        // fault can be an InvalidOperationException too.
+        // What an inner frame's catch does before the outer frame reaches its commit —
+        // and the whole of the setup. No CommitFailure is configured, deliberately: the
+        // double refuses a rollback-only unit before it ever consults one, exactly as
+        // NpgsqlUnitOfWork.CommitFrameAsync does (it issues a real ROLLBACK, then throws).
+        // Setting one here as well read as though the exception came from it, which would
+        // make this case look like the faulted one it exists to distinguish itself from.
+        //
+        // The FLAG is what separates the two cases, not the exception type — a genuine
+        // COMMIT fault can be an InvalidOperationException too.
         unitOfWork.MarkRollbackOnly();
 
         var act = async () => await Build(unitOfWork, capture: capture).Handle(

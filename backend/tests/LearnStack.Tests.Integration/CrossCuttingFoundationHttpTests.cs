@@ -1,30 +1,32 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Net;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
+using FluentAssertions;
+using FluentValidation;
+using LearnStack.Api.Common;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.Messaging;
-using LearnStack.SharedKernel.Caching;
-using LearnStack.SharedKernel.Messaging;
-using FluentAssertions;
-using LearnStack.Api.Common;
-using LearnStack.SharedKernel.Errors;
-using LearnStack.SharedKernel.Localization;
-using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Audit;
-using LearnStack.SharedKernel.Results;
-using FluentValidation;
+using LearnStack.SharedKernel.Caching;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Messaging;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Json;
+using System.Net;
+using System.Text.Json;
+using System.Text;
 using Xunit;
 
 namespace LearnStack.Tests.Integration;
@@ -195,6 +197,38 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
         first.ServiceProvider.GetRequiredService<ICacheService>()
             .Should().BeSameAs(second.ServiceProvider.GetRequiredService<ICacheService>());
     }
+
+    [Fact]
+    public async Task The_Audit_Health_Check_Is_Registered_Under_The_Name_ADR_0033_Names()
+    {
+        // The check is the PORT ADR-0033 Amendment 3 ships here; the readiness surface
+        // that reads it is Phase 11's. So nothing in this packet maps it — which is
+        // exactly why the registration needs a case: an unmapped, unasserted check is a
+        // class nobody constructs. The name is asserted because it is the identifier the
+        // amendment names and the one a Phase 11 surface will filter on.
+        var report = await fixture.Services.GetRequiredService<HealthCheckService>()
+            .CheckHealthAsync(registration => registration.Name == AuditHealthCheck.Name);
+
+        var audit = report.Entries.Should().ContainSingle().Subject;
+
+        audit.Key.Should().Be("audit");
+        audit.Value.Status.Should().Be(HealthStatus.Healthy,
+            "nothing has failed a standalone write in this host");
+    }
+
+    [Fact]
+    public void The_Audit_Health_State_Is_A_Singleton_Across_Request_Scopes()
+    {
+        // The rule spans requests — "unhealthy while the most recent MUST-class standalone
+        // write has failed and no later one has succeeded" is not a property of any one of
+        // them — so a scoped reporter would read healthy on the very next request after
+        // the failure it exists to report.
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<IAuditHealth>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<IAuditHealth>());
+    }
 }
 
 /// Shared <see cref="WebApplicationFactory{TEntryPoint}"/> that wires the
@@ -307,13 +341,19 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
         return Task.CompletedTask;
     }
 
-    /// <summary>The read half, set by MarkRollbackOnly and never reset.</summary>
+    /// <summary>
+    /// Set by <see cref="MarkRollbackOnly"/> and never reset, as the real unit's is.
+    /// </summary>
+    /// <remarks>
+    /// The comment here used to say exactly this while <c>MarkRollbackOnly</c> was a
+    /// no-op, so the flag was permanently false. There is indeed no transaction to refuse
+    /// to commit — but <c>TransactionBehavior</c> branches on this property to tell a
+    /// REFUSED commit from a FAULTED one, and a double that always answers "not refused"
+    /// steers the code under test down the wrong half of that branch.
+    /// </remarks>
     public bool IsRollbackOnly { get; private set; }
 
-    public void MarkRollbackOnly()
-    {
-        // Nothing to mark: there is no transaction to refuse to commit.
-    }
+    public void MarkRollbackOnly() => IsRollbackOnly = true;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

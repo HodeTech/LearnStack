@@ -61,6 +61,18 @@ internal sealed class FakeCatalog(params AuditCatalogEntry[] entries) : IAuditCa
 
         return true;
     }
+
+    /// <summary>The off-path slugs a case declared, keyed by slug.</summary>
+    /// <remarks>
+    /// Empty by default. Nothing in the pipeline reads this — off-path operations are the
+    /// ones with no request type for the pipeline to see — so a case that needs one sets
+    /// it, and the default keeps every other case honest about not using it.
+    /// </remarks>
+    public IReadOnlyDictionary<string, AuditCatalogEntry> OffPath { get; init; } =
+        new Dictionary<string, AuditCatalogEntry>(StringComparer.Ordinal);
+
+    public bool TryGetOffPath(string operation, out AuditCatalogEntry entry) =>
+        OffPath.TryGetValue(operation, out entry!);
 }
 
 /// <summary>A classifier that returns the declared tier, or whatever a case forced.</summary>
@@ -160,9 +172,19 @@ internal sealed class HarnessTenantContext(bool resolved = true) : ITenantContex
     public string? ModuleName => "tenancy";
 }
 
-internal sealed class HarnessClock(DateTimeOffset now) : IClock
+/// <summary>A clock that ADVANCES, one tick per read.</summary>
+/// <remarks>
+/// A fixed instant made two spellings indistinguishable: the intent's <c>DeclaredAt</c> is
+/// stamped during declaration and the reconcile takes a fresh reading later, and with a
+/// frozen clock every test passed whichever one the code used. The distinction is
+/// load-bearing — the commit-in-doubt pair is two rows under one id, and it is legal only
+/// because the timestamps differ.
+/// </remarks>
+internal sealed class HarnessClock(DateTimeOffset start) : IClock
 {
-    public DateTimeOffset UtcNow => now;
+    private int _reads;
+
+    public DateTimeOffset UtcNow => start.AddMilliseconds(Interlocked.Increment(ref _reads));
 }
 
 /// <summary>Mints ids a case can predict, so a duplicate is visible as one.</summary>

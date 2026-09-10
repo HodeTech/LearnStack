@@ -1,14 +1,16 @@
-using System.Net;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
-using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
+using System.Diagnostics.Metrics;
+using System.Net;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -756,12 +758,149 @@ public sealed class AuditStoreTests
         }
     }
 
+    [Fact]
+    public async Task A_standalone_failure_is_Critical_counted_and_leaves_the_check_unhealthy()
+    {
+        // The three ADR-0033 Amendment 3 assigns to Packet 9, at the one site that can
+        // leave an operation SUCCEEDED and unrecorded. All three, in one case, because
+        // they are one event: a Critical line with no counter is not an alert threshold,
+        // a counter with no check is not a state a readiness surface can read, and a check
+        // that nothing sets is a constant.
+        var draft = Draft(organizationId: null) with { Outcome = (AuditOutcome)99 };
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var health = new AuditHealth();
+        var logger = new CapturingLogger();
+        var store = new PostgresAuditStore(
+            new AuditStateCapture(),
+            new Lazy<NpgsqlDataSource>(() => dataSource),
+            logger,
+            MeterFactory,
+            health);
+
+        var counted = 0L;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (instrument.Meter.Name == PostgresAuditStore.MeterName
+                && instrument.Name == PostgresAuditStore.StandaloneWriteFailureCounterName)
+            {
+                active.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => counted += measurement);
+        listener.Start();
+
+        var act = async () => await store.WriteStandaloneAsync(draft);
+        await act.Should().ThrowAsync<AuditWriteFailedException>();
+
+        counted.Should().Be(1, "the counter is what an alert threshold is written against");
+
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Critical)
+            .Which.Message.Should().Contain(draft.Operation);
+
+        health.IsHealthy.Should().BeFalse();
+        health.FailingOperation.Should().Be(draft.Operation);
+
+        var report = await new AuditHealthCheck(health).CheckHealthAsync(
+            new HealthCheckContext(), CancellationToken.None);
+
+        report.Status.Should().Be(HealthStatus.Unhealthy);
+        report.Description.Should().Contain(draft.Operation,
+            "an operator reading the check should not have to correlate it with a log to "
+            + "learn which operation went unrecorded");
+    }
+
+    [Fact]
+    public async Task A_later_standalone_write_clears_the_check()
+    {
+        // "Unhealthy while the most recent MUST-class standalone write has failed and no
+        // later one has succeeded" — so one success clears it, however many failed before.
+        // A counter would answer the other question, which is why both ship.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var health = new AuditHealth();
+        var store = Store(new AuditStateCapture(), dataSource, health);
+
+        var refused = Draft(organizationId: null) with { Outcome = (AuditOutcome)99 };
+        var accepted = Draft(organizationId: null);
+
+        var act = async () => await store.WriteStandaloneAsync(refused);
+        await act.Should().ThrowAsync<AuditWriteFailedException>();
+        health.IsHealthy.Should().BeFalse();
+
+        try
+        {
+            await store.WriteStandaloneAsync(accepted);
+
+            health.IsHealthy.Should().BeTrue("a later standalone write landed");
+            health.FailingOperation.Should().BeNull();
+        }
+        finally
+        {
+            await DeleteAsync(accepted.Id);
+        }
+    }
+
+    [Fact]
+    public async Task A_durable_duplicate_leaves_the_check_healthy()
+    {
+        // The outcome that PROVES the write path worked must not read as its failure. The
+        // in-transaction row under this id is already durable, which is the opposite of
+        // the state this check exists to report — and a store that reported the duplicate
+        // as a failure would take a deployment unhealthy on its healthiest signal.
+        var draft = Draft(organizationId: null);
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var health = new AuditHealth();
+        health.ReportStandaloneWriteFailed("tenancy.probe.earlier");
+
+        var store = Store(new AuditStateCapture(), dataSource, health);
+
+        try
+        {
+            await store.WriteStandaloneAsync(draft);
+            await store.WriteStandaloneAsync(draft);
+
+            health.IsHealthy.Should().BeTrue("the duplicate is positive evidence of durability");
+        }
+        finally
+        {
+            await DeleteAsync(draft.Id);
+        }
+    }
+
+    /// <summary>Records what the store logged, with its level.</summary>
+    private sealed class CapturingLogger : ILogger<PostgresAuditStore>
+    {
+        private readonly List<(LogLevel Level, string Message)> _entries = [];
+
+        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            _entries.Add((logLevel, formatter(state, exception)));
+    }
+
     /// <summary>A stand-in for the aggregate an intent names, so the merge has a type.</summary>
     private sealed class ProbeTenant;
 
     private static PostgresAuditStore Store(AuditStateCapture capture, NpgsqlDataSource dataSource) =>
+        Store(capture, dataSource, new AuditHealth());
+
+    /// <summary>The store with a health reporter a case can read afterwards.</summary>
+    private static PostgresAuditStore Store(
+        AuditStateCapture capture, NpgsqlDataSource dataSource, IAuditHealth health) =>
         new(capture, new Lazy<NpgsqlDataSource>(() => dataSource),
-            NullLogger<PostgresAuditStore>.Instance, MeterFactory);
+            NullLogger<PostgresAuditStore>.Instance, MeterFactory, health);
 
     /// <summary>A real meter factory, so the counter the store increments is a real one.</summary>
     private static readonly IMeterFactory MeterFactory =

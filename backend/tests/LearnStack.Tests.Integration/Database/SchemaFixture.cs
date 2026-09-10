@@ -122,7 +122,9 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
         ["audit_log"] = 1,
-        ["audit_config"] = 1,
+        // Two: the second is tenant B's alone, and AuditConfigServiceTests asks tenant A
+        // about that slug to prove a scoped read from a leaking one.
+        ["audit_config"] = 2,
     };
 
     public PostgresFixture Postgres { get; } = new();
@@ -346,10 +348,19 @@ public sealed class SchemaFixture : IAsyncLifetime
         VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222', NULL,
                 'tenancy','tenancy.tenant.provision','Create','Must','success', now());
 
+        -- Two override rows, and the second one is what makes cross-tenant isolation
+        -- falsifiable here. Both tenants carrying the SAME slug was the earlier seed,
+        -- and under it a loader that announced the wrong tenant — or a cache key that
+        -- omitted it — produced the identical answer for both, so the isolation case
+        -- could not fail. tenancy.hostmapping.write is tenant B's alone: asking tenant A
+        -- about it separates a correctly scoped read from a leaking one.
         INSERT INTO audit_config
             (id, tenant_id, module, operation, is_enabled, created_at, created_by, row_version)
         VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222',
                 'tenancy','tenancy.organization.create', false, now(),
+                '00000000-0000-7000-8000-000000000001', 0),
+               (uuidv7(),'22222222-2222-7222-8222-222222222222',
+                'tenancy','tenancy.hostmapping.write', false, now(),
                 '00000000-0000-7000-8000-000000000001', 0);
         COMMIT;
         """;

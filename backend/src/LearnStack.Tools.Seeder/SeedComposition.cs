@@ -147,6 +147,12 @@ public static class SeedComposition
             provider.GetRequiredService<IClock>(),
             provider.GetRequiredService<IMeterFactory>()));
 
+        // The store reports the standalone path's last outcome to this; a singleton for
+        // the reason the API root's is one. The seeder maps no readiness surface and needs
+        // none — what it needs is the graph to build, and a missing singleton here would
+        // surface as a container error on the first seeded command rather than at startup.
+        services.TryAddSingleton<IAuditHealth, AuditHealth>();
+
         services.AddScoped<IAuditStore, PostgresAuditStore>();
 
         // The catalogue, merged once from every module's source. A singleton: it is built

@@ -128,6 +128,43 @@ public sealed class AuditCatalogTests
     }
 
     [Fact]
+    public void One_off_path_slug_may_not_be_declared_twice()
+    {
+        // An off-path operation is addressed BY SLUG — that is the whole of its
+        // addressing, there being no request type — so a second declaration is two
+        // modules disagreeing about one operation's tier while the writer silently takes
+        // whichever landed first. The request-keyed side has refused a double claim since
+        // it was written; this side is addressed the same way and owes the same refusal.
+        var build = () => Catalog(
+            new Source("tenancy", builder => builder.DeclareOffPath(
+                "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must)),
+            new Source("customization", builder => builder.DeclareOffPath(
+                "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.May)));
+
+        build.Should().Throw<InvalidOperationException>()
+            .WithMessage("*declared off-path more than once*");
+    }
+
+    [Fact]
+    public void An_off_path_slug_is_found_by_its_own_name_and_a_request_keyed_one_is_not()
+    {
+        // The lookup a scope, a middleware or a provider uses, because there is no request
+        // type to key on. It answers for off-path entries and ONLY those: reaching a
+        // request-keyed slug from a non-request writer would put a second writer on a row
+        // the pipeline already writes, and neither row would agree about the outcome.
+        var catalog = Catalog(new Source("tenancy", builder => builder
+            .DeclareOffPath(
+                "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must)
+            .MustAudit<AlphaCommand>("tenancy.tenant.create", OperationType.Create, typeof(string))));
+
+        catalog.TryGetOffPath("platform.admin_scope.enter", out var declared).Should().BeTrue();
+        declared.OperationClass.Should().Be(OperationClass.Must);
+
+        catalog.TryGetOffPath("tenancy.tenant.create", out _).Should().BeFalse(
+            "a request-keyed slug is the pipeline's to write, not an off-path writer's");
+    }
+
+    [Fact]
     public void Two_modules_may_not_claim_one_request_type()
     {
         // It would give the type two classifications and no rule for choosing — and the

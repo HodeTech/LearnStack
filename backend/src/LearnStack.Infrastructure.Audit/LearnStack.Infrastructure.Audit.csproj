@@ -21,6 +21,7 @@
   <ItemGroup>
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
     <!--
       Relational, for one lookup: the capture asks the MODEL whether a property's
       column is jsonb, because deciding that from the value retypes ordinary text

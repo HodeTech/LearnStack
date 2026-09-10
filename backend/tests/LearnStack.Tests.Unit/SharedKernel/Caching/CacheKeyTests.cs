@@ -170,6 +170,7 @@ public sealed class CacheKeyTests
             CacheKey.ForTenant(Tenant, "tenancy", "feature-flags"),
             CacheKey.ForTenant(Tenant, "identity", "permissions", session.ToString()),
             CacheKey.ForTenant(Tenant, "tenancy", "settings"),
+            CacheKey.ForTenant(Tenant, "audit", "config"),
         };
 
         foreach (var key in families)
@@ -180,6 +181,7 @@ public sealed class CacheKeyTests
 
         families[0].Should().Be("platform:hub:host-map:school.example.com");
         families[3].Should().Be($"{Tenant}:identity:permissions:{session}");
+        families[5].Should().Be($"{Tenant}:audit:config");
     }
 
     [Fact]

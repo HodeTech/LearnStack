@@ -162,7 +162,22 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             }
 
             var outcome = Outcome(state, refusal);
-            var draft = Compose(intent, outcome, refusal);
+            // The SAME composer the in-transaction write uses. A private one here is how
+            // the two diverged: only the happy-path row carried a snapshot, so every
+            // denied, failed and indeterminate row said nothing about what was attempted —
+            // which is the class of row ADR-0033 calls the common case it protects.
+            //
+            // A FRESH clock reading, not the intent's DeclaredAt: the in-transaction row
+            // that may already exist under this id carries that, and the composite primary
+            // key is what makes the pair legal rather than a 23505.
+            var draft = AuditDraftComposer.Compose(
+                intent,
+                capture.Changes,
+                outcome,
+                clock.UtcNow,
+                tenantContext.UserId,
+                tenantContext.CorrelationId,
+                refusal?.Message.Key);
 
             try
             {
@@ -306,36 +321,6 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 clock.UtcNow));
         }
     }
-
-    private AuditEntryDraft Compose(AuditIntent intent, AuditOutcome outcome, Error? error) =>
-        new()
-        {
-            Id = intent.Id,
-            TenantId = intent.TenantId,
-            OrganizationId = intent.OrganizationId,
-            ActorUserId = tenantContext.UserId,
-            ActorEmail = null,
-            ModuleName = intent.ModuleName,
-            Operation = intent.Operation,
-            OperationType = intent.OperationType,
-            OperationClass = intent.OperationClass,
-            EntityType = intent.EntityType?.Name,
-            EntityId = null,
-            Outcome = outcome,
-            ErrorKey = error?.Message.Key,
-            Reason = null,
-            BeforeState = null,
-            AfterState = null,
-            Changes = null,
-            CorrelationId = tenantContext.CorrelationId,
-            IpAddress = null,
-            UserAgent = null,
-            // A FRESH reading, not the intent's DeclaredAt. The in-transaction row that
-            // may already exist under this id carries DeclaredAt, and the composite
-            // primary key is what makes the pair legal rather than a 23505.
-            Timestamp = clock.UtcNow,
-            Metadata = null,
-        };
 
     /// <summary>
     /// Denied for a refusal the authorization layer would answer 403 to, Failed otherwise.

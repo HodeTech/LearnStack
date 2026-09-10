@@ -26,6 +26,7 @@ namespace LearnStack.Infrastructure.Audit;
 public sealed class AuditCatalog : IAuditCatalog
 {
     private readonly FrozenDictionary<Type, AuditRegistration> _byRequestType;
+    private readonly FrozenDictionary<string, AuditCatalogEntry> _byOffPathSlug;
     private readonly IReadOnlyCollection<AuditCatalogEntry> _all;
 
     /// <summary>Merges every module's source. The composition root's only caller.</summary>
@@ -46,6 +47,7 @@ public sealed class AuditCatalog : IAuditCatalog
         }
 
         _byRequestType = builder.BuildRegistrations();
+        _byOffPathSlug = builder.BuildOffPath();
         _all = builder.BuildEntries();
     }
 
@@ -62,6 +64,17 @@ public sealed class AuditCatalog : IAuditCatalog
         // guess ADR-0044 § 6 refuses: a request nobody thought about must be unregistered
         // so the runtime refuses it rather than inventing a tier for it.
         return _byRequestType.TryGetValue(requestType, out registration!);
+    }
+
+    /// <inheritdoc />
+    public bool TryGetOffPath(string operation, out AuditCatalogEntry entry)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+
+        // Off-path entries only, which is why this reads its own dictionary rather than
+        // scanning `All`. A scope or a middleware that found a request-keyed slug here
+        // would write a second row for an operation the pipeline already writes.
+        return _byOffPathSlug.TryGetValue(operation, out entry!);
     }
 }
 
@@ -136,6 +149,20 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
     {
         EnsureSlugShape(operation);
 
+        // Refused rather than shadowed. Off-path entries are reached BY SLUG — that is the
+        // whole of their addressing, there being no request type — so a second declaration
+        // means two modules disagree about the tier of one operation and the writer takes
+        // whichever landed first. The request-keyed side has refused a double claim since
+        // it was written; this side is addressed the same way and owes the same refusal.
+        if (_offPath.Any(existing =>
+            string.Equals(existing.Operation, operation, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"'{operation}' is declared off-path more than once. An off-path operation "
+                + "is addressed by its slug, so a second declaration is two modules "
+                + "disagreeing about one operation's tier with no rule for choosing.");
+        }
+
         // The slug's OWN first segment, not the declaring source's. That is what makes
         // `platform.admin_scope.enter` registrable from Tenancy's source, where its matrix
         // row already lives — there is no `platform` module and inventing one would owe a
@@ -150,6 +177,9 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
         _registrations.ToFrozenDictionary(
             entry => entry.Key,
             entry => new AuditRegistration(entry.Value.WritesNoRow, entry.Value.Entries));
+
+    public FrozenDictionary<string, AuditCatalogEntry> BuildOffPath() =>
+        _offPath.ToFrozenDictionary(entry => entry.Operation, StringComparer.Ordinal);
 
     public IReadOnlyCollection<AuditCatalogEntry> BuildEntries() =>
         [.. _registrations.Values.SelectMany(registration => registration.Entries), .. _offPath];

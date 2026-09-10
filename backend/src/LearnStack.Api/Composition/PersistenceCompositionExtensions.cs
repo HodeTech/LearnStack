@@ -204,6 +204,18 @@ public static class PersistenceCompositionExtensions
         // lets the seeder build the same graph.
         services.AddMetrics();
 
+        // The observable half of the fail-closed rule (ADR-0033 Amendment 3). A SINGLETON,
+        // because the rule spans requests: "unhealthy while the most recent MUST-class
+        // standalone write has failed and no later one has succeeded" is not a property of
+        // any one request, and a scoped instance would report healthy on the next.
+        services.TryAddSingleton<IAuditHealth, AuditHealth>();
+
+        // Registered, not mapped. /healthz stays a liveness probe — a process that cannot
+        // write audit rows is still worth leaving alive — and the readiness surface that
+        // reads this, with the deployment-level backstop that stops serving, is Phase 11's
+        // on its own trigger.
+        services.AddHealthChecks().AddCheck<AuditHealthCheck>(AuditHealthCheck.Name);
+
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
 
         // The catalogue, merged once from every module's source. A singleton: it is built

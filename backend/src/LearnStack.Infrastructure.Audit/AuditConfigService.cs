@@ -34,25 +34,58 @@ namespace LearnStack.Infrastructure.Audit;
 /// Amendment 4 § 1</see>).
 /// </para>
 /// </remarks>
+/// <param name="cache">The one cache abstraction; this projection is L1-only today.</param>
+/// <param name="dataSource">
+/// The application data source, built on first use.
+/// <para>
+/// <b><see cref="Lazy{T}"/>, for the reason the platform data source is one.</b>
+/// Building the application data source needs a connection string, and a deployment
+/// that serves only platform hosts legitimately has none — the composition root defers
+/// the build so a request answered from <c>Tenancy:PlatformHosts</c> costs nothing
+/// below it. Taking the data source eagerly here would resolve it on every request
+/// that reaches the pipeline, which is every request, and would turn "no credential"
+/// into a 500 on a surface that never touches the database.
+/// </para>
+/// </param>
+/// <param name="logger">Records an override read that failed and fell back.</param>
 public sealed class AuditConfigService(
     ICacheService cache,
     Lazy<NpgsqlDataSource> dataSource,
     ILogger<AuditConfigService> logger)
     : IAuditConfigService
 {
-    /// <summary>The application data source, built on first use.</summary>
-    /// <remarks>
-    /// <b><see cref="Lazy{T}"/>, for the reason the platform data source is one.</b>
-    /// Building the application data source needs a connection string, and a deployment
-    /// that serves only platform hosts legitimately has none — the composition root defers
-    /// the build so a request answered from <c>Tenancy:PlatformHosts</c> costs nothing
-    /// below it. Taking the data source eagerly here would resolve it on every request
-    /// that reaches the pipeline, which is every request, and would turn "no credential"
-    /// into a 500 on a surface that never touches the database.
-    /// </remarks>
-
     /// <summary>The module segment of this projection's cache key.</summary>
     private const string CacheModule = "audit";
+
+    /// <summary>The logical-name segment of this projection's cache key.</summary>
+    private const string CacheName = "config";
+
+    /// <summary>
+    /// How long a tenant's overrides stay cached, and therefore the whole of the
+    /// staleness bound.
+    /// </summary>
+    /// <remarks>
+    /// <b>Stated here rather than inherited.</b> This family has no eager invalidation —
+    /// nothing writes <c>audit_config</c> until
+    /// <see href="../../../docs/roadmap/phase-06-renderer-admin-studio.md">Phase 06</see>'s
+    /// Studio editor lands with the grant beside the command that needs it — so the TTL
+    /// *is* the contract a tenant sees: an override takes at most this long to take
+    /// effect (<see href="../../../docs/standards/20-infrastructure-stack.md">Standards 20
+    /// § ICacheService</see>). Taking <c>InMemoryCacheService</c>'s default instead would
+    /// make a documented tenant-visible bound move whenever an unrelated adapter changed
+    /// its own, and the default is 60 seconds, not this.
+    /// </remarks>
+    public static readonly TimeSpan OverrideTtl = TimeSpan.FromMinutes(5);
+
+    /// <summary>The cache key this projection reads and writes for one tenant.</summary>
+    /// <remarks>
+    /// Public because the key <i>is</i> the isolation boundary and the family is a
+    /// registered one — Standards 20 lists <c>{tenant_id}:audit:config</c> in the table
+    /// that also allowlists the <c>cache.name</c> metric label. A test pins the spelling
+    /// against that table; a private composition could drift from it silently.
+    /// </remarks>
+    public static string CacheKeyFor(TenantId tenantId) =>
+        CacheKey.ForTenant(tenantId.Value, CacheModule, CacheName);
 
     /// <inheritdoc />
     public async Task<AuditClassification> ClassifyAsync(
@@ -95,12 +128,11 @@ public sealed class AuditConfigService(
     private async Task<IReadOnlyDictionary<string, bool>> OverridesAsync(
         TenantId tenantId, CancellationToken cancellationToken)
     {
-        var key = CacheKey.ForTenant(tenantId.Value, CacheModule, "config");
-
         return await cache.GetOrSetAsync(
-            key,
+            CacheKeyFor(tenantId),
             token => LoadAsync(tenantId, token),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            new CacheOptions(OverrideTtl),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

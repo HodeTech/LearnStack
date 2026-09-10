@@ -95,6 +95,13 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <!--
+      IHealthCheck alone, for the `audit` check ADR-0033 Amendment 3 assigns to
+      Packet 9. The abstraction rather than the full HealthChecks package: the
+      registration and the readiness surface belong to the API host, which has the
+      ASP.NET Core shared framework and needs no reference here.
+    -->
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
 
     <!-- Serilog (primary logger; OTel via OTLP sink, no AddOpenTelemetry().WithLogging()). -->

@@ -108,7 +108,7 @@ out, the owning behavior reconciles: `Committed` means there is nothing to do, a
 anything else means each row is re-written standalone with the real outcome. SHOULD/MAY
 rows and all fan-out are written on that same outbound pass, best-effort.
 
-Four components, separated concerns:
+Five components, separated concerns:
 
 1. **`AuditChangeTrackerInterceptor`** — runs inside `DbContext.SaveChangesAsync`, walks
    the ChangeTracker, snapshots every entry in state `Added`, `Modified` or `Deleted`
@@ -126,9 +126,16 @@ Four components, separated concerns:
    `Committed` / `RolledBack` / `Indeterminate` signal the reconcile step reads.
 4. **`AuditLogBehavior<TRequest, TResponse>`** — keeps its shipped position and its
    shipped exception responsibility: catch handler exceptions, record the outcome,
-   rethrow via `ExceptionDispatchInfo`. It decides on the way in and, on the owning frame,
-   reconciles on the way out; it no longer writes the MUST-class rows itself except in the
-   standalone case.
+   rethrow via `ExceptionDispatchInfo`. It decides on the way in and, on the **outermost**
+   frame, reconciles on the way out; it no longer writes the MUST-class rows itself except
+   in the standalone case. The reconcile runs in a `finally`, so a cancelled request — the
+   commonest way a MUST-class row is left unwritten — still reaches it.
+5. **`PlatformAdminScope`** — the one writer outside the pipeline. `EnterAsync` records
+   `platform.admin_scope.enter` through `IAuditStore.WritePlatformScopeAsync`, on the
+   scope's own platform-role connection and transaction, **before** the operation runs
+   (§ 7 and [ADR-0044 § 10](../decisions/0044-audit-write-path.md)). It is not four
+   components but five, and this one is listed here because it is the only class of row
+   carrying `TenantId.PlatformSentinel`.
 
 ## 3. The interceptor
 
@@ -439,10 +446,13 @@ namespace LearnStack.Application.Pipeline;
 public sealed class AuditLogBehavior<TRequest, TResponse>(
     IAuditCatalog catalog,
     IAuditConfigService configService,
-    IAuditStore auditStore,
     IAuditStateCapture stateCapture,
-    IUnitOfWork unitOfWork,
-    ITenantContextAccessor tenantAccessor,
+    IAuditStore auditStore,
+    // The CONTEXT, not the accessor, and no IUnitOfWork. The context is registered scoped
+    // and resolved from the accessor at the composition root, so this behaviour takes what
+    // it reads; and the outermost-frame question is AuditFrame's, because at step 3 no
+    // transaction is open for a unit of work to answer it.
+    ITenantContext tenantContext,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<AuditLogBehavior<TRequest, TResponse>> logger)
@@ -475,7 +485,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // them is minted (ADR-0044 Amendment 3 § 2). The store composes from the intent and
         // never resolves a tenant itself. Reading TenantId on an unresolved context THROWS,
         // so the gate is IsResolved and never a null check.
-        var context = tenantAccessor.Current;
+        var context = tenantContext;
         (TenantId Tenant, OrganizationId? Organization)? owner = null;
 
         if (context.IsResolved)
@@ -498,8 +508,6 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // security (§ 7). A read here would return ZERO ROWS SILENTLY — indistinguishable
         // from "this tenant has no overrides" — so no catch could ever fire. On a cache
         // miss the loader opens its OWN short transaction and sets app.tenant_id itself.
-        var classified = new List<(AuditCatalogEntry Descriptor, AuditClassification Class)>();
-
         foreach (var descriptor in descriptors)
         {
             // § 7's FOURTH case: an unresolved context that is not provisioning has no
@@ -510,33 +518,48 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             // none of.
             if (owner is null) continue;
 
-            var classification = await configService.ClassifyAsync(descriptor, ct);
+            // The TENANT is a parameter, not something the classifier re-reads: the
+            // overrides are per tenant, and step 3's accessor throws on the provisioning
+            // case that has already been resolved into `owner` above.
+            var classification = await configService.ClassifyAsync(
+                owner.Value.Tenant, descriptor, ct);
             if (classification == AuditClassification.Off) continue;
-            classified.Add((descriptor, classification));
 
-            // MUST-class: declare the intent — ONE PER (resource, operation), so
-            // ProvisionTenantCommand declares two. The id is minted app-side here so the
-            // in-transaction row and any standalone replacement carry the same identity
-            // (ADR-0023 Amendment 9). Nothing is written yet; no DbContext is touched.
-            if (classification == AuditClassification.Must)
-                stateCapture.DeclareIntent(new AuditIntent(
-                    Id:             AuditEntryId.From(guidFactory.NewUuidV7()),
-                    TenantId:       owner.Value.Tenant,
-                    OrganizationId: owner.Value.Organization,
-                    ModuleName:     descriptor.ModuleName,
-                    Operation:      descriptor.Operation,   // {module}.{resource}.{verb}
-                    OperationType:  descriptor.OperationType,
-                    OperationClass: OperationClass.Must,
-                    EntityType:     descriptor.EntityType,  // fills entity_type / entity_id
-                    DeclaredAt:     clock.UtcNow));
+            // EVERY surviving tier is declared, SHOULD and MAY included — one intent per
+            // (resource, operation), so ProvisionTenantCommand declares two. There is no
+            // second list: the reconcile below branches on the intent's own class, and a
+            // parallel collection for the non-MUST tiers is a second place for the tenant,
+            // the id and the snapshot filter to be decided differently.
+            //
+            // The id is minted app-side here so the in-transaction row and any standalone
+            // replacement carry the same identity (ADR-0023 Amendment 9). Nothing is
+            // written yet; no DbContext is touched.
+            stateCapture.DeclareIntent(new AuditIntent(
+                Id:             AuditEntryId.From(guidFactory.NewUuidV7()),
+                TenantId:       owner.Value.Tenant,
+                OrganizationId: owner.Value.Organization,
+                ModuleName:     descriptor.ModuleName,
+                Operation:      descriptor.Operation,   // {module}.{resource}.{verb}
+                OperationType:  descriptor.OperationType,
+                // The DECLARED tier, always. An override narrows to Off or leaves the tier
+                // alone (ADR-0033 Amendment 4 § 1), so a non-Off classification IS the
+                // declared one and the intent cannot disagree with the catalogue.
+                OperationClass: descriptor.OperationClass,
+                EntityType:     descriptor.EntityType,  // fills entity_type / entity_id
+                DeclaredAt:     clock.UtcNow));
         }
 
-        // Only the OWNING unit-of-work frame reconciles, signals or clears. A joiner — a
+        // Only the OUTERMOST AuditLogBehavior reconciles, signals or clears. A joiner — a
         // nested dispatch inside a transaction another request opened — declares into the
         // same buffer and leaves the draining to the owner. IUnitOfWorkScope.IsOwner is
-        // the gate at step 6; the equivalent question here, before any frame is open, is
-        // whether one already is.
-        var ownsTheUnit = unitOfWork.Transaction is null;
+        // the gate at step 6; here, at step 3, no frame is open yet, so the question is
+        // whether an outer AuditLogBehavior is already on the stack. AuditFrame is a
+        // non-generic static holding one AsyncLocal<bool> — non-generic deliberately,
+        // because a static on the generic behaviour is one field PER (TRequest, TResponse)
+        // pair and a nested dispatch of a DIFFERENT request type would read its own,
+        // always false, and clear the outer request's buffer.
+        var outermost = !AuditFrame.IsInside;
+        using var frame = AuditFrame.Enter();
 
         TResponse response;
         Exception? handlerException = null;
@@ -545,13 +568,20 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         {
             response = await next();
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
+            // Cancellation INCLUDED, and the reconcile itself runs in a `finally` below
+            // rather than after this block. A client that hangs up mid-request is the
+            // commonest way a MUST-class row is left unwritten, so a reconcile the
+            // cancellation skips is a reconcile that misses its own main case. The
+            // exception is rethrown untouched through ExceptionDispatchInfo, so
+            // ADR-0032's requirement that an OperationCanceledException leaves with its
+            // type intact is unaffected.
             handlerException = ex;
             response = default!;
         }
 
-        if (!ownsTheUnit)
+        if (!outermost)
         {
             if (handlerException is not null)
                 ExceptionDispatchInfo.Capture(handlerException).Throw();
@@ -562,60 +592,71 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // ambient transaction and already reported the commit boundary. The only question
         // left is whether that transaction COMMITTED — "written" is not "committed", and a
         // per-request flag cannot observe a rollback.
+        //
+        // ONE loop over the intents, because the class is a property of the intent. A
+        // MUST-class row on a Committed unit is already durable and is skipped; everything
+        // else is re-written, and the intent's class picks the posture.
         try
         {
-            try
+            foreach (var intent in stateCapture.Intents)
             {
-                if (stateCapture.State != AuditIntentState.Committed)
-                {
-                    foreach (var intent in stateCapture.Intents)   // N, not one
-                        await auditStore.WriteStandaloneAsync(
-                            BuildDraft(intent, response, handlerException, stateCapture), ct);
-                }
-            }
-            catch (Exception ex)
-            {
-                // MUST-class, and even the standalone write failed. Loud, always:
-                // Critical, the standalone-write-failure counter, and the audit health
-                // check goes unhealthy — past a configured unhealthy window the
-                // deployment stops serving rather than serving unaudited.
-                logger.LogCritical(ex,
-                    "MUST-class audit could not be written for {Request}", typeof(TRequest).Name);
+                if (intent.OperationClass == OperationClass.Must
+                    && stateCapture.State == AuditIntentState.Committed)
+                    continue;
 
-                // ADR-0033 Amendment 1: the 503 replaces the response only when the
-                // operation would otherwise have SUCCEEDED. A standalone row recording an
-                // operation that is ALREADY being refused — a `denied` outcome, a rejected
-                // tenant assertion — keeps its own 403 / 404. Downgrading a refusal to a
-                // 503 tells the caller more, not less, and on a path an anonymous client
-                // can drive it turns audit-store pressure into an availability signal that
-                // same client controls.
-                if (handlerException is null && response.IsSuccess)
-                    return Result.FailFor<TResponse>(AuditErrors.Unavailable);
-            }
+                // The SAME composer TransactionBehavior's in-transaction write uses —
+                // AuditDraftComposer, in SharedKernel because its two callers sit either
+                // side of a project boundary. A private one per writer is how the two
+                // diverged: only the happy-path row carried a snapshot, so every denied,
+                // failed and indeterminate row said nothing about what was attempted.
+                //
+                // A FRESH clock reading, not intent.DeclaredAt: the in-transaction row
+                // that may already exist under this id carries that, and the composite
+                // primary key (id, timestamp) is what makes the in-doubt pair legal rather
+                // than a 23505.
+                var draft = AuditDraftComposer.Compose(
+                    intent, stateCapture.Changes, Outcome(stateCapture.State, refusal),
+                    clock.UtcNow, context.UserId, context.CorrelationId, refusal?.Key);
 
-            try
-            {
-                foreach (var (descriptor, classification) in classified)
+                try
                 {
-                    if (classification == AuditClassification.Must) continue;
-                    // owner is non-null wherever `classified` is non-empty: the tenant
-                    // gate at step 3 is what fills the list.
-                    await auditStore.WriteBestEffortAsync(
-                        BuildDraft(descriptor, classification, owner!.Value, response,
-                                   handlerException, stateCapture), ct);
+                    // CancellationToken.None, and it is the whole point: the paths this
+                    // reconcile exists for are the ones where the request's own token is
+                    // ALREADY cancelled, and handing it to the write abandons the row at
+                    // OpenConnectionAsync before a statement is issued. Both branches, not
+                    // just the MUST one — best effort is not no effort, and a SHOULD row
+                    // dropped because the caller hung up is not the DATABASE failure the
+                    // module's matrix accepts.
+                    if (intent.OperationClass == OperationClass.Must)
+                        await auditStore.WriteStandaloneAsync(draft, CancellationToken.None);
+                    else
+                        await auditStore.WriteBestEffortAsync(draft, CancellationToken.None);
                 }
-            }
-            catch (Exception ex)
-            {
-                // SHOULD/MAY only: log and drop. The accepted loss is written down in the
-                // module's audit-coverage matrix, not assumed.
-                logger.LogError(ex, "Best-effort audit save failed for {Request}",
-                    typeof(TRequest).Name);
+                catch (AuditWriteFailedException ex)
+                {
+                    // Critical, and swallowed here. ADR-0033 Amendment 1: the 503 replaces
+                    // the response only when the operation would otherwise have SUCCEEDED.
+                    // A row recording an operation that is ALREADY being refused — a
+                    // `denied` outcome, a rejected tenant assertion — keeps its own
+                    // 403 / 404. Downgrading a refusal to a 503 tells the caller more, not
+                    // less, and on a path an anonymous client can drive it turns
+                    // audit-store pressure into an availability signal that client
+                    // controls.
+                    //
+                    // The store has already logged Critical, counted
+                    // learnstack_audit_standalone_write_failures_total and taken the
+                    // `audit` health check unhealthy (ADR-0033 Amendment 3). Past a
+                    // configured unhealthy window a Phase 11 deployment stops serving
+                    // rather than serving unaudited.
+                    logger.LogCritical(ex,
+                        "MUST-class audit could not be written for {Request}",
+                        typeof(TRequest).Name);
+                }
             }
         }
         finally
         {
-            stateCapture.Clear();             // once, and only on the owning frame
+            stateCapture.Clear();             // once, and only on the outermost behaviour
         }
 
         if (handlerException is not null)
@@ -624,18 +665,20 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         return response;
     }
 
-    // The two BuildDraft overloads are private helpers. They resolve the outcome:
+    // Outcome() is the one private helper left, and it resolves:
     //   Denied        — the Result carries `forbidden`
     //   Failed        — any other failure Result, or a handler exception, or
     //                   stateCapture.State == RolledBack
     //   Indeterminate — stateCapture.State == Indeterminate
     //   Success       — otherwise
-    // Tenant and organization come from the INTENT for a MUST-class row and from the
-    // resolved `owner` above for a SHOULD/MAY one — never re-read from the accessor here,
-    // which throws on the provisioning case and knows nothing of the sentinel one.
-    // Actor and correlation come from ITenantContext's UserId and CorrelationId, which
-    // are ordinary nullable members and readable on an unresolved context; the snapshots
-    // come from stateCapture.Changes.
+    // Everything else is AuditDraftComposer's: tenant, organization, module, operation,
+    // type, class and entity type come from the INTENT — never re-read from the accessor,
+    // which throws on the provisioning case and knows nothing of the sentinel one — and
+    // the snapshots come from stateCapture.Changes, filtered to the intent's declared
+    // aggregate by type name. Actor and correlation are passed in from ITenantContext's
+    // UserId and CorrelationId, which are ordinary nullable members and readable on an
+    // unresolved context. A SHOULD/MAY intent is declared at step 3 exactly as a MUST one
+    // is; what differs is only which store method drains it.
 }
 ```
 
@@ -649,7 +692,7 @@ source **once at startup** into the `IAuditCatalog` this behavior injects, so
 — a `WritesNoRow` flag and its `AuditCatalogEntry` entries,
 `(ModuleName, Operation, OperationType, OperationClass, EntityType)` — with no merge, no
 allocation and no query on the request path.
-`IAuditConfigService.ClassifyAsync(AuditCatalogEntry, …)` is the second face:
+`IAuditConfigService.ClassifyAsync(TenantId?, AuditCatalogEntry, …)` is the second face:
 it applies the tenant's cached `audit_config` override to a descriptor and re-applies the
 MUST floor, returning the `AuditClassification` the loop branches on. The merged catalogue
 is composition-root machinery a module author never writes.
@@ -841,8 +884,19 @@ public async Task<TResponse> Handle(TRequest request,
         }
         catch (Exception ex)
         {
-            // A faulted COMMIT leaves the server-side outcome genuinely unknown.
-            if (scope.IsOwner) stateCapture.MarkIndeterminate(ex);
+            // REFUSED is not FAULTED, and only the unit knows which. CompleteAsync throws
+            // the same way for both — but a unit an inner frame marked rollback-only is
+            // rolled back FOR REAL before it throws, so nothing committed and the outcome
+            // is certain. Labelling that Indeterminate would put a permanent row on an
+            // append-only table saying the COMMIT may have landed.
+            //
+            // A cancellation is this case, not a separate one (ADR-0033 Amendment 4 § 2).
+            if (scope.IsOwner)
+            {
+                if (unitOfWork.IsRollbackOnly) stateCapture.MarkRolledBack();
+                else stateCapture.MarkIndeterminate(ex);
+            }
+
             throw;
         }
 
@@ -867,17 +921,17 @@ public async Task<TResponse> Handle(TRequest request,
 without naming any module's `DbContext`, and through which `IAuditStore` reaches the
 ambient connection. It **shipped** in
 [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) step 6, together with the
-`TransactionBehavior` body — everything above except the `auditStore` and `stateCapture`
-lines, which land with `IAuditStore` in Packet 9.
+`TransactionBehavior` body; the `auditStore` and `stateCapture` lines shipped with
+`IAuditStore` in Packet 9, and the block above is the shipped body rather than a plan for
+one.
 
-Only the `auditStore.WritePendingAsync` line has a slot waiting for it, marked by a dated
-TODO immediately before the commit. The `stateCapture` calls do not, and one of them needs
-more than a line: the shipped body's catch is filtered `when (!committing)` precisely so it
-does **not** run after a faulted commit, so there is no reachable branch for
-`MarkIndeterminate` to go in. `MarkCommitted` and `MarkRolledBack` drop into the existing
-success and failure paths; `MarkIndeterminate` requires Packet 9 to add a `try`/`catch`
-around the commit call itself, which is what the block above shows and what the filter
-stands in for until then.
+The one structural change Packet 9 made was the `try`/`catch` around the commit call.
+Packet 6's body had a single catch filtered `when (!committing)` precisely so it did
+**not** run after a faulted commit — which left no reachable branch for
+`MarkIndeterminate` at all. `MarkCommitted` and `MarkRolledBack` dropped into the existing
+success and failure paths; the in-doubt outcome needed a catch of its own, and once it
+existed it had to tell a REFUSED commit from a FAULTED one, because `CompleteAsync` throws
+the same way for both.
 
 The block above is written on the shipped frame handling, which
 [ADR-0040 Amendment 2](../decisions/0040-ambient-unit-of-work.md) settled after an earlier

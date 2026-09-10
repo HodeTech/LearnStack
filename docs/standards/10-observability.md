@@ -225,13 +225,38 @@ backend treat business rejections as system failures.
 | `learnstack_cache_coalesced_total` | counter | `cache.name` |
 | `learnstack_cache_eviction_total` | counter | `cache.name`, `reason` |
 | `learnstack_cache_factory_duration_seconds` | histogram | `cache.name`, `outcome` |
+| `learnstack_audit_standalone_write_failures_total` | counter | `operation` |
+| `learnstack_audit_standalone_duplicates_total` | counter | `operation` |
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
-`tenancy:feature-flags`, or `tenancy:settings`). An unregistered family is reported as
-`other`; adapters never derive a label from a full cache key, tenant or organization id,
-host, session id, or entity id. `reason` is one of `explicit`, `expired`, or `capacity`;
-`outcome` is one of `success`, `faulted`, or `cancelled`.
+`tenancy:feature-flags`, `tenancy:settings`, or `audit:config`). An unregistered family is
+reported as `other`; adapters never derive a label from a full cache key, tenant or
+organization id, host, session id, or entity id. `reason` is one of `explicit`, `expired`,
+or `capacity`; `outcome` is one of `success`, `faulted`, or `cancelled`.
+
+The two audit counters are labelled by `operation` — the catalogue's dotted slug, a
+bounded set nobody outside the deployment chooses — and never by tenant. They answer
+different questions and both are required by
+[ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md): a **write failure**
+is an operation that succeeded with no record of it, which also takes the `audit` health
+check unhealthy and logs at `Critical`; a **duplicate** is the opposite signal, positive
+evidence that a business `COMMIT` landed whose outcome the process could not observe, so a
+rate that moves is about the database connection rather than about any one request.
+
+### Health checks
+
+| Check | Registered as | Unhealthy when |
+|---|---|---|
+| Audit write path | `audit` | The most recent MUST-class standalone audit write failed and no later one has succeeded |
+
+The `audit` check is registered in Phase 02a Packet 9 and **not mapped**: `/healthz` stays
+a liveness probe, because a process that cannot write audit rows is still worth leaving
+alive. The readiness surface that reads the check, and the deployment-level backstop that
+stops serving past a configured unhealthy window, are demand-gated to
+[Phase 11](../roadmap/phase-11-production-hardening.md) —
+[ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md) states all four of
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s requirements for it.
 
 ### Business Metrics
 

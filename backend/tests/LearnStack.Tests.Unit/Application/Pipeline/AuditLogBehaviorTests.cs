@@ -99,15 +99,33 @@ public sealed class AuditLogBehaviorTests
         // The only thing an override does. It narrows and never elevates
         // (ADR-0033 Amendment 4 § 1).
         var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
         var behavior = Behavior(
             new FakeCatalog(AuditPipelineHarness.Entry(operationClass: OperationClass.Should)),
-            new RecordingAuditStore(),
+            store,
             capture,
             new FakeClassifier(AuditClassification.Off));
 
-        await behavior.Handle(new DummyCommand(), () => Task.FromResult(Result.Ok("ok")), default);
+        var declaredInside = -1;
 
-        capture.Intents.Should().BeEmpty();
+        await behavior.Handle(
+            new DummyCommand(),
+            () =>
+            {
+                // Read INSIDE the handler. The finally clears the buffer for the outermost
+                // frame whatever happened, so an assertion afterwards is true for ANY
+                // successful call and says nothing about the Off skip.
+                declaredInside = capture.Intents.Count;
+
+                capture.MarkCommitted();
+
+                return Task.FromResult(Result.Ok("ok"));
+            },
+            default);
+
+        declaredInside.Should().Be(0, "an Off classification declares no intent");
+        store.Standalone.Should().BeEmpty();
+        store.BestEffort.Should().BeEmpty("a silenced operation leaves no row anywhere");
     }
 
     [Fact]
@@ -335,6 +353,43 @@ public sealed class AuditLogBehaviorTests
     }
 
     [Fact]
+    public async Task A_cancelled_request_still_writes_its_SHOULD_row_best_effort()
+    {
+        // The CancellationToken.None fix has TWO call sites and only the MUST one was
+        // covered: both cancellation cases above drive WriteStandaloneAsync, so passing
+        // the request's own token to WriteBestEffortAsync instead left them all green.
+        //
+        // Best effort is not no effort. The accepted loss is a DATABASE failure, written
+        // down in the module's coverage matrix; a row dropped because the caller hung up
+        // is not that loss, and it is the one class of row the reconcile exists to rescue.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(
+            new FakeCatalog(AuditPipelineHarness.Entry(operationClass: OperationClass.Should)),
+            store,
+            capture);
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        var act = async () => await behavior.Handle(
+            new DummyCommand(),
+            () =>
+            {
+                capture.MarkRolledBack();
+                throw new OperationCanceledException();
+            },
+            cancelled.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        store.Abandoned.Should().Be(0,
+            "the reconcile hands the write a token of its own, not the one that is already cancelled");
+        store.BestEffort.Should().ContainSingle()
+            .Which.Outcome.Should().Be(AuditOutcome.Failed);
+    }
+
+    [Fact]
     public async Task A_nested_frame_does_not_clear_the_outer_request_buffer()
     {
         // A joiner that cleared would erase the outer request's intents and every snapshot
@@ -366,6 +421,108 @@ public sealed class AuditLogBehaviorTests
             "the inner frame is a joiner and clears nothing");
         capture.Intents.Should().BeEmpty("the outer frame clears when it finishes");
     }
+
+    [Fact]
+    public async Task A_reconciled_row_carries_the_snapshot_the_request_captured()
+    {
+        // The two composers had diverged: only the in-transaction row carried a snapshot,
+        // so every denied, failed and indeterminate row said nothing about what was
+        // attempted — the class of row ADR-0033 calls the common case it protects, and the
+        // one an investigator reads first.
+        var capture = new AuditStateCapture();
+        capture.Add(new CapturedEntityChange(
+            nameof(Subject), "t-7", null, """{"slug":"acme"}""",
+            [new CapturedFieldChange("/Subject/slug", null, "\"acme\"")]));
+
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(
+            new FakeCatalog(AuditPipelineHarness.Entry(entityType: typeof(Subject))), store, capture);
+
+        await behavior.Handle(
+            new DummyCommand(),
+            () => { capture.MarkRolledBack(); return Task.FromResult(Result.Ok("ok")); },
+            default);
+
+        var row = store.Standalone.Should().ContainSingle().Subject;
+
+        row.EntityType.Should().Be(nameof(Subject));
+        row.EntityId.Should().Be("t-7");
+        row.BeforeState.Should().BeNull("the capture is an insert, and null is what says so");
+        row.AfterState.Should().Contain("acme");
+        row.Changes.Should().Contain("/Subject/slug");
+    }
+
+    [Fact]
+    public async Task A_reconciled_row_takes_a_fresh_instant_and_not_the_intents()
+    {
+        // Two rows under one AuditEntryId are legal only because their timestamps differ.
+        // Reusing DeclaredAt here would make the commit-in-doubt re-write raise 23505 —
+        // which the store reads as positive evidence the first row is durable, so the
+        // failure would report the opposite of what happened.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
+
+        await behavior.Handle(
+            new DummyCommand(),
+            () =>
+            {
+                capture.MarkIndeterminate(new InvalidOperationException("in doubt"));
+                return Task.FromResult(Result.Ok("ok"));
+            },
+            default);
+
+        var row = store.Standalone.Should().ContainSingle().Subject;
+
+        // The harness clock advances one tick per read, so DeclaredAt is the FIRST reading
+        // and the reconcile's is a later one. A frozen clock made the two spellings
+        // indistinguishable and every assertion here vacuous.
+        row.Timestamp.Should().BeAfter(
+            DateTimeOffset.UnixEpoch.AddMilliseconds(1),
+            "the reconcile reads the clock again rather than replaying the declaration");
+    }
+
+    [Fact]
+    public async Task An_unresolved_request_that_is_not_provisioning_writes_no_row()
+    {
+        // The fourth of ADR-0044 § 2's cases, and the only one that writes nothing: there
+        // is no tenant whose admin could read the row, and ADR-0036 forbids inventing one.
+        // The request still runs — it is classified, so it is not the unregistered
+        // rejection — it simply leaves no record, which is the honest answer when there is
+        // no tenant to attribute it to.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var handlerRan = false;
+
+        var behavior = new AuditLogBehavior<DummyCommand, Result<string>>(
+            new FakeCatalog(AuditPipelineHarness.Entry()),
+            new FakeClassifier(),
+            capture,
+            store,
+            new HarnessTenantContext(resolved: false),
+            new HarnessClock(DateTimeOffset.UnixEpoch),
+            new HarnessGuidFactory(),
+            NullLogger<AuditLogBehavior<DummyCommand, Result<string>>>.Instance);
+
+        var result = await behavior.Handle(
+            new DummyCommand(),
+            () =>
+            {
+                handlerRan = true;
+                capture.MarkRolledBack();
+
+                return Task.FromResult(Result.Ok("ok"));
+            },
+            default);
+
+        handlerRan.Should().BeTrue("a classified request is not refused for lacking a tenant");
+        result.IsSuccess.Should().BeTrue();
+        store.Standalone.Should().BeEmpty();
+        store.BestEffort.Should().BeEmpty();
+    }
+
+    /// <summary>A stand-in for the aggregate an intent names.</summary>
+    private sealed class Subject;
 
     private static AuditLogBehavior<DummyCommand, Result<string>> Behavior(
         IAuditCatalog catalog,
