@@ -405,10 +405,22 @@ public class ResolvedTenantFixture : WebApplicationFactory<Program>
         public void Clear()
         {
             lock (_unresolved) { _unresolved.Clear(); }
+            lock (_rejections) { _rejections.Clear(); }
         }
 
-        public void RecordRejection(TenantAssertionRejection rejection)
+        private readonly List<TenantAssertionRejection> _rejections = [];
+
+        /// <summary>What the middleware rejected, for a case that asserts the tier.</summary>
+        public IReadOnlyList<TenantAssertionRejection> Rejections
         {
+            get { lock (_rejections) { return [.. _rejections]; } }
+        }
+
+        public Task RecordRejectionAsync(
+            TenantAssertionRejection rejection, CancellationToken cancellationToken = default)
+        {
+            lock (_rejections) { _rejections.Add(rejection); }
+            return Task.CompletedTask;
         }
 
         public void RecordUnresolved(TenantAssertionDimension dimension)

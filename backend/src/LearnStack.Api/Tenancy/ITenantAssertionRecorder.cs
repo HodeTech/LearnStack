@@ -40,28 +40,44 @@ public readonly record struct TenantAssertionRejection(
 /// </summary>
 /// <remarks>
 /// <para>
-/// One seam, two implementations across two packets.
-/// <see cref="LoggingTenantAssertionRecorder"/> is the only registered one in
-/// Packet 4 and writes a structured warning and a metric; Packet 9 swaps in an
-/// auditing implementation once <c>IAuditStore</c> and <c>audit_log</c> exist.
-/// The middleware, its bounds and its metrics do not change — the registration
-/// does.
+/// One seam, two implementations. <see cref="LoggingTenantAssertionRecorder"/> writes a
+/// structured warning and a metric and was the only registered one from Packet 4;
+/// <see cref="AuditingTenantAssertionRecorder"/> is registered from Packet 9 and
+/// <b>decorates</b> it with the <c>audit_log</c> row. The middleware, its bounds and its
+/// metrics did not change — the registration did.
 /// </para>
 /// <para>
-/// <b>Packet 4 must not describe the outcome as audited</b>, and this interface
-/// is deliberately named <c>Record</c> rather than <c>Audit</c> so the
-/// distinction survives a careless read. A log line that is honestly a log line
-/// beats an audit row that does not exist.
+/// The interface stays named <c>Record</c> rather than <c>Audit</c>. Not every occurrence
+/// produces a row and that is the design, not a shortfall: an unresolved request produces
+/// none at all, and an anonymous mismatch produces one only when its window crosses the
+/// burst threshold. A name promising a row per call would be wrong on two of the three
+/// paths.
 /// </para>
 /// </remarks>
 public interface ITenantAssertionRecorder
 {
-    void RecordRejection(TenantAssertionRejection rejection);
+    /// <summary>
+    /// Records one rejected assertion.
+    /// </summary>
+    /// <remarks>
+    /// Asynchronous because the Packet 9 implementation writes a MUST-class row, and a
+    /// MUST-class row is not something to start and walk away from: a fire-and-forget
+    /// write is one the process can lose at shutdown without anything noticing, which is
+    /// the opposite of what a durability class means.
+    /// </remarks>
+    Task RecordRejectionAsync(
+        TenantAssertionRejection rejection, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// An assertion arrived on a request whose tenant never resolved. There is
     /// no tenant to write the record under, so this is counted and not
     /// recorded — which is the rule ADR-0036 states, not a gap.
     /// </summary>
+    /// <remarks>
+    /// Synchronous, and it stays synchronous. There is no row on this path and there
+    /// cannot be one: <c>audit_log</c> is tenant-owned, so writing here would mean
+    /// inventing a tenant. A <c>Task</c>-returning signature would imply an I/O this
+    /// method is defined by not doing.
+    /// </remarks>
     void RecordUnresolved(TenantAssertionDimension dimension);
 }

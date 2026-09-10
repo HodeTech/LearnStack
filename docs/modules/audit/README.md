@@ -12,9 +12,10 @@ classifies and parks intents at step 3 and reconciles in its `finally`,
 scope's platform-role connection before the operation runs. The observable half of the
 fail-closed rule ships with it — the `audit` health check, the two counters, and the
 `Critical` line ([ADR-0033 Amendment 3](../../decisions/0033-audit-durability-model.md)).
-**Still open inside Packet 9**: `AuditingTenantAssertionRecorder`, which turns the two
-`tenancy.tenant_assertion.*` slugs from declared into written, and the entitlement socket
-of [ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md). Rows marked
+`AuditingTenantAssertionRecorder` ships with them, so both
+`tenancy.tenant_assertion.*` slugs are written rather than declared.
+**Still open inside Packet 9**: the entitlement socket of
+[ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md). Rows marked
 `(planned)` in [the coverage matrix](audit.md) belong to the phase their cell names.
 The **read** side — the query API of
 [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission

@@ -125,9 +125,10 @@ public sealed class TenancyConventionTests
     [Fact]
     public void Assertion_Recorder_Is_The_Only_Mismatch_Writer()
     {
-        // A rejected assertion is a security event. One writer means one place
-        // to change when Packet 9 swaps the logging recorder for the auditing
-        // one — and one place that decides the metric's label cardinality.
+        // A rejected assertion is a security event. One writer means one place that
+        // decides the metric's label cardinality — and, since Packet 9, one place that
+        // decides which tenant the row carries, which is the whole of why the row is safe
+        // to write at all.
         Offenders(
                 except: Path.Combine("Tenancy", "LoggingTenantAssertionRecorder.cs"),
                 banned: [
@@ -136,6 +137,26 @@ public sealed class TenancyConventionTests
                 ])
             .Should().BeEmpty(
                 "only an ITenantAssertionRecorder writes a tenant-assertion mismatch "
+                + "(ADR-0036 § Recording a rejected assertion)");
+    }
+
+    [Fact]
+    public void Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs()
+    {
+        // The other half this rule always claimed and, until the slugs existed, could not
+        // check: "a log, a metric OR IAuditStore". The counter names above cannot catch a
+        // second writer that goes straight to the store, and that writer is the dangerous
+        // one — the row's tenant is what keeps an anonymous caller from choosing whose
+        // audit log grows, and a second composer is a second chance to get it wrong.
+        Offenders(
+                except: Path.Combine("Tenancy", "AuditingTenantAssertionRecorder.cs"),
+                banned: [
+                    "tenancy.tenant_assertion.reject",
+                    "tenancy.tenant_assertion.anonymous_burst",
+                ],
+                alsoExcept: [Path.Combine("Tenancy", "TenancyAuditCatalogSource.cs")])
+            .Should().BeEmpty(
+                "only AuditingTenantAssertionRecorder names the two assertion slugs "
                 + "(ADR-0036 § Recording a rejected assertion)");
     }
 

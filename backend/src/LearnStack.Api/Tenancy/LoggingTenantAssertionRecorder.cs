@@ -4,17 +4,23 @@ using Microsoft.Extensions.Logging;
 namespace LearnStack.Api.Tenancy;
 
 /// <summary>
-/// The Packet 4 recorder: a structured warning and a counter. Packet 9 replaces
-/// the registration with an auditing implementation once <c>IAuditStore</c> and
-/// <c>audit_log</c> exist.
+/// The real-time half: a structured warning and a counter.
 /// </summary>
 /// <remarks>
+/// Shipped alone in Packet 4 and still the registered inner half in Packet 9, where
+/// <see cref="AuditingTenantAssertionRecorder"/> decorates it with the <c>audit_log</c>
+/// row. It stays a separate type on purpose: the counter and the warning cost no I/O and
+/// are what a deployment still has when the audit store is unreachable, and the
+/// architecture rule that says only one file may name these two counters is easier to keep
+/// true of a file that does nothing else.
+/// <para>
 /// The metric labels are fixed and bounded — tenant id, dimension, source, and
 /// whether a principal was attached. Per
 /// <see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
 /// § Recording a rejected assertion</see>, the effective host and the source IP
 /// are <b>never</b> labels: both are attacker-chosen and unbounded, and a
 /// cardinality explosion in the metrics store is a self-inflicted outage.
+/// </para>
 /// </remarks>
 public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
 {
@@ -40,7 +46,22 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
         _unresolved = meter.CreateCounter<long>(UnresolvedCounterName);
     }
 
-    public void RecordRejection(TenantAssertionRejection rejection)
+    /// <inheritdoc />
+    /// <remarks>
+    /// Completed synchronously, and it still satisfies the seam. Nothing here does I/O —
+    /// which is exactly why this type is worth keeping registrable on its own: a
+    /// deployment that has no application credential, or one deliberately running without
+    /// the audit store, still counts and still warns.
+    /// </remarks>
+    public Task RecordRejectionAsync(
+        TenantAssertionRejection rejection, CancellationToken cancellationToken = default)
+    {
+        Record(rejection);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The metric and the warning, for a decorator that has more to do after.</summary>
+    public void Record(TenantAssertionRejection rejection)
     {
         _mismatches.Add(
             1,
@@ -70,8 +91,8 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
             LogLevel.Warning,
             new EventId(4001, nameof(AssertionRejected)),
             "Rejected a {Dimension} assertion on tenant {ResolvedTenantId}: the client "
-            + "asserted {AssertedValue}. Authenticated: {IsAuthenticated}. Recorded, not "
-            + "audited — IAuditStore lands in Packet 9.");
+            + "asserted {AssertedValue}. Authenticated: {IsAuthenticated}. An authenticated "
+            + "mismatch is audited per occurrence; an anonymous one is audited as a burst.");
 
     public void RecordUnresolved(TenantAssertionDimension dimension)
     {

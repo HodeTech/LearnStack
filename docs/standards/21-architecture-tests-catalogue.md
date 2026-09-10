@@ -162,6 +162,7 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Effective_Host_Computed_In_One_Place` | `TenancyConventionTests.cs` |
 | `Tenant_Headers_Are_Never_A_Resolution_Source` | `TenancyConventionTests.cs` |
 | `Assertion_Recorder_Is_The_Only_Mismatch_Writer` | `TenancyConventionTests.cs` |
+| `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs` | `TenancyConventionTests.cs` |
 | `Assertion_Budget_Does_Not_Depend_On_ICacheService` | `TenancyConventionTests.cs` |
 | `Organization_Aggregate_Declared_In_Tenancy_Domain` (per-type theory) | `TenancyConventionTests.cs` |
 | `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
@@ -2713,8 +2714,8 @@ structural test proves — and what it does not.
 - **Asserts:** no type other than an `ITenantAssertionRecorder` implementation writes a tenant-assertion mismatch to a log, a metric or `IAuditStore`.
 - **Source:** ADR-0036 § Recording a rejected assertion.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`). Keyed on the two counter names, so Packet 9's auditing recorder inherits the same single-writer rule.
-- **Phase:** 02a Packet 4.
+- **Status:** **Implemented** (`TenancyConventionTests`), in two halves. `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the two counter names; `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is keyed on the two audit slugs and covers the `IAuditStore` clause this row always claimed — the counter names cannot catch a second writer that goes straight to the store, which is the dangerous one, because the row's tenant is what keeps an anonymous caller from choosing whose audit log grows. `TenancyAuditCatalogSource` is exempt: declaring a slug is not writing a row.
+- **Phase:** 02a Packet 4; the second half 02a Packet 9.
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
 

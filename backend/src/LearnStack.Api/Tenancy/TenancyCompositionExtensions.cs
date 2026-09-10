@@ -249,7 +249,21 @@ public static class TenancyCompositionExtensions
         }
 
         services.AddSingleton<EffectiveHostAccessor>();
-        services.AddSingleton<ITenantAssertionRecorder, LoggingTenantAssertionRecorder>();
+        // The real-time half, registered by its own type so the decorator below can name
+        // it unambiguously. A singleton: it owns two counters and no per-request state.
+        services.AddSingleton<LoggingTenantAssertionRecorder>();
+
+        // The burst windows are the PROCESS's, so this is a singleton too. A scoped
+        // detector counts to one per request and crosses nothing (ADR-0036 § Recording a
+        // rejected assertion).
+        services.AddSingleton<TenantAssertionBurstDetector>();
+        services.AddOptions<AssertionBurstOptions>()
+            .BindConfiguration(AssertionBurstOptions.SectionName);
+
+        // SCOPED, unlike the recorder it replaces, because IAuditStore is scoped and the
+        // middleware resolves the seam per invocation rather than through its constructor
+        // — so the registration can be scoped without capturing anything.
+        services.AddScoped<ITenantAssertionRecorder, AuditingTenantAssertionRecorder>();
 
         // The only registered IIdempotencyStore. Correct for one instance and
         // wrong for two, and it stays registered anyway: ADR-0037 Amendment 1
