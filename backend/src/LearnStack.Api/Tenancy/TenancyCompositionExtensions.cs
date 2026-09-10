@@ -257,8 +257,22 @@ public static class TenancyCompositionExtensions
         // detector counts to one per request and crosses nothing (ADR-0036 § Recording a
         // rejected assertion).
         services.AddSingleton<TenantAssertionBurstDetector>();
+        // Validated at boot, like both of its neighbours in this method, and for a sharper
+        // reason than either. Measured: with Window = 00:00:00 the detector resets on every
+        // occurrence, so Count never exceeds 1 and the MUST-class burst row is NEVER
+        // written — no startup error, no runtime signal, and the mismatch metric keeps
+        // ticking so nothing looks wrong. This file's own argument is that no outage may
+        // decide whether a MUST-class security event is recorded; a config typo is the
+        // remaining switch, and this closes it.
         services.AddOptions<AssertionBurstOptions>()
-            .BindConfiguration(AssertionBurstOptions.SectionName);
+            .BindConfiguration(AssertionBurstOptions.SectionName)
+            .Validate(
+                options => options.Threshold >= 1 && options.Window > TimeSpan.Zero,
+                $"'{AssertionBurstOptions.SectionName}' needs a Threshold of at least 1 and "
+                + "a positive Window. A non-positive Window resets the counter on every "
+                + "occurrence, so the anonymous-burst security event is silently never "
+                + "recorded.")
+            .ValidateOnStart();
 
         // SCOPED, unlike the recorder it replaces, because IAuditStore is scoped and the
         // middleware resolves the seam per invocation rather than through its constructor

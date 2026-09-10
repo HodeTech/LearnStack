@@ -45,8 +45,10 @@ transaction for everything that reaches step 6, reads included, because a read n
 `SET LOCAL` as much as a write does — so the durable path is the one a granted read takes
 ([ADR-0033 Amendment 2 § 7](../decisions/0033-audit-durability-model.md)).
 `WriteStandaloneAsync` is reached by three shapes and only these: a short-circuit at step
-1, 4 or 5; a non-MediatR caller, of which `TenantAssertionMiddleware` is the one Packet 9
-ships; and the reconcile step after a `RolledBack` or `Indeterminate` outcome.
+1, 4 or 5; a non-MediatR caller, of which `AuditingTenantAssertionRecorder` is the one
+Packet 9 ships — `TenantAssertionMiddleware` detects the mismatch and names no store, and
+the distinction is the architecture rule `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`
+enforces; and the reconcile step after a `RolledBack` or `Indeterminate` outcome.
 `EnterPlatformAdminScope(reason)` is **not** among them: its row takes the fourth write
 method, `IAuditStore.WritePlatformScopeAsync`, on the scope's own platform-role connection
 and **before** the operation runs — so an operation that later fails is still recorded

@@ -152,6 +152,33 @@ public sealed class TenantAssertionBurstDetectorTests
         }
     }
 
+    [Theory]
+    [InlineData(30)]
+    [InlineData(600)]
+    public void The_configured_window_is_the_one_that_expires(int seconds)
+    {
+        // The window came from configuration and no case ever used a value other than the
+        // five-minute default — so hard-coding TimeSpan.FromMinutes(5) into the detector
+        // and ignoring the binding entirely left every test green. Two non-default
+        // windows, because one could still be the default by coincidence of arithmetic.
+        var window = TimeSpan.FromSeconds(seconds);
+        var detector = Detector(threshold: 2, out var clock, window: window);
+
+        detector.RecordAndCheckCrossing(TenantA, TenantAssertionDimension.Tenant).Should().BeFalse();
+        detector.RecordAndCheckCrossing(TenantA, TenantAssertionDimension.Tenant).Should().BeTrue();
+
+        clock.Advance(window - TimeSpan.FromSeconds(1));
+
+        detector.RecordAndCheckCrossing(TenantA, TenantAssertionDimension.Tenant).Should().BeFalse(
+            "one second short of the configured window is still the same window");
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+
+        detector.RecordAndCheckCrossing(TenantA, TenantAssertionDimension.Tenant).Should().BeFalse(
+            "the new window starts at one");
+        detector.RecordAndCheckCrossing(TenantA, TenantAssertionDimension.Tenant).Should().BeTrue();
+    }
+
     [Fact]
     public void The_shipped_defaults_are_the_documented_ones()
     {

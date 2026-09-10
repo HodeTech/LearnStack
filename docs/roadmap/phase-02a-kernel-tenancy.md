@@ -782,18 +782,25 @@ catalogue source name them
 **Two obligations other records parked here.** `EnterPlatformAdminScope(reason)` stops
 being a `Warning` log line and writes its `security-event` row before the operation runs
 ([Database Standards § How EnterPlatformAdminScope reaches learnstack_platform](../standards/05-database.md));
-and `AuditingTenantAssertionRecorder` replaces the logging one, emitting
-`tenancy.tenant_assertion.reject` per occurrence for a validated principal and
-`tenancy.tenant_assertion.anonymous_burst` once per window otherwise
+and `AuditingTenantAssertionRecorder` **decorates** the logging one — the counter and the
+warning cost no I/O and are what a deployment still has when the audit store is
+unreachable, so they stay where they are — emitting `tenancy.tenant_assertion.reject` per
+occurrence for a validated principal and `tenancy.tenant_assertion.anonymous_burst` once
+per window otherwise
 ([ADR-0036 § Staging across packets](../decisions/0036-tenant-resolution-trusted-inputs.md),
 with **Amendment 7** respelling both keys in the slug grammar
 [ADR-0044 § 6](../decisions/0044-audit-write-path.md) fixes — no row has ever been
-written under the hyphenated spelling, so nothing migrates). That second swap is **not**
-registration-only, whatever the seam's own remark says: `ITenantAssertionRecorder`
-declares a synchronous `void` and is registered `AddSingleton`, while a durable
-standalone write is an awaited round trip whose failure has to reach the `Critical` log,
-the standalone-write-failure counter and the health check. Packet 9 changes the seam's
-arity along with its registration, and corrects the two comments that promised otherwise.
+written under the hyphenated spelling, so nothing migrates). That second change is **not**
+registration-only, whatever the seam's own remark promised: `ITenantAssertionRecorder`
+declared a synchronous `void` and was registered `AddSingleton`, while a durable standalone
+write is an awaited round trip whose failure has to reach the `Critical` log, the
+standalone-write-failure counter and the health check. Packet 9 changes the seam's arity
+and its registration together — `Task RecordRejectionAsync(TenantAssertionRejection)`,
+`AddScoped`, and deliberately **no** `CancellationToken`: the request that would cancel
+the write is the request being recorded. The burst threshold and window are
+`Tenancy:AssertionBurst`, defaulting to ten occurrences in five minutes and refused at
+boot if either is non-positive, because a MUST-class security event that a config typo
+switches off is the one outcome the in-process counter exists to prevent.
 
 **And the signal a failure raises.** [ADR-0033](../decisions/0033-audit-durability-model.md)
 and [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) both point a

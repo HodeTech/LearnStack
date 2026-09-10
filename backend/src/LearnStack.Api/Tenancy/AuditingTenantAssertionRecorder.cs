@@ -1,6 +1,7 @@
 using System.Globalization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.Logging;
 
@@ -52,6 +53,7 @@ public sealed class AuditingTenantAssertionRecorder(
     IAuditCatalog catalog,
     IAuditStore store,
     TenantAssertionBurstDetector bursts,
+    ITenantContext tenantContext,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<AuditingTenantAssertionRecorder> logger)
@@ -72,6 +74,9 @@ public sealed class AuditingTenantAssertionRecorder(
     private readonly TenantAssertionBurstDetector _bursts =
         bursts ?? throw new ArgumentNullException(nameof(bursts));
 
+    private readonly ITenantContext _tenantContext =
+        tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+
     private readonly IClock _clock = clock ?? throw new ArgumentNullException(nameof(clock));
 
     private readonly IGuidFactory _guidFactory =
@@ -81,8 +86,7 @@ public sealed class AuditingTenantAssertionRecorder(
         logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    public async Task RecordRejectionAsync(
-        TenantAssertionRejection rejection, CancellationToken cancellationToken = default)
+    public async Task RecordRejectionAsync(TenantAssertionRejection rejection)
     {
         // The signal first, and unconditionally. It costs no I/O and it is the half that
         // survives an audit store being unreachable.
@@ -104,7 +108,7 @@ public sealed class AuditingTenantAssertionRecorder(
             return;
         }
 
-        await WriteAsync(operation, rejection, cancellationToken).ConfigureAwait(false);
+        await WriteAsync(operation, rejection).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -116,8 +120,7 @@ public sealed class AuditingTenantAssertionRecorder(
         // gap, which is why this override exists only to say so.
         _inner.RecordUnresolved(dimension);
 
-    private async Task WriteAsync(
-        string operation, TenantAssertionRejection rejection, CancellationToken cancellationToken)
+    private async Task WriteAsync(string operation, TenantAssertionRejection rejection)
     {
         if (!_catalog.TryGetOffPath(operation, out var declared))
         {
@@ -172,11 +175,13 @@ public sealed class AuditingTenantAssertionRecorder(
             AfterState = null,
             Changes = null,
 
-            // Nothing correlates this to a trace yet: the recorder is reached from
-            // middleware that runs before the MediatR pipeline, and ITenantContext's
-            // correlation id is the pipeline's. Phase 02b's authenticated tier is where a
-            // principal and a correlation both become available.
-            CorrelationId = null,
+            // The resolver sets this, and the resolver runs BEFORE this middleware — so
+            // the row, the `X-Correlation-Id` response header, the Problem Details body
+            // and the Warning line all carry one value. Without it the only durable record
+            // of a cross-tenant probe cannot be joined to its own trace, and
+            // ix_audit_log_correlation_id — filtered WHERE correlation_id IS NOT NULL —
+            // could never return one of these rows.
+            CorrelationId = _tenantContext.CorrelationId,
 
             // NEVER the source IP and never the effective host. Both are attacker-chosen,
             // and ADR-0036 keeps them out of the metric labels for the same reason.
@@ -184,17 +189,46 @@ public sealed class AuditingTenantAssertionRecorder(
             UserAgent = null,
 
             Timestamp = _clock.UtcNow,
-            Metadata = Metadata(operation, rejection),
+            Metadata = Metadata(rejection),
         };
 
         try
         {
-            await _store.WriteStandaloneAsync(draft, cancellationToken).ConfigureAwait(false);
+            // No token, and the seam has none to offer — see ITenantAssertionRecorder. The
+            // window has ALREADY been consumed by the crossing check above, so a write
+            // abandoned here would leave the detector silent for the rest of the window
+            // with nothing recorded anywhere.
+            //
+            // The crossing stays consumed even when the write fails, and that is
+            // deliberate: releasing it would make every later occurrence retry the write,
+            // which is one database round trip per anonymous request — the amplification
+            // the burst event exists to bound. The failure is not lost, it is LOUD
+            // somewhere else: the store logs Critical, counts
+            // learnstack_audit_standalone_write_failures_total and takes the `audit`
+            // health check unhealthy (ADR-0033 Amendments 1 and 3).
+            await _store.WriteStandaloneAsync(draft).ConfigureAwait(false);
         }
         catch (AuditWriteFailedException)
         {
             // Swallowed on purpose — see the class remarks. The store has already logged
             // Critical, counted the failure and taken the health check unhealthy.
+        }
+        catch (Exception lost)
+        {
+            // WIDE, and the width is the decision. ADR-0036 says a failed record does not
+            // change the response, without qualification — and the store translates only
+            // DbException into AuditWriteFailedException, so everything else reached the
+            // middleware and became a 500. Measured on the shipped code: twelve anonymous
+            // mismatches against a host with no application credential answered
+            // 404 x9, 500, 404, 404 — the 500 landing on the burst crossing. That is the
+            // remotely triggerable availability signal this design refuses to produce,
+            // handed to an anonymous caller for the price of ten wrong headers.
+            //
+            // Nothing is hidden by it: Critical carries the exception, and the response
+            // was already a refusal, so there is no success being reported over a failure.
+            // The narrow catch that used to be here was agreed with by its own test,
+            // which threw exactly the one type it caught.
+            LogRowLost(_logger, operation, lost);
         }
     }
 
@@ -206,8 +240,13 @@ public sealed class AuditingTenantAssertionRecorder(
     /// free text. It goes in <c>metadata</c> rather than in <c>tenant_id</c> for the
     /// reason the tenant column gives, and the key names the dimension it came from so a
     /// reader does not have to consult a second column to know which header lied.
+    /// <para>
+    /// It carries no <c>event</c> key. The slug is already the row's <c>operation</c>
+    /// column, and a second copy inside a JSON document is a field that can disagree with
+    /// it — which nothing would notice, because nothing queries it.
+    /// </para>
     /// </remarks>
-    private static string Metadata(string operation, TenantAssertionRejection rejection)
+    private static string Metadata(TenantAssertionRejection rejection)
     {
         var key = rejection.Dimension == TenantAssertionDimension.Tenant
             ? "assertedTenantId"
@@ -217,9 +256,14 @@ public sealed class AuditingTenantAssertionRecorder(
             "{\"dimension\":" + AuditJson.Quote(rejection.Dimension.ToString())
             + ",\"" + key + "\":" + AuditJson.Quote(
                 rejection.AssertedValue.ToString(null, CultureInfo.InvariantCulture))
-            + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false")
-            + ",\"event\":" + AuditJson.Quote(operation) + "}");
+            + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false") + "}");
     }
+
+    private static readonly Action<ILogger, string, Exception?> LogRowLost =
+        LoggerMessage.Define<string>(
+            LogLevel.Critical,
+            new EventId(4003, nameof(LogRowLost)),
+            "A '{Operation}' row was abandoned before the store could count the failure. The response is unchanged — a refusal stays a refusal — but this occurrence is not on the record.");
 
     private static readonly Action<ILogger, string, Exception?> LogUndeclared =
         LoggerMessage.Define<string>(

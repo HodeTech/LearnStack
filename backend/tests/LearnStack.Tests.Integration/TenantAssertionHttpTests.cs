@@ -1,5 +1,8 @@
 using System.Net;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Api.Common;
 using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Identifiers;
@@ -70,6 +73,34 @@ public sealed class TenantAssertionHttpTests(ResolvedTenantFixture fixture)
         response.Content.Headers.ContentType?.MediaType
             .Should().Be("application/problem+json",
                 "a rejected assertion answers exactly as a routing 404 does");
+    }
+
+    [Fact]
+    public async Task The_Rejection_Names_The_Resolved_Tenant_And_The_Asserted_Value()
+    {
+        // The recorder decides what the ROW carries; this decides what the recorder is
+        // TOLD, and nothing constrained it. Measured: swapping the two arguments in
+        // TenantAssertionMiddleware left all 1782 cases green — and that swap announces
+        // `app.tenant_id` from an attacker-supplied header, which is the one primitive
+        // ADR-0036 § Recording a rejected assertion exists to deny.
+        fixture.Recorder.Clear();
+
+        var asserted = Guid.Parse("018f4d40-0000-7000-8000-0000000000ff");
+
+        using var request = Get("/api/v1/assertionprobe");
+        request.Headers.Add(TenantAssertionMiddleware.TenantHeaderName, asserted.ToString());
+
+        (await _client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var rejection = fixture.Recorder.Rejections.Should().ContainSingle().Subject;
+
+        rejection.ResolvedTenantId.Should().Be(ResolvedTenantFixture.TenantId,
+            "the row is written under the tenant whose boundary was defended");
+        rejection.AssertedValue.Should().Be(asserted,
+            "and the client's claim travels as metadata, never as the row's tenant");
+        rejection.Dimension.Should().Be(TenantAssertionDimension.Tenant);
+        rejection.IsAuthenticated.Should().BeFalse(
+            "there is no UseAuthentication until Phase 02b, so the tier is constant-false");
     }
 
     [Fact]
@@ -363,6 +394,97 @@ public sealed class TenantWideFixture : ResolvedTenantFixture
 /// A host whose <see cref="ITenantContext"/> is resolved, so the assertion
 /// comparison has something to compare against.
 /// </summary>
+/// <summary>
+/// What the composition root actually binds — the half no other case could see.
+/// </summary>
+/// <remarks>
+/// Measured: reverting <c>ITenantAssertionRecorder</c> to
+/// <c>LoggingTenantAssertionRecorder</c>, or the burst detector to <c>AddScoped</c>, left
+/// every one of the 1782 cases green while writing zero <c>audit_log</c> rows — the first
+/// because every suite over this middleware substitutes a spy, the second because a
+/// per-request detector counts to one and crosses nothing. The packet could be un-shipped
+/// without a single test noticing.
+/// </remarks>
+public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture fixture)
+    : IClassFixture<RegisteredRecorderFixture>
+{
+    [Fact]
+    public void The_Registered_Recorder_Is_The_Auditing_One()
+    {
+        using var scope = fixture.Services.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<ITenantAssertionRecorder>()
+            .Should().BeOfType<AuditingTenantAssertionRecorder>(
+                "the logging recorder is the inner half, not the registered seam");
+    }
+
+    [Fact]
+    public void The_Burst_Detector_Is_A_Singleton()
+    {
+        // The window is the PROCESS's. A scoped detector counts to one per request and
+        // never reaches any threshold, so the anonymous tier would silently stop writing.
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<TenantAssertionBurstDetector>()
+            .Should().BeSameAs(
+                second.ServiceProvider.GetRequiredService<TenantAssertionBurstDetector>());
+    }
+
+    [Fact]
+    public void A_Non_Positive_Burst_Window_Is_Refused_At_Boot()
+    {
+        // A MUST-class security event that a config typo switches off is the one outcome
+        // the in-process counter exists to prevent. Measured before the guard: with
+        // Window = 00:00:00 the counter resets on every occurrence, so 1000 anonymous
+        // mismatches produced zero crossings and zero rows, with no error anywhere.
+        using var host = new MisconfiguredBurstFixture(
+            "Tenancy:AssertionBurst:Window", "00:00:00");
+
+        var act = () => host.Services.GetRequiredService<TenantAssertionBurstDetector>();
+
+        act.Should().Throw<OptionsValidationException>();
+    }
+
+    [Fact]
+    public void A_Threshold_Below_One_Is_Refused_At_Boot()
+    {
+        using var host = new MisconfiguredBurstFixture("Tenancy:AssertionBurst:Threshold", "0");
+
+        var act = () => host.Services.GetRequiredService<TenantAssertionBurstDetector>();
+
+        act.Should().Throw<OptionsValidationException>();
+    }
+}
+
+/// <summary>The real host, with no recorder substituted.</summary>
+/// <remarks>
+/// Parameterless, because xUnit constructs an <c>IClassFixture</c> itself. The
+/// misconfigured variants take their override through
+/// <see cref="MisconfiguredBurstFixture"/>, which a case builds directly.
+/// </remarks>
+public sealed class RegisteredRecorderFixture : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.UseSetting("Deployment:Mode", "Development");
+    }
+}
+
+/// <summary>The real host with one burst setting bent out of shape.</summary>
+public sealed class MisconfiguredBurstFixture(string key, string value)
+    : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.UseSetting("Deployment:Mode", "Development");
+        builder.UseSetting(key, value);
+    }
+}
+
 public class ResolvedTenantFixture : WebApplicationFactory<Program>
 {
     public static readonly Guid TenantId = Guid.Parse("018f4d40-0000-7000-8000-0000000000aa");
@@ -416,8 +538,7 @@ public class ResolvedTenantFixture : WebApplicationFactory<Program>
             get { lock (_rejections) { return [.. _rejections]; } }
         }
 
-        public Task RecordRejectionAsync(
-            TenantAssertionRejection rejection, CancellationToken cancellationToken = default)
+        public Task RecordRejectionAsync(TenantAssertionRejection rejection)
         {
             lock (_rejections) { _rejections.Add(rejection); }
             return Task.CompletedTask;

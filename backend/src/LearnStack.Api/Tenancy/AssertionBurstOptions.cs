@@ -14,11 +14,15 @@ namespace LearnStack.Api.Tenancy;
 /// occurrence would let that caller choose how much a tenant's audit log grows.
 /// </para>
 /// <para>
-/// <b>Per instance, and that errs toward more auditing.</b> The counters are in-process
-/// (see <see cref="TenantAssertionBurstDetector"/>), so a deployment of N instances can
-/// emit up to N rows per window. Stated rather than hidden: the alternative is shared
-/// state, and a cache outage must not decide whether a MUST-class security event is
-/// recorded.
+/// <b>Per instance, and it cuts both ways.</b> The counters are in-process (see
+/// <see cref="TenantAssertionBurstDetector"/>), so a deployment of N instances can emit up
+/// to N rows per window — which errs toward more auditing, and is usually how this is
+/// described. The half that is easier to leave out: the <i>sub-threshold</i> budget
+/// multiplies by N too. Behind a round-robin balancer over N instances a caller gets
+/// <c>(Threshold - 1) x 2 dimensions x (3600 / Window) x N</c> rejected assertions per
+/// tenant per hour with no row at all — at the defaults and six instances, on the order of
+/// a thousand. Both are stated rather than hidden: the alternative is shared state, and a
+/// cache outage must not decide whether a MUST-class security event is recorded.
 /// </para>
 /// </remarks>
 public sealed class AssertionBurstOptions

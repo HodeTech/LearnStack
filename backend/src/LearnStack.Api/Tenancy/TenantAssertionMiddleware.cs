@@ -123,8 +123,7 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
                 tenantContext.TenantId.Value,
                 mismatch.Value.Dimension,
                 mismatch.Value.Asserted,
-                context.User.Identity?.IsAuthenticated == true),
-                context.RequestAborted);
+                context.User.Identity?.IsAuthenticated == true));
 
             // 404, not 403: saying "wrong tenant" confirms the other tenant
             // exists. From Phase 02b the code differs by caller —

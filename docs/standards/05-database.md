@@ -961,13 +961,14 @@ separate secret path (`learnstack/{deployment}/platform/db-password`) that a dep
 needing no platform admin simply does not provision, in which case
 `EnterPlatformAdminScope` throws **on entry** — on the first call, naming the missing
 `ConnectionStrings:PlatformAdmin`, so a host that never enters the scope still boots,
-every test fixture included — rather than degrading to `learnstack_app`; and, **from
+every test fixture included — rather than degrading to `learnstack_app`; and, **since
 [Packet 9](../roadmap/phase-02a-kernel-tenancy.md)**, by an audit row written **inside**
-the scope before the operation runs and committed on its own, so an operation that later
-fails is still recorded. Until that packet the entry is recorded through `ILogger` at
-`Warning` with the reason and the calling site: the path is **logged, not audited**, and
-a reader deciding whether cross-tenant access is retained under audit retention today
-must not read the third mitigation as already in force. That row is written as
+the scope before the operation runs, on the scope's own transaction, so an operation that
+later fails is still recorded and an entry that is abandoned takes its row with it. An
+entry whose row cannot be written, or whose slug the catalogue does not declare, is
+**refused**: the connection is never spent on it. The `Warning` line the scope has carried
+since Packet 7 stays beside the row, now carrying the row's id — the row is the durable
+record, the line is the real-time signal. That row is written as
 `learnstack_platform`, through `IAuditStore`'s fourth write method
 `WritePlatformScopeAsync` ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)), and
 carries `TenantId.PlatformSentinel` — see § `audit_log` and `audit_config` above —

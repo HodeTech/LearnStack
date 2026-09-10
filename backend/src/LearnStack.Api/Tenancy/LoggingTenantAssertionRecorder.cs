@@ -53,8 +53,7 @@ public sealed class LoggingTenantAssertionRecorder : ITenantAssertionRecorder
     /// deployment that has no application credential, or one deliberately running without
     /// the audit store, still counts and still warns.
     /// </remarks>
-    public Task RecordRejectionAsync(
-        TenantAssertionRejection rejection, CancellationToken cancellationToken = default)
+    public Task RecordRejectionAsync(TenantAssertionRejection rejection)
     {
         Record(rejection);
         return Task.CompletedTask;

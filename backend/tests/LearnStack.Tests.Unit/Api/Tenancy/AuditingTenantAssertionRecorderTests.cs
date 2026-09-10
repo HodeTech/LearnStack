@@ -6,6 +6,7 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -122,6 +123,79 @@ public sealed class AuditingTenantAssertionRecorderTests
         metadata.GetProperty("assertedTenantId").GetString().Should().Be(Asserted.ToString());
         metadata.GetProperty("dimension").GetString().Should().Be("Tenant");
         metadata.GetProperty("authenticated").GetBoolean().Should().BeTrue();
+
+        // The resolver sets this and runs BEFORE the assertion middleware, so the row, the
+        // response header, the Problem Details body and the Warning line carry one value.
+        // The comment that used to justify a null here said the correlation was the
+        // pipeline's and unavailable; it was neither.
+        row.CorrelationId.Should().Be(HarnessContext.Correlation);
+
+        // Read from the clock, not from any earlier reading: `ix_audit_log_timestamp` and
+        // every retention window are ordered by it.
+        row.Timestamp.Should().Be(DateTimeOffset.UnixEpoch);
+    }
+
+    [Fact]
+    public async Task A_burst_row_does_not_claim_the_traffic_was_authenticated()
+    {
+        // The mirror of the assertion above, and it was missing: `authenticated` was
+        // pinned true on the per-occurrence row and pinned nowhere on the burst row, so a
+        // hard-coded `true` shipped a security row claiming a validated principal about
+        // traffic that had none. That is the one field an investigator reads to decide
+        // whether a token was involved.
+        var store = new RecordingStore();
+        var recorder = Recorder(store, out _, threshold: 2);
+
+        await recorder.RecordRejectionAsync(Rejection(authenticated: false));
+        await recorder.RecordRejectionAsync(Rejection(authenticated: false));
+
+        var row = store.Written.Should().ContainSingle().Subject;
+
+        row.Operation.Should().Be(AuditingTenantAssertionRecorder.BurstOperation);
+        JsonDocument.Parse(row.Metadata!).RootElement
+            .GetProperty("authenticated").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task An_unresolved_occurrence_still_reaches_the_metric()
+    {
+        // The decorator's ONLY job on this path is to forward, and nothing checked that it
+        // did: `An_unresolved_request_writes_nothing` asserts the absence of a row, which
+        // a recorder that dropped the call entirely also satisfies — silently killing
+        // learnstack_tenant_assertion_unresolved_total.
+        var unresolved = 0L;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (instrument.Meter.Name == LoggingTenantAssertionRecorder.MeterName
+                && instrument.Name == LoggingTenantAssertionRecorder.UnresolvedCounterName)
+            {
+                active.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => unresolved += measurement);
+        listener.Start();
+
+        Recorder(new RecordingStore(), out _).RecordUnresolved(TenantAssertionDimension.Tenant);
+
+        unresolved.Should().Be(1, "counted, never recorded — and counted is half of that rule");
+    }
+
+    [Fact]
+    public async Task A_store_failure_of_any_kind_leaves_the_refusal_alone()
+    {
+        // The catch used to name AuditWriteFailedException alone, and its test threw
+        // exactly that type — so the two agreed and neither constrained anything.
+        // Measured on the shipped code: a host with no application credential answered an
+        // anonymous caller's tenth wrong header with a 500, because the Lazy data source's
+        // InvalidOperationException is not a DbException and so is never translated.
+        var store = new RecordingStore { FailsWith = new InvalidOperationException("no credential") };
+        var recorder = Recorder(store, out _);
+
+        var act = async () => await recorder.RecordRejectionAsync(Rejection(authenticated: true));
+
+        await act.Should().NotThrowAsync(
+            "a failed record does not change a response that is already a refusal");
     }
 
     [Fact]
@@ -273,9 +347,28 @@ public sealed class AuditingTenantAssertionRecorderTests
                     Window = TimeSpan.FromMinutes(5),
                 }),
                 clock),
+            new HarnessContext(),
             clock,
             new SystemGuidFactory(),
             logger ?? NullLogger<AuditingTenantAssertionRecorder>.Instance);
+    }
+
+    /// <summary>A resolved context, so the row can carry the correlation the resolver set.</summary>
+    private sealed class HarnessContext : ITenantContext
+    {
+        public const string Correlation = "00-harness-assertion-01";
+
+        public bool IsResolved => true;
+
+        public TenantId TenantId => TenantId.From(Resolved);
+
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => Correlation;
+
+        public string? ModuleName => "tenancy";
     }
 
     private sealed class MovableClock(DateTimeOffset start) : IClock
@@ -294,9 +387,17 @@ public sealed class AuditingTenantAssertionRecorderTests
 
         public bool Fails { get; init; }
 
+        /// <summary>A failure the store does NOT translate, which is the escaping kind.</summary>
+        public Exception? FailsWith { get; init; }
+
         public Task WriteStandaloneAsync(
             AuditEntryDraft entry, CancellationToken cancellationToken = default)
         {
+            if (FailsWith is not null)
+            {
+                throw FailsWith;
+            }
+
             if (Fails)
             {
                 throw new AuditWriteFailedException("the standalone write failed");

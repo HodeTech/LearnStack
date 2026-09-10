@@ -109,18 +109,19 @@ public static class SeedComposition
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
 
         // The Audit module's context, on the same helper and for the same reason as the
-        // other two. Nothing in the seeder writes an audit row today — AuditLogBehavior
-        // is not in this composition root's pipeline — and the registration is here
-        // anyway, because the failure mode of omitting it is the one this file has
-        // already produced once: a second composition root that lacks a service the API
-        // has does not fail to compile, it fails at the first command that needs it.
+        // other two. The registration is load-bearing rather than defensive: this root
+        // calls AddLearnStackMediatRPipeline below, and CanonicalBehaviorOrder carries
+        // AuditLogBehavior unconditionally — so every seeded command classifies, declares
+        // and writes. AuditPipelineTests runs THIS root precisely to prove it.
         services.AddModuleDbContext<AuditDbContext>();
 
-        // The audit write path, on the same three registrations the API makes and for the
+        // The audit write path, on the same registrations the API makes and for the
         // same reason this file already registers the schema gate: a second composition
         // root that lacks a service the API has does not fail to compile, it fails at the
-        // first command that needs it. The seeder writes through the request path, so
-        // when AuditLogBehavior lights up these are what keep `make seed` working.
+        // first command that needs it. The seeder writes through the request path, and
+        // AuditLogBehavior is in that pipeline — so these are not spare parts, they are
+        // what keeps `make seed` working at all. An earlier comment here said the
+        // behaviour was not in this root's pipeline; it always was.
         services.AddScoped<AuditStateCapture>();
         services.AddScoped<IAuditStateCapture>(
             provider => provider.GetRequiredService<AuditStateCapture>());

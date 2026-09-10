@@ -148,13 +148,24 @@ public sealed class TenancyConventionTests
         // second writer that goes straight to the store, and that writer is the dangerous
         // one — the row's tenant is what keeps an anonymous caller from choosing whose
         // audit log grows, and a second composer is a second chance to get it wrong.
-        Offenders(
-                except: Path.Combine("Tenancy", "AuditingTenantAssertionRecorder.cs"),
+        // Scanned across ALL of backend/src, not just LearnStack.Api. Measured: planting
+        // the burst slug in LearnStack.Modules.Tenancy.Application passed the first
+        // version of this rule — and a module is precisely where IAuditStore is reachable
+        // from a handler, so the narrow scan exempted the dangerous half. Its exemption
+        // named a path outside its own scan root, so it could never match either: coverage
+        // that reads as real and is not.
+        //
+        // The declaring catalogue source is the one legitimate second namer. Declaring a
+        // slug is not writing a row, and removing that exemption turns this red — measured.
+        SourceOffenders(
                 banned: [
                     "tenancy.tenant_assertion.reject",
                     "tenancy.tenant_assertion.anonymous_burst",
                 ],
-                alsoExcept: [Path.Combine("Tenancy", "TenancyAuditCatalogSource.cs")])
+                except: [
+                    Path.Combine("LearnStack.Api", "Tenancy", "AuditingTenantAssertionRecorder.cs"),
+                    Path.Combine("Audit", "TenancyAuditCatalogSource.cs"),
+                ])
             .Should().BeEmpty(
                 "only AuditingTenantAssertionRecorder names the two assertion slugs "
                 + "(ADR-0036 § Recording a rejected assertion)");
@@ -258,6 +269,46 @@ public sealed class TenancyConventionTests
                     .Any(field => cache.IsAssignableFrom(field.FieldType)))
             .Select(type => type.FullName!)
             .ToList();
+    }
+
+    /// <summary>
+    /// Files anywhere under <c>backend/src</c> that mention a banned literal in code.
+    /// </summary>
+    /// <remarks>
+    /// The wide sibling of <see cref="Offenders"/>, for a rule whose subject is not the
+    /// API project. Exemptions match as path SUFFIXES, so a caller names as much of the
+    /// path as it needs to be unambiguous and no more.
+    /// </remarks>
+    private static List<string> SourceOffenders(
+        IReadOnlyList<string> banned, IReadOnlyList<string> except)
+    {
+        var root = RepositoryPaths.BackendSrc();
+        var offenders = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(root, file);
+
+            if (relative.Split(Path.DirectorySeparatorChar) is var segments
+                && (segments.Contains("obj") || segments.Contains("bin")))
+            {
+                continue;
+            }
+
+            if (except.Any(exempt => relative.EndsWith(exempt, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var code = SourceText.WithoutComments(File.ReadAllText(file));
+
+            if (banned.Any(literal => code.Contains(literal, StringComparison.Ordinal)))
+            {
+                offenders.Add(relative);
+            }
+        }
+
+        return offenders;
     }
 
     /// <summary>

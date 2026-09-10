@@ -52,14 +52,18 @@ public sealed class TenantAssertionAuditTests
 
         var recorder = Recorder(store, threshold: 10);
 
-        await recorder.RecordRejectionAsync(new TenantAssertionRejection(
-            SchemaFixture.TenantA,
-            TenantAssertionDimension.Tenant,
-            SchemaFixture.TenantB,
-            IsAuthenticated: true));
-
         try
         {
+            // Inside the try, unlike the first draft. This suite shares a schema with
+            // TenancySchemaTests, which compares EXACT per-table row counts — so a write
+            // that succeeded and then failed an assertion would leave a row behind and
+            // fail an unrelated class, in an order xUnit does not contract.
+            await recorder.RecordRejectionAsync(new TenantAssertionRejection(
+                SchemaFixture.TenantA,
+                TenantAssertionDimension.Tenant,
+                SchemaFixture.TenantB,
+                IsAuthenticated: true));
+
             var row = await ReadAsync();
 
             row.Should().NotBeNull("learnstack_app wrote it under the resolved tenant's policy");
@@ -183,9 +187,27 @@ public sealed class TenantAssertionAuditTests
                     Window = TimeSpan.FromMinutes(5),
                 }),
                 new SystemClock()),
+            new FixtureContext(),
             new SystemClock(),
             new LearnStack.SharedKernel.Identifiers.SystemGuidFactory(),
             NullLogger<AuditingTenantAssertionRecorder>.Instance);
+
+    /// <summary>Tenant A, resolved, as the resolver would have left it.</summary>
+    private sealed class FixtureContext : LearnStack.SharedKernel.Tenancy.ITenantContext
+    {
+        public bool IsResolved => true;
+
+        public LearnStack.SharedKernel.Identifiers.TenantId TenantId =>
+            LearnStack.SharedKernel.Identifiers.TenantId.From(SchemaFixture.TenantA);
+
+        public LearnStack.SharedKernel.Identifiers.OrganizationId? OrganizationId => null;
+
+        public LearnStack.SharedKernel.Identifiers.UserId? UserId => null;
+
+        public string? CorrelationId => "00-assertion-fixture-01";
+
+        public string? ModuleName => "tenancy";
+    }
 
     private static readonly IMeterFactory MeterFactory =
         new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<IMeterFactory>();

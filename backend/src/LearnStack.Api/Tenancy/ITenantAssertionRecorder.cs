@@ -60,13 +60,25 @@ public interface ITenantAssertionRecorder
     /// Records one rejected assertion.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Asynchronous because the Packet 9 implementation writes a MUST-class row, and a
     /// MUST-class row is not something to start and walk away from: a fire-and-forget
     /// write is one the process can lose at shutdown without anything noticing, which is
     /// the opposite of what a durability class means.
+    /// </para>
+    /// <para>
+    /// <b>No <c>CancellationToken</c>, and its absence is the contract.</b> The only thing
+    /// this method does is record, and the request it records is the request that would
+    /// cancel it — a client that sends the crossing occurrence and then drops the socket
+    /// would abandon the write at <c>OpenConnectionAsync</c>, before a statement is
+    /// issued, having already consumed the burst window. Taking a token and ignoring it
+    /// would be a lie in the signature; <c>AuditLogBehavior</c>'s reconcile solves the
+    /// same problem one file over by passing <c>CancellationToken.None</c>, and it is a
+    /// parameter there only because the rest of that method genuinely uses one. Npgsql's
+    /// own connection and command timeouts still bound the write.
+    /// </para>
     /// </remarks>
-    Task RecordRejectionAsync(
-        TenantAssertionRejection rejection, CancellationToken cancellationToken = default);
+    Task RecordRejectionAsync(TenantAssertionRejection rejection);
 
     /// <summary>
     /// An assertion arrived on a request whose tenant never resolved. There is
