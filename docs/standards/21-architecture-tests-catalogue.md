@@ -93,11 +93,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Sixty-seven test methods exist in
+Sixty-eight test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 92 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 93 cases once the theories expand.
 Counted from
 `dotnet test --list-tests` at Packet 9 step 3's close, de-duplicated by method name; the
 figures before it were Packet 7's and were not updated when Packets 8 and 9 added their
@@ -170,6 +170,7 @@ against a host serving unversioned endpoints.
 | `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Applies_The_Tenancy_Chain_First` | `PersistenceConventionTests.cs` |
 | `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` | `AuditConventionTests.cs` |
+| `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix) | `AuditCoverageTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
@@ -1724,7 +1725,20 @@ which decides identity, multiplicity, capture and classification;
   [ADR-0044 § 6 and Amendment 3 § 1, § 4](../decisions/0044-audit-write-path.md).
 - **Type:** xUnit + reflection over commands and the registered catalogue, cross-checked
   against the matrix's `Operation` column. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented, one direction of two** (Packet 9 step 5,
+  `LearnStack.Tests.Architecture`, `AuditCoverageTests`). The **catalogue → matrix**
+  direction is total per
+  [ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md) and is what ships:
+  every entry the merged catalogue holds has a matrix row carrying the same slug, and the
+  row's class and — where the row names one — its operation type agree with the
+  registration. Mutation-checked both ways: changing a registered slug's class or its type
+  fails this case and no other.
+  <br />The **matrix → catalogue** direction binds only to a slug whose request type
+  *exists*, so it has to re-derive the `(planned)` marker against the assemblies rather
+  than trust it; that half lands with the rest of Packet 9's architecture rules. Recording
+  the split is what stops a later reader taking the whole rule as satisfied — the shipped
+  half is the one that catches a registration disagreeing with its own row, which is the
+  drift that has actually happened.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Module_Has_An_AuditCoverage_Matrix`

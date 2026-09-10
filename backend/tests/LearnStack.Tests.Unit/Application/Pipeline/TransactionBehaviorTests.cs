@@ -2,6 +2,7 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -273,6 +274,105 @@ public sealed class TransactionBehaviorTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    [Fact]
+    public async Task A_faulted_commit_leaves_the_audit_state_indeterminate()
+    {
+        // The COMMIT was attempted and its outcome is genuinely unknown — the server may
+        // have applied it and lost the acknowledgement. Indeterminate prefers a duplicate
+        // to a loss, so the reconcile writes the row again with a fresh timestamp.
+        var capture = new AuditStateCapture();
+        var unitOfWork = new RecordingUnitOfWork
+        {
+            CommitFailure = new InvalidOperationException("connection reset during COMMIT"),
+        };
+
+        var act = async () => await Build(unitOfWork, capture: capture).Handle(
+            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+
+        capture.State.Should().Be(AuditIntentState.Indeterminate);
+    }
+
+    [Fact]
+    public async Task A_commit_refused_because_the_unit_is_rollback_only_is_not_indeterminate()
+    {
+        // NOT a faulted COMMIT. CompleteAsync refuses to commit a unit an inner frame
+        // marked rollback-only, and it issues a real ROLLBACK before it throws — so the
+        // server-side outcome is known with certainty and nothing committed.
+        //
+        // Labelling it Indeterminate would put a permanent row on an append-only table
+        // saying the COMMIT may have landed, and would tell the reconcile that a 23505 on
+        // the re-write is positive evidence it did. Neither is true, and neither can be
+        // corrected afterwards.
+        var capture = new AuditStateCapture();
+        var unitOfWork = new RecordingUnitOfWork
+        {
+            CommitFailure = new InvalidOperationException(
+                "The ambient transaction is marked rollback-only and has been rolled back."),
+        };
+
+        // What an inner frame's catch does before the outer frame reaches its commit. The
+        // FLAG is what separates the two cases, not the exception type — a genuine COMMIT
+        // fault can be an InvalidOperationException too.
+        unitOfWork.MarkRollbackOnly();
+
+        var act = async () => await Build(unitOfWork, capture: capture).Handle(
+            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+
+        capture.State.Should().Be(AuditIntentState.RolledBack);
+    }
+
+    [Fact]
+    public async Task A_committed_request_marks_the_audit_state_committed()
+    {
+        // The only place durability is claimed. Without it the reconcile would re-write
+        // every row a successful request already committed.
+        var capture = new AuditStateCapture();
+        var unitOfWork = new RecordingUnitOfWork();
+
+        await Build(unitOfWork, capture: capture).Handle(
+            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+        capture.State.Should().Be(AuditIntentState.Committed);
+    }
+
+    [Fact]
+    public async Task A_refused_request_marks_the_audit_state_rolled_back()
+    {
+        // The handler decided it could not finish, so nothing commits — and the reconcile
+        // writes the attempt standalone, because a `denied` row is what makes a probe
+        // visible.
+        var capture = new AuditStateCapture();
+        var unitOfWork = new RecordingUnitOfWork();
+
+        await Build(unitOfWork, capture: capture).Handle(
+            new DummyCommand(),
+            () => Next(unitOfWork, Result.Fail<string>(
+                new Error(new LocalizedMessage(LocalizedMessage.RequiredPrefix + "forbidden")))),
+            default);
+
+        capture.State.Should().Be(AuditIntentState.RolledBack);
+    }
+
+    [Fact]
+    public async Task The_MUST_class_rows_are_written_before_the_commit()
+    {
+        // Immediately before, and on the owning frame only. The ordering is the whole of
+        // ADR-0033's guarantee: the row and the state change commit together or neither
+        // does, so a write AFTER the commit would be a row that could outlive a rollback.
+        var store = new RecordingAuditStore();
+        var unitOfWork = new RecordingUnitOfWork();
+
+        await Build(unitOfWork, store).Handle(
+            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+        store.PendingWrites.Should().Be(1);
+        unitOfWork.Calls.Should().ContainInOrder("handler", "commit");
+    }
+
     private static TransactionBehavior<DummyCommand, Result<string>> Build(
         IUnitOfWork unitOfWork,
         RecordingAuditStore? store = null,
@@ -400,6 +500,9 @@ public sealed class TransactionBehaviorTests
                 ? Task.CompletedTask
                 : Task.FromException(RollbackFailure);
         }
+
+        /// <summary>The read half, set by MarkRollbackOnly and never reset.</summary>
+        public bool IsRollbackOnly => _rollbackOnly;
 
         public void MarkRollbackOnly()
         {

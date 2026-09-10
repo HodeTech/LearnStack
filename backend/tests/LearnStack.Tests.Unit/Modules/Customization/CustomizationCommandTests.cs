@@ -1440,6 +1440,9 @@ public sealed class CustomizationCommandTests
     {
         public bool RolledBackOnly { get; private set; }
 
+        /// <summary>The read half, set by MarkRollbackOnly and never reset.</summary>
+        public bool IsRollbackOnly { get; private set; }
+
         public void MarkRollbackOnly() => RolledBackOnly = true;
 
         public System.Data.Common.DbConnection Connection => throw new NotSupportedException();

@@ -81,6 +81,16 @@ internal sealed class RecordingAuditStore : IAuditStore
 {
     public List<AuditEntryDraft> Standalone { get; } = [];
 
+    /// <summary>Writes abandoned because the token handed in was already cancelled.</summary>
+    /// <remarks>
+    /// The double HONOURS its token, which a double is not obliged to do and this one has
+    /// to. Every path the reconcile exists for hands it a token that is already cancelled
+    /// by construction, so a store that ignored the token would record a write the real
+    /// one never makes — and the case asserting the row exists would pass against a
+    /// pipeline that drops every cancelled request's row.
+    /// </remarks>
+    public int Abandoned { get; private set; }
+
     public List<AuditEntryDraft> BestEffort { get; } = [];
 
     public int PendingWrites { get; private set; }
@@ -96,6 +106,12 @@ internal sealed class RecordingAuditStore : IAuditStore
 
     public Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            Abandoned++;
+            throw new OperationCanceledException(cancellationToken);
+        }
+
         if (StandaloneFails)
         {
             throw new AuditWriteFailedException("the standalone write failed");
@@ -108,7 +124,14 @@ internal sealed class RecordingAuditStore : IAuditStore
 
     public Task WriteBestEffortAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            Abandoned++;
+            throw new OperationCanceledException(cancellationToken);
+        }
+
         BestEffort.Add(entry);
+
         return Task.CompletedTask;
     }
 

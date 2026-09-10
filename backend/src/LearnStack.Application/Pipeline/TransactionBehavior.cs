@@ -198,7 +198,22 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
                 // for an operation that may well have committed.
                 if (scope.IsOwner)
                 {
-                    capture.MarkIndeterminate(commitFailure);
+                    // REFUSED is not FAULTED, and the unit is the only thing that knows
+                    // which. CompleteAsync throws the same way for both — but a unit an
+                    // inner frame marked rollback-only is rolled back for real before it
+                    // throws, so the outcome is known with certainty and nothing
+                    // committed. Labelling that Indeterminate would put a permanent row on
+                    // an append-only table saying the COMMIT may have landed, and would
+                    // tell the reconcile that a 23505 on its re-write is positive evidence
+                    // it did.
+                    if (unitOfWork.IsRollbackOnly)
+                    {
+                        capture.MarkRolledBack();
+                    }
+                    else
+                    {
+                        capture.MarkIndeterminate(commitFailure);
+                    }
                 }
 
                 throw;

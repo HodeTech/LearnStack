@@ -307,6 +307,9 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
         return Task.CompletedTask;
     }
 
+    /// <summary>The read half, set by MarkRollbackOnly and never reset.</summary>
+    public bool IsRollbackOnly { get; private set; }
+
     public void MarkRollbackOnly()
     {
         // Nothing to mark: there is no transaction to refuse to commit.

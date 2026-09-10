@@ -622,6 +622,7 @@ public sealed class InMemoryCacheService : ICacheService
             ("identity", "permissions") => "identity:permissions",
             ("tenancy", "feature-flags") => "tenancy:feature-flags",
             ("tenancy", "settings") => "tenancy:settings",
+            ("audit", "config") => "audit:config",
             _ => "other",
         };
     }

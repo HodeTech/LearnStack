@@ -257,7 +257,16 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
         }
     }
 
-    [GeneratedRegex("^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$")]
+    /// <remarks>
+    /// Anchored with <c>\z</c> rather than <c>$</c>. In .NET — with or without
+    /// <c>Multiline</c> — <c>$</c> also matches immediately before a single trailing
+    /// newline, so <c>"tenancy.tenant.create\n"</c> passed this gate and travelled
+    /// through <c>AuditCatalogEntry.Operation</c> and <c>AuditIntent</c> into
+    /// <c>audit_log.operation</c>. The join would then report a missing matrix row for a
+    /// slug that reads correctly in every log line, which is exactly the failure the shape
+    /// check exists to prevent.
+    /// </remarks>
+    [GeneratedRegex("^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*\\z")]
     private static partial Regex SlugPattern();
 
     private sealed record Registration(bool WritesNoRow, List<AuditCatalogEntry> Entries);

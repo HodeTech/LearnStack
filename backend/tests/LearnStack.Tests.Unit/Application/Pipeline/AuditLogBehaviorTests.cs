@@ -256,6 +256,13 @@ public sealed class AuditLogBehaviorTests
         var store = new RecordingAuditStore();
         var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
 
+        // The request's token is ALREADY CANCELLED, which is the whole shape of the case
+        // and what the earlier version of it got wrong: it handed Handle a live token, so
+        // it asserted the reconcile's shape rather than its behaviour and stayed green
+        // while every cancelled request lost its row.
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
         var act = async () => await behavior.Handle(
             new DummyCommand(),
             () =>
@@ -263,13 +270,45 @@ public sealed class AuditLogBehaviorTests
                 capture.MarkIndeterminate(new OperationCanceledException());
                 throw new OperationCanceledException();
             },
-            default);
+            cancelled.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
 
+        store.Abandoned.Should().Be(0,
+            "the reconcile must not be abandoned by the token that cancelled the request");
         store.Standalone.Should().ContainSingle()
             .Which.Outcome.Should().Be(AuditOutcome.Indeterminate);
         capture.Intents.Should().BeEmpty("the outermost frame clears in its finally");
+    }
+
+    [Fact]
+    public async Task A_cancelled_handler_still_records_the_attempt()
+    {
+        // The commoner half, and it fails the same way. A client that aborts mid-handler
+        // leaves the state RolledBack, and ADR-0033 § Decision promises the row is
+        // re-written standalone with outcome `failed` — which a reconcile abandoned by the
+        // request's own token never writes.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        var act = async () => await behavior.Handle(
+            new DummyCommand(),
+            () =>
+            {
+                capture.MarkRolledBack();
+                throw new OperationCanceledException();
+            },
+            cancelled.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        store.Abandoned.Should().Be(0);
+        store.Standalone.Should().ContainSingle()
+            .Which.Outcome.Should().Be(AuditOutcome.Failed);
     }
 
     [Fact]

@@ -238,6 +238,7 @@ different decisions:
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | generation key — see the rule below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
 | `{tenant_id}:tenancy:settings` (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
+| `{tenant_id}:audit:config` (per-tenant audit overrides) | 5 min | 1 h | none yet — see the note below |
 
 Each of these is produced by a `CacheKey` factory, never by string
 interpolation, and the mapping is written down because it is the part that
@@ -251,6 +252,19 @@ drifts:
 | `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |
 | `{tenant_id}:tenancy:settings` | `CacheKey.ForTenant(tenantId, "tenancy", "settings")` |
+| `{tenant_id}:audit:config` | `CacheKey.ForTenant(tenantId, "audit", "config")` |
+
+**`{tenant_id}:audit:config` has no eager invalidation, and that is a stated gap rather
+than an omission.** The projection is read by `IAuditConfigService` on the classification
+path, and nothing writes `audit_config` in Phase 02a Packet 9 — both runtime roles hold
+`SELECT` and nothing more, so the table is empty until
+[Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s Studio editor lands with the
+`INSERT, UPDATE, DELETE` grant beside the command that needs it
+([Database Standards § GRANT matrix](05-database.md)). Until a writer exists there is
+nothing to invalidate, and the TTL is the whole of the staleness bound: an override takes
+at most the L1 TTL to take effect. The phase that ships the editor ships the invalidation
+with it, on the generation-key rule below — a row a tenant authors and does not see honour
+itself is a worse surprise than the same row taking five minutes.
 
 This table is also the allowlist for the low-cardinality `cache.name` metric label.
 An unregistered family is emitted as `other`; full keys and tenant, organization, host,

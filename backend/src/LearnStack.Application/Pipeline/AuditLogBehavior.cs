@@ -109,7 +109,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             // committed (ADR-0033 Amendment 2 § 2).
             if (outermost)
             {
-                await ReconcileAsync(refusal, cancellationToken).ConfigureAwait(false);
+                await ReconcileAsync(refusal).ConfigureAwait(false);
 
                 AuditFrame.Exit();
                 capture.Clear();
@@ -142,7 +142,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     /// with the outcome the request actually had.
     /// </para>
     /// </remarks>
-    private async Task ReconcileAsync(Error? refusal, CancellationToken cancellationToken)
+    private async Task ReconcileAsync(Error? refusal)
     {
         if (capture.Intents.Count == 0)
         {
@@ -169,13 +169,26 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 // The class decides the posture, not the outcome. A MUST row that cannot
                 // be written is a failure worth shouting about; a SHOULD row that cannot is
                 // an accepted loss the module's matrix already records.
+                // CancellationToken.None, and it is the whole point. The paths this
+                // reconcile exists for are the ones where the request's token is ALREADY
+                // cancelled — a client that disconnected mid-COMMIT above all — so handing
+                // that token to the write abandons the row at
+                // OpenConnectionAsync, before a statement is issued. Measured: one row
+                // with a live token, zero with a cancelled one, and the cancelled case is
+                // the only one this code path exists for.
+                //
+                // TransactionBehavior applies the same rule one behavior in, passing
+                // CancellationToken.None to scope.FailAsync: the cleanup must never be
+                // abandoned by what it is cleaning up after. Unbounded only in the sense
+                // that this token is — Npgsql's own connection and command timeouts still
+                // bound the write, so a wedged database cannot hold the request forever.
                 if (intent.OperationClass == OperationClass.Must)
                 {
-                    await store.WriteStandaloneAsync(draft, cancellationToken).ConfigureAwait(false);
+                    await store.WriteStandaloneAsync(draft, CancellationToken.None).ConfigureAwait(false);
                 }
                 else
                 {
-                    await store.WriteBestEffortAsync(draft, cancellationToken).ConfigureAwait(false);
+                    await store.WriteBestEffortAsync(draft, CancellationToken.None).ConfigureAwait(false);
                 }
             }
             catch (AuditWriteFailedException lost)
@@ -189,10 +202,10 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             }
             catch (OperationCanceledException lost)
             {
-                // The request's token is already cancelled — which is precisely the case
-                // this reconcile exists for — so the write cannot use it and must not be
-                // abandoned by it either. Logged rather than rethrown: a finally that threw
-                // would replace the exception the caller is meant to see.
+                // Reachable only from inside the store now that the request's token is not
+                // passed in — a provider-side timeout, say. Logged rather than rethrown: a
+                // finally that threw would replace the exception the caller is meant to
+                // see.
                 LogReconcileRowLost(logger, intent.Operation, lost);
             }
         }

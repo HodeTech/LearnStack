@@ -343,6 +343,9 @@ public sealed class NpgsqlUnitOfWork(
             : RollbackFrameAsync();
     }
 
+    /// <inheritdoc />
+    public bool IsRollbackOnly => _rollbackOnly;
+
     public void MarkRollbackOnly()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

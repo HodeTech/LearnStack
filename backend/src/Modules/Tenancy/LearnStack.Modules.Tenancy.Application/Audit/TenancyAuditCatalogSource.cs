@@ -11,7 +11,7 @@ namespace LearnStack.Modules.Tenancy.Application.Audit;
 /// <para>
 /// <b>Only the operations whose command exists.</b>
 /// <see href="../../../../../docs/modules/tenancy/audit.md">The matrix</see> carries
-/// fourteen more rows marked <c>(planned)</c> — classification ahead of code — and
+/// fifteen more rows marked <c>(planned)</c> — classification ahead of code — and
 /// registering one of those would claim a writer that does not exist, which is the half
 /// of the join that has no way to notice.
 /// </para>
@@ -58,8 +58,13 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             // Off-path, by slug. Each is written by something that is not a handler, so
             // there is no type to key a registration on; each sits outside the request-type
             // join in both directions.
+            // SecurityEvent, not PlatformAdmin. Its matrix cell says `security-event` and
+            // gives the reason — Audit Coverage puts every platform-bypass invocation on
+            // that type — and ADR-0044 § 10 and the Packet 9 scope both say the same. The
+            // type is what a compliance query filters on, so the row and the corpus have
+            // to name the same one.
             .DeclareOffPath(
-                "platform.admin_scope.enter", OperationType.PlatformAdmin, OperationClass.Must)
+                "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
