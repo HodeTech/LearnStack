@@ -125,9 +125,62 @@ public sealed class TenancySchemaTests
 
         var counts = await SchemaQueries.CountEveryTableAsync(connection, transaction: null);
 
-        counts.Should().OnlyContain(entry => entry.Value == 0,
-            "with no app.tenant_id every policy predicate is NULL, which is false");
+        // ONE declared exception, and the sweep still enumerates the catalogue. It is not
+        // taught with a hand-written inclusion list of names: such a list fails open, which
+        // is how a second permissive policy on outbox_messages once passed the whole suite.
+        // What changes is the EXPECTATION, not the reach.
+        counts.Where(entry => entry.Key != KillswitchTable)
+            .Should().OnlyContain(entry => entry.Value == 0,
+                "with no app.tenant_id every policy predicate is NULL, which is false");
+
         counts.Keys.Should().Contain(SchemaFixture.KnownTables);
+
+        // The positive half, which nothing asserted before: a killswitch is one
+        // platform-wide switch with no tenant term to isolate, so USING (true) exists to
+        // guarantee learnstack_app reads ALL of it with no context. A sweep that merely
+        // excused the table would pass against a policy that returned nothing — and a
+        // killswitch nobody can read is a killswitch that fails open.
+        counts[KillswitchTable].Should().BeGreaterThan(0,
+            "the switch is global by construction, so hiding it from the role that must "
+            + "honour it would only fail open");
+    }
+
+    /// <summary>The one table for which "no tenant context implies zero rows" is false.</summary>
+    private const string KillswitchTable = "platform_killswitches";
+
+    [Fact]
+    public async Task Exactly_One_Policy_In_The_Schema_Reads_Unconditionally()
+    {
+        // The companion that stops the exception above from widening. The sweep excuses
+        // one table by name; this pins the SET of unconditional policies to exactly that
+        // one, read from pg_policies rather than from this file's opinion — so a second
+        // USING (true) landing anywhere in `public` fails here even though the sweep would
+        // now excuse nothing extra.
+        //
+        // This is the assertion Database Standards § platform_killswitches asks for, and
+        // it is the half a name-based inclusion list can never provide.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT tablename || '.' || policyname
+            FROM pg_policies
+            WHERE schemaname = 'public' AND qual = 'true'
+            ORDER BY 1
+            """,
+            (NpgsqlConnection)connection);
+
+        var unconditional = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            unconditional.Add(reader.GetString(0));
+        }
+
+        unconditional.Should().BeEquivalentTo(
+            ["platform_killswitches.platform_killswitches_read"],
+            "exactly one policy reads unconditionally, and ADR-0045 § 5 is where that was "
+            + "decided");
     }
 
     [Fact]
@@ -902,6 +955,11 @@ public sealed class TenancySchemaTests
             "learnstack_app tenant_settings DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app platform_entitlement_cache INSERT,SELECT,UPDATE",
+            // SELECT and nothing else. The read policy is USING (true), so the GRANT is
+            // what bounds the role instead — a write privilege here would make the policy
+            // the only thing standing between the application role and a platform-wide
+            // switch, and there is no write policy for it to be.
+            "learnstack_app platform_killswitches SELECT",
             "learnstack_app platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app outbox_messages INSERT,SELECT",
             "learnstack_app idempotency_keys INSERT,SELECT,UPDATE",
@@ -912,6 +970,10 @@ public sealed class TenancySchemaTests
             "learnstack_platform tenant_settings SELECT",
             "learnstack_platform tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform platform_entitlement_cache DELETE,SELECT",
+            // Written ahead of its caller: no runtime path puts a row in
+            // platform_killswitches until Phase 03 ships the Platform-scope permission
+            // that lets anything enter EnterPlatformAdminScope at all.
+            "learnstack_platform platform_killswitches DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform outbox_messages DELETE,SELECT",
             "learnstack_platform idempotency_keys DELETE,SELECT",

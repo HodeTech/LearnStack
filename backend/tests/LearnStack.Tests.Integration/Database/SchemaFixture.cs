@@ -75,6 +75,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items",
         "customization_generations",
         "audit_log", "audit_config",
+        "platform_killswitches",
     ];
 
     /// <summary>What tenant A sees with its tenant context set and no organization scope.</summary>
@@ -102,6 +103,10 @@ public sealed class SchemaFixture : IAsyncLifetime
         // never writes directly.
         ["audit_log"] = 1,
         ["audit_config"] = 1,
+        // Platform-scoped and deliberately tenant-blind: one switch, visible to both
+        // tenants and to a request with no tenant at all. The only row in the schema for
+        // which "no tenant context ⇒ zero rows" is false on purpose.
+        ["platform_killswitches"] = 1,
     };
 
     /// <summary>What tenant B sees with its tenant context set.</summary>
@@ -125,6 +130,10 @@ public sealed class SchemaFixture : IAsyncLifetime
         // Two: the second is tenant B's alone, and AuditConfigServiceTests asks tenant A
         // about that slug to prove a scoped read from a leaking one.
         ["audit_config"] = 2,
+        // Platform-scoped and deliberately tenant-blind: one switch, visible to both
+        // tenants and to a request with no tenant at all. The only row in the schema for
+        // which "no tenant context implies zero rows" is false on purpose.
+        ["platform_killswitches"] = 1,
     };
 
     public PostgresFixture Postgres { get; } = new();
@@ -150,10 +159,37 @@ public sealed class SchemaFixture : IAsyncLifetime
 
         // platform_host_to_tenant only: its four policies are role-qualified TO
         // learnstack_app, so under FORCE the owner is denied on it.
-        await using var app = await PostgresFixture.OpenAsync(Postgres.AppConnectionString);
-        await using var mappings = new NpgsqlCommand(HostMappingsSql, (NpgsqlConnection)app);
-        await mappings.ExecuteNonQueryAsync();
+        await using (var app = await PostgresFixture.OpenAsync(Postgres.AppConnectionString))
+        {
+            await using var mappings = new NpgsqlCommand(HostMappingsSql, (NpgsqlConnection)app);
+            await mappings.ExecuteNonQueryAsync();
+        }
+
+        // platform_killswitches as learnstack_platform, and it cannot be either of the
+        // two roles above: learnstack_app holds SELECT and nothing else, and the owner is
+        // denied for the same reason it is on platform_host_to_tenant — the only policy
+        // names learnstack_app, so under FORCE none applies to learnstack_migration.
+        // That is also the role every real toggle will use, through
+        // EnterPlatformAdminScope.
+        await using var platform = await PostgresFixture.OpenAsync(Postgres.PlatformConnectionString);
+        await using var killswitches = new NpgsqlCommand(KillswitchesSql, (NpgsqlConnection)platform);
+        await killswitches.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// One switch, enabled — the state a killswitch is in when nobody has flipped it.
+    /// </summary>
+    /// <remarks>
+    /// Seeded rather than left empty because the sweep's positive half needs a row to
+    /// find: <c>USING (true)</c> exists to guarantee that <c>learnstack_app</c> reads ALL
+    /// of this table with no tenant context, and a sweep against an empty table passes
+    /// whether or not the policy does anything.
+    /// </remarks>
+    private const string KillswitchesSql =
+        """
+        INSERT INTO platform_killswitches (key, is_enabled, reason, toggled_at, toggled_by)
+        VALUES ('killswitch.classroom.recording', true, NULL, now(), NULL);
+        """;
 
     private const string TenantRowsSql =
         """

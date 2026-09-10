@@ -290,8 +290,51 @@ public sealed class UnitOfWorkTests
             counts[table] = (long)(await command.ExecuteScalarAsync())!;
         }
 
-        counts.Should().HaveCount(8, "TenancyDbContext maps eight entity types");
-        counts.Should().OnlyContain(entry => entry.Value == 0);
+        counts.Should().HaveCount(9, "TenancyDbContext maps nine entity types");
+
+        // ONE declared exception, and the sweep still enumerates the catalogue rather than
+        // a hand-written list of names. A list fails open — which is how a second
+        // permissive policy on outbox_messages once passed the whole suite — so what
+        // changes here is the EXPECTATION, not the reach.
+        //
+        // platform_killswitches is deliberately readable with no context: a killswitch is
+        // one platform-wide switch with no tenant term to isolate, so hiding it from the
+        // role that has to honour it would only fail open. Every OTHER table still answers
+        // zero (Database Standards § platform_killswitches).
+        counts.Where(entry => entry.Key != "platform_killswitches")
+            .Should().OnlyContain(entry => entry.Value == 0);
+
+        counts["platform_killswitches"].Should().BeGreaterThan(0,
+            "the positive half is worth asserting too: USING (true) exists to guarantee "
+            + "learnstack_app reads ALL of it with no context, and a sweep that only "
+            + "excused the table would pass against a policy that returned nothing");
+
+        // And the exception is pinned to exactly one table, from the CATALOGUE rather than
+        // from this file's opinion: any second policy in `public` whose predicate is
+        // literally true would be a table silently exempted from the rule above.
+        await using (var permissive = (NpgsqlCommand)unitOfWork.Connection.CreateCommand())
+        {
+            permissive.CommandText =
+                """
+                SELECT tablename || '.' || policyname
+                FROM pg_policies
+                WHERE schemaname = 'public' AND qual = 'true'
+                ORDER BY 1
+                """;
+            permissive.Transaction = (NpgsqlTransaction?)unitOfWork.Transaction;
+
+            var unconditional = new List<string>();
+            await using var reader = await permissive.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                unconditional.Add(reader.GetString(0));
+            }
+
+            unconditional.Should().BeEquivalentTo(
+                ["platform_killswitches.platform_killswitches_read"],
+                "exactly one policy in the schema reads unconditionally, and it is the one "
+                + "ADR-0045 § 5 decided");
+        }
 
         await unitOfWork.RollbackAsync();
     }

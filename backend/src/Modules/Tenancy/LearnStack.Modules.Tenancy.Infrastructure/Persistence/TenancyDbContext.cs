@@ -58,6 +58,13 @@ public sealed class TenancyDbContext(
 
     public DbSet<PlatformHostMapping> PlatformHostMappings => Set<PlatformHostMapping>();
 
+    /// <summary>
+    /// The killswitch overlay. Read-only in this packet — no writer exists, because every
+    /// toggle runs inside a scope whose registered gate refuses everyone (ADR-0045
+    /// Amendment 1 § 4).
+    /// </summary>
+    public DbSet<PlatformKillswitch> PlatformKillswitches => Set<PlatformKillswitch>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

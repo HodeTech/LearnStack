@@ -48,8 +48,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(20L,
-            "eight tenancy tables, two platform tables, four customization tables, "
+        (await CountAsync(connection, TablesQuery)).Should().Be(21L,
+            "eight tenancy tables, three platform tables, four customization tables, "
             + "two audit tables, and the four history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");

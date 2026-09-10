@@ -290,6 +290,29 @@ internal sealed class PlatformEntitlementConfiguration : IEntityTypeConfiguratio
     }
 }
 
+internal sealed class PlatformKillswitchConfiguration : IEntityTypeConfiguration<PlatformKillswitch>
+{
+    public void Configure(EntityTypeBuilder<PlatformKillswitch> builder)
+    {
+        builder.ToTable("platform_killswitches");
+
+        // The key is the key. One switch per key, and no surrogate to be out of step
+        // with it.
+        builder.HasKey(x => x.Key).HasName("pk_platform_killswitches");
+
+        // Long enough for any `{module}.{capability}` key the registry declares, and
+        // bounded because an unbounded primary key is an unbounded index.
+        builder.Property(x => x.Key).HasMaxLength(150).IsRequired();
+
+        builder.Property(x => x.IsEnabled).IsRequired();
+        builder.Property(x => x.Reason);
+        builder.Property(x => x.ToggledAt).IsRequired();
+
+        // No conversion and no foreign key: see PlatformKillswitch.ToggledBy.
+        builder.Property(x => x.ToggledBy);
+    }
+}
+
 internal sealed class PlatformHostMappingConfiguration : IEntityTypeConfiguration<PlatformHostMapping>
 {
     public void Configure(EntityTypeBuilder<PlatformHostMapping> builder)
