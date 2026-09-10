@@ -275,7 +275,9 @@ internal sealed class PlatformEntitlementConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.Features).HasColumnType("jsonb").IsRequired();
         builder.Property(x => x.Limits).HasColumnType("jsonb").IsRequired();
         builder.Property(x => x.Compliance).HasColumnType("jsonb").IsRequired();
-        builder.Property(x => x.ValidUntil).IsRequired();
+        // NOT required: null is "no scheduled expiry", which is what the Hub sends for
+        // every trial and perpetual licence (ADR-0045 Amendment 1 § 2).
+        builder.Property(x => x.ValidUntil);
         builder.Property(x => x.GraceUntil);
         builder.Property(x => x.Generation).HasDefaultValue(1L).IsRequired();
 

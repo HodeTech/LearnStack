@@ -63,8 +63,21 @@ public sealed class PlatformEntitlement : ITenantOwned
     /// <summary>Compliance caps, regions, retention overrides, as JSON.</summary>
     public string Compliance { get; private set; }
 
-    /// <summary>When the entitlement lapses. Carried on the wire as <c>expires_at</c>.</summary>
-    public DateTimeOffset ValidUntil { get; private set; }
+    /// <summary>
+    /// When the entitlement lapses, or <c>null</c> for no scheduled expiry. Carried on the
+    /// wire as <c>expires_at</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Nullable, and never coerced to a sentinel.</b> The pinned wire schema makes
+    /// <c>expires_at</c> required <b>and</b> nullable, the Hub's DTO carries
+    /// <c>DateTimeOffset?</c>, and the Hub sends <c>null</c> for every tenant with no
+    /// scheduled expiry — trials and perpetual licences, which is the cohort it creates
+    /// first. A far-future date in its place would silently become an expiry somebody
+    /// eventually has to explain
+    /// (<see href="../../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
+    /// Amendment 1 § 2</see>).
+    /// </remarks>
+    public DateTimeOffset? ValidUntil { get; private set; }
 
     /// <summary>Bounds the grace window. Null unless in grace.</summary>
     public DateTimeOffset? GraceUntil { get; private set; }

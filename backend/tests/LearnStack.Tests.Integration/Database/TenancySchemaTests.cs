@@ -739,6 +739,53 @@ public sealed class TenancySchemaTests
     }
 
     [Fact]
+    public async Task An_Entitlement_With_No_Scheduled_Expiry_Persists_As_Null()
+    {
+        // Packet 6 declared `valid_until` NOT NULL against a wire contract that makes
+        // `expires_at` required AND nullable — so the only sanctioned writer would have
+        // been structurally unable to persist what its own source sends. The Hub sends
+        // null for every trial and perpetual licence, which is the cohort it creates
+        // first, so this is the common row rather than an edge one
+        // (ADR-0045 Amendment 1 § 2).
+        //
+        // A real INSERT as learnstack_app, not a read of information_schema: the column's
+        // declared nullability is only half the claim, and the half that bites is whether
+        // the row survives the policy's WITH CHECK on the way in.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);
+
+        await using (var write = new NpgsqlCommand(
+            """
+            INSERT INTO platform_entitlement_cache
+                (tenant_id, plan_code, features, limits, compliance, valid_until, source)
+            VALUES (@tenant, 'perpetual', '{}', '{}', '{}', NULL, 'null-provider')
+            ON CONFLICT (tenant_id) DO UPDATE SET valid_until = NULL, plan_code = 'perpetual'
+            """,
+            (NpgsqlConnection)connection,
+            (NpgsqlTransaction)transaction))
+        {
+            write.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
+            await write.ExecuteNonQueryAsync();
+        }
+
+        await using var read = new NpgsqlCommand(
+            "SELECT valid_until FROM platform_entitlement_cache WHERE tenant_id = @tenant",
+            (NpgsqlConnection)connection,
+            (NpgsqlTransaction)transaction);
+        read.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
+
+        (await read.ExecuteScalarAsync()).Should().Be(DBNull.Value,
+            "null is 'no scheduled expiry' and is never coerced to a sentinel — a "
+            + "far-future date would silently become an expiry somebody has to explain");
+
+        // Rolled back: this suite shares a schema with cases that compare exact row
+        // counts, and the fixture's seeded row for this tenant is not this one.
+        await transaction.RollbackAsync();
+    }
+
+    [Fact]
     public async Task EveryMappedIdentifierIsSnakeCase()
     {
         // Every policy predicate, every GRANT and every index name in Database
