@@ -50,11 +50,23 @@ Out of scope:
 ## Typed Catalog
 
 The catalog is **code-defined**, **typed**, and **enumerated in one place**. Free-form
-string flag keys are forbidden. Three static registries. The fence below lists the key
-**strings** — the vocabulary, of which Packet 9 registers the members that have a
-consumer ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)) —
+string flag keys are forbidden. Three static registries, shipped in Packet 9 and
+carrying **every** key below. The fence lists the key **strings** — the vocabulary —
 while each registry entry is a descriptor, and the members every descriptor carries are
 fixed by the rules that follow.
+
+**Why the whole vocabulary rather than only keys with a consumer.**
+[ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) states both
+filters — carry "the keys the corpus already names", and invent none because "a registry
+that lists a capability nothing gates is a list that will be wrong before anything reads
+it" — and at Packet 9 the set of keys with a shipped consumer was measurably **empty**,
+so the second read literally ships three empty registries and leaves the Phase 02a
+completion criterion with no key to call `IsEnabledAsync` with. The reading applied, and
+recorded in the Packet 9 delivery record: the **spelling** is the one-way door — it lands
+in the Hub's plan validators, in persisted `jsonb` and in a wire schema pinned in both
+repositories — while **membership** has a written exit in § Removing a key below. Shipping
+a spelling early is cheap to keep and expensive to change; shipping it late is the
+opposite.
 
 ```csharp
 public static class FeatureKeys
@@ -182,15 +194,15 @@ CREATE TABLE platform_entitlement_cache (
 ```
 
 The migration in `LearnStack.Modules.Tenancy.Infrastructure` is the source for these
-two tables; the fences above are kept in step with it, with one column shown in the
-state Packet 9 leaves it — `valid_until`, called out below. The length caps on `key` and
+two tables; the fences above are kept in step with it, including `valid_until` in the
+state Packet 9 left it — called out below. The length caps on `key` and
 `plan_code` are the migration's, and are a bound the bare `text` this document first
 declared did not carry. `source` stays `text` because it is a closed set, and
 [Database Standards § Column types](../standards/05-database.md) fixes `text` with a
 `CHECK` as the form for those. Row-security clauses are in the migration and
 deliberately not restated here.
 
-`valid_until` shipped in Packet 6 as `NOT NULL`, and **Packet 9 alters it to `NULL`**
+`valid_until` shipped in Packet 6 as `NOT NULL`, and **Packet 9 altered it to `NULL`**
 ([ADR-0045 Amendment 1 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)),
 with `PlatformEntitlement.ValidUntil` becoming nullable alongside it. The wire field is
 required and nullable, the Hub's DTO carries a nullable value, and the Hub sends null
@@ -308,7 +320,7 @@ Each `LimitKey` in the catalog declares a `LimitEnforcement` (`Soft` | `Hard`):
   `usage.alert.soft_limit_reached` event is emitted to the Hub via
   `POST /api/v1/usage/report`. Example: `ClassroomMinutesPerMonth`.
 
-Packet 9 ships the descriptor and the read; the **enforcement path** — the `403` and the
+Packet 9 shipped the descriptor and the read; the **enforcement path** — the `403` and the
 usage signal — lands in [Phase 02c](../roadmap/phase-02c-hub-foundation.md), the first
 phase in which `IUsageReporter` and `POST /api/v1/usage/report` exist for a soft limit to
 report to. Each individual gate ships with the feature it gates, never speculatively.
@@ -376,7 +388,7 @@ CREATE TABLE platform_killswitches (
   the invalidation event. A flip is not instantaneous, which is worth knowing before the
   incident the killswitch exists for.
 
-**Packet 9 ships the table and the read path, and no writer**
+**Packet 9 shipped the table and the read path, and no writer**
 ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 The reason is reachability rather than scheduling: every killswitch write runs inside
 `EnterPlatformAdminScope(reason)`, and the registered `IPlatformAdminGate` is
@@ -450,8 +462,8 @@ Both surfaces are MUST-audit security-events (see
 ## Roadmap Touchpoints
 
 - **Phase 02a Packet 6** — `tenant_feature_flags` **and** `platform_entitlement_cache`
-  created in the Tenancy migration chain, with their policies and grants. Both ship
-  there; Packet 9 gives them their reader.
+  created in the Tenancy migration chain, with their policies and grants. Both shipped
+  there; Packet 9 gave them their reader.
 - **Phase 02a Packet 9** — the socket
   ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)):
   `IEntitlementProvider` + `EntitlementProjection` + `NullEntitlementProvider`;

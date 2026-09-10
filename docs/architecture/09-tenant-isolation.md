@@ -255,13 +255,22 @@ tenants/{tenant_id}/brand/...                                        ← tenant-
 ### Cache (Dapr State Store / Valkey)
 
 ```
-{tenant_id}:{org_id}:{module}:{entity}:{id}     ← org context set
-{tenant_id}:{module}:{entity}:{id}              ← tenant-wide or no org context
-platform:{module}:{entity}:{id}                 ← platform-admin operation
+{tenant_id}:{org_id}:{module}:{logical-name}    ← org context set
+{tenant_id}:{module}:{logical-name}             ← tenant-wide or no org context
+platform:hub:host-map:{normalized-host}         ← the host map
+platform:tenancy:killswitch                     ← the killswitch overlay
 ```
 
+**There is no generic platform shape, and that is the correction this block owes.** It
+showed `platform:{module}:{entity}:{id}` and named a `CacheKey.ForPlatform` that exists
+nowhere: a generic platform factory would let an ordinary tenant-owned family collapse
+every tenant into one bucket, so the sentinel admits exactly two **enumerated** families
+and `EnsureValid` refuses the rest
+([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+
 **The caller composes the key; an adapter only validates it.** `CacheKey.ForTenant`,
-`CacheKey.ForOrganization` and `CacheKey.ForPlatform` produce the shapes above, and
+`CacheKey.ForOrganization`, `CacheKey.ForHostMapping` and
+`CacheKey.ForKillswitchOverlay` produce the shapes above, and
 every `ICacheService` implementation calls `CacheKey.EnsureValid` and rewrites nothing
 ([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)). An adapter
 that prefixed as well would emit `{tenant}:{tenant}:{module}:{entity}` — and a module

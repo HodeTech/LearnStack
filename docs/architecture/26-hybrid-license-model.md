@@ -360,9 +360,21 @@ one posture for every limit and the first fixes one for every cap.
 | Key class | Posture when unresolved | Why |
 |---|---|---|
 | Compliance caps (`compliance.*`, `audit.retention.days`, `data.residency.region`) | **Fail closed** — reject the operation that depends on the cap | An unknown residency or retention cap must never be read as permissive; a wrong answer here is a regulatory finding |
-| Security-surface features (`identity.sso.saml`, `identity.scim`, `audit.export`, `integrations.api_access`) | **Fail closed** — treat as disabled | An unknown answer must not open an export or an API surface |
+| Security-surface features (`identity.sso.saml`, `identity.sso.oidc`, `identity.scim`, `audit.export`, `integrations.api_access`, `integrations.webhooks`, `admin.bulk_import`) | **Fail closed** — treat as disabled | An unknown answer must not open an export, an API surface, an outbound webhook or a bulk write |
 | Product capability features (`classroom.recording`, `classroom.breakout_rooms`, `tenancy.custom_domain`, `analytics.advanced_reporting`) | **Fail closed on a cold start, fail open to the last known value otherwise** | A paying tenant mid-class should not lose recording because the Hub is down — but the platform must not invent an entitlement it has never seen |
-| Numeric limits (every `limits.*` key) | **Fall back to the built-in floor** — the Starter-tier defaults compiled into the binary. Never `-1`, never `0` | Unlimited is a gift; zero is an outage. The floor keeps a tenant working at the smallest plan's ceiling until the answer arrives |
+| Everything else plan-projected (`tenancy.white_label_branding`, `customization.unlimited_content_types`) | **Fail closed** — treat as disabled | Neither is a live-session capability, so nothing is lost mid-use by closing; the cost of being wrong the other way is a tenant seeing branding or authoring headroom it has not bought |
+| Tenant flags (`FeatureSource.TenantFlag`) | **Fail closed** — treat as disabled | Their source is a table in this deployment, so unreachable means a database outage — under which an experiment must be off, not on |
+| Numeric limits (every `limits.*` key) | **Fall back to the built-in floor** — a Starter-shaped default compiled into the binary. Never `-1`, never `0` | Unlimited is a gift; zero is an outage. The floor keeps a tenant working at roughly the smallest plan's ceiling until the answer arrives |
+
+**The floor is Starter-*shaped*, not the Hub's Starter row copied.** Measured at Packet 9:
+that row carries `0` for `limits.classroom_minutes_per_month`,
+`limits.recording_storage_gb` and `limits.api_rate_per_minute`, so "the Starter-tier
+defaults" and "never `0`" cannot both hold. Copying it would ship the exact failure this
+row exists to prevent — a floor of `0` on the rate limit denies every API call the moment
+a projection is late. The six non-zero Starter values are transcribed verbatim; those
+three carry LearnStack's own smallest working allowance instead, declared on the
+descriptor in `LimitKeys` with its reason beside it. The Packet 9 delivery record carries
+the decision.
 
 Two consequences worth naming:
 

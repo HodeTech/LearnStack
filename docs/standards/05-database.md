@@ -722,7 +722,7 @@ suite. The positive half is worth asserting too, because nothing asserts it toda
 no context, `learnstack_app` reads **all** of `platform_killswitches`, which is what
 `USING (true)` exists to guarantee.
 
-**Packet 9 ships the table and the read path, and no writer.** The reason is
+**Packet 9 shipped the table and the read path, and no writer.** The reason is
 reachability rather than scheduling: every toggle runs inside
 `EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate` is
 `DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope

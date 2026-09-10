@@ -724,9 +724,12 @@ otherwise).
   no row of the table has been read or written since Packet 6 created it, and until there
   was a port allowed to read it there was nothing to route through.
   `NullEntitlementProvider` answers from constants and touches no table; the first
-  implementation that reads the row is `HubEntitlementProvider`, in Phase 02c. Whether
-  `TenancyDbContext` keeps the `DbSet` once the provider owns access is Packet 9's to
-  settle — the mapping has to survive in some form, because the query filter rides on it.
+  implementation that reads the row is `HubEntitlementProvider`, in Phase 02c. **Packet 9
+  settled the `DbSet` question: it stays.** The mapping has to survive in some form
+  because the query filter rides on it, and the isolation sweeps enumerate the model —
+  a table mapped by configuration alone is one those sweeps would stop counting, which is
+  how a policy regression goes unnoticed. What the rule constrains is who QUERIES the
+  table, not whether the model knows about it.
 - **Phase:** 02a (Packet 10).
 
 #### `FeatureKey_AllReferences_AreInRegistry`

@@ -236,7 +236,7 @@ Resource fairness is a separate mechanism and this phase builds it.
   ([ADR-0018 Amendment, 2026-08-08](../decisions/0018-tenant-driven-customization-model.md)):
   the tenant declares *what* to fetch, the platform decides *how much*.
 
-Edge rate limiting at APISIX and the plan-level `LimitKeys.MaxApiRequestsPerHour` cap are
+Edge rate limiting at APISIX and the plan-level `LimitKeys.ApiRatePerMinute` cap are
 the other two halves of this problem — they bound request *arrival*. This subsection
 bounds request *cost* once a request is inside. Neither substitutes for the other.
 
@@ -246,7 +246,7 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 - CORS policy enforced at APISIX (`cors` plugin) + per-handler ASP.NET layer.
 - CSRF strategy for non-Action mutating routes.
 - Rate limiting at APISIX (`limit-req` / `limit-count`) + per-handler ASP.NET layer
-  for plan-level `LimitKeys.MaxApiRequestsPerHour`. The enforcement **path** — the
+  for plan-level `LimitKeys.ApiRatePerMinute`. The enforcement **path** — the
   refusal a `Hard` limit key produces and the `usage.alert.soft_limit_reached` signal a
   `Soft` one produces — lands in [Phase 02c](phase-02c-hub-foundation.md)
   ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)); what this

@@ -74,7 +74,7 @@ Decisions this phase implements:
 - [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md) —
   the projection contract and the grace window.
 - [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
-  — the port this phase implements, declared in Packet 9, and the limit-enforcement path
+  — the port this phase implements, declared and defaulted in Packet 9, and the limit-enforcement path
   this phase owns.
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
   — the three `IEntitlementProvider` implementations.
@@ -140,7 +140,7 @@ The ordering is the design, not an optimisation:
   projection a paying tenant needs and report it as success
   ([ADR-0045 Amendment 1 § 3](../decisions/0045-entitlement-and-feature-flag-socket.md)).
   Replay at the same generation is idempotent, by the Hub's own one-writer-per-tenant
-  invariant. Packet 9 declares that contract; the internal-API handler below is its
+  invariant. Packet 9 declared that contract; the internal-API handler below is its
   caller.
 - **Writes go through `IEntitlementProvider.RefreshAsync` only.** An
   `IEntitlementProvider` implementation is the only sanctioned reader **and** writer of
@@ -179,11 +179,11 @@ tenant.
   required **and** nullable, and the schema's `required` list alone does not carry that
   distinction. A null `expires_at` means *no scheduled expiry* — what the Hub sends for
   every trial and perpetual licence — and it persists as `valid_until NULL`, never
-  coerced to a far-future sentinel somebody later has to explain. Packet 9 alters that
+  coerced to a far-future sentinel somebody later has to explain. Packet 9 altered that
   column to nullable for it
   ([ADR-0045 Amendment 1 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 - The LearnStack-side snapshot test asserts that the serialized shape the handler accepts
-  — `EntitlementProjection` as Packet 9 declares it — still matches the schema, and that
+  — `EntitlementProjection` as Packet 9 declared it — still matches the schema, and that
   every declared feature key resolves to a registered `FeatureKey` / `LimitKey`.
 - Versioning is in the filename. `entitlement-v2.schema.json` is a new file and a new
   ADR-gated contract change, not an edit.

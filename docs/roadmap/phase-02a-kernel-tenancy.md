@@ -676,7 +676,7 @@ phases — the `TenantContentType` editor in [Phase 04](phase-04-cms-media-pages
 [Phase 06](phase-06-renderer-admin-studio.md) consolidates them into one editing idiom,
 and its Studio screen ownership table is the single ownership record.
 
-**Packet 9 — Audit infrastructure and the entitlement socket ⏳**
+**Packet 9 — Audit infrastructure and the entitlement socket ✅**
 Two ADRs decide this packet before it starts, because the corpus that governs it was
 written before the code it governs:
 [ADR-0044](../decisions/0044-audit-write-path.md) settles the audit write path and
@@ -3014,3 +3014,96 @@ Each of these is recorded, with its owning phase, in
   records what these handlers already do so that adding it is a wiring change.
 - **The remaining five customization aggregates** — each lands with its first
   consumer, per [ADR-0018's 2026-09-06 Amendment](../decisions/0018-tenant-driven-customization-model.md).
+
+## Delivery Record (Packet 9)
+
+Kept separate from the records above. Nine steps, and — as in Packets 5, 6, 7 and 8 —
+the second review round repeatedly found the first round's fix. What is new in this
+record is the **decision** half: three of the four choices the entitlement socket
+required are *readings* of an Accepted ADR rather than applications of it, so they are
+written down here rather than inferred from the diff.
+
+> **Packet 9 — Audit infrastructure and the entitlement socket ✅**
+>
+> **Measured at close: 1849 tests green** — 1 contract, 95 architecture, 1303 unit,
+> 450 integration. Counted from a run under `CI=true`, which makes warnings errors.
+
+### The four decisions, and why the corpus did not settle them
+
+**1. The registries carry the whole vocabulary, not only keys with a consumer.**
+[ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) states both
+filters in one section: carry "the keys the corpus already names", and invent none,
+because "a registry that lists a capability nothing gates is a list that will be wrong
+before anything reads it". Measured at this packet, the set of keys with a shipped
+consumer was **empty** — seven MediatR handlers exist and none injects a flags port —
+and § 6 forecloses creating one here, assigning the whole enforcement path to
+[Phase 02c](phase-02c-hub-foundation.md). Read literally, the floor clause ships three
+empty registries and leaves this phase's own completion criterion with no key to call
+`IsEnabledAsync` with.
+
+The reading applied: the **spelling** is the one-way door — it lands in the Hub's plan
+validators, in persisted `jsonb` and in a wire schema pinned in both repositories — while
+**membership** has a written exit, the deprecation cycle
+[Feature Flags § Removing a key](../architecture/21-feature-flags.md) already fixes. The
+floor clause's own rationale is drift risk, and drift risk is zero for the twenty-three
+Hub-pinned strings and non-zero only for the two that exist on no other side.
+
+**2. The limit floors are Starter-*shaped*, not the Hub's Starter row.**
+[Hybrid License Model](../architecture/26-hybrid-license-model.md) requires the fallback
+to be "the Starter-tier defaults compiled into the binary. Never `-1`, never `0`" — and
+the Hub's actual Starter row carries `0` for `limits.classroom_minutes_per_month`,
+`limits.recording_storage_gb` and `limits.api_rate_per_minute`. Both rules cannot hold.
+Copying the row ships the exact failure that sentence exists to prevent: a floor of `0`
+on the rate limit denies every API call the moment a projection is late.
+
+The six non-zero Starter values are transcribed verbatim. The three zeros carry
+LearnStack's own smallest working allowance — 60 minutes, 1 GB, 60 requests a minute —
+each declared on its descriptor with its reason. These nine numbers are the only answer
+any caller gets until Phase 02c ships `HubEntitlementProvider`, so the choice is recorded
+rather than left to a reader of `LimitKeys`.
+
+**3. One namespace: `LearnStack.SharedKernel.Entitlements`.**
+[ADR-0045 §§ 1–2](../decisions/0045-entitlement-and-feature-flag-socket.md) fix it for
+the ports; [ADR-0021](../decisions/0021-feature-based-entitlement.md)'s registry fence
+reads `LearnStack.SharedKernel.FeatureFlags`; and
+[`add-feature-key`](../../.claude/skills/add-feature-key/SKILL.md) says outright that this
+packet settles the pair and forbids spreading one socket over two segments. Ports,
+records, value objects, descriptors and all three registries live in one folder. It
+matches the shipped `SharedKernel/Audit` precedent — value types beside their ports,
+because a module declaring them is a project cycle — and it is the namespace the current
+ADR prints in a normative fence, which is what Phase 02c writes `HubEntitlementProvider`
+against from the other repository. After that point it is a cross-repository contract.
+
+ADR-0021's body is **not** edited for it. Its fence was true as intent when accepted, so
+it is history rather than a false statement, and
+[Documentation Standards](../standards/13-documentation.md) licenses no correction for
+that.
+
+**4. The seven unclassified feature keys fail closed.**
+[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) requires every feature
+key class to declare fail-open or fail-closed explicitly, and
+[ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)
+makes it a required member of every descriptor — but architecture/26's authority table
+classified only nine of sixteen. `identity.sso.oidc`, `integrations.webhooks` and
+`admin.bulk_import` join the fail-closed security row beside their siblings;
+`tenancy.white_label_branding` and `customization.unlimited_content_types` join it too,
+because neither is a live-session capability so nothing is lost mid-use by closing; and
+the two tenant flags join it because their source is a table in this deployment, so
+"unreachable" means a database outage, under which an experiment must be off. The table
+in architecture/26 now carries all sixteen.
+
+### What is deliberately absent
+
+- **A killswitch writer.** Reachability, not scheduling: every toggle runs inside
+  `EnterPlatformAdminScope(reason)` whose registered gate is `DenyAllPlatformAdminGate`,
+  so a command shipped now would be unreachable code keyed on a permission nothing
+  registers. [Phase 03](phase-03-identity-admin.md) owns the toggle, its permission and
+  its runbook. Noted for that phase: **no killswitch or entitlement permission key is
+  reserved in [Permissions](../standards/19-permissions.md) yet**, and Amendment 1 § 4
+  rests the whole no-writer argument on that permission arriving.
+- **Any limit gate.** Each ships with the feature it gates, never speculatively; the
+  `403` and the `usage.alert.soft_limit_reached` signal land in Phase 02c, the first
+  phase in which `IUsageReporter` exists for a soft limit to report to.
+- **`IEntitlementAdminQuery`.** `IFeatureFlags` throws on a request with no tenant rather
+  than guessing one, and the cross-tenant operator read that is the alternative to that
+  throw is Phase 02c's, with the surface that needs it.

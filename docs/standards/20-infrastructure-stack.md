@@ -205,9 +205,13 @@ adapter trigger.
   [ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md) adds with the
   entitlement socket. Every other family requires a tenant id.
   Compose with `CacheKey.ForTenant` / `CacheKey.ForOrganization` /
-  `CacheKey.ForHostMapping`; the killswitch overlay's factory and its `EnsureValid`
-  entry land with Packet 9, which ships the read side only — `platform_killswitches`,
-  the overlay and this family. The toggle that invalidates it arrives with the
+  `CacheKey.ForHostMapping` / `CacheKey.ForKillswitchOverlay`. Packet 9 shipped the
+  overlay's factory, its `EnsureValid` entry and the read side —
+  `platform_killswitches`, the overlay and this family — and no writer. The guard
+  admits the two families by **enumeration**, so the overlay's own four-segment
+  per-key spelling is refused rather than merely unused: one entry holds the whole
+  switch set, because `ICacheService` has no `RemoveByPrefixAsync` for a toggle to
+  sweep a per-key family with. The toggle that invalidates it arrives with the
   Platform-scope permission in [Phase 03](../roadmap/phase-03-identity-admin.md)
   ([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
   Every `ICacheService` implementation calls `CacheKey.EnsureValid`, and none
@@ -233,7 +237,7 @@ different decisions:
 | Key family | L1 (in-process `IMemoryCache`) | L2 (Dapr state → Valkey) | Eager invalidation event |
 |---|---|---|---|
 | `platform:hub:host-map:{normalized-host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
-| `platform:tenancy:killswitch` (overlay; lands with Packet 9) | 60 s (hot-path default) | L1 only — no L2 figure | invalidated on toggle |
+| `platform:tenancy:killswitch` (overlay) | 60 s (hot-path default) | L1 only — no L2 figure | invalidated on toggle |
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | generation key — see the rule below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
@@ -247,7 +251,7 @@ drifts:
 | Family | Composed by |
 |---|---|
 | `platform:hub:host-map:{normalized-host}` | `CacheKey.ForHostMapping(normalizedHost)` |
-| `platform:tenancy:killswitch` | the second platform factory, landing with Packet 9 ([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)) |
+| `platform:tenancy:killswitch` | `CacheKey.ForKillswitchOverlay()` ([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)) |
 | `{tenant_id}:hub:entitlement` | `CacheKey.ForTenant(tenantId, "hub", "entitlement")` |
 | `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |

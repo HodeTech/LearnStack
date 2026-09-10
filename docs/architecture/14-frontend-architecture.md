@@ -292,7 +292,10 @@ with interactivity (forms, video players, the live classroom panel).
 ## Entitlement-Aware UI
 
 The frontend reads the tenant's entitlement projection through a thin API endpoint
-backed by `platform_entitlement_cache`. Two hooks expose the data:
+backed by **`IEntitlementProvider`** — never by a read of `platform_entitlement_cache`,
+whose storage belongs to the provider that owns it and which no module may query
+([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)). Two hooks
+expose the data:
 
 ```ts
 const recordingEnabled = useFeatureFlag(FeatureKeys.ClassroomRecording);

@@ -122,12 +122,21 @@ Rules:
 ### Step 2: Register in the catalogue
 
 The socket's ports are declared in `LearnStack.SharedKernel.Entitlements`
-([ADR-0045 § 1–2](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
-The registries' own namespace is the one placement question the corpus has not closed:
+([ADR-0045 § 1–2](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)),
+and **so are the registries and the key value objects**. Packet 9 settled the pair that
+way: the ports, the records, `FeatureKey` / `LimitKey` / `KillswitchKey`, their
+descriptors and all three registries live in one folder,
+`backend/src/LearnStack.SharedKernel/Entitlements/`.
+
 [ADR-0021](../../../docs/decisions/0021-feature-based-entitlement.md)'s typed-registry
-fence still reads `LearnStack.SharedKernel.FeatureFlags`, and its `const string` shape is
-what that ADR's Amendment 1 replaced. Packet 9 settles the pair; do not spread one socket
-over two namespace segments without recording which one won.
+fence still reads `LearnStack.SharedKernel.FeatureFlags`. That is history rather than a
+contradiction — it was true as intent when it was accepted, so the ADR's body is not
+edited for it — and the reasoning for choosing `.Entitlements` over it is in the Packet 9
+delivery record: it matches the shipped `SharedKernel/Audit` precedent, where the value
+types sit beside their ports because a module that declared them would be a project
+cycle; and it is the namespace the ADR that is current already prints in a normative
+fence, which is what Phase 02c writes `HubEntitlementProvider` against from the other
+repository. After that point the namespace is a cross-repository contract.
 
 ```csharp
 public static class FeatureKeys
