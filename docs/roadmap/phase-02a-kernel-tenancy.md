@@ -3025,7 +3025,7 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1856 tests green** — 1 contract, 95 architecture, 1304 unit,
+> **Measured at close: 1867 tests green** — 1 contract, 102 architecture, 1308 unit,
 > 456 integration. Counted from a run under `CI=true`, which makes warnings errors.
 
 ### The four decisions, and why the corpus did not settle them

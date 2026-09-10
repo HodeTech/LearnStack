@@ -521,6 +521,86 @@ public sealed class AuditLogBehaviorTests
         store.BestEffort.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("success")]
+    [InlineData("refusal")]
+    [InlineData("exception")]
+    public async Task AuditStateCapture_ClearedPerRequest(string ending)
+    {
+        // The buffer is SCOPED — its lifetime is the request, not the transaction — so
+        // anything it still holds when the request ends is state the next request
+        // inherits: another tenant's snapshots, and intents that would be reconciled a
+        // second time under an outcome that is not theirs.
+        //
+        // Three endings, listed rather than represented by one, because each leaves the
+        // behaviour by a different door and only the `finally` is common to all of them.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
+
+        var act = async () => await behavior.Handle(
+            new DummyCommand(),
+            () =>
+            {
+                capture.MarkCommitted();
+
+                return ending switch
+                {
+                    "refusal" => Task.FromResult(Result.Fail<string>(new Error(
+                        new LocalizedMessage(
+                            LocalizedMessage.RequiredPrefix + "business_rule_violation")))),
+                    "exception" => throw new InvalidOperationException("handler failed"),
+                    _ => Task.FromResult(Result.Ok("ok")),
+                };
+            },
+            default);
+
+        if (ending == "exception")
+        {
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+        else
+        {
+            await act.Should().NotThrowAsync();
+        }
+
+        capture.Intents.Should().BeEmpty($"a {ending} leaves nothing for the next request");
+        capture.Changes.Should().BeEmpty();
+        capture.State.Should().Be(AuditIntentState.None);
+    }
+
+    [Fact]
+    public async Task A_joiner_never_clears_the_buffer_it_did_not_open()
+    {
+        // The half that matters under nesting: a joiner that cleared would erase the outer
+        // request's intents and every snapshot BEFORE the owner committed. With the case
+        // above — which proves the outermost frame DOES clear — the pair pins "exactly
+        // once, by the outermost" rather than merely "at least once".
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
+
+        await behavior.Handle(
+            new DummyCommand(),
+            async () =>
+            {
+                await behavior.Handle(
+                    new DummyCommand(),
+                    () => Task.FromResult(Result.Ok("inner")),
+                    default);
+
+                capture.Intents.Should().NotBeEmpty(
+                    "the joiner returned and must have left the outer buffer alone");
+
+                capture.MarkCommitted();
+
+                return Result.Ok("outer");
+            },
+            default);
+
+        capture.Intents.Should().BeEmpty("and the OWNER cleared on its way out");
+    }
+
     /// <summary>A stand-in for the aggregate an intent names.</summary>
     private sealed class Subject;
 

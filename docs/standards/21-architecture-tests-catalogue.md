@@ -1519,7 +1519,7 @@ which decides identity, multiplicity, capture and classification;
   contradiction.
 - **Source:** ADR-0033 (carried from ADR-0016).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8). Checked at every depth of the ancestry, not just the immediate base: `AuditableEntity<TId>` derives from `Entity<TId>`, so a check on the immediate base alone passes for a type that inherits it one level further down.
 - **Phase:** 02a (Packet 9).
 
 #### `MustClass_Audit_Writes_Share_The_Business_Transaction`
@@ -1686,13 +1686,7 @@ which decides identity, multiplicity, capture and classification;
   rule as blocker-level.
 - **Type:** xUnit over the behavior and the scoped capture, with a nested-dispatch case.
   **Kind:** behavioural.
-- **Status:** **Registered.** Named as blocker-level in architecture 31 § 13 since that
-  section was written, and carried by no catalogue row until ADR-0044 registered it here
-  — the drift this document exists to prevent, in its own subject area. The joiner half is
-  already held by
-  `AuditLogBehaviorTests.A_nested_frame_does_not_clear_the_outer_request_buffer`; what
-  this row still owes is the four-outcome sweep — success, business failure, refusal and
-  exception each leaving the capture empty and its state `None`.
+- **Status:** **Implemented** (`AuditLogBehaviorTests`, Packet 9 step 8). A theory over three endings — success, refusal, handler exception — because each leaves the behaviour by a different door and only the `finally` is common to them; plus the nested case, so the pair pins "exactly once, by the outermost" rather than merely "at least once".
 - **Phase:** 02a (Packet 9).
 
 #### `Every_TenantOwned_Command_HasAuditCoverage`
@@ -1728,7 +1722,11 @@ which decides identity, multiplicity, capture and classification;
     cell.
   - **Anti-rot, which is what stops the scoping becoming a hole.** A `(planned)` row whose
     command has since shipped **fails**. The marker is a claim the rule re-checks on every
-    run, not an exemption from it.
+    run, not an exemption from it. **Both directions ship as of Packet 9 step 8**, as two
+    facts in `AuditCoverageTests`: `Every_TenantOwned_Command_HasAuditCoverage` for the
+    catalogue-to-matrix half and `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` for
+    the reverse, which also carries the anti-rot check and a guard against sweeping no rows
+    at all.
   - **Off the request path.** Some audited operations are not MediatR requests at all —
     `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
     `tenancy.entitlement.refresh`, and the two tenant-assertion keys ADR-0036 parks on
@@ -1797,7 +1795,7 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** [18-audit-coverage.md](18-audit-coverage.md);
   [13-documentation.md § Per-Module Specifications](13-documentation.md).
 - **Type:** xUnit + file scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), with a companion that exercises the predicate against a directory genuinely lacking the file. Every module has one today, so the rule alone passes whether its check works or is defeated — measured, a tautology left it green.
 - **Phase:** 02a (Packet 9).
 
 #### `Modules_Do_Not_Write_AuditLog_Directly`
@@ -1858,7 +1856,7 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 (carried from ADR-0016);
   [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log`; a companion that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption predicate ships with the rule, by NAME, so the first one to land is exempted rather than the pattern widened.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
@@ -1904,7 +1902,7 @@ which decides identity, multiplicity, capture and classification;
   code, and it legislates no matrix grammar.
 - **Source:** ADR-0033 (carried from ADR-0016).
 - **Type:** xUnit + reflection + a parse of that one table. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8). Reads the first column of § Operation Types only — the same words appear in the prose around it — and asserts the row count before comparing, because a sweep that read no rows would agree with any enum.
 - **Phase:** 02a (Packet 9).
 
 > **Retired from this section.** `AuditLogBehavior_NeverBlocks_BusinessWrites` — see
