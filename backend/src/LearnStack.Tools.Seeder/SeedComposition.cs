@@ -12,6 +12,7 @@ using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Entitlements;
@@ -164,6 +165,11 @@ public static class SeedComposition
         // changes the answer without touching module code, which is only true because
         // IFeatureFlags composes over the PORT rather than reading
         // platform_entitlement_cache itself.
+        // The killswitch overlay's read path. SCOPED, because it reads through the
+        // module DbContext that is scoped — the cache entry it fronts is process-wide, so
+        // the scoped instance costs one resolution and shares the one entry.
+        services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
+
         services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
 
         services.TryAddSingleton<IAuditHealth, AuditHealth>();
