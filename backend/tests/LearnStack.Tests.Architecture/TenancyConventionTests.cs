@@ -172,6 +172,32 @@ public sealed class TenancyConventionTests
     }
 
     [Fact]
+    public void The_Slug_Scan_Finds_The_Files_It_Exempts()
+    {
+        // The rule above passes when NOTHING offends, which is also what it does when the
+        // exemption logic is broken open — measured: replacing the suffix match with a
+        // tautology left it green, because no third file in backend/src names either slug.
+        // A rule that cannot distinguish "clean" from "blind" is the exact defect its own
+        // first draft had, one layer up.
+        //
+        // So: run the same scan with NO exemptions and require it to find precisely the
+        // two files the rule exempts. That pins the scanner's reach and makes the
+        // exemptions load-bearing in both directions.
+        var found = SourceOffenders(
+            banned: [
+                "tenancy.tenant_assertion.reject",
+                "tenancy.tenant_assertion.anonymous_burst",
+            ],
+            except: []);
+
+        found.Should().HaveCount(2);
+        found.Should().ContainSingle(path => path.EndsWith(
+            Path.Combine("Tenancy", "AuditingTenantAssertionRecorder.cs"), StringComparison.Ordinal));
+        found.Should().ContainSingle(path => path.EndsWith(
+            Path.Combine("Audit", "TenancyAuditCatalogSource.cs"), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Assertion_Budget_Does_Not_Depend_On_ICacheService()
     {
         // The anonymous burst counter is exactly the thing someone reaches for a

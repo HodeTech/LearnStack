@@ -214,18 +214,46 @@ public sealed class PostgresAuditStore : IAuditStore
             // can leave an operation SUCCEEDED and unrecorded: Critical, counted, and the
             // health check unhealthy. What is deferred to Phase 11 is only the act of
             // ceasing to serve past a configured unhealthy window.
-            LogStandaloneWriteFailed(_logger, entry.Operation, failure);
-            _standaloneWriteFailures.Add(
-                1, new KeyValuePair<string, object?>("operation", entry.Operation));
-            _health.ReportStandaloneWriteFailed(entry.Operation);
+            ReportFailure(entry.Operation, failure);
 
             throw new AuditWriteFailedException(
                 $"A MUST-class audit row for {entry.Operation} could not be written "
                 + "standalone.",
                 failure);
         }
+        catch (Exception failure) when (failure is not DbException)
+        {
+            // The SAME three signals, for the failures that never reach the catch above.
+            // `DbException` is not the only way this write dies: the application data
+            // source is built lazily, so a missing credential surfaces as an
+            // InvalidOperationException from the Lazy factory, and the physical-connection
+            // initializer that refuses a role able to bypass row security throws one too —
+            // both from inside OpenConnectionAsync, both from inside this try.
+            //
+            // Before this, every one of them left the `audit` health check GREEN while no
+            // row could be written at all, which is the precise question that check exists
+            // to answer. Rethrown UNCHANGED rather than wrapped: each caller's exception
+            // contract stays exactly as it was, and only the reporting was missing.
+            ReportFailure(entry.Operation, failure);
+
+            throw;
+        }
 
         _health.ReportStandaloneWriteSucceeded();
+    }
+
+    /// <summary>Critical, counted, and the health check unhealthy — the three, together.</summary>
+    /// <remarks>
+    /// One helper because they are one event, and because two catch clauses reach it. A
+    /// site that logged without counting would be an alert nobody can threshold, and one
+    /// that counted without marking the check would leave a readiness surface reporting a
+    /// path that cannot write.
+    /// </remarks>
+    private void ReportFailure(string operation, Exception failure)
+    {
+        LogStandaloneWriteFailed(_logger, operation, failure);
+        _standaloneWriteFailures.Add(1, new KeyValuePair<string, object?>("operation", operation));
+        _health.ReportStandaloneWriteFailed(operation);
     }
 
     /// <inheritdoc />

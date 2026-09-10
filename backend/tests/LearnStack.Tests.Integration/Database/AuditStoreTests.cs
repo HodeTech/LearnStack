@@ -812,6 +812,54 @@ public sealed class AuditStoreTests
     }
 
     [Fact]
+    public async Task A_failure_the_store_cannot_translate_is_still_Critical_counted_and_unhealthy()
+    {
+        // DbException is not the only way this write dies. The application data source is
+        // built lazily, so a missing credential surfaces as an InvalidOperationException
+        // from the Lazy factory — and the physical-connection initializer that refuses a
+        // role able to bypass row security throws one too. Both from inside
+        // OpenConnectionAsync, both inside the try, and NEITHER is a DbException.
+        //
+        // Before the second catch existed, every one of them left the `audit` health check
+        // GREEN while no row could be written at all — which is the precise question that
+        // check exists to answer.
+        var health = new AuditHealth();
+        var logger = new CapturingLogger();
+        var store = new PostgresAuditStore(
+            new AuditStateCapture(),
+            new Lazy<NpgsqlDataSource>(
+                () => throw new InvalidOperationException("ConnectionStrings:Default is absent.")),
+            logger,
+            MeterFactory,
+            health);
+
+        var counted = 0L;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (instrument.Meter.Name == PostgresAuditStore.MeterName
+                && instrument.Name == PostgresAuditStore.StandaloneWriteFailureCounterName)
+            {
+                active.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => counted += measurement);
+        listener.Start();
+
+        var draft = Draft(organizationId: null);
+        var act = async () => await store.WriteStandaloneAsync(draft);
+
+        // Rethrown UNCHANGED rather than wrapped: every caller's exception contract stays
+        // exactly as it was, and only the reporting was missing.
+        await act.Should().ThrowAsync<InvalidOperationException>();
+
+        counted.Should().Be(1);
+        health.IsHealthy.Should().BeFalse();
+        health.FailingOperation.Should().Be(draft.Operation);
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Critical);
+    }
+
+    [Fact]
     public async Task A_later_standalone_write_clears_the_check()
     {
         // "Unhealthy while the most recent MUST-class standalone write has failed and no

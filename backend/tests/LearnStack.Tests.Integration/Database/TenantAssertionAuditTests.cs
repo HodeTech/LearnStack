@@ -73,6 +73,12 @@ public sealed class TenantAssertionAuditTests
             row.Value.OrganizationId.Should().BeNull();
             row.Value.Metadata.Should().Contain(SchemaFixture.TenantB.ToString(),
                 "the asserted value is metadata, never the row's tenant");
+
+            // Round-tripped through PostgreSQL, not merely handed to a double. The column
+            // is varchar(100) with a filtered index on it, so a value the writer composes
+            // but the column will not hold is a defect only a real write can show.
+            row.Value.CorrelationId.Should().Be(FixtureContext.Correlation,
+                "the row joins to its own trace and to the Warning line beside it");
         }
         finally
         {
@@ -128,8 +134,8 @@ public sealed class TenantAssertionAuditTests
     /// visible to a tenant-scoped read, and that is the property that makes this event
     /// readable by the admin whose boundary was defended.
     /// </remarks>
-    private async Task<(Guid TenantId, Guid? OrganizationId, string Operation, string Outcome, string? Metadata)?>
-        ReadAsync()
+    private async Task<(Guid TenantId, Guid? OrganizationId, string Operation, string Outcome,
+        string? Metadata, string? CorrelationId)?> ReadAsync()
     {
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
@@ -138,7 +144,8 @@ public sealed class TenantAssertionAuditTests
 
         await using var command = new NpgsqlCommand(
             """
-            SELECT tenant_id, organization_id, operation, outcome, metadata::text
+            SELECT tenant_id, organization_id, operation, outcome, metadata::text,
+                   correlation_id
             FROM audit_log
             WHERE operation LIKE 'tenancy.tenant_assertion.%'
             """,
@@ -157,7 +164,8 @@ public sealed class TenantAssertionAuditTests
             reader.IsDBNull(1) ? (Guid?)null : reader.GetGuid(1),
             reader.GetString(2),
             reader.GetString(3),
-            reader.IsDBNull(4) ? null : reader.GetString(4));
+            reader.IsDBNull(4) ? null : reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetString(5));
 
         (await reader.ReadAsync()).Should().BeFalse("each case writes exactly one row");
 
@@ -204,7 +212,9 @@ public sealed class TenantAssertionAuditTests
 
         public LearnStack.SharedKernel.Identifiers.UserId? UserId => null;
 
-        public string? CorrelationId => "00-assertion-fixture-01";
+        public const string Correlation = "00-assertion-fixture-01";
+
+        public string? CorrelationId => Correlation;
 
         public string? ModuleName => "tenancy";
     }

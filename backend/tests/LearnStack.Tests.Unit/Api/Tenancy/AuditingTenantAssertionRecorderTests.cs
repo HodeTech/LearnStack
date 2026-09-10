@@ -181,21 +181,51 @@ public sealed class AuditingTenantAssertionRecorderTests
         unresolved.Should().Be(1, "counted, never recorded — and counted is half of that rule");
     }
 
-    [Fact]
-    public async Task A_store_failure_of_any_kind_leaves_the_refusal_alone()
+    [Theory]
+    [MemberData(nameof(UntranslatedFailures))]
+    public async Task A_store_failure_of_any_kind_leaves_the_refusal_alone(Exception failure)
     {
         // The catch used to name AuditWriteFailedException alone, and its test threw
         // exactly that type — so the two agreed and neither constrained anything.
         // Measured on the shipped code: a host with no application credential answered an
         // anonymous caller's tenth wrong header with a 500, because the Lazy data source's
         // InvalidOperationException is not a DbException and so is never translated.
-        var store = new RecordingStore { FailsWith = new InvalidOperationException("no credential") };
-        var recorder = Recorder(store, out _);
+        //
+        // SEVERAL unrelated types, because the WIDTH is the fix. One type proves the catch
+        // names that type; it does not stop the catch being narrowed back to it, which is
+        // measured — `catch (InvalidOperationException)` left the whole suite green.
+        var store = new RecordingStore { FailsWith = failure };
+        var logger = new CapturingLogger();
+        var recorder = Recorder(store, out _, logger: logger);
 
         var act = async () => await recorder.RecordRejectionAsync(Rejection(authenticated: true));
 
         await act.Should().NotThrowAsync(
             "a failed record does not change a response that is already a refusal");
+
+        // And it is not swallowed silently. A wide catch with no log is the one shape that
+        // would be worse than the 500 it replaces: an operation refused, unrecorded, and
+        // invisible. Critical because nothing downstream will say it again — the store
+        // could not translate this failure, so no counter and no health signal fired for
+        // it there either.
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Critical)
+            .Which.Message.Should().Contain(AuditingTenantAssertionRecorder.RejectOperation);
+    }
+
+    public static TheoryData<Exception> UntranslatedFailures()
+    {
+        var failures = new TheoryData<Exception>();
+
+        // The measured one: a Lazy data source with no credential behind it.
+        failures.Add(new InvalidOperationException("no credential"));
+
+        // The physical-connection initializer refusing a role that can bypass RLS.
+        failures.Add(new InvalidOperationException("the role bypasses row level security"));
+
+        // And a shape nobody predicted, which is the point of catching by width.
+        failures.Add(new TimeoutException("the pool was exhausted"));
+
+        return failures;
     }
 
     [Fact]
@@ -214,6 +244,13 @@ public sealed class AuditingTenantAssertionRecorderTests
         metadata.TryGetProperty("assertedOrganizationId", out var asserted).Should().BeTrue();
         asserted.GetString().Should().Be(Asserted.ToString());
         metadata.TryGetProperty("assertedTenantId", out _).Should().BeFalse();
+
+        // The key set is CLOSED, not merely a superset. `metadata` is jsonb on an
+        // append-only table, so a key added here is permanent and a key that duplicates a
+        // column can disagree with it — an `event` key mirroring `operation` was removed
+        // for that reason, and nothing noticed when it came back.
+        metadata.EnumerateObject().Select(property => property.Name)
+            .Should().BeEquivalentTo(["dimension", "assertedOrganizationId", "authenticated"]);
     }
 
     [Fact]

@@ -447,9 +447,9 @@ namespace LearnStack.Application.Pipeline;
 
 public sealed class AuditLogBehavior<TRequest, TResponse>(
     IAuditCatalog catalog,
-    IAuditConfigService configService,
-    IAuditStateCapture stateCapture,
-    IAuditStore auditStore,
+    IAuditConfigService classifier,
+    IAuditStateCapture capture,
+    IAuditStore store,
     // The CONTEXT, not the accessor, and no IUnitOfWork. The context is registered scoped
     // and resolved from the accessor at the composition root, so this behaviour takes what
     // it reads; and the outermost-frame question is AuditFrame's, because at step 3 no
@@ -475,8 +475,13 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // zero-length descriptor list cannot tell them apart. A registered-and-silent
         // request — the eight test-only types among them — returns true with
         // WritesNoRow; an unregistered one returns false and is refused.
+        ArgumentNullException.ThrowIfNull(next);
+
         if (!catalog.TryGet(typeof(TRequest), out var registration))
+        {
+            LogUnclassified(logger, typeof(TRequest).FullName ?? typeof(TRequest).Name, null);
             return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
+        }
 
         if (registration.WritesNoRow) return await next();
 
@@ -523,7 +528,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             // The TENANT is a parameter, not something the classifier re-reads: the
             // overrides are per tenant, and step 3's accessor throws on the provisioning
             // case that has already been resolved into `owner` above.
-            var classification = await configService.ClassifyAsync(
+            var classification = await classifier.ClassifyAsync(
                 owner.Value.Tenant, descriptor, ct);
             if (classification == AuditClassification.Off) continue;
 
@@ -536,7 +541,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             // The id is minted app-side here so the in-transaction row and any standalone
             // replacement carry the same identity (ADR-0023 Amendment 9). Nothing is
             // written yet; no DbContext is touched.
-            stateCapture.DeclareIntent(new AuditIntent(
+            capture.DeclareIntent(new AuditIntent(
                 Id:             AuditEntryId.From(guidFactory.NewUuidV7()),
                 TenantId:       owner.Value.Tenant,
                 OrganizationId: owner.Value.Organization,
@@ -560,8 +565,15 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // because a static on the generic behaviour is one field PER (TRequest, TResponse)
         // pair and a nested dispatch of a DIFFERENT request type would read its own,
         // always false, and clear the outer request's buffer.
-        var outermost = !AuditFrame.IsInside;
-        using var frame = AuditFrame.Enter();
+        // Enter() RETURNS whether this frame is the outermost; it is not a disposable
+        // scope. The matching AuditFrame.Exit() is in the finally, beside the reconcile.
+        var outermost = AuditFrame.Enter();
+
+        // Noted on the way through and acted on once, in the finally. A refusal returns, an
+        // exception throws, and a cancelled COMMIT does neither in a way this behaviour's
+        // catch can see — so the exits are reconciled in one place from the STATE the unit
+        // of work recorded, which is a fact about the database rather than the control flow.
+        Error? refusal = null;
 
         TResponse response;
         Exception? handlerException = null;
@@ -569,6 +581,8 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         try
         {
             response = await next();
+
+            if (response.IsFailure) refusal = response.Error;
         }
         catch (Exception ex)
         {
@@ -600,10 +614,10 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // else is re-written, and the intent's class picks the posture.
         try
         {
-            foreach (var intent in stateCapture.Intents)
+            foreach (var intent in capture.Intents)
             {
                 if (intent.OperationClass == OperationClass.Must
-                    && stateCapture.State == AuditIntentState.Committed)
+                    && capture.State == AuditIntentState.Committed)
                     continue;
 
                 // The SAME composer TransactionBehavior's in-transaction write uses —
@@ -617,7 +631,7 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 // primary key (id, timestamp) is what makes the in-doubt pair legal rather
                 // than a 23505.
                 var draft = AuditDraftComposer.Compose(
-                    intent, stateCapture.Changes, Outcome(stateCapture.State, refusal),
+                    intent, capture.Changes, Outcome(capture.State, refusal),
                     clock.UtcNow, context.UserId, context.CorrelationId, refusal?.Key);
 
                 try
@@ -630,9 +644,9 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                     // dropped because the caller hung up is not the DATABASE failure the
                     // module's matrix accepts.
                     if (intent.OperationClass == OperationClass.Must)
-                        await auditStore.WriteStandaloneAsync(draft, CancellationToken.None);
+                        await store.WriteStandaloneAsync(draft, CancellationToken.None);
                     else
-                        await auditStore.WriteBestEffortAsync(draft, CancellationToken.None);
+                        await store.WriteBestEffortAsync(draft, CancellationToken.None);
                 }
                 catch (AuditWriteFailedException ex)
                 {
@@ -658,7 +672,8 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         }
         finally
         {
-            stateCapture.Clear();             // once, and only on the outermost behaviour
+            AuditFrame.Exit();
+            capture.Clear();             // once, and only on the outermost behaviour
         }
 
         if (handlerException is not null)
@@ -667,16 +682,24 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         return response;
     }
 
-    // Outcome() is the one private helper left, and it resolves:
+    // WHAT THIS LISTING ELIDES, so a reader does not mistake it for the file. The shipped
+    // behaviour splits this method into Handle / DeclareAsync / ReconcileAsync and folds
+    // the declaration and reconciliation loops into the latter two; they are inlined here
+    // because the ORDER is the thing worth seeing and a three-method trace hides it. The
+    // real catch is filtered `when (failure is not OperationCanceledException)` and lets a
+    // cancellation travel untouched — the reconcile still runs, because it is in the
+    // finally, which is the point the inlined version above makes with a comment instead.
+    //
+    // Outcome() is the one private helper this listing keeps, and it resolves:
     //   Denied        — the Result carries `forbidden`
     //   Failed        — any other failure Result, or a handler exception, or
-    //                   stateCapture.State == RolledBack
-    //   Indeterminate — stateCapture.State == Indeterminate
+    //                   capture.State == RolledBack
+    //   Indeterminate — capture.State == Indeterminate
     //   Success       — otherwise
     // Everything else is AuditDraftComposer's: tenant, organization, module, operation,
     // type, class and entity type come from the INTENT — never re-read from the accessor,
     // which throws on the provisioning case and knows nothing of the sentinel one — and
-    // the snapshots come from stateCapture.Changes, filtered to the intent's declared
+    // the snapshots come from capture.Changes, filtered to the intent's declared
     // aggregate by type name. Actor and correlation are passed in from ITenantContext's
     // UserId and CorrelationId, which are ordinary nullable members and readable on an
     // unresolved context. A SHOULD/MAY intent is declared at step 3 exactly as a MUST one

@@ -438,10 +438,15 @@ public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture 
         // the in-process counter exists to prevent. Measured before the guard: with
         // Window = 00:00:00 the counter resets on every occurrence, so 1000 anonymous
         // mismatches produced zero crossings and zero rows, with no error anywhere.
+        // CreateClient(), not GetRequiredService. Measured: resolving the detector
+        // directly passes with `.ValidateOnStart()` DELETED, because the detector's own
+        // constructor reads IOptions.Value and trips the same validator lazily — so the
+        // earlier version of this case proved validation-on-first-use and called itself
+        // "at boot". Starting the host is the only thing that proves the boot refusal.
         using var host = new MisconfiguredBurstFixture(
             "Tenancy:AssertionBurst:Window", "00:00:00");
 
-        var act = () => host.Services.GetRequiredService<TenantAssertionBurstDetector>();
+        var act = () => host.CreateClient();
 
         act.Should().Throw<OptionsValidationException>();
     }
@@ -451,7 +456,7 @@ public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture 
     {
         using var host = new MisconfiguredBurstFixture("Tenancy:AssertionBurst:Threshold", "0");
 
-        var act = () => host.Services.GetRequiredService<TenantAssertionBurstDetector>();
+        var act = () => host.CreateClient();
 
         act.Should().Throw<OptionsValidationException>();
     }
@@ -463,14 +468,7 @@ public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture 
 /// misconfigured variants take their override through
 /// <see cref="MisconfiguredBurstFixture"/>, which a case builds directly.
 /// </remarks>
-public sealed class RegisteredRecorderFixture : WebApplicationFactory<Program>
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.UseSetting("Deployment:Mode", "Development");
-    }
-}
+public sealed class RegisteredRecorderFixture : WebApplicationFactory<Program>;
 
 /// <summary>The real host with one burst setting bent out of shape.</summary>
 public sealed class MisconfiguredBurstFixture(string key, string value)
@@ -480,7 +478,9 @@ public sealed class MisconfiguredBurstFixture(string key, string value)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.UseSetting("Deployment:Mode", "Development");
+        // Only the setting under test. An explicit Deployment:Mode was here too and was
+        // measured dead — WebApplicationFactory defaults to the Development environment,
+        // which loads appsettings.Development.json, which carries it.
         builder.UseSetting(key, value);
     }
 }
