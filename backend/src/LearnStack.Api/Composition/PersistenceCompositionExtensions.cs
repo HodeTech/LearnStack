@@ -224,6 +224,11 @@ public static class PersistenceCompositionExtensions
         // The killswitch overlay's read path. SCOPED, because it reads through the
         // module DbContext that is scoped — the cache entry it fronts is process-wide, so
         // the scoped instance costs one resolution and shares the one entry.
+        // The only module-facing read. SCOPED, because it composes over the scoped module
+        // DbContext and reads the scoped ITenantContext — and because the tenant half is
+        // per tenant, which is per request.
+        services.TryAddScoped<IFeatureFlags, FeatureFlags>();
+
         services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
 
         services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
