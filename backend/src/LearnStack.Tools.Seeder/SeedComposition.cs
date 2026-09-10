@@ -14,6 +14,7 @@ using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Persistence;
@@ -152,6 +153,19 @@ public static class SeedComposition
         // the reason the API root's is one. The seeder maps no readiness surface and needs
         // none — what it needs is the graph to build, and a missing singleton here would
         // surface as a container error on the first seeded command rather than at startup.
+        // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
+        // not Development only: ADR-0035 names NullEntitlementProvider the working default
+        // for this gate, with Phase 02c as the owning phase and "a tenant must be billed
+        // or plan-gated" as the trigger. Until that fires there is no billing to enforce
+        // and no Hub to ask, so a mode-conditional registration would make four of the
+        // five modes unbootable for a capability none of them uses (ADR-0045 § 4).
+        //
+        // Swapping this one line is the whole of the Phase 02a completion criterion: it
+        // changes the answer without touching module code, which is only true because
+        // IFeatureFlags composes over the PORT rather than reading
+        // platform_entitlement_cache itself.
+        services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
+
         services.TryAddSingleton<IAuditHealth, AuditHealth>();
 
         services.AddScoped<IAuditStore, PostgresAuditStore>();

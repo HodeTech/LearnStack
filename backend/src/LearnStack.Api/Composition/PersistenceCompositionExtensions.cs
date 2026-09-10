@@ -10,6 +10,7 @@ using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -208,6 +209,19 @@ public static class PersistenceCompositionExtensions
         // because the rule spans requests: "unhealthy while the most recent MUST-class
         // standalone write has failed and no later one has succeeded" is not a property of
         // any one request, and a scoped instance would report healthy on the next.
+        // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
+        // not Development only: ADR-0035 names NullEntitlementProvider the working default
+        // for this gate, with Phase 02c as the owning phase and "a tenant must be billed
+        // or plan-gated" as the trigger. Until that fires there is no billing to enforce
+        // and no Hub to ask, so a mode-conditional registration would make four of the
+        // five modes unbootable for a capability none of them uses (ADR-0045 § 4).
+        //
+        // Swapping this one line is the whole of the Phase 02a completion criterion: it
+        // changes the answer without touching module code, which is only true because
+        // IFeatureFlags composes over the PORT rather than reading
+        // platform_entitlement_cache itself.
+        services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
+
         services.TryAddSingleton<IAuditHealth, AuditHealth>();
 
         // Registered, not mapped. /healthz stays a liveness probe — a process that cannot

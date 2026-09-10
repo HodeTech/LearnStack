@@ -5,6 +5,7 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
@@ -196,6 +197,32 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
 
         first.ServiceProvider.GetRequiredService<ICacheService>()
             .Should().BeSameAs(second.ServiceProvider.GetRequiredService<ICacheService>());
+    }
+
+    [Fact]
+    public void The_Entitlement_Provider_Resolves_To_The_Working_Default()
+    {
+        // Registered in EVERY deployment mode, not Development only. And it is the one
+        // line the Phase 02a completion criterion turns on: swapping it must change the
+        // answer without touching module code, which is only true while IFeatureFlags
+        // composes over this port rather than reading platform_entitlement_cache itself.
+        using var scope = fixture.Services.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IEntitlementProvider>()
+            .Should().BeOfType<NullEntitlementProvider>();
+    }
+
+    [Fact]
+    public void The_Entitlement_Provider_Is_A_Singleton_Across_Request_Scopes()
+    {
+        // It holds two frozen dictionaries built from the registries and no per-request
+        // state. A scoped registration would rebuild them per request for nothing, and a
+        // Phase 02c provider holding an L1 cache would rebuild that too.
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<IEntitlementProvider>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<IEntitlementProvider>());
     }
 
     [Fact]
