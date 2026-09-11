@@ -190,10 +190,10 @@ public abstract record JobParams
 ```
 
 Workers restore tenant + org context (`accessor.Current = ...`) before reading or
-writing tenant-owned data. `LearnStackJob<TParams>`, the base class
-[Phase 02b](../roadmap/phase-02b-events-auth.md) ships with the tenant-aware
-`JobActivator`, is where that write happens, and
-`LearnStackJob_RunAsync_SetsTenantBeforeExecute` holds it there (Nexora analogue:
+writing tenant-owned data. `LearnStackJob<TParams>` is the base class where that write
+happens; [Phase 02b](../roadmap/phase-02b-events-auth.md) ships it alongside the
+tenant-aware `JobActivator`, and `LearnStackJob_RunAsync_SetsTenantBeforeExecute` holds
+it there (Nexora analogue:
 `Nexora/docs/architecture/multi-tenancy.md` and
 `Nexora/docs/decisions/0012-tenant-management.md`).
 

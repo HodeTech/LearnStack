@@ -127,7 +127,7 @@ make seed      # stack up + migrate, then write the two demo tenants
 - **Ports:** the three foundation ports — `IEventBus`, `ICacheService`,
   `ISecretProvider` — each with a working default, plus `IHostToTenantResolver`,
   `IEntitlementProvider`, `IFeatureFlags` and `IAuditStore`, all in
-  `LearnStack.SharedKernel`. `IEntitlementProvider`'s is `NullEntitlementProvider` until
+  `LearnStack.SharedKernel`. `IEntitlementProvider`'s default is `NullEntitlementProvider` until
   [Phase 02c](docs/roadmap/phase-02c-hub-foundation.md)'s Hub-backed provider, whose
   trigger is a tenant that must be billed or plan-gated. Vendor adapters — Dapr
   ([ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md)), Kafka, Valkey

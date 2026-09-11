@@ -103,8 +103,11 @@ The catalogue holds each edge as a rule, one per layer — the `ModuleDomain_*`,
 ### Build-time-only exceptions
 
 `SharedKernel` carries two sanctioned external NuGet references that the rules above
-would otherwise forbid, and every `Modules.<X>.Domain` project inherits them through its
-reference to it:
+would otherwise forbid, and every `Modules.<X>.Domain` project has both. MediatR flows in
+through its reference to `SharedKernel`; EF Core is added directly, with Vogen, by
+`backend/src/Modules/Directory.Build.props` to every project whose name ends in
+`.Domain` — a source generator runs only in a project that references it itself, and the
+converters Vogen emits there need EF Core beside them:
 
 | Reference | Why | Used at | Sanctioning ADR |
 |-----------|-----|---------|-----------------|
