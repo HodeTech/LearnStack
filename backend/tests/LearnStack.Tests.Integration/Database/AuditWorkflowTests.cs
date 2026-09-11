@@ -4,6 +4,7 @@ using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
@@ -405,6 +406,39 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             .Should().Contain("Third", "the first flush recorded every band it wrote");
     }
 
+    [Theory]
+    [InlineData(100)]
+    [InlineData(101)]
+    [InlineData(253)]
+    public async Task A_host_mapping_of_any_valid_length_commits_with_its_whole_key_on_the_row(int length)
+    {
+        // The fourth review's measurement, kept: audit_log.entity_id was varchar(100), and a
+        // host mapping's key is its host, which platform_host_to_tenant admits to 253
+        // characters. From 101 up the MUST row failed with 22001, the mapping rolled back, the
+        // standalone record of the attempt failed the same way, and the audit health check
+        // went unhealthy. 100 is the control that passed before; the key goes on the row
+        // whole, because a truncated key names a different subject.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await SeedAsync(dataSource);
+
+        var host = HostOfLength(length);
+
+        await using (var provider = Compose(dataSource))
+        {
+            (await SendAsync(provider, new MapHostToTenantCommand(host))).IsSuccess.Should().BeTrue();
+
+            provider.GetRequiredService<IAuditHealth>().IsHealthy.Should().BeTrue(
+                "no audit write failed");
+        }
+
+        (await HostMappingCountAsync(host)).Should().Be(1, "the mapping committed");
+
+        var row = (await RowsAsync()).Should().ContainSingle(row =>
+            row.Operation == "tenancy.hostmapping.write" && row.EntityId == host).Subject;
+
+        row.Outcome.Should().Be("success");
+    }
+
     [Fact]
     public async Task A_refused_publication_is_recorded_against_its_subject_with_actor_and_correlation()
     {
@@ -536,6 +570,49 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         }
 
         return rows;
+    }
+
+    /// <summary>A valid DNS host of exactly <paramref name="length"/> characters, no label over 63.</summary>
+    private static string HostOfLength(int length)
+    {
+        const string Suffix = ".example";
+        var remaining = length - Suffix.Length;
+        var labels = new List<string>();
+
+        while (remaining > 0)
+        {
+            var take = Math.Min(63, remaining);
+
+            // Never leave one character for a label after the dot that follows this one.
+            if (remaining - take == 1)
+            {
+                take--;
+            }
+
+            labels.Add(new string('h', take));
+            remaining -= take;
+
+            if (remaining > 0)
+            {
+                remaining--;
+            }
+        }
+
+        var host = string.Join('.', labels) + Suffix;
+        host.Length.Should().Be(length, "the premise: the host is exactly the length the case names");
+
+        return host;
+    }
+
+    /// <summary>How many mappings the database holds for a host, read as the platform role.</summary>
+    private async Task<long> HostMappingCountAsync(string host)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host", (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("host", host);
+
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     /// <summary>The bands the database holds under a taxonomy key, read as the owner under the tenant.</summary>

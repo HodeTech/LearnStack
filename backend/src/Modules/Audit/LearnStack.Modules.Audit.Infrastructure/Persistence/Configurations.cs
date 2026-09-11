@@ -110,7 +110,13 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
             .IsRequired();
 
         builder.Property(x => x.EntityType).HasMaxLength(200);
-        builder.Property(x => x.EntityId).HasMaxLength(100);
+        // Unbounded: an audited aggregate's key is whatever its own table admits, and a
+        // bound here is a second, narrower one. At 100 characters a valid 101-character
+        // host mapping — PlatformHostMapping's key admits 253 — failed its MUST row with
+        // 22001, rolled the mapping back, and failed the standalone record of the attempt
+        // for the same reason (measured by the fourth review of Packet 9). Truncating would
+        // change the subject's identity, so the column holds the key whole.
+        builder.Property(x => x.EntityId).HasColumnType("text");
         builder.Property(x => x.ErrorKey).HasMaxLength(150);
         builder.Property(x => x.Reason).HasMaxLength(500);
 
