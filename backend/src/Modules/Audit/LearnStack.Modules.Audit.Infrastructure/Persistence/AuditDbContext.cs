@@ -49,7 +49,8 @@ public sealed class AuditDbContext(
     /// Exposed for the Phase 03 read API. Nothing writes through it: <c>learnstack_app</c>
     /// holds <c>SELECT, INSERT</c> and the insert is the store's SQL, so a
     /// <c>SaveChanges</c> that tried to add one would be a bug this <c>DbSet</c> cannot
-    /// prevent and <c>AuditEntry_Is_AppendOnly</c> is what catches.
+    /// prevent. <c>Modules_Do_Not_Write_AuditLog_Directly</c> is what catches it: the types
+    /// that name <c>AuditEntry</c> are a closed list, and the read API joins it by an edit.
     /// </remarks>
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 

@@ -20,12 +20,7 @@ public sealed class PlatformAdminScopeConventionTests
     /// cannot afford to. An assembly that fails to load is a missing project reference,
     /// and the right outcome is a red build naming it rather than a smaller scan.
     /// </remarks>
-    private static IEnumerable<Assembly> ProductionAssemblies() =>
-        Directory.EnumerateFiles(
-                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
-            .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => !string.IsNullOrEmpty(name))
-            .Select(name => Assembly.Load(name!));
+    private static IEnumerable<Assembly> ProductionAssemblies() => Architecture.ProductionAssemblies.All();
 
     private const string ScopeFile = "LearnStack.Infrastructure/MultiTenancy/PlatformAdminScope.cs";
 

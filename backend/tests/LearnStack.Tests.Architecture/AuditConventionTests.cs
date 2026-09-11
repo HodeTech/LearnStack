@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using NetArchTest.Rules;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -266,6 +267,111 @@ public sealed partial class AuditConventionTests
             .Order(StringComparer.Ordinal)];
 
     private static readonly string[] SetBasedWriteApis = ["ExecuteUpdate", "ExecuteDelete", "ExecuteSql"];
+
+    [Fact]
+    public void Modules_Do_Not_Write_AuditLog_Directly()
+    {
+        // IAuditStore is the one path an audit row is written by, and PostgresAuditStore the
+        // one implementation (ADR-0044 § 11). Three legs, because a row can be written three
+        // ways: through the entity, through SQL, and — for a module — by naming the table at
+        // all, which no module but Audit has a reason to.
+        //
+        // The entity. AuditEntry has no public constructor, so the change tracker only ever
+        // holds one EF Core materialized — and a tracked entity can still be removed or
+        // re-added. Which types may name it is a closed list; a Phase 03 read API joins it by
+        // an edit here, which is the point.
+        ProductionAssemblies.All()
+            .SelectMany(assembly => Types.InAssembly(assembly)
+                .That().HaveDependencyOn(typeof(AuditEntry).FullName!)
+                .GetTypes())
+            .Where(type => !MayNameTheAuditEntry(type))
+            .Select(type => type.FullName)
+            .Should().BeEmpty(
+                "only AuditEntry itself, its EF configuration and AuditDbContext name the "
+                + "entity — an audit row is written through IAuditStore (ADR-0044 § 11)");
+
+        // SQL. Exactly one statement inserts into audit_log, and it is the store's — the
+        // premise and the rule in one assertion: a scan that read nothing finds nothing.
+        var inserting = SourceFiles()
+            .Where(file => AuditLogInsert().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file).Replace('\\', '/'))
+            .ToList();
+
+        inserting.Should().Equal(
+            ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"],
+            "PostgresAuditStore's four writes are the only SQL that adds an audit row");
+
+        // The table's name, in every module but Audit.
+        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
+        SourceFiles()
+            .Where(file => file.StartsWith(modules, StringComparison.Ordinal)
+                && !file.StartsWith(Path.Combine(modules, "Audit") + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            .Where(file => AuditLogTable().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(modules, file))
+            .Should().BeEmpty("no module but Audit names the audit_log table");
+    }
+
+    [Fact]
+    public void The_AuditLog_Write_Scan_Can_Actually_Fail()
+    {
+        // Nothing violates the rule above, so it passes whether its patterns work or not.
+        // Each leg is fed the shapes it must catch and the ones it must not.
+        AuditLogInsert().IsMatch("INSERT INTO audit_log (id) VALUES (@id)").Should().BeTrue();
+        AuditLogInsert().IsMatch("insert into \"public\".\"audit_log\" (id)").Should().BeTrue();
+        AuditLogInsert().IsMatch("MERGE INTO audit_log AS target").Should().BeTrue();
+        AuditLogInsert().IsMatch("COPY audit_log (id) FROM STDIN").Should().BeTrue();
+        AuditLogInsert().IsMatch("INSERT INTO audit_log_archive (id)").Should().BeFalse();
+        AuditLogInsert().IsMatch("SELECT count(*) FROM audit_log").Should().BeFalse();
+
+        AuditLogTable().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeTrue();
+        AuditLogTable().IsMatch("\"ck_audit_log_outcome\"").Should().BeFalse();
+        AuditLogTable().IsMatch("audit_logger").Should().BeFalse();
+
+        // And the entity leg reports a type that names AuditEntry and is not on the list.
+        Types.InAssembly(typeof(AuditConventionTests).Assembly)
+            .That().HaveName(nameof(AuditEntryWriterProbe))
+            .And().HaveDependencyOn(typeof(AuditEntry).FullName!)
+            .GetTypes()
+            .Should().ContainSingle()
+            .Which.Should().Match<Type>(type => !MayNameTheAuditEntry(type));
+    }
+
+    /// <summary>The types allowed to name <see cref="AuditEntry"/>.</summary>
+    /// <remarks>
+    /// Compiler-generated nested types — a lambda's closure, an async state machine — are
+    /// judged by the type that declares them.
+    /// </remarks>
+    private static bool MayNameTheAuditEntry(Type type)
+    {
+        var declaring = type;
+        while (declaring.DeclaringType is { } outer)
+        {
+            declaring = outer;
+        }
+
+        return declaring == typeof(AuditEntry)
+            || declaring == typeof(AuditDbContext)
+            || declaring.FullName == "LearnStack.Modules.Audit.Infrastructure.Persistence.AuditEntryConfiguration";
+    }
+
+    /// <summary>A statement that adds rows to <c>audit_log</c> itself.</summary>
+    [GeneratedRegex(
+        @"\b(?:INSERT\s+INTO|MERGE\s+INTO|COPY)\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?audit_log""?(?![A-Za-z0-9_])",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex AuditLogInsert();
+
+    /// <summary>The table's name as an identifier, not as part of a longer one.</summary>
+    [GeneratedRegex(@"(?<![A-Za-z0-9_])audit_log(?![A-Za-z0-9_])")]
+    private static partial Regex AuditLogTable();
+
+    /// <summary>
+    /// Writes an audit row through the entity, for <c>The_AuditLog_Write_Scan_Can_Actually_Fail</c>.
+    /// Never constructed.
+    /// </summary>
+    private sealed class AuditEntryWriterProbe(AuditDbContext context)
+    {
+        public void Write(AuditEntry entry) => context.AuditEntries.Add(entry);
+    }
 
     [Fact]
     public void AuditEntry_Is_AppendOnly()

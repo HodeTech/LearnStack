@@ -189,14 +189,7 @@ public sealed class CrossCuttingFoundationTests
         // root and must not be imported from module assemblies.
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null)
-            {
-                // Phase 02a packets do not necessarily fill every module
-                // assembly with code yet; an empty assembly is a vacuous
-                // pass.
-                continue;
-            }
+            var assembly = LoadAssembly(name);
 
             var result = Types.InAssembly(assembly)
                 .Should()
@@ -218,8 +211,7 @@ public sealed class CrossCuttingFoundationTests
         // SDK. Modules call IErrorTrackingProvider instead.
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             var result = Types.InAssembly(assembly)
                 .Should()
@@ -258,8 +250,7 @@ public sealed class CrossCuttingFoundationTests
             .Append("LearnStack.Application.Contracts")
             .Append("LearnStack.Api")
             .Append("LearnStack.Tools.Seeder")
-            .Select(TryLoadAssembly)
-            .Where(assembly => assembly is not null)
+            .Select(LoadAssembly)
             .ToArray();
 
         confined.Should().NotBeEmpty("a sweep with nothing to sweep passes vacuously");
@@ -299,8 +290,7 @@ public sealed class CrossCuttingFoundationTests
             .Append("LearnStack.Application")
             .Append("LearnStack.Application.Contracts")
             .Append("LearnStack.Api")
-            .Select(TryLoadAssembly)
-            .Where(a => a is not null)
+            .Select(LoadAssembly)
             .ToArray();
 
         string[] forbiddenSdkNamespaces =
@@ -420,8 +410,7 @@ public sealed class CrossCuttingFoundationTests
         // until now (Phase 02a Packet 3 review finding).
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             var result = Types.InAssembly(assembly)
                 .Should()
@@ -434,6 +423,105 @@ public sealed class CrossCuttingFoundationTests
                 + "(Standards 20 § Composition Root).");
         }
     }
+
+    [Fact]
+    public void Modules_Do_Not_Inject_Valkey_Directly()
+    {
+        // All cache access goes through ICacheService, because CacheKey is the isolation
+        // boundary of a cache: there is no query filter and no row security in front of a
+        // dictionary, so a module holding a Redis connection, an IDistributedCache or an
+        // IMemoryCache keys its own entries and can collide one tenant's with another's
+        // (Standards 20 § ICacheService). The whole Microsoft.Extensions.Caching namespace
+        // is banned, not only the distributed half — an in-process cache has the same hole.
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var result = Types.InAssembly(LoadAssembly(name))
+                .Should()
+                .NotHaveDependencyOnAny(CacheClientNamespaces)
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{name} reaches a cache client directly: "
+                + string.Join(", ", result.FailingTypeNames ?? [])
+                + ". Use ICacheService with a CacheKey (Standards 20 § ICacheService).");
+        }
+    }
+
+    [Fact]
+    public void LearnStack_Modules_DoNotReference_Hub()
+    {
+        // ADR-0034's second invariant: every LearnStack↔Hub crossing goes through a named
+        // adapter — IEntitlementProvider, IUsageReporter, IHubTenantSync — and no module holds
+        // a Hub client or knows where the Hub is. No Hub client exists before Phase 02c, which
+        // is why the rule has two legs: the namespaces the adapter will live in, and the
+        // names a module would have to write to reach it by any other route.
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var result = Types.InAssembly(LoadAssembly(name))
+                .Should()
+                .NotHaveDependencyOnAny(HubNamespaces)
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{name} references a Hub namespace: "
+                + string.Join(", ", result.FailingTypeNames ?? [])
+                + " (ADR-0034 invariant 2).");
+        }
+
+        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
+        var sources = Directory.EnumerateFiles(modules, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        sources.Should().NotBeEmpty("a scan over no module source passes vacuously");
+
+        sources.Where(file => NamesTheHub(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(modules, file))
+            .Should().BeEmpty(
+                "no module names a Hub client, its options or its configuration section "
+                + "(ADR-0034 invariant 2)");
+    }
+
+    [Fact]
+    public void The_Direct_Client_Bans_Can_Actually_Fail()
+    {
+        // Nothing in a module holds a cache client or a Hub type, so both rules above pass
+        // whether their mechanism works or not. The probes below plant one of each in this
+        // assembly, and the same checks must report them.
+        var probes = typeof(Probes.CacheClientHolder).Assembly;
+
+        Types.InAssembly(probes).That().HaveName(nameof(Probes.CacheClientHolder))
+            .Should().NotHaveDependencyOnAny(CacheClientNamespaces).GetResult()
+            .IsSuccessful.Should().BeFalse("an IDistributedCache field is a direct cache client");
+
+        Types.InAssembly(probes).That().HaveName(nameof(Probes.HubClientHolder))
+            .Should().NotHaveDependencyOnAny(HubNamespaces).GetResult()
+            .IsSuccessful.Should().BeFalse("a type from a Hub namespace is a Hub reference");
+
+        NamesTheHub("public sealed class Sync(IHubClient client);").Should().BeTrue();
+        NamesTheHub("services.Configure<HubOptions>(configuration.GetSection(\"Hub\"));").Should().BeTrue();
+        NamesTheHub("var url = configuration[\"Hub:BaseUrl\"];").Should().BeTrue();
+        NamesTheHub("CacheKey.ForTenant(tenant, \"hub\", \"entitlement\");").Should().BeFalse(
+            "the entitlement cache family is named hub and is not a Hub reference");
+    }
+
+    /// <summary>The cache clients a module reaches only through <c>ICacheService</c>.</summary>
+    private static readonly string[] CacheClientNamespaces = ["StackExchange.Redis", "Microsoft.Extensions.Caching"];
+
+    /// <summary>
+    /// Where a Hub client lives: the adapter project Phase 02c ships, and the Hub's own
+    /// assemblies.
+    /// </summary>
+    private static readonly string[] HubNamespaces = ["LearnStack.Infrastructure.Hub", "LearnStack.Hub"];
+
+    /// <summary>
+    /// Whether code names a Hub client, its options type or its configuration section.
+    /// </summary>
+    private static bool NamesTheHub(string code) =>
+        code.Contains("HubClient", StringComparison.Ordinal)
+        || code.Contains("HubOptions", StringComparison.Ordinal)
+        || code.Contains("\"Hub:", StringComparison.Ordinal)
+        || code.Contains("GetSection(\"Hub\")", StringComparison.Ordinal);
 
     [Fact]
     public void Integration_Event_TopicNames_FollowConvention()
@@ -466,8 +554,7 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             var events = assembly.GetTypes()
                 .Where(t => !t.IsAbstract
@@ -540,8 +627,7 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             // Compiler- and generator-emitted types are excluded, and the reason
             // is specific rather than hygienic: Vogen emits a nested TypeConverter
@@ -718,15 +804,24 @@ public sealed class CrossCuttingFoundationTests
         return builder.Build();
     }
 
-    private static Assembly? TryLoadAssembly(string assemblyName)
+    /// <summary>
+    /// Loads an assembly by name, loudly. These rules used to skip an assembly that would
+    /// not load — and a module this project cannot load is a module every ban here stops
+    /// covering while reporting green. Every module ships all four assemblies, the empty
+    /// ones included, so a load failure is a wiring fault to fix, never a case to skip.
+    /// </summary>
+    private static Assembly LoadAssembly(string assemblyName)
     {
         try
         {
             return Assembly.Load(assemblyName);
         }
-        catch (FileNotFoundException)
+        catch (FileNotFoundException exception)
         {
-            return null;
+            throw new InvalidOperationException(
+                $"Could not load assembly {assemblyName}. Confirm the project is referenced by "
+                + "LearnStack.Tests.Architecture.csproj.",
+                exception);
         }
     }
 

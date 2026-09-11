@@ -44,8 +44,8 @@ namespace LearnStack.SharedKernel.Persistence;
 /// <b>One command at a time.</b> One connection means the ambient transaction
 /// cannot be used concurrently; a handler that fans out with
 /// <c>Task.WhenAll</c> over two module contexts corrupts the protocol.
-/// <c>Modules_Do_Not_Parallelize_Over_The_Ambient_Connection</c> is owed for
-/// this by Phase 03, with the first module code that could break it.
+/// <c>Modules_Do_Not_Parallelize_Over_The_Ambient_Connection</c> holds module code
+/// to it, and more strictly than this sentence: module code does not fan out at all.
 /// </para>
 /// </remarks>
 public interface IUnitOfWork : IAsyncDisposable

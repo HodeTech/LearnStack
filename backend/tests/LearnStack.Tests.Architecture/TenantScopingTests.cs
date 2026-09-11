@@ -99,7 +99,7 @@ public sealed class TenantScopingTests
                     $"{table}'s filter must compare the row's own {key} — a filter that reads "
                     + "only context members narrows nothing and would return every row");
 
-                AssertRowSecurity(migrations, table);
+                AssertRowSecurity(migrations, table, attribute.SelfKeyed ? "id" : "tenant_id");
             }
         }
     }
@@ -345,7 +345,7 @@ public sealed class TenantScopingTests
         return string.Join("\n", files.Select(File.ReadAllText));
     }
 
-    private static void AssertRowSecurity(string migrations, string table)
+    private static void AssertRowSecurity(string migrations, string table, string keyColumn)
     {
         migrations.Should().MatchRegex($@"ALTER TABLE\s+{Regex.Escape(table)}\s+ENABLE ROW LEVEL SECURITY",
             $"{table} must ENABLE row level security");
@@ -356,6 +356,47 @@ public sealed class TenantScopingTests
         policy.Should().Contain("USING", $"{table}'s policy needs a USING clause");
         policy.Should().Contain("WITH CHECK",
             $"{table}'s policy needs an explicit WITH CHECK — USING alone leaves writes unconstrained");
+
+        PolicyReadsTheTenant(policy, keyColumn).Should().BeTrue(
+            $"{table}'s policy compares {keyColumn} to app.tenant_id in both clauses — a USING "
+            + "that reads the tenant and a WITH CHECK that does not admits a write into any "
+            + "tenant, and a policy that reads neither isolates nothing");
+    }
+
+    [Fact]
+    public void The_Tenant_Term_Check_Can_Actually_Fail()
+    {
+        // Every real policy carries the term in both clauses, so the check above passes
+        // whether it reads the clauses or not. Each probe breaks one of them.
+        const string Term = "tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid";
+
+        PolicyReadsTheTenant($"CREATE POLICY p ON t USING ({Term}) WITH CHECK ({Term});", "tenant_id")
+            .Should().BeTrue();
+        PolicyReadsTheTenant($"CREATE POLICY p ON t USING ({Term}) WITH CHECK (true);", "tenant_id")
+            .Should().BeFalse("a WITH CHECK that ignores the tenant admits a write into any tenant");
+        PolicyReadsTheTenant($"CREATE POLICY p ON t USING (organization_id IS NULL) WITH CHECK ({Term});", "tenant_id")
+            .Should().BeFalse("a USING that ignores the tenant reads every tenant's rows");
+        PolicyReadsTheTenant($"CREATE POLICY p ON t USING ({Term}) WITH CHECK ({Term});", "id")
+            .Should().BeFalse("the self-keyed table compares its own id, not a tenant_id it lacks");
+    }
+
+    /// <summary>
+    /// Whether both clauses of a policy compare the key column to the announced tenant.
+    /// </summary>
+    private static bool PolicyReadsTheTenant(string policy, string keyColumn)
+    {
+        var usingAt = policy.IndexOf("USING", StringComparison.Ordinal);
+        var checkAt = policy.IndexOf("WITH CHECK", StringComparison.Ordinal);
+
+        if (usingAt < 0 || checkAt < usingAt)
+        {
+            return false;
+        }
+
+        var term = new Regex(
+            $@"(?<![A-Za-z0-9_]){Regex.Escape(keyColumn)}\s*=\s*NULLIF\(\s*current_setting\(\s*'app\.tenant_id'\s*,\s*true\s*\)\s*,\s*''\s*\)::uuid");
+
+        return term.IsMatch(policy[usingAt..checkAt]) && term.IsMatch(policy[checkAt..]);
     }
 
     /// <summary>

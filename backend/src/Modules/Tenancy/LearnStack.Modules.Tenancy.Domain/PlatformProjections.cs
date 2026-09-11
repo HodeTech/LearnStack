@@ -28,12 +28,11 @@ namespace LearnStack.Modules.Tenancy.Domain;
 /// </para>
 /// <para>
 /// Written only through <c>IEntitlementProvider.RefreshAsync</c>, and read only
-/// through <c>IEntitlementProvider</c>. The read half is
-/// <c>Modules_Do_Not_Read_Entitlement_Cache_Directly</c>, catalogued and owed by
-/// <see href="../../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 10</see>
-/// — it is not in force yet, and the write half has no rule at all until
-/// <see href="../../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase 02c</see>
-/// ships <c>RefreshAsync</c> for it to guard.
+/// through <c>IEntitlementProvider</c>.
+/// <c>Modules_Do_Not_Read_Entitlement_Cache_Directly</c> holds both halves: the types that
+/// name this entity are a closed list, and no SQL reads or writes the table outside the
+/// provider's files — none today; the Hub-backed provider adds its own in
+/// <see href="../../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase 02c</see>.
 /// </para>
 /// </remarks>
 [TenantOwned]

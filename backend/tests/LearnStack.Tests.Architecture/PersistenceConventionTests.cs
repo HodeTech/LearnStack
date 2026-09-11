@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using FluentAssertions;
 using LearnStack.Api.Composition;
@@ -28,7 +29,7 @@ namespace LearnStack.Tests.Architecture;
 /// catch is not a forbidden call site — it is EF metadata that looks right at the
 /// call site and is wrong in the model, which is exactly what a scan cannot see.
 /// </remarks>
-public sealed class PersistenceConventionTests
+public sealed partial class PersistenceConventionTests
 {
     [Fact]
     public void Aggregates_With_Optimistic_Concurrency_Map_RowVersion()
@@ -272,6 +273,57 @@ public sealed class PersistenceConventionTests
             .Should().Contain(typeof(IUnitOfWork))
             .And.NotContain(parameter => typeof(DbContext).IsAssignableFrom(parameter));
     }
+
+    [Fact]
+    public void Modules_Do_Not_Parallelize_Over_The_Ambient_Connection()
+    {
+        // ADR-0040: one connection per scope, and every module DbContext enlisted on it — so
+        // one command at a time. Two operations handed to Task.WhenAll run on that one
+        // connection concurrently and corrupt the protocol, and a DbContext refuses a second
+        // operation while one is in flight. No module needs to fan out today, so the rule is
+        // stricter than its ADR sentence: which operations are DbContext-bound cannot be seen
+        // from source, and the honest rule is that module code does not fan out at all. A
+        // fan-out that touches no connection is added to ParallelSites with its reason.
+        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
+        var files = Directory.EnumerateFiles(modules, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        files.Should().Contain(file => file.EndsWith("CommandHandler.cs", StringComparison.Ordinal),
+            "the premise: the scan reads the module handlers that open the unit of work's work");
+
+        files.Where(file => FansOut(StripComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(modules, file).Replace('\\', '/'))
+            .Where(file => !ParallelSites.Contains(file))
+            .Should().BeEmpty(
+                "module code runs one operation at a time on the ambient connection "
+                + "(ADR-0040 § Nesting)");
+    }
+
+    [Fact]
+    public void The_Parallelism_Scan_Can_Actually_Fail()
+    {
+        // No module fans out, so the rule above passes whether its pattern works or not.
+        FansOut("await Task.WhenAll(first, second);").Should().BeTrue();
+        FansOut("await WhenAny(tasks);").Should().BeTrue("a `using static` import reaches it unqualified");
+        FansOut("await foreach (var task in Task.WhenEach(tasks)) { }").Should().BeTrue();
+        FansOut("await Parallel.ForEachAsync(items, work);").Should().BeTrue();
+        FansOut("Parallel . Invoke(one, two);").Should().BeTrue();
+        FansOut("var whenAllowed = policy.WhenAllowed;").Should().BeFalse();
+        FansOut("await context.SaveChangesAsync(ct);").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Module files allowed to fan out, by path under <c>backend/src/Modules</c>, each with why
+    /// none of its concurrent work touches the ambient connection. Empty.
+    /// </summary>
+    private static readonly HashSet<string> ParallelSites = new(StringComparer.Ordinal);
+
+    private static bool FansOut(string code) => FanOut().IsMatch(code);
+
+    /// <summary>Concurrent execution: <c>Task.When*</c> and the <c>Parallel</c> loops.</summary>
+    [GeneratedRegex(@"\b(?:WhenAll|WhenAny|WhenEach)\s*\(|\bParallel\s*\.\s*(?:For|ForEach|ForEachAsync|Invoke)\b")]
+    private static partial Regex FanOut();
 
     /// <summary>
     /// Source with its comments removed.
