@@ -139,11 +139,19 @@ public sealed class AuditConfigService(
     /// Reads one tenant's overrides on a connection of this method's own.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>BEGIN; SET LOCAL app.tenant_id; SELECT; COMMIT</c> — the announcement is the
     /// point, and it is why this cannot ride the request's connection, which has none at
     /// step 3. Read-only, so the transaction exists for the <c>SET LOCAL</c> rather than
     /// for atomicity: a <c>SET LOCAL</c> outside a transaction lasts for the statement
     /// and would leave the pooled connection announcing a tenant afterwards.
+    /// </para>
+    /// <para>
+    /// The <c>SELECT</c> names its tenant too, bound from the trusted argument. Row
+    /// security is the second layer, not the only one (Database Standards § Raw SQL): a
+    /// policy regression would otherwise let another tenant's override silence an
+    /// operation for this one.
+    /// </para>
     /// </remarks>
     private async Task<IReadOnlyDictionary<string, bool>> LoadAsync(
         TenantId tenantId, CancellationToken cancellationToken)
@@ -166,10 +174,13 @@ public sealed class AuditConfigService(
         var overrides = new Dictionary<string, bool>(StringComparer.Ordinal);
 
         await using (var read = new NpgsqlCommand(
-            "SELECT module, operation, is_enabled FROM audit_config WHERE deleted_at IS NULL",
+            "SELECT module, operation, is_enabled FROM audit_config "
+            + "WHERE tenant_id = @tenant AND deleted_at IS NULL",
             connection,
             transaction))
         {
+            read.Parameters.AddWithValue("tenant", tenantId.Value);
+
             await using var reader = await read.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -207,5 +218,5 @@ public sealed class AuditConfigService(
         LoggerMessage.Define<Guid>(
             LogLevel.Error,
             new EventId(1, nameof(LogOverrideReadFailed)),
-            "Reading audit_config overrides for tenant {TenantId} failed; classification fell back to the in-process catalogue, which carries the same MUST floor. Nothing proceeds unaudited, and the audit health check reports this.");
+            "Reading audit_config overrides for tenant {TenantId} failed; classification fell back to the in-process catalogue, which carries the same MUST floor. Nothing proceeds unaudited — the tenant's narrowing is not applied until a read succeeds. This line is the whole report: the audit health check answers only whether MUST rows can be written.");
 }

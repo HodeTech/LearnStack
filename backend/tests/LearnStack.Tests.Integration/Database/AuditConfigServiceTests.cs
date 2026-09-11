@@ -119,6 +119,24 @@ public sealed class AuditConfigServiceTests
     }
 
     [Fact]
+    public async Task The_override_read_names_its_tenant_where_row_security_would_not()
+    {
+        // The case above reads as learnstack_app, whose policy isolates on its own, so it
+        // passed with no tenant predicate in the query. learnstack_platform bypasses row
+        // security by design: read as that role, the predicate is the only thing that keeps
+        // tenant B's override from silencing the operation for tenant A (Database Standards
+        // § Raw SQL; the fourth review of Packet 9).
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.PlatformConnectionString);
+        var betaOnly = Entry("tenancy.hostmapping.write", OperationClass.May);
+
+        (await Service(dataSource).ClassifyAsync(TenantId.From(SchemaFixture.TenantB), betaOnly))
+            .Should().Be(AuditClassification.Off, "the premise: this role reads the table's rows at all");
+
+        (await Service(dataSource).ClassifyAsync(TenantId.From(SchemaFixture.TenantA), betaOnly))
+            .Should().Be(AuditClassification.May, "tenant B's override is not tenant A's");
+    }
+
+    [Fact]
     public async Task A_read_failure_falls_back_to_the_declared_tier()
     {
         // Rejecting every request platform-wide because a cache or a connection is

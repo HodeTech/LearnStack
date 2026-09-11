@@ -227,6 +227,48 @@ public sealed class FeatureFlagsTests
     }
 
     [Fact]
+    public async Task The_tenant_flags_read_names_its_tenant_where_row_security_would_not()
+    {
+        // Database Standards § Raw SQL: a raw query carries its tenant predicate, and row
+        // security is the second layer rather than the only one. Every other case here reads
+        // as learnstack_app, whose policies isolate on their own — so the loader passed all of
+        // them with no predicate at all. learnstack_platform bypasses row security by design,
+        // which leaves the predicate as the one thing between tenant A's cache and tenant B's
+        // row: measured by the fourth review of Packet 9, without it A read B's flag as its own.
+        await using (var seeded = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString))
+        await using (var transaction = await seeded.BeginTransactionAsync())
+        {
+            await SchemaQueries.SetTenantAsync(seeded, transaction, SchemaFixture.TenantB);
+            await using var write = new NpgsqlCommand(
+                """
+                INSERT INTO tenant_feature_flags (tenant_id, key, value, updated_by)
+                VALUES (@tenant, 'learning.lesson_player.v2', 'true',
+                        '00000000-0000-7000-8000-000000000001')
+                ON CONFLICT (tenant_id, key) DO UPDATE SET value = 'true'
+                """,
+                (NpgsqlConnection)seeded, (NpgsqlTransaction)transaction);
+            write.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
+            await write.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+
+        try
+        {
+            (await Flags(tenantContext: new TenantBContext(), connectionString: _schema.Postgres.PlatformConnectionString)
+                .IsEnabledAsync(FeatureKeys.LessonPlayerV2))
+                .Should().BeTrue("the premise: this role reads the table's rows at all");
+
+            (await Flags(connectionString: _schema.Postgres.PlatformConnectionString)
+                .IsEnabledAsync(FeatureKeys.LessonPlayerV2))
+                .Should().BeFalse("tenant A has no row, and tenant B's row is not tenant A's");
+        }
+        finally
+        {
+            await CleanFlagAsync();
+        }
+    }
+
+    [Fact]
     public async Task An_undeclared_limit_key_is_refused_rather_than_read_as_unlimited()
     {
         // The sibling of the feature-side guard, and the one nothing killed. `LimitKey` is
@@ -317,12 +359,13 @@ public sealed class FeatureFlagsTests
         IEntitlementProvider? provider = null,
         IKillswitchOverlay? killswitches = null,
         ITenantContext? tenantContext = null,
-        ICacheService? cache = null) =>
+        ICacheService? cache = null,
+        string? connectionString = null) =>
         new(tenantContext ?? Resolved,
             provider ?? new NullEntitlementProvider(),
             killswitches ?? new EnabledOverlay(),
             new Lazy<NpgsqlDataSource>(
-                () => NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString)),
+                () => NpgsqlDataSource.Create(connectionString ?? _schema.Postgres.AppConnectionString)),
             cache ?? new InMemoryCacheService(
                 new SystemClock(),
                 new ServiceCollection().AddMetrics().BuildServiceProvider()

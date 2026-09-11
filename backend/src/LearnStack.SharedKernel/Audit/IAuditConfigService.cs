@@ -43,10 +43,12 @@ public interface IAuditConfigService
     /// <param name="cancellationToken">The request's token.</param>
     /// <remarks>
     /// <b>A read failure does not reject the operation.</b> It falls back to the declared
-    /// tier — the in-process catalogue carries the same MUST floor — logged at
-    /// <c>Error</c> and surfaced on the audit health check. Rejecting every request
-    /// platform-wide because a cache is unavailable is a worse compliance outcome than
-    /// losing one tenant's narrowing, and nothing proceeds unaudited either way.
+    /// tier — the in-process catalogue carries the same MUST floor — and is logged at
+    /// <c>Error</c>. It does not move the <c>audit</c> health check, which answers one
+    /// question: whether a MUST-class row can be written standalone (ADR-0033 Amendment 3).
+    /// Rejecting every request platform-wide because a cache is unavailable is a worse
+    /// compliance outcome than losing one tenant's narrowing, and nothing proceeds
+    /// unaudited either way.
     /// </remarks>
     Task<AuditClassification> ClassifyAsync(
         TenantId? tenantId, AuditCatalogEntry entry, CancellationToken cancellationToken = default);

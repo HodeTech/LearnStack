@@ -199,10 +199,19 @@ public sealed class FeatureFlags(
     /// One tenant's flags, on a connection of this method's own.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>BEGIN; SET LOCAL app.tenant_id; SELECT; COMMIT</c> — the announcement is the
     /// point. Read-only, so the transaction exists for the <c>SET LOCAL</c> rather than
     /// for atomicity: a <c>SET LOCAL</c> outside a transaction lasts for the statement and
     /// would leave the pooled connection announcing a tenant afterwards.
+    /// </para>
+    /// <para>
+    /// The <c>SELECT</c> names its tenant too, bound from the trusted argument rather than
+    /// read back from the setting. Row security is the second layer, not the only one
+    /// (Database Standards § Raw SQL): without the predicate, a policy regression put
+    /// another tenant's row into this tenant's cache — measured by the fourth review of
+    /// Packet 9, reading as a role that row security does not bind.
+    /// </para>
     /// </remarks>
     private async Task<IReadOnlyDictionary<string, string>> LoadTenantFlagsAsync(
         TenantId tenantId, CancellationToken ct)
@@ -223,8 +232,12 @@ public sealed class FeatureFlags(
         var flags = new Dictionary<string, string>(StringComparer.Ordinal);
 
         await using (var read = new NpgsqlCommand(
-            "SELECT key, value::text FROM tenant_feature_flags", connection, transaction))
+            "SELECT key, value::text FROM tenant_feature_flags WHERE tenant_id = @tenant",
+            connection,
+            transaction))
         {
+            read.Parameters.AddWithValue("tenant", tenantId.Value);
+
             await using var reader = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
 
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
