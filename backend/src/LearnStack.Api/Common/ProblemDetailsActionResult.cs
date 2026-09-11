@@ -32,6 +32,7 @@ public sealed class ProblemDetailsActionResult : ObjectResult
         var problem = ProblemDetailsFactory.For(Error, context.HttpContext);
         Value = problem;
         StatusCode = problem.Status;
+        RetryAfter.Apply(context.HttpContext.Response, problem.Status);
         ContentTypes.Clear();
         ContentTypes.Add(ProblemDetailsMediaType.Value);
         return base.ExecuteResultAsync(context);
