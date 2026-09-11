@@ -526,9 +526,11 @@ public sealed class PlatformAdminScopeTests
     [Fact]
     public async Task Entry_Is_On_The_Record_Before_The_Operation_Runs()
     {
-        // The packet's whole point at this call site. Read INSIDE the scope's own
-        // transaction and before the caller has run anything: an operation that later
-        // fails is still recorded, which is only true if the row precedes it.
+        // The packet's whole point at this call site. Read on an INDEPENDENT connection
+        // while the handle is still open and before the caller has run anything: the row
+        // is committed already, which is what makes an operation that later fails still
+        // recorded. The case used to read inside the scope's own transaction, which proves
+        // the row was written and says nothing about whether it would survive.
         //
         // Every column is asserted from the catalogue's declaration rather than from a
         // literal repeated here, except the ones that ARE the decision — the sentinel
@@ -536,8 +538,9 @@ public sealed class PlatformAdminScopeTests
         await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
         await using var handle = await Build(dataSource).EnterAsync("test:recorded-row");
 
-        await using var read = handle.Connection.CreateCommand();
-        read.Transaction = handle.Transaction;
+        await using var independent = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var read = independent.CreateCommand();
         read.CommandText =
             "SELECT tenant_id, organization_id, module, operation, operation_type, "
             + "operation_class, outcome, actor_user_id, "
@@ -570,32 +573,56 @@ public sealed class PlatformAdminScopeTests
         (await reader.ReadAsync()).Should().BeFalse("one entry writes one row");
     }
 
-    [Fact]
-    public async Task An_Abandoned_Entry_Takes_Its_Row_With_It()
+    [Theory]
+    [InlineData("read-then-throw")]
+    [InlineData("abandoned")]
+    [InlineData("committed")]
+    public async Task An_Entry_Stays_On_The_Record_Whatever_The_Work_Then_Does(string ending)
     {
-        // The row rides the scope's own transaction, so a scope that never resolved is
-        // not an entry. It is written BEFORE the operation, which is not the same claim
-        // as written OUTSIDE the transaction — and the second would leave a record of
-        // every entry that was rolled back for failing to open at all.
+        // The review's finding, inverted into the case. The row rode the handle's own
+        // transaction, so a caller that read across every tenant and then threw — or simply
+        // disposed the handle — took the only record of that access down with the rollback.
+        // This case asserted exactly that, as zero survivors, and passed: it proved the
+        // implementation and contradicted ADR-0044 § 10, which says an operation that later
+        // fails is still recorded. Checked on an independent connection, after the handle
+        // is gone, because that is what durable means.
         await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var reason = "test:survives-" + ending;
 
-        Guid id;
-
-        await using (var handle = await Build(dataSource).EnterAsync("test:abandoned-row"))
+        var act = async () =>
         {
-            id = await ScalarAsync<Guid>(
-                handle.Connection,
-                handle.Transaction,
-                "SELECT id FROM audit_log WHERE reason = 'test:abandoned-row'");
+            await using var handle = await Build(dataSource).EnterAsync(reason);
+
+            // Privileged work first, in every ending: the access happened.
+            (await CountOrganizationsAsync(handle.Connection, handle.Transaction))
+                .Should().BeGreaterThanOrEqualTo(0);
+
+            switch (ending)
+            {
+                case "read-then-throw":
+                    throw new InvalidOperationException("the work failed after reading");
+                case "committed":
+                    await handle.CommitAsync();
+                    break;
+            }
+        };
+
+        if (ending == "read-then-throw")
+        {
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+        else
+        {
+            await act.Should().NotThrowAsync();
         }
 
         await using var afterwards = await PostgresFixture.OpenAsync(
             _schema.Postgres.PlatformConnectionString);
 
         var survivors = await ScalarAsync<long>(
-            afterwards, null, "SELECT count(*) FROM audit_log WHERE id = @id", ("id", id));
+            afterwards, null, "SELECT count(*) FROM audit_log WHERE reason = @reason", ("reason", reason));
 
-        survivors.Should().Be(0, "no commit resolved the frame that wrote it");
+        survivors.Should().Be(1, "entry into a cross-tenant scope is recorded whatever the work then does");
     }
 
     [Fact]

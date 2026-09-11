@@ -34,12 +34,14 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// <c>EnterAsync</c> writes one <c>platform.admin_scope.enter</c> row — the slug the
 /// Tenancy catalogue source declares off-path at MUST / <c>SecurityEvent</c> — through
 /// <c>IAuditStore.WritePlatformScopeAsync</c>, as <c>learnstack_platform</c>, on the
-/// scope's own transaction and <b>before</b> the operation runs, so an operation that
-/// later fails is still on the record
+/// scope's own connection and in a transaction of its own that <b>commits before</b> the
+/// handle is returned, so an operation that later fails — or is abandoned, or reads across
+/// every tenant and then throws — is still on the record
 /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>).
-/// It is the one class of row carrying <c>TenantId.PlatformSentinel</c>. A scope that is
-/// abandoned takes its row with it: the row rides the transaction, and a scope that never
-/// resolved is not an entry.
+/// It is the one class of row carrying <c>TenantId.PlatformSentinel</c>. The row used to
+/// ride the handle's transaction, so rolling the work back erased the only record that
+/// privileged access had happened; the review of Packet 9 measured it, and an entry is now
+/// recorded whatever the work then does.
 /// </para>
 /// <para>
 /// <b>The <c>Warning</c> log line stays, and it is not the record.</b> The row is what a

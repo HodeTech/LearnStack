@@ -967,11 +967,13 @@ needing no platform admin simply does not provision, in which case
 `EnterPlatformAdminScope` throws **on entry** — on the first call, naming the missing
 `ConnectionStrings:PlatformAdmin`, so a host that never enters the scope still boots,
 every test fixture included — rather than degrading to `learnstack_app`; and, **since
-[Packet 9](../roadmap/phase-02a-kernel-tenancy.md)**, by an audit row written **inside**
-the scope before the operation runs, on the scope's own transaction, so an operation that
-later fails is still recorded and an entry that is abandoned takes its row with it. An
-entry whose row cannot be written, or whose slug the catalogue does not declare, is
-**refused**: the connection is never spent on it. The `Warning` line the scope has carried
+[Packet 9](../roadmap/phase-02a-kernel-tenancy.md)**, by an audit row written on the
+scope's own connection before the operation runs, in a transaction of its own that
+**commits before** the transaction the caller works in begins — so an operation that later
+fails, throws or is abandoned is still recorded. (The row first rode the caller's
+transaction, where rolling the work back erased the only record that the access had
+happened.) An entry whose row cannot be written, or whose slug the catalogue does not
+declare, is **refused**: no transaction is handed out for it. The `Warning` line the scope has carried
 since Packet 7 stays beside the row, now carrying the row's id — the row is the durable
 record, the line is the real-time signal. That row is written as
 `learnstack_platform`, through `IAuditStore`'s fourth write method

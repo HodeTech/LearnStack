@@ -38,7 +38,9 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// <para>
 /// <b>Entry is audited, and refusing to record it refuses the entry.</b> Every
 /// <c>EnterAsync</c> writes one <c>platform.admin_scope.enter</c> row on the scope's own
-/// transaction before the operation runs
+/// connection, in a transaction of its own that <b>commits before</b> the transaction the
+/// caller works in begins — so an operation that later fails, throws or is abandoned is
+/// still on the record
 /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>).
 /// The scope is a <b>singleton</b> and <c>IAuditStore</c> is <b>scoped</b>, which is why
 /// the store is resolved from a fresh <see cref="IServiceScopeFactory"/> scope per entry
@@ -139,26 +141,30 @@ public sealed class PlatformAdminScope(
 
         try
         {
-            transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-            // 4. The row, on THIS connection and THIS transaction, BEFORE the operation
-            //    runs — so an operation that later fails is still on the record, and so
-            //    an entry that is abandoned takes its row back with it. learnstack_app
-            //    cannot write under the platform sentinel at all, which is why the row
-            //    cannot ride the request's connection (ADR-0044 § 10).
+            // 4. The row, BEFORE the privileged work can begin and in a transaction of its
+            //    OWN that commits first — so an operation that later fails, throws, or is
+            //    simply abandoned is still on the record, which is the sentence ADR-0044
+            //    § 10 writes. It rode the business transaction until the review of this
+            //    packet: a caller that read across every tenant on the handle and then threw
+            //    took the only record of that read down with its rollback. Reading one's own
+            //    transaction back is not durability.
             //
-            //    A failure here throws out of EnterAsync and the catch below disposes
-            //    both: an unrecordable entry is a refused entry.
+            //    learnstack_app cannot write under the platform sentinel at all, which is
+            //    why the row cannot ride the request's connection (ADR-0044 § 10). A failure
+            //    here throws out of EnterAsync and the catch below disposes the connection:
+            //    an unrecordable entry is a refused entry, and no business transaction has
+            //    been begun for it.
             var entry = Compose(reason, declared, callerMember, callerFile, callerLine);
 
-            await using (var services = _scopeFactory.CreateAsyncScope())
-            {
-                await services.ServiceProvider
-                    .GetRequiredService<IAuditStore>()
-                    .WritePlatformScopeAsync(entry, connection, transaction, cancellationToken);
-            }
+            await RecordAsync(entry, connection, cancellationToken);
 
-            // 5. And the log line as well, which the row does not replace operationally.
+            // 5. Only now the transaction the caller works in. A row whose entry then failed
+            //    to begin one records a permitted, recorded entry that handed nothing out —
+            //    the rarer and the honest side of the trade: the other side is a handed-out
+            //    BYPASSRLS connection with no durable record behind it.
+            transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+            // 6. And the log line as well, which the row does not replace operationally.
             //    The row is the durable record a compliance reviewer reads afterwards;
             //    this is the line an operator alerting at Warning sees while it is
             //    happening. It carries the row's id, so the two are one another's index.
@@ -175,14 +181,14 @@ public sealed class PlatformAdminScope(
         }
         catch
         {
-            // The transaction disposal is NOT independently observable, and saying so is
-            // better than implying otherwise: measured, dropping it leaves the refused-entry
-            // case green, because disposing the connection rolls back and clears whatever
-            // transaction is open on it. What it buys is not depending on that — this field
-            // is handed out as a DbTransaction, and the rollback-on-close is Npgsql's own
-            // behaviour rather than anything the base contract promises. The connection
-            // disposal below is the one the case kills, and it is in the same catch because
-            // an entry that threw must not keep the one connection that sees every tenant.
+            // The business transaction exists here only if something after its BEGIN threw
+            // — the log line, in practice never — and its disposal is NOT independently
+            // observable, which is better said than implied: disposing the connection rolls
+            // back and clears whatever transaction is open on it. What it buys is not
+            // depending on that, because the rollback-on-close is Npgsql's own behaviour
+            // rather than anything DbTransaction promises. The connection disposal below is
+            // the one the refused-entry case kills, and it is in the same catch because an
+            // entry that threw must not keep the one connection that sees every tenant.
             if (transaction is not null)
             {
                 await transaction.DisposeAsync();
@@ -214,6 +220,30 @@ public sealed class PlatformAdminScope(
     /// background work as readily as from a request.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Writes the entry row on the scope's connection, in a transaction of its own, and
+    /// commits it.
+    /// </summary>
+    /// <remarks>
+    /// Disposing the recording transaction uncommitted rolls it back, so a write that fails
+    /// leaves nothing behind — and nothing has been handed out, because the business
+    /// transaction is begun only after this returns.
+    /// </remarks>
+    private async Task RecordAsync(
+        AuditEntryDraft entry, NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var recording = await connection.BeginTransactionAsync(cancellationToken);
+
+        await using (var services = _scopeFactory.CreateAsyncScope())
+        {
+            await services.ServiceProvider
+                .GetRequiredService<IAuditStore>()
+                .WritePlatformScopeAsync(entry, connection, recording, cancellationToken);
+        }
+
+        await recording.CommitAsync(cancellationToken);
+    }
+
     private AuditEntryDraft Compose(
         string reason,
         AuditCatalogEntry declared,
