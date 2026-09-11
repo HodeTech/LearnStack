@@ -41,7 +41,7 @@ for LearnStack's side of the boundary.
 ## Status
 
 **Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 4–10 re-scoped on 2026-08-08.
+packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped; packets 4–10 re-scoped on 2026-08-08.
 Packet 7 landed host and tenant resolution, the query filters, tenant provisioning
 and the two seed tenants — `demo-english` and `demo-yoga`, which `make seed` writes
 through the same commands a request uses. Packet 8 landed the Customization module:
