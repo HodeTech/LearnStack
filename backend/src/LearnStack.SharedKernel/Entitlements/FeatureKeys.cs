@@ -31,10 +31,11 @@ public static class FeatureKeys
     // ── Plan-level, projected from the Hub ────────────────────────────────────
     //
     // The degraded posture on each is ADR-0034's requirement that every feature key class
-    // declare fail-open or fail-closed explicitly, resolved against the authority table in
-    // architecture/26 § the degraded read. Where that table is silent the answer is
-    // FailClosed: an unknown answer must not open a surface, and a posture guessed by an
-    // implementer is a security default nobody re-reads.
+    // declare fail-open or fail-closed explicitly, resolved against the table in
+    // architecture/26 § Failure policy by key class, which has a row for every key below. A
+    // key added here before its row exists answers FailClosed: an unknown answer must not
+    // open a surface, and a posture guessed by an implementer is a security default nobody
+    // re-reads.
 
     /// <summary>Recording a live class. Gated by the one killswitch a descriptor names.</summary>
     public static readonly FeatureKey ClassroomRecording = new("classroom.recording");
@@ -121,10 +122,10 @@ public static class FeatureKeys
             new(DataResidencySelection, FeatureSource.PlanProjected, false,
                 DegradedPosture.FailClosed),
 
-            // The two the authority table does not classify and that are neither a
-            // security surface nor a live-session capability. Closed, because the cost of
-            // being wrong is a tenant seeing branding or authoring headroom it has not
-            // bought, and the cost of being right late is a banner.
+            // The table's "everything else plan-projected" row: neither a security surface
+            // nor a live-session capability. Closed, because the cost of being wrong is a
+            // tenant seeing branding or authoring headroom it has not bought, and the cost
+            // of being right late is a banner.
             new(WhiteLabelBranding, FeatureSource.PlanProjected, false,
                 DegradedPosture.FailClosed),
             new(UnlimitedContentTypes, FeatureSource.PlanProjected, false,

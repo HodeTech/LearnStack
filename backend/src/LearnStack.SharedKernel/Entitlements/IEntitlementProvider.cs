@@ -89,9 +89,10 @@ public interface IEntitlementProvider
 /// <c>compliance jsonb NOT NULL</c> and <c>generation bigint NOT NULL</c>. A record that
 /// dropped either would make the only sanctioned writer structurally unable to persist a
 /// column its own table declares <c>NOT NULL</c>, and would silently discard the caps that
-/// gate data residency and recording consent. Two names differ from the wire —
-/// <c>PlanCode</c> for <c>tier</c>, <c>ExpiresAt</c> for the <c>valid_until</c> column —
-/// following the shipped entity and the mapping the glossary already records.
+/// gate data residency and recording consent. One name differs from the wire and one from
+/// the column — <c>PlanCode</c> is <c>tier</c> on the wire, and <c>ExpiresAt</c>, which the
+/// wire spells <c>expires_at</c>, persists to <c>valid_until</c> — following the shipped
+/// entity and the mapping the glossary records.
 /// </remarks>
 public sealed record EntitlementProjection(
     TenantId TenantId,
@@ -130,6 +131,13 @@ public enum EntitlementRefreshOutcome
     /// <summary>The projection is now the stored one.</summary>
     Applied,
 
-    /// <summary>An older or equal-but-superseded projection; nothing changed.</summary>
+    /// <summary>
+    /// A strictly older projection — its generation below the stored one; nothing changed.
+    /// An equal generation is applied, not ignored (ADR-0045 Amendment 1 § 3).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="NullEntitlementProvider"/> answers this to every push as well, because it
+    /// stores nothing: its reading is "nothing changed", not "the push was older".
+    /// </remarks>
     IgnoredAsStale,
 }

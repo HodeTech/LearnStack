@@ -146,11 +146,12 @@ public sealed class FeatureFlags(
 #pragma warning restore CA1031
         {
             // Fail closed — treat as disabled — which is the posture Hybrid License Model
-            // § Degraded operation writes for every tenant flag, and the one each of their
-            // descriptors declares (Every_tenant_flag_fails_closed pins it): the source is a
-            // table in this deployment, so unreachable means a database outage, and under
-            // one an experiment is off rather than on. It threw instead, so every path gated
-            // on a tenant flag failed outright during the outage the posture exists for.
+            // § Failure policy by key class writes for every tenant flag, and the one each
+            // of their descriptors declares (Every_tenant_flag_fails_closed pins it): the
+            // source is a table in this deployment, so unreachable means a database outage,
+            // and under one an experiment is off rather than on. It threw instead, so every
+            // path gated on a tenant flag failed outright during the outage the posture
+            // exists for.
             //
             // Every failure and not only a DbException: the data source is built lazily, so
             // a missing credential arrives as an InvalidOperationException. A cancellation
@@ -266,25 +267,49 @@ public sealed class FeatureFlags(
     /// The tenant, or a refusal.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>It throws rather than guessing.</b> There is no sensible answer for "does this
     /// tenant have the feature" when there is no tenant, and inventing one — the platform
     /// sentinel, or the first tenant found — would answer a question nobody asked. An
     /// operator path that genuinely reads across tenants uses
     /// <c>IEntitlementAdminQuery</c>, which Phase 02c ships with the surface that needs it.
+    /// </para>
+    /// <para>
+    /// <b>Resolved is the context's claim, not a proof of its value</b> — the query filters
+    /// check the id as well as the flag, and this read did not. An id never constructed
+    /// surfaced as an exception from inside the cache key, and the nil or platform sentinel
+    /// would be a lookup under a tenant that cannot exist once a persisting provider lands;
+    /// the sentinel is also a value the hard rules forbid a request to carry.
+    /// </para>
     /// </remarks>
-    private TenantId RequireTenant(string key) =>
-        tenantContext.IsResolved
-            ? tenantContext.TenantId
-            : throw new TenantContextMissingException(
+    private TenantId RequireTenant(string key)
+    {
+        if (!tenantContext.IsResolved)
+        {
+            throw new TenantContextMissingException(
                 $"'{key}' was resolved on a request with no tenant. IFeatureFlags answers "
                 + "for the tenant in context and there is none; a cross-tenant read is "
                 + "IEntitlementAdminQuery's, which Phase 02c ships.");
+        }
+
+        var tenantId = tenantContext.TenantId;
+
+        if (!StronglyTypedId.IsAssigned(tenantId) || tenantId == TenantId.PlatformSentinel)
+        {
+            throw new TenantContextMissingException(
+                $"'{key}' was resolved under a context that calls itself resolved and names no "
+                + "real tenant — an unassigned id, or the platform sentinel. IFeatureFlags "
+                + "answers only for a tenant that can own a flag.");
+        }
+
+        return tenantId;
+    }
 
     private static readonly Action<ILogger, string, Exception?> LogTenantFlagsUnreachable =
         LoggerMessage.Define<string>(
             LogLevel.Error,
             new EventId(2, nameof(LogTenantFlagsUnreachable)),
-            "The tenant's flags could not be read, so {Key} answered disabled: a tenant flag fails closed, because its source is a table in this deployment and an unreachable one is a database outage (architecture/26 § Degraded operation).");
+            "The tenant's flags could not be read, so {Key} answered disabled: a tenant flag fails closed, because its source is a table in this deployment and an unreachable one is a database outage (architecture/26 § Failure policy by key class).");
 
     private static readonly Action<ILogger, string, string, Exception?> LogUnreadableFlag =
         LoggerMessage.Define<string, string>(

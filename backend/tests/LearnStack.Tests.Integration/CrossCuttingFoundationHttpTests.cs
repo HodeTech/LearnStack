@@ -202,10 +202,11 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
     [Fact]
     public void The_Entitlement_Provider_Resolves_To_The_Working_Default()
     {
-        // Registered in EVERY deployment mode, not Development only. And it is the one
-        // line the Phase 02a completion criterion turns on: swapping it must change the
-        // answer without touching module code, which is only true while IFeatureFlags
-        // composes over this port rather than reading platform_entitlement_cache itself.
+        // This fixture boots Development; the SaaS half of "every wired mode" is
+        // DeploymentModeCompositionTests. And it is the one line the Phase 02a completion
+        // criterion turns on: swapping it must change the answer without touching module
+        // code, which is only true while IFeatureFlags composes over this port rather than
+        // reading platform_entitlement_cache itself.
         using var scope = fixture.Services.CreateScope();
 
         scope.ServiceProvider.GetRequiredService<IEntitlementProvider>()

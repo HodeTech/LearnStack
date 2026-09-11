@@ -155,6 +155,6 @@ public sealed record FeatureDescriptor(
 /// a floor of <c>-1</c> hands an unentitled tenant an unbounded allowance, and a floor of
 /// <c>0</c> denies every gated operation the moment a projection is late
 /// (<see href="../../../../docs/architecture/26-hybrid-license-model.md">Hybrid License
-/// Model § the degraded read</see>).
+/// Model § Failure policy by key class</see>).
 /// </remarks>
 public sealed record LimitDescriptor(LimitKey Key, long Default, LimitEnforcement Enforcement);

@@ -60,7 +60,9 @@ public sealed class NullEntitlementProviderTests
         projection.ExpiresAt.Should().BeNull();
         projection.GraceUntil.Should().BeNull();
         projection.PlanCode.Should().Be("null-provider",
-            "the value platform_entitlement_cache's source CHECK admits");
+            "there is no plan, and the provider names itself in its place — a plan code, not "
+            + "the cache's source column, which nothing writes here; the value only "
+            + "coincides with one that column's CHECK admits");
     }
 
     [Fact]

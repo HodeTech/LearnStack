@@ -36,21 +36,35 @@ public sealed class FeatureFlagsTests
     public async Task A_plan_feature_comes_from_the_provider_and_never_from_the_tenant_table()
     {
         // Swapping the registered provider changes the answer without touching module
-        // code — the completion criterion. Here the double denies what the default grants,
-        // and the answer follows the provider.
-        (await Flags().IsEnabledAsync(FeatureKeys.CustomDomain))
-            .Should().BeTrue("NullEntitlementProvider grants every feature");
+        // code — the completion criterion. And a tenant row for the same key changes
+        // nothing, in either direction: 'false' under the provider that grants, 'true' under
+        // the one that denies. Without the rows this case could not see a resolver that fell
+        // back to the tenant table for a plan key — the fifth review of Packet 9.
+        await SeedFlagAsync(SchemaFixture.TenantA, FeatureKeys.CustomDomain.Value, "false");
 
-        (await Flags(provider: new DenyingProvider()).IsEnabledAsync(FeatureKeys.CustomDomain))
-            .Should().BeFalse("the registered provider is what answers, not a table read");
+        try
+        {
+            (await Flags().IsEnabledAsync(FeatureKeys.CustomDomain))
+                .Should().BeTrue("NullEntitlementProvider grants every feature, and the row is not asked");
+
+            await SeedFlagAsync(SchemaFixture.TenantA, FeatureKeys.CustomDomain.Value, "true");
+
+            (await Flags(provider: new DenyingProvider()).IsEnabledAsync(FeatureKeys.CustomDomain))
+                .Should().BeFalse("the registered provider is what answers, not a table read");
+        }
+        finally
+        {
+            await CleanFlagAsync(FeatureKeys.CustomDomain.Value);
+        }
     }
 
     [Fact]
-    public async Task A_tenant_flag_comes_from_the_tenant_table()
+    public async Task An_absent_tenant_flag_row_resolves_to_the_catalog_default()
     {
         // The fixture seeds tenant A's `live-classroom` flag false. It matches no registry
-        // spelling, so this asserts the mechanism on a key that IS declared: an absent row
-        // resolves to the descriptor default.
+        // spelling, so this asserts the other half of the mechanism on a key that IS
+        // declared: with no row, the descriptor default stands. The row being honoured is
+        // A_tenant_flag_row_is_honoured_when_it_is_a_JSON_boolean.
         (await Flags().IsEnabledAsync(FeatureKeys.LessonPlayerV2))
             .Should().BeFalse("no row for it, so the catalog default stands");
     }
@@ -298,12 +312,23 @@ public sealed class FeatureFlagsTests
     [Fact]
     public async Task A_limit_comes_from_the_projection_and_ignores_the_tenant_table()
     {
-        (await Flags().GetLimitAsync(LimitKeys.MaxUsers))
-            .Should().Be(LimitKeys.Unlimited, "the null provider projects no ceiling");
+        // A tenant row spelling the limit key is there so "ignores" is measured rather than
+        // assumed: a tenant that could raise its own ceiling is not a ceiling.
+        await SeedFlagAsync(SchemaFixture.TenantA, LimitKeys.MaxUsers.Value, "5");
 
-        (await Flags(provider: new DenyingProvider()).GetLimitAsync(LimitKeys.MaxUsers))
-            .Should().Be(LimitKeys.All[LimitKeys.MaxUsers].Default,
-                "an unprojected limit falls to its catalog floor, never to -1 or 0");
+        try
+        {
+            (await Flags().GetLimitAsync(LimitKeys.MaxUsers))
+                .Should().Be(LimitKeys.Unlimited, "the null provider projects no ceiling");
+
+            (await Flags(provider: new DenyingProvider()).GetLimitAsync(LimitKeys.MaxUsers))
+                .Should().Be(LimitKeys.All[LimitKeys.MaxUsers].Default,
+                    "an unprojected limit falls to its catalog floor, never to -1, 0 or the row");
+        }
+        finally
+        {
+            await CleanFlagAsync(LimitKeys.MaxUsers.Value);
+        }
     }
 
     [Fact]
@@ -318,6 +343,29 @@ public sealed class FeatureFlagsTests
         await act.Should().ThrowAsync<TenantContextMissingException>();
     }
 
+    [Theory]
+    [InlineData("unassigned")]
+    [InlineData("platform-sentinel")]
+    public async Task A_resolved_context_that_names_no_real_tenant_is_refused(string shape)
+    {
+        // Resolved is the context's claim about itself, not a proof of its value (the fifth
+        // review of Packet 9). Unassigned, the id failed from inside the cache key with an
+        // exception about the id type; the sentinel read as a tenant, which the hard rules
+        // forbid a request to carry. Both halves, because the limit read resolves the tenant
+        // on its own path.
+        //
+        // The unassigned id comes out of an array element: Vogen refuses `default(TenantId)`
+        // at compile time (VOG009).
+        TenantId[] slot = new TenantId[1];
+        var tenant = shape == "unassigned" ? slot[0] : TenantId.PlatformSentinel;
+        var flags = Flags(tenantContext: new NamedTenantContext(tenant));
+
+        await flags.Invoking(resolver => resolver.IsEnabledAsync(FeatureKeys.CustomDomain))
+            .Should().ThrowAsync<TenantContextMissingException>();
+        await flags.Invoking(resolver => resolver.GetLimitAsync(LimitKeys.MaxUsers))
+            .Should().ThrowAsync<TenantContextMissingException>();
+    }
+
     [Fact]
     public async Task An_undeclared_key_is_refused_rather_than_resolved()
     {
@@ -327,13 +375,35 @@ public sealed class FeatureFlagsTests
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
 
-    private async Task CleanFlagAsync()
+    /// <summary>Writes one tenant's row for a key as <c>learnstack_app</c>, replacing any value it held.</summary>
+    private async Task SeedFlagAsync(Guid tenant, string key, string value)
+    {
+        await using var seeded = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var transaction = await seeded.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(seeded, transaction, tenant);
+
+        await using var write = new NpgsqlCommand(
+            """
+            INSERT INTO tenant_feature_flags (tenant_id, key, value, updated_by)
+            VALUES (@tenant, @key, @value::jsonb, '00000000-0000-7000-8000-000000000001')
+            ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value
+            """,
+            (NpgsqlConnection)seeded, (NpgsqlTransaction)transaction);
+        write.Parameters.AddWithValue("tenant", tenant);
+        write.Parameters.AddWithValue("key", key);
+        write.Parameters.AddWithValue("value", value);
+        await write.ExecuteNonQueryAsync();
+        await transaction.CommitAsync();
+    }
+
+    private async Task CleanFlagAsync(string key = "learning.lesson_player.v2")
     {
         await using var connection = await PostgresFixture.OpenAsync(
             _schema.Postgres.PlatformConnectionString);
         await using var command = new NpgsqlCommand(
-            "DELETE FROM tenant_feature_flags WHERE key = 'learning.lesson_player.v2'",
+            "DELETE FROM tenant_feature_flags WHERE key = @key",
             (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("key", key);
         await command.ExecuteNonQueryAsync();
     }
 
@@ -384,6 +454,22 @@ public sealed class FeatureFlagsTests
         public UserId? UserId => null;
 
         public string? CorrelationId => "00-feature-flags-b1";
+
+        public string? ModuleName => "tenancy";
+    }
+
+    /// <summary>A context that calls itself resolved and names whatever id it is given.</summary>
+    private sealed class NamedTenantContext(TenantId tenantId) : ITenantContext
+    {
+        public bool IsResolved => true;
+
+        public TenantId TenantId => tenantId;
+
+        public OrganizationId? OrganizationId => null;
+
+        public UserId? UserId => null;
+
+        public string? CorrelationId => "00-feature-flags-named";
 
         public string? ModuleName => "tenancy";
     }
