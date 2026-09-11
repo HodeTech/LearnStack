@@ -7,7 +7,9 @@ the limit-key vocabulary is the Hub's, `expires_at` and `valid_until` are nullab
 generation guard admits the equal case, `platform_killswitches` ships **unwritten**, and
 every key descriptor carries its fail-open/fail-closed class and its killswitch by name.
 **Amendment 2: 2026-09-11** — a registry's membership is the vocabulary the contract names,
-not the keys that have a consumer; enforcement is what waits for one.)
+not the keys that have a consumer; enforcement is what waits for one. **Amendment 3:
+2026-09-11** — a key's fail-open/fail-closed class decides only when no projection exists;
+one past its grace window is read-only, as ADR-0021 decides.)
 
 **Date:** 2026-09-07
 **Deciders:** @platform
@@ -548,6 +550,42 @@ cycle as its exit. Each gate still ships with the feature it gates, never specul
 [ADR-0021](0021-feature-based-entitlement.md) (its 2026-09-11 amendment, for `LimitKeys`) and
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md), whose Packet 9 record carried this reading
 first as its decision 1.
+
+## Amendment 3 — When a key's class decides (2026-09-11)
+
+**Status: Accepted.** Raised by the fourth external review of PR #18. Amendment 1 § 5 says a
+key's fail-open/fail-closed class "is what the provider's degraded path reads when the
+projection is unavailable past its grace window". [ADR-0021](0021-feature-based-entitlement.md)
+decided that case the other way, explicitly and earlier: with the Hub unreachable and the
+cached projection past `grace_until`, every feature is `false` and every limit `0` —
+read-only mode — and [Hybrid License Model § 3](../architecture/26-hybrid-license-model.md#3-lifecycle)
+ends a grace period in `ReadOnly` the same way. Phase 02c's completion criteria followed
+§ 5 and kept fail-open keys enabled past grace; the architecture's read path followed
+ADR-0021. Two implementations of one provider, each faithful to an Accepted text, would
+license differently. **§ Decision is unchanged**; Amendment 1 § 5 is narrowed.
+
+### The class decides when there is nothing to evaluate
+
+A key's class is read when **no projection exists at all** — nothing in L1 or L2, no
+durable row, and no Hub: the `Unresolved(tenantId)` answer
+[Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md#failure-policy-by-key-class)
+describes. A projection that exists is evaluated by its own dates. Fresh, or within
+`grace_until`, it is served; past `grace_until` it resolves to ADR-0021's read-only
+projection, whatever each key's class. The last word from the Hub was an expiry, and the
+grace the Hub granted for it has run out — a class that kept a feature open past that point
+would extend the grace key by key rather than by decision.
+
+The case does not need the distinction between an expiry and an outage that could not
+confirm a renewal. `valid_until` is the plan's scheduled expiry the Hub sends (Amendment 1
+§ 2), not a lease this side renews, so a projection reaches its grace window only when the
+plan itself was due to end — and [ADR-0020](0020-triple-deployment-hybrid-license.md)'s
+grace period is the outage allowance for exactly that moment.
+
+### Carriers changed
+
+[Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md)
+and [Phase 02c](../roadmap/phase-02c-hub-foundation.md)'s scope and completion criteria.
+ADR-0021 is unchanged; it is the text § 5 disagreed with.
 
 ## References
 

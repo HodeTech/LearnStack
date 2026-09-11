@@ -587,6 +587,37 @@ in `8ff3743`, which is what made the discrepancy visible.
 **The Decision is unchanged**, and so is Amendment 5's: one read member on the seam, taking
 the transaction, with no writer.
 
+### Amendment 7 — the setter set is eight (2026-09-11)
+
+**What changed.** Packet 9 shipped a setter the closed set does not list. `FeatureFlags`,
+the implementation of [ADR-0045](0045-entitlement-and-feature-flag-socket.md)'s
+`IFeatureFlags`, reads a tenant's `tenant_feature_flags` rows into a cached projection on a
+cache miss — `BEGIN; SET LOCAL app.tenant_id; SELECT; COMMIT`, on a connection of its own
+from the application data source. It is the same shape as the `AuditConfig` override loader
+already in the table, for the same reason: `IFeatureFlags` is asked before, inside and
+outside the ambient transaction — a job and an event handler as much as a request — and
+the projection it fills outlives the call that filled it, so it cannot ride any one
+caller's transaction.
+
+**Not an erratum.** The table and Amendment 3's seventh row were complete when they entered
+the record; this setter arrived afterwards, with ADR-0045 and Packet 9's code. A closed set
+grows by amendment, which is what closed means here.
+
+**It obeys the rule the others do**: its own short transaction on its own connection,
+connected as `learnstack_app`, announcing `app.tenant_id` only — the table it reads is
+tenant-wide — and naming the tenant in its query as well, because row security is the
+second layer rather than the only one ([Database Standards § Raw SQL](../standards/05-database.md)).
+
+**Every carrier changed.** [Security Standards § The out-of-band setters](../standards/11-security.md),
+which reproduces the table and its counts and says which setters exist in code;
+the architecture-test catalogue's note on `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`;
+and the two documents that name the count, `.claude/skills/add-ef-migration/SKILL.md` and
+the [Tenancy module spec](../modules/tenancy/README.md).
+
+**The Decision is unchanged.** One connection per scope, owned by `IUnitOfWork`; the eighth
+setter, like the five short-transaction setters before it, runs where that connection is
+not the one to use.
+
 ## References
 
 - [ADR-0002 — Initial Architecture](0002-initial-architecture.md)

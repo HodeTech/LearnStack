@@ -13,8 +13,9 @@ its `Critical` line; the deployment-level stop-serving backstop is demand-gated 
 11 with a written trigger. **Amendment 4: 2026-09-08**: a tenant override narrows and never
 elevates, a cancelled `COMMIT` is `Indeterminate`, and the override loader runs on a cache
 miss. **Amendment 5: 2026-09-11**: `EnterPlatformAdminScope` never reaches
-`WriteStandaloneAsync`, and a nested request's refusal outlives the commit it joined. All at
-the bottom of the document.)
+`WriteStandaloneAsync`, and a nested request's refusal outlives the commit it joined.
+**Amendment 6: 2026-09-11**: the audit health check answers one question, and a
+tenant-override read failure is not it. All at the bottom of the document.)
 
 **Date:** 2026-08-08
 **Supersedes:** [ADR-0016](0016-audit-log-subsystem.md)
@@ -643,6 +644,39 @@ refusal it returned wins over `indeterminate`, because it is a fact about the op
 [ADR-0044](0044-audit-write-path.md) (Amendment 6, the deciding record for § 2) and
 [Audit Subsystem](../architecture/31-audit-subsystem.md). No other Accepted ADR's body
 changes.
+
+## Amendment 6 — What the audit health check answers (2026-09-11)
+
+**Status: Accepted.** Raised by the fourth external review of PR #18. § Decision's
+"Fail-closed, stated precisely" ends its override case with "The failure is logged at
+`Error` and surfaced on the audit health check." Amendment 3 later defined that check —
+unhealthy while the most recent MUST-class standalone write has failed and no later one has
+succeeded — and Packet 9 shipped exactly that. The override loader never reports to it, and
+its own log line said it did; five other documents repeated the sentence. **§ Decision is
+unchanged in everything it decides**: an override read failure does not reject, falls back
+to the in-process catalogue and its MUST floor, and is logged at `Error`.
+
+### The check answers one question
+
+The `audit` health check reports whether a MUST-class row can be written standalone — the
+failure that leaves an operation succeeded and unrecorded, and the one Amendment 3 gives a
+readiness surface in [Phase 11](../roadmap/phase-11-production-hardening.md). An override
+read failure is not that. The operation is audited at its declared tier, which is at least
+what the tenant asked for; the only loss is one tenant's narrowing of SHOULD/MAY coverage
+until a read succeeds. Folding it into the check would let a cache outage take a deployment
+unready — the platform-wide effect § Decision refuses when it declines to reject.
+
+So the `Error` line is the whole of its report, and it says so. Should Phase 11 need to page
+on it, the addition is a counter beside the line — a metric, not a readiness signal.
+
+### Carriers changed
+
+[Security Standards](../standards/11-security.md),
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) (§ 5 and the `audit_config`
+section), [the glossary](../glossary.md) (`AuditConfig`),
+[Phase 11](../roadmap/phase-11-production-hardening.md), and the code's own account of
+itself — `IAuditConfigService` and `AuditConfigService`'s log line.
 
 ## References
 
