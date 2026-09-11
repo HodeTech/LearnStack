@@ -191,10 +191,15 @@ internal sealed class AuditConfigConfiguration : IEntityTypeConfiguration<AuditC
 
         builder.MapAuditColumns<AuditConfig, AuditConfigId>();
 
-        // One override per tenant per operation. Without it a second row for the same
-        // slug makes the cached projection's answer depend on which one it read.
+        // One LIVE override per tenant per operation. Without it a second row for the same
+        // slug makes the cached projection's answer depend on which one it read. Partial on
+        // `deleted_at IS NULL`, for the reason ux_tenant_domains_host is: IsEnabled has no
+        // setter, so changing an override is a soft delete and a fresh Declare — and an
+        // index that counted the deleted row would refuse the second with 23505, holding the
+        // slug against its own tenant forever (the fifth review of Packet 9).
         builder.HasIndex(x => new { x.TenantId, x.ModuleName, x.Operation })
             .IsUnique()
+            .HasFilter("deleted_at IS NULL")
             .HasDatabaseName("ux_audit_config_tenant_id_module_operation");
     }
 }
