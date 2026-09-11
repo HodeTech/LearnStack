@@ -466,6 +466,39 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         row.CorrelationId.Should().Be(Correlation);
     }
 
+    [Fact]
+    public async Task A_validation_refusal_writes_no_row_because_nothing_has_classified_it()
+    {
+        // The fifth review's finding: ADR-0033 Amendment 2 § 7 and four carriers listed "a
+        // short-circuit at step 1" among the standalone writes, and the only test of it drove
+        // a unit double of the store. Validation is step 1 and the audit step is step 3, so a
+        // refused command never reaches the step that would classify it — no intent, no row.
+        // The valid send afterwards is the control: the same operation through the same graph
+        // does write, so an unchanged count is the pipeline's answer and not a blind read.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await SeedAsync(dataSource);
+
+        var before = (await RowsAsync()).Count;
+        var host = HostOfLength(40);
+
+        await using (var provider = Compose(dataSource))
+        {
+            var refused = await SendAsync(provider, new MapHostToTenantCommand(Host: ""));
+            refused.IsFailure.Should().BeTrue("the premise: an empty host fails validation");
+            refused.Error!.Code.Should().Be("validation_failed");
+
+            (await RowsAsync()).Should().HaveCount(before, "a step-1 refusal is never classified");
+
+            (await SendAsync(provider, new MapHostToTenantCommand(host))).IsSuccess.Should().BeTrue();
+        }
+
+        var rows = await RowsAsync();
+        rows.Should().HaveCount(before + 1,
+            "the control: the same operation, once it passes validation, is recorded");
+        rows.Should().ContainSingle(row => row.Operation == "tenancy.hostmapping.write" && row.EntityId == host)
+            .Which.Outcome.Should().Be("success");
+    }
+
     private static async Task<SharedKernel.Results.IResultBase> SendAsync<TResponse>(
         ServiceProvider provider, IRequest<TResponse> command)
         where TResponse : SharedKernel.Results.IResultBase

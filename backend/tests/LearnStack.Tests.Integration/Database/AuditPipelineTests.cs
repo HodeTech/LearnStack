@@ -2,6 +2,8 @@ using FluentAssertions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.Tools.Seeder;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -85,6 +87,73 @@ public sealed class AuditPipelineTests : IAsyncLifetime
             "the seed creates a second organization with CreateOrganizationCommand, and "
             + "one slug registered from two request types is one matrix row and two rows "
             + "in the log");
+    }
+
+    [Fact]
+    public async Task A_MUST_row_that_cannot_be_written_takes_its_business_write_down_with_it()
+    {
+        // The rule's second clause, against the real pipeline: its catalogue entry said
+        // Packet 9 implemented it here, and nothing here forced a failure (the fifth review
+        // of Packet 9). A trigger refuses the audit insert for one host only, so the
+        // command's MUST row fails at the commit boundary — and the mapping it describes must
+        // not commit without it. The reconcile's standalone attempt carries the same key and
+        // is refused the same way, which is the one state that reports on the health check.
+        //
+        // Atomicity is the proof because `xmin` cannot be — measured: EF Core wraps each
+        // SaveChanges inside an open transaction in a savepoint, so the business rows carry
+        // subtransaction ids while the audit row, raw SQL at the top level, carries the
+        // parent's. Rows on one transaction show different `xmin`s.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+
+        const string Host = "unauditable.example";
+
+        await ExecuteAsOwnerAsync(
+            $$"""
+            CREATE FUNCTION refuse_probe_audit() RETURNS trigger LANGUAGE plpgsql AS $fn$
+            BEGIN
+                IF NEW.entity_id = '{{Host}}' THEN
+                    RAISE EXCEPTION 'forced audit failure';
+                END IF;
+                RETURN NEW;
+            END
+            $fn$;
+            CREATE TRIGGER refuse_probe_audit BEFORE INSERT ON audit_log
+                FOR EACH ROW EXECUTE FUNCTION refuse_probe_audit();
+            """);
+
+        try
+        {
+            await using var provider = SeedComposition.Build(
+                dataSource,
+                new SeedTenantContext(SeedData.English.TenantId, SeedData.English.DefaultOrganization.OrganizationId),
+                NullLoggerFactory.Instance);
+
+            var act = async () =>
+            {
+                await using var scope = provider.CreateAsyncScope();
+                await scope.ServiceProvider.GetRequiredService<ISender>().Send(new MapHostToTenantCommand(Host));
+            };
+
+            (await act.Should().ThrowAsync<AuditWriteFailedException>()).Which.Error.Code
+                .Should().Be("audit_unavailable", "the edge answers it 503");
+
+            (await CountAsync("SELECT count(*) FROM platform_host_to_tenant WHERE host = @key", Host))
+                .Should().Be(0, "a mapping whose MUST row could not be written did not happen");
+            (await CountAsync("SELECT count(*) FROM audit_log WHERE entity_id = @key", Host))
+                .Should().Be(0, "the premise: the trigger refused both attempts");
+
+            provider.GetRequiredService<IAuditHealth>().IsHealthy.Should().BeFalse(
+                "the standalone attempt failed too, and that is what the check reports");
+        }
+        finally
+        {
+            await ExecuteAsOwnerAsync(
+                """
+                DROP TRIGGER refuse_probe_audit ON audit_log;
+                DROP FUNCTION refuse_probe_audit();
+                """);
+        }
     }
 
     [Fact]
@@ -228,6 +297,23 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         }
 
         return rows;
+    }
+
+    private async Task<long> CountAsync(string sql, object key)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("key", key);
+
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>DDL on the shared schema, as its owner — the only role that may alter it.</summary>
+    private async Task ExecuteAsOwnerAsync(string sql)
+    {
+        await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)owner);
+        await command.ExecuteNonQueryAsync();
     }
 
     /// <summary>Removes what a case seeded, so the shared fixture's counts do not move.</summary>

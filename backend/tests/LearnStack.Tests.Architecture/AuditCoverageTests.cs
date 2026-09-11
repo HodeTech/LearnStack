@@ -112,8 +112,12 @@ public sealed partial class AuditCoverageTests
         // do to silence this test is add the word. A shipped command that nobody
         // registered is caught one rule up, by request type, which is what this slug-level
         // direction cannot see.
-        var registered = Catalogue().All
+        var catalogue = Catalogue();
+        var registered = catalogue.All
             .Select(entry => entry.Operation)
+            .ToHashSet(StringComparer.Ordinal);
+        var offPath = registered
+            .Where(slug => catalogue.TryGetOffPath(slug, out _))
             .ToHashSet(StringComparer.Ordinal);
 
         var rows = MatrixModules()
@@ -123,7 +127,7 @@ public sealed partial class AuditCoverageTests
         rows.Should().HaveCountGreaterThan(10,
             "a sweep that matched no matrix rows would pass while proving nothing");
 
-        ReverseProblems(rows, registered).Should().BeEmpty(
+        ReverseProblems(rows, registered, offPath).Should().BeEmpty(
             "a matrix row is a promise the catalogue keeps, and a (planned) marker is a "
             + "claim re-checked on every run rather than an exemption");
     }
@@ -151,7 +155,7 @@ public sealed partial class AuditCoverageTests
         var rows = MatrixSlugs(matrix).Select(row => ("mod", row.Slug, row.Cell)).ToList();
         var registered = new HashSet<string>(["mod.thing.create", "mod.thing.rename"], StringComparer.Ordinal);
 
-        ReverseProblems(rows, registered).Should().SatisfyRespectively(
+        ReverseProblems(rows, registered, offPath: []).Should().SatisfyRespectively(
             clone => clone.Should().StartWith("mod/mod.thing.clone:"),
             rename => rename.Should().StartWith("mod/mod.thing.rename:").And.Contain("(planned)"),
             archive => archive.Should().StartWith("mod/mod.thing.archive:"));
@@ -199,6 +203,28 @@ public sealed partial class AuditCoverageTests
     }
 
     [Fact]
+    public void An_off_path_marker_has_to_match_how_the_operation_is_registered()
+    {
+        string[] matrix =
+        [
+            "| Resource | Operation | Class | Why |",
+            "|---|---|---|---|",
+            "| `Thing` | `mod.thing.create` `(off-path)` | **MUST** | a request type writes it |",
+            "| `Thing` | `mod.thing.purge` | **MUST** | an off-path writer writes it |",
+            "| `Thing` | `mod.thing.enter` `(off-path)` | **MUST** | marked, and off-path |",
+        ];
+
+        var registered = new HashSet<string>(
+            ["mod.thing.create", "mod.thing.purge", "mod.thing.enter"], StringComparer.Ordinal);
+        var offPath = new HashSet<string>(["mod.thing.purge", "mod.thing.enter"], StringComparer.Ordinal);
+
+        ReverseProblems(MatrixSlugs(matrix).Select(row => ("mod", row.Slug, row.Cell)), registered, offPath)
+            .Should().SatisfyRespectively(
+                create => create.Should().StartWith("mod/mod.thing.create:").And.Contain("a request type registers it"),
+                purge => purge.Should().StartWith("mod/mod.thing.purge:").And.Contain("does not say (off-path)"));
+    }
+
+    [Fact]
     public void A_slug_classified_twice_fails_whichever_row_comes_first()
     {
         // The fourth review of Packet 9: a correct row followed by a contradictory copy
@@ -226,7 +252,7 @@ public sealed partial class AuditCoverageTests
                      "mod.thing.create: the catalogue says Create, the matrix says Delete"],
                     "the copy disagrees wherever it sits");
 
-            ReverseProblems(MatrixSlugs(matrix).Select(row => ("mod", row.Slug, row.Cell)), registered)
+            ReverseProblems(MatrixSlugs(matrix).Select(row => ("mod", row.Slug, row.Cell)), registered, offPath: [])
                 .Should().ContainSingle().Which.Should().StartWith("mod.thing.create: classified in 2 rows");
         }
     }
@@ -443,7 +469,9 @@ public sealed partial class AuditCoverageTests
 
     /// <summary>The reverse direction's findings, one line each.</summary>
     private static List<string> ReverseProblems(
-        IEnumerable<(string Module, string Slug, string Cell)> rows, HashSet<string> registered)
+        IEnumerable<(string Module, string Slug, string Cell)> rows,
+        HashSet<string> registered,
+        HashSet<string> offPath)
     {
         var problems = new List<string>();
         var all = rows.ToList();
@@ -451,10 +479,21 @@ public sealed partial class AuditCoverageTests
         foreach (var (module, slug, cell) in all)
         {
             var planned = cell.Contains("(planned)", StringComparison.Ordinal);
-            var offPath = cell.Contains("(off-path)", StringComparison.Ordinal);
+            var offPathMarked = cell.Contains("(off-path)", StringComparison.Ordinal);
 
             if (registered.Contains(slug))
             {
+                // The marker says who writes the row, and a reader believes it. A request-keyed
+                // operation marked (off-path) sends them looking for a writer that is not
+                // there; an off-path one without it sends them looking for a request type
+                // (the fifth review of Packet 9).
+                if (offPathMarked != offPath.Contains(slug))
+                {
+                    problems.Add(offPathMarked
+                        ? $"{module}/{slug}: the matrix says (off-path), but a request type registers it"
+                        : $"{module}/{slug}: the catalogue declares it off-path, and the row does not say (off-path)");
+                }
+
                 // Anti-rot. An off-path row is registered by slug and keeps its marker for
                 // the reader; a `(planned)` one is making a claim about the future, and the
                 // future has arrived.
@@ -468,7 +507,7 @@ public sealed partial class AuditCoverageTests
                 continue;
             }
 
-            if (!planned && !offPath)
+            if (!planned && !offPathMarked)
             {
                 problems.Add(
                     $"{module}/{slug}: the matrix classifies it and nothing registers "

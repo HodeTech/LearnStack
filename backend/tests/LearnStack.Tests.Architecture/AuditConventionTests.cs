@@ -212,6 +212,13 @@ public sealed partial class AuditConventionTests
         // They look like ordinary EF, which is what makes them the likely accident; a
         // hand-written NpgsqlCommand is visibly SQL, and Database Standards § Raw SQL
         // governs it. A live negative: nothing in backend/src uses any of the three.
+        //
+        // So the premise first: a scan that read no file — a moved root, a filter that
+        // skipped everything — would pass as well. It must at least see the EF writes that
+        // do go through the tracker.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "SaveChangesAsync", except: null)
+            .Should().NotBeEmpty("the premise: the scan reads the files EF writes live in");
+
         SetBasedWrites(SourceScan.SourceRoot).Should().BeEmpty(
             "a write the change tracker never sees is never audited — load the entities, "
             + "change them through the aggregate, and let SaveChanges write them");
@@ -274,17 +281,24 @@ public sealed partial class AuditConventionTests
         // source-level one, and it is the half that catches a statement written before the
         // policy is consulted.
         var offenders = new List<string>();
+        var sawTheStore = false;
 
         foreach (var file in SourceFiles())
         {
             var code = SourceText.WithoutComments(File.ReadAllText(file));
             var relative = Path.GetRelativePath(RepositoryPaths.BackendSrc(), file);
 
+            sawTheStore |= code.Contains("INSERT INTO audit_log", StringComparison.Ordinal);
+
             if (AuditLogMutation().IsMatch(code) && !SanctionedRedactionSites.Contains(relative))
             {
                 offenders.Add(relative);
             }
         }
+
+        // The premise: with no offender anywhere, a sweep that read nothing passes too. It
+        // must at least have read the one statement that does write audit_log.
+        sawTheStore.Should().BeTrue("the premise: the sweep read PostgresAuditStore's INSERT");
 
         offenders.Should().BeEmpty(
             "audit_log is append-only; the three sanctioned redaction sites land with "

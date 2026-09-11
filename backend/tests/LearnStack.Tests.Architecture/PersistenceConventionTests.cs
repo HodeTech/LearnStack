@@ -317,6 +317,138 @@ public sealed class PersistenceConventionTests
             + "whatever any other container in this process registered first");
     }
 
+    /// <summary>
+    /// A unique index on a soft-deletable table counts only the rows that are not deleted.
+    /// </summary>
+    [Fact]
+    public void Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows()
+    {
+        // A soft-deleted row keeps its natural key, so an index that counts it holds the key
+        // against its own tenant forever — nothing frees a soft-deleted row. Every
+        // soft-deletable table wrote its index partial on `deleted_at IS NULL` except one:
+        // audit_config, whose override can only be changed by a soft delete and a fresh
+        // Declare, which the unfiltered index refused with 23505 (the fifth review of
+        // Packet 9). Per-table schema cases had pinned the others; nothing swept for the
+        // shape, so a new table repeated the omission and every case stayed green.
+        var contexts = Modules.Scoped.Select(module => module.Context()).ToList();
+
+        try
+        {
+            var soft = contexts
+                .SelectMany(context => context.Model.GetEntityTypes())
+                .Where(IsSoftDeletable)
+                .ToList();
+
+            soft.Should().NotBeEmpty("a sweep over no soft-deletable table passes vacuously");
+
+            var counting = UniqueIndexesCountingDeletedRows(soft);
+
+            counting.Except(HeldByDecision.Keys).Should().BeEmpty(
+                "a unique index on a soft-deletable table is partial on `deleted_at IS NULL`, "
+                + "or the deleted row holds its key forever — unless holding it is the point, "
+                + "which HeldByDecision states with its owner");
+
+            HeldByDecision.Keys.Except(counting).Should().BeEmpty(
+                "an exception whose index is gone or already partial is a stale exception");
+        }
+        finally
+        {
+            contexts.ForEach(context => context.Dispose());
+        }
+    }
+
+    [Fact]
+    public void The_Soft_Delete_Index_Sweep_Can_Actually_Fail()
+    {
+        // Every real index passes, so the rule passes whether its predicate works or not. The
+        // probe carries one index of each shape: counting deleted rows, partial, one that
+        // contains the primary key, and one on a table with no soft delete at all — only the
+        // first is a finding.
+        using var context = new SoftDeleteProbeContext();
+
+        UniqueIndexesCountingDeletedRows(context.Model.GetEntityTypes())
+            .Should().Equal("SoftProbe.ux_soft_probe_code");
+    }
+
+    /// <summary>
+    /// Unique indexes that hold a soft-deleted row's key on purpose, each with why.
+    /// </summary>
+    private static readonly Dictionary<string, string> HeldByDecision = new(StringComparer.Ordinal)
+    {
+        // Packet 6's, and not an omission: a tenant's slug is its public hostname label,
+        // `{slug}.{platform-domain}`. Releasing it would hand a later tenant the links, mail
+        // and bookmarks that still point at the first one — a subdomain takeover by
+        // deletion. Whether a terminated tenant's slug may ever be reissued is decided
+        // with tenant termination, in Phase 02c, not by an index filter.
+        ["Tenant.ux_tenants_slug"] =
+            "a tenant slug is a hostname; its reissue is Phase 02c's decision",
+    };
+
+    private static bool IsSoftDeletable(IReadOnlyEntityType entity) =>
+        entity.GetProperties().Any(property =>
+            string.Equals(property.GetColumnName(), "deleted_at", StringComparison.Ordinal));
+
+    /// <summary>The unique indexes on soft-deletable tables that do not exclude deleted rows.</summary>
+    /// <remarks>
+    /// An index that contains the whole primary key is outside the rule: it is unique by
+    /// construction, so a deleted row holds nothing a live one could want — and it is how a
+    /// composite foreign key reaches the table (<c>ux_organizations_tenant_id_id</c>), which a
+    /// partial index cannot serve.
+    /// </remarks>
+    private static List<string> UniqueIndexesCountingDeletedRows(IEnumerable<IReadOnlyEntityType> entities) =>
+        [.. entities
+            .Where(IsSoftDeletable)
+            .SelectMany(entity => entity.GetIndexes()
+                .Where(index => index.IsUnique
+                    && !ContainsPrimaryKey(entity, index)
+                    && !(index.GetFilter() ?? string.Empty)
+                        .Contains("deleted_at IS NULL", StringComparison.OrdinalIgnoreCase))
+                .Select(index => $"{entity.ClrType.Name}.{index.GetDatabaseName()}"))
+            .Order(StringComparer.Ordinal)];
+
+    private static bool ContainsPrimaryKey(IReadOnlyEntityType entity, IReadOnlyIndex index) =>
+        entity.FindPrimaryKey() is { } key && key.Properties.All(index.Properties.Contains);
+
+    private sealed class SoftProbe
+    {
+        public int Id { get; set; }
+
+        public string Code { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public DateTimeOffset? DeletedAt { get; set; }
+    }
+
+    private sealed class HardProbe
+    {
+        public int Id { get; set; }
+
+        public string Code { get; set; } = string.Empty;
+    }
+
+    private sealed class SoftDeleteProbeContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder options) =>
+            options.UseNpgsql("Host=model-only;Database=model-only;Username=model-only");
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<SoftProbe>(builder =>
+            {
+                builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
+                builder.HasIndex(x => x.Code).IsUnique().HasDatabaseName("ux_soft_probe_code");
+                builder.HasIndex(x => x.Name).IsUnique().HasFilter("deleted_at IS NULL")
+                    .HasDatabaseName("ux_soft_probe_name");
+                builder.HasIndex(x => new { x.Code, x.Id }).IsUnique()
+                    .HasDatabaseName("ux_soft_probe_code_id");
+            });
+
+            modelBuilder.Entity<HardProbe>(builder =>
+                builder.HasIndex(x => x.Code).IsUnique().HasDatabaseName("ux_hard_probe_code"));
+        }
+    }
+
     /// <summary>A context type that exists only to be registered two ways.</summary>
     private sealed class ProbeDbContext(DbContextOptions<ProbeDbContext> options)
         : DbContext(options);
@@ -331,39 +463,80 @@ public sealed class PersistenceConventionTests
         // container and passes: nothing goes red, and the Docker suite quietly
         // stops being where the Docker tests live.
         //
+        // The whole project, not only Database/: a test beside the HTTP suites can take
+        // the shared schema too — ApiHandlerCompositionTests does — and a sweep of one
+        // folder could not see it forget the trait (the fifth review of Packet 9).
+        //
         // Source-scanned rather than reflected, because this assembly does not
         // reference LearnStack.Tests.Integration — and should not: a test project
         // referencing another test project is a dependency nothing else in the
         // repository has.
-        var directory = Path.Combine(
-            RepositoryPaths.RepoRoot(), "backend", "tests",
-            "LearnStack.Tests.Integration", "Database");
+        var project = Path.Combine(
+            RepositoryPaths.RepoRoot(), "backend", "tests", "LearnStack.Tests.Integration");
 
-        Directory.Exists(directory).Should().BeTrue(
+        var files = Directory
+            .EnumerateFiles(project, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                           && !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(file => (Path.GetRelativePath(project, file).Replace('\\', '/'), File.ReadAllText(file)))
+            .ToList();
+
+        files.Should().Contain(file => file.Item1.StartsWith("Database/", StringComparison.Ordinal),
             "the Docker-bound suite lives there, and a rule that scans nothing passes");
 
-        var untraited = Directory
-            .EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
+        UntraitedDockerTests(files).Should().BeEmpty(
+            "every test class under Database/, and every one that takes a database fixture, "
+            + "needs a real Docker socket, and the trait is how CI routes it to the job that "
+            + "declares one");
+    }
+
+    [Fact]
+    public void The_Docker_Trait_Sweep_Can_Actually_Fail()
+    {
+        // Every file in the repository carries the trait it needs, so the sweep above
+        // passes on a project where it is doing its job and on one where it is not. These
+        // are the four shapes it has to tell apart.
+        const string Trait = "[Trait(RequiresDocker.Key, RequiresDocker.Value)]";
+        const string Qualified = "[Trait(Database.RequiresDocker.Key, Database.RequiresDocker.Value)]";
+
+        UntraitedDockerTests(
+        [
+            ("Database/ForgotTests.cs", "public class ForgotTests { [Fact] public void A() { } }"),
+            ("Database/TraitedTests.cs", $"{Trait} public class TraitedTests {{ [Fact] public void A() {{ }} }}"),
+            ("Database/SchemaQueries.cs", "public static class SchemaQueries { }"),
+            ("RootForgotTests.cs", "public class RootForgotTests(Database.SchemaFixture schema) { [Fact] public void A() { } }"),
+            ("RootTraitedTests.cs", $"{Qualified} public class RootTraitedTests(Database.SchemaFixture schema) {{ [Theory] public void A() {{ }} }}"),
+            ("HttpOnlyTests.cs", "public class HttpOnlyTests { [Fact] public void A() { } }"),
+        ]).Should().Equal("Database/ForgotTests.cs", "RootForgotTests.cs");
+    }
+
+    /// <summary>
+    /// The test files that need Docker and do not say so: under <c>Database/</c>, or naming
+    /// a fixture that starts a container, and carrying no <c>RequiresDocker</c> trait.
+    /// </summary>
+    private static List<string> UntraitedDockerTests(IEnumerable<(string Path, string Source)> files) =>
+        files
             .Where(file =>
             {
-                var source = File.ReadAllText(file);
+                // A file declaring no test method has nothing to trait — the fixtures and
+                // the shared query helpers are the case.
+                var declaresTests = file.Source.Contains("[Fact]", StringComparison.Ordinal)
+                                    || file.Source.Contains("[Theory]", StringComparison.Ordinal);
 
-                // A file declaring no test method has nothing to trait — the
-                // fixtures and the shared query helpers are the case.
-                return (source.Contains("[Fact]", StringComparison.Ordinal)
-                        || source.Contains("[Theory]", StringComparison.Ordinal))
-                       && !source.Contains(
-                           "[Trait(RequiresDocker.Key, RequiresDocker.Value)]",
-                           StringComparison.Ordinal);
+                var needsDocker = file.Path.StartsWith("Database/", StringComparison.Ordinal)
+                                  || DockerFixtures.Any(fixture => file.Source.Contains(fixture, StringComparison.Ordinal));
+
+                var traited = file.Source.Contains("[Trait(RequiresDocker.Key, RequiresDocker.Value)]", StringComparison.Ordinal)
+                              || file.Source.Contains("[Trait(Database.RequiresDocker.Key, Database.RequiresDocker.Value)]", StringComparison.Ordinal);
+
+                return declaresTests && needsDocker && !traited;
             })
-            .Select(Path.GetFileName)
+            .Select(file => file.Path)
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        untraited.Should().BeEmpty(
-            "every test class under Database/ needs a real Docker socket, and the "
-            + "trait is how CI routes it to the job that declares one");
-    }
+    /// <summary>The fixtures that start a PostgreSQL container, by the names a test takes them under.</summary>
+    private static readonly string[] DockerFixtures = ["SchemaFixture", "PostgresFixture", "SharedSchema"];
 
     [Fact]
     public void Migrate_Target_Covers_Every_Migration_Chain()
