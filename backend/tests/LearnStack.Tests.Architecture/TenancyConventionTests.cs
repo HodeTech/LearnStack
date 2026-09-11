@@ -49,10 +49,15 @@ public sealed partial class TenancyConventionTests
         // spelling reaches the same header — and since Packet 10 so are the header
         // collection's own routes to `Host` and the `Forwarded` header, which the entry
         // named and the scan did not read.
-        Offenders(
-                except: Path.Combine("Tenancy", "EffectiveHostAccessor.cs"),
-                banned: HostReads,
-                alsoExcept: [Path.Combine("Tenancy", "TrustedHopOptions.cs")])
+        var sources = ApiSources(
+            except: [
+                Path.Combine("Tenancy", "EffectiveHostAccessor.cs"),
+                Path.Combine("Tenancy", "TrustedHopOptions.cs"),
+            ]).ToList();
+
+        sources.Should().NotBeEmpty("the premise: the scan reads the API's sources");
+
+        sources.Where(source => ReadsAHost(source.Code)).Select(source => source.Relative)
             .Should().BeEmpty(
                 "only EffectiveHostAccessor reads a request host (ADR-0036 § Effective "
                 + "host and the trusted hop)");
@@ -79,30 +84,42 @@ public sealed partial class TenancyConventionTests
         reads.Should().OnlyContain(code => ReadsAHost(code));
         ReadsAHost("var peer = context.Request.Headers[\"X-Forwarded-For\"];").Should().BeFalse(
             "the client-address header is not a host, and the rate limiter reads the peer");
+        ReadsAHost("builder.Host.UseSerilog((context, services, configuration) => { });").Should().BeFalse(
+            "the host builder is not a request host, and the composition root configures it");
     }
 
-    /// <summary>Every spelling that reads a request's host.</summary>
+    /// <summary>
+    /// Every spelling that reads a request's host, as patterns over whitespace-free source.
+    /// </summary>
+    /// <remarks>
+    /// Patterns rather than literals, because the receiver is a local name as often as a
+    /// property path: <c>request.Host</c> is the same read as <c>context.Request.Host</c> and
+    /// a literal needle for the second missed the first. <c>Headers.TryGetValue("Host"</c> is
+    /// here for the same reason — the indexer is one of two ways the collection is read.
+    /// </remarks>
     private static readonly string[] HostReads =
     [
-        "Request.Host",
-        "Headers.Host",
-        "Headers[\"Host\"]",
-        "HeaderNames.Host",
+        @"[A-Za-z_0-9]*[Rr]equest\.Host\b",
+        @"Headers\.Host\b",
+        @"Headers\[""Host""\]",
+        @"TryGetValue\(""Host""",
+        @"HeaderNames\.Host\b",
         "GetTypedHeaders",
         "GetDisplayUrl",
         "GetEncodedUrl",
         "X-Forwarded-Host",
-        "HeaderNames.XForwardedHost",
-        "\"Forwarded\"",
-        "HeaderNames.Forwarded",
+        @"HeaderNames\.XForwardedHost\b",
+        @"""Forwarded""",
+        @"HeaderNames\.Forwarded\b",
         "X-LearnStack-Host",
-        "TrustedHopOptions.HostHeaderName",
+        @"TrustedHopOptions\.HostHeaderName\b",
     ];
 
     private static bool ReadsAHost(string code)
     {
         var compact = SourceText.WithoutWhitespace(code);
-        return HostReads.Any(read => compact.Contains(SourceText.WithoutWhitespace(read), StringComparison.Ordinal));
+
+        return HostReads.Any(read => Regex.IsMatch(compact, read, RegexOptions.None, TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -122,8 +139,17 @@ public sealed partial class TenancyConventionTests
         // each of which issues SET TRANSACTION READ ONLY before anything else. A setter this
         // finds and no kind names is a new member of a closed set, and fails until the
         // standard, and ADR-0040, say which kind it is.
-        var announcing = SourceScan.FilesContaining(SourceScan.SourceRoot, "set_config(", except: null)
-            .Where(file => !file.Contains("/Migrations/", StringComparison.Ordinal))
+        var announcing = Directory
+            .EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            // Migrations are excluded, and the exclusion is narrow: a migration runs as
+            // learnstack_migration, outside any request, and announces nothing — what it
+            // carries is the policy DDL that READS these variables. A setter moved into one
+            // would be a setter this rule does not see, which is why the exclusion is by
+            // directory rather than by pattern.
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(file => Announces(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
             .ToHashSet(StringComparer.Ordinal);
 
         announcing.Should().BeEquivalentTo(
@@ -137,24 +163,54 @@ public sealed partial class TenancyConventionTests
 
             ReadsOnlyBeforeAnnouncing(code).Should().BeTrue(
                 $"{reader} announces a session variable on a connection of its own, so it opens "
-                + "the transaction READ ONLY — and before its first statement, or PostgreSQL "
-                + "refuses the SET TRANSACTION outright");
+                + "the transaction READ ONLY — before the announcement, because the statement "
+                + "binds only what follows it, and once per announcing method");
         }
     }
 
     [Fact]
     public void The_Setter_Scan_Can_Actually_Fail()
     {
-        // Every reader is correct today, so the per-file check passes whether it works or
-        // not. It must refuse a reader with no statement, and one that issues it too late.
-        const string Correct = "run(\"SET TRANSACTION READ ONLY\"); run(\"SELECT set_config('app.tenant_id', @t, true)\");";
-        const string Missing = "run(\"SELECT set_config('app.tenant_id', @t, true)\");";
-        const string TooLate = "run(\"SELECT set_config('app.tenant_id', @t, true)\"); run(\"SET TRANSACTION READ ONLY\");";
+        // Every reader is correct today, so both halves pass whether they work or not.
+        const string ReadOnly = "run(\"SET TRANSACTION READ ONLY\");";
+        const string Announce = "run(\"SELECT set_config('app.tenant_id', @t, true)\");";
 
-        ReadsOnlyBeforeAnnouncing(Correct).Should().BeTrue();
-        ReadsOnlyBeforeAnnouncing(Missing).Should().BeFalse();
-        ReadsOnlyBeforeAnnouncing(TooLate).Should().BeFalse();
+        // The per-file check: a reader with no statement, one that issues it too late, and —
+        // the case a file-wide search answers wrongly — a second announcing method with no
+        // statement of its own, after a first that has one.
+        ReadsOnlyBeforeAnnouncing(ReadOnly + Announce).Should().BeTrue();
+        ReadsOnlyBeforeAnnouncing(Announce).Should().BeFalse();
+        ReadsOnlyBeforeAnnouncing(Announce + ReadOnly).Should().BeFalse();
+        ReadsOnlyBeforeAnnouncing(ReadOnly + Announce + Announce).Should().BeFalse(
+            "each announcing transaction opens read-only, and one statement cannot cover two");
+        ReadsOnlyBeforeAnnouncing(ReadOnly + Announce + ReadOnly + Announce).Should().BeTrue();
+
+        // Discovery: the spellings that announce a session variable, and the ones that read it.
+        Announces("SELECT set_config('app.tenant_id', @t, true)").Should().BeTrue();
+        Announces("SELECT SET_CONFIG('app.tenant_id', @t, true)").Should().BeTrue("SQL is not case-sensitive");
+        Announces("SET LOCAL app.tenant_id = '...'").Should().BeTrue();
+        Announces("cmd.CommandText = \"SET LOCAL app.tenant_id = @tenant\";").Should().BeTrue();
+        Announces("set session app.scope to 'tenant'").Should().BeTrue();
+        Announces("throw new InvalidOperationException(\"This connection never saw \" + \"SET LOCAL app.tenant_id.\");")
+            .Should().BeFalse("a message that names the statement does not issue it — it sets no value");
+        Announces("SELECT current_setting('app.tenant_id', true)").Should().BeFalse("a read is not a setter");
+        Announces("USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)")
+            .Should().BeFalse("a policy reads the variable it guards with");
     }
+
+    /// <summary>Whether code announces a session variable, however the statement is spelled.</summary>
+    /// <remarks>
+    /// The <c>SET</c> form must carry a value — <c>=</c> or <c>TO</c> — because the same words
+    /// appear in prose a message hands a developer: <c>ModuleDbContextRegistration</c> throws
+    /// "…it never saw SET LOCAL app.tenant_id", which announces nothing. Comments are stripped
+    /// before the scan; strings are not, because a setter IS a string.
+    /// </remarks>
+    [GeneratedRegex(
+        @"set_config\s*\(|\bSET\s+(?:LOCAL\s+|SESSION\s+)?app\.[A-Za-z_][A-Za-z0-9_]*\s*(?:=|\bTO\b)",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex SessionSetter();
+
+    private static bool Announces(string code) => SessionSetter().IsMatch(code);
 
     /// <summary>The ambient unit of work, which sets the variables on the request's transaction.</summary>
     private static readonly string[] AmbientSetters =
@@ -180,15 +236,39 @@ public sealed partial class TenancyConventionTests
     ];
 
     /// <summary>
-    /// Whether code issues <c>SET TRANSACTION READ ONLY</c> before its first
-    /// <c>set_config(</c> — the order PostgreSQL requires.
+    /// Whether every announcement in a file is preceded by its own
+    /// <c>SET TRANSACTION READ ONLY</c>.
     /// </summary>
+    /// <remarks>
+    /// Paired by position rather than answered once per file: a reader with two announcing
+    /// methods gets a statement for each, and a file-wide "is there one somewhere before the
+    /// first" would pass the second on the first's statement. The order is what carries the
+    /// guarantee — PostgreSQL accepts the statement after other statements, measured, and
+    /// binds only what follows it, so anything issued before it ran read-write.
+    /// </remarks>
     private static bool ReadsOnlyBeforeAnnouncing(string code)
     {
-        var readOnly = code.IndexOf("SET TRANSACTION READ ONLY", StringComparison.Ordinal);
-        var announce = code.IndexOf("set_config(", StringComparison.Ordinal);
+        var readOnly = Offsets(code, ReadOnlyStatement);
+        var announcements = SessionSetter().Matches(code).Select(match => match.Index).ToList();
 
-        return readOnly >= 0 && announce >= 0 && readOnly < announce;
+        return announcements.Count > 0
+            && readOnly.Count >= announcements.Count
+            && announcements.Select((offset, index) => readOnly[index] < offset).All(ordered => ordered);
+    }
+
+    private const string ReadOnlyStatement = "SET TRANSACTION READ ONLY";
+
+    private static List<int> Offsets(string code, string statement)
+    {
+        var offsets = new List<int>();
+
+        for (var at = code.IndexOf(statement, StringComparison.Ordinal); at >= 0;
+             at = code.IndexOf(statement, at + statement.Length, StringComparison.Ordinal))
+        {
+            offsets.Add(at);
+        }
+
+        return offsets;
     }
 
     [Fact]
@@ -272,6 +352,12 @@ public sealed partial class TenancyConventionTests
         // LearnStack type down, which is where a real one would arrive.
         OutboundDependencies(typeof(HttpResolverProbe)).Should().Contain(typeof(HttpClient).FullName);
         OutboundDependencies(typeof(IndirectResolverProbe)).Should().Contain(typeof(HttpMessageHandler).FullName);
+        OutboundDependencies(typeof(StaticResolverProbe)).Should().Contain(typeof(HttpClient).FullName,
+            "a static field is where an HttpClient is canonically held");
+        OutboundDependencies(typeof(InheritingResolverProbe)).Should().Contain(typeof(HttpClient).FullName,
+            "and a base class is where a second resolver would put what it shares");
+        OutboundDependencies(typeof(LocatingResolverProbe)).Should().Contain("System.IServiceProvider",
+            "a service provider answers for every registered type, this rule's subjects included");
     }
 
     /// <summary>
@@ -291,10 +377,13 @@ public sealed partial class TenancyConventionTests
                 continue;
             }
 
+            // Constructor parameters and FIELDS — instance and static, declared here and
+            // inherited. A `private static readonly HttpClient` is the canonical way to hold
+            // one, and a base class is where a second resolver would put what it shares; a
+            // walk over instance fields alone passed both, measured.
             var declared = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .SelectMany(constructor => constructor.GetParameters().Select(parameter => parameter.ParameterType))
-                .Concat(type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .Select(field => field.FieldType));
+                .Concat(Fields(type).Select(field => field.FieldType));
 
             foreach (var dependency in declared.SelectMany(Unwrap))
             {
@@ -333,13 +422,37 @@ public sealed partial class TenancyConventionTests
         }
     }
 
+    /// <summary>Every field a type holds, inherited and static ones included.</summary>
+    private static IEnumerable<FieldInfo> Fields(Type type)
+    {
+        for (var current = type; current is not null && current != typeof(object); current = current.BaseType)
+        {
+            foreach (var field in current.GetFields(
+                BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Static
+                | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                yield return field;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A type that can reach the network — or resolve something that can.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IServiceProvider"/> is on the list because it answers for every registered
+    /// type: a resolver holding one can obtain a Hub client at the call site, and no walk over
+    /// its declared dependencies would see it.
+    /// </remarks>
     private static bool CallsOut(Type type) =>
         type.Namespace is { } space
             && (space.StartsWith("System.Net.Http", StringComparison.Ordinal)
                 || space.StartsWith("System.Net.Sockets", StringComparison.Ordinal)
                 || space.StartsWith("System.Net.WebSockets", StringComparison.Ordinal)
                 || space.StartsWith("Grpc", StringComparison.Ordinal))
-        || type.Name.Contains("HubClient", StringComparison.Ordinal);
+        || type.Name.Contains("HubClient", StringComparison.Ordinal)
+        || type == typeof(IServiceProvider)
+        || type.Name is "IServiceScopeFactory" or "IServiceScope";
 
     /// <summary>Takes an HTTP client directly. Never constructed.</summary>
     private sealed class HttpResolverProbe(HttpClient client)
@@ -356,6 +469,31 @@ public sealed partial class TenancyConventionTests
         {
             public HttpMessageHandler Handler { get; } = handler;
         }
+    }
+
+    /// <summary>Holds an HTTP client in a static field. Never constructed.</summary>
+    private sealed class StaticResolverProbe
+    {
+        private static readonly HttpClient Shared = new();
+
+        public static HttpClient Client => Shared;
+    }
+
+    /// <summary>Holds one in a field a derived type inherits. Never constructed.</summary>
+    private class InheritingResolverProbeBase(HttpClient client)
+    {
+        private readonly HttpClient _client = client;
+
+        protected HttpClient Client => _client;
+    }
+
+    /// <summary>Inherits the client above, and declares nothing itself. Never constructed.</summary>
+    private sealed class InheritingResolverProbe() : InheritingResolverProbeBase(new HttpClient());
+
+    /// <summary>Takes a service provider, which answers for anything. Never constructed.</summary>
+    private sealed class LocatingResolverProbe(IServiceProvider services)
+    {
+        public IServiceProvider Services { get; } = services;
     }
 
     [Fact]
@@ -604,13 +742,48 @@ public sealed partial class TenancyConventionTests
         string? folder = null,
         IReadOnlyList<string>? alsoExcept = null)
     {
+        var exempt = new List<string>();
+        if (except is not null)
+        {
+            exempt.Add(except);
+        }
+
+        if (alsoExcept is not null)
+        {
+            // The second exemption list is for the file that DECLARES a banned spelling as
+            // opposed to reading it. `TrustedHopOptions` owns the header names; banning the
+            // name without exempting its own declaration would make the rule unsatisfiable
+            // rather than strict.
+            exempt.AddRange(alsoExcept);
+        }
+
+        return
+        [
+            .. from source in ApiSources(folder, exempt)
+               from literal in banned
+               where source.Code.Contains(SourceText.WithoutWhitespace(literal), StringComparison.Ordinal)
+               select $"{source.Relative} contains '{literal}'",
+        ];
+    }
+
+    /// <summary>
+    /// Every source file under <c>LearnStack.Api</c> — or one folder of it — with its
+    /// comments stripped and its whitespace removed.
+    /// </summary>
+    /// <remarks>
+    /// Exemptions are compared as paths, not as bare names: two files may share a name in
+    /// different folders, and excluding both because one is exempt is how a rule quietly
+    /// stops covering half of what it names.
+    /// </remarks>
+    private static IEnumerable<(string Relative, string Code)> ApiSources(
+        string? folder = null, IReadOnlyList<string>? except = null)
+    {
         var root = Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api");
+
         if (folder is not null)
         {
             root = Path.Combine(root, folder);
         }
-
-        var offenders = new List<string>();
 
         foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
         {
@@ -622,38 +795,16 @@ public sealed partial class TenancyConventionTests
                 continue;
             }
 
-            // Compared as a path, not a bare name: two files may share a name in
-            // different folders, and excluding both because one is exempt is how
-            // a rule quietly stops covering half of what it names.
             if (except is not null
-                && relative.Equals(except, StringComparison.Ordinal))
+                && except.Any(allowed => relative.Equals(allowed, StringComparison.Ordinal)))
             {
                 continue;
             }
 
-            // A second exemption list, for the file that DECLARES a banned spelling as
-            // opposed to reading it. `TrustedHopOptions` owns the header names; banning
-            // the name without exempting its own declaration would make the rule
-            // unsatisfiable rather than strict.
-            if (alsoExcept is not null
-                && alsoExcept.Any(allowed => relative.Equals(allowed, StringComparison.Ordinal)))
-            {
-                continue;
-            }
-
-            var code = SourceText.WithoutWhitespace(
-                SourceText.WithoutComments(File.ReadAllText(file)));
-
-            foreach (var literal in banned)
-            {
-                if (code.Contains(SourceText.WithoutWhitespace(literal), StringComparison.Ordinal))
-                {
-                    offenders.Add($"{relative} contains '{literal}'");
-                }
-            }
+            yield return (
+                relative,
+                SourceText.WithoutWhitespace(SourceText.WithoutComments(File.ReadAllText(file))));
         }
-
-        return offenders;
     }
     [Fact]
     public void Resolving_Host_Is_Set_In_One_Place()

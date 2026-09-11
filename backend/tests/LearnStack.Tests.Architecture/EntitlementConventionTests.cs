@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using Mono.Cecil;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Entitlements;
@@ -45,13 +46,27 @@ public sealed partial class EntitlementConventionTests
                 "only the schema's own sites and an IEntitlementProvider implementation name "
                 + "the row — module code reads entitlement through IFeatureFlags (ADR-0045 § 2)");
 
-        // SQL. No statement reads or writes the table outside the provider. The premise is
-        // that the scan read the file that maps it; the rule is that nothing else acts on it.
-        var files = SourceScan.FilesContaining(SourceScan.SourceRoot, "platform_entitlement_cache", except: null);
-        files.Should().NotBeEmpty("the premise: the scan reads the files that name the table");
+        // The context's exemption is for the MAPPING, not for the type. A query helper declared
+        // on TenancyDbContext would launder the read: the caller names only the context, which
+        // every module may, and the entity leg above would see nothing.
+        ContextMembersNaming(typeof(TenancyDbContext), typeof(PlatformEntitlement))
+            .Should().Equal(
+                [$"get_{nameof(TenancyDbContext.PlatformEntitlements)}"],
+                "the context maps the table and reads nothing from it");
 
-        Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
+        // SQL. No statement reads or writes the table outside the provider. The premise is the
+        // scan's own enumeration — the same files the rule reads, asserted to contain the ones
+        // that name the table at all, so a scan that walked an empty tree fails here instead of
+        // reporting clean.
+        var scanned = Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        scanned.Where(file => SourceText.WithoutComments(File.ReadAllText(file))
+                .Contains("platform_entitlement_cache", StringComparison.Ordinal))
+            .Should().NotBeEmpty("the premise: the enumeration this leg walks reaches the files that name the table");
+
+        scanned
             .Where(file => EntitlementCacheStatement().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
             .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
             .Where(file => !ProviderSqlSites.Contains(file))
@@ -70,6 +85,10 @@ public sealed partial class EntitlementConventionTests
         EntitlementCacheStatement().IsMatch("UPDATE platform_entitlement_cache SET generation = @g").Should().BeTrue();
         EntitlementCacheStatement().IsMatch("DELETE FROM ONLY platform_entitlement_cache").Should().BeTrue();
         EntitlementCacheStatement().IsMatch("JOIN platform_entitlement_cache e ON e.tenant_id = t.id").Should().BeTrue();
+        EntitlementCacheStatement().IsMatch("SELECT e.plan_code FROM tenants t, platform_entitlement_cache e").Should().BeTrue(
+            "an implicit join puts the table after a comma");
+        EntitlementCacheStatement().IsMatch("DELETE FROM tenants USING platform_entitlement_cache e").Should().BeTrue(
+            "and USING is the other way a statement names a second table");
 
         // The schema's own statements are not row access.
         EntitlementCacheStatement().IsMatch("ALTER TABLE platform_entitlement_cache FORCE ROW LEVEL SECURITY").Should().BeFalse();
@@ -118,9 +137,26 @@ public sealed partial class EntitlementConventionTests
     /// grant or a policy.
     /// </summary>
     [GeneratedRegex(
-        @"\b(?:FROM|JOIN|INTO|UPDATE|COPY|TRUNCATE(?:\s+TABLE)?)\s+(?:ONLY\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?platform_entitlement_cache""?(?![A-Za-z0-9_])",
+        @"(?:\b(?:FROM|JOIN|INTO|UPDATE|COPY|USING|TRUNCATE(?:\s+TABLE)?)\s+|,\s*)(?:ONLY\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?platform_entitlement_cache""?(?![A-Za-z0-9_])",
         RegexOptions.IgnoreCase)]
     private static partial Regex EntitlementCacheStatement();
+
+    /// <summary>
+    /// The methods of a <c>DbContext</c> that name a guarded entity.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <c>Modules_Do_Not_Write_AuditLog_Directly</c>, which has the same shape: a
+    /// context is exempt because it maps the row, and mapping it is a property getter.
+    /// </remarks>
+    internal static List<string> ContextMembersNaming(Type context, Type entity)
+    {
+        using var module = ModuleDefinition.ReadModule(context.Assembly.Location);
+
+        var definition = module.GetType(context.FullName)
+            ?? throw new InvalidOperationException($"{context.FullName} is the context this rule reads.");
+
+        return Il.MethodsNaming(definition, entity.FullName!);
+    }
 
     /// <summary>
     /// Reads the table through the DbSet, for <c>The_Entitlement_Cache_Scan_Can_Actually_Fail</c>.

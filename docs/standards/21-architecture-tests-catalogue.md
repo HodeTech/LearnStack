@@ -742,9 +742,12 @@ otherwise).
   references. **Kind:** structural.
 - **Status:** **Implemented** — `ModuleDependencyTests.cs`. Until Packet 10 it checked the
   module's **own** `Application` and `Infrastructure` and the core ones, so another
-  module's reached no rule at all; it is now an allow-list, as the Application,
-  Infrastructure and Contracts rules below are, with the project-file leg an unused
-  reference needs. The four share a companion with
+  module's reached no rule at all; it is now an allow-list, as the Application, Infrastructure
+  and Contracts rules below are, with the declared leg an unused reference needs — read from
+  `obj/project.assets.json`, the set restore resolved, because a regex over the project file saw
+  one spelling of three and passed a forbidden edge written with `Condition` before `Include`,
+  with single quotes, or injected from an imported `Directory.Build.props`. All three were
+  measured. The four share a companion with
   `CoreApplication_DoesNotDependOn_Any_Infrastructure_Or_Module`:
   `The_Dependency_Matrix_Can_Actually_Fail` feeds each layer one reference it may hold and
   one it may not, and the core rule one of each family it forbids.
@@ -838,12 +841,19 @@ otherwise).
 
 #### `Meta_NetArchTest_DetectsAPlantedViolation`
 
-- **Asserts:** NetArchTest reports a **deliberately planted** forbidden dependency. If
-  this test ever reports the planted dependency as absent, every NetArchTest-based row
-  in this catalogue is vacuously green and the suite is meaningless.
+- **Asserts:** two things, because a NetArchTest rule goes vacuous two ways. That NetArchTest
+  reports a **deliberately planted** forbidden dependency — if it ever reports that dependency
+  as absent, every NetArchTest-based row in this catalogue is vacuously green and the suite is
+  meaningless. And that every type a production assembly declares reaches NetArchTest's list at
+  all: it drops anything whose full name begins with `System`, `Microsoft`, `xunit` or
+  `netstandard`, ours included, and `namespace Microsoft.Extensions.DependencyInjection` is the
+  idiomatic place for a registration extension. The day such a type is written, this fails and
+  names it, rather than every rule quietly not seeing it.
 - **Source:** [06-testing.md](06-testing.md) — a test suite must be able to fail.
 - **Type:** xUnit + NetArchTest. **Kind:** structural (meta).
-- **Status:** **Implemented** — `ModuleDependencyTests.cs`. Keep in perpetuity.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`; the type-coverage half from
+  Packet 10's review round, which measured a hand-written extension class in a `Microsoft.*`
+  namespace inside a module assembly passing every NetArchTest-based rule. Keep in perpetuity.
 - **Phase:** 01.
 
 #### `Modules_Do_Not_Inject_Valkey_Directly`
@@ -901,10 +911,13 @@ otherwise).
 - **Status:** **Implemented** — `EntitlementConventionTests.cs`, Packet 10, in two legs.
   The entity: the types that name `PlatformEntitlement` are the entity, its configuration,
   `TenancyDbContext` and an `IEntitlementProvider` implementation — asserting first that the
-  scan sees `TenancyDbContext`'s `DbSet`, or it sees nothing. The SQL: no statement reads
-  or writes the table's rows — `FROM`, `JOIN`, `INTO`, `UPDATE`, `COPY`, `TRUNCATE`, not the
-  DDL, grants and policies that name it — outside an exact-path list the Hub-backed
-  provider joins in Phase 02c. Its companion, `The_Entitlement_Cache_Scan_Can_Actually_Fail`,
+  scan sees `TenancyDbContext`'s `DbSet`, or it sees nothing. The context's exemption is for the
+  **mapping**: the only member of it that may name the row is that `DbSet`'s getter, because a
+  query helper declared on the context would launder the read — its caller names only the
+  context, which every module may. The SQL: no statement reads or writes the table's rows —
+  after `FROM`, `JOIN`, `INTO`, `UPDATE`, `COPY`, `USING`, `TRUNCATE` or a comma, since an
+  implicit join names it there, and not the DDL, grants and policies that name it — outside an
+  exact-path list the Hub-backed provider joins in Phase 02c. Its companion, `The_Entitlement_Cache_Scan_Can_Actually_Fail`,
   feeds the pattern both kinds of statement and plants a `DbSet` reader. The rule got its
   subject from the socket Packet 9 ships:
   no row of the table has been read or written since Packet 6 created it, and until there
@@ -1029,9 +1042,14 @@ otherwise).
 - **Status:** **Implemented** — `ModuleDependencyTests.cs`, Packet 10; Architecture
   Standards had promised it with Packet 6. It asserts its premise — the emitted converters
   are found — and its companion, `The_Domain_EF_Core_Rule_Can_Actually_Fail`, requires the
-  predicate to report this test assembly's hand-written `DbContext` probes and both emitted
-  names borrowed by a type that is not a value object. Mutation-checked: a planted
-  `typeof(DbContext)` in `Tenancy.Domain` fails it.
+  scan to report this test assembly's hand-written `DbContext` probes, and the predicate to
+  refuse both emitted names borrowed by a type that is not a value object, and a third name
+  borrowed inside one that is. It reads the IL directly rather than through NetArchTest, whose
+  type list drops everything whose full name starts with `System` or `Microsoft` — including a
+  type our own assembly declares, and `namespace Microsoft.EntityFrameworkCore` is exactly
+  where an extension class for EF Core is idiomatically written. Mutation-checked: a planted
+  `typeof(DbContext)` in `Tenancy.Domain` fails it, and so does one written in a `Microsoft.*`
+  namespace, which the NetArchTest version passed.
 - **Phase:** 02a (Packet 10).
 
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
@@ -1451,9 +1469,10 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
 
-- **Asserts:** no module code fans out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, and
-  no `Parallel` loop — outside an exact-path list, empty today, whose entries each say why
-  their concurrent work touches no connection. One connection means one command at a
+- **Asserts:** no module code fans out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
+  without an explicit type argument; no `Parallel.For`, `ForAsync`, `ForEach`, `ForEachAsync`
+  or `Invoke`; and no PLINQ `AsParallel()` — outside an exact-path list, empty today, whose
+  entries each say why their concurrent work touches no connection. One connection means one command at a
   time; a handler that fans out corrupts the protocol. Stricter than ADR-0040's sentence,
   which bans two `DbContext`-bound operations: which operations are bound to the ambient
   connection cannot be read from source, and the honest rule is the one that can.
@@ -1491,8 +1510,9 @@ diagnostic above row security, not the boundary, as its own note says.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
 
-- **Asserts:** the core `LearnStack.Infrastructure` assembly references no
-  `LearnStack.Modules.*` type. The reverse edge — a module's `Infrastructure`
+- **Asserts:** no core `LearnStack.Infrastructure*` assembly — the persistence one, Audit,
+  Observability, ErrorTracking, Resilience and Validation — references a `LearnStack.Modules.*`
+  assembly, in its IL or in its declared references. The reverse edge — a module's `Infrastructure`
   referencing core Infrastructure — is permitted and required, because
   `TenantScopedDbContext` and the query-filter seam live there
   ([Architecture Standards § Dependency Direction](01-architecture-standards.md)).
@@ -1502,9 +1522,11 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Source:** [ADR-0002](../decisions/0002-initial-architecture.md);
   [ADR-0010](../decisions/0010-cross-module-communication.md);
   [Architecture Standards § Dependency Direction](01-architecture-standards.md).
-- **Type:** NetArchTest. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 step 3, `ModuleDependencyTests`).
-- **Phase:** 02a (Packet 7).
+- **Type:** xUnit over referenced assemblies and the restore graph. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 3, `ModuleDependencyTests`). Packet 10's review
+  round widened it from the persistence assembly to all six: the other five are referenced by
+  the same composition root and close the same loop, and none was under any rule.
+- **Phase:** 02a (Packet 7; widened in Packet 10).
 
 #### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
 
@@ -1779,13 +1801,23 @@ because the filters hold, and removing both turns all five red.
 
 #### `Out_Of_Band_Setters_Open_Read_Only_Transactions`
 
-- **Asserts:** every file under `backend/src` that calls `set_config(` is one of the
-  closed set [Security Standards § The out-of-band setters](11-security.md) enumerates —
-  the ambient unit of work, the audit store's writers, or a reader — and each reader
+- **Asserts:** every file under `backend/src` that announces a session variable — `set_config(`
+  in any casing, or a `SET [LOCAL|SESSION] app.<name>` carrying a value — is one of the closed
+  set [Security Standards § The out-of-band setters](11-security.md) enumerates: the ambient
+  unit of work, the audit store's writers, or a reader. Each reader
   (`CachedHostToTenantResolver`, `OrganizationScopeValidator`, `AuditConfigService`,
-  `FeatureFlags`) contains `SET TRANSACTION READ ONLY` **at a lower source offset than its
-  first `set_config(`**. A setter the scan finds and no kind names is a new member of a
-  closed set, and fails until the standard and ADR-0040 say which kind it is.
+  `FeatureFlags`) issues `SET TRANSACTION READ ONLY` **before each announcement, one for one** —
+  paired by position, so a second announcing method cannot ride the first's statement. A setter
+  the scan finds and no kind names is a new member of a closed set, and fails until the standard
+  and ADR-0040 say which kind it is.
+- **Not scanned:** `Migrations/`, narrowly. A migration runs as `learnstack_migration`, outside
+  any request, and what it carries is the policy DDL that *reads* these variables. A setter
+  moved into one would be a setter this rule does not see, which is why the exemption is a
+  directory rather than a pattern.
+- **Why the order, exactly:** because the statement binds only what follows it. PostgreSQL does
+  **not** refuse it after a first statement — measured on 18: issued after an `INSERT` it is
+  accepted and the insert still commits — so the ordering is this rule's doing rather than the
+  server's, and a guard that trusted the server would not be a guard.
 - **What the offset comparison does and does not prove.** PostgreSQL refuses
   `SET TRANSACTION` after the transaction's *first statement of any kind*, and this scan
   only orders it against the announcement. A setter that ran some other statement — a
@@ -1812,8 +1844,9 @@ because the filters hold, and removing both turns all five red.
   announced `app.tenant_id` in a transaction that was not read-only while it stayed green,
   because nothing told it they existed. Packet 10 made it find the setters, and both
   loaders now open their transaction read-only. Its companion,
-  `The_Setter_Scan_Can_Actually_Fail`, refuses a reader with no statement and one that
-  issues it too late. Mutation-checked: dropping the statement from `FeatureFlags` fails it.
+  `The_Setter_Scan_Can_Actually_Fail`, refuses a reader with no statement, one that issues it
+  too late, and one whose second announcement has none of its own; it also feeds the discovery
+  pattern each spelling, and the prose that names the statement without issuing it. Mutation-checked: dropping the statement from `FeatureFlags` fails it.
 - **Phase:** 02a (Packet 7; discovery-based from Packet 10).
 
 #### `Registering_The_Pipeline_Twice_Registers_It_Once`
@@ -2390,7 +2423,10 @@ which decides identity, multiplicity, capture and classification;
 - **Status:** **Implemented** — `AuditConventionTests.cs`, Packet 10, in three legs. The
   entity: across every production assembly, the types that name `AuditEntry` are a closed
   list — the entity, its EF configuration and `AuditDbContext` — so a change-tracker write
-  or delete outside it fails, and the Phase 03 read API joins the list by an edit. The SQL:
+  or delete outside it fails, and the Phase 03 read API joins the list by an edit. The
+  context's exemption is for the **mapping**: the only member of it that may name the entity is
+  its `DbSet`'s getter, or a write placed inside the context would be invisible to a leg whose
+  callers name only the context. The SQL:
   exactly one file inserts into `audit_log` (`INSERT`, `MERGE` or `COPY`, quoted or
   schema-qualified), and it is `PostgresAuditStore` — the premise and the rule in one
   assertion. The name: no module but Audit names the table. Its companion,
@@ -2480,7 +2516,9 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
 
 - **Asserts:** no module assembly depends on `LearnStack.Infrastructure.Hub` — where
   Phase 02c's adapter lives — or on the Hub's own `LearnStack.Hub` namespaces, and no
-  module source names a Hub client, `HubOptions` or the `Hub` configuration section. Two
+  module source names a Hub client, `HubOptions`, a `"Hub:"` configuration path or the bare
+  `"Hub"` section literal — the house idiom declares a section name as a `const string` and
+  binds through the constant, so the literal is a spelling actually in use. Two
   legs because no Hub client exists before Phase 02c: the namespaces it will arrive in, and
   the names a module would have to write to reach it any other way.
 - **Source:** ADR-0019; ADR-0034 invariant 2.
@@ -2509,12 +2547,15 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
   **Kind:** structural (the resolver's dependencies) + behavioural (the stub).
 - **Status:** **Implemented** for the structural half — `TenancyConventionTests.cs`,
   Packet 10. It asserts its premise, that `CachedHostToTenantResolver` is the only
-  `IHostToTenantResolver`, then walks the resolver's constructor parameters and fields,
-  and those of every LearnStack class it depends on, for anything in `System.Net.Http`,
-  `System.Net.Sockets`, `System.Net.WebSockets` or `Grpc`, or a Hub client. Ports are not
-  followed: a port is governed where it is declared. Its companion,
-  `The_Outbound_Dependency_Scan_Can_Actually_Fail`, requires an HTTP client and a handler
-  hidden one LearnStack type down to be found. The stub leg is Registered.
+  `IHostToTenantResolver`, then walks the resolver's constructor parameters and its fields —
+  instance and static, declared and inherited — and those of every LearnStack class it depends
+  on, for anything in `System.Net.Http`, `System.Net.Sockets`, `System.Net.WebSockets` or
+  `Grpc`, a Hub client, or an `IServiceProvider`, which answers for every registered type and
+  would otherwise hide one. Ports are not followed: a port is governed where it is declared.
+  Its companion, `The_Outbound_Dependency_Scan_Can_Actually_Fail`, requires each hiding place
+  to be found — a constructor parameter, a handler one LearnStack type down, a
+  `private static readonly HttpClient`, an inherited field, and a service provider. The stub
+  leg is Registered.
 - **Phase:** 02a (Packet 10) for the structural half; the stub leg with the first Hub
   client, in [Phase 02c](../roadmap/phase-02c-hub-foundation.md).
 
@@ -3325,7 +3366,7 @@ structural test proves — and what it does not.
 - **Asserts:** only `EffectiveHostAccessor` reads a request host. Bans `HttpRequest.Host`, `RequestHeaders.Host`, `HeaderDictionary` indexers carrying a `Host` / `X-Forwarded-Host` / `X-LearnStack-Host` / `Forwarded` literal, and `UriHelper.GetDisplayUrl` / `GetEncodedUrl` everywhere else.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`). Outside `EffectiveHostAccessor` it bans `Request.Host`, `Headers.Host`, `Headers["Host"]`, `HeaderNames.Host`, `GetTypedHeaders`, `GetDisplayUrl`, `GetEncodedUrl`, `X-Forwarded-Host`, `HeaderNames.XForwardedHost`, the `"Forwarded"` literal, `HeaderNames.Forwarded`, `X-LearnStack-Host` and `TrustedHopOptions.HostHeaderName` — the last two declared, and so exempt, in `TrustedHopOptions`. Packet 10 added the header collection's routes to `Host` and the `Forwarded` header, which this entry named and the scan did not read, with a companion, `The_Host_Read_Scan_Can_Actually_Fail`, that feeds every shape through the same whitespace-blind match. Mutation-checked: a `Request.Headers.Host` read in `TenantResolverMiddleware` fails it.
+- **Status:** **Implemented** (`TenancyConventionTests`). Outside `EffectiveHostAccessor` it bans a host read on any receiver — `request.Host` as well as `context.Request.Host` — plus `Headers.Host`, `Headers["Host"]`, `Headers.TryGetValue("Host"`, `HeaderNames.Host`, `GetTypedHeaders`, `GetDisplayUrl`, `GetEncodedUrl`, `X-Forwarded-Host`, `HeaderNames.XForwardedHost`, the `"Forwarded"` literal, `HeaderNames.Forwarded`, `X-LearnStack-Host` and `TrustedHopOptions.HostHeaderName` — the last two declared, and so exempt, in `TrustedHopOptions`. Packet 10 added the header collection's routes to `Host` and the `Forwarded` header, which this entry named and the scan did not read; its review round added the receiver's own spelling and the `TryGetValue` form, and made the rule run the matcher its companion feeds rather than a copy of it. `The_Host_Read_Scan_Can_Actually_Fail` is that companion, and it also feeds `builder.Host.UseSerilog`, which is not a request host. Mutation-checked: a `request.Host.Value` read in `TenantResolverMiddleware` fails it.
 - **Phase:** 02a (Packet 4).
 - **Note:** a source scan rather than NetArchTest: most of the banned inputs are header names that appear only as string literals inside header lookups, which a type-reference scan cannot see.
 

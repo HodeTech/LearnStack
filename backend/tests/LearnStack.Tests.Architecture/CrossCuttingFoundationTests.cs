@@ -498,11 +498,18 @@ public sealed class CrossCuttingFoundationTests
             .Should().NotHaveDependencyOnAny(HubNamespaces).GetResult()
             .IsSuccessful.Should().BeFalse("a type from a Hub namespace is a Hub reference");
 
-        NamesTheHub("public sealed class Sync(IHubClient client);").Should().BeTrue();
-        NamesTheHub("services.Configure<HubOptions>(configuration.GetSection(\"Hub\"));").Should().BeTrue();
-        NamesTheHub("var url = configuration[\"Hub:BaseUrl\"];").Should().BeTrue();
+        // One needle per probe, so a probe that stops covering its needle is visible.
+        NamesTheHub("public sealed class Sync(IHubClient client);").Should().BeTrue("a client type");
+        NamesTheHub("services.Configure<HubOptions>(section);").Should().BeTrue("an options type");
+        NamesTheHub("var url = configuration[\"Hub:BaseUrl\"];").Should().BeTrue("a configuration path");
+        NamesTheHub("configuration.GetSection ( \"Hub\" )").Should().BeTrue(
+            "a section read, whatever the spacing");
+        NamesTheHub("public const string SectionName = \"Hub\";").Should().BeTrue(
+            "the house idiom declares the section name as a const and binds through it");
         NamesTheHub("CacheKey.ForTenant(tenant, \"hub\", \"entitlement\");").Should().BeFalse(
             "the entitlement cache family is named hub and is not a Hub reference");
+        NamesTheHub("var url = configuration[\"GitHub:Token\"];").Should().BeFalse(
+            "a section whose name merely ends in Hub is not this one");
     }
 
     /// <summary>The cache clients a module reaches only through <c>ICacheService</c>.</summary>
@@ -517,11 +524,22 @@ public sealed class CrossCuttingFoundationTests
     /// <summary>
     /// Whether code names a Hub client, its options type or its configuration section.
     /// </summary>
-    private static bool NamesTheHub(string code) =>
-        code.Contains("HubClient", StringComparison.Ordinal)
-        || code.Contains("HubOptions", StringComparison.Ordinal)
-        || code.Contains("\"Hub:", StringComparison.Ordinal)
-        || code.Contains("GetSection(\"Hub\")", StringComparison.Ordinal);
+    /// <remarks>
+    /// Matched over whitespace-free source, like every sibling scan, and the bare <c>"Hub"</c>
+    /// literal is a needle of its own: this repository names a section with a
+    /// <c>const string SectionName</c> and binds through the constant, so a leg that only knew
+    /// <c>GetSection("Hub")</c> read one of the two spellings actually in use. <c>"GitHub:…"</c>
+    /// is not one of them, which is why the quote before <c>Hub</c> is part of the needle.
+    /// </remarks>
+    private static bool NamesTheHub(string code)
+    {
+        var compact = SourceText.WithoutWhitespace(code);
+
+        return compact.Contains("HubClient", StringComparison.Ordinal)
+            || compact.Contains("HubOptions", StringComparison.Ordinal)
+            || compact.Contains("\"Hub:", StringComparison.Ordinal)
+            || compact.Contains("\"Hub\"", StringComparison.Ordinal);
+    }
 
     [Fact]
     public void Integration_Event_TopicNames_FollowConvention()

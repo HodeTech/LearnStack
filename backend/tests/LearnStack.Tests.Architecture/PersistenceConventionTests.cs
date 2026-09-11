@@ -308,7 +308,11 @@ public sealed partial class PersistenceConventionTests
         FansOut("await WhenAny(tasks);").Should().BeTrue("a `using static` import reaches it unqualified");
         FansOut("await foreach (var task in Task.WhenEach(tasks)) { }").Should().BeTrue();
         FansOut("await Parallel.ForEachAsync(items, work);").Should().BeTrue();
+        FansOut("await Parallel.ForAsync(0, count, work);").Should().BeTrue();
         FansOut("Parallel . Invoke(one, two);").Should().BeTrue();
+        FansOut("var rows = items.AsParallel().Select(Map).ToList();").Should().BeTrue();
+        FansOut("await Task.WhenAll<int>(first, second);").Should().BeTrue(
+            "an explicit type argument sits between the name and the parenthesis");
         FansOut("var whenAllowed = policy.WhenAllowed;").Should().BeFalse();
         FansOut("await context.SaveChangesAsync(ct);").Should().BeFalse();
     }
@@ -321,8 +325,20 @@ public sealed partial class PersistenceConventionTests
 
     private static bool FansOut(string code) => FanOut().IsMatch(code);
 
-    /// <summary>Concurrent execution: <c>Task.When*</c> and the <c>Parallel</c> loops.</summary>
-    [GeneratedRegex(@"\b(?:WhenAll|WhenAny|WhenEach)\s*\(|\bParallel\s*\.\s*(?:For|ForEach|ForEachAsync|Invoke)\b")]
+    /// <summary>
+    /// Concurrent execution: <c>Task.When*</c>, the <c>Parallel</c> loops, and PLINQ.
+    /// </summary>
+    /// <remarks>
+    /// <c>Parallel.ForAsync</c> is named explicitly rather than left to a <c>For</c> prefix,
+    /// and so is <c>AsParallel</c>: the first is the loop async module code reaches for, and
+    /// the second runs a query on the thread pool without the word <c>Parallel</c> appearing
+    /// where a reader expects it. An explicit type argument — <c>Task.WhenAll&lt;int&gt;(…)</c>
+    /// — sits between the name and the parenthesis, so the pattern allows one.
+    /// </remarks>
+    [GeneratedRegex(
+        @"\b(?:WhenAll|WhenAny|WhenEach)\s*(?:<[^;()<>]*>)?\s*\("
+        + @"|\bParallel\s*\.\s*(?:ForAsync|ForEachAsync|ForEach|For|Invoke)\b"
+        + @"|\.\s*AsParallel\s*\(")]
     private static partial Regex FanOut();
 
     /// <summary>

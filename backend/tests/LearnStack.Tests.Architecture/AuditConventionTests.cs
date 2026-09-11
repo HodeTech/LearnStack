@@ -301,6 +301,14 @@ public sealed partial class AuditConventionTests
             ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"],
             "PostgresAuditStore's four writes are the only SQL that adds an audit row");
 
+        // The context's exemption is for the MAPPING: a change-tracker write placed inside
+        // AuditDbContext would be invisible to the leg above, because its caller names only the
+        // context — which the Phase 03 read API will, legitimately.
+        EntitlementConventionTests.ContextMembersNaming(typeof(AuditDbContext), typeof(AuditEntry))
+            .Should().Equal(
+                [$"get_{nameof(AuditDbContext.AuditEntries)}"],
+                "the context maps the log and writes nothing to it (ADR-0044 § 11)");
+
         // The table's name, in every module but Audit.
         var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
         SourceFiles()

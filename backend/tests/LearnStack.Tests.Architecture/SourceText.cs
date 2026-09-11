@@ -84,7 +84,16 @@ internal static class SourceText
             }
         }
 
-        var verbatim = start > 0 && source[start - 1] == '@';
+        // `@"…"`, `$@"…"` and `@$"…"` are all verbatim, and the prefix can be two characters:
+        // reading only the character before the quote made `@$"a ""b"" c"` end at the doubled
+        // quote, which puts the scanner back into code while it is still inside a string.
+        var verbatim = false;
+
+        for (var prefix = start - 1; prefix >= 0 && source[prefix] is '@' or '$'; prefix--)
+        {
+            verbatim |= source[prefix] == '@';
+        }
+
         var i = start;
 
         kept.Append(source[i]);

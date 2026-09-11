@@ -15,3 +15,15 @@ internal sealed class NotAnId
 /// <c>The_Domain_EF_Core_Rule_Can_Actually_Fail</c>.
 /// </summary>
 internal static class __NotAnIdEfCoreExtensions;
+
+/// <summary>
+/// A value object with a hand-written nested type whose name is close to an emitted one.
+/// Vogen emits exactly two — <c>EfCoreValueConverter</c> and <c>EfCoreValueComparer</c> — so
+/// a third is written by hand however it is spelled. Inert: this project references Vogen's
+/// attributes, not its generator.
+/// </summary>
+[Vogen.ValueObject<Guid>]
+internal readonly partial struct BorrowedNameProbeId
+{
+    internal sealed class EfCoreValueReader;
+}

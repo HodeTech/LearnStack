@@ -81,6 +81,14 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NetArchTest.Rules" />
+    <!--
+      Mono.Cecil reads IL the way NetArchTest does, without its type-list exclusions: a type
+      our own assembly declares under a System or Microsoft namespace is dropped from
+      NetArchTest's list and would fall outside the rule written against it. Referenced
+      explicitly at the version NetArchTest already resolves, because a transitive dependency
+      is one a package upgrade can take away without a build error.
+    -->
+    <PackageReference Include="Mono.Cecil" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
