@@ -76,19 +76,30 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The analyzer under test, as a library rather than as an analyzer of this project. -->
+    <ProjectReference Include="..\..\analyzers\LearnStack.Analyzers\LearnStack.Analyzers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NetArchTest.Rules" />
     <!--
-      Mono.Cecil reads IL the way NetArchTest does, without its type-list exclusions: a type
-      our own assembly declares under a System or Microsoft namespace is dropped from
-      NetArchTest's list and would fall outside the rule written against it. Referenced
-      explicitly at the version NetArchTest already resolves, because a transitive dependency
-      is one a package upgrade can take away without a build error.
+      Mono.Cecil reads IL where the type graph cannot answer: a type our own assembly declares
+      under a System or Microsoft namespace is dropped from NetArchTest's list, and
+      constructing an entitlement key is a call inside a method body that no type-reference
+      scan sees. Referenced explicitly at the version NetArchTest already resolves, because a
+      transitive dependency is one a package upgrade can take away without a build error.
     -->
     <PackageReference Include="Mono.Cecil" />
+    <!--
+      Domain_Methods_Do_Not_Throw_For_Expected_Cases runs the LS0001 analyzer over each
+      module's Domain and Application sources. LS0001 is in WarningsNotAsErrors until the
+      Phase 03 escalation, so the build does not fail on it and this test is the gate.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 

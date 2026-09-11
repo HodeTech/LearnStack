@@ -318,6 +318,96 @@ public sealed class CrossCuttingFoundationTests
     }
 
     [Fact]
+    public async Task Domain_Methods_Do_Not_Throw_For_Expected_Cases()
+    {
+        // ADR-0032 § Sub-decision 4: an expected business-rule violation is an OUTCOME —
+        // Result.Fail(business_rule_violation, …) — and DomainException is for programmer
+        // errors. The LS0001 analyzer flags every `throw new DomainException(...)` in the
+        // projects it is wired into, and a genuine aggregate-invariant throw is the rare site
+        // that suppresses it with justification. What the build cannot do is fail on the rest:
+        // LS0001 sits in WarningsNotAsErrors until the Phase 03 escalation, so this test is
+        // the gate, and it reads suppressed reports too — a pragma inside a Result-returning
+        // method silences the question rather than answering it.
+        var runs = new List<AnalyzerReport.Run>();
+
+        foreach (var project in AnalyzerReport.Projects())
+        {
+            File.ReadAllText(project).Should().MatchRegex(
+                @"<ProjectReference\s[^>]*LearnStack\.Analyzers\.csproj[^>]*OutputItemType=""Analyzer""",
+                $"{Path.GetFileName(project)} runs the LS0001 analyzer in its own build "
+                + "(ADR-0032 Amendment 1), or the discipline holds only in this test");
+
+            runs.Add(await AnalyzerReport.RunAsync(project));
+        }
+
+        runs.Sum(run => run.ResultMembers).Should().BePositive(
+            "the premise: there are Result-returning methods to walk — a scan over sources "
+            + "with none would report nothing whatever they contained");
+
+        runs.SelectMany(run => run.Findings
+                .Where(AnalyzerReport.Violates)
+                .Select(finding => $"{run.Project}: {finding}"))
+            .Should().BeEmpty(
+                "a method with a Result channel returns the expected case instead of throwing "
+                + "it, and an unsuppressed LS0001 is a Warning nobody has justified");
+    }
+
+    [Fact]
+    public async Task The_Domain_Exception_Report_Can_Actually_Fail()
+    {
+        // No module throws DomainException at all, so the rule above passes whether the
+        // analyzer ran, the pragma was read, or the Result-returning walk worked. Four planted
+        // methods, one per case — and the invariant guard must NOT be reported, or the rule
+        // would refuse the one use ADR-0032 sanctions.
+        const string Planted = """
+            namespace LearnStack.Modules.Tenancy.Application.Planted;
+
+            internal static class Expected
+            {
+                public static LearnStack.SharedKernel.Results.Result<int> Returned() =>
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an expected case");
+
+                public static LearnStack.SharedKernel.Results.Result<int> Silenced()
+                {
+            #pragma warning disable LS0001
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an expected case, quietly");
+            #pragma warning restore LS0001
+                }
+
+                public static void Guard()
+                {
+            #pragma warning disable LS0001
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an aggregate invariant");
+            #pragma warning restore LS0001
+                }
+
+                public static void Loud() =>
+                    throw new LearnStack.SharedKernel.Errors.DomainException("nobody justified this one");
+            }
+            """;
+
+        var run = await AnalyzerReport.RunAsync(
+            AnalyzerReport.Projects().Single(project =>
+                project.EndsWith("LearnStack.Modules.Tenancy.Application.csproj", StringComparison.Ordinal)),
+            Planted);
+
+        // Only the planted file: the rest of the project is the rule's subject, not this
+        // companion's, and a justified invariant throw landing there later must not break it.
+        var planted = run.Findings
+            .Where(finding => Path.GetFileName(finding.File).StartsWith("Planted", StringComparison.Ordinal))
+            .ToList();
+
+        planted.Select(finding => finding.Member).Should().BeEquivalentTo(
+            ["Returned", "Silenced", "Guard", "Loud"],
+            "the analyzer sees all four, suppressed or not");
+
+        planted.Where(AnalyzerReport.Violates).Select(finding => finding.Member)
+            .Should().BeEquivalentTo(
+                ["Returned", "Silenced", "Loud"],
+                "the invariant guard is the sanctioned suppression; the other three are not");
+    }
+
+    [Fact]
     public void Handlers_Return_Result()
     {
         // The 8-step MediatR pipeline behaviors are constrained
