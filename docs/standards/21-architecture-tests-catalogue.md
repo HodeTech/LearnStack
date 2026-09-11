@@ -914,7 +914,10 @@ otherwise).
   scan sees `TenancyDbContext`'s `DbSet`, or it sees nothing. The context's exemption is for the
   **mapping**: the only member of it that may name the row is that `DbSet`'s getter, because a
   query helper declared on the context would launder the read — its caller names only the
-  context, which every module may. The SQL: no statement reads or writes the table's rows —
+  context, which every module may. That member scan reads a compiler-generated state machine as
+  part of the method that declares it: an `async` helper's body lives there, and a walk over the
+  declaring method alone saw boilerplate — measured, the synchronous twin of the same violation
+  was caught and the `async` one was not. The SQL: no statement reads or writes the table's rows —
   after `FROM`, `JOIN`, `INTO`, `UPDATE`, `COPY`, `USING`, `TRUNCATE` or a comma, since an
   implicit join names it there, and not the DDL, grants and policies that name it — outside an
   exact-path list the Hub-backed provider joins in Phase 02c. Its companion, `The_Entitlement_Cache_Scan_Can_Actually_Fail`,
@@ -1047,9 +1050,11 @@ otherwise).
   borrowed inside one that is. It reads the IL directly rather than through NetArchTest, whose
   type list drops everything whose full name starts with `System` or `Microsoft` — including a
   type our own assembly declares, and `namespace Microsoft.EntityFrameworkCore` is exactly
-  where an extension class for EF Core is idiomatically written. Mutation-checked: a planted
-  `typeof(DbContext)` in `Tenancy.Domain` fails it, and so does one written in a `Microsoft.*`
-  namespace, which the NetArchTest version passed.
+  where an extension class for EF Core is idiomatically written. The IL walk reads generic
+  constraints, `catch` clauses and generic call-site type arguments, each of which carries a type
+  a signature scan does not. Mutation-checked: a planted `typeof(DbContext)` in `Tenancy.Domain`
+  fails it, and so does one written in a `Microsoft.*` namespace, which the NetArchTest version
+  passed.
 - **Phase:** 02a (Packet 10).
 
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
@@ -1471,8 +1476,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 - **Asserts:** no module code fans out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
   without an explicit type argument; no `Parallel.For`, `ForAsync`, `ForEach`, `ForEachAsync`
-  or `Invoke`; and no PLINQ `AsParallel()` — outside an exact-path list, empty today, whose
-  entries each say why their concurrent work touches no connection. One connection means one command at a
+  or `Invoke`; no PLINQ `AsParallel()`; and no task started and stored instead of awaited, which
+  is `Task.WhenAll` written out longhand — outside an exact-path list, empty today, whose entries
+  each say why their concurrent work touches no connection. One connection means one command at a
   time; a handler that fans out corrupts the protocol. Stricter than ADR-0040's sentence,
   which bans two `DbContext`-bound operations: which operations are bound to the ambient
   connection cannot be read from source, and the honest rule is the one that can.
@@ -1564,7 +1570,10 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`; widened in Packet 8
   step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
   `Every_Module_With_A_Schema_Is_Swept` holds current).
-  Since Packet 10 the policy leg reads the clauses, not only their presence: each of
+  The policy count is read case-insensitively, because SQL keywords are: a second policy written
+  `create policy … as restrictive` would be neither counted nor excluded, and the count is the
+  whole of what that leg proves. Since Packet 10 the policy leg also reads the clauses, not only
+  their presence: each of
   `USING` and `WITH CHECK` compares the key column — `tenant_id`, or `id` on the self-keyed
   table — to `NULLIF(current_setting('app.tenant_id', true), '')::uuid`, and its companion,
   `The_Tenant_Term_Check_Can_Actually_Fail`, breaks each clause in turn.
@@ -1806,10 +1815,16 @@ because the filters hold, and removing both turns all five red.
   set [Security Standards § The out-of-band setters](11-security.md) enumerates: the ambient
   unit of work, the audit store's writers, or a reader. Each reader
   (`CachedHostToTenantResolver`, `OrganizationScopeValidator`, `AuditConfigService`,
-  `FeatureFlags`) issues `SET TRANSACTION READ ONLY` **before each announcement, one for one** —
-  paired by position, so a second announcing method cannot ride the first's statement. A setter
-  the scan finds and no kind names is a new member of a closed set, and fails until the standard
-  and ADR-0040 say which kind it is.
+  `FeatureFlags`) issues `SET TRANSACTION READ ONLY` **first, in each announcing method** — read
+  from the IL, in instruction order, so a statement in one method cannot cover an announcement in
+  another, and a log line that names the statement does not count as issuing it. A setter the scan
+  finds and no kind names is a new member of a closed set, and fails until the standard and
+  ADR-0040 say which kind it is.
+- **The reader set is wider than Security Standards' table**, deliberately.
+  [Security Standards § The out-of-band setters](11-security.md) enumerates the setters of
+  `app.tenant_id`, and says in as many words that `CachedHostToTenantResolver` is not among them
+  — it announces `app.resolving_host`. This rule's subject is any session variable, so the
+  resolver is a reader here and the two documents agree rather than differ.
 - **Not scanned:** `Migrations/`, narrowly. A migration runs as `learnstack_migration`, outside
   any request, and what it carries is the policy DDL that *reads* these variables. A setter
   moved into one would be a setter this rule does not see, which is why the exemption is a
@@ -1845,8 +1860,9 @@ because the filters hold, and removing both turns all five red.
   because nothing told it they existed. Packet 10 made it find the setters, and both
   loaders now open their transaction read-only. Its companion,
   `The_Setter_Scan_Can_Actually_Fail`, refuses a reader with no statement, one that issues it
-  too late, and one whose second announcement has none of its own; it also feeds the discovery
-  pattern each spelling, and the prose that names the statement without issuing it. Mutation-checked: dropping the statement from `FeatureFlags` fails it.
+  too late, one whose second announcement has none of its own, and one that only names the
+  statement in a message — each written `async`, because a real reader is and an async method's
+  statements live in a state machine. It also feeds the discovery pattern each spelling. Mutation-checked: dropping the statement from `FeatureFlags` fails it.
 - **Phase:** 02a (Packet 7; discovery-based from Packet 10).
 
 #### `Registering_The_Pipeline_Twice_Registers_It_Once`
@@ -2426,12 +2442,16 @@ which decides identity, multiplicity, capture and classification;
   or delete outside it fails, and the Phase 03 read API joins the list by an edit. The
   context's exemption is for the **mapping**: the only member of it that may name the entity is
   its `DbSet`'s getter, or a write placed inside the context would be invisible to a leg whose
-  callers name only the context. The SQL:
+  callers name only the context; the member scan reads an `async` member's state machine as part
+  of the method that declares it, because that is where its body is. The SQL:
   exactly one file inserts into `audit_log` (`INSERT`, `MERGE` or `COPY`, quoted or
   schema-qualified), and it is `PostgresAuditStore` — the premise and the rule in one
-  assertion. The name: no module but Audit names the table. Its companion,
-  `The_AuditLog_Write_Scan_Can_Actually_Fail`, feeds both patterns their shapes and plants
-  an entity writer the list must report.
+  assertion. The name: no module but Audit names the table — and no statement anywhere in
+  `backend/src` composes its table name by interpolation or concatenation, because a name the
+  scan cannot read is a name no scan can govern, this rule's and the entitlement cache's alike.
+  Its companion, `The_AuditLog_Write_Scan_Can_Actually_Fail`, feeds every pattern its shapes —
+  including the lower-case prose a composed-name check must not mistake for SQL — and plants an
+  entity writer the list must report.
 - **Phase:** 02a (Packet 10).
 
 #### `AuditEntry_Is_AppendOnly`
@@ -2552,10 +2572,13 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
   on, for anything in `System.Net.Http`, `System.Net.Sockets`, `System.Net.WebSockets` or
   `Grpc`, a Hub client, or an `IServiceProvider`, which answers for every registered type and
   would otherwise hide one. Ports are not followed: a port is governed where it is declared.
-  Its companion, `The_Outbound_Dependency_Scan_Can_Actually_Fail`, requires each hiding place
-  to be found — a constructor parameter, a handler one LearnStack type down, a
-  `private static readonly HttpClient`, an inherited field, and a service provider. The stub
-  leg is Registered.
+  A second leg reads the resolver's IL — signatures, method bodies, and the state machines its
+  async methods compile into — because `new HttpClient()` inside a method is a call out no walk
+  over declarations can see. Its companion,
+  `The_Outbound_Dependency_Scan_Can_Actually_Fail`, requires each hiding place to be found: a
+  constructor parameter, a handler one LearnStack type down, a
+  `private static readonly HttpClient`, an inherited field, a service provider, and a client
+  built inside a method body. The stub leg is Registered.
 - **Phase:** 02a (Packet 10) for the structural half; the stub leg with the first Hub
   client, in [Phase 02c](../roadmap/phase-02c-hub-foundation.md).
 
@@ -3366,7 +3389,7 @@ structural test proves — and what it does not.
 - **Asserts:** only `EffectiveHostAccessor` reads a request host. Bans `HttpRequest.Host`, `RequestHeaders.Host`, `HeaderDictionary` indexers carrying a `Host` / `X-Forwarded-Host` / `X-LearnStack-Host` / `Forwarded` literal, and `UriHelper.GetDisplayUrl` / `GetEncodedUrl` everywhere else.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`). Outside `EffectiveHostAccessor` it bans a host read on any receiver — `request.Host` as well as `context.Request.Host` — plus `Headers.Host`, `Headers["Host"]`, `Headers.TryGetValue("Host"`, `HeaderNames.Host`, `GetTypedHeaders`, `GetDisplayUrl`, `GetEncodedUrl`, `X-Forwarded-Host`, `HeaderNames.XForwardedHost`, the `"Forwarded"` literal, `HeaderNames.Forwarded`, `X-LearnStack-Host` and `TrustedHopOptions.HostHeaderName` — the last two declared, and so exempt, in `TrustedHopOptions`. Packet 10 added the header collection's routes to `Host` and the `Forwarded` header, which this entry named and the scan did not read; its review round added the receiver's own spelling and the `TryGetValue` form, and made the rule run the matcher its companion feeds rather than a copy of it. `The_Host_Read_Scan_Can_Actually_Fail` is that companion, and it also feeds `builder.Host.UseSerilog`, which is not a request host. Mutation-checked: a `request.Host.Value` read in `TenantResolverMiddleware` fails it.
+- **Status:** **Implemented** (`TenancyConventionTests`). Outside `EffectiveHostAccessor` it bans a host read on any receiver — `request.Host` as well as `context.Request.Host` — plus `Headers.Host`, `Headers["Host"]`, `Headers.TryGetValue("Host"`, `HeaderNames.Host`, `GetTypedHeaders`, `GetDisplayUrl`, `GetEncodedUrl`, `X-Forwarded-Host`, `HeaderNames.XForwardedHost`, the `"Forwarded"` literal, `HeaderNames.Forwarded`, `X-LearnStack-Host` and `TrustedHopOptions.HostHeaderName` — the last two declared, and so exempt, in `TrustedHopOptions`. Packet 10 added the header collection's routes to `Host` and the `Forwarded` header, which this entry named and the scan did not read; its review round added the receiver's own spelling and the `TryGetValue` form, and made the rule run the matcher its companion feeds rather than a copy of it. `The_Host_Read_Scan_Can_Actually_Fail` is that companion, and it also feeds `builder.Host.UseSerilog`, which is not a request host. The second round made the header spellings case-blind, as a header name is — `Headers["host"]` reads the same header — and made `GetTypedHeaders` a ban on what is read *from* it: the helper also carries `IfMatch` and `Range`, and refusing the call would refuse an ETag read with a message about trusted hops. Mutation-checked: a `request.Host.Value` read in `TenantResolverMiddleware` fails it, and so does `Headers["host"]`.
 - **Phase:** 02a (Packet 4).
 - **Note:** a source scan rather than NetArchTest: most of the banned inputs are header names that appear only as string literals inside header lookups, which a type-reference scan cannot see.
 

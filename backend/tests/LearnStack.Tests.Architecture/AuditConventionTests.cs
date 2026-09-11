@@ -280,10 +280,16 @@ public sealed partial class AuditConventionTests
         // holds one EF Core materialized — and a tracked entity can still be removed or
         // re-added. Which types may name it is a closed list; a Phase 03 read API joins it by
         // an edit here, which is the point.
-        ProductionAssemblies.All()
+        var naming = ProductionAssemblies.All()
             .SelectMany(assembly => Types.InAssembly(assembly)
                 .That().HaveDependencyOn(typeof(AuditEntry).FullName!)
                 .GetTypes())
+            .ToList();
+
+        naming.Should().Contain(typeof(AuditDbContext),
+            "the premise: the scan sees the DbSet that maps the log, or it sees nothing");
+
+        naming
             .Where(type => !MayNameTheAuditEntry(type))
             .Select(type => type.FullName)
             .Should().BeEmpty(
@@ -309,6 +315,17 @@ public sealed partial class AuditConventionTests
                 [$"get_{nameof(AuditDbContext.AuditEntries)}"],
                 "the context maps the log and writes nothing to it (ADR-0044 § 11)");
 
+        // A table name the scan cannot read is a table name no scan can govern: an
+        // `INSERT INTO {Table}` names audit_log as easily as anything else, and every legible
+        // rule in this file — and the entitlement one next door — rests on the name being a
+        // literal. Nothing in backend/src composes one today, and this is what keeps it so.
+        SourceFiles()
+            .Where(file => ComposedTableName().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file).Replace('\\', '/'))
+            .Should().BeEmpty(
+                "a statement names its table as a literal — a composed one is a name the "
+                + "audit and entitlement scans, and the reader after them, cannot see");
+
         // The table's name, in every module but Audit.
         var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
         SourceFiles()
@@ -330,6 +347,15 @@ public sealed partial class AuditConventionTests
         AuditLogInsert().IsMatch("COPY audit_log (id) FROM STDIN").Should().BeTrue();
         AuditLogInsert().IsMatch("INSERT INTO audit_log_archive (id)").Should().BeFalse();
         AuditLogInsert().IsMatch("SELECT count(*) FROM audit_log").Should().BeFalse();
+
+        ComposedTableName().IsMatch("$\"INSERT INTO {Table} (id) VALUES (@id)\"").Should().BeTrue();
+        ComposedTableName().IsMatch("\"scope entered (from {Member} at {File})\"").Should().BeFalse(
+            "lower-case prose is English, not SQL");
+        ComposedTableName().IsMatch("\"SELECT 1 FROM \" + table").Should().BeTrue();
+        ComposedTableName().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeFalse(
+            "a literal name is what every other leg here reads");
+        ComposedTableName().IsMatch("$\"SELECT * FROM audit_log WHERE tenant_id = {tenant}\"").Should().BeFalse(
+            "interpolating a VALUE is not composing a table name");
 
         AuditLogTable().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeTrue();
         AuditLogTable().IsMatch("\"ck_audit_log_outcome\"").Should().BeFalse();
@@ -371,6 +397,18 @@ public sealed partial class AuditConventionTests
     /// <summary>The table's name as an identifier, not as part of a longer one.</summary>
     [GeneratedRegex(@"(?<![A-Za-z0-9_])audit_log(?![A-Za-z0-9_])")]
     private static partial Regex AuditLogTable();
+
+    /// <summary>
+    /// A statement whose table name is interpolated or concatenated rather than written.
+    /// </summary>
+    /// <remarks>
+    /// Upper-case keywords only, and deliberately: SQL in this repository is written in upper
+    /// case, and the lower-case words are English. A log line reading
+    /// "(from {Member} at {File})" is prose, and a pattern that could not tell the two apart
+    /// failed on it — measured.
+    /// </remarks>
+    [GeneratedRegex(@"\b(?:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|COPY|UPDATE|FROM|JOIN)\s+(?:\{|""\s*\+)")]
+    private static partial Regex ComposedTableName();
 
     /// <summary>
     /// Writes an audit row through the entity, for <c>The_AuditLog_Write_Scan_Can_Actually_Fail</c>.

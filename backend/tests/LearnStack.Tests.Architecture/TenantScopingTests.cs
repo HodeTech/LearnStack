@@ -412,13 +412,16 @@ public sealed class TenantScopingTests
     /// </remarks>
     private static string PermissivePolicyFor(string migrations, string table)
     {
+        // Case-insensitively, because SQL keywords are: a second policy written
+        // `create policy … as restrictive` would be neither counted nor excluded, and the
+        // count is the whole of what this rule proves.
         var statements = Regex
             .Matches(
                 migrations,
                 $@"CREATE POLICY\s+\w+\s+ON\s+{Regex.Escape(table)}\b(?<body>.*?);",
-                RegexOptions.Singleline)
+                RegexOptions.Singleline | RegexOptions.IgnoreCase)
             .Select(match => match.Value)
-            .Where(statement => !statement.Contains("AS RESTRICTIVE", StringComparison.Ordinal))
+            .Where(statement => !statement.Contains("AS RESTRICTIVE", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         statements.Should().ContainSingle(

@@ -315,6 +315,10 @@ public sealed partial class PersistenceConventionTests
             "an explicit type argument sits between the name and the parenthesis");
         FansOut("var whenAllowed = policy.WhenAllowed;").Should().BeFalse();
         FansOut("await context.SaveChangesAsync(ct);").Should().BeFalse();
+        FansOut("var rows = store.ReadAsync(ct); var more = other.ReadAsync(ct); await rows; await more;")
+            .Should().BeTrue("two started tasks are Task.WhenAll written out longhand");
+        FansOut("var rows = await store.ReadAsync(ct);").Should().BeFalse(
+            "awaiting at the call site is the shape the rule asks for");
     }
 
     /// <summary>
@@ -323,7 +327,14 @@ public sealed partial class PersistenceConventionTests
     /// </summary>
     private static readonly HashSet<string> ParallelSites = new(StringComparer.Ordinal);
 
-    private static bool FansOut(string code) => FanOut().IsMatch(code);
+    /// <remarks>
+    /// Two shapes. The named APIs, and the hand-rolled one: a call to an <c>…Async</c> method
+    /// whose result is stored rather than awaited is a task already running, and two of those
+    /// are `Task.WhenAll` written out longhand. Nothing in <c>backend/src</c> does it today —
+    /// measured — so module code awaits at the call site, which is the rule.
+    /// </remarks>
+    private static bool FansOut(string code) =>
+        FanOut().IsMatch(code) || StartedWithoutAwaiting().IsMatch(code);
 
     /// <summary>
     /// Concurrent execution: <c>Task.When*</c>, the <c>Parallel</c> loops, and PLINQ.
@@ -340,6 +351,13 @@ public sealed partial class PersistenceConventionTests
         + @"|\bParallel\s*\.\s*(?:ForAsync|ForEachAsync|ForEach|For|Invoke)\b"
         + @"|\.\s*AsParallel\s*\(")]
     private static partial Regex FanOut();
+
+    /// <summary>
+    /// A task started and stored instead of awaited: <c>var rows = ReadAsync(...);</c>.
+    /// </summary>
+    [GeneratedRegex(@"(?:^|[;{}])\s*(?:var|Task\b[^=;]*|ValueTask\b[^=;]*)\s+\w+\s*=\s*(?!await\b)[\w\.]*Async\s*\(",
+        RegexOptions.Multiline)]
+    private static partial Regex StartedWithoutAwaiting();
 
     /// <summary>
     /// Source with its comments removed.

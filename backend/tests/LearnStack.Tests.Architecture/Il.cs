@@ -24,8 +24,24 @@ internal static class Il
     /// Whether a type names a namespace anywhere the IL can carry it: its base type and
     /// interfaces, its attributes, its members' signatures, and its method bodies.
     /// </summary>
+    /// <remarks>
+    /// A compiler-generated nested type counts as part of the type that declares it: an async
+    /// method's body, and a lambda's, live there rather than in the method the author wrote.
+    /// </remarks>
     public static bool NamesNamespace(TypeDefinition type, string namespacePrefix) =>
-        ReferencedTypes(type).Any(reference => InNamespace(reference, namespacePrefix));
+        WithGenerated(type).SelectMany(ReferencedTypes)
+            .Any(reference => InNamespace(reference, namespacePrefix));
+
+    /// <summary>A type and the compiler-generated types nested inside it, recursively.</summary>
+    private static IEnumerable<TypeDefinition> WithGenerated(TypeDefinition type)
+    {
+        yield return type;
+
+        foreach (var nested in type.NestedTypes.Where(IsGenerated).SelectMany(WithGenerated))
+        {
+            yield return nested;
+        }
+    }
 
     /// <summary>
     /// The methods of a type whose signature or body names another type.
@@ -34,13 +50,61 @@ internal static class Il
     /// Type-level answers are too coarse for a context: a <c>DbContext</c> is allowed to map a
     /// guarded entity and is not allowed to query it, and both are the same type reference.
     /// </remarks>
+    /// <remarks>
+    /// <para>
+    /// A compiler-generated nested type is read as part of the method that declares it and
+    /// reported under that method's name. An <c>async</c> method's real body — every call,
+    /// local and constructed object in it — is emitted into a nested state machine, so a walk
+    /// over the outer method alone sees boilerplate: measured, an <c>async</c> helper on a
+    /// <c>DbContext</c> that read the guarded entity was invisible while its synchronous twin
+    /// was caught.
+    /// </para>
+    /// </remarks>
     public static List<string> MethodsNaming(TypeDefinition type, string namedTypeFullName) =>
-        [.. type.Methods
-            .Where(method => MethodReferences(method).Any(reference =>
+        [.. Methods(type)
+            .Where(method => MethodReferences(method.Definition).Any(reference =>
                 NameOf(reference) == namedTypeFullName))
-            .Select(method => method.Name)
+            .Select(method => method.DeclaredAs)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Every method of a type, each paired with the name it was written under — a state
+    /// machine's <c>MoveNext</c> is reported as the async method that declares it.
+    /// </summary>
+    public static IEnumerable<(MethodDefinition Definition, string DeclaredAs)> Methods(TypeDefinition type)
+    {
+        foreach (var method in type.Methods)
+        {
+            yield return (method, method.Name);
+        }
+
+        foreach (var nested in type.NestedTypes.Where(IsGenerated))
+        {
+            var declaredAs = WrittenAs(nested);
+
+            foreach (var method in Methods(nested))
+            {
+                yield return (method.Definition, declaredAs);
+            }
+        }
+    }
+
+    /// <summary>The method a compiler-generated type was emitted for, or the type's own name.</summary>
+    private static string WrittenAs(TypeDefinition generated)
+    {
+        var opening = generated.Name.IndexOf('<', StringComparison.Ordinal);
+        var closing = generated.Name.IndexOf('>', StringComparison.Ordinal);
+
+        return closing > opening + 1
+            ? generated.Name[(opening + 1)..closing]
+            : generated.Name;
+    }
+
+    private static bool IsGenerated(TypeDefinition type) =>
+        type.Name.Contains('<', StringComparison.Ordinal)
+        || type.CustomAttributes.Any(attribute =>
+            attribute.AttributeType.Name == "CompilerGeneratedAttribute");
 
     private static IEnumerable<TypeReference> MethodReferences(MethodDefinition method)
     {
@@ -49,6 +113,11 @@ internal static class Il
         foreach (var parameter in method.Parameters)
         {
             yield return parameter.ParameterType;
+        }
+
+        foreach (var constraint in method.GenericParameters.SelectMany(parameter => parameter.Constraints))
+        {
+            yield return constraint.ConstraintType;
         }
 
         if (!method.HasBody)
@@ -61,12 +130,35 @@ internal static class Il
             yield return variable.VariableType;
         }
 
+        // The type a catch clause names is a reference like any other, and the only one a
+        // walk over signatures and instructions does not reach.
+        foreach (var handler in method.Body.ExceptionHandlers.Where(handler => handler.CatchType is not null))
+        {
+            yield return handler.CatchType;
+        }
+
         foreach (var instruction in method.Body.Instructions)
         {
             switch (instruction.Operand)
             {
                 case TypeReference operand:
                     yield return operand;
+                    break;
+                case GenericInstanceMethod generic:
+                    // The call site's type arguments, which is where `Set<PlatformEntitlement>()`
+                    // names the entity — the method's own return type is an open parameter.
+                    foreach (var argument in generic.GenericArguments)
+                    {
+                        yield return argument;
+                    }
+
+                    yield return generic.ReturnType;
+
+                    if (generic.DeclaringType is { } genericOwner)
+                    {
+                        yield return genericOwner;
+                    }
+
                     break;
                 case MethodReference call:
                     yield return call.ReturnType;
@@ -100,6 +192,11 @@ internal static class Il
         if (type.BaseType is { } baseType)
         {
             yield return baseType;
+        }
+
+        foreach (var constraint in type.GenericParameters.SelectMany(parameter => parameter.Constraints))
+        {
+            yield return constraint.ConstraintType;
         }
 
         foreach (var contract in type.Interfaces)
@@ -141,10 +238,22 @@ internal static class Il
                 yield return variable.VariableType;
             }
 
+            foreach (var handler in method.Body.ExceptionHandlers.Where(handler => handler.CatchType is not null))
+            {
+                yield return handler.CatchType;
+            }
+
             foreach (var instruction in method.Body.Instructions)
             {
                 switch (instruction.Operand)
                 {
+                    case GenericInstanceMethod generic:
+                        foreach (var argument in generic.GenericArguments)
+                        {
+                            yield return argument;
+                        }
+
+                        break;
                     case TypeReference operand:
                         yield return operand;
                         break;
