@@ -105,11 +105,14 @@ workflow, the `tenant_route_slugs` cross-table registry, or locale negotiation f
 `Accept-Language`. Those are [Phase 04](phase-04-cms-media-pages.md). What it builds is the
 shape, so that adding a locale later is an `INSERT` and not a migration.
 
-### Read API — two endpoints
+### Read API — three endpoints
 
 From [Phase 05](phase-05-education-learning-content.md), through the API conventions
 established in [Phase 02a Packet 4](phase-02a-kernel-tenancy.md):
 
+- `GET /api/v1/courses?locale={locale}` — the tenant's published courses, for the catalog
+  page, cursor-paginated per
+  [API Standards § Pagination](../standards/04-api-design.md#pagination).
 - `GET /api/v1/courses/{slug}?locale={locale}` — course detail with its lesson list.
 - `GET /api/v1/courses/{slug}/lessons/{lessonSlug}?locale={locale}` — lesson detail.
 
@@ -129,8 +132,15 @@ no `en` translation has no `en` URL, and requesting one is a 404. For the same r
 lesson with no translation in the requested locale is omitted from the course's lesson list
 rather than rendered as a link that cannot resolve.
 
-Both are anonymous, both resolve tenant and organization from the host, both return
-RFC 7807 Problem Details on failure, both flow through the MediatR pipeline and return
+**The catalog list is the first query in the platform that mints a cursor.** So it
+decides the cursor's payload — API Standards leave the shape to whoever mints it — and it
+is where a cursor its minter cannot read becomes a **400** `validation_failed` naming
+`cursor`, not a 500. Phase 02a's completion criteria carried that clause with nothing to
+mint a cursor; it lives here, with the query that does. The two detail reads are
+addressed by slug and paginate nothing.
+
+All three are anonymous, resolve tenant and organization from the host, return RFC 7807
+Problem Details on failure, and flow through the MediatR pipeline returning
 `Result<T>`. Nothing bypasses the pipeline — the tenant-context and audit machinery has
 its first real caller here.
 
@@ -139,13 +149,16 @@ its first real caller here.
 From [Phase 06](phase-06-renderer-admin-studio.md), in `frontend/apps/web` under the
 `(public)` route group:
 
-- Course catalog page — lists the tenant's published courses.
+- Course catalog page — lists the tenant's published courses through the catalog list.
 - Lesson page — renders a lesson body.
 
 Both are Server Components fetching through the typed SDK. Both read the tenant's
 branding tokens, level taxonomy and lesson-body `TenantContentType` from customization
 data — the lesson page renders the field list the tenant declared, not a fixed one.
-Layout, typography and colour come from `TenantSetting`, not from a hard-coded theme.
+Layout, typography and colour come from `TenantSetting`, not from a hard-coded theme, read
+through the typed tenant and organization settings accessor this phase adds: Phase 02a
+shipped `tenant_settings` and left the accessor to its first reader, which is this
+renderer.
 
 ### Host-based tenant resolution, end to end
 
@@ -166,8 +179,8 @@ pages from their own customization data:
 
 | Tenant | `TenantLevelTaxonomy` | `TenantContentType` | Branding |
 |---|---|---|---|
-| English school | CEFR levels (A1 … C2) | `GrammarTopic` | Its own tokens |
-| Yoga studio | Difficulty levels (Foundation … Advanced) | `AsanaPose` | Its own tokens |
+| English school | CEFR levels (A1 … C2), key `cefr` | `grammar-topic` | Its own tokens |
+| Yoga studio | Difficulty levels (Foundation … Advanced) | `asana-pose` | Its own tokens |
 
 The two sites differ in taxonomy, content shape, copy and visual identity. The binary,
 the schema and the query paths are identical. If a code path has to branch on which
@@ -202,8 +215,10 @@ here:
   `tenant_id`, mirrored `organization_id`, `ENABLE` + `FORCE ROW LEVEL SECURITY` and full
   policy set, composite foreign key on `(tenant_id, <entity>_id)`, and
   `UNIQUE (tenant_id, locale, slug)`.
-- Two anonymous read endpoints with OpenAPI documentation and generated SDK clients,
-  taking `locale` as a required parameter.
+- Three anonymous read endpoints with OpenAPI documentation and generated SDK clients,
+  taking `locale` as a required parameter — the cursor-paginated catalog list and the two
+  detail reads.
+- The typed tenant and organization settings accessor over `tenant_settings`.
 - Two public route segments in `frontend/apps/web`, tenant-branded, rendering from
   customization data.
 - Two hosts wired to two tenants in `platform_host_to_tenant`, resolvable in local
@@ -212,6 +227,11 @@ here:
   with a course and a handful of lessons each. One of the two tenants has **two** enabled
   locales with genuinely different slugs per locale, so the schema is exercised rather
   than merely declared; the other has one.
+- Each tenant's **own** customization data and branding — the table in § Genericity
+  proof — authored through the Customization module's commands, as Phase 02a's seed is.
+  Phase 02a seeds both tenants with the same built-in `card` content type and `plain`
+  taxonomy, owned per tenant: that proves the rows are isolated, not that they differ,
+  and making them differ is this phase's.
 - A demo script (`make demo` or equivalent) that boots the stack, seeds, and prints the
   two URLs.
 - Frontend tests covering host-to-tenant resolution and `(public)` route rendering —
@@ -226,8 +246,8 @@ here:
   `if: false`; they are now gated on unset `vars.ENABLE_*` repository variables,
   because actionlint rejects a constant condition.)
   - **OpenAPI breaking-change check** — Phase 01 expected Phase 03, because that was
-    where the first real `/api/v1/*` endpoint was going to replace `/healthz`. The two
-    read endpoints above are that first endpoint.
+    where the first real `/api/v1/*` endpoint was going to replace `/healthz`. The read
+    endpoints above are that first endpoint.
   - **Lighthouse budget** — Phase 01 expected Phase 04, because that was where the
     first content-bearing public page was going to ship. The catalog and lesson pages
     above are that first page, and they are the right ones to hold a budget against:
@@ -257,6 +277,8 @@ here:
 - Requesting a slug in a locale the course has no translation for returns 404, and a
   lesson with no translation in the requested locale does not appear in the course's
   lesson list.
+- A cursor the catalog list did not mint — malformed, truncated or tampered — returns
+  400 naming `cursor`, not 500.
 - The isolation integration tests from
   [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) still pass, now with real
   `Course` and `Lesson` rows rather than fixtures, and still run as `learnstack_app`.

@@ -15,9 +15,9 @@ namespace LearnStack.SharedKernel.Messaging;
 /// <para>
 /// <b>A handler must call <c>IInboxGuard.IsAlreadyProcessedAsync</c> before any
 /// business logic.</b> Delivery is at-least-once by design, so deduplication is
-/// the consumer's obligation rather than the transport's — the architecture test
-/// <c>Integration_Event_Handlers_Use_InboxGuard</c> enforces it. The guard and
-/// its per-module <c>inbox_messages</c> table land in
+/// the consumer's obligation rather than the transport's. The guard, its
+/// per-module <c>inbox_messages</c> table and the architecture test that holds
+/// every handler to it, <c>Integration_Event_Handlers_Use_InboxGuard</c>, land in
 /// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>;
 /// the contract is shaped for it now so no handler is written twice.
 /// </para>

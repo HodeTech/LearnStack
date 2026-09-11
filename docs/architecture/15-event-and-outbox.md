@@ -456,7 +456,7 @@ public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
         // Every envelope field crosses the wire, not just the partition key.
         // Publishing `envelope.Event` with only `partitionKey` metadata drops
         // CorrelationId, OrganizationId, CausationId and ActorUserId — which is
-        // exactly what ADR-0014 Amendment 3 added the envelope to carry, and
+        // exactly what ADR-0038 added the envelope to carry, and
         // exactly what the consumer needs to restore its tenant context. The
         // trace chain would break at the broker instead of at the outbox.
         var metadata = new Dictionary<string, string>

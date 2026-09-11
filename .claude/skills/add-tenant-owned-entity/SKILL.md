@@ -500,7 +500,7 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   adding a filter for you either, in either direction.
 - **No isolation test.** The schema sweeps catch a missing or mis-shaped *policy*;
   they cannot catch a policy that is well-formed and wrong. An explicit
-  `TenantA_cannot_read_TenantB` test — connecting as `learnstack_app`, against a
+  `Tenant_A_cannot_read_Tenant_B_data` test — connecting as `learnstack_app`, against a
   fixture that seeds **both** tenants — is the only safety net for that. A count
   assertion against a table the fixture never populated passes whatever the policy
   says; that shipped once in Packet 6 and is the reason `SchemaFixture` fills

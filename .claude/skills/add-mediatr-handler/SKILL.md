@@ -345,8 +345,13 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
   authoritative.
 - **Missing permission registration.** The endpoint compiles but every request is
   rejected at runtime because the policy is unknown.
-- **Using raw `Guid` in the command.** Loses type safety; the architecture test
-  `Commands_Use_StronglyTypedIds` rejects it.
+- **Using raw `Guid` for an id the command's own module owns.** Inside a module the
+  typed id is the rule. A command that is a cross-module contract is the one exception,
+  and it runs the other way: a **module-local** id crosses it as `Guid`, because naming
+  the typed id would put the owning module's `Domain` into every sender's IL
+  ([ADR-0023 Amendment 8](../../../docs/decisions/0023-strongly-typed-id-source-generator.md)),
+  and `ModuleContracts_DoNotDependOn_AnyModuleDomain` holds the direction. A
+  `SharedKernel` id — `TenantId`, `OrganizationId`, `UserId` — stays typed everywhere.
 - **Logging `ILogger.LogError(ex, ...)` then rethrowing.** The L1
   `IExceptionHandler` already logs + records the OTel span error + captures
   to `IErrorTrackingProvider` per

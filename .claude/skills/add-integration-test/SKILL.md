@@ -339,7 +339,7 @@ cases assert on stay what they were.
 ## Validation
 
 - `dotnet test backend/tests/LearnStack.Tests.Integration` passes the new test.
-- The mandatory isolation pair (`TenantA_cannot_read_TenantB`,
+- The mandatory isolation pair (`Tenant_A_cannot_read_Tenant_B_data`,
   `Org_X_cannot_read_Org_Y_within_TenantA`) is present for every new
   tenant-owned / org-scoped entity.
 - A negative test confirms RLS-effective behaviour (empty result when

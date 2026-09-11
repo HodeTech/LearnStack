@@ -80,7 +80,7 @@ The following are kept current and treated as code:
 
 ## Anchored Standards
 
-Every standard begins with a `**Derives from:**` line on the second line that names its authority. The authority is one of:
+Every standard opens with its title, a `**Status:**` line, and directly under it a `**Derives from:**` line that names its authority — [Principles](00-principles.md) excepted, since every other standard derives from it. The authority is one of:
 
 - An ADR — preferred when one exists (`[ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md)`).
 - An authoritative external standard — when LearnStack adopts an external rule directly (`WCAG 2.2 AA`).
@@ -193,6 +193,10 @@ When a module reaches "design stable, ready to implement", it gets a spec under 
 A module spec without these sections is not "done"; reviewers block merges that skip required diagrams.
 
 ## Correcting and Amending ADRs
+
+<!-- The section was "ADR Amendments" until ADR-0041 renamed it, and Accepted ADRs still
+link to that anchor; the alias keeps those links landing here. -->
+<a id="adr-amendments"></a>
 
 **Derives from:** [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)
 

@@ -102,7 +102,7 @@ module assemblies are still empty.
 make install   # one-time: deps + git hooks
 make dev       # bring local stack up (containers only — it creates no tables)
 make migrate   # apply the platform + module migration chains
-make seed      # verify health + print demo credentials
+make seed      # stack up + migrate, then write the two demo tenants
 ```
 
 > `make seed` exits 0 on a clean stack. The health gate used to time out on every run:
@@ -125,9 +125,10 @@ make seed      # verify health + print demo credentials
   lives in exactly one file:
   [Database Standards](docs/standards/05-database.md).
 - **Foundation ports:** `IEventBus`, `ICacheService`, `ISecretProvider`,
-  in `LearnStack.SharedKernel`, each with a working default implementation.
-  `IEntitlementProvider` and `IHostToTenantResolver` are **not** among them — both need
-  tenancy schema and land with Packets 9 and 7. Vendor adapters — Dapr
+  `IHostToTenantResolver`, `IEntitlementProvider`, `IFeatureFlags` and `IAuditStore` in
+  `LearnStack.SharedKernel`, each with a working default implementation —
+  `NullEntitlementProvider` for entitlements, until the Hub-backed provider's trigger
+  fires. Vendor adapters — Dapr
   ([ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md)), Kafka, Valkey
   ([ADR-0030](docs/decisions/0030-redis-compatible-store-valkey.md)), Vault, APISIX
   ([ADR-0015](docs/decisions/0015-api-gateway-apisix.md)) — are **demand-gated**: each

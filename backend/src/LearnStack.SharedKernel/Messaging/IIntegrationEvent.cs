@@ -7,10 +7,12 @@ namespace LearnStack.SharedKernel.Messaging;
 /// </summary>
 /// <remarks>
 /// Implemented by inheriting <see cref="IntegrationEventBase"/> rather than by
-/// implementing this interface directly — the architecture test
-/// <c>Integration_Events_Inherit_From_IntegrationEventBase</c> enforces it, so
-/// that every event carries the same identity, tenancy and ordering fields and a
-/// consumer can rely on them without knowing the type.
+/// implementing this interface directly, so that every event carries the same
+/// identity, tenancy and ordering fields and a consumer can rely on them without
+/// knowing the type. The architecture test
+/// <c>Integration_Events_Inherit_From_IntegrationEventBase</c> is registered for
+/// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>,
+/// with the first event type for it to hold to that.
 /// </remarks>
 public interface IIntegrationEvent
 {

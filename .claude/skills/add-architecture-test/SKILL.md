@@ -65,13 +65,18 @@ them.
 
 ### Step 3: Author the test
 
-In `backend/tests/LearnStack.Tests.Architecture/`:
+In `backend/tests/LearnStack.Tests.Architecture/`. The block below illustrates the
+shape and is **not** a rule to add: its subject ships as
+`ModuleDomain_DoesNotDependOn_OtherModuleDomain` in `ModuleDependencyTests.cs`, and a
+rule's name comes from
+[the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md), never from
+an example.
 
 ```csharp
-public sealed class ModuleDependencyTests
+public sealed class ExampleBoundaryTests
 {
     [Fact]
-    public void Modules_DoNot_Reference_OtherModule_Domain()
+    public void Example_Module_Does_Not_Reference_Another_Modules_Domain()
     {
         // pseudo-code; replace `GetOwningModuleNamespace(...)` with the real
         // owning-namespace resolver helper that lives next to the test. The

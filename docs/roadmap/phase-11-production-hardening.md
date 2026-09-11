@@ -53,7 +53,8 @@ into the platform's own probes. The `InProcessEventBus` shipped in Packet 5 keep
 place as the `Development` transport, and keeps the same `IIntegrationEventHandler<T>`
 interface, the same `IInboxGuard` and the same tenant-context restoration — which is
 precisely what makes this swap a composition-root change rather than a refactor. See
-[ADR-0014](../decisions/0014-adopt-dapr.md) and
+[ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md), which superseded
+[ADR-0014](../decisions/0014-adopt-dapr.md) and keeps its Dapr choice, and
 [29-dapr-integration.md](../architecture/29-dapr-integration.md).
 
 **Kafka** — *trigger: event volume, replay or ordering across processes is required.*
@@ -395,6 +396,13 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 - Classroom bandwidth profile testing.
 - Recording and egress cost testing.
 - The load tests required by [15-performance.md § Load Testing](../standards/15-performance.md).
+- The audit write path's cost on the command path — the change-tracker capture, the
+  MUST-class flush immediately before `COMMIT`, and the standalone reconcile — measured
+  under those load tests and given a budget in
+  [15-performance.md](../standards/15-performance.md).
+  [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) shipped it correct and unmeasured; a
+  tenant's `AuditConfig` can narrow SHOULD/MAY coverage, and MUST-class overhead is not
+  negotiable, so the budget is what tells a slow command from a mis-classified one.
 
 ### Live Classroom Operations
 

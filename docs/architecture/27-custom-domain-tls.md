@@ -569,7 +569,7 @@ instead of just `tenant_id`.
   TLDs.
 - `Cert_PrivateKey_NeverLeavesVault_To_Logs` — log redaction filter strips
   `-----BEGIN PRIVATE KEY-----` blocks before log emission.
-- `CustomDomain_TenantId_NeverRead_FromRequest` — controller test asserts tenant_id is
+- `CustomDomain_TenantId_NeverReadFrom_RequestBody` — controller test asserts tenant_id is
   always derived from authenticated session, never from request body / query.
 - `CustomDomain_Revocation_RemovesTenantResolverMapping` — integration test ends with the
   resolver returning null for the revoked host.

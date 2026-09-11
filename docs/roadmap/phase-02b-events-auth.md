@@ -102,6 +102,15 @@ table itself ships in Packet 6. The consumer side lands here too.
 - **A worked sample flow** — a synthetic `PlatformPingedV1` published by one module and
   consumed idempotently by another — so the path is exercised before a real consumer
   depends on it.
+- **Domain events collected and dispatched.** `Entity<TId>` has raised and held
+  `IDomainEvent`s since [Phase 02a Packet 2](phase-02a-kernel-tenancy.md), and nothing
+  collects them. The owning unit-of-work frame gathers them from the tracked aggregates
+  and publishes them in-process through MediatR **inside** the ambient transaction,
+  before `COMMIT` — [ADR-0010](../decisions/0010-cross-module-communication.md) puts a
+  domain event in the same transaction as the change that raised it, so a handler's
+  write, and an outbox row it enqueues, commit with that change or not at all. It lands
+  here, beside the outbox, because the handler that turns a domain event into an
+  integration event is the first consumer that needs it.
 
 #### Correction: the dispatcher's claim is released before the work is done
 
@@ -370,6 +379,7 @@ a Phase 02b shipping checklist.
 - Per-module `inbox_messages` tables and `IInboxGuard`, with tenant-context restoration
   in every handler scope.
 - A worked end-to-end sample flow: publish → outbox → dispatch → idempotent consumption.
+- Domain-event collection and in-process dispatch inside the owning frame's transaction.
 - Hangfire on PostgreSQL storage with a tenant-aware `JobActivator` and an enqueue-time
   guard.
 - Keycloak `learnstack` realm with a working `oidc-usermodel-attribute-mapper` for
@@ -391,6 +401,8 @@ a Phase 02b shipping checklist.
 - Two `OutboxProcessor` instances running against one pending batch dispatch every message
   exactly once; the test that proves it is in CI.
 - Two events for the same aggregate arrive at their consumer in publish order.
+- A domain event raised by an aggregate reaches its in-module handler before `COMMIT`,
+  and a handler that fails rolls back the change that raised the event.
 - A handler that throws on every delivery reaches a terminal `dead_lettered` state for
   that consumer only, leaves other consumers of the same event unaffected, emits a metric,
   and produces an audit entry.

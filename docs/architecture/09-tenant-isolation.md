@@ -235,10 +235,10 @@ table repeats the isolation-facing half of each.
 | `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` | Every entity marked `[TenantOwned]` has a **tenant key** (`TenantId`, or `Id` on the tenant-owned self-keyed class), an EF global query filter referencing it, and — in the migration that creates its table — `ENABLE` **and** `FORCE ROW LEVEL SECURITY` plus exactly one policy carrying both a `USING` and a `WITH CHECK` clause over `app.tenant_id`. A second **permissive** policy on the same table fails the test. |
 | `Every_OrgScoped_Entity_HasOrgIdAndFilter` | Every entity marked `[OrganizationScoped]` carries a **nullable** `OrganizationId`, an org-aware EF query filter, an organization term `AND`-ed into that same single policy — not a second permissive one — and, in the creating migration, both `AS RESTRICTIVE` write guards, `FOR UPDATE` and `FOR DELETE`. |
 | `No_IgnoreQueryFilters_Outside_PlatformAdminScope` | xUnit source scan: `IgnoreQueryFilters()` appears only inside the audited `EnterPlatformAdminScope(reason)` call path. No marker exempts a call site. |
-| `Hangfire_JobPayloads_IncludeTenantId` | Reflection: every `LearnStackJob<TParams>` subclass's `TParams` has `TenantId`. |
+| `Hangfire_Job_Payloads_Include_TenantId` | Hangfire enqueue rejects a job payload missing `tenant_id` or `correlation_id` — at submission, not at activation. |
 | `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | Source-grep + reflection: `RunAsync` is non-virtual; the write to `ITenantContextAccessor.Current` precedes `ExecuteAsync(...)`. |
-| `No_DirectDaprClient_OutsideInfrastructure` | Roslyn source scan: `Dapr.Client.*` only in `LearnStack.Infrastructure.{Caching, Messaging, Secrets}`. |
-| `Provider_SDK_Types_NotImported_InDomain` | Provider SDK types (Stripe, Iyzico, LiveKit, Keycloak admin, SeaweedFS) only in `LearnStack.Infrastructure.*` adapters. |
+| `Dapr_SDK_Types_NotImportedOutsideInfrastructure` | Dapr SDK types appear only in `LearnStack.Infrastructure.*`. |
+| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. |
 
 ## Storage, cache, search, audit, logs
 

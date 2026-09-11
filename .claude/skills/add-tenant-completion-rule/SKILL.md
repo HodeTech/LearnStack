@@ -25,7 +25,7 @@ reserved). Lives in `tenant_completion_rules` per
 
 - A tenant needs completion that's more than "all required lessons completed".
 - Different course types within one tenant need different completion semantics
-  (one rule per `CourseVersion` or per `LessonPackage`).
+  (one rule per `CourseVersion` or per `Module`).
 - Tightening / loosening completion for a regulated tenant.
 
 ## When not to use
@@ -43,9 +43,9 @@ reserved). Lives in `tenant_completion_rules` per
 | Input | Required | Description |
 |-------|----------|-------------|
 | Tenant id | Yes | Owner of the rule. |
-| Key | Yes | PascalCase: `EnglishLessonPackageCompletion`. |
+| Key | Yes | Lowercase letters and digits with single interior hyphens, unique per tenant: `lesson-package-completion`. |
 | Schema version | Yes | Starts at 1. |
-| Target scope | Yes | `Lesson` / `Module` / `Course` / `LessonPackage`. |
+| Target scope | Yes | `Lesson` / `Module` / `Course` — platform aggregates only. What a tenant *calls* a module (an English school's "lesson package") is its display vocabulary, not a scope. |
 | DSL expression | Yes | Boolean expression returning `true` / `false`. |
 | Input contract | Yes | What signals the rule may read (see below). |
 
@@ -111,9 +111,9 @@ rule).
 ### Step 3: Author the rule
 
 ```text
-# rule key: EnglishLessonPackageCompletion v1
+# rule key: lesson-package-completion v1
 
-# All required lessons in the package are complete.
+# All required lessons in the module (the tenant calls it a lesson package) are complete.
 let allRequiredLessons = progress.lessons.values().all(l => l.completed);
 
 # A speaking session attended in the last 14 days.
@@ -139,14 +139,14 @@ Notes:
 ```csharp
 await mediator.Send(new RegisterTenantCompletionRuleCommand(
     TenantId: tenantId,
-    Key: "EnglishLessonPackageCompletion",
+    Key: "lesson-package-completion",
     SchemaVersion: 1,
-    TargetScope: CompletionScope.LessonPackage,
+    TargetScope: CompletionScope.Module,
     Expression: File.ReadAllText("rule-v1.dsl"),
     Description: "English lesson-package: lessons + speaking + vocab pass."));
 ```
 
-Attach the rule to a specific `CourseVersion` / `LessonPackage` via that
+Attach the rule to a specific `CourseVersion` / `Module` via that
 aggregate's `CompletionRuleKey` reference. Multiple courses can share the same
 rule by referencing the same key.
 
