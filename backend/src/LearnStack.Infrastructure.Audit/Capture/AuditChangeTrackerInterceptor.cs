@@ -26,11 +26,11 @@ namespace LearnStack.Infrastructure.Audit.Capture;
 /// </para>
 /// <para>
 /// <b>Every entity in the tracker, minus a named exclusion list.</b> The
-/// <c>AuditableEntity&lt;&gt;</c> predicate an earlier draft used is withdrawn: seven
-/// shipped entities carry no such base class, five of them MUST in the module matrices
-/// (Audit Coverage § Required Behaviours lists them), and <c>PlatformHostMapping</c> — the
-/// row that decides whose data an anonymous request sees — is the one the Tenancy matrix
-/// singles out as mattering most
+/// <c>AuditableEntity&lt;&gt;</c> predicate an earlier draft used is withdrawn: the modules
+/// ship plain entities with no such base class, MUST-classified ones among them (Audit
+/// Coverage § Required Behaviours lists them), and <c>PlatformHostMapping</c> — the row that
+/// decides whose data an anonymous request sees — is the one the Tenancy matrix singles
+/// out as mattering most
 /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 7</see>).
 /// </para>
 /// <para>

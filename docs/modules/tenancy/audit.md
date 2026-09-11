@@ -37,7 +37,7 @@ before the commit, since [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md).
 
 **The snapshots come with them.** `PlatformHostMapping`, `TenantLocale`,
 `TenantFeatureFlag`, `PlatformEntitlement` and `PlatformKillswitch` are plain classes
-rather than `AuditableEntity<>` descendants — five of the seven
+rather than `AuditableEntity<>` descendants — Tenancy's share of the plain classes
 [Audit Coverage § Required Behaviours](../../standards/18-audit-coverage.md#required-behaviours)
 lists — and `AuditChangeTrackerInterceptor` captures every
 `ChangeTracker` entry in state `Added`, `Modified` or `Deleted` minus a named

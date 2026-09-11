@@ -390,11 +390,10 @@ You do not opt an entity in. `AuditChangeTrackerInterceptor` captures **every**
 `ChangeTracker` entry in state `Added`, `Modified` or `Deleted`, minus a named exclusion
 list — `OutboxMessage` and `IdempotencyKey` (machinery), and `AuditEntry` / `AuditConfig`
 (the audit tables themselves). The old "`AuditableEntity<>` descendants only" predicate is
-**withdrawn**: it was blind to the seven plain classes
+**withdrawn**: it was blind to every plain class the modules ship, MUST-classified ones
+among them —
 [Audit Coverage § Required Behaviours](../../../docs/standards/18-audit-coverage.md#required-behaviours)
-lists — `PlatformHostMapping`, `TenantLocale`, `TenantFeatureFlag`, `PlatformEntitlement`,
-`PlatformKillswitch`, `CustomizationGeneration` and `TenantLevelTaxonomyItem` — five of
-which the shipped matrices classify MUST. A plain class is captured like any other.
+lists them with their classes. A plain class is captured like any other.
 
 The interceptor **captures only** — it builds no row and issues no SQL.
 

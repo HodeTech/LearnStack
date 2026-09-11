@@ -173,11 +173,11 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
     }
 
     // EVERY tracked write, minus a closed exclusion list. NOT "AuditableEntity<>
-    // descendants": that predicate is withdrawn by ADR-0044 § 7, because seven shipped
-    // entities carry no such base class — Audit Coverage § Required Behaviours names
-    // them and their classes. The five of them the matrices classify MUST would have
-    // carried empty snapshots, and the host mapping is the one the Tenancy matrix
-    // singles out as mattering most.
+    // descendants": that predicate is withdrawn by ADR-0044 § 7, because the modules
+    // ship plain entities with no such base class — Audit Coverage § Required
+    // Behaviours names them and their classes. The MUST-classified ones among them
+    // would have carried empty snapshots, and the host mapping is the one the Tenancy
+    // matrix singles out as mattering most.
     //
     // Excluded BY NAME, not by type: LearnStack.Infrastructure.Audit may not reference a
     // module assembly (CoreInfrastructure_DoesNotDependOn_AnyModule), and two of the four

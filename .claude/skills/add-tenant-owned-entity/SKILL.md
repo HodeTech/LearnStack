@@ -151,10 +151,11 @@ Rules:
 `AuditChangeTrackerInterceptor` captures every `ChangeTracker` entry in state `Added`,
 `Modified` or `Deleted`, minus a named exclusion list (`OutboxMessage`,
 `IdempotencyKey`, `AuditEntry`, `AuditConfig`). The earlier "`AuditableEntity<>`
-descendants only" predicate is withdrawn — it was blind to six shipped entities,
-`PlatformHostMapping` among them, five of which the module matrices classify MUST. So a
-plain entity class is captured too, and the base class is a `created_at` / `updated_at`
-decision, not an audit one.
+descendants only" predicate is withdrawn — it was blind to every plain class the modules
+ship, MUST-classified ones among them;
+[Audit Coverage § Required Behaviours](../../../docs/standards/18-audit-coverage.md#required-behaviours)
+lists them with their classes. So a plain entity class is captured too, and the base class
+is a `created_at` / `updated_at` decision, not an audit one.
 
 ### Step 2: EF configuration — filter + indexes
 
