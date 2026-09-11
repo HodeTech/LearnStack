@@ -656,6 +656,74 @@ public sealed class AuditChangeTrackerInterceptorTests
     }
 
     [Fact]
+    public void A_created_owner_that_loses_a_member_to_the_tracker_is_no_longer_claimed_complete()
+    {
+        // Created in this request is complete only while the tracker still holds what it was
+        // created with. Measured by the third review of Packet 9 on PostgreSQL: a taxonomy
+        // saved with three bands, two of them detached, the root renamed and saved again —
+        // the database kept three bands and the row's after_state listed one.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+        var interceptor = new AuditChangeTrackerInterceptor(capture);
+
+        var folder = new Folder { Id = 6, Title = "Levels" };
+        folder.Leaves.Add(new Leaf { FolderId = 6, Key = "a", Label = "Lower" });
+        folder.Leaves.Add(new Leaf { FolderId = 6, Key = "b", Label = "Middle" });
+        folder.Leaves.Add(new Leaf { FolderId = 6, Key = "c", Label = "Upper" });
+        context.Add(folder);
+
+        interceptor.Capture(context);
+        context.ChangeTracker.AcceptAllChanges();
+
+        context.Entry(folder.Leaves[1]).State = EntityState.Detached;
+        context.Entry(folder.Leaves[2]).State = EntityState.Detached;
+
+        folder.Title = "Grades";
+        interceptor.Capture(context);
+
+        using var after = JsonDocument.Parse(capture.Changes[^1].AfterJson!);
+        after.RootElement.GetProperty("Title").GetString().Should().Be("Grades");
+        after.RootElement.TryGetProperty("Leaves", out _).Should().BeFalse(
+            "two persisted members left the tracker without being deleted, so the membership "
+            + "is unknown — not one band");
+
+        // The first capture's record of all three stands: membership is on the row through it.
+        capture.Changes[0].Fields.Select(field => field.Path).Should().Contain(
+            ["/Folder/6/Leaves/a/Label", "/Folder/6/Leaves/b/Label", "/Folder/6/Leaves/c/Label"]);
+    }
+
+    [Fact]
+    public void A_created_owner_whose_member_was_deleted_stays_complete()
+    {
+        // The other way a member leaves the tracker: a delete, which EF detaches once saved.
+        // That member left the aggregate, not merely the tracker, so the membership is still
+        // known — and still complete without it.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+        var interceptor = new AuditChangeTrackerInterceptor(capture);
+
+        var folder = new Folder { Id = 7, Title = "Levels" };
+        folder.Leaves.Add(new Leaf { FolderId = 7, Key = "a", Label = "Lower" });
+        folder.Leaves.Add(new Leaf { FolderId = 7, Key = "b", Label = "Upper" });
+        context.Add(folder);
+
+        interceptor.Capture(context);
+        context.ChangeTracker.AcceptAllChanges();
+
+        context.Remove(folder.Leaves[1]);
+        interceptor.Capture(context);
+        context.ChangeTracker.AcceptAllChanges();
+
+        context.Entry(folder).State.Should().Be(EntityState.Unchanged);
+        folder.Title = "Grades";
+        interceptor.Capture(context);
+
+        using var after = JsonDocument.Parse(capture.Changes[^1].AfterJson!);
+        var leaves = after.RootElement.GetProperty("Leaves");
+        leaves.EnumerateObject().Select(member => member.Name).Should().Equal("a");
+    }
+
+    [Fact]
     public void A_member_whose_owner_is_not_tracked_is_captured_on_its_own()
     {
         // Folded when its owner is there to fold it into; never dropped when it is not.

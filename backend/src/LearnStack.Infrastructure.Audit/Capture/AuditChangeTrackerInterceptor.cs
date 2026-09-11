@@ -151,8 +151,32 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// review of Packet 9 against real PostgreSQL: a taxonomy loaded with one of its three bands
     /// persisted an <c>after_state</c> listing one band, on a table nothing can correct.
     /// </para>
+    /// <para>
+    /// An owner leaves this set when a member it was seen with leaves the tracker — see
+    /// <see cref="_membersSeen"/>.
+    /// </para>
     /// </remarks>
     private readonly HashSet<object> _created = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// The members each owner in <see cref="_created"/> held at its last capture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Created in this request is complete only while the tracker still holds what the owner
+    /// was created with. A persisted member that is detached — or a tracker cleared and the
+    /// owner attached again alone — keeps its row, and the next capture would have recorded
+    /// the owner as owning what remained. Measured by the third review of Packet 9 on
+    /// PostgreSQL: three bands saved, two detached, the root renamed and saved again — the
+    /// database kept three bands and the row's <c>after_state</c> listed one.
+    /// </para>
+    /// <para>
+    /// A deleted member is not a loss, and needs no case of its own: the capture of the save
+    /// that deletes it still holds it, and records the owner's members without it — EF
+    /// detaches it only after that save.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<object, HashSet<object>> _membersSeen = new(ReferenceEqualityComparer.Instance);
 
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData, InterceptionResult<int> result)
@@ -194,7 +218,8 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// root and is reached through its root's navigation — a taxonomy's bands, a tenant's
     /// locales — is described inside the root it belongs to: in its diff, under a pointer
     /// through the navigation's name, and in its snapshot when the root was created in this
-    /// request — the one case its membership is known to be complete. Captured on its own it
+    /// request and has lost no member to the tracker since — the one case its membership is
+    /// known to be complete. Captured on its own it
     /// carried a type name no intent declares, so the composer dropped it and the band
     /// labels a tenant authored never reached the row that recorded the taxonomy
     /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment 6
@@ -222,6 +247,8 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
             _created.Add(added.Entity);
         }
 
+        ForgetOwnersThatLostAMember(tracked);
+
         var scene = new Scene(tracked, _created);
         var subjects = new List<EntityEntry>();
         var described = new HashSet<object>(ReferenceEqualityComparer.Instance);
@@ -244,6 +271,45 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         foreach (var subject in subjects)
         {
             capture.Add(Describe(subject, scene));
+        }
+    }
+
+    /// <summary>
+    /// Takes an owner out of <see cref="_created"/> once a member it was seen with has left
+    /// the tracker, and records what every other owner holds now.
+    /// </summary>
+    /// <remarks>
+    /// For the rest of the request: a member the tracker no longer holds can change or go
+    /// without this interceptor seeing it, so the membership is unknown from then on — which
+    /// is what a loaded owner's already reads as. Left out of both snapshots, never recorded
+    /// as what remained; every change to a member is still in the diff
+    /// (ADR-0044 Amendment 6 § 4).
+    /// </remarks>
+    private void ForgetOwnersThatLostAMember(List<EntityEntry> tracked)
+    {
+        var held = tracked.Select(entry => entry.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
+
+        foreach (var owner in tracked.Where(entry => _created.Contains(entry.Entity)))
+        {
+            var navigations = ContainmentsOf(owner.Metadata).ToList();
+
+            if (navigations.Count == 0)
+            {
+                continue;
+            }
+
+            if (_membersSeen.TryGetValue(owner.Entity, out var seen) && !seen.IsSubsetOf(held))
+            {
+                _created.Remove(owner.Entity);
+                _membersSeen.Remove(owner.Entity);
+
+                continue;
+            }
+
+            _membersSeen[owner.Entity] = navigations
+                .SelectMany(navigation => MembersThrough(owner, navigation, tracked, original: false))
+                .Select(member => member.Entity)
+                .ToHashSet(ReferenceEqualityComparer.Instance);
         }
     }
 
@@ -305,12 +371,13 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         foreach (var navigation in ContainmentsOf(entry.Metadata))
         {
             // Membership is recorded only where it is KNOWN, and it is known only for an owner
-            // created in this request: every entity it contains was tracked with it. For any
-            // other owner the tracker holds whatever the load happened to bring — nothing
-            // without an Include, a subset with a filtered one — and EF's IsLoaded says true for
-            // the second, so it proves nothing (ADR-0044 Amendment 6 § 4). Left out, the
-            // collection reads as unknown rather than as "these are all the bands"; its
-            // members' own changes still travel in the diff, under their pointers.
+            // created in this request whose members the tracker still holds: every entity it
+            // contains was tracked with it. For any other owner the tracker holds whatever the
+            // load happened to bring — nothing without an Include, a subset with a filtered
+            // one — and EF's IsLoaded says true for the second, so it proves nothing (ADR-0044
+            // Amendment 6 § 4). Left out, the collection reads as unknown rather than as
+            // "these are all the bands"; its members' own changes still travel in the diff,
+            // under their pointers.
             if (!scene.Created.Contains(entry.Entity))
             {
                 continue;

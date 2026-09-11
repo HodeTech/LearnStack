@@ -329,6 +329,83 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_created_taxonomy_that_loses_bands_to_the_tracker_is_never_recorded_as_owning_the_rest()
+    {
+        // The third review's measurement, kept: a taxonomy created with three bands and
+        // saved, two bands detached, the root renamed and saved again. The database keeps all
+        // three, and the row's after_state — the latest capture — listed one. Created in the
+        // request is complete only while the tracker holds what the root was created with;
+        // past that the membership is unknown, and the first flush's changes still carry
+        // every band (ADR-0044 Amendment 6 § 4).
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await SeedAsync(dataSource);
+
+        var intentId = AuditEntryId.From(Guid.CreateVersion7());
+        var taxonomyId = TenantLevelTaxonomyId.From(Guid.CreateVersion7());
+        var actor = UserId.From(Actor);
+
+        await using var provider = Compose(dataSource);
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+            var capture = services.GetRequiredService<IAuditStateCapture>();
+            var clock = services.GetRequiredService<IClock>();
+
+            await using var transaction = await unitOfWork.BeginTransactionAsync();
+            await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+
+            capture.OpenFrame();
+            capture.DeclareIntent(new AuditIntent(
+                intentId,
+                Tenant.TenantId,
+                OrganizationId: null,
+                actor,
+                Correlation,
+                "customization",
+                "customization.level_taxonomy.register",
+                OperationType.Create,
+                OperationClass.Must,
+                typeof(TenantLevelTaxonomy),
+                DateTimeOffset.UtcNow));
+
+            var db = services.GetRequiredService<CustomizationDbContext>();
+            var taxonomy = TenantLevelTaxonomy.Create(
+                taxonomyId, Tenant.TenantId, "stages", 1, LocalizedText.From(("en", "Stages")), clock, actor);
+            taxonomy.AddItem("a", LocalizedText.From(("en", "First")), 1, null, clock, actor);
+            taxonomy.AddItem("b", LocalizedText.From(("en", "Second")), 2, null, clock, actor);
+            taxonomy.AddItem("c", LocalizedText.From(("en", "Third")), 3, null, clock, actor);
+            db.Add(taxonomy);
+            await db.SaveChangesAsync();
+
+            foreach (var band in taxonomy.Items.Where(band => band.Key != "a"))
+            {
+                db.Entry(band).State = EntityState.Detached;
+            }
+
+            taxonomy.Rename(LocalizedText.From(("en", "Renamed stages")), clock, actor);
+            await db.SaveChangesAsync();
+
+            await services.GetRequiredService<IAuditStore>().WritePendingAsync(unitOfWork);
+            await transaction.CompleteAsync();
+            capture.CloseFrame(AuditIntentResult.Succeeded);
+        }
+
+        (await BandCountAsync("stages")).Should().Be(3, "the premise: detaching removed nothing from the database");
+
+        var row = (await RowsAsync()).Single(row => row.Id == intentId.Value);
+
+        row.AfterState.Should().Contain("Renamed stages");
+
+        using var after = JsonDocument.Parse(row.AfterState!);
+        after.RootElement.TryGetProperty("Items", out _).Should().BeFalse(
+            "one band of the three the database holds is not the taxonomy's membership");
+
+        Change(row, $"/TenantLevelTaxonomy/{taxonomyId.Value}/Items/c/DisplayName").After
+            .Should().Contain("Third", "the first flush recorded every band it wrote");
+    }
+
+    [Fact]
     public async Task A_refused_publication_is_recorded_against_its_subject_with_actor_and_correlation()
     {
         // The failure path of the same two columns, written by the other writer. Publishing
@@ -459,6 +536,22 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         }
 
         return rows;
+    }
+
+    /// <summary>The bands the database holds under a taxonomy key, read as the owner under the tenant.</summary>
+    private async Task<long> BandCountAsync(string taxonomyKey)
+    {
+        await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+        await using var transaction = await owner.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(owner, transaction, Tenant.TenantId.Value);
+
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM tenant_level_taxonomy_items WHERE taxonomy_key = @key",
+            (NpgsqlConnection)owner,
+            (NpgsqlTransaction)transaction);
+        command.Parameters.AddWithValue("key", taxonomyKey);
+
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     /// <summary>The same cleanup as <see cref="AuditPipelineTests"/>, for the same reasons.</summary>
