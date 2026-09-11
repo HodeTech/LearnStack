@@ -565,10 +565,16 @@ public sealed class AuditChangeTrackerInterceptorTests
     }
 
     [Fact]
-    public void A_removed_member_is_in_the_before_state_and_the_diff_and_not_in_the_after_state()
+    public void A_removed_member_is_in_the_diff_and_a_loaded_collection_is_not_claimed_complete()
     {
         // A removed band strands every row that referenced it, so its removal is the fact the
-        // row most needs to carry — and it is only in the PRIOR membership.
+        // row most needs to carry — and the diff carries it, before value and all.
+        //
+        // The snapshots do NOT carry the membership, although EF says the collection is
+        // loaded. IsLoaded is true after a filtered Include too, over a partial collection —
+        // measured against real PostgreSQL by the second review of Packet 9 — so it proves
+        // nothing, and a loaded owner's membership is left out as unknown rather than written
+        // down as "these are all the bands" (ADR-0044 Amendment 6 § 4).
         using var context = new ProbeContext();
         var capture = new AuditStateCapture();
 
@@ -577,7 +583,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         folder.Leaves.Add(new Leaf { FolderId = 2, Key = "b", Label = "Upper" });
         context.Attach(folder);
 
-        // What an Include leaves behind; Attach alone does not set it.
+        // What an Include — filtered or not — leaves behind; Attach alone does not set it.
         context.Entry(folder).Collection(owner => owner.Leaves).IsLoaded = true;
 
         folder.Leaves.RemoveAt(1);
@@ -587,23 +593,17 @@ public sealed class AuditChangeTrackerInterceptorTests
         var change = capture.Changes.Should().ContainSingle().Subject;
         change.EntityType.Should().Be(nameof(Folder), "an unchanged root is still what the row is about");
 
-        using (var before = JsonDocument.Parse(change.BeforeJson!))
-        {
-            before.RootElement.GetProperty("Leaves").EnumerateObject()
-                .Select(member => member.Name).Should().Equal("a", "b");
-        }
-
-        using (var after = JsonDocument.Parse(change.AfterJson!))
-        {
-            after.RootElement.GetProperty("Leaves").EnumerateObject()
-                .Select(member => member.Name).Should().Equal("a");
-        }
-
         change.Fields.Should().Contain(field =>
             field.Path == "/Folder/2/Leaves/b/Label"
             && field.BeforeJson == "\"Upper\"" && field.AfterJson == null);
         change.Fields.Should().NotContain(field => field.Path.StartsWith("/Folder/2/Leaves/a/",
-            StringComparison.Ordinal), "an unchanged member is in the snapshot, not the diff");
+            StringComparison.Ordinal), "an unchanged member is not a change");
+
+        using var before = JsonDocument.Parse(change.BeforeJson!);
+        using var after = JsonDocument.Parse(change.AfterJson!);
+        before.RootElement.TryGetProperty("Leaves", out _).Should().BeFalse(
+            "a loaded owner's membership is not known to be complete");
+        after.RootElement.TryGetProperty("Leaves", out _).Should().BeFalse();
     }
 
     [Fact]

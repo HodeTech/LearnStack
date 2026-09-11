@@ -137,12 +137,20 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// request.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// An owner created in this request contains exactly what was tracked with it, so its
-    /// collections are complete. EF does not say so: <c>IsLoaded</c> is <c>false</c> for a
-    /// new entity and stays <c>false</c> after it is saved — measured on EF Core 10 — so
-    /// provisioning's third flush, which modifies the tenant it created in the first, would
-    /// otherwise have dropped the tenant's locales from the capture the row's
-    /// <c>after_state</c> is taken from.
+    /// collections are complete — and that is the <b>only</b> case in which this interceptor
+    /// can know a collection is complete. It remembers the owner because EF does not:
+    /// <c>IsLoaded</c> is <c>false</c> for a new entity and stays <c>false</c> after it is
+    /// saved — measured on EF Core 10 — so provisioning's third flush, which modifies the
+    /// tenant it created in the first, would otherwise lose the tenant's locales.
+    /// </para>
+    /// <para>
+    /// <c>IsLoaded</c> cannot stand in for it in the other direction either. A filtered
+    /// <c>Include</c> sets it to <c>true</c> over a partial collection — measured by the second
+    /// review of Packet 9 against real PostgreSQL: a taxonomy loaded with one of its three bands
+    /// persisted an <c>after_state</c> listing one band, on a table nothing can correct.
+    /// </para>
     /// </remarks>
     private readonly HashSet<object> _created = new(ReferenceEqualityComparer.Instance);
 
@@ -184,8 +192,9 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// <para>
     /// <b>One capture per aggregate, not per entity.</b> An entity that is not an aggregate
     /// root and is reached through its root's navigation — a taxonomy's bands, a tenant's
-    /// locales — is described inside the root it belongs to: in its snapshot, under the
-    /// navigation's name, and in its diff, under the same pointer. Captured on its own it
+    /// locales — is described inside the root it belongs to: in its diff, under a pointer
+    /// through the navigation's name, and in its snapshot when the root was created in this
+    /// request — the one case its membership is known to be complete. Captured on its own it
     /// carried a type name no intent declares, so the composer dropped it and the band
     /// labels a tenant authored never reached the row that recorded the taxonomy
     /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment 6
@@ -295,11 +304,14 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
 
         foreach (var navigation in ContainmentsOf(entry.Metadata))
         {
-            // Not loaded is not known. An owner read without its collection would otherwise
-            // be recorded as owning nothing — a claim that every band was removed, made on a
-            // table nothing can correct. An owner created in this request is complete by
-            // construction: every entity it contains was tracked with it.
-            if (!scene.Created.Contains(entry.Entity) && !entry.Navigation(navigation.Name).IsLoaded)
+            // Membership is recorded only where it is KNOWN, and it is known only for an owner
+            // created in this request: every entity it contains was tracked with it. For any
+            // other owner the tracker holds whatever the load happened to bring — nothing
+            // without an Include, a subset with a filtered one — and EF's IsLoaded says true for
+            // the second, so it proves nothing (ADR-0044 Amendment 6 § 4). Left out, the
+            // collection reads as unknown rather than as "these are all the bands"; its
+            // members' own changes still travel in the diff, under their pointers.
+            if (!scene.Created.Contains(entry.Entity))
             {
                 continue;
             }

@@ -3,6 +3,7 @@ using FluentAssertions;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
@@ -11,6 +12,7 @@ using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using LearnStack.Tools.Seeder;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -140,10 +142,11 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         replacement.ActorUserId.Should().Be(Actor);
         replacement.CorrelationId.Should().Be(Correlation);
 
-        // The successor's bands, in the row about it — loaded with the aggregate, so known.
+        // No membership claim: the successor was LOADED, not created in this request, and a
+        // loaded collection is not known to be complete. Its bands are on the record of the
+        // request that created them (ADR-0044 Amendment 6 § 4).
         using var after = JsonDocument.Parse(replacement.AfterState!);
-        after.RootElement.GetProperty("Items").EnumerateObject().Select(band => band.Name)
-            .Should().BeEquivalentTo(BuiltInCustomizations.Plain.Bands.Select(band => band.Key));
+        after.RootElement.TryGetProperty("Items", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -190,7 +193,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_removed_band_is_in_the_before_state_and_the_changes_of_the_persisted_row()
+    public async Task A_removed_band_is_in_the_changes_of_the_persisted_row()
     {
         // No shipped command removes a band yet — remove_band is a (planned) matrix row — so
         // the aggregate method runs on the real context, on the real connection, and the
@@ -252,21 +255,77 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
 
         var row = (await RowsAsync()).Single(row => row.Id == intentId.Value);
 
-        using (var before = JsonDocument.Parse(row.BeforeState!))
-        {
-            before.RootElement.GetProperty("Items").EnumerateObject().Select(band => band.Name)
-                .Should().BeEquivalentTo(["early", "middle", "late"]);
-        }
-
-        using (var after = JsonDocument.Parse(row.AfterState!))
-        {
-            after.RootElement.GetProperty("Items").EnumerateObject().Select(band => band.Name)
-                .Should().BeEquivalentTo(["early", "late"]);
-        }
-
         var removed = Change(row, $"/TenantLevelTaxonomy/{taxonomyId}/Items/middle/DisplayName");
         removed.Before.Should().Contain("Middle Stage");
         removed.After.Should().Be("null");
+
+        row.Changes.Should().NotContain("/Items/early/").And.NotContain("/Items/late/",
+            "an untouched band is not a change");
+    }
+
+    [Fact]
+    public async Task A_partially_loaded_taxonomy_is_never_recorded_as_owning_only_what_was_loaded()
+    {
+        // The second review's measurement, kept: a filtered Include brings one band of three
+        // and EF still reports the collection loaded. Trusting that, the row recorded a
+        // taxonomy with one band — permanently. Membership is now written down only for an
+        // owner created in the request, so a loaded owner's collection is left out as
+        // unknown, however it was loaded (ADR-0044 Amendment 6 § 4).
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await SeedAsync(dataSource);
+
+        var intentId = AuditEntryId.From(Guid.CreateVersion7());
+        var firstBand = BuiltInCustomizations.Plain.Bands[0].Key;
+
+        await using var provider = Compose(dataSource);
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+            var capture = services.GetRequiredService<IAuditStateCapture>();
+
+            await using var transaction = await unitOfWork.BeginTransactionAsync();
+            await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+
+            capture.OpenFrame();
+            capture.DeclareIntent(new AuditIntent(
+                intentId,
+                Tenant.TenantId,
+                OrganizationId: null,
+                UserId.From(Actor),
+                Correlation,
+                "customization",
+                "customization.level_taxonomy.rename",
+                OperationType.Update,
+                OperationClass.Must,
+                typeof(TenantLevelTaxonomy),
+                DateTimeOffset.UtcNow));
+
+            var db = services.GetRequiredService<CustomizationDbContext>();
+            var taxonomy = await db.TenantLevelTaxonomies
+                .Include(candidate => candidate.Items.Where(band => band.Key == firstBand))
+                .SingleAsync(candidate => candidate.Id == TenantLevelTaxonomyId.From(Tenant.BuiltInTaxonomyId));
+
+            taxonomy.Items.Should().ContainSingle("the premise: the load brought one band");
+            db.Entry(taxonomy).Collection(nameof(TenantLevelTaxonomy.Items)).IsLoaded.Should().BeTrue(
+                "the premise: EF calls a filtered collection loaded");
+
+            taxonomy.Rename(LocalizedText.From(("en", "Renamed levels")),
+                services.GetRequiredService<IClock>(), UserId.From(Actor));
+            await db.SaveChangesAsync();
+
+            await services.GetRequiredService<IAuditStore>().WritePendingAsync(unitOfWork);
+            await transaction.CompleteAsync();
+            capture.CloseFrame(AuditIntentResult.Succeeded);
+        }
+
+        var row = (await RowsAsync()).Single(row => row.Id == intentId.Value);
+
+        row.AfterState.Should().Contain("Renamed levels");
+
+        using var after = JsonDocument.Parse(row.AfterState!);
+        after.RootElement.TryGetProperty("Items", out _).Should().BeFalse(
+            "one band of three is not the taxonomy's membership, and the row must not say it is");
     }
 
     [Fact]
