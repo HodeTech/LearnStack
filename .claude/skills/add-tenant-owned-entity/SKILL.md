@@ -6,10 +6,11 @@ description: >
   `[OrganizationScoped]` markers, EF global query filter, PostgreSQL RLS policy,
   and an architecture test. USE FOR: any new domain entity that holds tenant data
   (Course, Enrollment, Cohort, LiveSession, content rows, audit-like rows). DO NOT
-  USE FOR: the two tables with their own RLS class — `tenants` (tenant-owned,
-  self-keyed) and `platform_host_to_tenant` (platform-scoped), both governed by
-  Database Standards § Table classes — or pure value objects. Note that
-  `platform_entitlement_cache` IS an ordinary tenant-owned table despite its name.
+  USE FOR: the tables with their own RLS class — `tenants` (tenant-owned,
+  self-keyed) and the platform-scoped `platform_host_to_tenant` and
+  `platform_killswitches`, all governed by Database Standards § Table classes — or
+  pure value objects. Note that `platform_entitlement_cache` IS an ordinary
+  tenant-owned table despite its name, readable only through `IEntitlementProvider`.
 ---
 
 # Adding a tenant-owned / org-scoped entity
@@ -38,13 +39,23 @@ cross-tenant leak; this skill is the prevention.
   column to filter on. Use
   [Database Standards § Table classes](../../../docs/standards/05-database.md),
   not this skill.
-- `platform_host_to_tenant` — the one **platform-scoped** table, with role-qualified
-  per-command policies, because it is read *in order to determine* the tenant. It
-  takes **no `[TenantOwned]` marker at all**. Standards 05 again.
+- `platform_host_to_tenant` and `platform_killswitches` — the **platform-scoped**
+  tables, with role-qualified per-command policies, because their rows belong to no
+  tenant: the first is read *in order to determine* the tenant, the second is one
+  global switch per key ([ADR-0045 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Neither takes a `[TenantOwned]` marker. Standards 05 again, and a third such table
+  is a decision rather than a convenience.
 - `users`, `plans`, `permissions` — owned by phases that have not written their
   schema yet. Nothing here says they are exempt from row security.
 - The audit aggregate (`AuditEntry`) — it inherits `Entity<TId>`, not
-  `AuditableEntity<T>`, and has its own RLS rule.
+  `AuditableEntity<T>`, because it is append-only. Its **table class is ordinary**:
+  `audit_log` is tenant-owned and org-scoped, `audit_config` tenant-owned and
+  tenant-wide — it has no `organization_id` — and each takes the canonical template for
+  its class unmodified
+  ([ADR-0044 § 9](../../../docs/decisions/0044-audit-write-path.md)). What is not
+  ordinary is what surrounds it — no foreign key to `tenants`, a column-restricted
+  `UPDATE` grant for `learnstack_platform`, and the `audit_log_append_only_guard`
+  trigger — so use Standards 05 and ADR-0044, not this skill, for those two tables.
 
 `platform_entitlement_cache` is **not** on this list. Its name suggests
 platform-scoped and it is not: every read resolves the tenant from `ITenantContext`
@@ -52,6 +63,13 @@ first and every write arrives on `PUT /api/internal/tenants/{id}/entitlements`, 
 both directions have a tenant and it keeps the ordinary tenant-owned template. An
 earlier version of this file exempted it, which would have handed the application
 role a table-wide read of every tenant's plan.
+
+Its *access* is narrower than its class, though: the only sanctioned reader **and**
+writer is an `IEntitlementProvider` implementation, and **no module — Tenancy
+included — may query it**
+([ADR-0045 § 2](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md),
+guarded by `Modules_Do_Not_Read_Entitlement_Cache_Directly`). Module code reads plan
+state through `IFeatureFlags`, which composes over the port.
 - Pure value objects with no own table.
 
 The marker's scope is decided by **table class**, not by whether a `TenantId`
@@ -123,6 +141,21 @@ Rules:
 - Use `AuditableEntity<<Name>Id>` for mutable aggregates. **Never** `Entity<TId>`
   unless the aggregate is append-only (e.g. `AuditEntry`).
 - Domain events for state changes; don't write to other aggregates from this one.
+- Mark PII properties `[PiiSensitive]`. From Packet 9 the audit capture replaces a
+  marked — or name-token-matched — value with `SensitiveTokenCatalog.RedactedValue` in
+  `before`, `after` and
+  `changes`, keeping the property so the diff still records *that* it changed
+  ([ADR-0044 § 8](../../../docs/decisions/0044-audit-write-path.md)).
+
+**Your entity is audit-captured whatever it derives from.**
+`AuditChangeTrackerInterceptor` captures every `ChangeTracker` entry in state `Added`,
+`Modified` or `Deleted`, minus a named exclusion list (`OutboxMessage`,
+`IdempotencyKey`, `AuditEntry`, `AuditConfig`). The earlier "`AuditableEntity<>`
+descendants only" predicate is withdrawn — it was blind to every plain class the modules
+ship, MUST-classified ones among them;
+[Audit Coverage § Required Behaviours](../../../docs/standards/18-audit-coverage.md#required-behaviours)
+lists them with their classes. So a plain entity class is captured too, and the base class
+is a `created_at` / `updated_at` decision, not an audit one.
 
 ### Step 2: EF configuration — filter + indexes
 
@@ -369,8 +402,9 @@ Two gaps remain, and both are yours to close by hand:
 - **A marker-gated rule cannot catch a missing marker.** It iterates what it
   finds. An entity you forget to mark is invisible to both rules, and the
   isolation test in Step 5 is the net for it.
-- **The reflection scope is the Tenancy domain assembly** until Packet 10 widens
-  it across every module.
+- **The sweep covers every module in `Modules.Scoped`** — Tenancy, Customization and
+  Audit today. A module with a schema that is missing from that list fails
+  `Every_Module_With_A_Schema_Is_Swept`, so add yours there.
 
 Also live against your migration: `Every_Foreign_Key_Has_A_Supporting_Index` and
 the schema sweeps in `TenancySchemaTests` — row security enabled *and* forced,
@@ -433,11 +467,18 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   the policies — the policies matching the canonical block in
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md)
   verbatim, with only `<name_plural>` substituted.
-- `LearnStack.Tests.Architecture` is green. Note that no rule covers this entity's
-  filter until Packet 7 lands the two in Step 4; the schema sweeps in
-  `TenancySchemaTests` are what run against your migration today.
+- `LearnStack.Tests.Architecture` is green: `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
+  and `Every_OrgScoped_Entity_HasOrgIdAndFilter` run against your entity, and the schema
+  sweeps in `TenancySchemaTests` run against your migration.
 - `LearnStack.Tests.Integration` includes the cross-tenant test (and cross-org if
   applicable).
+- The module's `docs/modules/<module>/audit.md` carries a row for each of the new
+  entity's audited operations, with the `{module}.{resource}.{verb}` slug in its
+  `Operation` cell. The module's `IAuditCatalogSource` registers the same slugs:
+  `Every_TenantOwned_Command_HasAuditCoverage` fails a catalogue entry with no row,
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` fails an unmarked row nothing
+  registers, and a `(planned)` row the catalogue registers fails — so the commit that
+  lands the command drops the marker. See [add-audit-coverage](../add-audit-coverage/SKILL.md).
 - Glossary updated if the entity name is a new domain term.
 
 ## Common pitfalls

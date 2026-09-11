@@ -162,12 +162,11 @@ Platform admin (LearnStack operator) access must be explicit:
   authenticated as `learnstack_platform` — the `BYPASSRLS` role of the four-role model.
   There is no `learnstack_audit_admin` role, and `learnstack_app` is not a member of
   `learnstack_platform`, so the application role cannot reach the bypass by `SET ROLE`.
-  Every cross-tenant access is recorded. Until
-  [Packet 9](../roadmap/phase-02a-kernel-tenancy.md) ships `audit_log` and `IAuditStore`,
-  `EnterPlatformAdminScope(reason)` records the entry through `ILogger` at `Warning` with
-  the `reason` and the caller — and **not** a sentinel platform tenant id, whose value
-  Packet 9 fixes with the schema that stores it. Packet 9 replaces the log line with the
-  audit row written inside the scope;
+  Every cross-tenant access is recorded. `EnterPlatformAdminScope(reason)` writes a
+  `security-event` row carrying `TenantId.PlatformSentinel` through
+  `IAuditStore.WritePlatformScopeAsync`, in a transaction of its own that commits before
+  the scope's work begins, and keeps the `Warning` log line beside it as the real-time
+  signal ([Packet 9](../roadmap/phase-02a-kernel-tenancy.md));
   [the Tenancy audit matrix](../modules/tenancy/audit.md) carries the classification. See
   [Database Standards § Database roles](../standards/05-database.md).
 - No hidden arbitrary `IgnoreQueryFilters()` usage; architecture test
@@ -255,13 +254,22 @@ tenants/{tenant_id}/brand/...                                        ← tenant-
 ### Cache (Dapr State Store / Valkey)
 
 ```
-{tenant_id}:{org_id}:{module}:{entity}:{id}     ← org context set
-{tenant_id}:{module}:{entity}:{id}              ← tenant-wide or no org context
-platform:{module}:{entity}:{id}                 ← platform-admin operation
+{tenant_id}:{org_id}:{module}:{logical-name}    ← org context set
+{tenant_id}:{module}:{logical-name}             ← tenant-wide or no org context
+platform:hub:host-map:{normalized-host}         ← the host map
+platform:tenancy:killswitch                     ← the killswitch overlay
 ```
 
+**There is no generic platform shape, and that is the correction this block owes.** It
+showed `platform:{module}:{entity}:{id}` and named a `CacheKey.ForPlatform` that exists
+nowhere: a generic platform factory would let an ordinary tenant-owned family collapse
+every tenant into one bucket, so the sentinel admits exactly two **enumerated** families
+and `EnsureValid` refuses the rest
+([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+
 **The caller composes the key; an adapter only validates it.** `CacheKey.ForTenant`,
-`CacheKey.ForOrganization` and `CacheKey.ForPlatform` produce the shapes above, and
+`CacheKey.ForOrganization`, `CacheKey.ForHostMapping` and
+`CacheKey.ForKillswitchOverlay` produce the shapes above, and
 every `ICacheService` implementation calls `CacheKey.EnsureValid` and rewrites nothing
 ([ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md)). An adapter
 that prefixed as well would emit `{tenant}:{tenant}:{module}:{entity}` — and a module

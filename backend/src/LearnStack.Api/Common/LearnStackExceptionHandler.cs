@@ -95,6 +95,7 @@ internal sealed class LearnStackExceptionHandler(
         // body would not reach a reader. Set the status for completeness
         // and skip the body.
         httpContext.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
+        RetryAfter.Apply(httpContext.Response, httpContext.Response.StatusCode);
         if (isCancellation || cancellationToken.IsCancellationRequested)
         {
             return true;

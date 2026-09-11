@@ -1,6 +1,12 @@
 using FluentAssertions;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
+using LearnStack.Modules.Tenancy.Application.Audit;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -90,13 +96,62 @@ public sealed class PlatformAdminGateTests
             "a Lazy whose factory threw never records a created value");
     }
 
+    [Fact]
+    public async Task An_Operation_The_Catalogue_Does_Not_Declare_Never_Opens_A_Connection()
+    {
+        // Third in the ordering, and it belongs before the credential rather than after
+        // the connection: a deployment whose catalogue lost the slug must not spend a
+        // BYPASSRLS connection discovering that it cannot record the entry. Fail-closed
+        // is the whole posture — an entry nothing can record is an entry that does not
+        // happen (ADR-0044 § 10).
+        var scope = Build(new PermissiveGate(), out var dataSource, new AuditCatalog([]));
+
+        var act = async () => await scope.EnterAsync("test:unclassified", CancellationToken.None);
+
+        (await act.Should().ThrowAsync<AuditWriteFailedException>())
+            .Which.Message.Should().Contain(PlatformAdminScope.EnterOperation);
+
+        dataSource.IsValueCreated.Should().BeFalse(
+            "the refusal precedes the credential, so no connection is spent on it");
+    }
+
+    [Fact]
+    public void The_Shipped_Tenancy_Source_Declares_The_Slug_The_Scope_Enters_On()
+    {
+        // The other half of the case above, and the reason it uses an empty catalogue
+        // rather than a fake that declares the slug: something has to assert that the
+        // shipped source really does. Both together fail if the declaration is removed.
+        new AuditCatalog([new TenancyAuditCatalogSource()])
+            .TryGetOffPath(PlatformAdminScope.EnterOperation, out var declared)
+            .Should().BeTrue();
+
+        declared.OperationClass.Should().Be(OperationClass.Must);
+        declared.OperationType.Should().Be(OperationType.SecurityEvent);
+        declared.ModuleName.Should().Be("platform",
+            "the scope belongs to no module\'s request path, whatever source declares it");
+    }
+
     private static PlatformAdminScope Build(
-        IPlatformAdminGate gate, out Lazy<NpgsqlDataSource> dataSource)
+        IPlatformAdminGate gate,
+        out Lazy<NpgsqlDataSource> dataSource,
+        IAuditCatalog? catalog = null)
     {
         dataSource = new Lazy<NpgsqlDataSource>(() => throw new InvalidOperationException(
             "ConnectionStrings:PlatformAdmin is not configured in this test."));
 
-        return new PlatformAdminScope(gate, dataSource, NullLogger<PlatformAdminScope>.Instance);
+        // The catalogue is real and built from the shipped Tenancy source, because the
+        // lookup now sits between the gate and the credential: a fake declaring the slug
+        // would let this file pass while the source that has to declare it did not.
+        // Nothing here reaches the store — the credential throws first — so the scope
+        // factory is an empty provider's.
+        return new PlatformAdminScope(
+            gate,
+            dataSource,
+            catalog ?? new AuditCatalog([new TenancyAuditCatalogSource()]),
+            new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            new SystemClock(),
+            new SystemGuidFactory(),
+            NullLogger<PlatformAdminScope>.Instance);
     }
 
     private sealed class PermissiveGate : IPlatformAdminGate

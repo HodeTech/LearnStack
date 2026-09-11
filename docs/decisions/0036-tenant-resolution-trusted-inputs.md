@@ -984,6 +984,30 @@ and answers `lockey_host_reserved` rather than writing a row that would do nothi
 
 **The Decision is unchanged.** The matrix, the signals and the ceiling all stand.
 
+
+### 2026-09-08 — Amendment 7: the two audit operation keys, in the corpus's slug grammar
+
+**Status: Accepted.** Raised by [ADR-0044](0044-audit-write-path.md), which fixes the
+grammar every audit operation slug parses under.
+
+§ Which tenant the record carries names two operations this ADR parks on Phase 02a Packet
+9: `tenancy.tenant-assertion.reject` and `tenancy.tenant-assertion.anonymous-burst`. Both
+carry a hyphen inside a segment, and [ADR-0044 § 6](0044-audit-write-path.md) fixes the
+slug as `{module}.{resource}.{verb}` — lowercase, singular resource, **snake_case** within
+a segment, the same shape a permission key parses under.
+
+Read as **`tenancy.tenant_assertion.reject`** and
+**`tenancy.tenant_assertion.anonymous_burst`**. Nothing else changes: the two remain
+`security-event`, **MUST**, one written per occurrence for a validated principal and one
+per `(resolved tenant, dimension, window)` for the anonymous burst, and both remain
+registered in the Security row of § Baseline Coverage, which a tenant `AuditConfig` may
+never narrow.
+
+Renaming the keys rather than widening the grammar keeps one parser for every audit slug
+and every permission key. Neither key has been emitted — Packet 4 through Packet 8 record
+a rejected assertion to a log, not to `audit_log`, exactly as § Staging across packets
+says — so there is no stored value to migrate.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

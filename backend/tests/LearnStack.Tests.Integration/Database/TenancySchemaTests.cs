@@ -125,9 +125,62 @@ public sealed class TenancySchemaTests
 
         var counts = await SchemaQueries.CountEveryTableAsync(connection, transaction: null);
 
-        counts.Should().OnlyContain(entry => entry.Value == 0,
-            "with no app.tenant_id every policy predicate is NULL, which is false");
+        // ONE declared exception, and the sweep still enumerates the catalogue. It is not
+        // taught with a hand-written inclusion list of names: such a list fails open, which
+        // is how a second permissive policy on outbox_messages once passed the whole suite.
+        // What changes is the EXPECTATION, not the reach.
+        counts.Where(entry => entry.Key != KillswitchTable)
+            .Should().OnlyContain(entry => entry.Value == 0,
+                "with no app.tenant_id every policy predicate is NULL, which is false");
+
         counts.Keys.Should().Contain(SchemaFixture.KnownTables);
+
+        // The positive half, which nothing asserted before: a killswitch is one
+        // platform-wide switch with no tenant term to isolate, so USING (true) exists to
+        // guarantee learnstack_app reads ALL of it with no context. A sweep that merely
+        // excused the table would pass against a policy that returned nothing — and a
+        // killswitch nobody can read is a killswitch that fails open.
+        counts[KillswitchTable].Should().BeGreaterThan(0,
+            "the switch is global by construction, so hiding it from the role that must "
+            + "honour it would only fail open");
+    }
+
+    /// <summary>The one table for which "no tenant context implies zero rows" is false.</summary>
+    private const string KillswitchTable = "platform_killswitches";
+
+    [Fact]
+    public async Task Exactly_One_Policy_In_The_Schema_Reads_Unconditionally()
+    {
+        // The companion that stops the exception above from widening. The sweep excuses
+        // one table by name; this pins the SET of unconditional policies to exactly that
+        // one, read from pg_policies rather than from this file's opinion — so a second
+        // USING (true) landing anywhere in `public` fails here even though the sweep would
+        // now excuse nothing extra.
+        //
+        // This is the assertion Database Standards § platform_killswitches asks for, and
+        // it is the half a name-based inclusion list can never provide.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT tablename || '.' || policyname
+            FROM pg_policies
+            WHERE schemaname = 'public' AND qual = 'true'
+            ORDER BY 1
+            """,
+            (NpgsqlConnection)connection);
+
+        var unconditional = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            unconditional.Add(reader.GetString(0));
+        }
+
+        unconditional.Should().BeEquivalentTo(
+            ["platform_killswitches.platform_killswitches_read"],
+            "exactly one policy reads unconditionally, and ADR-0045 § 5 is where that was "
+            + "decided");
     }
 
     [Fact]
@@ -283,7 +336,56 @@ public sealed class TenancySchemaTests
             INSERT INTO customization_generations (tenant_id, generation)
             VALUES (@foreign, 99)
             """,
+        // The Audit chain. A row written into another tenant's log is worse than a
+        // missing one: it is a false record of what that tenant did, in the table an
+        // investigator treats as authoritative, and no later write can correct it —
+        // tenant_id sits outside learnstack_platform's column-restricted UPDATE grant.
+        ["audit_log"] =
+            """
+            INSERT INTO audit_log
+                (id, tenant_id, module, operation, operation_type, operation_class,
+                 outcome, timestamp)
+            VALUES (uuidv7(), @foreign, 'tenancy', 'tenancy.tenant.provision',
+                    'Create', 'Must', 'success', now())
+            """,
     };
+
+    /// <summary>
+    /// The same, for the one table no runtime role may write at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>audit_config</c> carries a <c>WITH CHECK</c> and, in this packet, no writer:
+    /// both runtime roles hold <c>SELECT</c> and nothing more, because the editor that
+    /// authors an override lands with the Studio in Phase 06
+    /// (<see href="../../../../docs/standards/05-database.md">Database Standards
+    /// § GRANT matrix</see>). Running its foreign write as <c>learnstack_app</c> would
+    /// pass on the absent privilege — also <c>42501</c> — and prove nothing about the
+    /// policy, which is the shape of test this suite has already caught twice.
+    /// </para>
+    /// <para>
+    /// <b>So it runs as the owner, and that is sound here rather than a precedent.</b>
+    /// The standing rule — never run an isolation test as the owner or a
+    /// <c>BYPASSRLS</c> role — exists because such a test passes when the policies are
+    /// inert. This one is the opposite shape: it asserts a <b>refusal</b>, and under
+    /// <c>FORCE ROW LEVEL SECURITY</c> the owner is bound by the policy like anyone
+    /// else (measured on PostgreSQL 18.6). Drop <c>FORCE</c> and the write succeeds and
+    /// this case fails. A <c>SELECT</c>-count assertion run as the owner would have the
+    /// vacuous shape the rule is about; this one cannot.
+    /// </para>
+    /// </remarks>
+    public static readonly Dictionary<string, string> OwnerForeignTenantWrites =
+        new(StringComparer.Ordinal)
+        {
+            ["audit_config"] =
+                """
+                INSERT INTO audit_config
+                    (id, tenant_id, module, operation, is_enabled, created_at, created_by,
+                     row_version)
+                VALUES (uuidv7(), @foreign, 'tenancy', 'tenancy.tenant.provision', false,
+                        now(), @actor, 0)
+                """,
+        };
 
     public static TheoryData<string> TablesWithAWithCheck()
     {
@@ -297,11 +399,32 @@ public sealed class TenancySchemaTests
         return data;
     }
 
+    public static TheoryData<string> TablesWithAWithCheckAndNoRuntimeWriter()
+    {
+        var data = new TheoryData<string>();
+
+        foreach (var table in OwnerForeignTenantWrites.Keys)
+        {
+            data.Add(table);
+        }
+
+        return data;
+    }
+
     [Theory]
     [MemberData(nameof(TablesWithAWithCheck))]
     public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
     {
-        await ExpectForeignWriteRefusedAsync(ForeignTenantWrites[table]);
+        await ExpectForeignWriteRefusedAsync(
+            ForeignTenantWrites[table], _schema.Postgres.AppConnectionString);
+    }
+
+    [Theory]
+    [MemberData(nameof(TablesWithAWithCheckAndNoRuntimeWriter))]
+    public async Task Owner_Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
+    {
+        await ExpectForeignWriteRefusedAsync(
+            OwnerForeignTenantWrites[table], _schema.Postgres.MigrationConnectionString);
     }
 
     [Theory]
@@ -311,7 +434,7 @@ public sealed class TenancySchemaTests
     [InlineData("UPDATE tenant_settings SET tenant_id = @foreign WHERE tenant_id <> @foreign")]
     public async Task Reassigning_An_Owned_Row_To_Another_Tenant_Is_Rejected(string statement)
     {
-        await ExpectForeignWriteRefusedAsync(statement);
+        await ExpectForeignWriteRefusedAsync(statement, _schema.Postgres.AppConnectionString);
     }
 
     [Fact]
@@ -340,18 +463,25 @@ public sealed class TenancySchemaTests
 
         guarded.Should().NotBeEmpty("the sweep must be reading the applied schema, not an empty result set");
         guarded.Should().BeEquivalentTo(
-            ForeignTenantWrites.Keys,
+            ForeignTenantWrites.Keys.Concat(OwnerForeignTenantWrites.Keys),
             "every table whose policy constrains a write has a write that proves it, "
             + "and every case here names a table that still has one");
     }
 
     /// <summary>
-    /// Runs a statement as <c>learnstack_app</c> under tenant B's context, with
-    /// tenant A as <c>@foreign</c>, and asserts the policy refuses it.
+    /// Runs a statement under tenant B's context, with tenant A as <c>@foreign</c>,
+    /// and asserts the policy refuses it.
     /// </summary>
-    private async Task ExpectForeignWriteRefusedAsync(string statement)
+    /// <remarks>
+    /// <c>learnstack_app</c> for every table it may write; the owner for the one it may
+    /// not, where an absent privilege would answer <c>42501</c> before the policy did.
+    /// See <see cref="OwnerForeignTenantWrites"/> for why that is not the vacuous shape
+    /// the owner-role rule forbids.
+    /// </remarks>
+    private static async Task ExpectForeignWriteRefusedAsync(
+        string statement, string connectionString)
     {
-        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var connection = await PostgresFixture.OpenAsync(connectionString);
         await using var transaction = await connection.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);
 
@@ -662,6 +792,53 @@ public sealed class TenancySchemaTests
     }
 
     [Fact]
+    public async Task An_Entitlement_With_No_Scheduled_Expiry_Persists_As_Null()
+    {
+        // Packet 6 declared `valid_until` NOT NULL against a wire contract that makes
+        // `expires_at` required AND nullable — so the only sanctioned writer would have
+        // been structurally unable to persist what its own source sends. The Hub sends
+        // null for every trial and perpetual licence, which is the cohort it creates
+        // first, so this is the common row rather than an edge one
+        // (ADR-0045 Amendment 1 § 2).
+        //
+        // A real INSERT as learnstack_app, not a read of information_schema: the column's
+        // declared nullability is only half the claim, and the half that bites is whether
+        // the row survives the policy's WITH CHECK on the way in.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantB);
+
+        await using (var write = new NpgsqlCommand(
+            """
+            INSERT INTO platform_entitlement_cache
+                (tenant_id, plan_code, features, limits, compliance, valid_until, source)
+            VALUES (@tenant, 'perpetual', '{}', '{}', '{}', NULL, 'null-provider')
+            ON CONFLICT (tenant_id) DO UPDATE SET valid_until = NULL, plan_code = 'perpetual'
+            """,
+            (NpgsqlConnection)connection,
+            (NpgsqlTransaction)transaction))
+        {
+            write.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
+            await write.ExecuteNonQueryAsync();
+        }
+
+        await using var read = new NpgsqlCommand(
+            "SELECT valid_until FROM platform_entitlement_cache WHERE tenant_id = @tenant",
+            (NpgsqlConnection)connection,
+            (NpgsqlTransaction)transaction);
+        read.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
+
+        (await read.ExecuteScalarAsync()).Should().Be(DBNull.Value,
+            "null is 'no scheduled expiry' and is never coerced to a sentinel — a "
+            + "far-future date would silently become an expiry somebody has to explain");
+
+        // Rolled back: this suite shares a schema with cases that compare exact row
+        // counts, and the fixture's seeded row for this tenant is not this one.
+        await transaction.RollbackAsync();
+    }
+
+    [Fact]
     public async Task EveryMappedIdentifierIsSnakeCase()
     {
         // Every policy predicate, every GRANT and every index name in Database
@@ -778,6 +955,11 @@ public sealed class TenancySchemaTests
             "learnstack_app tenant_settings DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app platform_entitlement_cache INSERT,SELECT,UPDATE",
+            // SELECT and nothing else. The read policy is USING (true), so the GRANT is
+            // what bounds the role instead — a write privilege here would make the policy
+            // the only thing standing between the application role and a platform-wide
+            // switch, and there is no write policy for it to be.
+            "learnstack_app platform_killswitches SELECT",
             "learnstack_app platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app outbox_messages INSERT,SELECT",
             "learnstack_app idempotency_keys INSERT,SELECT,UPDATE",
@@ -788,6 +970,10 @@ public sealed class TenancySchemaTests
             "learnstack_platform tenant_settings SELECT",
             "learnstack_platform tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform platform_entitlement_cache DELETE,SELECT",
+            // Written ahead of its caller: no runtime path puts a row in
+            // platform_killswitches until Phase 03 ships the Platform-scope permission
+            // that lets anything enter EnterPlatformAdminScope at all.
+            "learnstack_platform platform_killswitches DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform outbox_messages DELETE,SELECT",
             "learnstack_platform idempotency_keys DELETE,SELECT",
@@ -800,6 +986,17 @@ public sealed class TenancySchemaTests
             "learnstack_platform tenant_level_taxonomy_items SELECT",
             "learnstack_platform customization_generations SELECT",
             "learnstack_outbox_admin outbox_messages SELECT",
+
+            // The Audit chain. learnstack_platform's column-restricted UPDATE on
+            // audit_log does NOT appear here — information_schema.role_table_grants
+            // reports table-level privileges only — so the six-column list has its own
+            // assertion in AuditSchemaTests, the way the dispatcher's four-column grant
+            // on outbox_messages does in PlatformSchemaTests. A matrix row missing its
+            // column half reads as a narrower grant than the one that shipped.
+            "learnstack_app audit_log INSERT,SELECT",
+            "learnstack_platform audit_log DELETE,INSERT,SELECT",
+            "learnstack_app audit_config SELECT",
+            "learnstack_platform audit_config SELECT",
         ],
         "every line is one line of the three migrations' grant matrices, and "
         + "learnstack_outbox_admin holds nothing beyond the outbox");

@@ -17,15 +17,41 @@ namespace LearnStack.SharedKernel.Caching;
 /// call site to remember.
 /// </para>
 /// <para>
-/// The only platform-wide family is the Hub host map, composed by
-/// <see cref="ForHostMapping"/>. A generic platform factory would let an ordinary
-/// tenant-owned family accidentally collapse every tenant into one cache bucket.
+/// There are exactly two platform-wide families, and they are admitted by
+/// <b>enumeration</b> rather than by a shape rule: the Hub host map, composed by
+/// <see cref="ForHostMapping"/>, and the killswitch overlay, composed by
+/// <see cref="ForKillswitchOverlay"/>. A generic platform factory — or a guard widened to
+/// "any three-segment platform key" — would let an ordinary tenant-owned family such as
+/// <c>tenancy:settings</c> collapse every tenant into one cache bucket. A third family is
+/// a decision, not an edit.
 /// </para>
 /// </remarks>
 public static class CacheKey
 {
     /// <summary>The tenant segment a platform-wide value carries.</summary>
     public const string PlatformTenant = "platform";
+
+    /// <summary>The killswitch overlay: <c>platform:tenancy:killswitch</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One entry holds the WHOLE switch set</b>, which is why this family has no
+    /// per-key fourth segment and why the four-segment spelling is refused rather than
+    /// merely unused. A toggle then invalidates a single key — and it has to, because
+    /// <see cref="ICacheService"/> deliberately has no <c>RemoveByPrefixAsync</c>
+    /// (<see href="../../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md">ADR-0038</see>),
+    /// so a per-key family would leave a set nothing could sweep.
+    /// </para>
+    /// <para>
+    /// The second and last platform family
+    /// (<see href="../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
+    /// § 5</see>). Widening this guard is a decision rather than an edit, and the family is
+    /// <b>enumerated</b>, not opened: relaxing the shape to admit any three-segment
+    /// platform key would let <c>platform:tenancy:settings</c> — a tenant-owned family
+    /// whose whole point is one entry per tenant — collapse every tenant into one bucket.
+    /// </para>
+    /// </remarks>
+    public static string ForKillswitchOverlay() =>
+        Compose([PlatformTenant, "tenancy", "killswitch"]);
 
     /// <summary>The separator between the three segments.</summary>
     public const char Separator = ':';
@@ -66,7 +92,8 @@ public static class CacheKey
             logicalName);
 
     /// <summary>
-    /// Composes the one platform-wide key family: a normalized host to tenant mapping.
+    /// Composes the host-map family: one normalized host to tenant mapping per key. One of
+    /// the two families the platform sentinel admits, with <see cref="ForKillswitchOverlay"/>.
     /// </summary>
     /// <remarks>
     /// The host has already passed the trusted-input normalization described by
@@ -105,13 +132,25 @@ public static class CacheKey
                 $"'{key}' is not a cache key. Standards 20 fixes the shape as "
                 + $"'{{tenant_id}}{Separator}{{module}}{Separator}{{logical-name}}', and the "
                 + $"tenant segment is mandatory even for a platform-wide value — use the "
-                + $"'{PlatformTenant}' sentinel rather than omitting it. The sentinel is "
-                + "reserved for 'platform:hub:host-map:{normalized-host}'; every other "
-                + "family must carry a real tenant id.",
+                + $"'{PlatformTenant}' sentinel rather than omitting it. The sentinel "
+                + "admits exactly two enumerated families, "
+                + "'platform:hub:host-map:{normalized-host}' and "
+                + "'platform:tenancy:killswitch'; every other family must carry a real "
+                + "tenant id.",
                 nameof(key));
         }
     }
 
+    /// <summary>
+    /// Whether a key under the platform sentinel is one of the two enumerated families.
+    /// </summary>
+    /// <remarks>
+    /// Dispatches on the FAMILY, never on the shape. A guard written as "three or four
+    /// segments" would admit <c>platform:tenancy:settings</c> and every other tenant-owned
+    /// family under the sentinel, which is the one collision this whole class exists to
+    /// make impossible — and it would do it by widening the rule rather than by adding to
+    /// the list, so nobody would have to decide anything.
+    /// </remarks>
     private static bool IsAllowedPlatformFamily(string[] segments)
     {
         if (!segments[0].Equals(PlatformTenant, StringComparison.Ordinal))
@@ -119,14 +158,18 @@ public static class CacheKey
             return true;
         }
 
-        if (segments.Length != 4
-            || !segments[1].Equals("hub", StringComparison.Ordinal)
-            || !segments[2].Equals("host-map", StringComparison.Ordinal))
+        return (segments.Length, segments[1], segments[2]) switch
         {
-            return false;
-        }
+            // The normalized host map: one entry per host, so the host IS the fourth segment.
+            (4, "hub", "host-map") => IsNormalizedHost(segments[3]),
 
-        return IsNormalizedHost(segments[3]);
+            // The killswitch overlay: one entry for the whole set, so there is no fourth
+            // segment and a four-segment spelling of it is refused here rather than left
+            // to a caller's discretion.
+            (3, "tenancy", "killswitch") => true,
+
+            _ => false,
+        };
     }
 
     private static void EnsureNormalizedHost(string normalizedHost, string parameterName)

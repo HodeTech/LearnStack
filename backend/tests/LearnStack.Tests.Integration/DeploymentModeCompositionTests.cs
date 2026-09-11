@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Caching;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
@@ -63,6 +64,13 @@ public sealed class DeploymentModeCompositionTests
         services.GetRequiredService<ICacheService>().Should().BeOfType<InMemoryCacheService>();
         services.GetRequiredService<ISecretProvider>()
             .Should().BeOfType<ConfigurationSecretProvider>();
+
+        // The entitlement socket too, in both modes: its registration says "every
+        // deployment mode, not Development only", and the case that pinned it booted
+        // Development alone (the fifth review of Packet 9). A mode-conditional
+        // registration would leave SaaS unbootable for a capability nothing uses yet.
+        services.GetRequiredService<IEntitlementProvider>()
+            .Should().BeOfType<NullEntitlementProvider>();
     }
 
     [Fact]

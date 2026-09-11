@@ -1,8 +1,14 @@
 using FluentAssertions;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
+using LearnStack.Modules.Tenancy.Application.Audit;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
-using Microsoft.Extensions.Logging;
+using LearnStack.SharedKernel.Time;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 
@@ -386,8 +392,7 @@ public sealed class PlatformAdminScopeTests
 
         await using var dataSource = PlatformSource(builder.ConnectionString);
         var logger = new CapturingLogger();
-        var scope = new PlatformAdminScope(
-            new PermissiveGate(), new Lazy<NpgsqlDataSource>(() => dataSource), logger);
+        var scope = Build(dataSource, logger);
 
         for (var attempt = 0; attempt < 5; attempt++)
         {
@@ -437,8 +442,7 @@ public sealed class PlatformAdminScopeTests
         // provenance this case exists for was never exercised.
         await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
         var logger = new CapturingLogger();
-        var scope = new PlatformAdminScope(
-            new PermissiveGate(), new Lazy<NpgsqlDataSource>(() => dataSource), logger);
+        var scope = Build(dataSource, logger);
 
         await using var handle = await scope.EnterAsync("test:recorded", CancellationToken.None);
 
@@ -519,6 +523,141 @@ public sealed class PlatformAdminScopeTests
             .And.Message.Should().Contain("is not configured").And.Contain(".env.example");
     }
 
+    [Fact]
+    public async Task Entry_Is_On_The_Record_Before_The_Operation_Runs()
+    {
+        // The packet's whole point at this call site. Read on an INDEPENDENT connection
+        // while the handle is still open and before the caller has run anything: the row
+        // is committed already, which is what makes an operation that later fails still
+        // recorded. The case used to read inside the scope's own transaction, which proves
+        // the row was written and says nothing about whether it would survive.
+        //
+        // Every column is asserted from the catalogue's declaration rather than from a
+        // literal repeated here, except the ones that ARE the decision — the sentinel
+        // tenant, the outcome, and the provenance.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        await using var handle = await Build(dataSource).EnterAsync("test:recorded-row");
+
+        await using var independent = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var read = independent.CreateCommand();
+        read.CommandText =
+            "SELECT tenant_id, organization_id, module, operation, operation_type, "
+            + "operation_class, outcome, actor_user_id, "
+            + "metadata #>> '{caller,member}', metadata #>> '{caller,file}' "
+            + "FROM audit_log WHERE reason = 'test:recorded-row'";
+
+        await using var reader = await read.ExecuteReaderAsync();
+
+        (await reader.ReadAsync()).Should().BeTrue(
+            "the row is written on entry, before the caller runs anything");
+
+        reader.GetGuid(0).Should().Be(TenantId.PlatformSentinel.Value,
+            "a platform-scope operation has no resolvable tenant, and this is the one "
+            + "class of row that carries the sentinel");
+        reader.IsDBNull(1).Should().BeTrue("the scope belongs to no organization");
+        reader.GetString(2).Should().Be("platform");
+        reader.GetString(3).Should().Be(PlatformAdminScope.EnterOperation);
+        reader.GetString(4).Should().Be(nameof(OperationType.SecurityEvent),
+            "Audit Coverage puts every platform-bypass invocation on security-event");
+        reader.GetString(5).Should().Be(nameof(OperationClass.Must));
+        reader.GetString(6).Should().Be("success", "entry succeeded; what follows it is not this row");
+        reader.IsDBNull(7).Should().BeTrue(
+            "there is no principal in the process until Phase 02b, and inventing one here "
+            + "would put a fabricated actor on a permanent record");
+
+        reader.GetString(8).Should().Be(nameof(Entry_Is_On_The_Record_Before_The_Operation_Runs),
+            "with no principal, the compiler-supplied caller is how 'who' is known at all");
+        reader.GetString(9).Should().EndWith("PlatformAdminScopeTests.cs");
+
+        (await reader.ReadAsync()).Should().BeFalse("one entry writes one row");
+    }
+
+    [Theory]
+    [InlineData("read-then-throw")]
+    [InlineData("abandoned")]
+    [InlineData("committed")]
+    public async Task An_Entry_Stays_On_The_Record_Whatever_The_Work_Then_Does(string ending)
+    {
+        // The review's finding, inverted into the case. The row rode the handle's own
+        // transaction, so a caller that read across every tenant and then threw — or simply
+        // disposed the handle — took the only record of that access down with the rollback.
+        // This case asserted exactly that, as zero survivors, and passed: it proved the
+        // implementation and contradicted ADR-0044 § 10, which says an operation that later
+        // fails is still recorded. Checked on an independent connection, after the handle
+        // is gone, because that is what durable means.
+        await using var dataSource = PlatformSource(_schema.Postgres.PlatformConnectionString);
+        var reason = "test:survives-" + ending;
+
+        var act = async () =>
+        {
+            await using var handle = await Build(dataSource).EnterAsync(reason);
+
+            // Privileged work first, in every ending: the access happened.
+            (await CountOrganizationsAsync(handle.Connection, handle.Transaction))
+                .Should().BeGreaterThanOrEqualTo(0);
+
+            switch (ending)
+            {
+                case "read-then-throw":
+                    throw new InvalidOperationException("the work failed after reading");
+                case "committed":
+                    await handle.CommitAsync();
+                    break;
+            }
+        };
+
+        if (ending == "read-then-throw")
+        {
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+        else
+        {
+            await act.Should().NotThrowAsync();
+        }
+
+        await using var afterwards = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+
+        var survivors = await ScalarAsync<long>(
+            afterwards, null, "SELECT count(*) FROM audit_log WHERE reason = @reason", ("reason", reason));
+
+        survivors.Should().Be(1, "entry into a cross-tenant scope is recorded whatever the work then does");
+    }
+
+    [Fact]
+    public async Task An_Entry_That_Cannot_Be_Recorded_Is_Not_Entered()
+    {
+        // The refusal that makes the record a control rather than a side effect, and the
+        // catch that has to survive it: the connection is opened and a transaction begun
+        // before the row is attempted, so a store failure must return BOTH to the pool.
+        // Measured the way the abandoned-rollback case is — a pool of three, entered five
+        // times. Dropping either disposal from the catch strands the connections and the
+        // sixth entry times out.
+        var builder = new NpgsqlConnectionStringBuilder(_schema.Postgres.PlatformConnectionString)
+        {
+            MaxPoolSize = 3,
+            Timeout = 5,
+        };
+
+        await using var dataSource = PlatformSource(builder.ConnectionString);
+        var scope = Build(dataSource, NullLogger<PlatformAdminScope>.Instance, RefusingStore());
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var act = async () => await scope.EnterAsync("test:unrecordable", CancellationToken.None);
+
+            await act.Should().ThrowAsync<AuditWriteFailedException>(
+                "a cross-tenant scope that cannot be recorded must not be entered");
+        }
+
+        await using var afterwards = await Build(dataSource).EnterAsync(
+            "test:after-unrecordable", CancellationToken.None);
+
+        afterwards.Connection.State.Should().Be(System.Data.ConnectionState.Open,
+            "every refused entry returned its connection through the catch");
+    }
+
     /// <summary>
     /// The platform data source as the composition root builds it.
     /// </summary>
@@ -535,9 +674,82 @@ public sealed class PlatformAdminScopeTests
             .BuildPlatformDataSource(connectionString);
 
     private static PlatformAdminScope Build(NpgsqlDataSource dataSource) =>
+        Build(dataSource, NullLogger<PlatformAdminScope>.Instance);
+
+    /// <summary>The scope as the composition root builds it, with a permissive gate.</summary>
+    /// <remarks>
+    /// <para>
+    /// The catalogue is the real one, built from the shipped
+    /// <c>TenancyAuditCatalogSource</c> rather than a double, because the slug's
+    /// declaration is half of what these cases assert: a fake declaring
+    /// <c>platform.admin_scope.enter</c> would keep every case green after the source
+    /// that has to declare it stopped.
+    /// </para>
+    /// <para>
+    /// The store's <b>application</b> data source is a <see cref="Lazy{T}"/> that throws.
+    /// That is the assertion, not a shortcut: <c>WritePlatformScopeAsync</c> writes on the
+    /// caller's connection, so an implementation that reached for its own would fail here
+    /// rather than quietly write the row as <c>learnstack_app</c> — which cannot announce
+    /// the sentinel and would fail the policy anyway, but far from this file.
+    /// </para>
+    /// </remarks>
+    private static PlatformAdminScope Build(
+        NpgsqlDataSource dataSource,
+        ILogger<PlatformAdminScope> logger,
+        IServiceScopeFactory? auditStore = null) =>
         new(new PermissiveGate(),
             new Lazy<NpgsqlDataSource>(() => dataSource),
-            NullLogger<PlatformAdminScope>.Instance);
+            new AuditCatalog([new TenancyAuditCatalogSource()]),
+            auditStore ?? AuditStoreScopeFactory(),
+            new SystemClock(),
+            new SystemGuidFactory(),
+            logger);
+
+    private static IServiceScopeFactory AuditStoreScopeFactory() =>
+        new ServiceCollection()
+            .AddMetrics()
+            .AddLogging()
+            .AddScoped<IAuditStateCapture, AuditStateCapture>()
+            .AddSingleton<IAuditHealth, AuditHealth>()
+            .AddSingleton(new Lazy<NpgsqlDataSource>(
+                () => throw new InvalidOperationException(
+                    "The platform-scope row is written on the scope's own connection, so "
+                    + "the store's application data source must never be built here.")))
+            .AddScoped<IAuditStore, PostgresAuditStore>()
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
+
+    /// <summary>A store whose platform-scope write always fails, as an outage would.</summary>
+    private static IServiceScopeFactory RefusingStore() =>
+        new ServiceCollection()
+            .AddScoped<IAuditStore, RefusingAuditStore>()
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
+
+    private sealed class RefusingAuditStore : IAuditStore
+    {
+        public Task WritePendingAsync(
+            LearnStack.SharedKernel.Persistence.IUnitOfWork unitOfWork,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task WriteStandaloneAsync(
+            AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task WriteBestEffortAsync(
+            AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task WritePlatformScopeAsync(
+            AuditEntryDraft entry,
+            System.Data.Common.DbConnection connection,
+            System.Data.Common.DbTransaction transaction,
+            CancellationToken cancellationToken = default) =>
+            throw new AuditWriteFailedException(
+                "The platform-scope audit row could not be written, so the scope must not "
+                + "be entered.");
+    }
 
     private static async Task<long> CountOrganizationsAsync(
         System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction? transaction) =>

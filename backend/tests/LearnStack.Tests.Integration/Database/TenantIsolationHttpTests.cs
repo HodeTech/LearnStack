@@ -467,6 +467,12 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
             services.AddTransient<
                 MediatR.IRequestHandler<ForeignWriteCommand, SharedKernel.Results.Result<string>>,
                 ForeignWriteHandler>();
+
+            // Registered as audited-nothing. These four probes exist to prove the policy
+            // refuses a read or a write, and the pipeline refuses a request the catalogue
+            // does not know — so without this they would be refused before reaching the
+            // policy at all, and the cases would pass for the wrong reason.
+            services.AddSingleton<SharedKernel.Audit.IAuditCatalogSource, TestAuditCatalogSource>();
         });
     }
 }

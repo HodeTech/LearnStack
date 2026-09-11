@@ -367,6 +367,12 @@ public static class JsonValue
     /// an escape from the six characters that spell one: <c>"\\u0000"</c> is a
     /// backslash followed by <c>u0000</c> and stores, measured.
     /// </remarks>
+    /// <remarks>
+    /// Reachable from <see cref="Audit.AuditJson"/> as well as from this file's own
+    /// gates: the audit capture has to answer the same question about a value it did not
+    /// validate, and a second implementation of "what PostgreSQL can hold" is a second
+    /// thing to keep true.
+    /// </remarks>
     internal static bool IsStorableText(string text)
     {
         for (var index = 0; index < text.Length; index++)
@@ -492,18 +498,29 @@ public static class JsonValue
 /// Guards a tenant-owned row's owning identifier.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <c>IsInitialized()</c> alone is not enough: <c>TenantId.From(Guid.Empty)</c>
 /// reports initialized, and a nil-uuid tenant then inserts and satisfies its own
-/// policy whenever <c>app.tenant_id</c> holds the same nil. No ADR reserves the
-/// nil uuid — the platform sentinel is deliberately unfixed until Packet 9 — so
-/// this is refused at the factory rather than left to collide with whatever that
-/// packet chooses.
+/// policy whenever <c>app.tenant_id</c> holds the same nil.
+/// </para>
+/// <para>
+/// <b>The platform sentinel is refused here too</b>, now that
+/// <see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 1</see>
+/// has fixed its value. It names the absence of a tenant, so it is not a tenant any
+/// aggregate may be owned by — and every one of the eight factories that calls this
+/// guard gets the refusal from one place rather than eight. <c>tenants</c> carries a
+/// CHECK against it as well, and that is the backstop rather than the control: a
+/// constraint cannot stop the value from being announced as <c>app.tenant_id</c>, which
+/// is the half that would let a row be written under it.
+/// </para>
 /// </remarks>
 public static class TenantOwnership
 {
     public static void EnsureRealTenant(TenantId tenantId, string message, string parameterName)
     {
-        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        if (!tenantId.IsInitialized()
+            || tenantId.Value == Guid.Empty
+            || tenantId == TenantId.PlatformSentinel)
         {
             throw new ArgumentException(message, parameterName);
         }

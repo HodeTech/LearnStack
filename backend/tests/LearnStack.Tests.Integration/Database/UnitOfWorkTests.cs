@@ -2,6 +2,7 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
@@ -64,6 +65,86 @@ public sealed class UnitOfWorkTests
             .Should().Be(SchemaFixture.TenantA.ToString());
         (await ReadAsync(unitOfWork, "SELECT current_setting('app.organization_id', true)"))
             .Should().Be(SchemaFixture.OrgA1.ToString());
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task The_ordinary_setter_refuses_the_platform_sentinel()
+    {
+        // The announcement choke point. The two guards ADR-0044 Amendment 3 § 5 named
+        // sit where the value is minted; this one sits where every announcement passes,
+        // and it is the sentence § 1 actually writes. It is what makes the invariant
+        // true of the system rather than true of the paths we enumerated — the path it
+        // closes is an integration-event envelope, which reaches a *resolved* context
+        // without touching either of the other two guards (Amendment 5 § 1).
+        //
+        // Fail-closed to the empty string, like the two arms beside it: a context
+        // carrying the sentinel reads zero rows rather than the platform's.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetTenantContextAsync(
+            Resolved(TenantId.PlatformSentinel.Value, SchemaFixture.OrgA1));
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task The_provisioning_setter_refuses_the_platform_sentinel()
+    {
+        // The guard ADR-0044 Amendment 3 § 5 assigns an owner to, and the one that
+        // matters of the three. § 1 states that the sentinel "is never written by a
+        // tenant request path, never announced by SetTenantContextAsync" as though
+        // something enforced it; nothing did, and the one announcement path that takes a
+        // caller-supplied id is this one, which that sentence does not name.
+        //
+        // Without the refusal a ProvisionTenantCommand carrying the sentinel announces it
+        // on app.tenant_id, and every MUST row that request declares is written into the
+        // pseudo-tenant no tenant admin watches. The `tenants` CHECK cannot reach that: a
+        // constraint bounds a row, not a session variable.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        await unitOfWork.BeginTransactionAsync();
+
+        var announce = async () => await unitOfWork.SetProvisioningTenantContextAsync(
+            TenantId.PlatformSentinel);
+
+        await announce.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("tenantId");
+
+        // And nothing was announced — the refusal is not a log line beside a write.
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().BeEmpty();
+
+        await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task The_provisioning_setter_announces_a_real_tenant()
+    {
+        // The arm that stops the case above from passing against a setter that refuses
+        // everything. A provisioning command announces the tenant it is creating — an id
+        // that names nothing resolvable yet — and that is the whole point of this setter
+        // existing beside the ordinary one.
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        var newTenant = TenantId.From(Guid.CreateVersion7());
+
+        await unitOfWork.BeginTransactionAsync();
+        await unitOfWork.SetProvisioningTenantContextAsync(newTenant);
+
+        (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
+            .Should().Be(newTenant.Value.ToString());
 
         await unitOfWork.RollbackAsync();
     }
@@ -209,8 +290,51 @@ public sealed class UnitOfWorkTests
             counts[table] = (long)(await command.ExecuteScalarAsync())!;
         }
 
-        counts.Should().HaveCount(8, "TenancyDbContext maps eight entity types");
-        counts.Should().OnlyContain(entry => entry.Value == 0);
+        counts.Should().HaveCount(9, "TenancyDbContext maps nine entity types");
+
+        // ONE declared exception, and the sweep still enumerates the catalogue rather than
+        // a hand-written list of names. A list fails open — which is how a second
+        // permissive policy on outbox_messages once passed the whole suite — so what
+        // changes here is the EXPECTATION, not the reach.
+        //
+        // platform_killswitches is deliberately readable with no context: a killswitch is
+        // one platform-wide switch with no tenant term to isolate, so hiding it from the
+        // role that has to honour it would only fail open. Every OTHER table still answers
+        // zero (Database Standards § platform_killswitches).
+        counts.Where(entry => entry.Key != "platform_killswitches")
+            .Should().OnlyContain(entry => entry.Value == 0);
+
+        counts["platform_killswitches"].Should().BeGreaterThan(0,
+            "the positive half is worth asserting too: USING (true) exists to guarantee "
+            + "learnstack_app reads ALL of it with no context, and a sweep that only "
+            + "excused the table would pass against a policy that returned nothing");
+
+        // And the exception is pinned to exactly one table, from the CATALOGUE rather than
+        // from this file's opinion: any second policy in `public` whose predicate is
+        // literally true would be a table silently exempted from the rule above.
+        await using (var permissive = (NpgsqlCommand)unitOfWork.Connection.CreateCommand())
+        {
+            permissive.CommandText =
+                """
+                SELECT tablename || '.' || policyname
+                FROM pg_policies
+                WHERE schemaname = 'public' AND qual = 'true'
+                ORDER BY 1
+                """;
+            permissive.Transaction = (NpgsqlTransaction?)unitOfWork.Transaction;
+
+            var unconditional = new List<string>();
+            await using var reader = await permissive.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                unconditional.Add(reader.GetString(0));
+            }
+
+            unconditional.Should().BeEquivalentTo(
+                ["platform_killswitches.platform_killswitches_read"],
+                "exactly one policy in the schema reads unconditionally, and it is the one "
+                + "ADR-0045 § 5 decided");
+        }
 
         await unitOfWork.RollbackAsync();
     }
@@ -451,13 +575,21 @@ public sealed class UnitOfWorkTests
             await using (var scope = provider.CreateAsyncScope())
             {
                 var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                // ONE capture for both frames, which is what a DI scope gives them: the
+                // owner/joiner distinction is about which frame may mark it, and two
+                // buffers would let the joiner mark its own and prove nothing.
+                var capture = new AuditStateCapture();
                 var outer = new TransactionBehavior<Probe, Result<string>>(
                     unitOfWork,
                     Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+                    new NoOpAuditStore(),
+                    capture,
                     NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
                 var inner = new TransactionBehavior<Probe, Result<string>>(
                     unitOfWork,
                     Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+                    new NoOpAuditStore(),
+                    capture,
                     NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
 
                 var result = await outer.Handle(

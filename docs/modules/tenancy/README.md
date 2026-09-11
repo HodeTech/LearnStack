@@ -26,7 +26,25 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 - `TenantFeatureFlag` — the tenant's own switches.
 - `platform_host_to_tenant` — the host → tenant resolution index, read *before*
   any tenant context exists.
-- `platform_entitlement_cache` — the durable projection of a tenant's plan.
+- `platform_entitlement_cache` — the durable projection of a tenant's plan. Read and
+  written **only** through an `IEntitlementProvider` implementation; no module queries
+  it, this one included
+  ([ADR-0045 § 2](../../decisions/0045-entitlement-and-feature-flag-socket.md)).
+- `platform_killswitches` — one platform-wide switch per key. Platform-scoped and
+  tenant-blind: the only table in the schema for which "no tenant context implies zero
+  rows" is deliberately false, because a switch the application role cannot read is one
+  that fails open. Shipped read-only in Packet 9 — every toggle runs inside
+  `EnterPlatformAdminScope`, so [Phase 03](../../roadmap/phase-03-identity-admin.md)
+  owns the writer.
+
+**Two read paths it owns, over tables it does not read directly:**
+
+- `IFeatureFlags` — the only module-facing feature and limit read. It **composes**: the
+  plan half through `IEntitlementProvider`, the tenant half from `TenantFeatureFlag`, and
+  the killswitch overlay last. That is what makes swapping the registered provider change
+  the answer without touching module code.
+- `IKillswitchOverlay` — the cached read of `platform_killswitches`, one entry for the
+  whole set.
 
 **It does not own:**
 
@@ -194,8 +212,8 @@ which commits. One transaction, one connection, one commit point.
 `TransactionBehavior`, and the distinction is not stylistic. A
 `BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)
 returns a nested frame on the same transaction, so it would be a no-op that
-reads like a boundary. An announcement from inside a handler would be an eighth
-setter of `app.tenant_id` against a set two ADRs close at seven, and would hand
+reads like a boundary. An announcement from inside a handler would be a ninth
+setter of `app.tenant_id` against a set ADR-0040 closes at eight, and would hand
 every handler in the solution the ability to move the ambient tenant.
 
 Three statements, one transaction. The tenant id is **never minted in the

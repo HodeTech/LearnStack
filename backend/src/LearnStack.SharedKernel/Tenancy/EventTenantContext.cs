@@ -106,6 +106,21 @@ public sealed class EventTenantContext : ITenantContext
                 nameof(envelope));
         }
 
+        // The platform sentinel, for the opposite reason and the same posture. All-zero
+        // reads nothing; the sentinel reads and writes the one tenant nobody watches —
+        // measured: a role announcing it under the shipped audit_log policy reads the
+        // cross-tenant access log and can forge a row in it. This is the third producer
+        // of a *resolved* context, and the only one fed from a payload, so the invariant
+        // ADR-0044 § 1 states is enforced here as well as at the two sites Amendment 3
+        // § 5 named (ADR-0044 Amendment 5 § 1).
+        if (envelope.Event.TenantId == Identifiers.TenantId.PlatformSentinel.Value)
+        {
+            throw new ArgumentException(
+                "An integration event named the reserved platform tenant. It belongs to "
+                + "the audit rows a cross-tenant operation writes, and to nothing else.",
+                nameof(envelope));
+        }
+
         return new EventTenantContext(
             Identifiers.TenantId.From(envelope.Event.TenantId),
             envelope.OrganizationId is { } organization

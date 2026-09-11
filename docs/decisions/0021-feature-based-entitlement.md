@@ -443,3 +443,95 @@ Architecture test renamed accordingly:
 `FeatureKey_AllReferences_AreInRegistry` (no `s` after `Key`; the Roslyn analyzer
 now matches on `FeatureKey` literal references instead of `FeatureKeys.*` string
 constants).
+
+### 2026-09-07 — The limit sentinel is normative, and the read interface is singular
+
+**Status: Accepted.** Raised by [ADR-0045](0045-entitlement-and-feature-flag-socket.md),
+which declares the socket Phase 02a Packet 9 ships.
+
+**1. `-1` is unlimited and `0` is denied.** § Decision outcome already says so beside the
+plan payload — "`-1` denotes *unlimited*; `0` denotes *feature off / not available*" — and
+that reading is now normative for the persisted `jsonb`, the Hub plan schema, and every
+call site. [Feature Flags § Rules](../architecture/21-feature-flags.md)'s "default `0`
+means *no limit imposed by this layer*" is the inverse and is corrected there. It was not
+a harmless disagreement: read that way, § Feature-flag fallback semantics' degraded mode
+below — "past `grace_until` … limit service returns `0` for all limits → read-only mode" —
+grants **unlimited** usage at exactly the moment the platform means to restrict it.
+
+**2. `NullEntitlementProvider` returns `-1`, not `null`.** The same section says it
+returns "all limits `null` (no limit)". `null` is not representable: Amendment 1 above
+fixes the read as `IFeatureFlags.GetLimitAsync` returning `long`. Read as `-1`, which is
+what the sentinel table now means by "no limit".
+
+**3. `IFeatureFlagService` and `IUsageLimitService` are withdrawn, not renamed.**
+§ Decision outcome § Runtime service contracts declares both, `string`-keyed, with
+`Task<long?> GetLimitAsync`. Amendment 1 above replaced them with a single `IFeatureFlags`
+taking typed `FeatureKey` / `LimitKey` — but the superseded pair still stands in the
+Decision section, which is what an implementer meets first. There is one read interface,
+it is `IFeatureFlags`, and it is the only one any module calls. `CheckLimitAsync`'s usage
+probe goes with them: the enforcement path lands with `IUsageReporter` in
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md), per ADR-0045 § 6.
+
+**The Decision is unchanged** — feature-based rather than module-based entitlement, plan-tier
+projection, typed keys, eager invalidation. What changes is the contract's arithmetic and
+its arity, both of which this ADR left stated two ways.
+
+### Carriers changed
+
+[ADR-0045](0045-entitlement-and-feature-flag-socket.md),
+[Feature Flags](../architecture/21-feature-flags.md),
+[Hybrid License Model](../architecture/26-hybrid-license-model.md),
+[Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) and
+[the glossary](../glossary.md).
+
+### 2026-09-08 — `LimitKeys` takes the vocabulary the Hub already ships
+
+**Status: Accepted.** Raised by [ADR-0045 Amendment 1](0045-entitlement-and-feature-flag-socket.md).
+
+The 2026-05-18 amendment above fixed the registry's *shape* — `LimitKey` value objects
+rather than `const string` — and, in doing so, fixed a set of key **strings**:
+`tenancy.max_learners`, `tenancy.max_instructors`, `tenancy.max_organizations`,
+`classroom.max_concurrent_sessions`, `classroom.minutes_per_month`, `media.storage_gb`,
+`integrations.api_rate`.
+
+Measured against the other side of the contract, that set shares **no** member with what
+the Hub sends. `LearnStack.Hub.SharedKernel/FeatureFlags/LimitKeys.cs` — merged, with two
+plan validators built on it — declares nine keys under a `limits.` prefix
+(`limits.max_users`, `limits.max_organizations`, `limits.classroom_minutes_per_month`,
+`limits.recording_storage_gb`, `limits.media_storage_gb`,
+`limits.media_bandwidth_gb_per_month`, `limits.api_rate_per_minute`,
+`limits.max_custom_content_types`, `limits.max_page_block_definitions`), which is also the
+spelling in this ADR's own § Decision outcome plan payload.
+
+**LearnStack's registry takes the `limits.` vocabulary.** The shape decision stands: typed
+`LimitKey` value objects, no magic strings, `IFeatureFlags.GetLimitAsync(LimitKey)`. What
+changes is the strings inside them, and it changes on this side because this side has no
+implementing code and the Hub has shipped. Packet 9 writes `LimitKeys` from that list, and
+only the members with a consumer.
+
+The **feature**-key set is not changed here: the two sides largely agree, and the gaps are
+keys neither has a consumer for.
+
+### 2026-09-11 — Membership is the agreed vocabulary; enforcement waits for a consumer
+
+The 2026-09-08 amendment above closes with "Packet 9 writes `LimitKeys` from that list, and
+only the members with a consumer." Measured at Packet 9, the set of keys with a shipped
+consumer was **empty** — no handler injects a flags port, and
+[ADR-0045 § 6](0045-entitlement-and-feature-flag-socket.md) assigns the enforcement path to
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md) — so that sentence, read literally,
+ships an empty registry and leaves the phase's own completion criterion with no key to
+resolve. The registries shipped the vocabulary instead, and the
+[Packet 9 delivery record](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9)
+says why; this amendment puts the reading where a contributor enforcing the decision will
+look for it.
+
+**A registry declares every key the contract names; a consumer is not a condition of
+membership.** `LimitKeys` carries all nine `limits.*` keys the Hub ships. The spelling is the
+one-way door — it lands in the Hub's plan validators, in persisted `jsonb` and in the wire
+schema both repositories pin — while membership has a written exit, the deprecation cycle
+[Feature Flags § Typed Catalog](../architecture/21-feature-flags.md#typed-catalog) fixes for
+removing a key. What waits for a
+consumer is **enforcement**: each gate ships with the feature it gates, never
+speculatively. No key is invented, and a key the contract does not name is not added.
+[ADR-0045 Amendment 2](0045-entitlement-and-feature-flag-socket.md) says the same of
+`FeatureKeys` and `KillswitchKeys`.

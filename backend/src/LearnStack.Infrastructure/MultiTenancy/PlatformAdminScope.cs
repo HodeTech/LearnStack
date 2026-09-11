@@ -1,6 +1,10 @@
 using System.Data.Common;
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -31,10 +35,27 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// this path read-only: both named consumers, GDPR redaction and the retention purge,
 /// write.
 /// </para>
+/// <para>
+/// <b>Entry is audited, and refusing to record it refuses the entry.</b> Every
+/// <c>EnterAsync</c> writes one <c>platform.admin_scope.enter</c> row on the scope's own
+/// connection, in a transaction of its own that <b>commits before</b> the transaction the
+/// caller works in begins — so an operation that later fails, throws or is abandoned is
+/// still on the record
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>).
+/// The scope is a <b>singleton</b> and <c>IAuditStore</c> is <b>scoped</b>, which is why
+/// the store is resolved from a fresh <see cref="IServiceScopeFactory"/> scope per entry
+/// rather than injected: this path is entered from background work as readily as from a
+/// request, so there is not always an ambient scope to capture — and capturing one on a
+/// singleton would hand every later entry the first caller's.
+/// </para>
 /// </remarks>
 public sealed class PlatformAdminScope(
     IPlatformAdminGate gate,
     [FromKeyedServices(PlatformAdminScope.PlatformDataSourceKey)] Lazy<NpgsqlDataSource> dataSource,
+    IAuditCatalog catalog,
+    IServiceScopeFactory scopeFactory,
+    IClock clock,
+    IGuidFactory guidFactory,
     ILogger<PlatformAdminScope> logger)
     : IPlatformAdminScope
 {
@@ -47,10 +68,28 @@ public sealed class PlatformAdminScope(
     /// </remarks>
     public const string PlatformDataSourceKey = "PlatformAdmin";
 
+    /// <summary>The slug every entry records, declared off-path by the Tenancy source.</summary>
+    /// <remarks>
+    /// Its module segment is <c>platform</c> because the scope belongs to no module's
+    /// request path, while the matrix row lives in <c>docs/modules/tenancy/audit.md</c>
+    /// because that is where a reader looks for it (ADR-0044 Amendment 3 § 1).
+    /// </remarks>
+    public const string EnterOperation = "platform.admin_scope.enter";
+
     private readonly IPlatformAdminGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
     private readonly Lazy<NpgsqlDataSource> _dataSource =
         dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+
+    private readonly IAuditCatalog _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+
+    private readonly IServiceScopeFactory _scopeFactory =
+        scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+
+    private readonly IClock _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+
+    private readonly IGuidFactory _guidFactory =
+        guidFactory ?? throw new ArgumentNullException(nameof(guidFactory));
 
     private readonly ILogger<PlatformAdminScope> _logger =
         logger ?? throw new ArgumentNullException(nameof(logger));
@@ -71,8 +110,6 @@ public sealed class PlatformAdminScope(
         [CallerFilePath] string? callerFile = null,
         [CallerLineNumber] int callerLine = 0)
     {
-        // The order below is load-bearing, because Packet 9 inherits this call site and
-        // writes its SecurityEvent row where the log line sits.
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
         // 1. The gate, before anything opens. ADR-0036 asks for the permission to be
@@ -83,28 +120,170 @@ public sealed class PlatformAdminScope(
             throw new PlatformAdminScopeDeniedException(reason);
         }
 
-        // 2. The credential. Touching Value here is where an absent
+        // 2. The catalogue's own declaration, before the connection. It is what fixes the
+        //    tier and the operation type, so the row and `docs/modules/tenancy/audit.md`
+        //    cannot say different things — and an absent declaration is refused here
+        //    rather than papered over with a hard-coded MUST, because a deployment whose
+        //    catalogue lost this slug must not enter a cross-tenant scope unrecorded.
+        if (!_catalog.TryGetOffPath(EnterOperation, out var declared))
+        {
+            throw new AuditWriteFailedException(
+                $"'{EnterOperation}' is not in the audit catalogue, so entry into a "
+                + "cross-tenant scope cannot be recorded and must not happen. It is "
+                + "declared off-path by the Tenancy source (ADR-0044 § 10).");
+        }
+
+        // 3. The credential. Touching Value here is where an absent
         //    ConnectionStrings:PlatformAdmin surfaces — on entry, at the first call, with
         //    a message naming the key rather than a container error naming a type.
         var connection = await _dataSource.Value.OpenConnectionAsync(cancellationToken);
+        NpgsqlTransaction? transaction = null;
 
         try
         {
-            // 3. Recorded between the open and the transaction. Not on dispose and not
-            //    after the body: Packet 9's row must be written on this connection
-            //    BEFORE the operation runs, so that an operation which then fails is
-            //    still recorded, and this is the position it takes over.
-            LogEntered(_logger, reason, callerMember ?? "<unknown>", ShortPath(callerFile), callerLine, null);
+            // 4. The row, BEFORE the privileged work can begin and in a transaction of its
+            //    OWN that commits first — so an operation that later fails, throws, or is
+            //    simply abandoned is still on the record, which is the sentence ADR-0044
+            //    § 10 writes. It rode the business transaction until the review of this
+            //    packet: a caller that read across every tenant on the handle and then threw
+            //    took the only record of that read down with its rollback. Reading one's own
+            //    transaction back is not durability.
+            //
+            //    learnstack_app cannot write under the platform sentinel at all, which is
+            //    why the row cannot ride the request's connection (ADR-0044 § 10). A failure
+            //    here throws out of EnterAsync and the catch below disposes the connection:
+            //    an unrecordable entry is a refused entry, and no business transaction has
+            //    been begun for it.
+            var entry = Compose(reason, declared, callerMember, callerFile, callerLine);
 
-            var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await RecordAsync(entry, connection, cancellationToken);
+
+            // 5. Only now the transaction the caller works in. A row whose entry then failed
+            //    to begin one records a permitted, recorded entry that handed nothing out —
+            //    the rarer and the honest side of the trade: the other side is a handed-out
+            //    BYPASSRLS connection with no durable record behind it.
+            transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+            // 6. And the log line as well, which the row does not replace operationally.
+            //    The row is the durable record a compliance reviewer reads afterwards;
+            //    this is the line an operator alerting at Warning sees while it is
+            //    happening. It carries the row's id, so the two are one another's index.
+            LogEntered(
+                _logger,
+                reason,
+                callerMember ?? "<unknown>",
+                ShortPath(callerFile),
+                callerLine,
+                entry.Id.Value,
+                null);
+
             return new Handle(connection, transaction, _logger);
         }
         catch
         {
+            // The business transaction exists here only if something after its BEGIN threw
+            // — the log line, in practice never — and its disposal is NOT independently
+            // observable, which is better said than implied: disposing the connection rolls
+            // back and clears whatever transaction is open on it. What it buys is not
+            // depending on that, because the rollback-on-close is Npgsql's own behaviour
+            // rather than anything DbTransaction promises. The connection disposal below is
+            // the one the refused-entry case kills, and it is in the same catch because an
+            // entry that threw must not keep the one connection that sees every tenant.
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+
             await connection.DisposeAsync();
             throw;
         }
     }
+
+    /// <summary>
+    /// Writes the entry row on the scope's connection, in a transaction of its own, and
+    /// commits it.
+    /// </summary>
+    /// <remarks>
+    /// Disposing the recording transaction uncommitted rolls it back, so a write that fails
+    /// leaves nothing behind — and nothing has been handed out, because the business
+    /// transaction is begun only after this returns.
+    /// </remarks>
+    private async Task RecordAsync(
+        AuditEntryDraft entry, NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var recording = await connection.BeginTransactionAsync(cancellationToken);
+
+        await using (var services = _scopeFactory.CreateAsyncScope())
+        {
+            await services.ServiceProvider
+                .GetRequiredService<IAuditStore>()
+                .WritePlatformScopeAsync(entry, connection, recording, cancellationToken);
+        }
+
+        await recording.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The row one entry writes: the sentinel tenant, the catalogue's tier, and the
+    /// caller's provenance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The only class of row that carries <see cref="TenantId.PlatformSentinel"/>.</b>
+    /// It is a platform-scope operation with no resolvable tenant, and it is written
+    /// standalone on the scope's own platform-role connection — which is the one place the
+    /// sentinel is legal, every other announcement site refusing it (ADR-0044 § 1, § 10).
+    /// </para>
+    /// <para>
+    /// <b>No actor and no correlation id, and both are deliberate.</b> There is no
+    /// principal in the process — authentication is Phase 02b — so the caller is known
+    /// only through the compiler-supplied provenance, which lands in <c>metadata</c>
+    /// rather than being flattened into <c>reason</c>: the reason is an operator-authored
+    /// slug that a query groups by, and appending a file and a line to it would make every
+    /// group of one. The correlation id is scoped state, and this scope is entered from
+    /// background work as readily as from a request.
+    /// </para>
+    /// </remarks>
+    private AuditEntryDraft Compose(
+        string reason,
+        AuditCatalogEntry declared,
+        string? callerMember,
+        string? callerFile,
+        int callerLine) =>
+        new()
+        {
+            Id = AuditEntryId.From(_guidFactory.NewUuidV7()),
+            TenantId = TenantId.PlatformSentinel,
+            OrganizationId = null,
+            ActorUserId = null,
+            ActorEmail = null,
+            ModuleName = declared.ModuleName,
+            Operation = declared.Operation,
+            OperationType = declared.OperationType,
+            OperationClass = declared.OperationClass,
+            EntityType = declared.EntityType?.Name,
+            EntityId = null,
+            Outcome = AuditOutcome.Success,
+            ErrorKey = null,
+            Reason = reason,
+            BeforeState = null,
+            AfterState = null,
+            Changes = null,
+            CorrelationId = null,
+            IpAddress = null,
+            UserAgent = null,
+            Timestamp = _clock.UtcNow,
+            Metadata = Provenance(callerMember, callerFile, callerLine),
+        };
+
+    /// <summary>The calling site, as the row's <c>metadata</c> document.</summary>
+    private static string Provenance(string? callerMember, string? callerFile, int callerLine) =>
+        AuditJson.CapObject(
+            "{\"caller\":{"
+            + "\"member\":" + AuditJson.Quote(callerMember ?? "<unknown>")
+            + ",\"file\":" + AuditJson.Quote(ShortPath(callerFile))
+            + ",\"line\":" + callerLine.ToString(CultureInfo.InvariantCulture)
+            + "}}");
 
     /// <summary>
     /// The last two segments of a compile-time path.
@@ -126,17 +305,19 @@ public sealed class PlatformAdminScope(
     }
 
     // Warning, because a cross-tenant bypass is not an ordinary event and an operator
-    // filtering at Information must still see it. The reason and the call site and
-    // nothing else — deliberately no tenant id: TenantId leaves the platform sentinel's
-    // value unfixed, and Packet 9 chooses it with the schema that stores it, because a
-    // log line is not a one-way door and an identifier minted for a table that does not
-    // exist yet is.
-    private static readonly Action<ILogger, string, string, string, int, Exception?> LogEntered =
-        LoggerMessage.Define<string, string, string, int>(
+    // filtering at Information must still see it. Still no tenant id: every one of these
+    // rows carries TenantId.PlatformSentinel, so logging it would be a constant.
+    //
+    // The audit entry id is what the line gained in Packet 9. The row is the durable
+    // record and this is the real-time signal, and without the id an operator alerting on
+    // the line has no key to find the row it is about — which is the whole of what the
+    // two are worth together.
+    private static readonly Action<ILogger, string, string, string, int, Guid, Exception?> LogEntered =
+        LoggerMessage.Define<string, string, string, int, Guid>(
             LogLevel.Warning,
             new EventId(7001, nameof(LogEntered)),
             "Platform-admin scope entered: {Reason} (from {Member} at {File}:{Line}). "
-            + "Cross-tenant access under learnstack_platform.");
+            + "Cross-tenant access under learnstack_platform, audit row {AuditEntryId}.");
 
     /// <summary>One entry's connection and transaction.</summary>
     private sealed class Handle(

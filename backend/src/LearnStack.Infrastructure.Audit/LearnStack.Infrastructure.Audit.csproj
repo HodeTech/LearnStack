@@ -21,6 +21,16 @@
   <ItemGroup>
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
+    <!--
+      Relational, for one lookup: the capture asks the MODEL whether a property's
+      column is jsonb, because deciding that from the value retypes ordinary text
+      whose content happens to parse and emits escapes PostgreSQL refuses. The
+      annotation is relational metadata, so reading it needs the relational package;
+      no provider is referenced and none is needed.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql" />
   </ItemGroup>
 
 </Project>

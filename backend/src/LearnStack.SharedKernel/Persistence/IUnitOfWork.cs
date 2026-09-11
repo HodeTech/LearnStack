@@ -210,6 +210,30 @@ public interface IUnitOfWork : IAsyncDisposable
     /// is the model.
     /// </remarks>
     void MarkRollbackOnly();
+
+    /// <summary>
+    /// <c>true</c> once <see cref="MarkRollbackOnly"/> has been called on this unit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The read half of the flag, and it exists for one caller: the audit write path has
+    /// to tell a <b>refused</b> commit from a <b>faulted</b> one, and only the unit knows
+    /// which happened. <c>CompleteAsync</c> throws the same way in both cases — but a
+    /// refusal issues a real <c>ROLLBACK</c> first, so the server-side outcome is known
+    /// with certainty, while a fault leaves it genuinely unknown.
+    /// </para>
+    /// <para>
+    /// The difference is not cosmetic. It decides whether an <c>audit_log</c> row is
+    /// written <c>failed</c> or <c>indeterminate</c>, on a table nothing can correct — and
+    /// <c>indeterminate</c> tells a reader the <c>COMMIT</c> may have landed and tells the
+    /// reconcile that a <c>23505</c> on its re-write is positive evidence it did.
+    /// </para>
+    /// <para>
+    /// Sticky for the life of the unit, like the flag it reads: a rollback clears the
+    /// transaction and the depth, never this.
+    /// </para>
+    /// </remarks>
+    bool IsRollbackOnly { get; }
 }
 
 /// <summary>

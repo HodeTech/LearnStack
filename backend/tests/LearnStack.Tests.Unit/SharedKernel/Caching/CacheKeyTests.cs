@@ -117,7 +117,7 @@ public sealed class CacheKeyTests
     [InlineData("platform:identity:permissions:session")]
     [InlineData("platform:hub:host-map")]
     [InlineData("platform:hub:host-map:127.0.0.1")]
-    public void The_Platform_Sentinel_Is_Reserved_For_Normalized_Host_Mappings(string key)
+    public void The_Platform_Sentinel_Is_Reserved_For_Its_Enumerated_Families(string key)
     {
         var act = () => CacheKey.EnsureValid(key);
 
@@ -170,6 +170,8 @@ public sealed class CacheKeyTests
             CacheKey.ForTenant(Tenant, "tenancy", "feature-flags"),
             CacheKey.ForTenant(Tenant, "identity", "permissions", session.ToString()),
             CacheKey.ForTenant(Tenant, "tenancy", "settings"),
+            CacheKey.ForTenant(Tenant, "audit", "config"),
+            CacheKey.ForKillswitchOverlay(),
         };
 
         foreach (var key in families)
@@ -180,6 +182,44 @@ public sealed class CacheKeyTests
 
         families[0].Should().Be("platform:hub:host-map:school.example.com");
         families[3].Should().Be($"{Tenant}:identity:permissions:{session}");
+        families[5].Should().Be($"{Tenant}:audit:config");
+        families[6].Should().Be("platform:tenancy:killswitch");
+    }
+
+    [Fact]
+    public void The_Killswitch_Overlay_Is_An_Enumerated_Platform_Family()
+    {
+        // ADR-0045 § 5 widens a closed guard, and the widening is ENUMERATED. One entry
+        // holds the whole switch set, so the family is three segments — a toggle then
+        // invalidates one key, which it must, because ICacheService has no
+        // RemoveByPrefixAsync to sweep a per-key family with.
+        var key = CacheKey.ForKillswitchOverlay();
+
+        key.Should().Be("platform:tenancy:killswitch");
+
+        var act = () => CacheKey.EnsureValid(key);
+        act.Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData("platform:tenancy:killswitch:recording", "a per-key spelling of the overlay")]
+    [InlineData("platform:tenancy:settings", "a tenant-owned family under the sentinel")]
+    [InlineData("platform:tenancy:feature-flags", "the same, one family over")]
+    [InlineData("platform:hub:killswitch", "the right shape under the wrong module")]
+    [InlineData("platform:audit:config", "a three-segment platform key that is not enumerated")]
+    public void The_Sentinel_Admits_Nothing_The_Standard_Does_Not_Enumerate(string key, string why)
+    {
+        // The guard dispatches on the FAMILY, never on the shape. Written as "three or four
+        // segments under the sentinel" it would admit every row here — and
+        // platform:tenancy:settings is the one that matters: settings are tenant-owned and
+        // one entry per tenant, so admitting that spelling collapses every tenant into one
+        // bucket, which is the single collision this class exists to make impossible.
+        //
+        // The per-key killswitch spelling is refused rather than merely unused, because a
+        // family ICacheService cannot sweep is a set a toggle cannot invalidate.
+        var act = () => CacheKey.EnsureValid(key);
+
+        act.Should().Throw<ArgumentException>(why);
     }
 
     [Fact]

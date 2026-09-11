@@ -15,7 +15,14 @@ session from tenant-wide rows**),
 (Amendment 1: the built-in is `uuidv7()`),
 [ADR-0037 Idempotency Key Contract](../decisions/0037-idempotency-key-contract.md),
 [ADR-0039 The Optimistic Concurrency Token](../decisions/0039-optimistic-concurrency-token.md),
-[ADR-0040 The Ambient Unit of Work](../decisions/0040-ambient-unit-of-work.md).
+[ADR-0040 The Ambient Unit of Work](../decisions/0040-ambient-unit-of-work.md),
+[ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
+(§ 9 with Amendment 1: `audit_log` is tenant-owned and org-scoped, `audit_config`
+tenant-owned and tenant-wide; **Amendment 3: the platform sentinel's guards sit on the
+write path, not on the `tenants` CHECK**),
+[ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
+(§ 5: `platform_killswitches` is the second platform-scoped table; **Amendment 1: it
+ships unwritten**).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -46,6 +53,22 @@ PostgreSQL schema, EF Core, and migration conventions.
 | Outbox | `outbox_messages` (global) | |
 
 `learnstack_` prefix reserved for system-wide objects (roles, extensions).
+
+Two names on `audit_log` diverge, both because two Accepted records fix them, and
+neither is a precedent:
+
+- the trigger `audit_log_append_only_guard`, carried in that spelling by
+  [ADR-0033](../decisions/0033-audit-durability-model.md),
+  [ADR-0044 § 9](../decisions/0044-audit-write-path.md) and the DDL in
+  [Audit Subsystem § 7](../architecture/31-audit-subsystem.md);
+- the primary key `audit_log_pkey`, written that way in
+  [ADR-0033](../decisions/0033-audit-durability-model.md) and
+  [ADR-0016](../decisions/0016-audit-log-subsystem.md).
+
+Everything else on that table takes the forms above — `ck_audit_log_outcome`,
+`ix_audit_log_tenant_id_timestamp`, `fn_audit_log_append_only`,
+`tg_audit_log_no_truncate` — and so does every trigger, function and constraint a
+migration adds from here.
 
 ## Tenant-Owned and Organization-Scoped Tables
 
@@ -327,7 +350,7 @@ Rules:
   row when the *new* `organization_id` is the caller's own, which is exactly the
   re-parenting move. A row does not move
   between organizations: its audit rows
-  ([ADR-0016](../decisions/0016-audit-log-subsystem.md)), its storage prefix
+  ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)), its storage prefix
   `tenants/{tenant_id}/organizations/{organization_id}/…` and its cache-key prefix are
   all organization-qualified per
   [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md), so re-parenting would
@@ -381,10 +404,10 @@ migration states which one its table is.
 
 | Class | Rule | Tables |
 |---|---|---|
-| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set |
-| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations` |
+| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — and `audit_log`, which Packet 9 adds ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)) |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
-| **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, writes stay tenant-keyed | `platform_host_to_tenant` |
+| **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes are either tenant-keyed or reserved to `learnstack_platform` | `platform_host_to_tenant`, `platform_killswitches` |
 
 **The EF query filter follows the class.** It is the second layer, not a restatement of
 the policy: the filter is what a handler's `IQueryable` meets, the policy is what still
@@ -401,16 +424,27 @@ drops the other tenants' rows when the filter is missing.
   to *determine* the tenant, so a tenant-keyed filter would return zero rows on every
   anonymous request and no host would ever resolve. `PlatformHostMapping` carries a
   `TenantId` property and still takes no filter — the property is not the test, the
-  class is.
+  class is. `platform_killswitches` takes none either, and could not: it carries no
+  tenant column for a filter to key on.
 
-**A table is platform-scoped only when it is read before the tenant is known.** That is
-one table today, and adding a second is a decision, not a convenience.
+**A table is platform-scoped only when no tenant predicate can isolate it.** Two tables
+qualify, in two shapes. `platform_host_to_tenant` is read **before the tenant is known**,
+so a tenant-keyed policy returns nothing on the path that decides the tenant.
+`platform_killswitches` is read inside a tenant request and still has no tenant of its
+own — [ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md) is the
+decision this rule asked for, and the class fits for the stated reason rather than by
+analogy: the rows belong to no tenant, so there is nothing for a tenant predicate to
+isolate. A third table is still a decision, not a convenience.
+
 `platform_entitlement_cache` does **not** qualify despite its name: `IFeatureFlags`
 resolves the tenant from `ITenantContext` and throws `TenantContextMissingException`
-when there is none, and `IEntitlementProvider.RefreshAsync` is driven by
-`PUT /api/internal/tenants/{id}/entitlements`, which carries the tenant id in its path.
-Both directions have a tenant, so the table keeps the tenant-owned template and the
-application role never holds a table-wide read of every tenant's plan.
+when there is none, and it reaches the projection through
+`IEntitlementProvider.GetAsync(TenantId)` rather than by reading the table
+([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)); the
+provider's `RefreshAsync` is driven by `PUT /api/internal/tenants/{id}/entitlements`,
+which carries the tenant id in its path. Both directions have a tenant, so the table
+keeps the tenant-owned template and the application role never holds a table-wide read
+of every tenant's plan.
 
 #### `tenants` — self-keyed
 
@@ -457,6 +491,72 @@ released-then-re-registered domain.
 
 Adding a third is a decision, not a convenience. Every other tenant-owned natural key
 is `UNIQUE (tenant_id, …)`.
+
+#### `audit_log` and `audit_config` — one chain, two classes
+
+`audit_log` is **tenant-owned, org-scoped** and takes the template above
+**unmodified** — `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term
+with the organization term, an explicit `WITH CHECK`, and both `AS RESTRICTIVE` guards.
+It carries `organization_id`, and the class follows the column.
+
+`audit_config` is **tenant-owned, tenant-wide**. It has no `organization_id` column —
+its overrides are keyed `(tenant_id, module, operation)`, and nothing asks a tenant to
+classify one organization's operations differently from another's — so it takes the
+same shape with the organization half of the predicate omitted and, for the reason that
+class gives, no restrictive write guards.
+[ADR-0044 § 9](../decisions/0044-audit-write-path.md) put both tables in the org-scoped
+class; its Amendment 1 corrects that, and this is the corrected reading.
+
+Both take their policy from the class, so none is restated here: a template copied for
+one more table is how the corpus last shipped a broken policy into four files at once.
+
+`audit_log` takes the class's **policy** unmodified and deliberately not the template's
+`ix_<table>_tenant_id_organization_id`: its readers are tenant-scope, so the arm that
+fires is `app.scope = 'tenant'`, which no index serves, and a fifth index on a
+high-volume append-only table is a write cost paid on every row for a predicate arm
+nothing shipped takes. The four indexes it does carry, and the reasoning, are in
+[Audit Subsystem § 7](../architecture/31-audit-subsystem.md).
+
+They ship in a **fourth migration chain**, owned by
+`LearnStack.Modules.Audit.Infrastructure`'s `AuditDbContext`, on the pattern Packet 8 set
+for Customization.
+
+`audit_log`'s class binds the audit store's own writes. A row whose `organization_id` is
+non-null while `app.organization_id` is unset fails `WITH CHECK` — the unset GUC reads as
+the empty string, `NULLIF` makes it `NULL`, and the comparison is `NULL`, which is false.
+The two standalone writers therefore announce **both** session variables from the draft
+as their first statements, exactly as the ambient transaction announces the pair. Every
+`denied` row for an org-scoped resource travels that path.
+
+Two departures from what the rest of this document assumes, each for its own reason:
+
+- **`audit_log` carries no foreign key to `tenants`.** The platform-scope row carries
+  `TenantId.PlatformSentinel`, which has no `tenants` row by construction, and a foreign
+  key admits no exception — not for `learnstack_platform` and not under `BYPASSRLS`,
+  because it is a constraint rather than a policy. Independently: an audit log that
+  cascades or restricts on tenant deletion is not an audit log, because the record of
+  what happened to a tenant has to outlive the tenant. `audit_config` keeps its FK — it
+  is live configuration rather than history, and its rows are meaningless without the
+  tenant they configure.
+- **`tenants` carries `CONSTRAINT ck_tenants_not_platform_sentinel CHECK (id <>
+  '00000000-0000-7000-8000-000000000002')`** — the reserved platform tenant id, exposed
+  as `TenantId.PlatformSentinel`
+  ([ADR-0044 § 1](../decisions/0044-audit-write-path.md)), and the one tenant id that
+  must never name a row in the table every other tenant id names. What the `CHECK` buys
+  is that the sentinel never enters the registry: `platform_host_to_tenant` carries
+  `fk_platform_host_to_tenant_tenant`, so no host can map to it, no request context
+  resolves it, and no tenant-keyed policy matches the rows it owns.
+
+  **The `CHECK` is the backstop, not the control.** A constraint on `tenants` cannot
+  stop the sentinel from being *announced* on `app.tenant_id`, and the one announcement
+  path that takes a caller-supplied id — `SetProvisioningTenantContextAsync` — passes on
+  whatever it is handed. The guards therefore sit where the value enters:
+  `SetProvisioningTenantContextAsync` refuses `TenantId.PlatformSentinel` exactly as it
+  already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory
+  ([ADR-0044 Amendment 3](../decisions/0044-audit-write-path.md)). Neither guard stands
+  in the way of the writer the sentinel exists for: `WritePlatformScopeAsync` issues
+  parameterised SQL on the scope's own platform-role connection and touches neither the
+  unit of work nor an aggregate factory.
 
 #### `platform_host_to_tenant` — platform-scoped
 
@@ -566,6 +666,82 @@ ADR ([ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.
 domain lifecycle and verification state, read and written under tenant context.
 `platform_host_to_tenant` holds the resolution index, read before any context exists.
 The two differ in *when* they are read, which is exactly why they cannot share one rule.
+
+#### `platform_killswitches` — platform-scoped
+
+A killswitch is one platform-wide switch per key, and it is not tenant data:
+`key varchar(150) PRIMARY KEY`, `is_enabled boolean NOT NULL`, `reason text NULL`,
+`toggled_at timestamptz NOT NULL`, `toggled_by uuid NULL` — no `tenant_id` and no
+foreign key. It ships in the **Tenancy** migration chain
+([ADR-0045 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+
+The cap on `key` is the migration's, on the precedent `platform_entitlement_cache` set:
+an unbounded primary key is an unbounded index, and 150 characters holds any
+`{module}.{capability}` key the registry declares. Bare `text` is what this section first
+declared and is the bound it did not carry.
+
+The table exists because the alternative cannot be written at all. A killswitch held in
+`tenant_feature_flags` "for the sentinel platform tenant" fails
+`fk_tenant_feature_flags_tenant REFERENCES tenants (id)`, since the sentinel has no
+`tenants` row by the `CHECK` above — and a foreign key is a constraint, so no role and
+no `BYPASSRLS` attribute moves it.
+
+Policies are role-qualified in the same shape as `platform_host_to_tenant`'s, with the
+read widened rather than keyed:
+
+```sql
+ALTER TABLE platform_killswitches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_killswitches FORCE  ROW LEVEL SECURITY;
+
+-- READ is unconditional, and that is the point: the switch is global by construction,
+-- so hiding it from the role that has to honour it would only fail open.
+CREATE POLICY platform_killswitches_read ON platform_killswitches
+    FOR SELECT TO learnstack_app
+    USING (true);
+
+-- No write policy for learnstack_app, and no write privilege either — see the matrix
+-- below. Every toggle runs as learnstack_platform inside
+-- EnterPlatformAdminScope(reason), which is what gives tenancy.killswitch.toggle a real
+-- actor and a MUST-class audit row. No such caller ships in Packet 9 — see below.
+```
+
+`USING (true)` widens nothing: there is no tenant term to widen, and the `GRANT` is what
+bounds the role instead — `learnstack_app` holds `SELECT` and nothing else, so the read
+policy is the only policy it can exercise. The owner is denied by the same mechanism as
+on `platform_host_to_tenant`: the policy names `learnstack_app`, so under `FORCE` none
+applies to `learnstack_migration`.
+
+**This is the first table for which "no tenant context ⇒ zero rows" is deliberately
+false**, and the shipped whole-schema sweep has to be taught the difference.
+`platform_host_to_tenant` satisfies that property without being asked to — both arms
+of its read are `NULL` when nothing is announced — so
+`Unsetting_tenant_context_returns_zero_rows_through_RLS` has swept every ordinary
+table in `public` with no exception at all, which is what makes it worth having. The
+first killswitch row turns it red for correct behaviour. It is taught the distinction
+**without** a name-based inclusion list: it keeps enumerating the catalogue, and what
+changes is the expectation — every table it finds answers zero except the one declared
+exception, and a second assertion pins the set of `public` policies whose predicate is
+`true` to exactly that exception. A sweep over a hand-written list of names fails open,
+which is how a second permissive policy on `outbox_messages` once passed the whole
+suite. The positive half is worth asserting too, because nothing asserts it today: with
+no context, `learnstack_app` reads **all** of `platform_killswitches`, which is what
+`USING (true)` exists to guarantee.
+
+**Packet 9 shipped the table and the read path, and no writer.** The reason is
+reachability rather than scheduling: every toggle runs inside
+`EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate` is
+`DenyAllPlatformAdminGate`, and nothing can enter that scope until the Platform-scope
+permission arrives with the registry in
+[Phase 03](../roadmap/phase-03-identity-admin.md) — which owns the toggle command, its
+permission and its runbook
+([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)). The
+`learnstack_platform` write grant in the matrix below is written ahead of its caller,
+and no runtime path puts a row in the table until that phase lands. Every gated read
+honours a flipped switch the day one exists; what is absent is the flipping.
+
+The overlay is read through the L1 cache and invalidated on toggle, so the table itself
+is touched on a cache miss rather than on every request
+([Feature Flags § Killswitch Pattern](../architecture/21-feature-flags.md)).
 
 ### Database roles
 
@@ -681,14 +857,31 @@ privileges implicitly.
 | `tenant_feature_flags` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `platform_entitlement_cache` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `platform_host_to_tenant` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
+| `platform_killswitches` | `SELECT` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
 | `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after)` |
 | `tenant_content_types` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_level_taxonomies` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_level_taxonomy_items` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `customization_generations` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
+| `audit_log` | `SELECT, INSERT` | `SELECT, INSERT, DELETE`, `UPDATE (actor_email, ip_address, user_agent, before_state, after_state, changes)` | — |
+| `audit_config` | `SELECT` | `SELECT` | — |
 
-Four things the matrix cannot express, and one it must not be asked to:
+**`audit_log`'s `UPDATE` is column-restricted, and the column list is the control.**
+`learnstack_platform` may rewrite only the six columns a GDPR erasure touches —
+`actor_email`, `ip_address`, `user_agent`, `before_state`, `after_state`, `changes`;
+`outbox_messages`' dispatcher grant is the existing precedent for the form. Append-only
+then holds in three layers, each stopping a different actor, measured on PostgreSQL
+18.6: `learnstack_app` by the **absent privilege** (`42501`); a `learnstack_platform`
+`UPDATE` touching any other column by the **column-level `GRANT`**, before the trigger
+runs; and the table **owner** — which no grant bounds, because ownership carries every
+privilege implicitly, and which `FORCE ROW LEVEL SECURITY` does subject to the table's
+own policies, though a migration session satisfies them by announcing the row's tenant —
+only by the `audit_log_append_only_guard` trigger. The trigger is not redundant with the
+grant: it is the layer that still binds `learnstack_migration` once that session has a
+tenant to announce ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
+
+Five things the matrix cannot express, and one it must not be asked to:
 
 - **A `GRANT` names a role, not a code path.** "Reserved to the provisioning path" is
   not something PostgreSQL can enforce — every handler in the API process runs as the
@@ -714,6 +907,16 @@ Four things the matrix cannot express, and one it must not be asked to:
   it lands it will need `DELETE` for `learnstack_platform` across every tenant-owned
   table; that is a deliberate widening of a `BYPASSRLS` role and is recorded in the ADR
   that introduces it, not slipped into a migration.
+- **`audit_config` has no writer in the matrix**, and that is deliberate rather than an
+  omission. Packet 9 creates the table and both runtime roles hold `SELECT`, so the only
+  role that can insert a row is the owner and the table is empty until a tenant authors
+  one. The editor that authors it lands with the Studio tenant-settings screens in
+  [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), gated by an audit permission
+  from the registry [ADR-0044](../decisions/0044-audit-write-path.md) places in
+  [Phase 03](../roadmap/phase-03-identity-admin.md). `INSERT, UPDATE, DELETE` for
+  `learnstack_app` lands in that phase's migration, beside the command that needs it —
+  not ahead of it. Packet 9's own test for the override branch seeds the row as the
+  migration role.
 
 #### How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`
 
@@ -763,15 +966,21 @@ separate secret path (`learnstack/{deployment}/platform/db-password`) that a dep
 needing no platform admin simply does not provision, in which case
 `EnterPlatformAdminScope` throws **on entry** — on the first call, naming the missing
 `ConnectionStrings:PlatformAdmin`, so a host that never enters the scope still boots,
-every test fixture included — rather than degrading to `learnstack_app`; and, **from
-[Packet 9](../roadmap/phase-02a-kernel-tenancy.md)**, by an audit row written **inside**
-the scope before the operation runs and committed on its own, so an operation that later
-fails is still recorded. Until that packet the entry is recorded through `ILogger` at
-`Warning` with the reason and the calling site: the path is **logged, not audited**, and
-a reader deciding whether cross-tenant access is retained under audit retention today
-must not read the third mitigation as already in force. That row is written as
-`learnstack_platform` and carries the sentinel platform tenant id, because a cross-tenant
-operation has no tenant of its own and `audit_log` is itself tenant-owned.
+every test fixture included — rather than degrading to `learnstack_app`; and, **since
+[Packet 9](../roadmap/phase-02a-kernel-tenancy.md)**, by an audit row written on the
+scope's own connection before the operation runs, in a transaction of its own that
+**commits before** the transaction the caller works in begins — so an operation that later
+fails, throws or is abandoned is still recorded. (The row first rode the caller's
+transaction, where rolling the work back erased the only record that the access had
+happened.) An entry whose row cannot be written, or whose slug the catalogue does not
+declare, is **refused**: no transaction is handed out for it. The `Warning` line the scope has carried
+since Packet 7 stays beside the row, now carrying the row's id — the row is the durable
+record, the line is the real-time signal. That row is written as
+`learnstack_platform`, through `IAuditStore`'s fourth write method
+`WritePlatformScopeAsync` ([ADR-0044 § 10](../decisions/0044-audit-write-path.md)), and
+carries `TenantId.PlatformSentinel` — see § `audit_log` and `audit_config` above —
+because a cross-tenant operation has no tenant of its own and `audit_log` is itself
+tenant-owned.
 
 **Isolation tests connect as `learnstack_app`.** A test that connects as the owner or
 as a `BYPASSRLS` role passes even when every policy is inert, so it proves nothing.
@@ -867,8 +1076,16 @@ changes `xmin` while leaving `row_version` intact.
     the value and the id exists before the row does.
   - **DB-side** `DEFAULT uuidv7()` for the high-volume append-only tables whose
     surrogate key is written by infrastructure rather than by an aggregate:
-    `audit_log` and `outbox_messages`. Both canonical fences carry the clause;
-    a fence and this rule disagreeing is a defect in one of them.
+    `outbox_messages`. Its canonical fence carries the clause; a fence and this
+    rule disagreeing is a defect in one of them.
+    - `audit_log` is the written exception and takes **both** paths:
+      `DEFAULT uuidv7()` stays on the column as a backstop, and every row
+      `PostgresAuditStore` writes carries an id minted **app-side**
+      ([ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)).
+      `AuditLogBehavior` mints the `AuditEntryId` at pipeline step 3 to declare
+      the intent, and ADR-0033's `Indeterminate` pair — two rows, one id, on two
+      connections — needs both inserts to carry the *same* id, which a
+      server-side default cannot give them.
     - `inbox_messages` is **not** one of them despite being append-only: its key
       is the producing envelope's `EventId`, which the producer minted app-side.
       Generating a second id there would defeat the deduplication the table is.
@@ -934,6 +1151,17 @@ changes `xmin` while leaving `row_version` intact.
 
 - The **columns** are not opt-in — `AuditableEntity<TId>` carries `DeletedAt` / `DeletedBy` for every aggregate, so every such table has them (§ Audit Columns). What is opt-in is whether an aggregate is ever soft-deleted and whether its query filter excludes deleted rows.
 - Soft-deleted rows excluded via global EF query filter where applicable.
+- **A unique index on a table with a `deleted_at` column carries
+  `WHERE deleted_at IS NULL`.** A table-wide one lets a deleted row hold its key forever,
+  and where soft delete is the only way to change a row — `audit_config` has no setter, so
+  an override changes by deleting it and declaring a fresh one — the second write fails
+  `23505` for good. Two shapes are exempt, and the rule
+  [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](21-architecture-tests-catalogue.md#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows)
+  names both: an index containing the whole primary key, which is a foreign-key target
+  rather than a natural key and can never collide with a successor; and
+  `ux_tenants_slug`, held table-wide **by decision** — a tenant slug is a hostname, and
+  whether a terminated tenant's slug may ever be reissued is
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md)'s call.
 - Scheduled purge job removes rows past retention.
 
 ## Migrations
@@ -945,6 +1173,22 @@ changes `xmin` while leaving `row_version` intact.
 - Destructive migrations (drop column, change type) require:
   1. ADR or PR description explaining the data plan.
   2. Two-step deploy: tolerant code → migration → strict code.
+- **Chain application order is load-bearing, and the Tenancy chain applies first.**
+  `audit_config` references `tenants`
+  ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)), which is the schema's only
+  foreign key crossing two migration chains, so a run that reaches the Audit chain first
+  fails on a clean database with `relation "tenants" does not exist`. Alphabetical order
+  produces exactly that run — `Modules/Audit` sorts before `Modules/Tenancy` — so
+  `make migrate` names the Tenancy chain ahead of the glob that finds the rest. The
+  ordering is held by `Migrate_Target_Applies_The_Tenancy_Chain_First`, which replays
+  the recipe's project list — expanding each glob against the chains that exist, and
+  skipping one already visited, exactly as the recipe does — and fails when Tenancy is
+  not reached before Audit. A coverage rule cannot stand in for it:
+  `Migrate_Target_Covers_Every_Migration_Chain` stays green when the Tenancy prefix is
+  deleted, because the glob still reaches Tenancy, while every fresh deployment breaks
+  from that commit onward. The integration fixture that applies the chains orders them
+  the same way, for the same reason: a fixture that hand-orders what the recipe globs is
+  how a suite goes green over a deployment path that cannot build the schema.
 
 ## Data Migrations
 
@@ -1175,6 +1419,17 @@ Allowed when:
 - Query is covered by an integration test.
 
 Forbidden: string interpolation with non-constant values.
+
+**A hand-written write is outside the audit capture**, which sees only what the
+`ChangeTracker` holds ([ADR-0044 § 7](../decisions/0044-audit-write-path.md)). An
+`INSERT`, `UPDATE` or `DELETE` on an `NpgsqlCommand` is therefore used only where the
+module's audit matrix says how that write is recorded or why it is not —
+`customization_generations`, bumped by one `ON CONFLICT … DO UPDATE` and deliberately
+unaudited, is the shipped case — and an audited entity is written through its aggregate
+and `SaveChanges`. EF Core's set-based writes — `ExecuteUpdate`, `ExecuteDelete`,
+`ExecuteSql*` — are not used at all: they read as ordinary EF, which makes them the
+likely accident, and they bypass the capture the same way
+([`No_Set_Based_Write_Bypasses_The_Audit_Capture`](21-architecture-tests-catalogue.md#no_set_based_write_bypasses_the_audit_capture)).
 
 ## Connection Management
 

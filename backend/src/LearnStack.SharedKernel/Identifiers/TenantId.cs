@@ -25,22 +25,63 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// § Table classes</see>.
 /// </para>
 /// <para>
-/// <b>The platform sentinel is deliberately absent.</b> The corpus refers to a
-/// "sentinel platform tenant id" for the one row that has no tenant of its own —
-/// the audit row written inside
-/// <c>EnterPlatformAdminScope</c>, which describes a cross-tenant operation. Its
-/// *value* is fixed nowhere. Packet 7 is the first to emit it — a <c>Warning</c>
-/// log line from <c>EnterPlatformAdminScope</c> — but a log line is not a
-/// one-way door and can carry the reason and the caller without a minted id. The
-/// irreversible consumer is <c>audit_log</c>'s <c>tenant_id</c> column, which
-/// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Phase 02a
-/// Packet 9</see> owns; choosing the value here would fix a one-way-door
-/// identifier for a table that does not exist yet, so Packet 9 chooses it with
-/// the schema that stores it. Note that ADR-0036 forbids the sentinel on a different
-/// path — an unauthenticated tenant-assertion rejection must never write under it
-/// — and the two rules do not conflict: one is an audited operator action, the
-/// other an anonymous request.
+/// <b>The platform sentinel is <see cref="PlatformSentinel"/>, chosen by Packet 9
+/// with the schema that stores it.</b> Its irreversible consumer is
+/// <c>audit_log</c>'s <c>tenant_id</c> column, which is why the value was left
+/// unfixed until the table existed
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044
+/// § 1</see>). It is carried by exactly one class of row: a platform-scope
+/// operation with no resolvable tenant, written standalone — entry into
+/// <c>EnterPlatformAdminScope</c> and the operations performed inside it. It is
+/// never written by a tenant request path and never announced by
+/// <c>SetTenantContextAsync</c>; <c>SetProvisioningTenantContextAsync</c> refuses
+/// it and <c>Tenant.Create</c> refuses it, with the <c>tenants</c> CHECK as the
+/// backstop rather than the control. ADR-0036 forbids it on a different path — an
+/// unauthenticated tenant-assertion rejection must never write under it — and the
+/// two rules do not conflict: one is an audited operator action, the other an
+/// anonymous request.
 /// </para>
 /// </remarks>
 [ValueObject<Guid>(LearnStackVogenDefaults.IdMask)]
-public readonly partial record struct TenantId : IStronglyTypedId<Guid>;
+public readonly partial record struct TenantId : IStronglyTypedId<Guid>
+{
+    /// <summary>
+    /// The reserved tenant a platform-scope audit row carries when no tenant owns it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not the nil uuid</b>, and the reason is measured rather than aesthetic. All-zero
+    /// is what three shipped mechanisms read as *no tenant* —
+    /// <c>NpgsqlUnitOfWork.SetTenantContextAsync</c> maps it to the empty string,
+    /// <c>SetProvisioningTenantContextAsync</c> throws on it, and
+    /// <c>TenantOwnership.EnsureRealTenant</c> refuses it in every aggregate factory —
+    /// and a fourth, <see cref="StronglyTypedId.IsAssigned{TId}"/>, reports it
+    /// unassigned. Choosing it would mean the same value means "no tenant" to the filter
+    /// layer, the unit of work and eight aggregate factories, and "a real tenant" to the
+    /// one component that writes audit rows.
+    /// </para>
+    /// <para>
+    /// UUIDv7-shaped, on the precedent <see cref="UserId.SystemActor"/> already sets for
+    /// the actor column. Making the tenant sentinel look unlike the actor sentinel would
+    /// be the surprising outcome.
+    /// </para>
+    /// <para>
+    /// No tenant can be provisioned under it: <c>tenants</c> carries
+    /// <c>ck_tenants_not_platform_sentinel</c>, and two writer-side guards —
+    /// <c>SetProvisioningTenantContextAsync</c> and
+    /// <c>TenantOwnership.EnsureRealTenant</c> — refuse it before the constraint is
+    /// reached. A constraint cannot stop a session variable from being <em>announced</em>,
+    /// which is the half that actually matters, so three more cover that:
+    /// <c>EventTenantContext.FromEnvelope</c>, where a payload-supplied tenant enters;
+    /// <c>SetTenantContextAsync</c> itself — deliberately redundant, at the site every
+    /// request announcement passes; and <c>PostgresAuditStore</c>'s standalone writer,
+    /// which announces a tenant taken from a <em>draft</em> rather than from a context and
+    /// is therefore the one announcement the other four never see. That last one was
+    /// missing, and measured: a draft carrying the sentinel wrote a platform-scope row
+    /// through <c>learnstack_app</c>, into the one table that deliberately has no foreign
+    /// key to <c>tenants</c> and so had no backstop either.
+    /// </para>
+    /// </remarks>
+    public static TenantId PlatformSentinel { get; } =
+        From(Guid.Parse("00000000-0000-7000-8000-000000000002"));
+}

@@ -612,7 +612,18 @@ public sealed class InMemoryCacheService : ICacheService
         var segments = key.Split(CacheKey.Separator);
         if (segments[0].Equals(CacheKey.PlatformTenant, StringComparison.Ordinal))
         {
-            return "hub:host-map";
+            // Segments 1 and 2, not a blanket answer. This returned "hub:host-map" for ANY
+            // key under the sentinel, which was right while the host map was the only
+            // platform family and silently wrong the moment a second one landed: the
+            // killswitch overlay's hits, misses and evictions would have been added to the
+            // host map's on all six instruments, merging two unrelated caches into one
+            // dashboard figure that neither operator could read.
+            return (segments[1], segments[2]) switch
+            {
+                ("hub", "host-map") => "hub:host-map",
+                ("tenancy", "killswitch") => "tenancy:killswitch",
+                _ => "other",
+            };
         }
 
         var moduleIndex = segments.Length >= 4 && Guid.TryParse(segments[1], out _) ? 2 : 1;
@@ -622,6 +633,7 @@ public sealed class InMemoryCacheService : ICacheService
             ("identity", "permissions") => "identity:permissions",
             ("tenancy", "feature-flags") => "tenancy:feature-flags",
             ("tenancy", "settings") => "tenancy:settings",
+            ("audit", "config") => "audit:config",
             _ => "other",
         };
     }

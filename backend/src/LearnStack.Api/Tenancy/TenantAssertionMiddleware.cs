@@ -114,7 +114,7 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         var mismatch = Mismatch(tenantContext, assertedTenant, assertedOrganization);
         if (mismatch is not null)
         {
-            recorder.RecordRejection(new TenantAssertionRejection(
+            await recorder.RecordRejectionAsync(new TenantAssertionRejection(
                 // Value, not the id: TenantAssertionRejection carries a Guid and
                 // feeds it to a metric tag, so keeping the underlying value here
                 // holds the exported dimension byte-identical across this

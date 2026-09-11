@@ -225,10 +225,10 @@ everything.
 ## Consumer pattern
 
 ```csharp
-public sealed class CreateAuditTrailOnEnrollmentCreated(
+public sealed class QueueWelcomeNotificationOnEnrollmentCreated(
     IInboxGuard inboxGuard,
-    EnrollmentAuditDbContext db,
-    ILogger<CreateAuditTrailOnEnrollmentCreated> logger)
+    NotificationsDbContext db,
+    ILogger<QueueWelcomeNotificationOnEnrollmentCreated> logger)
     : IIntegrationEventHandler<EnrollmentCreatedIntegrationEvent>
 {
     public async Task HandleAsync(EnrollmentCreatedIntegrationEvent @event, CancellationToken ct)
@@ -239,14 +239,46 @@ public sealed class CreateAuditTrailOnEnrollmentCreated(
             return;
         }
 
-        var entry = AuditEntry.CreateFor(@event);   // business logic
-        await db.AuditEntries.AddAsync(entry, ct);
+        // Business logic: the consumer writes its OWN module's aggregate, through its
+        // own DbContext. Not another module's tables, and never audit_log — see below.
+        var dispatch = NotificationDispatch.QueueWelcome(@event.LearnerId, @event.EnrollmentId);
+        db.NotificationDispatches.Add(dispatch);
 
         inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);   // business write + inbox marker, atomic
     }
 }
 ```
+
+The handler's effective identity is `UserId.SystemActor` (see [Rules](#rules)), and
+[Audit Coverage Standards](../standards/18-audit-coverage.md) treats a state-mutating
+handler as a `system` actor for audit purposes. The handler composes no audit row itself.
+
+### Audit rides this outbox for fan-out, never for the audit row
+
+An earlier version of the example above built an `AuditEntry` from the event and saved it
+through the consumer's own `DbContext`. That is the one consumer shape this document must
+not teach, and it collapses two things that are not the same:
+
+- **MUST-class audit does not ride the outbox.** It is a durable intent written on the
+  **business transaction**, immediately before `COMMIT`, so it commits with the state
+  change it describes or not at all
+  ([ADR-0033](../decisions/0033-audit-durability-model.md)). That ADR considered the
+  outbox for this class and rejected it: the outbox is at-least-once and asynchronous by
+  design, and a compliance reviewer is not asking for a row that may arrive twice, or
+  late.
+- **Audit fan-out to external sinks does ride it.** Exporting committed rows outward is
+  best-effort, and at-least-once delivery of a copy of a row that is already durable
+  costs nothing. This is the sense in which
+  [Audit Coverage Standards](../standards/18-audit-coverage.md) says fan-out rides the
+  outbox while the local row does not.
+
+No module writes `audit_log` — not from a command handler and not from an
+integration-event handler. `IAuditStore` is the only sanctioned write path: the port lives
+in `LearnStack.SharedKernel.Audit` and its implementation in
+`LearnStack.Infrastructure.Audit`, and
+[`Modules_Do_Not_Write_AuditLog_Directly`](../standards/21-architecture-tests-catalogue.md)
+is the rule that enforces it, registered for Packet 10.
 
 ## OutboxProcessor (BackgroundService)
 

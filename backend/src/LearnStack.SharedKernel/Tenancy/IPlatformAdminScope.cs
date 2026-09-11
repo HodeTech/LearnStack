@@ -30,14 +30,25 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// <c>learnstack_app</c>).
 /// </para>
 /// <para>
-/// <b>What Packet 7 ships is a log line, not an audit trail.</b> Entry is recorded
-/// through <c>ILogger</c> at <c>Warning</c> with the reason and the calling site.
-/// <c>audit_log</c> and <c>IAuditStore</c> arrive in Packet 9, which replaces the log
-/// line with a <c>SecurityEvent</c> row written as <c>learnstack_platform</c> before the
-/// operation runs. Until then this path is <b>logged</b> and it is not audited; the
-/// corpus calls it audited because that is what it will be, and a reader deciding
-/// whether cross-tenant access is retained under audit retention today must not read
-/// that word as a description of this packet.
+/// <b>Entry is audited, and an entry that cannot be recorded does not happen.</b> Every
+/// <c>EnterAsync</c> writes one <c>platform.admin_scope.enter</c> row — the slug the
+/// Tenancy catalogue source declares off-path at MUST / <c>SecurityEvent</c> — through
+/// <c>IAuditStore.WritePlatformScopeAsync</c>, as <c>learnstack_platform</c>, on the
+/// scope's own connection and in a transaction of its own that <b>commits before</b> the
+/// handle is returned, so an operation that later fails — or is abandoned, or reads across
+/// every tenant and then throws — is still on the record
+/// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 § 10</see>).
+/// It is the one class of row carrying <c>TenantId.PlatformSentinel</c>. The row used to
+/// ride the handle's transaction, so rolling the work back erased the only record that
+/// privileged access had happened; the review of Packet 9 measured it, and an entry is now
+/// recorded whatever the work then does.
+/// </para>
+/// <para>
+/// <b>The <c>Warning</c> log line stays, and it is not the record.</b> The row is what a
+/// compliance reviewer reads afterwards; the log line is what an operator alerting at
+/// <c>Warning</c> sees while it is happening, and it carries the row's id so the two are
+/// one another's index. Packet 7 shipped the line alone and said so; Packet 9 added the
+/// row it stood in for.
 /// </para>
 /// </remarks>
 public interface IPlatformAdminScope
@@ -47,7 +58,7 @@ public interface IPlatformAdminScope
     /// </summary>
     /// <param name="reason">
     /// Why this cross-tenant access is happening. Required, non-blank, and the value
-    /// Packet 9 will write durably — so it is a short operator-authored slug naming the
+    /// the entry row writes durably — so it is a short operator-authored slug naming the
     /// operation, never a caller-supplied string and never anything carrying personal
     /// data beyond the identifier the operation is already about.
     /// </param>

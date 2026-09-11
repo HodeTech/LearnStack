@@ -161,6 +161,14 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	@#    platform chain (outbox_messages, idempotency_keys) lives outside
 	@#    `src/Modules`, and a glob that only walked the modules left the two
 	@#    tables no module owns unmigrated on every documented path.
+	@# 6. Tenancy is named BEFORE the glob. From Phase 02a Packet 9 the chains are
+	@#    no longer independent: `audit_config` carries the schema's only
+	@#    cross-chain foreign key, to `tenants`, which the Tenancy chain creates.
+	@#    The glob expands alphabetically and `Modules/Audit` sorts first, so the
+	@#    naive order fails on a fresh database. `applied` is what keeps the named
+	@#    project from being visited twice when the glob reaches it — a second
+	@#    `database update` is a no-op, but a recipe that prints the same chain
+	@#    twice reads like a bug in the recipe.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
 	if [ -z "$$migration_cs" ] && [ -f .env ]; then \
 		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
@@ -190,8 +198,13 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	dotnet tool restore >/dev/null; \
 	found=0; \
 	failed=0; \
-	for proj in backend/src/LearnStack.Infrastructure backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
+	applied=" "; \
+	for proj in backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure \
+	            backend/src/LearnStack.Infrastructure \
+	            backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
 		test -d "$$proj/Persistence/Migrations" || continue; \
+		case "$$applied" in *" $$proj "*) continue;; esac; \
+		applied="$$applied$$proj "; \
 		found=1; \
 		echo "==> $$(basename $$proj)"; \
 		dotnet ef database update \

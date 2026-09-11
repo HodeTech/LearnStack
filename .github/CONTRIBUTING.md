@@ -56,7 +56,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       step, so it already runs on every pull request. **Adding it to the live
       branch-protection rule is the one remaining edit**, and it is a repository
       setting rather than a file in this repo — until it is made, the job runs and
-      gates nothing.
+      gates nothing. Once it is made the check cannot pass empty: both backend jobs
+      end with `scripts/assert-tests-ran.py`, which fails a run whose filter matched
+      no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
+      `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
+      behind a green check.
   - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
     unset by default — a constant `if: false` is rejected by actionlint).
     Activating one is **four edits, in the same pull request wherever possible**:

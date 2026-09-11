@@ -79,10 +79,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     private const string OutboxPassword = "outbox-test";
     private const string ContainerScriptPath = "/tmp/02-create-roles.sql";
 
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        // Pinned to the tag infra/compose/dev.yml runs. A fixture on a different
-        // major would test a database no deployment uses.
-        .WithImage("postgres:18.4-alpine")
+    // Pinned to the tag infra/compose/dev.yml runs. A fixture on a different major would
+    // test a database no deployment uses.
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18.4-alpine")
         .WithDatabase(Database)
         .WithUsername("postgres")
         .WithPassword("postgres")

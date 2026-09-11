@@ -3,7 +3,6 @@ using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace LearnStack.Api.Tenancy;
 
@@ -187,18 +186,16 @@ public static class TenancyCompositionExtensions
         services.AddSingleton(new HostResolutionOptions());
         services.AddSingleton<UnknownHostCache>();
 
-        // Lazy, so the resolver's construction builds no data source: a request on
-        // a platform host is answered from configuration and must cost nothing
-        // below it. The composition root already registers the data source as a
-        // factory rather than an instance, so this preserves that deferral instead
-        // of collapsing it at the first classified request.
-        services.AddSingleton(provider =>
-            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+        // The resolver takes the data source as a Lazy, so its construction builds none: a
+        // request on a platform host is answered from configuration and must cost nothing
+        // below it. That Lazy is AddLearnStackPersistence's, registered once beside the
+        // data source it defers — a second registration here made which one the container
+        // kept a matter of call order.
         services.AddSingleton<IHostToTenantResolver, CachedHostToTenantResolver>();
 
         // The membership reader that covers nothing, and the organization scope
         // validator — the two ports the reconciliation matrix consults beyond the
-        // host. Both are stateless singletons; the validator shares the Lazy above,
+        // host. Both are stateless singletons; the validator shares the resolver's Lazy,
         // so a platform-only deployment still builds no data source.
         //
         // Registered UNCONDITIONALLY, with no DeploymentMode anywhere near them. A
@@ -249,7 +246,35 @@ public static class TenancyCompositionExtensions
         }
 
         services.AddSingleton<EffectiveHostAccessor>();
-        services.AddSingleton<ITenantAssertionRecorder, LoggingTenantAssertionRecorder>();
+        // The real-time half, registered by its own type so the decorator below can name
+        // it unambiguously. A singleton: it owns two counters and no per-request state.
+        services.AddSingleton<LoggingTenantAssertionRecorder>();
+
+        // The burst windows are the PROCESS's, so this is a singleton too. A scoped
+        // detector counts to one per request and crosses nothing (ADR-0036 § Recording a
+        // rejected assertion).
+        services.AddSingleton<TenantAssertionBurstDetector>();
+        // Validated at boot, like both of its neighbours in this method, and for a sharper
+        // reason than either. Measured: with Window = 00:00:00 the detector resets on every
+        // occurrence, so Count never exceeds 1 and the MUST-class burst row is NEVER
+        // written — no startup error, no runtime signal, and the mismatch metric keeps
+        // ticking so nothing looks wrong. This file's own argument is that no outage may
+        // decide whether a MUST-class security event is recorded; a config typo is the
+        // remaining switch, and this closes it.
+        services.AddOptions<AssertionBurstOptions>()
+            .BindConfiguration(AssertionBurstOptions.SectionName)
+            .Validate(
+                options => options.Threshold >= 1 && options.Window > TimeSpan.Zero,
+                $"'{AssertionBurstOptions.SectionName}' needs a Threshold of at least 1 and "
+                + "a positive Window. A non-positive Window resets the counter on every "
+                + "occurrence, so the anonymous-burst security event is silently never "
+                + "recorded.")
+            .ValidateOnStart();
+
+        // SCOPED, unlike the recorder it replaces, because IAuditStore is scoped and the
+        // middleware resolves the seam per invocation rather than through its constructor
+        // — so the registration can be scoped without capturing anything.
+        services.AddScoped<ITenantAssertionRecorder, AuditingTenantAssertionRecorder>();
 
         // The only registered IIdempotencyStore. Correct for one instance and
         // wrong for two, and it stays registered anyway: ADR-0037 Amendment 1

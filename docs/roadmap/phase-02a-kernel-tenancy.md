@@ -1,6 +1,7 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-09-06).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped;
+> **Status (2026-09-11).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped;
+> Packet 10 is next;
 > the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -18,7 +19,7 @@
 > | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
 > | 8 | Tenant Customization foundation | ✅ [record](#delivery-record-packet-8) |
-> | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
+> | 9 | Audit infrastructure and the entitlement socket | ✅ [record](#delivery-record-packet-9) |
 > | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
 >
 > **[`## Packet Sequence`](#packet-sequence) says which packet lands which part, in what
@@ -31,8 +32,9 @@
 > [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
 > [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
 > [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
-> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) and Packet 8 in
-> [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) — each kept separate
+> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7), Packet 8 in
+> [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) and Packet 9 in
+> [`## Delivery Record (Packet 9)`](#delivery-record-packet-9) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -676,39 +678,205 @@ phases — the `TenantContentType` editor in [Phase 04](phase-04-cms-media-pages
 [Phase 06](phase-06-renderer-admin-studio.md) consolidates them into one editing idiom,
 and its Studio screen ownership table is the single ownership record.
 
-**Packet 9 — Audit infrastructure and the entitlement socket ⏳**
+**Packet 9 — Audit infrastructure and the entitlement socket ✅**
+Two ADRs decide this packet before it starts, because the corpus that governs it was
+written before the code it governs:
+[ADR-0044](../decisions/0044-audit-write-path.md) settles the audit write path and
+[ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) the entitlement
+socket. Seven earlier records carry dated amendments they owe — ADR-0020, ADR-0021,
+ADR-0023, ADR-0028, ADR-0033, ADR-0036 and ADR-0040. Both deciding ADRs then took
+amendments of their own: on 2026-09-08, after a cross-corpus review read them against the
+Hub repository's merged code — [ADR-0044 Amendments 1–5](../decisions/0044-audit-write-path.md)
+and [ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md) — and
+on 2026-09-11, from the packet's own review rounds —
+[ADR-0044 Amendments 6–7](../decisions/0044-audit-write-path.md) and
+[ADR-0045 Amendments 2–4](../decisions/0045-entitlement-and-feature-flag-socket.md). Read
+all of it first, amendments included; the summary below is the scope, not the reasoning.
+
 `LearnStack.Infrastructure.Audit` with `AuditChangeTrackerInterceptor` (an EF
 `SaveChanges` interceptor), `IAuditStateCapture` (before / after / changes JSON
 capture), and the Packet 3 `AuditLogBehavior` shell lit up per
 [ADR-0033](../decisions/0033-audit-durability-model.md): **MUST-class audit
 rows are written on the same transaction as the business write** —
-`AuditLogBehavior` classifies and parks the intent, `TransactionBehavior` writes
-it immediately before `COMMIT` — so they commit with it or not at all, and so
+`AuditLogBehavior` classifies and parks the intents, `TransactionBehavior` writes
+them immediately before `COMMIT` — so they commit with it or not at all, and so
 they execute while `app.tenant_id` is set and Row Level Security accepts them. SHOULD/MAY-class audit stays best-effort,
 with its accepted loss written down. `AuditConfig` may narrow SHOULD/MAY
 coverage but never removes baseline MUST coverage. Exactly two failures reject the
 operation — an unclassified operation, and a MUST-class row that cannot be written
 durably; a tenant-override read failure falls back to the in-process catalogue instead
-([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md)).
+([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md)),
+and a **standalone** failure recording an operation that was already being refused keeps
+its own 403 / 404 rather than becoming a `503` an anonymous caller can provoke
+([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
+
+**Intents are plural and only the owning frame writes them.** One per audited
+`(resource, operation)`, held as an ordered list, flushed by the frame that owns the
+ambient transaction — `ProvisionTenantCommand` is the shipped case, writing two
+aggregates and therefore two MUST rows on one transaction, and a nested `ISender`
+dispatch is the case that made the singular reading unsafe
+([ADR-0044 § 3–4](../decisions/0044-audit-write-path.md)).
+
+**The row's identity is decided here because `audit_log` is what makes it
+irreversible.** The reserved platform sentinel tenant id — non-nil, on the
+`UserId.SystemActor` precedent, and kept out of `tenants` by a `CHECK` — is fixed by
+[ADR-0044 § 1](../decisions/0044-audit-write-path.md); `TenantId.cs` deferred it to this
+packet for exactly this reason. The `CHECK` is the backstop and not the control: the
+value is refused where it enters — `SetProvisioningTenantContextAsync` rejects it exactly
+as that method already rejects `Guid.Empty`, and `Tenant.Create` rejects it in the factory
+— because a constraint cannot stop a GUC from being announced
+([ADR-0044 Amendment 3 § 5](../decisions/0044-audit-write-path.md)). A MUST row carries
+the tenant the transaction **announced**, which is what lets a provisioning command audit
+under the tenant it creates instead of failing its own policy, and the **intent** carries
+that tenant and its organization, resolved by `AuditLogBehavior` at step 3: the store has
+no way to resolve one, and `ITenantContextAccessor` throws in precisely the provisioning
+case the rule exists for ([ADR-0044 Amendment 3 § 2](../decisions/0044-audit-write-path.md)).
 
 `LearnStack.Modules.Audit` with the `AuditEntry` aggregate — inheriting
 `Entity<TId>`, **not** `AuditableEntity<T>`, guarded by
-`AuditEntry_Inherits_Entity_Not_AuditableEntity` — and `AuditConfig`.
-`audit_log` ships as a **single correct table** with the composite primary key
-`(id, timestamp)`; the DDL in the superseded ADR-0016 declares a primary key
-twice and PostgreSQL rejects it. Monthly partitioning, the retention job and
+`AuditEntry_Inherits_Entity_Not_AuditableEntity`, carrying the typed
+`TenantId` / `OrganizationId` / `UserId` rather than raw `Guid`s, and marked
+`[TenantOwned]`, which is what puts it inside the isolation sweeps — and
+`AuditConfig`. `audit_log` ships as a **single correct table** with the composite primary
+key `(id, timestamp)`; the DDL in the superseded ADR-0016 declares a primary key twice
+and PostgreSQL rejects it — measured. It is tenant-owned and **org-scoped**, takes the
+canonical template from [Database Standards](../standards/05-database.md) unmodified,
+carries **no** foreign key to `tenants`, and joins a **fourth migration chain** owned by
+`AuditDbContext`. `audit_config` rides the same chain and keeps its foreign key, but it
+is tenant-owned **tenant-wide**, not org-scoped: it has no `organization_id` column, so
+it takes the class that carries no organization term and no restrictive write guards
+([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). Append-only holds in
+three layers on `audit_log`, and each stops a different actor:
+the application role by an absent privilege, the platform role by a column-restricted
+`GRANT`, and the table **owner** — whom the policy constrains by tenant rather than by
+immutability — only by the
+`audit_log_append_only_guard` trigger. Monthly partitioning, the retention job and
 the lifecycle policy from
 [ADR-0028](../decisions/0028-audit-log-partition-management.md) move to
 [Phase 11](phase-11-production-hardening.md) per
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — audit
 correctness cannot be added later, audit scale can.
 
+**Classification is executable, and the matrix is the document.** The catalogue is
+in-process, registered per module by `IAuditCatalogSource` and keyed by request type;
+`docs/modules/<module>/audit.md` carries the same `{module}.{resource}.{verb}` slugs in
+an `Operation` column, and `AuditCoverageTests` asserts the two agree. **The join runs
+in two directions over two different domains**
+([ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md)): every entry a
+module's `IAuditCatalogSource` registers must have a matrix row carrying the same slug,
+without exemption; a matrix row fails only when a request type that raises it **exists**
+and no catalogue entry names it. Every shipped matrix classifies ahead of the commands
+it describes and says so, so a row whose command has not shipped carries `(planned)` —
+and a `(planned)` row whose command *has* shipped fails, which is what stops the marker
+becoming a hole. Operations that are not MediatR requests at all carry `(off-path)` and
+register by slug rather than by type: entering the platform-admin scope and the two
+tenant-assertion keys below, whose writers ship here; the killswitch toggle and the
+entitlement refresh, which also carry `(planned)` and register with their writers.
+
+Every request that reaches step 3 must be classified — there is no exempt kind — so the
+eight test-only request types register through the same builder, as `Off`. `Off` is a
+value of `AuditClassification { Off, May, Should, Must, Unclassified }`, what
+`ClassifyAsync` **returns** after the tenant's override and the MUST floor;
+`OperationClass { Must, Should, May }` is the tier the catalogue and the matrix
+**declare**, and the two are not one type. Both of them, with `OperationType`,
+`AuditOutcome`, `AuditIntentState` and `CapturedEntityChange`, live in
+`LearnStack.SharedKernel.Audit` beside the ports — declaring them in the Audit module's
+`Domain` is a project cycle, because the SharedKernel records and every module's
+catalogue source name them
+([ADR-0044 Amendment 3 §§ 3–4](../decisions/0044-audit-write-path.md)).
+
+**Two obligations other records parked here.** `EnterPlatformAdminScope(reason)` stops
+being a `Warning` log line and writes its `security-event` row before the operation runs
+([Database Standards § How EnterPlatformAdminScope reaches learnstack_platform](../standards/05-database.md));
+and `AuditingTenantAssertionRecorder` **decorates** the logging one — the counter and the
+warning cost no I/O and are what a deployment still has when the audit store is
+unreachable, so they stay where they are — emitting `tenancy.tenant_assertion.reject` per
+occurrence for a validated principal and `tenancy.tenant_assertion.anonymous_burst` once
+per window otherwise
+([ADR-0036 § Staging across packets](../decisions/0036-tenant-resolution-trusted-inputs.md),
+with **Amendment 7** respelling both keys in the slug grammar
+[ADR-0044 § 6](../decisions/0044-audit-write-path.md) fixes — no row has ever been
+written under the hyphenated spelling, so nothing migrates). That second change is **not**
+registration-only, whatever the seam's own remark promised: `ITenantAssertionRecorder`
+declared a synchronous `void` and was registered `AddSingleton`, while a durable standalone
+write is an awaited round trip whose failure has to reach the `Critical` log, the
+standalone-write-failure counter and the health check. Packet 9 changes the seam's arity
+and its registration together — `Task RecordRejectionAsync(TenantAssertionRejection)`,
+`AddScoped`, and deliberately **no** `CancellationToken`: the request that would cancel
+the write is the request being recorded. The burst threshold and window are
+`Tenancy:AssertionBurst`, defaulting to ten occurrences in five minutes and refused at
+boot if either is non-positive, because a MUST-class security event that a config typo
+switches off is the one outcome the in-process counter exists to prevent.
+
+**And the signal a failure raises.** [ADR-0033](../decisions/0033-audit-durability-model.md)
+and [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) both point a
+standalone-write failure at "the audit health check", and this is the packet in which
+that check exists: a named `audit` check registered through `AddHealthChecks()` in
+`LearnStack.Api`, reporting unhealthy on the same failure that logs `Critical` and
+increments the counter. The readiness endpoint that publishes it —
+[`GET /readyz`](../standards/04-api-design.md), which the API today does not serve — is
+[Phase 11 § Reliability](phase-11-production-hardening.md)'s, so until then the check is
+registered and queryable rather than exposed.
+
+**And the second composition root.** `LearnStack.Tools.Seeder`'s `SeedComposition` calls
+`AddLearnStackMediatRPipeline` and drives the shipped commands through `ISender`, so
+lighting up `AuditLogBehavior` gives it dependencies that graph does not have —
+`IAuditStore`, `IAuditStateCapture`, the catalogue and config services, the two module
+`IAuditCatalogSource`s, and `IGuidFactory`, which only the API registers today. It
+registers them, as `LearnStack.Api` does. The seeder wires its module services by hand,
+so nothing makes the two roots converge on their own, and `make seed` and the Packet 7
+isolation suite are the same path.
+
 `IEntitlementProvider` is declared with `NullEntitlementProvider` (all features
-enabled, no limits) as the **only** implementation. The Hub-backed and
-signed-licence implementations land in
+enabled, every limit `-1`) as the **only** implementation, registered in every deployment
+mode until ADR-0035's trigger fires. With it, and for the reason
+[Completion Criteria](#completion-criteria) already required: `IFeatureFlags` — the
+one module-facing read, **composing over the port** rather than reading
+`platform_entitlement_cache`, which is what makes swapping the provider change the answer
+— the `FeatureKey` / `LimitKey` value objects and the three typed catalogs, and the
+`ICacheService`-backed L1 cache. Every `FeatureKey` descriptor carries its
+fail-open / fail-closed class and its killswitch by name, a nullable `KillswitchKey`, and
+neither is inferred from the string, because inference makes a renamed key silently
+ungated ([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+The classes themselves are the table in
+[Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md);
+what a provider *does* with a class on a degraded read is
+[Phase 02c](phase-02c-hub-foundation.md)'s. `LimitKeys` takes the **Hub's** `limits.`
+vocabulary — `limits.max_users`, `limits.classroom_minutes_per_month` and the rest of the
+nine keys its plan validators already reject a plan for straying from — and not the
+`tenancy.max_learners` spelling four LearnStack documents carried, which shares no member
+with what the Hub sends
+([ADR-0021, 2026-09-08](../decisions/0021-feature-based-entitlement.md)). Limits encode
+`-1` as unlimited and `0` as denied.
+
+**Two facts about the projection are settled against the other repository's merged
+code** ([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+`expires_at` is required **and nullable** on the wire — the Hub sends `null` for every
+trial and perpetual licence, the cohort it creates first — so this packet alters
+`platform_entitlement_cache.valid_until` to `NULL` on the Tenancy chain and makes
+`PlatformEntitlement.ValidUntil` nullable with it. Altering a column Packet 6 shipped is
+cheap here only because no row exists. And the generation guard admits the equal case: a
+push applies when its `generation` is **at least** the stored one, so the Hub's first
+real projection — generation 1, the value the provisioning insert already defaults to —
+is not discarded, and a replay at the same generation is idempotent. `IgnoredAsStale`
+means strictly older.
+
+`platform_killswitches` ships **unwritten**: the platform-scoped table, its policies, the
+overlay, and the second `CacheKey` platform family `platform:tenancy:killswitch` — and no
+writer. The reason is reachability, not scheduling. Every killswitch write runs inside
+`EnterPlatformAdminScope(reason)`, the registered `IPlatformAdminGate` is
+`DenyAllPlatformAdminGate`, and the Platform-scope permission arrives with the registry in
+[Phase 03](phase-03-identity-admin.md) — which owns the toggle command, its permission and
+its runbook. A toggle shipped here would be unreachable code with a permission key nothing
+registers; every gated read still honours a flipped switch the day one exists, and
+`tenancy.killswitch.toggle` carries `(planned)` in the Tenancy matrix until then. The
+table exists at all because `tenant_feature_flags`' foreign key to `tenants` refuses the
+sentinel. The Hub-backed and signed-licence implementations land in
 [Phase 02c](phase-02c-hub-foundation.md) and
 [Phase 11](phase-11-production-hardening.md) respectively, against the triggers
-in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
+in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md); limit **enforcement**
+lands with `IUsageReporter` in Phase 02c, which is the first phase in which a soft limit
+has anywhere to report to.
 
 **Packet 10 — Architecture tests green and phase exit ⏳**
 Every Phase 02a rule in
@@ -767,11 +935,33 @@ Tests grouped by introducing packet:
   `Every_OrgScoped_Entity_HasOrgIdAndFilter`,
   `No_IgnoreQueryFilters_Outside_PlatformAdminScope`,
   `AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`.
-- From the audit arm (introduced by Packet 9):
+- From the audit arm (introduced by Packet 9). The roadmap carried four of these; the
+  catalogue is authoritative and carries the full set, and four of them are
+  **integration** tests — an architecture test cannot observe a transaction:
   `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
+  `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits`,
+  `Every_Shipped_Request_Is_Registered`,
   `Every_TenantOwned_Command_HasAuditCoverage`,
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`,
+  `Every_Module_Has_An_AuditCoverage_Matrix`,
+  `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`,
+  `AuditEntry_Is_AppendOnly`,
+  `OperationType_Enum_Matches_Catalog`,
+  `AuditStateCapture_ClearedPerRequest`,
+  and, under `[Trait(RequiresDocker…)]` as `learnstack_app`,
   `MustClass_Audit_Writes_Share_The_Business_Transaction`,
-  `Every_Module_Has_An_AuditCoverage_Matrix`.
+  `Audit_Survives_Transaction_Rollback`,
+  `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`,
+  `AuditLog_Update_Is_Column_Restricted`.
+- From the entitlement arm (introduced by Packet 9):
+  `FeatureKey_AllReferences_AreInRegistry`,
+  `PlanProjected_Keys_NotInTenantFlags`.
+  `Modules_Do_Not_Read_Entitlement_Cache_Directly` sits in the module-dependency arm
+  above and gains its subject here rather than a second entry.
+  `IEntitlementProvider_Implementations_Are_Three` is **not** Phase 02a's: the catalogue
+  registers it with Phase 02c, it bounds the ceiling rather than requiring the count,
+  and one implementation exists until then — gating this phase's exit on it would gate
+  it on another phase's work.
 
 Every standard in [the standards corpus](../standards/README.md) is
 re-stated against reality: a standard with no implementing code moves from
@@ -809,7 +999,8 @@ owning packets ship.
 - Pagination model (cursor-first).
 - `IClock`, `IRandom`, `IGuidFactory` for deterministic tests.
 - **`IEventBus`, `ICacheService`, `ISecretProvider`, `IEntitlementProvider`,
-  `IHostToTenantResolver`** interfaces declared in `LearnStack.SharedKernel`. Their
+  `IFeatureFlags`, `IHostToTenantResolver`, `IAuditStore`** interfaces declared in
+  `LearnStack.SharedKernel`. Their
   default implementations, and the reason the vendor-backed ones are not here, are in
   [§ Foundation Ports and Default Implementations](#foundation-ports-and-default-implementations)
   below.
@@ -830,8 +1021,15 @@ here with **working default implementations**; the vendor adapters ship on a tri
   generation-key pattern puts its counter in durable domain state, so it adds no member
   to the interface and stays a caller-side convention.
 - `ISecretProvider` with `ConfigurationSecretProvider`.
-- `IEntitlementProvider` with `NullEntitlementProvider` (all features enabled, no
-  limits).
+- `IEntitlementProvider` with `NullEntitlementProvider` (all features enabled, every
+  limit `-1`), registered in **every** deployment mode until ADR-0035's Phase 02c
+  trigger fires. With it, `IFeatureFlags` — the one module-facing read, composing over
+  the port — the typed key catalogs, each `FeatureKey` declaring its fail-open /
+  fail-closed class and its killswitch by name, and `platform_killswitches`, which ships
+  with its read path and **no writer** until [Phase 03](phase-03-identity-admin.md) lands
+  the Platform-scope permission a toggle needs
+  ([ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) and its
+  Amendment 1).
 - `IHostToTenantResolver` with a PostgreSQL-backed implementation reading
   `platform_host_to_tenant` — and **nothing else**. Host resolution never calls the
   Hub; an anonymous page load must not depend on a control plane being reachable
@@ -877,8 +1075,14 @@ have to retrofit:
   [21-feature-flags.md](../architecture/21-feature-flags.md) — *tenant-flag-level
   only*; plan-level features live in the entitlement projection).
 - `platform_entitlement_cache` — Hub-projected entitlement cache (Hub-side population
-  lands in 02c; the **table and `IEntitlementProvider` read path ship now** so the
-  rest of the system can be coded against the projection from Day 1).
+  lands in 02c; the **table and the `IEntitlementProvider` that reads it ship now** so
+  the rest of the system can be coded against the projection from Day 1). Nothing reads the table
+  directly — not a module, and not `IFeatureFlags`. The provider owns the storage,
+  modules ask `IFeatureFlags`, and `IFeatureFlags` composes over the provider, which is
+  what makes swapping the implementation change the answer. Packet 9 alters one column of
+  this table: `valid_until` becomes nullable, because the Hub sends a null `expires_at`
+  for every trial and perpetual licence
+  ([ADR-0045 Amendment 1 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)).
 - `platform_host_to_tenant` — host → `(tenant_id, organization_id?)` mapping
   (Hub-populated for SaaS / Dedicated, config-populated for SelfHosted; the table
   ships now).
@@ -902,9 +1106,11 @@ have to retrofit:
 them.** `outbox_messages` and `idempotency_keys` have canonical DDL
 ([Database Standards](../standards/05-database.md)); `tenant_feature_flags` and
 `platform_entitlement_cache` have `CREATE TABLE` blocks in
-[21-feature-flags.md](../architecture/21-feature-flags.md) that `IFeatureFlags`'s
-resolution logic already reads by column name, so the migration **transcribes**
-those and adds the row-security clauses that architecture doc omits;
+[21-feature-flags.md](../architecture/21-feature-flags.md) that their readers already
+consume by column name — `tenant_feature_flags` by `IFeatureFlags`'s tenant-flag half,
+`platform_entitlement_cache` by the `IEntitlementProvider` implementation that owns it —
+so the migration **transcribes** those and adds the row-security clauses that
+architecture doc omits;
 `tenant_locales` has a sketch in
 [12-localization.md](../architecture/12-localization.md). Where a transcription and
 the shipped migration disagreed, the disagreement was closed in one direction and
@@ -950,10 +1156,12 @@ schema no longer grants it to `PUBLIC`, so without it the first migration fails 
 `permission denied for schema public`, and the tempting fix (make the role a superuser)
 recreates exactly the ownership arrangement `FORCE ROW LEVEL SECURITY` exists to defeat.
 
-`platform_entitlement_cache` is tenant-owned despite its name — every read resolves the
-tenant from `ITenantContext` first and every write arrives on
-`PUT /api/internal/tenants/{id}/entitlements`, so nothing about it is pre-context and
-the application role never gets a table-wide read of every tenant's plan. Row security
+`platform_entitlement_cache` is tenant-owned despite its name, and the reason is a
+two-level one. Every read goes through `IEntitlementProvider.GetAsync(TenantId)`, which
+takes its tenant explicitly; the context-resolved read is `IFeatureFlags`'s, one level
+up. Every write arrives on `PUT /api/internal/tenants/{id}/entitlements`, which carries
+its tenant in the path and runs with no tenant context of its own. Either way a tenant
+is known, and the application role never gets a table-wide read of every tenant's plan. Row security
 is never *disabled* on any of the ten; the grant matrix that goes with the policies is
 in [Database Standards § Database roles](../standards/05-database.md). The canonical SQL
 lives in exactly one place because the template that preceded it was copied into four
@@ -972,16 +1180,33 @@ Per [ADR-0033](../decisions/0033-audit-durability-model.md), which supersedes AD
   transaction-local `app.tenant_id` is set — which is what stops the corrected Row
   Level Security policy from rejecting every audit insert and the documented
   catch-and-log posture from swallowing the rejection.
+- **Intents are plural, and only the owning frame writes them.** One per audited
+  `(resource, operation)`; the frame that owns the ambient transaction flushes every
+  intent in the scope and is the only one that reports the commit boundary
+  ([ADR-0033 Amendment 2](../decisions/0033-audit-durability-model.md)).
 - SHOULD/MAY-class audit stays best-effort, with its accepted loss written down rather
   than assumed.
 - `AuditConfig` may narrow SHOULD/MAY coverage but never removes baseline MUST
   coverage. Exactly two failures reject the operation — an unclassified operation and a
   MUST-class row that cannot be written durably; a tenant-override read failure falls
-  back to the in-process catalogue, which carries the same MUST floor.
+  back to the in-process catalogue, which carries the same MUST floor. The second
+  rejection is narrowed for the **standalone** class: a failure recording an operation
+  that was already being refused keeps its own 403 / 404
+  ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
 - `LearnStack.Modules.Audit` ships with the `AuditEntry` aggregate (inheriting
-  `Entity<TId>`, **not** `AuditableEntity<T>`) and `AuditConfig`.
+  `Entity<TId>`, **not** `AuditableEntity<T>`) and `AuditConfig`. `audit_config` is
+  tenant-owned and tenant-**wide** — it has no `organization_id` column, so it takes the
+  class that carries no organization term
+  ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)).
+- The ports **and the value types they carry** — `OperationType`, `OperationClass`,
+  `AuditOutcome`, `AuditClassification`, `AuditIntentState`, `CapturedEntityChange` —
+  live in `LearnStack.SharedKernel.Audit`. The Audit module consumes them; declaring them
+  in its `Domain` would be a project cycle
+  ([ADR-0044 Amendment 3 § 3](../decisions/0044-audit-write-path.md)).
 - `audit_log` ships as a **single correct table** with the composite primary key
-  `(id, timestamp)`. Monthly partitioning, the retention job, and the lifecycle policy
+  `(id, timestamp)`, tenant-owned and **org-scoped**, carrying no foreign key to
+  `tenants`, in a **fourth** migration chain owned by `AuditDbContext`. Monthly
+  partitioning, the retention job, and the lifecycle policy
   from [ADR-0028](../decisions/0028-audit-log-partition-management.md) land in
   [Phase 11](phase-11-production-hardening.md) per
   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md). Audit correctness
@@ -1225,10 +1450,27 @@ identifiers registered in
   (`Every_OrgScoped_Entity_HasOrgIdAndFilter`).
 - No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
   call path (`No_IgnoreQueryFilters_Outside_PlatformAdminScope`).
-- Audit-coverage matrix file exists per module.
-- `AuditEntry_Inherits_Entity_Not_AuditableEntity`.
-- `MustClass_Audit_Writes_Share_The_Business_Transaction` — per
-  [ADR-0033](../decisions/0033-audit-durability-model.md).
+- Audit-coverage matrix file exists per module
+  (`Every_Module_Has_An_AuditCoverage_Matrix`, and
+  `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` for a module with code); every request
+  type with a handler is registered (`Every_Shipped_Request_Is_Registered`); and the
+  in-code catalogue and the matrix agree in both directions
+  (`Every_TenantOwned_Command_HasAuditCoverage`,
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`).
+- `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
+  `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits`, `AuditEntry_Is_AppendOnly`,
+  `OperationType_Enum_Matches_Catalog`, `AuditStateCapture_ClearedPerRequest`.
+- `FeatureKey_AllReferences_AreInRegistry` and `PlanProjected_Keys_NotInTenantFlags` —
+  per [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md).
+- **Integration**, not structural — these four need a live PostgreSQL and run as
+  `learnstack_app` under `[Trait(RequiresDocker…)]`, because an architecture test
+  cannot observe a transaction:
+  `MustClass_Audit_Writes_Share_The_Business_Transaction`,
+  `Audit_Survives_Transaction_Rollback`,
+  `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` and
+  `AuditLog_Update_Is_Column_Restricted` — per
+  [ADR-0033](../decisions/0033-audit-durability-model.md) and
+  [ADR-0044](../decisions/0044-audit-write-path.md).
 - `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` — per
   [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 - `LearnStack_Modules_DoNotReference_Hub`.
@@ -1268,10 +1510,11 @@ land in Phase 02b.
 ## Deliverables
 
 - Shared kernel package with `IEventBus` / `ICacheService` / `ISecretProvider` /
-  `IEntitlementProvider` / `IHostToTenantResolver` interfaces and their default
-  implementations — `InProcessEventBus`, `InMemoryCacheService`,
-  `ConfigurationSecretProvider`, `NullEntitlementProvider`, and a PostgreSQL-backed host
-  resolver — registered as the only implementations.
+  `IEntitlementProvider` / `IFeatureFlags` / `IHostToTenantResolver` / `IAuditStore`
+  interfaces and their default implementations — `InProcessEventBus`,
+  `InMemoryCacheService`, `ConfigurationSecretProvider`, `NullEntitlementProvider`,
+  a PostgreSQL-backed host resolver and `PostgresAuditStore` — registered as the only
+  implementations.
 - Tenant-aware + organization-aware API foundation with EF filters, the corrected
   PostgreSQL Row Level Security template, and the four-role database model active for
   both dimensions.
@@ -1285,8 +1528,9 @@ land in Phase 02b.
 - `LearnStack.Modules.Audit` aggregates + `LearnStack.Infrastructure.Audit` pipeline
   writing MUST-class rows inside the business transaction, on a single correct
   `audit_log` table.
-- `platform_entitlement_cache`, `platform_host_to_tenant` and `outbox_messages` tables
-  + read paths.
+- `platform_entitlement_cache`, `platform_host_to_tenant`, `outbox_messages` and
+  `platform_killswitches` tables + read paths. `platform_killswitches` gets its read path
+  only: [Phase 03](phase-03-identity-admin.md) owns the toggle that writes it.
 - Cross-cutting foundation (per
   [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)):
   `LearnStackExceptionHandler`, 8-step MediatR pipeline, `Result.ToActionResult`
@@ -1322,8 +1566,14 @@ land in Phase 02b.
   rather than 500.
 - A MUST-class audit row commits in the same transaction as the state change it
   records; forcing the audit write to fail leaves **zero** business rows.
+- A command that audits two resources produces **two** rows on that one transaction,
+  and a rolled-back one produces zero business rows and one `failed` row **per declared
+  intent**.
 - A MUST-audit operation written through any seed module produces an entry with
-  `before` and `after` snapshots.
+  `before` and `after` snapshots — including one whose entity does not inherit
+  `AuditableEntity<T>`, which is the case the first capture predicate would have missed.
+- `audit_log` refuses an `UPDATE` from `learnstack_app`, refuses a non-redactable
+  `UPDATE` from `learnstack_platform`, and refuses one from its own **owner**.
 - `IFeatureFlags.IsEnabledAsync(FeatureKey)` reads the `NullEntitlementProvider`'s
   default of "all enabled". Swapping the registered `IEntitlementProvider`
   implementation changes the answer without touching module code.
@@ -1339,9 +1589,14 @@ land in Phase 02b.
 - Tenant A cannot repoint tenant B's host even though the resolver policy can see it —
   the `UPDATE` affects zero rows and an `INSERT` naming tenant B is rejected by
   `WITH CHECK` (`Tenant_A_Cannot_Repoint_Tenant_B_Host`).
-- Every tenant-owned table — ten from Packet 6, four more from Packet 8 — reports
-  `relrowsecurity` **and** `relforcerowsecurity` true in
-  `pg_class`, with no exception list.
+- Every table this phase ships — ten from Packet 6, four more from Packet 8, and
+  `audit_log`, `audit_config` and `platform_killswitches` from Packet 9 — reports
+  `relrowsecurity` **and** `relforcerowsecurity` true in `pg_class`, with no exception
+  list.
+- `platform_killswitches` has its policies and its `platform:tenancy:killswitch` cache
+  family, and **nothing in the binary writes it**: with no row present every killswitch
+  resolves to its key's default and no gated read is blocked, and the toggle that flips
+  one is [Phase 03](phase-03-identity-admin.md)'s.
 - `make dev`, `make seed` and `make test` succeed on a clean checkout. `make seed` now
   writes the two demo tenants; it reads `ConnectionStrings__Default` from the
   environment or `.env` — the Makefile exports neither into a recipe — and refuses any
@@ -1414,7 +1669,7 @@ Three ADRs targeted Phase 02a as exit blockers; all three are now Accepted
 | [ADR-0024](../decisions/0024-api-versioning-policy.md) | API versioning policy | **Accepted** (2026-05-20) | URL `/v{N}/`, 6-month deprecation window, RFC 8594 `Sunset` + `Deprecation` headers, OpenAPI `x-sunset` extensions |
 | [ADR-0028](../decisions/0028-audit-log-partition-management.md) | `audit_log` monthly partition management | **Accepted** (2026-05-20) | Daily Hangfire recurring job (`learnstack:audit:partition-management`); no `pg_partman` runtime dependency. Its *implementation* moves to [Phase 11](phase-11-production-hardening.md) per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — the decision stands, the schedule changed |
 
-Seven further decisions were taken during the phase and are Accepted:
+Twelve further decisions were taken during the phase and are Accepted:
 
 | # | Topic | Status | Decision |
 |---|---|---|---|
@@ -1422,11 +1677,14 @@ Seven further decisions were taken during the phase and are Accepted:
 | [ADR-0033](../decisions/0033-audit-durability-model.md) | Audit durability | **Accepted** (2026-08-08) | Supersedes ADR-0016. MUST-class audit is a durable intent inside the business transaction and fails closed; SHOULD/MAY stays best-effort |
 | [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) | Hub contract surface | **Accepted** (2026-08-08) | Two invariants replace the endpoint count; host resolution never calls the Hub |
 | [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) | Demand-gated infrastructure | **Accepted** (2026-08-08) | The one-way-door test; ports ship now, adapters ship on a named trigger |
-| [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) | Trusted inputs for tenant + organization resolution | **Accepted** (2026-08-18, Amendment 1 2026-08-20) | Resolution by **agreement, not priority**; no request header names a tenant, one header names a **host** over an authenticated hop; Amendment 1 corrects the normalization order |
+| [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) | Trusted inputs for tenant + organization resolution | **Accepted** (2026-08-18, Amendments 1–7 through 2026-09-08) | Resolution by **agreement, not priority**; no request header names a tenant, one header names a **host** over an authenticated hop; Amendment 1 corrects the normalization order, Amendment 7 respells the two audit operation keys in ADR-0044's slug grammar |
 | [ADR-0037](../decisions/0037-idempotency-key-contract.md) | What an idempotency key identifies, owns and replays | **Accepted** (2026-08-20) | A key is a **nonce inside a tenant's key space**, not an identity; a fingerprint decides whether a replay answers the question asked; a fencing token owns the claim; capacity is admission, not eviction |
 | [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) | The optimistic concurrency token | **Accepted** (2026-08-27) | An explicit `row_version bigint` (CLR `long`) project-wide, incremented by the primitive that stamps the audit columns; `xmin` rejected because the token is client-visible through ETag and a restore or replication cutover changes it |
 | [ADR-0040](../decisions/0040-ambient-unit-of-work.md) | The ambient unit of work | **Accepted** (2026-08-27) | One `DbConnection` per scope owned by `IUnitOfWork`; every module `DbContext`, `IAuditStore` and `IOutbox` enlists on it, because `SET LOCAL` is connection-local. Defines nesting, disposal, and the event-consumer entry point that never reaches MediatR |
 | [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md) | Tenant provisioning as a bounded cross-aggregate transaction | **Accepted** (2026-09-01) | A standing exception to § Aggregate Ownership, bounded by **enumeration**: provisioning writes `Tenant` and its default `Organization` in one transaction, because `tenants.default_organization_id` carries an invariant an integration event cannot deliver. One operation, an allow-list of one, no child entity, no projection, no cross-**module** write |
+| [ADR-0043](../decisions/0043-customization-payload-validation.md) | What LearnStack does with a tenant-authored payload | **Accepted** (2026-09-04, Amendments 1–4 through 2026-09-07) | JSON Schema 2020-12 through `JsonSchema.Net` pinned at 8.0.5 behind `IJsonSchemaValidator`; **four ordered gates** because the library's defaults keep none of the rules the corpus states; `pattern` refused; no compiled-validator cache, measured. Amendment 4 refuses what the `jsonb` column refuses |
+| [ADR-0044](../decisions/0044-audit-write-path.md) | The audit write path | **Accepted** (2026-09-07, Amendments 1–5 2026-09-08) | The eleven questions ADR-0033 left open, decided before the first audit file: the reserved **non-nil** platform sentinel tenant id; the row's tenant is the one the transaction announced; **plural** intents flushed only by the owning unit-of-work frame; four-value `outcome` and a writer-supplied `timestamp`; the catalogue in code and the matrix in prose; a capture predicate that sees the entities the first one missed; `audit_log` org-scoped, with no FK to `tenants`, in a fourth migration chain. Amendment 3 adds what an implementer would otherwise improvise: the join's two directions and its `(planned)` / `(off-path)` markers, the tenant on `AuditIntent`, the value types in `LearnStack.SharedKernel.Audit`, `AuditClassification` beside `OperationClass`, and an enforcer for the sentinel invariant |
+| [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) | The entitlement and feature-flag socket | **Accepted** (2026-09-07, Amendment 1 2026-09-08) | Declares the port twenty documents name and none define, carrying every field `entitlement-v1.schema.json` requires and a generation guard inside the write statement; `IFeatureFlags` **composes over** the provider rather than reading its table, which is what makes swapping the implementation change the answer; `-1` unlimited and `0` denied; killswitches leave `tenant_feature_flags` for a platform-scoped table, because a foreign key is a constraint no role moves. Amendment 1 reads it against the Hub's merged code: the `limits.` key vocabulary is the Hub's, `expires_at` / `valid_until` are nullable, the generation guard admits the equal case, `platform_killswitches` ships unwritten, and every key descriptor names its failure class and its killswitch |
 
 The remaining exit gates (tenant + organization resolution, isolation tests running as
 `learnstack_app`, the durable audit pipeline, customization data resolvable and
@@ -2770,3 +3028,380 @@ Each of these is recorded, with its owning phase, in
   records what these handlers already do so that adding it is a wiring change.
 - **The remaining five customization aggregates** — each lands with its first
   consumer, per [ADR-0018's 2026-09-06 Amendment](../decisions/0018-tenant-driven-customization-model.md).
+
+## Delivery Record (Packet 9)
+
+Kept separate from the records above. Nine steps, and — as in Packets 5, 6, 7 and 8 —
+the second review round repeatedly found the first round's fix. What is new in this
+record is the **decision** half: three of the four choices the entitlement socket
+required are *readings* of an Accepted ADR rather than applications of it, so they are
+written down here rather than inferred from the diff.
+
+> **Packet 9 — Audit infrastructure and the entitlement socket ✅**
+>
+> **Measured at close: 1975 tests green** — 1 contract, 118 architecture, 1373 unit,
+> 483 integration — after the five external review rounds and the follow-ups closed with
+> them; 1954 after the fourth round, 1935 after the first, 1867 before any. Counted from a
+> run under `CI=true`, which makes warnings errors, on a 10.0 SDK the `backend/global.json`
+> pin admits.
+
+### The four decisions, and why the corpus did not settle them
+
+**1. The registries carry the whole vocabulary, not only keys with a consumer.**
+[ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) states both
+filters in one section: carry "the keys the corpus already names", and invent none,
+because "a registry that lists a capability nothing gates is a list that will be wrong
+before anything reads it". Measured at this packet, the set of keys with a shipped
+consumer was **empty** — seven MediatR handlers exist and none injects a flags port —
+and § 6 forecloses creating one here, assigning the whole enforcement path to
+[Phase 02c](phase-02c-hub-foundation.md). Read literally, the floor clause ships three
+empty registries and leaves this phase's own completion criterion with no key to call
+`IsEnabledAsync` with.
+
+The reading applied: the **spelling** is the one-way door — it lands in the Hub's plan
+validators, in persisted `jsonb` and in a wire schema pinned in both repositories — while
+**membership** has a written exit, the deprecation cycle
+[Feature Flags § Removing a key](../architecture/21-feature-flags.md) already fixes. The
+floor clause's own rationale is drift risk, and drift risk is zero for the twenty-three
+Hub-pinned strings — fourteen features and nine limits — and non-zero only for the five
+that exist on no other side: the two tenant-flag keys and the three killswitches. Those
+five are LearnStack's alone by construction, since the Hub projects neither a tenant flag
+nor a platform switch, so there is no second spelling for them to drift from.
+
+**2. The limit floors are Starter-*shaped*, not the Hub's Starter row.**
+[Hybrid License Model](../architecture/26-hybrid-license-model.md) requires the fallback
+to be "the Starter-tier defaults compiled into the binary. Never `-1`, never `0`" — and
+the Hub's actual Starter row carries `0` for `limits.classroom_minutes_per_month`,
+`limits.recording_storage_gb` and `limits.api_rate_per_minute`. Both rules cannot hold.
+Copying the row ships the exact failure that sentence exists to prevent: a floor of `0`
+on the rate limit denies every API call the moment a projection is late.
+
+The six non-zero Starter values are transcribed verbatim. The three zeros carry
+LearnStack's own smallest working allowance — 60 minutes, 1 GB, 60 requests a minute —
+each declared on its descriptor with its reason. These nine numbers are the only answer
+any caller gets until Phase 02c ships `HubEntitlementProvider`, so the choice is recorded
+rather than left to a reader of `LimitKeys`.
+
+**3. One namespace: `LearnStack.SharedKernel.Entitlements`.**
+[ADR-0045 §§ 1–2](../decisions/0045-entitlement-and-feature-flag-socket.md) fix it for
+the ports; [ADR-0021](../decisions/0021-feature-based-entitlement.md)'s registry fence
+reads `LearnStack.SharedKernel.FeatureFlags`; and
+[`add-feature-key`](../../.claude/skills/add-feature-key/SKILL.md) says outright that this
+packet settles the pair and forbids spreading one socket over two segments. Ports,
+records, value objects, descriptors and all three registries live in one folder. It
+matches the shipped `SharedKernel/Audit` precedent — value types beside their ports,
+because a module declaring them is a project cycle — and it is the namespace the current
+ADR prints in a normative fence, which is what Phase 02c writes `HubEntitlementProvider`
+against from the other repository. After that point it is a cross-repository contract.
+
+ADR-0021's body is **not** edited for it. Its fence was true as intent when accepted, so
+it is history rather than a false statement, and
+[Documentation Standards](../standards/13-documentation.md) licenses no correction for
+that.
+
+**4. The seven unclassified feature keys fail closed.**
+[ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) requires every feature
+key class to declare fail-open or fail-closed explicitly, and
+[ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)
+makes it a required member of every descriptor — but architecture/26's authority table
+classified only nine of sixteen. `identity.sso.oidc`, `integrations.webhooks` and
+`admin.bulk_import` join the fail-closed security row beside their siblings;
+`tenancy.white_label_branding` and `customization.unlimited_content_types` join it too,
+because neither is a live-session capability so nothing is lost mid-use by closing; and
+the two tenant flags join it because their source is a table in this deployment, so
+"unreachable" means a database outage, under which an experiment must be off. The table
+in architecture/26 now carries all sixteen.
+
+### What is deliberately absent
+
+- **A killswitch writer.** Reachability, not scheduling: every toggle runs inside
+  `EnterPlatformAdminScope(reason)` whose registered gate is `DenyAllPlatformAdminGate`,
+  so a command shipped now would be unreachable code keyed on a permission nothing
+  registers. [Phase 03](phase-03-identity-admin.md) owns the toggle, its permission and
+  its runbook. Noted for that phase: **no killswitch or entitlement permission key is
+  reserved in [Permissions](../standards/19-permissions.md) yet**, and Amendment 1 § 4
+  rests the whole no-writer argument on that permission arriving.
+- **Any limit gate.** Each ships with the feature it gates, never speculatively; the
+  `403` and the `usage.alert.soft_limit_reached` signal land in Phase 02c, the first
+  phase in which `IUsageReporter` exists for a soft limit to report to.
+- **`IEntitlementAdminQuery`.** `IFeatureFlags` throws on a request with no tenant rather
+  than guessing one, and the cross-tenant operator read that is the alternative to that
+  throw is Phase 02c's, with the surface that needs it.
+
+### The external review, and what it changed (2026-09-11)
+
+An external review of the pull request at `025b493` asked for changes: two blockers, seven
+majors, nine minors and two optional improvements. Each finding was checked against the
+code before anything moved, each was confirmed, and each is fixed in this packet rather
+than handed on. They share the lesson the review named and this record adopts: **the
+suite counted rows and did not check what the rows meant** — and several passing cases
+encoded the defect they should have caught.
+
+- **Replacing a live revision failed, for both customization aggregates.** A publication
+  retires the incumbent and activates the successor on one transaction; the composer saw two
+  instances of one type and refused, which rolled every replacement publication back. The
+  handler now designates the successor through `IAuditSubject`, and the retirement travels in
+  `changes` under an instance-qualified pointer
+  ([ADR-0044 Amendment 6 §§ 1, 5](../decisions/0044-audit-write-path.md)).
+- **Successful MUST rows carried no actor and no correlation id** — the in-transaction
+  writer never passed them. Both are read at step 3 and carried on the intent (§ 2).
+- **An inner request refused under an outer one that committed was recorded as success.**
+  Each audit frame records its own request's result on its intents (§ 3).
+- **A taxonomy's bands were captured and dropped.** A contained entity is folded into its
+  aggregate's capture (§ 4).
+- **The reconcile could replace the caller's outcome and skip its own cleanup.** A composer
+  refusal and a store failing before its first statement escaped a catch that named one
+  exception type; the reconcile now guards composition and write together, per intent.
+- **A platform-scope entry could be erased by the work it admitted.** The row rode the
+  caller's transaction, so reading across every tenant and then throwing rolled the only
+  record back. It now commits first, as ADR-0044 § 10 always required; the case that pinned
+  zero survivors is inverted.
+- **The coverage rules could not see a request whose slug another request shared.** They
+  now discover every request type with a handler and ask the catalogue for each, and read
+  every slug in a matrix cell.
+- **Two Accepted texts disagreed with what shipped.** Registry membership is now amended
+  into [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
+  [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) as decision 1 above
+  records it, and [ADR-0033 Amendment 5](../decisions/0033-audit-durability-model.md)
+  corrects a list that routed `EnterPlatformAdminScope` through the wrong writer. An
+  unrelated edit to Accepted ADR-0043 that had ridden in undisclosed is reverted.
+- **The minors:** `ComplianceCaps.None` is frozen; a tenant-flag outage fails closed as the
+  degraded-operation table says; reversing the nullable `valid_until` migration refuses a
+  null expiry by name instead of backfilling with an `UPDATE` the owner could not see
+  through; the pending rows go in one round trip, as ADR-0044 § 3 said; the private-base PII
+  case no longer passes on a token name; the audit-before-commit case asserts order in one
+  trace; the Audit permission matrix names its future mutation keys' owner; and the stale
+  status text across skills, matrices and indexes is reconciled.
+
+The round's own sweep of the corpus found three more things the review had not, and each is
+fixed beside the rest:
+
+- **A rule the catalogue called Implemented had no code.** The commit that added the step 8
+  audit rules replaced `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` instead of
+  adding beside it; it is restored and re-measured.
+- **A catalogued leg was never written.** `PublicSurface_Requests_Are_Never_ReadSensitive`
+  waited on the audit catalogue, which this packet shipped; the cross-check now runs, with a
+  companion that proves it can fail while the marked set is still empty.
+- **A factory could fail only at request time.** Every shipped request handler is now
+  resolved from the API's own container inside an open unit of work, which host validation —
+  a static check that never runs a factory — could not do.
+
+Every guard added in the round was checked by mutation in an isolated worktree, each killed
+by the case written for it. One tooling defect surfaced along the way: the pre-commit hook's
+stash pop died of `SIGPIPE` under `pipefail` whenever the repository held two or more
+stashes, so a commit with unstaged work failed without a message and left that work
+stashed.
+
+### The second review, and what it changed (2026-09-11)
+
+A second review of the round's local commits found no blocker, two majors, two minors and
+one suggestion. Each was checked against the code and reproduced before anything moved,
+and each is fixed here. Its two majors are the first round's lesson one level down: a
+guard whose **input** was not the thing it claimed to check.
+
+- **The coverage rules checked a catalogue no root builds.** They construct every
+  `IAuditCatalogSource` by reflection, so deleting the API's `TenancyAuditCatalogSource`
+  registration left every case green while the running system refused every Tenancy
+  request as unclassified. Each composition root's own `IAuditCatalog` — the API's and the
+  seeder's — is now resolved from its container and held to the discovered one: every
+  shipped request registered, no source missing, none extra.
+- **A partially loaded collection was recorded as the whole of it.** The capture trusted
+  EF's `IsLoaded`, which a filtered `Include` sets over a partial collection: a three-band
+  taxonomy loaded with one band persisted an `after_state` owning one band, on a table
+  nothing can correct. Membership is now written into a snapshot only for a root created in
+  the request — the one case the capture can know it is complete — and left out as unknown
+  otherwise; every member's own change still travels in `changes`
+  ([ADR-0044 Amendment 6 § 4](../decisions/0044-audit-write-path.md)).
+- **A module with an aggregate and no request escaped the matrix guard.** The rule is now
+  `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`, and its companion feeds it an
+  aggregate-only module.
+- **Audit Subsystem § 5's listing classified before the block that closes the frame**, and
+  returned early for a silent request that production still frames. The listing now follows
+  the file's order.
+- **A matrix row the forward rule could not read was skipped rather than failed** — a class
+  cell reading `Off`, or an operation type the enum does not have. Both now fail, with a
+  companion.
+
+The round's own sweep found that the lifecycle the listing now documents had no test: moving
+the declaration above the protected block, and skipping the frame for a silent request, each
+left every unit case green. Both are pinned now — a cancelled classification still reconciles
+what it declared and clears, and a silent request still owns the frame a nested audited
+request joins — and each mutation fails its case.
+
+### The third review, and what it changed (2026-09-11)
+
+A third review of those commits found no blocker, one major and two minors. Each was
+reproduced before anything moved, and each is fixed here.
+
+- **A created root could still be recorded as owning part of its collection.** "Created in
+  this request" was taken as complete for the whole request, but a persisted band detached
+  between two flushes keeps its row and leaves the tracker: three bands saved, two detached,
+  the root renamed — the row said one. The interceptor now remembers what each created root
+  was seen with, and once a member leaves the tracker the membership is unknown for the rest
+  of the request. A deleted member is no loss: the save that deletes it is captured while it is
+  still tracked. No shipped handler detaches; the rule is pinned in the unit and workflow
+  suites.
+- **An operation type the extraction did not recognise was read as none.** The pattern took
+  lowercase and hyphens only, so `ReadSensitive` or `bogus_kind` on a registered row skipped
+  the comparison. The annotation is now extracted whatever it says, then normalised,
+  validated and compared. The one PascalCase annotation in the matrices, on Audit's
+  `audit.event.read`, now uses the documentation's spelling.
+- **The forward join accepted a row in another module's matrix.** It now reads the registering
+  module's matrix only and fails a row moved or copied elsewhere, with `platform.*` — no
+  module of its own — the explicit exception: one row, in the matrix of the module that writes
+  it.
+
+The round's mutation pass removed one of its own additions before it shipped: a set of deleted
+entities meant to excuse a deleted member, which no case could kill, because the save that
+deletes a member always captures it still tracked.
+
+### The fourth review, and what it changed (2026-09-11)
+
+A fourth review, of the pull request at `f54fc7b`, covered all 202 changed files and
+requested changes: one blocker, four majors and ten minors. Every finding was checked
+against the code before anything moved, and every one was still valid. One major and the
+blocker are in running code; three majors are recipes for phases not yet built, and they
+are fixed now because the next implementer would follow them exactly.
+
+- **Two raw reads left tenant isolation to row security alone.** The tenant-flag loader and
+  the `audit_config` override loader announced their tenant and selected without naming it;
+  with row security out of the way — measured as a role it does not bind — tenant B's
+  override became tenant A's. Both queries now carry `tenant_id = @tenant` from the trusted
+  argument, and two cases read as `learnstack_platform` so the predicate is the only layer
+  left to pass them.
+- **A valid host longer than 100 characters could not be mapped.** `audit_log.entity_id` was
+  `varchar(100)` while the host-mapping key admits 253; the MUST row failed with `22001`,
+  the mapping rolled back, and the standalone record of the attempt failed the same way. A
+  new migration makes the column `text` — the key is recorded whole, never truncated — and a
+  pipeline case maps hosts of 100, 101 and 253 characters.
+- **Three recipes contradicted the rules they serve.** The GDPR redaction committed before
+  writing its MUST result row, which now rides the same platform transaction — the port
+  change that allows it is Phase 03's decision, recorded there. The retention purge was
+  said to become a partition drop after Phase 11, while one monthly partition holds many
+  tenants and classes; it stays a row delete. And a projection past its grace window with
+  the Hub unreachable read as read-only in one document and per key class in another; it is
+  read-only, as ADR-0021 decides, and [ADR-0045 Amendment 3](../decisions/0045-entitlement-and-feature-flag-socket.md)
+  narrows the sentence that disagreed.
+- **The minors:** an override-read failure no longer claims to move the audit health check,
+  which answers only whether a MUST row can be written
+  ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)); a store failure
+  under the assertion recorder is one alert, not two, and the port now says the store
+  reports its own failures; the append-only guard reads schema-qualified, quoted and
+  `ONLY` targets, and its exemption list is exact; a slug classified twice fails whichever
+  row comes first; the tenant-flag loader is the eighth `app.tenant_id` setter
+  ([ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)); and five documents —
+  the Hub's own audit stream, the organization admin's audit view, three stale algorithm
+  listings, the `[PublicSurface]` guard's status and the feature-gating endpoint — now say
+  what the code and the decisions do.
+
+### The fifth review, and what it changed (2026-09-11)
+
+A fifth review, of the pull request at `cb2d5a5`, requested changes: three blockers and
+eighteen majors, with minors and follow-ups. Every finding was checked against the code
+before anything moved; most were valid as written, several in part, and none is handed on
+unowned — what belongs to a later phase is written into that phase.
+
+- **The blockers.** `audit_config`'s unique index counted deleted rows, on a table whose
+  overrides have no setter: an override changes only by soft delete and a fresh
+  declaration, so its first change would have failed `23505` for good. A new migration
+  makes the index partial on `deleted_at IS NULL`, and
+  `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows` now sweeps every module
+  context for the shape, with `ux_tenants_slug` held table-wide by a decision
+  [Phase 02c](phase-02c-hub-foundation.md) owns. No `503` carried `Retry-After`, while
+  [Error Handling](../standards/09-error-handling.md) said this packet had set it; both
+  Problem Details paths now set `Retry-After: 30` wherever the status is `503`. And a
+  validation refusal was listed among the standalone writes although step 1 runs before the
+  audit step classifies anything: the six carriers now say so, a case sends a refused
+  command through the real pipeline and counts no row, and
+  [ADR-0033 Amendment 7](../decisions/0033-audit-durability-model.md) records the
+  correction.
+- **The write path's contracts.** A missing designation answered `503 audit_unavailable`
+  for a programmer error; the composer now throws `InvalidOperationException` — a `500`,
+  like an unclassified operation — and two keyless captures count as two instances. A draft
+  carrying the platform sentinel was reported by the store as a failed write — `Critical`,
+  counter, health — when it is the caller's error; both the standalone and best-effort
+  paths refuse it with `ArgumentException` before writing, and the caller that composed it
+  owns the alert. The reconcile raised a second `Critical` for a failure the store had
+  already reported; it now logs `Warning` there and keeps `Critical` for the refusals
+  nothing else reports, and the assertion recorder does the same. The catalogue accepted one
+  slug both request-keyed and off-path, one `(request, slug)` twice, and an entity type no
+  capture can carry; all three are refused at composition, and a matrix row's `(off-path)`
+  marker must now agree with how its slug is registered. `Reason` was documented as carrying
+  a denial's cause: only `EnterPlatformAdminScope` writes it, and a refusal's cause is
+  `error_key`.
+- **Cases that could not fail the way their names claimed.** The canonical same-transaction
+  rule's second clause — a MUST row that cannot be written takes its business write with it
+  — was catalogued as implemented and had no case; one now forces the failure through the
+  real pipeline with a trigger. `xmin` was tried first and cannot prove it — measured: EF
+  Core runs each `SaveChanges` inside an open transaction under a savepoint, so rows on one
+  transaction carry different `xmin`s. The anonymous burst's window staying consumed when
+  its write fails, a security invariant, had no case. A plan-projected key is now read
+  against a conflicting tenant row in both directions, and a limit against one too; without
+  the rows, a resolver that fell back to the tenant table passed. The Docker-trait sweep read
+  one folder and now reads the whole integration project, with a companion; both backend CI
+  jobs refuse a run that executed no test, because a filter that matches nothing exits `0`.
+  The best-effort path's "logged" half, the entitlement default in the `SaaS` mode, and a
+  resolved context naming no real tenant are asserted, and two source sweeps assert their
+  premise before their verdict.
+- **Build and CI.** The SDK pin moves into `backend/global.json` — 10.0.112 — which both CI
+  jobs now install from, so a workstation and CI cannot disagree; the follow-ups below name
+  CI's pin alone, which is where it stood before this round. The NuGet audit level is
+  stated as `low` rather than inherited: CI fails on an advisory of **any** severity, not
+  only a high one as those follow-ups say, and `NU1900` fails it too, deliberately. The
+  pre-commit hook's WIP probe carried the same `pipefail` trap its stash pop was fixed for,
+  one line above it — `head -n 1` killed `git ls-files` with `SIGPIPE`, measured with six
+  thousand untracked files.
+- **Written into the phases that own them.** [Phase 02b](phase-02b-events-auth.md): a
+  delivery's transaction must own the audit frame, or a consumer's command reconciles before
+  the delivery commits; and the rejected-assertion row's actor, once a principal exists.
+  [Phase 02c](phase-02c-hub-foundation.md): the `source` each adapter writes, and
+  `IEntitlementAdminQuery`'s permission key. [Phase 03](phase-03-identity-admin.md): the
+  Platform-scope gate with the killswitch toggle, its key and its runbook — none of which
+  that phase's document had said — and the `[PiiSensitive]` decision on
+  `TenantSetting.Value`. [Phase 06](phase-06-renderer-admin-studio.md): the tenant-flag
+  cache's invalidation, which the corpus had described as a generation key while the code
+  carries a 60-second TTL. [Phase 11](phase-11-production-hardening.md): dependency
+  automation and locked restores, and pool sizing for the short second connection a request
+  takes.
+- **Accepted texts.** [ADR-0044 Amendment 7](../decisions/0044-audit-write-path.md) corrects
+  § 7's count of plain entities and the matrix it said singled out the host mapping;
+  [ADR-0045 Amendment 4](../decisions/0045-entitlement-and-feature-flag-socket.md) says
+  which of two names differs from the wire; and ADR-0023's Amendment 9, which sat below its
+  References, moves above them. Three amendments the review found without a "Decision is
+  unchanged" restatement are left as they are: [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  owes that sentence for a correction, and those three extend or read a decision rather than
+  correct one. Two amendments without a **Status** line stay so for the same reason: no rule
+  asks for one.
+- **The minors:** misplaced composition comments reattached and one `Lazy<NpgsqlDataSource>`
+  registration where there were two; stale counts, section references and test names; the
+  `IgnoredAsStale` summary, which described the equal case the guard applies; and a JSON
+  encoder that escaped every non-ASCII letter, so a Turkish display name reached the
+  256 KiB cap three times sooner than its bytes did.
+
+### Follow-ups closed in the same pull request (2026-09-11)
+
+Three things the review rounds named as outside the pull request's defects were closed in it
+rather than handed on, and one of them turned out larger than it was named.
+
+- **Dependency advisories.** Named as one — Microsoft.OpenApi 2.0.0 — it was three, all high
+  severity and all transitive: that package through `Microsoft.AspNetCore.OpenApi`,
+  System.Security.Cryptography.Xml 9.0.0 through EF Core Design's MSBuild, and SSH.NET
+  2023.0.0 through Testcontainers. None had been reported because `NuGetAuditMode` was
+  `direct`. The Microsoft set moves to its 10.0.12 servicing release, with EF Relational
+  referenced beside every Npgsql provider so the relational layer is the same release;
+  Testcontainers moves to 4.15.0, which pins a patched SSH.NET; the audit now covers the
+  whole graph, and CI's restore fails on a high advisory — measured by reverting one bump.
+  CI's SDK moves from 10.0.100 to 10.0.112, whose runtime carries the .NET advisories
+  10.0.0 did not. [Security Standards § Dependency Hygiene](../standards/11-security.md)
+  gives a high advisory seven days, which a build that never reports one cannot keep.
+- **Set-based writes.** EF Core's `ExecuteUpdate`, `ExecuteDelete` and `ExecuteSql*` write
+  rows the change tracker never sees, and so the audit capture never records. Nothing used
+  them; `No_Set_Based_Write_Bypasses_The_Audit_Capture` keeps it so, with a companion, and
+  [Database Standards § Raw SQL](../standards/05-database.md#raw-sql) states where a
+  hand-written write may still go.
+- **The unresolved-entitlement counter.** [Hybrid License Model](../architecture/26-hybrid-license-model.md)
+  labelled `learnstack_entitlement_unresolved_total` by tenant, for a condition that is a
+  platform outage rather than a tenant's, and neither entitlement counter was in
+  [Observability Standards § Metrics](../standards/10-observability.md#metrics). Both are
+  now, with `HubEntitlementProvider` in Phase 02c as their owner, and the unresolved one
+  carries no label — the tenant goes in the log line and the span.

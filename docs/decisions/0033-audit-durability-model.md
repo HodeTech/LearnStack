@@ -3,8 +3,19 @@
 ## Status
 
 Accepted (**Amendment 1: 2026-08-18**: a standalone MUST-class write
-failure changes the response only when the operation would otherwise have succeeded;
-see bottom of document)
+failure changes the response only when the operation would otherwise have succeeded.
+**Amendment 2: 2026-09-07**: intents are plural, only the owning unit-of-work frame
+writes them and reports the commit boundary, `outcome` is four values, the writer
+supplies `timestamp`, both standalone writers announce two session variables, a fourth
+write method serves `EnterPlatformAdminScope`, and a read-sensitive query **does** reach
+step 6. **Amendment 3: 2026-09-08**: Packet 9 ships the audit health check, its metric and
+its `Critical` line; the deployment-level stop-serving backstop is demand-gated to Phase
+11 with a written trigger. **Amendment 4: 2026-09-08**: a tenant override narrows and never
+elevates, a cancelled `COMMIT` is `Indeterminate`, and the override loader runs on a cache
+miss. **Amendment 5: 2026-09-11**: `EnterPlatformAdminScope` never reaches
+`WriteStandaloneAsync`, and a nested request's refusal outlives the commit it joined.
+**Amendment 6: 2026-09-11**: the audit health check answers one question, and a
+tenant-override read failure is not it. All at the bottom of the document.)
 
 **Date:** 2026-08-08
 **Supersedes:** [ADR-0016](0016-audit-log-subsystem.md)
@@ -257,6 +268,13 @@ the architecture document is the outlier and is corrected.
   [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) deliverable that
   `TransactionBehavior`'s shipped shell already presumes; named here because the durable
   audit write depends on it.
+> **Erratum — 2026-09-08.** The bullet below reads "refreshed out of band and invalidated
+> by the tenant-configuration integration event". No such event exists in the corpus and
+> no phase owns such a refresher, so it was false when written. § Decision's mechanism
+> governs: the loader runs on a cache miss, on its own short transaction. The Decision is
+> unchanged. Current authority:
+> [Amendment 4 § 3](#amendment-4--three-questions-the-light-up-had-to-answer-2026-09-08).
+
 - **`AuditConfig` overrides are a cached projection**, refreshed out of band and
   invalidated by the tenant-configuration integration event — never a request-path query.
   The loader sets its own `app.tenant_id`.
@@ -328,6 +346,399 @@ The guarantee § Decision protects is that nothing proceeds unaudited. An operat
 is being rejected does not proceed. The rule's subject was always the operation that
 would otherwise have happened; this amendment says so in the one case where the original
 wording could be read against its own purpose.
+
+## Amendment 2 — The write path against the code that shipped after this ADR (2026-09-07)
+
+**Status: Accepted.** Raised by [ADR-0044](0044-audit-write-path.md), which decides the
+questions below and is the record to read for the reasoning; this amendment states what
+changes in *this* ADR's contract. **§ Decision is unchanged**: MUST-class audit still
+commits on the same transaction as the state change it records or is written standalone
+with a non-success outcome, and there is still no third possibility.
+
+### What this ADR could not have known
+
+This record was accepted 2026-08-08. [ADR-0040](0040-ambient-unit-of-work.md) (2026-08-27)
+then defined the ambient unit of work, its frames and its joiners; Packet 6 shipped
+`TransactionBehavior`'s body; Packets 7 and 8 shipped the seven commands this ADR governs
+and the two module matrices that classify them. Five clauses written before all of that
+are incomplete against it. None was false when it entered the record, so each is amended
+here rather than corrected in place ([ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md)).
+
+### 1. Intents are plural
+
+§ Decision's *Decide* row parks "a pending intent", singular, and § Implementation Notes
+describes `WritePendingAsync` as "a no-op when no MUST-class intent is pending". Read as
+**one intent per audited `(resource, operation)`**, not one per request.
+`IAuditStateCapture` holds an ordered list; `WritePendingAsync` composes and inserts all
+of them on the ambient transaction.
+
+*How it was shown incomplete:* `ProvisionTenantCommand` writes `Tenant` and
+`Organization` on one transaction — the single exception
+[ADR-0042](0042-tenant-provisioning-cross-aggregate-transaction.md) sanctions — and
+[the Tenancy matrix](../modules/tenancy/audit.md) classifies **both** MUST. Under the
+singular reading the `Organization | create` row it requires is never written, and the
+matrix is wrong the day it is implemented.
+
+### 2. Only the owning frame writes, and only it reports the boundary
+
+ADR-0040 § Nesting makes a joiner frame reachable, and `IUnitOfWorkScope.CompleteAsync`
+is a documented no-op on one. `IAuditStore.WritePendingAsync` and the
+`Committed` / `RolledBack` / `Indeterminate` signal are therefore called **only on the
+owning frame** (`IUnitOfWorkScope.IsOwner`), and the owner flushes every intent in the
+scope rather than only its own. A joiner writes nothing, signals nothing, does not run
+the reconcile step, and does not call `IAuditStateCapture.Clear()`.
+
+*How it was shown incomplete:* a joiner calling `MarkCommitted` claims durability for a
+row nothing has committed; if the outer transaction then rolls back, the reconcile step
+sees `Committed`, does nothing, and the MUST row is lost — which is the failure this ADR
+exists to prevent. A joiner calling `Clear()` in its `finally` erases the outer request's
+intents and snapshots before the owner has committed.
+
+### 3. `outcome` is four values, and it is not a boolean
+
+The `audit_log` column is `outcome text` under
+`CHECK (outcome IN ('success','denied','failed','indeterminate'))`. ADR-0016's
+`is_success boolean`, which § Corrected `audit_log` DDL inherits by writing "remaining
+columns unchanged from ADR-0016", is superseded: a boolean cannot carry `denied`, which
+[Audit Coverage Standards](../standards/18-audit-coverage.md) requires in order to detect
+probing, and `Indeterminate` — which this ADR introduces as an intent state — needs a
+value a reader can filter on.
+
+### 4. The writer supplies `timestamp`
+
+`PostgresAuditStore` always supplies `timestamp` from `IClock`: the intent's `DeclaredAt`
+for the in-transaction row, a **fresh** reading for a standalone re-write. `DEFAULT now()`
+remains on the column as a backstop for a row inserted by something other than the store.
+
+*How it was shown incomplete:* § Decision requires the `Indeterminate` case to re-write
+standalone carrying the same `AuditEntryId`, and the primary key is `(id, timestamp)`. Two
+rows with one id coexist only if their timestamps differ. Supplying `DeclaredAt` for both
+raises `23505` in exactly the case the design exists to serve, and the caller then receives
+`audit_unavailable` for an operation that in fact committed. A `23505` on the standalone
+re-write is instead **positive evidence that the `COMMIT` landed**: it is logged at
+`Warning`, counted, and swallowed.
+
+### 5. The row's tenant, and the second GUC
+
+The row's `tenant_id` is the tenant the ambient transaction **announced** — for a request
+implementing `IProvisionsTenant` under an unresolved context that is
+`ProvisioningTenantId`, and for a platform-scope operation with no resolvable tenant it is
+the reserved sentinel ADR-0044 § 1 fixes. It never comes from a request payload.
+
+§ Implementation Notes gives both standalone writers as `BEGIN; SET LOCAL app.tenant_id;
+INSERT; COMMIT`. Read as announcing **both** session variables — `app.tenant_id` and
+`app.organization_id` — from the draft.
+
+*How it was shown incomplete:* `audit_log` carries `organization_id` and therefore takes
+the org-scoped policy of [Database Standards § Table classes](../standards/05-database.md).
+Measured on that policy shape: an insert whose `organization_id` is non-null while
+`app.organization_id` is unset is refused with *new row violates row-level security
+policy*; with both variables set the same insert returns `INSERT 0 1`. Every `denied` row
+for an org-scoped resource and every rollback re-write of one travels that path.
+
+### 6. A fourth write method
+
+`IAuditStore` gains `WritePlatformScopeAsync`, used by `EnterPlatformAdminScope(reason)`
+to write its `security-event` row on its own platform-role connection before the operation
+runs. § Implementation Notes' "exactly three write methods" is superseded; **"no update
+method" is not** — this is a fourth write, and `IAuditStore` still cannot update a row.
+
+*Why the three could not serve it:* the row runs on a connection the request path does not
+own, as a role the other three never use, and before the operation it describes.
+
+### 7. Correction — a read-sensitive query does reach step 6
+
+§ Decision states that a MUST-class event with no business transaction "never reaches step
+6" and lists a read-sensitive query among its examples. That is no longer true, and the
+distinction matters because Amendment 1 builds a 503-versus-403 rule on top of it.
+
+*How it was shown wrong:* `TransactionBehavior` as shipped in Packet 6 has no request-kind
+gate — its class remarks say so explicitly and its body opens the ambient transaction
+unconditionally for everything that reaches step 6, reads included, because a read needs
+the `SET LOCAL` as much as a write does. A granted MUST-class `read-sensitive` query
+therefore rides the **in-transaction** path.
+
+> **Erratum — 2026-09-11.** The list below names two shapes that never reach
+> `WriteStandaloneAsync`. A short-circuit at step 1 writes no row: validation is step 1 and
+> the audit step is step 3, so a refused request is never classified — shown by
+> `MediatRPipelineRegistration.CanonicalBehaviorOrder` and
+> `AuditWorkflowTests.A_validation_refusal_writes_no_row_because_nothing_has_classified_it`.
+> `EnterPlatformAdminScope` writes through `WritePlatformScopeAsync` (§ 6). The shapes are a
+> short-circuit at step 4 or 5, the rejected-assertion recorder, and the reconcile step.
+> The Decision is unchanged. Current authority:
+> [Audit Subsystem](../architecture/31-audit-subsystem.md). Recorded in Amendment 5 § 1 for
+> `EnterPlatformAdminScope` and in Amendment 7 for step 1.
+
+`WriteStandaloneAsync` is reached by three shapes, and only these: a short-circuit at step
+1, 4 or 5; a non-MediatR caller (`TenantAssertionMiddleware`, `EnterPlatformAdminScope`);
+and the reconcile step after a `RolledBack` or `Indeterminate` outcome. The `denied` and
+non-mutating-security-event examples in § Decision remain correct.
+
+### Carriers changed by this amendment
+
+[ADR-0044](0044-audit-write-path.md) (the deciding record),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 1, 3, 4, 5, 6, 7, 13, 14,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Database Standards](../standards/05-database.md),
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md),
+[the glossary](../glossary.md), [CLAUDE.md](../../CLAUDE.md) and
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md). No other Accepted ADR's body changes;
+[ADR-0023](0023-strongly-typed-id-source-generator.md),
+[ADR-0028](0028-audit-log-partition-management.md),
+[ADR-0021](0021-feature-based-entitlement.md) and
+[ADR-0020](0020-triple-deployment-hybrid-license.md) each carry their own dated amendment
+for the part of ADR-0044 and ADR-0045 that touches them.
+
+## Amendment 3 — The audit health check, and who owns the backstop (2026-09-08)
+
+**Status: Accepted.** Raised by the review of the carrier documents for
+[ADR-0044](0044-audit-write-path.md), which found the mechanism named in three places and
+owned in none.
+
+### What was unowned
+
+Amendment 1 and § Fail-closed both lean on an "audit health check", and Amendment 1 adds
+that "beyond a configured maximum unhealthy window the deployment fails closed at the
+**deployment** level — it stops serving". Nothing in the corpus names the check's
+registration site, its identifier, the counter beside it, the configuration key that sets
+the window, or the phase that builds any of it. A rule that stops a deployment from
+serving is not a rule to leave unassigned.
+
+### How it should be read
+
+**Phase 02a Packet 9 ships the observable half**, because it is what makes the failure
+visible and it is cheap next to the writer it observes:
+
+- an `IHealthCheck` registered as `audit`, unhealthy while the most recent MUST-class
+  standalone write has failed and no later one has succeeded;
+- the standalone-write-failure counter, `learnstack_audit_standalone_write_failures_total`,
+  a `learnstack_`-prefixed metric with no PII and no attacker-chosen label, per
+  [Observability Standards](../standards/10-observability.md);
+- the `Critical` log line Amendment 1 already requires.
+
+**The deployment-level backstop is demand-gated to
+[Phase 11](../roadmap/phase-11-production-hardening.md)**, with all four of
+[ADR-0035](0035-demand-gated-infrastructure.md)'s requirements rather than three: the
+*port* is the health check above, shipped here; the *default* is to stay serving and stay
+unhealthy, which is what a Phase 02a deployment does; the *owning phase* is Phase 11,
+where the readiness surface and the orchestrator that reads it are built; the *trigger* is
+the first deployment that serves tenant traffic under a support commitment.
+
+Stopping a process is the one operational act that cannot be undone by the next request,
+and Phase 02a has neither a readiness endpoint nor an operator to answer the page it would
+raise. Shipping the window now would give the platform a self-inflicted outage with no
+runbook.
+
+**§ Decision is unchanged**, and so is Amendment 1: a standalone MUST-class write failure
+still logs at `Critical`, still increments the counter, and still marks the check
+unhealthy. What is deferred is only the act of ceasing to serve.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) § 14,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Observability Standards](../standards/10-observability.md),
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and
+[Phase 11](../roadmap/phase-11-production-hardening.md).
+
+## Amendment 4 — Three questions the light-up had to answer (2026-09-08)
+
+Phase 02a Packet 9 Step 5 lights up `AuditLogBehavior` and `TransactionBehavior`. Reading
+this ADR against the code that now exists surfaced three points where the corpus said two
+things, or said one thing it had no mechanism for. Each is settled here; none changes the
+Decision.
+
+### 1. A tenant override narrows and never elevates
+
+§ Fail-closed calls the thing a cache outage costs "one tenant's voluntary SHOULD→MUST
+elevation", and the glossary, `add-audit-coverage` and Audit Subsystem § 5 describe the
+same capability. **The shipped schema cannot express it.** `audit_config` carries one
+`is_enabled boolean` and no tier column, so a row cannot name a target class;
+[Audit Coverage Standards](../standards/18-audit-coverage.md) § Required Behaviours
+already said narrowing only, and it is the reading that governs.
+
+`is_enabled = false` silences a SHOULD or a MAY and does nothing to a MUST.
+`is_enabled = true` is the baseline — a no-op row, which is also what an **absent** row
+means, so a tenant that has authored nothing and a tenant that has authored `true` are
+answered identically.
+
+**Elevation is refused rather than deferred**, and the reason is not the schema. An
+override that could move an operation onto the MUST tier would hand a tenant admin a
+lever onto the in-transaction durable path, where `IAuditStore.WritePendingAsync` throwing
+rolls the business transaction back and answers `503 audit_unavailable`. That is a
+tenant-controlled availability risk on operations the platform deliberately classified
+MAY, and it is the wrong direction for a control whose whole purpose is that a
+compromised tenant admin cannot reduce what the log records. A later phase that wants
+elevation owes an ADR for the lever, not a column.
+
+### 2. A cancelled `COMMIT` is `Indeterminate`
+
+§ Decision says a faulted `CommitAsync` leaves the rows' fate genuinely unknown, so the
+standalone row is written anyway. `AuditLogBehavior`'s catch excludes
+`OperationCanceledException` — [ADR-0032](0032-exception-handling-logging-and-observability.md)
+requires that type to survive — so until now a client that disconnected mid-`COMMIT`
+skipped the reconcile **and** the `finally` that clears the capture. An ordinary client
+action could drop a MUST-class row for an operation that may well have committed.
+
+**A cancellation during `CommitAsync` is a faulted commit like any other.**
+`TransactionBehavior` marks the capture `Indeterminate` **before** rethrowing, so the
+reconcile step runs and `Clear()` still happens in its `finally`. ADR-0032's contract is
+untouched: the exception leaves `Handle` as the `OperationCanceledException` it was, with
+its type, its message and its stack intact. What changes is only that the audit record is
+written on the way out.
+
+A cancellation raised **before** `CommitAsync` is not this case. Nothing was committed,
+the state is `RolledBack`, and the reconcile step already covers it.
+
+### 3. The override loader runs on a cache miss
+
+This ADR describes the override read twice and the two are different mechanisms.
+§ Decision: "read through `ICacheService`; on a miss the loader opens **its own** short
+transaction and sets `app.tenant_id` itself." § Implementation Notes: "refreshed out of
+band and invalidated by the tenant-configuration integration event — never a request-path
+query."
+
+> **Erratum (2026-09-08).** The § Implementation Notes clause was wrong when written.
+> There is no tenant-configuration integration event in the corpus and no phase owns an
+> out-of-band refresher, so the mechanism it describes has never existed. **§ Decision
+> governs**: the loader runs on a cache miss. Recorded in this Amendment.
+
+"Never a request-path query" survives as what it was reaching for — a query **per
+request** is what it forbids, and a loader that runs once per `(tenant, generation)` and
+caches the answer is not one. The distinction is the same one
+[ADR-0043](0043-customization-payload-validation.md)'s generation counter already draws
+for every other cached projection.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 3 and 5,
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[the glossary](../glossary.md),
+[the Audit module spec](../modules/audit/README.md), and the `add-audit-coverage` skill.
+
+## Amendment 5 — The standalone writer's callers, and whose outcome a reconciled row carries (2026-09-11)
+
+**Status: Accepted.** Two points the external review of PR #18 raised against Amendment 2,
+which entered this record in the same unmerged change. **§ Decision is unchanged.**
+
+### 1. `EnterPlatformAdminScope` never reaches `WriteStandaloneAsync`
+
+Amendment 2 § 7 lists the shapes that reach `WriteStandaloneAsync` and names
+`EnterPlatformAdminScope` among the non-MediatR callers. That was false when it was written:
+Amendment 2 § 6, one section earlier, gives the scope the fourth write method,
+`WritePlatformScopeAsync`, and says why the other three cannot serve it — the row runs on the
+scope's own `learnstack_platform` connection under `TenantId.PlatformSentinel`, and
+`WriteStandaloneAsync` refuses to announce the sentinel on a runtime connection. A writer who
+followed § 7 would route the sentinel through the application role.
+
+> **Erratum — 2026-09-11.** The restated list below still opens with "a short-circuit at
+> step 1". A step-1 refusal writes no row: validation runs outside the audit step, so
+> nothing has classified the request. The list is a short-circuit at step 4 or 5, the
+> recorder, and the reconcile step. The Decision is unchanged. Current authority:
+> [Audit Subsystem](../architecture/31-audit-subsystem.md). Recorded in Amendment 7.
+
+§ 7's list reads: a short-circuit at step 1, 4 or 5; the one non-MediatR caller, the
+rejected-assertion recorder `TenantAssertionMiddleware` drives
+(`AuditingTenantAssertionRecorder`); and the reconcile step after a `RolledBack` or
+`Indeterminate` outcome. `EnterPlatformAdminScope` writes through `WritePlatformScopeAsync`
+alone — and, since the same review, in a transaction of its own that commits before the
+caller's begins, which is what [ADR-0044 § 10](0044-audit-write-path.md)'s "an operation that
+later fails is still recorded" requires.
+
+### 2. A nested request's refusal outlives the commit it joined
+
+§ Decision has the reconcile write `indeterminate` when the `COMMIT`'s fate is unknown.
+[ADR-0044 Amendment 6 § 3](0044-audit-write-path.md) refines which outcome a reconciled row
+carries once requests nest: each intent keeps the result its own request returned, and a
+refusal it returned wins over `indeterminate`, because it is a fact about the operation that no
+`COMMIT` changes. In a flow without nesting nothing moves — a refused request never reaches
+`COMMIT` — so the rule this ADR states is still the rule every un-nested request sees.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md) (Amendment 6, the deciding record for § 2) and
+[Audit Subsystem](../architecture/31-audit-subsystem.md). No other Accepted ADR's body
+changes.
+
+## Amendment 6 — What the audit health check answers (2026-09-11)
+
+**Status: Accepted.** Raised by the fourth external review of PR #18. § Decision's
+"Fail-closed, stated precisely" ends its override case with "The failure is logged at
+`Error` and surfaced on the audit health check." Amendment 3 later defined that check —
+unhealthy while the most recent MUST-class standalone write has failed and no later one has
+succeeded — and Packet 9 shipped exactly that. The override loader never reports to it, and
+its own log line said it did; five other documents repeated the sentence. **§ Decision is
+unchanged in everything it decides**: an override read failure does not reject, falls back
+to the in-process catalogue and its MUST floor, and is logged at `Error`.
+
+### The check answers one question
+
+The `audit` health check reports whether a MUST-class row can be written standalone — the
+failure that leaves an operation succeeded and unrecorded, and the one Amendment 3 gives a
+readiness surface in [Phase 11](../roadmap/phase-11-production-hardening.md). An override
+read failure is not that. The operation is audited at its declared tier, which is at least
+what the tenant asked for; the only loss is one tenant's narrowing of SHOULD/MAY coverage
+until a read succeeds. Folding it into the check would let a cache outage take a deployment
+unready — the platform-wide effect § Decision refuses when it declines to reject.
+
+So the `Error` line is the whole of its report, and it says so. Should Phase 11 need to page
+on it, the addition is a counter beside the line — a metric, not a readiness signal.
+
+### Carriers changed
+
+[Security Standards](../standards/11-security.md),
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) (§ 5 and the `audit_config`
+section), [the glossary](../glossary.md) (`AuditConfig`),
+[Phase 11](../roadmap/phase-11-production-hardening.md), and the code's own account of
+itself — `IAuditConfigService` and `AuditConfigService`'s log line.
+
+## Amendment 7 — A validation refusal is never audited (2026-09-11)
+
+**Status: Accepted.** Raised by the fifth external review of PR #18. Amendment 2 § 7 lists
+"a short-circuit at step 1, 4 or 5" among the shapes that reach `WriteStandaloneAsync`, and
+Amendment 5 § 1 restates the list with its step-1 item intact. That item was false when it
+entered the record. **§ Decision is unchanged**: a MUST-class row is written on the business
+transaction, an operation with no committed business transaction is written standalone,
+and the pipeline order is [ADR-0032](0032-exception-handling-logging-and-observability.md)'s.
+
+### What was wrong
+
+Step 1 is `ValidationBehavior` and the audit step is step 3. A request refused at step 1
+returns before step 3 runs, so no catalogue entry is consulted, no intent is declared, and
+the reconcile that writes standalone rows has nothing to write. The order was the same on
+2026-09-07 — fixed by ADR-0032 in Packet 3, and named in this ADR's own § Context — so the
+item was never true.
+
+*How it was shown wrong:* `MediatRPipelineRegistration.CanonicalBehaviorOrder` puts
+validation first and the audit step third, and
+`MediatR_Pipeline_Order_Matches_Canonical_Sequence` holds it there. An integration case
+sends a command that fails validation through the real pipeline and the real store, finds
+the tenant's row count unchanged, then sends the same operation valid and finds one more —
+`AuditWorkflowTests.A_validation_refusal_writes_no_row_because_nothing_has_classified_it`.
+With `ValidationBehavior` moved inside the audit step, the case fails.
+
+### How it should be read
+
+`WriteStandaloneAsync` is reached by three shapes, and only these: a short-circuit at step 4
+or 5; the one non-MediatR caller, `AuditingTenantAssertionRecorder`; and the reconcile step
+after a `RolledBack` or `Indeterminate` outcome. A `validation_failed` refusal that *does*
+reach the audit step is a handler's — [ADR-0043](0043-customization-payload-validation.md)'s
+payload gates return one — and is recorded `failed` like any other refusal. A request
+refused at step 1 is not an audited event: the pipeline refuses it before asking the
+catalogue what the operation is. Recording it would mean moving the audit step ahead of
+validation — a reordering of the kind § Context counts the cost of, and one this amendment
+does not make.
+
+### Carriers changed
+
+Amendment 2 § 7 and Amendment 5 § 1, by the errata beside them;
+[Audit Subsystem](../architecture/31-audit-subsystem.md) (§ 1);
+[Audit Coverage Standards](../standards/18-audit-coverage.md), which now says a step-1
+refusal writes no row; the `add-audit-coverage` skill; and `IAuditStore`'s own account of
+its standalone callers. No other Accepted ADR's body changes.
 
 ## References
 

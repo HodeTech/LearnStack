@@ -187,12 +187,20 @@ public sealed class NpgsqlUnitOfWork(
         // Guid.Empty is refused alongside the uninitialized case, because
         // IsInitialized() is only half the test: Vogen validates the *shape* of
         // the value, not that it names anything, and the domain already refuses
-        // the all-zero id by hand (TenantOwned.EnsureRealTenant). An all-zero
+        // the all-zero id by hand (TenantOwnership.EnsureRealTenant). An all-zero
         // tenant would otherwise cast cleanly and match every row a bug wrote
         // under it.
+        // The sentinel arm is deliberately redundant with the guards at the sites where
+        // the value can enter a context: this is the single site every announcement
+        // passes through, and it is the sentence ADR-0044 § 1 actually writes. A guard
+        // here is what makes that invariant true of the system rather than true of the
+        // paths we happened to enumerate — and it fails the way the other two arms do,
+        // to the empty string, so a context carrying it reads zero rows rather than the
+        // platform's (ADR-0044 Amendment 5 § 1).
         var tenant = context.IsResolved
             && context.TenantId.IsInitialized()
             && context.TenantId.Value != Guid.Empty
+            && context.TenantId != TenantId.PlatformSentinel
                 ? context.TenantId.Value.ToString()
                 : string.Empty;
 
@@ -273,7 +281,16 @@ public sealed class NpgsqlUnitOfWork(
         // '[UNINITIALIZED]'::uuid, which raises 22P02 rather than filtering. Guid.Empty is
         // refused beside it because Vogen validates the shape of a value, not that it
         // names anything, and the domain refuses the all-zero tenant by hand.
-        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        // The platform sentinel is refused beside them, and this is the guard that
+        // matters most of the three. ADR-0044 § 1 states that the sentinel is never
+        // announced by a request path, and this is the only announcement path that takes
+        // a caller-supplied id — so without the refusal a provisioning command naming it
+        // would announce it on app.tenant_id, and every MUST row that request declares
+        // would be written into the pseudo-tenant no tenant admin watches. The `tenants`
+        // CHECK cannot reach that: a constraint bounds a row, not a session variable.
+        if (!tenantId.IsInitialized()
+            || tenantId.Value == Guid.Empty
+            || tenantId == TenantId.PlatformSentinel)
         {
             throw new ArgumentException(
                 "A provisioning tenant id must be a real, registry-assigned id.",
@@ -325,6 +342,9 @@ public sealed class NpgsqlUnitOfWork(
             ? Task.CompletedTask
             : RollbackFrameAsync();
     }
+
+    /// <inheritdoc />
+    public bool IsRollbackOnly => _rollbackOnly;
 
     public void MarkRollbackOnly()
     {

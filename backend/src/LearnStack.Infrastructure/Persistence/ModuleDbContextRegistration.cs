@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -150,6 +151,20 @@ public static class ModuleDbContextRegistration
                 // work, so it compares each command's transaction against the one
                 // this request actually announced a tenant on.
                 .AddInterceptors(new TenantContextGuardInterceptor(unitOfWork))
+                // And whatever else the composition root registered as an
+                // ISaveChangesInterceptor — today that is AuditChangeTrackerInterceptor,
+                // which has to reach EVERY module's context because the capture is what
+                // gives an audit row its before / after state, and no module may
+                // reference the assembly it lives in (ADR-0044 § 7).
+                //
+                // Resolved from the provider and passed in EXPLICITLY. Registering an
+                // ISaveChangesInterceptor in DI alone does not attach it under this
+                // options shape — measured on EF Core 10, for both interceptor kinds and
+                // whether registered as IInterceptor or by its own type — which is the
+                // same measurement the UseApplicationServiceProvider comment above
+                // records. A registration that looked wired and was not would produce
+                // audit rows with empty snapshots and no error anywhere.
+                .AddInterceptors(provider.GetServices<ISaveChangesInterceptor>())
                 .Options;
 
             // ActivatorUtilities, not Activator: a module context takes its

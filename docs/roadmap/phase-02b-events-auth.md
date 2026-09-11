@@ -275,6 +275,26 @@ event-stream feeds:
   handlers.
 - Platform-admin scope entries opened by authentication-related operations get the same
   treatment.
+- **A delivery's transaction owns the audit frame as well.** The transport opens the
+  ambient transaction per delivery, so a consumer that sends a command through `ISender`
+  makes that command's `TransactionBehavior` a joiner — while its `AuditLogBehavior` is
+  still the **outermost** audit frame, because `AuditFrame` counts audit behaviors, not
+  unit-of-work owners. Left so, the command reconciles before the delivery commits: its
+  MUST row is written standalone as `failed` for a change that then commits, and the
+  buffer the owner's `WritePendingAsync` would have flushed is cleared first. Packet 9
+  cannot reach it — nothing opens a transaction outside the pipeline yet — so this phase
+  decides between the transport opening the outermost audit frame beside its transaction
+  and moving the reconcile gate to `IUnitOfWorkScope.IsOwner`, and ships the case that
+  tells them apart: a consumer sending a MUST-class command records `success` on the
+  delivery's transaction, and a delivery that rolls back records it standalone as
+  `failed` ([ADR-0033 Amendment 2 § 2](../decisions/0033-audit-durability-model.md),
+  [ADR-0040](../decisions/0040-ambient-unit-of-work.md)).
+- **The rejected-assertion row names its actor once there is one.**
+  `AuditingTenantAssertionRecorder` writes `actor_user_id = NULL` on the authenticated
+  tier today, because no principal exists in the process and `IsAuthenticated` is a tier,
+  not an identity. [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) makes
+  the actor the finding on that tier, so the realm integration above populates it from the
+  validated token's user, with a case asserting an authenticated mismatch's row carries it.
 
 The `AuditEntry` aggregate is owned by the **Audit** module and shipped in Phase 02a;
 [Phase 03](phase-03-identity-admin.md) plugs the Identity domain into it, not the reverse.

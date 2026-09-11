@@ -2,15 +2,29 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Validation;
+using System.Diagnostics.Metrics;
+using LearnStack.Infrastructure.Audit;
+using LearnStack.Infrastructure.Caching;
+using LearnStack.Modules.Customization.Application.Audit;
+using LearnStack.Modules.Tenancy.Application.Audit;
+using LearnStack.Infrastructure.Audit.Capture;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
 using LearnStack.SharedKernel.Time;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -63,6 +77,11 @@ public static class SeedComposition
         services.AddSingleton(loggerFactory);
         services.AddLogging();
         services.AddSingleton<IClock, SystemClock>();
+
+        // AuditLogBehavior mints the audit entry id app-side at step 3 — the one
+        // high-volume append-only table whose id is, because a commit-in-doubt pair has to
+        // carry one identity across two connections.
+        services.AddSingleton<IGuidFactory, SystemGuidFactory>();
         services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(context));
         services.AddTransient<ITenantContext>(provider =>
             provider.GetRequiredService<ITenantContextAccessor>().Current
@@ -90,6 +109,99 @@ public static class SeedComposition
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.AddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
+
+        // The Audit module's context, on the same helper and for the same reason as the
+        // other two. The registration is load-bearing rather than defensive: this root
+        // calls AddLearnStackMediatRPipeline below, and CanonicalBehaviorOrder carries
+        // AuditLogBehavior unconditionally — so every seeded command classifies, declares
+        // and writes. AuditPipelineTests runs THIS root precisely to prove it.
+        services.AddModuleDbContext<AuditDbContext>();
+
+        // The audit write path, on the same registrations the API makes and for the
+        // same reason this file already registers the schema gate: a second composition
+        // root that lacks a service the API has does not fail to compile, it fails at the
+        // first command that needs it. The seeder writes through the request path, and
+        // AuditLogBehavior is in that pipeline — so these are not spare parts, they are
+        // what keeps `make seed` working at all. An earlier comment here said the
+        // behaviour was not in this root's pipeline; it always was.
+        services.AddScoped<AuditStateCapture>();
+        services.AddScoped<IAuditStateCapture>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+        services.AddScoped<IAuditSubject>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+        // TryAddEnumerable, not TryAddScoped. ISaveChangesInterceptor is a MULTI
+        // registration — AddModuleDbContext resolves the whole collection — and
+        // TryAddScoped skips when ANY registration of the service type exists, so the
+        // moment a second interceptor is registered first the audit capture is silently
+        // not added and every audit row ships with empty snapshots and no error anywhere.
+        // TryAddEnumerable is keyed on the (service, implementation) pair, which is the
+        // idempotence this actually wants.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
+
+        // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
+        // factory. AddMetrics is idempotent and the API host already calls it through
+        // AddOpenTelemetry; naming it here keeps this root self-sufficient, which is what
+        // lets the seeder build the same graph.
+        services.AddMetrics();
+
+        // The classifier reads overrides through the cache, so the seeder needs the same
+        // implementation the API's DeploymentMode socket selects today. A seeder that
+        // resolved a different one would be classifying against a different projection
+        // than the request path does.
+        services.AddSingleton<ICacheService>(provider => new InMemoryCacheService(
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<IMeterFactory>()));
+
+        // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
+        // and answers for one tenant, which is one request. It does NOT take a module
+        // DbContext: both halves it reads are policy-guarded tables it reaches on
+        // connections of its own, so resolving it does not require an open unit-of-work
+        // frame — middleware, an endpoint filter, a health check and the anonymous rate
+        // limiter are all natural readers and none of them is inside one.
+        services.TryAddScoped<IFeatureFlags, FeatureFlags>();
+
+        // The killswitch overlay's read path, and the same reasoning one level down. The
+        // cache entry it fronts is process-wide, so a scoped instance costs one resolution
+        // and shares the one entry — and the load runs on its own connection, because the
+        // cache flight that runs it outlives the caller that started it.
+        services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
+
+        // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
+        // not Development only: ADR-0035 names NullEntitlementProvider the working default
+        // for this gate, with Phase 02c as the owning phase and "a tenant must be billed
+        // or plan-gated" as the trigger. Until that fires there is no billing to enforce
+        // and no Hub to ask, so a mode-conditional registration would make four of the
+        // five modes unbootable for a capability none of them uses (ADR-0045 § 4).
+        //
+        // Swapping this one line is the whole of the Phase 02a completion criterion: it
+        // changes the answer without touching module code, which is only true because
+        // IFeatureFlags composes over the PORT rather than reading
+        // platform_entitlement_cache itself.
+        services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
+
+        // The store reports the standalone path's last outcome to this; a singleton for
+        // the reason the API root's is one. The seeder maps no readiness surface and needs
+        // none — what it needs is the graph to build, and a missing singleton here would
+        // surface as a container error on the first seeded command rather than at startup.
+        services.TryAddSingleton<IAuditHealth, AuditHealth>();
+
+        services.AddScoped<IAuditStore, PostgresAuditStore>();
+
+        // The catalogue, merged once from every module's source. A singleton: it is built
+        // at composition time and read on every request, and rebuilding it per scope would
+        // pay the merge — and its enforcement — on every call.
+        services.TryAddEnumerable([
+            ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+        ]);
+
+        services.TryAddSingleton<IAuditCatalog>(provider =>
+            new AuditCatalog(provider.GetServices<IAuditCatalogSource>()));
+
+        // The classifier is scoped because its cache reads are per request, and it holds
+        // no state of its own between them.
+        services.TryAddScoped<IAuditConfigService, AuditConfigService>();
 
         // Its own short read-only transaction on its own connection, which is why it takes
         // a Lazy data source rather than the ambient unit of work: it answers "is this

@@ -154,7 +154,7 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("source");
 
-                    b.Property<DateTimeOffset>("ValidUntil")
+                    b.Property<DateTimeOffset?>("ValidUntil")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("valid_until");
 
@@ -194,6 +194,35 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_platform_host_to_tenant_tenant_id_organization_id");
 
                     b.ToTable("platform_host_to_tenant", (string)null);
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Tenancy.Domain.PlatformKillswitch", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("key");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("ToggledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("toggled_at");
+
+                    b.Property<Guid?>("ToggledBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("toggled_by");
+
+                    b.HasKey("Key")
+                        .HasName("pk_platform_killswitches");
+
+                    b.ToTable("platform_killswitches", (string)null);
                 });
 
             modelBuilder.Entity("LearnStack.Modules.Tenancy.Domain.Tenant", b =>

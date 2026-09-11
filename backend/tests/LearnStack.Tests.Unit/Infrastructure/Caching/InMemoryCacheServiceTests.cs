@@ -291,6 +291,35 @@ public sealed class InMemoryCacheServiceTests
             "the first caller owns the one shared factory and its cache policy");
     }
 
+    [Theory]
+    [InlineData("platform:hub:host-map:school.example.com", "hub:host-map")]
+    [InlineData("platform:tenancy:killswitch", "tenancy:killswitch")]
+    public async Task The_Two_Platform_Families_Report_As_Themselves(string key, string expected)
+    {
+        // This returned "hub:host-map" for ANY key under the sentinel, without looking at
+        // segments 1 and 2 — right while the host map was the only platform family, and
+        // silently wrong the moment ADR-0045 § 5 added the killswitch overlay. Two
+        // unrelated caches would have been summed into one dashboard figure on all six
+        // instruments, and neither operator could have read theirs.
+        var names = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, currentListener) =>
+        {
+            if (instrument.Meter.Name == InMemoryCacheService.MeterName)
+            {
+                currentListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+            names.Add(tags.ToArray().Single(tag => tag.Key == "cache.name").Value!.ToString()!));
+        listener.Start();
+
+        var (cache, _) = New();
+        await cache.GetAsync<string>(key);
+
+        names.Should().NotBeEmpty().And.OnlyContain(name => name == expected);
+    }
+
     [Fact]
     public async Task Cache_Metrics_Use_Stable_Low_Cardinality_Names()
     {

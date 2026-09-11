@@ -36,10 +36,19 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 3b–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
-[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
-infrastructure and the entitlement socket — is next.**
+[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9) —
+audit infrastructure and the entitlement socket, decided by
+[ADR-0044](docs/decisions/0044-audit-write-path.md) and
+[ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md) — shipped the
+lit audit write path, the `audit` health check, and the entitlement socket:
+`IEntitlementProvider` with `NullEntitlementProvider` registered in every deployment
+mode, `IFeatureFlags` composing over it, the three typed key registries, and
+`platform_killswitches` **read-only** — every toggle runs inside
+`EnterPlatformAdminScope`, whose gate refuses everyone until
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) brings the Platform-scope
+permission. Packet 10 is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -158,6 +167,34 @@ is long for the reason Packets 5, 6 and 7's were: the defects are its own review
 rounds' findings, and the sharpest was a term added by one round that the next
 round found had no test — removing it left all 1390 cases green.
 
+**Packet 9** shipped the audit write path and the entitlement socket. Audit first,
+because everything else commits through it: the `audit_log` / `audit_config` schema
+with its three append-only layers, the change-tracker capture, `PostgresAuditStore`'s
+four writes, the merged `IAuditCatalog`, and the two pipeline steps that use them —
+`AuditLogBehavior` classifies and parks intents at step 3 and reconciles in its
+`finally`, `TransactionBehavior` flushes the MUST-class rows on the owning frame
+immediately before `COMMIT`. With them the observable half of the fail-closed rule
+([ADR-0033 Amendment 3](docs/decisions/0033-audit-durability-model.md)): the `audit`
+health check, two counters and a `Critical` line. Two non-pipeline writers land too —
+`PlatformAdminScope.EnterAsync` records its own `security-event` row before the
+operation runs, and `AuditingTenantAssertionRecorder` audits a rejected tenant
+assertion per occurrence when a principal is attached and as a **burst** when none is.
+Then the socket [ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)
+decides: `IEntitlementProvider` with `NullEntitlementProvider` registered in every
+deployment mode, `IFeatureFlags` composing over the port rather than reading
+`platform_entitlement_cache`, the three typed key registries carrying the Hub's own
+spellings, and `platform_killswitches` with its policies, its overlay and its cache
+family — and **no writer**, because every toggle runs inside a scope whose gate refuses
+everyone. Its record,
+[Delivery Record (Packet 9)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9),
+carries something the earlier ones did not: four **decisions**, because three of them
+are readings of an Accepted ADR rather than applications of it — and a reading inferred
+from a diff is one nobody can disagree with later. The lesson the rounds kept
+repeating was narrower than Packet 8's and sharper: a rule that cannot tell *clean*
+from *blind*. Three separate guards passed because nothing in the repository violated
+them and their mechanism was never exercised; each now ships with a companion that
+proves it can fail.
+
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
 
@@ -184,10 +221,11 @@ is the next user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
-**Two modules hold domain code**, as of Packet 8: Tenancy — the `Tenant` and
-`Organization` aggregates, their entities, and `TenancyDbContext` — and
+**Three modules hold domain code**, as of Packet 9: Tenancy — the `Tenant` and
+`Organization` aggregates, their entities, and `TenancyDbContext`;
 Customization, with `TenantContentType`, `TenantLevelTaxonomy`, their
-generation counter and `CustomizationDbContext`. The other five module
+generation counter and `CustomizationDbContext`; and Audit, with `AuditEntry`,
+`AuditConfig` and `AuditDbContext`. The other four module
 assemblies are still empty, and
 module-level references in the docs (e.g.
 `LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
@@ -240,7 +278,7 @@ let the entry point pick it.
 | `docs/decisions/` | ADRs — one-time decisions with status, context, decision, consequences. Redirect / superseded ADRs live under `_redirects/`. | Accepted ADRs are immutable except for dated Amendments and the two bounded corrections in [Documentation Standards § Correcting and Amending ADRs](docs/standards/13-documentation.md) ([ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md)). |
 | `docs/standards/` | Engineering rules (`NN-topic.md`, 00 – 21). Each anchored standard carries a `**Derives from:** ADR-NNNN` header. | Editable as the team learns; standard changes cite an ADR. |
 | `docs/roadmap/` | Phased plan (`phase-NN-topic.md`, 00 – 12 with 02a/02b/02c/**02d**, 08a/08b/08c, and 09/09b splits). Every phase doc carries the same six sections — Goal, Scope, Deliverables, Completion Criteria, Risks, Phase Exit Decision — with three declared exceptions listed in [the roadmap index](docs/roadmap/README.md): Phase 09b and Phase 12 are pointer documents into the Hub repository, and Phase 01 predates the convention. | Editable per phase; the Status block of a shipped packet is a dated delivery record and is not rewritten. |
-| `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6, and [Customization](docs/modules/customization/README.md), Packet 8. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
+| `docs/modules/` | Per-module specifications (`<module>/README.md` + `permissions.md` + `audit.md`), one directory per module, created with the first spec — [Tenancy](docs/modules/tenancy/README.md), Phase 02a Packet 6, [Customization](docs/modules/customization/README.md), Packet 8, and [Audit](docs/modules/audit/README.md), Packet 9. The ten sections are fixed by [Documentation Standards](docs/standards/13-documentation.md). | Editable with the module. |
 | `docs/glossary.md` | Terminology source of truth. | Editable; new term goes here first, then used. |
 
 > `docs/analysis/` exists locally but is **gitignored** — it is a private scratchpad
@@ -361,9 +399,9 @@ rules:
 - Write a MUST-class audit row outside the business transaction. MUST-class
   audit is written on the **same transaction** as the state change it describes
   ([ADR-0033](docs/decisions/0033-audit-durability-model.md)) — `AuditLogBehavior`
-  classifies and parks the intent, `TransactionBehavior` writes it immediately
-  before `COMMIT` — so it commits with that change or not at all, and so it
-  executes while `app.tenant_id` is set and RLS accepts it. "The same
+  classifies and parks the intents, `TransactionBehavior` writes them immediately
+  before `COMMIT` — so they commit with that change or not at all, and so they
+  execute while `app.tenant_id` is set and RLS accepts it. "The same
   `SaveChanges` as the business write" was the earlier formulation and ADR-0033
   **withdraws** it: the guarantee is the transaction, which is what a reader of
   `audit_log` observes and which needs no cross-`DbContext` machinery. A tenant `AuditConfig` may
@@ -372,7 +410,76 @@ rules:
   classify at all, and a MUST-class row that cannot be written durably. A
   tenant-override **read** failure does not — it falls back to the in-process
   catalogue, which carries the same MUST floor, so nothing proceeds unaudited
-  and a cache outage does not deny every request platform-wide.
+  and a cache outage does not deny every request platform-wide. The second of
+  those two is **narrowed for the standalone class** by
+  [ADR-0033 Amendment 1](docs/decisions/0033-audit-durability-model.md): a
+  standalone MUST-class write failure changes the response only when the
+  operation would otherwise have **succeeded**. A row recording an operation
+  already being refused — a `denied` authorisation outcome, a rejected tenant
+  assertion — keeps its own 403 / 404 and logs at `Critical`; downgrading a
+  refusal to a `503` an anonymous caller can provoke tells them more, not less.
+  The in-transaction class is untouched.
+- **Write one audit row per request when the request audits two resources.**
+  Intents are plural ([ADR-0044](docs/decisions/0044-audit-write-path.md), and
+  [ADR-0033 Amendment 2](docs/decisions/0033-audit-durability-model.md)): one per
+  audited `(resource, operation)`, held as an ordered list, and only the
+  **owning** unit-of-work frame writes them or reports the commit boundary — a
+  joiner that reports `Committed` claims durability for a row nothing committed.
+  `ProvisionTenantCommand` is the shipped case: two aggregates, one transaction,
+  two MUST rows.
+- **Write two instances of an operation's declared aggregate without naming which one
+  the row is about.** A row describes one instance. A handler that writes two — a
+  publication retires the incumbent and activates the successor — calls
+  `IAuditSubject.Designate(aggregate)`, and the other instance travels in `changes`
+  under its own instance-qualified pointer; undesignated, the composer refuses the pair
+  and the request fails closed. An entity the aggregate contains through a navigation
+  needs nothing: it is captured inside the aggregate's row
+  ([ADR-0044 Amendment 6](docs/decisions/0044-audit-write-path.md)).
+- **Declare an audit value type in the Audit module's `Domain`.**
+  `LearnStack.SharedKernel.Audit` holds the value types beside the ports —
+  `OperationType`, `OperationClass`, `AuditOutcome`, `AuditClassification`,
+  `AuditIntentState` and `CapturedEntityChange`
+  ([ADR-0044 Amendment 3](docs/decisions/0044-audit-write-path.md)) — because
+  `AuditIntent` and `AuditEntryDraft` are SharedKernel records that name them
+  and every module's `IAuditCatalogSource` names the first two. Declaring them
+  in the module is a project cycle. `AuditEntry` consumes them; it does not
+  declare them.
+- **Announce `TenantId.PlatformSentinel` as a request's tenant.** Exactly one
+  class of row carries it — a platform-scope operation with no resolvable
+  tenant, written standalone — and Packet 9 puts the guard where the value
+  enters: `SetProvisioningTenantContextAsync` refuses the sentinel exactly as it
+  already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory
+  ([ADR-0044 Amendment 3](docs/decisions/0044-audit-write-path.md)). The
+  `tenants` CHECK is the backstop, not the control — a constraint cannot stop a
+  GUC from being announced.
+- **Store a killswitch in `tenant_feature_flags`.** That table has a foreign key
+  to `tenants` and the platform sentinel deliberately has no `tenants` row, so
+  the write is refused — and a foreign key is a constraint no role and no
+  `BYPASSRLS` moves. Killswitches live in the platform-scoped
+  `platform_killswitches`
+  ([ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Packet 9 ships that table, its policies, the overlay and its cache family —
+  and **no writer**: every toggle runs inside `EnterPlatformAdminScope(reason)`,
+  whose registered gate is `DenyAllPlatformAdminGate`, so nothing can enter that
+  scope until the Platform-scope permission arrives, and
+  [Phase 03](docs/roadmap/phase-03-identity-admin.md) owns the toggle command,
+  its permission and its runbook
+  ([ADR-0045 Amendment 1](docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+- **Read `platform_entitlement_cache` from a module, `IFeatureFlags` included.**
+  The only sanctioned reader *and* writer is an `IEntitlementProvider`
+  implementation; `IFeatureFlags` composes over the port, which is what makes
+  swapping the registered provider change the answer.
+- **Spell a limit key in LearnStack's own vocabulary.** The limit-key set is the
+  Hub's, under the `limits.` prefix, because the Hub has merged code and two
+  plan validators built on it and this side has a declaration and no
+  implementing line
+  ([ADR-0045 Amendment 1](docs/decisions/0045-entitlement-and-feature-flag-socket.md),
+  [ADR-0021](docs/decisions/0021-feature-based-entitlement.md)). The earlier
+  `tenancy.max_learners` / `classroom.minutes_per_month` / `media.storage_gb`
+  spellings are withdrawn: a key the Hub never sends misses on every real
+  projection and falls through to the catalog default, so a paid tenant reads as
+  unentitled and the read reports success. The **feature**-key set is not
+  changed with it.
 - Inject `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` directly — use `IEventBus` / `ICacheService` /
   `ISecretProvider`.
@@ -381,6 +488,11 @@ rules:
 - Write `audit_log`, `platform_entitlement_cache`, or `outbox_messages`
   directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`,
   `IOutbox`.
+- Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
+  `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
+  ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with
+  no before, after or changes and nothing fails;
+  `No_Set_Based_Write_Bypasses_The_Audit_Capture` enforces it.
 - Accept `learnstack-hub` realm tokens on tenant-facing endpoints, or
   `learnstack` realm tokens on `/api/internal/*`.
 - Reuse an ADR number.

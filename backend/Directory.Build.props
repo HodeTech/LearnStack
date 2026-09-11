@@ -39,16 +39,26 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CA1014;CS1591</NoWarn>
     <!--
-      NuGet audit: enforce on DIRECT deps only. Transitive packages (e.g. the
-      Testcontainers ecosystem still pulls Azure.Identity 1.3.0 / older
-      System.IdentityModel.* shapes via its auth stack) emit NU190x
-      vulnerability warnings that flip to errors under `TreatWarningsAsErrors`
-      in CI. We do not own those upgrade cadences; auditing direct deps catches
-      our own choices without flagging every transitive shipped by a dev-only
-      test library. The Phase 02a backend integration packet picks up
-      Testcontainers properly and may need to reconsider this.
+      NuGet audit over the WHOLE graph, transitive packages included. `direct` was the
+      setting until Packet 9's review round, on the reasoning that a dev-only test
+      library's transitive advisories were not ours to fix — and it hid three high-
+      severity advisories for months: Microsoft.OpenApi 2.0.0 (through
+      Microsoft.AspNetCore.OpenApi, in the API), System.Security.Cryptography.Xml 9.0.0
+      (through EF Core Design's MSBuild) and SSH.NET 2023.0.0 (through Testcontainers).
+      Security Standards § Dependency Hygiene patches a high advisory within seven days,
+      which a build that never reports one cannot do. Under CI's TreatWarningsAsErrors a
+      new advisory of ANY severity fails the build — NuGetAuditLevel is stated as `low`
+      below rather than inherited, because "high" was what the prose around it used to
+      say: move the package that brings it to a patched release, and if none exists yet,
+      suppress that one advisory with NuGetAuditSuppress beside a dated reason — never by
+      narrowing this mode or raising that level again.
+
+      NU1900 — the vulnerability data could not be fetched — fails CI the same way, and
+      deliberately: a restore that could not check the graph is not a clean one. Re-run
+      when the feed is back; do not demote the warning.
     -->
-    <NuGetAuditMode>direct</NuGetAuditMode>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>

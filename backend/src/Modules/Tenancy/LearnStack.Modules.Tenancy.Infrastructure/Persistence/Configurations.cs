@@ -275,7 +275,9 @@ internal sealed class PlatformEntitlementConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.Features).HasColumnType("jsonb").IsRequired();
         builder.Property(x => x.Limits).HasColumnType("jsonb").IsRequired();
         builder.Property(x => x.Compliance).HasColumnType("jsonb").IsRequired();
-        builder.Property(x => x.ValidUntil).IsRequired();
+        // NOT required: null is "no scheduled expiry", which is what the Hub sends for
+        // every trial and perpetual licence (ADR-0045 Amendment 1 § 2).
+        builder.Property(x => x.ValidUntil);
         builder.Property(x => x.GraceUntil);
         builder.Property(x => x.Generation).HasDefaultValue(1L).IsRequired();
 
@@ -285,6 +287,29 @@ internal sealed class PlatformEntitlementConfiguration : IEntityTypeConfiguratio
 
         // Closed set, so text + CHECK rather than a length cap.
         builder.Property(x => x.Source).HasColumnType("text").IsRequired();
+    }
+}
+
+internal sealed class PlatformKillswitchConfiguration : IEntityTypeConfiguration<PlatformKillswitch>
+{
+    public void Configure(EntityTypeBuilder<PlatformKillswitch> builder)
+    {
+        builder.ToTable("platform_killswitches");
+
+        // The key is the key. One switch per key, and no surrogate to be out of step
+        // with it.
+        builder.HasKey(x => x.Key).HasName("pk_platform_killswitches");
+
+        // Long enough for any `{module}.{capability}` key the registry declares, and
+        // bounded because an unbounded primary key is an unbounded index.
+        builder.Property(x => x.Key).HasMaxLength(150).IsRequired();
+
+        builder.Property(x => x.IsEnabled).IsRequired();
+        builder.Property(x => x.Reason);
+        builder.Property(x => x.ToggledAt).IsRequired();
+
+        // No conversion and no foreign key: see PlatformKillswitch.ToggledBy.
+        builder.Property(x => x.ToggledBy);
     }
 }
 

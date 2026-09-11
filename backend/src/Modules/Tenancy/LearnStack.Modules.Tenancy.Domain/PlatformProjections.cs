@@ -63,8 +63,21 @@ public sealed class PlatformEntitlement : ITenantOwned
     /// <summary>Compliance caps, regions, retention overrides, as JSON.</summary>
     public string Compliance { get; private set; }
 
-    /// <summary>When the entitlement lapses. Carried on the wire as <c>expires_at</c>.</summary>
-    public DateTimeOffset ValidUntil { get; private set; }
+    /// <summary>
+    /// When the entitlement lapses, or <c>null</c> for no scheduled expiry. Carried on the
+    /// wire as <c>expires_at</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Nullable, and never coerced to a sentinel.</b> The pinned wire schema makes
+    /// <c>expires_at</c> required <b>and</b> nullable, the Hub's DTO carries
+    /// <c>DateTimeOffset?</c>, and the Hub sends <c>null</c> for every tenant with no
+    /// scheduled expiry — trials and perpetual licences, which is the cohort it creates
+    /// first. A far-future date in its place would silently become an expiry somebody
+    /// eventually has to explain
+    /// (<see href="../../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
+    /// Amendment 1 § 2</see>).
+    /// </remarks>
+    public DateTimeOffset? ValidUntil { get; private set; }
 
     /// <summary>Bounds the grace window. Null unless in grace.</summary>
     public DateTimeOffset? GraceUntil { get; private set; }
@@ -87,9 +100,10 @@ public sealed class PlatformEntitlement : ITenantOwned
 /// </summary>
 /// <remarks>
 /// <para>
-/// The one <b>platform-scoped</b> table: <c>IHostToTenantResolver</c> reads it in
-/// order to <i>determine</i> the tenant, so the ordinary tenant-owned predicate
-/// would return zero rows and no tenant could ever resolve. Its policies are
+/// A <b>platform-scoped</b> table, one of two with <see cref="PlatformKillswitch"/>:
+/// <c>IHostToTenantResolver</c> reads it in order to <i>determine</i> the tenant, so the
+/// ordinary tenant-owned predicate would return zero rows and no tenant could ever
+/// resolve. Its policies are
 /// role-qualified and per-command — the read admits the single row the resolver
 /// announces through <c>app.resolving_host</c>, writes stay tenant-keyed
 /// (<see href="../../../../../docs/standards/05-database.md">Database Standards
@@ -203,4 +217,76 @@ public sealed class PlatformHostMapping
     /// A host-only request requires it.
     /// </remarks>
     public bool IsPubliclyLive { get; private set; }
+}
+
+/// <summary>
+/// One platform-wide switch. Not tenant data, and deliberately not a tenant flag.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Platform-scoped, and it carries no tenant at all.</b> A killswitch is one switch
+/// per key for the whole deployment, so there is nothing for a tenant predicate to
+/// isolate — which is exactly the test
+/// <see href="../../../../../docs/standards/05-database.md">Database Standards § Table
+/// classes</see> sets for the class, rather than an analogy to
+/// <c>platform_host_to_tenant</c>.
+/// </para>
+/// <para>
+/// <b>The alternative could not be written at all.</b>
+/// <see href="../../../../../docs/architecture/21-feature-flags.md">Feature Flags</see>
+/// described a killswitch as a flag "flipped to <c>false</c> for the sentinel platform
+/// tenant", and <c>tenant_feature_flags</c> carries
+/// <c>fk_tenant_feature_flags_tenant REFERENCES tenants (id)</c> while the sentinel has
+/// no <c>tenants</c> row by CHECK. A foreign key is a constraint, so no role and no
+/// <c>BYPASSRLS</c> attribute moves it
+/// (<see href="../../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
+/// § 5</see>).
+/// </para>
+/// <para>
+/// <b>No writer ships with it, and that is reachability rather than scheduling.</b> Every
+/// toggle runs inside <c>EnterPlatformAdminScope(reason)</c> whose registered gate is
+/// <c>DenyAllPlatformAdminGate</c>, so nothing can enter that scope until the
+/// Platform-scope permission arrives with the registry in
+/// <see href="../../../../../docs/roadmap/phase-03-identity-admin.md">Phase 03</see>,
+/// which owns the toggle command, its permission and its runbook. A command shipped now
+/// would be unreachable code keyed on a permission nothing registers. Every gated read
+/// honours a flipped switch the day one exists; what is absent is the flipping.
+/// </para>
+/// </remarks>
+public sealed class PlatformKillswitch
+{
+    private PlatformKillswitch() => Key = null!;
+
+    /// <summary>The switch's key, and the table's primary key.</summary>
+    /// <remarks>
+    /// The key IS the identity: one switch per key, enforced by the primary key rather
+    /// than by a unique index over a surrogate — the same choice
+    /// <c>platform_host_to_tenant</c> makes for the host.
+    /// </remarks>
+    public string Key { get; private set; }
+
+    /// <summary>Whether the gated capability is on. <c>true</c> is the enabled state.</summary>
+    /// <remarks>
+    /// A row's absence and <c>true</c> mean the same thing, which is why a read failure
+    /// resolves to <c>true</c>: a cache outage must not disable every gated path
+    /// platform-wide.
+    /// </remarks>
+    public bool IsEnabled { get; private set; }
+
+    /// <summary>Why it was flipped, for the operator who finds it flipped.</summary>
+    public string? Reason { get; private set; }
+
+    /// <summary>When it was last flipped.</summary>
+    public DateTimeOffset ToggledAt { get; private set; }
+
+    /// <summary>
+    /// Who flipped it, once there is a principal to record.
+    /// </summary>
+    /// <remarks>
+    /// Nullable and plain <see cref="Guid"/> rather than <c>UserId</c>: the column holds
+    /// no foreign key — a killswitch outlives the operator who set it and must not be
+    /// undeletable because of one — and there is no principal in the process until
+    /// Phase 02b, so the first rows Phase 03 writes are the first that can name one.
+    /// </remarks>
+    public Guid? ToggledBy { get; private set; }
 }

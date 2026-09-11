@@ -25,6 +25,8 @@ public sealed class HttpStatusMapTests
     [InlineData("business_rule_violation", 409)]
     [InlineData("rate_limited", 429)]
     [InlineData("dependency_unavailable", 503)]
+    [InlineData("audit_unavailable", 503)]
+    [InlineData("audit_unclassified_operation", 500)]
     [InlineData("unknown_code", 500)]
     public void For_Code_Matches_StandardsTable(string code, int expected)
     {
@@ -85,5 +87,20 @@ public sealed class HttpStatusMapTests
         // go unnoticed, while `code` is the field an RFC 7807 client matches on.
         failure.Error.Code.Should().Be("internal_error");
         HttpStatusMap.For(failure).Should().Be(500);
+    }
+
+    [Fact]
+    public void An_Audit_Write_Failure_Is_A_503_Carrying_Its_Own_Code()
+    {
+        // The theory above pins the string "audit_unavailable" to 503; nothing pinned that the
+        // exception the store throws carries that string. The code is derived from the key, so
+        // a mistyped key would leave the map's arm unmatched and the failure a 500 — the fail-
+        // closed response ADR-0033 Amendment 3 promises, gone quietly (the fifth review of
+        // Packet 9).
+        var failure = new LearnStack.SharedKernel.Audit.AuditWriteFailedException("the MUST row could not be written");
+
+        failure.Error.Code.Should().Be("audit_unavailable");
+        failure.Error.Should().Be(LearnStack.SharedKernel.Audit.AuditErrors.Unavailable);
+        HttpStatusMap.For(failure).Should().Be(503);
     }
 }

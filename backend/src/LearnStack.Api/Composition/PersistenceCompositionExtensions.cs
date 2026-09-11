@@ -1,12 +1,21 @@
+using LearnStack.Infrastructure.Audit;
+using LearnStack.Modules.Customization.Application.Audit;
+using LearnStack.Modules.Tenancy.Application.Audit;
+using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace LearnStack.Api.Composition;
@@ -104,6 +113,14 @@ public static class PersistenceCompositionExtensions
 
         services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
 
+        // And the Lazy over it — the ONE registration, which the host resolver, the
+        // organization scope validator, the audit write path and the flag reads all take.
+        // Same instance, deferred: a request on a platform host is answered from
+        // Tenancy:PlatformHosts and must not pay for a credential it does not use — and the
+        // Docker-free host suites have none at all.
+        services.TryAddSingleton(provider =>
+            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+
         // The platform credential — the second, separately-credentialed data source
         // ADR-0003 requires, keyed so only PlatformAdminScope resolves it. Validated at
         // boot when present, for the same reason the application one is: a credential
@@ -145,6 +162,114 @@ public static class PersistenceCompositionExtensions
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddModuleDbContext<CustomizationDbContext>();
+
+        // Audit's context is registered for the model, not for a writer. Rows reach
+        // audit_log as PostgresAuditStore's parameterised INSERT on the ambient
+        // transaction; what this registration buys is the query filter, the isolation
+        // sweep, and the read side the Phase 03 admin API projects from. Registering it
+        // through the same helper is what keeps it on the ambient connection — a context
+        // that opened its own would never see the SET LOCAL the audit insert depends on.
+        services.AddModuleDbContext<AuditDbContext>();
+
+        // ── The audit write path ─────────────────────────────────────────────
+        //
+        // All three scoped, and all three registered here rather than in the Audit
+        // module, because none of them is the module's: the ports are SharedKernel's and
+        // the implementations live in LearnStack.Infrastructure.Audit, whose csproj
+        // references SharedKernel and nothing else (ADR-0044 § 11). The interceptor
+        // attaches to EVERY module's DbContext, so a home inside the Audit module would
+        // make every module reference it.
+        //
+        // The capture is scoped because its lifetime is the REQUEST, not the
+        // transaction: a rollback leaves it intact, which is what lets the reconcile step
+        // see that rows it wrote are gone. Registering it as a singleton would share one
+        // request's snapshots with the next.
+        services.TryAddScoped<AuditStateCapture>();
+        services.TryAddScoped<IAuditStateCapture>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+
+        // The SAME instance, behind the narrow port a handler designates its row's subject
+        // through. Two registrations of the concrete type would give the handler a buffer
+        // the behavior never reads, and every designation would silently bind nothing.
+        services.TryAddScoped<IAuditSubject>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+
+        // As ISaveChangesInterceptor, which is the type AddModuleDbContext resolves and
+        // passes to AddInterceptors. A registration by its own concrete type would
+        // resolve and never attach — measured on EF Core 10.
+        //
+        // TryAddEnumerable, not TryAddScoped. ISaveChangesInterceptor is a MULTI
+        // registration — AddModuleDbContext resolves the whole collection — and
+        // TryAddScoped skips when ANY registration of the service type exists, so the
+        // moment a second interceptor is registered first the audit capture is silently
+        // not added and every audit row ships with empty snapshots and no error anywhere.
+        // TryAddEnumerable is keyed on the (service, implementation) pair, which is the
+        // idempotence this actually wants.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
+
+        // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
+        // factory. AddMetrics is idempotent and the API host already calls it through
+        // AddOpenTelemetry; naming it here keeps this root self-sufficient, which is what
+        // lets the seeder build the same graph.
+        services.AddMetrics();
+
+        // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
+        // and answers for one tenant, which is one request. It does NOT take a module
+        // DbContext: both halves it reads are policy-guarded tables it reaches on
+        // connections of its own, so resolving it does not require an open unit-of-work
+        // frame — middleware, an endpoint filter, a health check and the anonymous rate
+        // limiter are all natural readers and none of them is inside one.
+        services.TryAddScoped<IFeatureFlags, FeatureFlags>();
+
+        // The killswitch overlay's read path, and the same reasoning one level down. The
+        // cache entry it fronts is process-wide, so a scoped instance costs one resolution
+        // and shares the one entry — and the load runs on its own connection, because the
+        // cache flight that runs it outlives the caller that started it.
+        services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
+
+        // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
+        // not Development only: ADR-0035 names NullEntitlementProvider the working default
+        // for this gate, with Phase 02c as the owning phase and "a tenant must be billed
+        // or plan-gated" as the trigger. Until that fires there is no billing to enforce
+        // and no Hub to ask, so a mode-conditional registration would make four of the
+        // five modes unbootable for a capability none of them uses (ADR-0045 § 4).
+        //
+        // Swapping this one line is the whole of the Phase 02a completion criterion: it
+        // changes the answer without touching module code, which is only true because
+        // IFeatureFlags composes over the PORT rather than reading
+        // platform_entitlement_cache itself.
+        services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
+
+        // The observable half of the fail-closed rule (ADR-0033 Amendment 3). A SINGLETON,
+        // because the rule spans requests: "unhealthy while the most recent MUST-class
+        // standalone write has failed and no later one has succeeded" is not a property of
+        // any one request, and a scoped instance would report healthy on the next.
+        services.TryAddSingleton<IAuditHealth, AuditHealth>();
+
+        // Registered, not mapped. /healthz stays a liveness probe — a process that cannot
+        // write audit rows is still worth leaving alive — and the readiness surface that
+        // reads this, with the deployment-level backstop that stops serving, is Phase 11's
+        // on its own trigger.
+        services.AddHealthChecks().AddCheck<AuditHealthCheck>(AuditHealthCheck.Name);
+
+        services.TryAddScoped<IAuditStore, PostgresAuditStore>();
+
+        // The catalogue, merged once from every module's source. A singleton: it is built
+        // at composition time and read on every request, and rebuilding it per scope would
+        // pay the merge — and its enforcement — on every call.
+        services.TryAddEnumerable([
+            ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+        ]);
+
+        services.TryAddSingleton<IAuditCatalog>(provider =>
+            new AuditCatalog(provider.GetServices<IAuditCatalogSource>()));
+
+        // The classifier is scoped because its cache reads are per request, and it holds
+        // no state of its own between them.
+        services.TryAddScoped<IAuditConfigService, AuditConfigService>();
+
 
         // The write side of the two Tenancy roots, beside the context they run on. A
         // handler cannot name a DbSet — Application → Infrastructure is a forbidden edge

@@ -43,8 +43,9 @@ so the handler stays focused on its own business logic.
 |-------|----------|-------------|
 | Operation name | Yes | `<Verb><Aggregate><Command/Query>`, e.g. `CreateEnrollmentCommand`. |
 | Owning module | Yes | Determines folder + DbContext. |
-| Audit class | Yes | `create` / `update` / `delete` / `read-sensitive` / `security-event` / `platform-admin` per [18-audit-coverage.md](../../../docs/standards/18-audit-coverage.md). |
-| Permission | Yes | `{module}.{resource}.{action}` from the closed action set. |
+| Audit operation slug | Yes, unless the request registers `Off` | `{module}.{resource}.{verb}` — the catalogue key and the matrix's `Operation` cell. |
+| `OperationType` | Yes | `Create` / `Update` / `Delete` / `ReadSensitive` / `SecurityEvent` / `PlatformAdmin` / `Action` per [18-audit-coverage.md](../../../docs/standards/18-audit-coverage.md). |
+| Permission | Yes | `{module}.{resource}.{action}` from the closed action set — same first two segments as the audit slug, different third. |
 | Integration events | No | What it publishes (if any). |
 | Idempotency key | No | Required only for write endpoints with external side effects. |
 
@@ -188,27 +189,54 @@ Rules:
   infrastructure and is not injected into
   handlers ([ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md)).
 
-### Step 4: Audit catalogue entry
+### Step 4: Audit matrix row + catalogue entry
 
-Open the module's `audit.md` (under `docs/modules/<name>/audit.md`). Add a row:
+> **`AuditLogBehavior` is live.** `IAuditCatalogSource`, `IAuditCatalogBuilder`,
+> `IAuditStore`, `OperationType` and the rest ship in `LearnStack.SharedKernel.Audit` —
+> write against them as spelled. `IAuditStore` and the
+> value types the triple names — `OperationType` and `OperationClass` among them — land
+> in `LearnStack.SharedKernel.Audit` and not in the Audit module's Domain, because a
+> module's `Application` project references only SharedKernel, its own Domain and its own
+> Contracts
+> ([ADR-0044 § 11](../../../docs/decisions/0044-audit-write-path.md) and
+> [Amendment 3 § 3](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+
+**Every request type must be classified.** There is no exempt kind and
+no implicit default: an `IRequest<Result<T>>` that reaches pipeline step 3 without a
+catalogue entry is rejected with `audit_unclassified_operation` (500)
+([ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md)). This step is not
+optional even when the answer is "not audited" — that answer is a registration of its
+own, `AuditClassification.Off`, made through the builder's own call rather than by
+leaving the request out
+([ADR-0044 Amendment 3 § 4](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
+`Off` is what `IAuditConfigService.ClassifyAsync` returns; `OperationClass { Must,
+Should, May }` stays the tier the catalogue and the matrix declare.
+
+Open the module's `audit.md` (under `docs/modules/<name>/audit.md`). Add a row carrying
+the operation slug:
 
 ```markdown
-| Enrollment | – | MUST | MUST | – | – |
+| `Enrollment` | `enrollment.enrollment.create` | **MUST** | Grants access to paid content |
 ```
 
-…and register the operation in the catalogue:
+…and register the same slug in the module's `IAuditCatalogSource`:
 
 ```csharp
-catalog.MustAudit<CreateEnrollmentCommand>(
-    module: "enrollment",
-    operation: "enrollment.create",
-    operationType: OperationType.Command,
-    operationClass: OperationClass.Create,
-    capturesBeforeAfter: false);   // no prior state to capture for create
+// LearnStack.Modules.Enrollment.Application/EnrollmentAuditCatalogSource.cs
+builder.MustAudit<CreateEnrollmentCommand>(
+    operation: "enrollment.enrollment.create",   // {module}.{resource}.{verb}
+    operationType: OperationType.Create,
+    entityType: typeof(Enrollment));             // fills entity_type / entity_id
 ```
 
-The `AuditLogBehavior` reads the catalogue and writes through `IAuditStore`
-automatically. **You never call `IAuditStore` directly from the handler.**
+The slug shares its first two segments with the permission key that gates the same
+resource, but **not** the closed action set — audit verbs come from the matrix
+(`create`, `publish`, `rename`, `soft_delete`, …).
+
+`AuditLogBehavior` reads the catalogue, mints the `AuditEntryId` and parks one intent
+per audited `(resource, operation)` — a command that writes two aggregates on one
+transaction declares two — and `TransactionBehavior` writes them immediately before
+`COMMIT`. **You never call `IAuditStore` directly from the handler.**
 
 See [add-audit-coverage](../add-audit-coverage/SKILL.md).
 
@@ -270,8 +298,10 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
 - `dotnet build` and `dotnet test` pass.
 - The validator runs (try a bad input and confirm `400 ProblemDetails` with the
   validation message keys).
-- The audit pipeline writes an `AuditEntry` (check the `audit_log` table in an
-  integration test).
+- The audit pipeline writes one `AuditEntry` **per declared intent** — check
+  `audit_log` in an integration test, connected as `learnstack_app`, and assert the
+  `operation` slug and the `outcome` (`success` | `denied` | `failed` |
+  `indeterminate`).
 - The outbox row is visible in `outbox_messages` after the command completes; the
   outbox processor dispatches it in dev (see
   [wire-dapr-pubsub](../wire-dapr-pubsub/SKILL.md)).
@@ -297,8 +327,16 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
   bug; FluentValidation runs in collect-mode by default and pipeline behavior
   never raises a validation exception.
 - **Calling `IAuditStore` directly.** The `AuditLogBehavior` does this for you. A
-  direct call writes a duplicate row. The architecture test
-  `Modules_Do_Not_Write_AuditLog_Directly` enforces it.
+  direct call writes a duplicate row. No architecture test catches it —
+  `Modules_Do_Not_Write_AuditLog_Directly` bans naming `audit_log` or `AuditEntry`
+  outside `LearnStack.Modules.Audit.*` and puts the SharedKernel ports out of scope —
+  so this one is on review.
+- **Leaving a new request type out of the catalogue.** It does not silently go
+  unaudited — it is rejected with `audit_unclassified_operation` (500) at step 3.
+  Test-only request types register through the same builder in their fixture.
+- **Dispatching a nested `ISender` request and expecting it to audit its own boundary.**
+  A nested frame joins the ambient unit of work; only the owning frame flushes intents
+  and reports the commit outcome ([ADR-0044 § 4](../../../docs/decisions/0044-audit-write-path.md)).
 - **Two transactions for write + outbox.** The outbox row must be in the **same**
   `SaveChangesAsync` as the aggregate. Otherwise the system can publish without
   committing (or commit without publishing).

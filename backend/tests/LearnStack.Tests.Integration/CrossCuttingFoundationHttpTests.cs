@@ -1,29 +1,33 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Net;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
+using FluentAssertions;
+using FluentValidation;
+using LearnStack.Api.Common;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Caching;
-using LearnStack.SharedKernel.Messaging;
-using FluentAssertions;
-using LearnStack.Api.Common;
 using LearnStack.SharedKernel.Errors;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
-using FluentValidation;
-using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Json;
+using System.Net;
+using System.Text.Json;
+using System.Text;
 using Xunit;
 
 namespace LearnStack.Tests.Integration;
@@ -194,6 +198,90 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
         first.ServiceProvider.GetRequiredService<ICacheService>()
             .Should().BeSameAs(second.ServiceProvider.GetRequiredService<ICacheService>());
     }
+
+    [Fact]
+    public void The_Entitlement_Provider_Resolves_To_The_Working_Default()
+    {
+        // This fixture boots Development; the SaaS half of "every wired mode" is
+        // DeploymentModeCompositionTests. And it is the one line the Phase 02a completion
+        // criterion turns on: swapping it must change the answer without touching module
+        // code, which is only true while IFeatureFlags composes over this port rather than
+        // reading platform_entitlement_cache itself.
+        using var scope = fixture.Services.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IEntitlementProvider>()
+            .Should().BeOfType<NullEntitlementProvider>();
+    }
+
+    [Fact]
+    public void The_Flag_Socket_Resolves_Outside_An_Open_Transaction()
+    {
+        // The property IFeatureFlags' own remarks promise: it can be read at any point in
+        // a request, including before TransactionBehavior opens anything. Middleware, an
+        // endpoint filter, a health check and the anonymous rate limiter are all natural
+        // readers and none of them is inside a unit-of-work frame.
+        //
+        // Measured before the fix: KillswitchOverlay injected the module DbContext, whose
+        // scoped factory THROWS when IUnitOfWork.Transaction is null — so resolving
+        // IFeatureFlags here threw before a single flag was read, even for a plan key with
+        // no killswitch that never touches the overlay.
+        using var scope = fixture.Services.CreateScope();
+
+        var resolve = () =>
+        {
+            scope.ServiceProvider.GetRequiredService<IKillswitchOverlay>();
+            scope.ServiceProvider.GetRequiredService<IFeatureFlags>();
+        };
+
+        resolve.Should().NotThrow(
+            "the socket reads on connections of its own, so it does not depend on where in "
+            + "the pipeline the caller happens to sit");
+    }
+
+    [Fact]
+    public void The_Entitlement_Provider_Is_A_Singleton_Across_Request_Scopes()
+    {
+        // It holds two frozen dictionaries built from the registries and no per-request
+        // state. A scoped registration would rebuild them per request for nothing, and a
+        // Phase 02c provider holding an L1 cache would rebuild that too.
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<IEntitlementProvider>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<IEntitlementProvider>());
+    }
+
+    [Fact]
+    public async Task The_Audit_Health_Check_Is_Registered_Under_The_Name_ADR_0033_Names()
+    {
+        // The check is the PORT ADR-0033 Amendment 3 ships here; the readiness surface
+        // that reads it is Phase 11's. So nothing in this packet maps it — which is
+        // exactly why the registration needs a case: an unmapped, unasserted check is a
+        // class nobody constructs. The name is asserted because it is the identifier the
+        // amendment names and the one a Phase 11 surface will filter on.
+        var report = await fixture.Services.GetRequiredService<HealthCheckService>()
+            .CheckHealthAsync(registration => registration.Name == AuditHealthCheck.Name);
+
+        var audit = report.Entries.Should().ContainSingle().Subject;
+
+        audit.Key.Should().Be("audit");
+        audit.Value.Status.Should().Be(HealthStatus.Healthy,
+            "nothing has failed a standalone write in this host");
+    }
+
+    [Fact]
+    public void The_Audit_Health_State_Is_A_Singleton_Across_Request_Scopes()
+    {
+        // The rule spans requests — "unhealthy while the most recent MUST-class standalone
+        // write has failed and no later one has succeeded" is not a property of any one of
+        // them — so a scoped reporter would read healthy on the very next request after
+        // the failure it exists to report.
+        using var first = fixture.Services.CreateScope();
+        using var second = fixture.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<IAuditHealth>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<IAuditHealth>());
+    }
 }
 
 /// Shared <see cref="WebApplicationFactory{TEntryPoint}"/> that wires the
@@ -226,6 +314,11 @@ public sealed class CrossCuttingHttpFixture : WebApplicationFactory<Program>
                 IRequestHandler<TestValidationCommand, Result<string>>,
                 TestValidationHandler>();
             services.AddTransient<IValidator<TestValidationCommand>, TestValidationValidator>();
+
+            // Registered as audited-nothing, because the pipeline refuses a request the
+            // catalogue does not know — silence included. Appended to the catalogue's
+            // sources rather than replacing them, so the shipped modules' entries stay.
+            services.AddSingleton<IAuditCatalogSource, TestAuditCatalogSource>();
 
             // TenantContextBehavior short-circuits when ITenantContext is not
             // resolved, and again when the resolved context's origin does not reach
@@ -301,10 +394,19 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
         return Task.CompletedTask;
     }
 
-    public void MarkRollbackOnly()
-    {
-        // Nothing to mark: there is no transaction to refuse to commit.
-    }
+    /// <summary>
+    /// Set by <see cref="MarkRollbackOnly"/> and never reset, as the real unit's is.
+    /// </summary>
+    /// <remarks>
+    /// The comment here used to say exactly this while <c>MarkRollbackOnly</c> was a
+    /// no-op, so the flag was permanently false. There is indeed no transaction to refuse
+    /// to commit — but <c>TransactionBehavior</c> branches on this property to tell a
+    /// REFUSED commit from a FAULTED one, and a double that always answers "not refused"
+    /// steers the code under test down the wrong half of that branch.
+    /// </remarks>
+    public bool IsRollbackOnly { get; private set; }
+
+    public void MarkRollbackOnly() => IsRollbackOnly = true;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

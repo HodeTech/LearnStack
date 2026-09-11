@@ -3,6 +3,7 @@ using FluentValidation;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
@@ -562,6 +563,47 @@ public sealed class CustomizationCommandTests
     [Theory]
     [InlineData("content-type")]
     [InlineData("taxonomy")]
+    public async Task A_publication_designates_its_successor_and_never_the_incumbent(string subject)
+    {
+        // The replacement publication writes two instances of one aggregate — the incumbent
+        // retired, the successor activated — and the audit composer refuses to guess which
+        // of them the operation is about. Before the designation that refusal rolled back
+        // every replacement publication of both aggregates (ADR-0044 Amendment 6 § 1). The
+        // designation is what tells it, so the case pins WHICH instance is named, not merely
+        // that one is: naming the incumbent would write a row whose entity_id is the
+        // revision the operation retired.
+        var (sender, stores) = Build();
+        Guid successor;
+
+        if (subject == "content-type")
+        {
+            await sender.Send(RegisterContentType(version: 1));
+            await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+            successor = Guid.Parse("0199a000-0000-7000-8000-0000000000c9");
+            await sender.Send(RegisterContentType(successor, version: 2));
+            stores.Designated.Clear();
+
+            (await sender.Send(new PublishTenantContentTypeCommand(successor))).IsSuccess.Should().BeTrue();
+        }
+        else
+        {
+            await sender.Send(RegisterTaxonomy(version: 1));
+            await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+            successor = Guid.Parse("0199a000-0000-7000-8000-0000000000d9");
+            await sender.Send(RegisterTaxonomy(successor, version: 2));
+            stores.Designated.Clear();
+
+            (await sender.Send(new PublishTenantLevelTaxonomyCommand(successor))).IsSuccess.Should().BeTrue();
+        }
+
+        stores.Designated.Should().Equal(successor);
+    }
+
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
     public async Task A_race_lost_on_the_incumbent_asks_the_caller_to_re_read(string subject)
     {
         // The answer IOptimisticConcurrency's own remarks promise. Untranslated this
@@ -801,7 +843,7 @@ public sealed class CustomizationCommandTests
             var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
 
             result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-            unit.RolledBackOnly.Should().BeTrue(
+            unit.IsRollbackOnly.Should().BeTrue(
                 "the incumbent was already deprecated when the successor's write failed");
             return;
         }
@@ -818,7 +860,7 @@ public sealed class CustomizationCommandTests
         var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(successor));
 
         taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-        unit.RolledBackOnly.Should().BeTrue();
+        unit.IsRollbackOnly.Should().BeTrue();
     }
 
     [Fact]
@@ -841,7 +883,7 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
 
         result.IsFailure.Should().BeTrue();
-        unit.RolledBackOnly.Should().BeTrue(
+        unit.IsRollbackOnly.Should().BeTrue(
             "the incumbent was already deprecated on this transaction, and committing "
             + "that alone leaves the key with no live revision at all");
     }
@@ -860,7 +902,7 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
 
         result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-        unit.RolledBackOnly.Should().BeFalse("nothing was written before the failure");
+        unit.IsRollbackOnly.Should().BeFalse("nothing was written before the failure");
     }
 
     // ── What the validators refuse ────────────────────────────────────────
@@ -1202,6 +1244,7 @@ public sealed class CustomizationCommandTests
         services.AddSingleton<ITenantLevelTaxonomyStore>(stores);
         services.AddSingleton<ITenantLevelTaxonomyCatalog>(stores);
         services.AddSingleton<ICustomizationGenerationStore>(stores);
+        services.AddSingleton<IAuditSubject>(stores);
         services.AddSingleton(gate ?? new StubGate(admitSchemas));
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IUnitOfWork, RecordingUnitOfWork>();
@@ -1223,11 +1266,22 @@ public sealed class CustomizationCommandTests
     /// </remarks>
     private sealed class RecordingStores
         : ITenantContentTypeStore, ITenantLevelTaxonomyStore, ICustomizationGenerationStore,
-          ITenantLevelTaxonomyCatalog
+          ITenantLevelTaxonomyCatalog, IAuditSubject
     {
         private long _generation;
 
         public List<string> Writes { get; } = [];
+
+        /// <summary>Every instance a handler designated as its audit row's subject, in order.</summary>
+        /// <remarks>
+        /// Kept apart from <see cref="Writes"/>: a designation is not a write, and the
+        /// sequences asserted there are the transaction's.
+        /// </remarks>
+        public List<Guid> Designated { get; } = [];
+
+        public void Designate<TId>(IAggregateRoot<TId> aggregate)
+            where TId : struct, IStronglyTypedId<Guid> =>
+            Designated.Add(aggregate.Id.Value);
 
         public Dictionary<Guid, TenantContentType> ContentTypes { get; } = [];
 
@@ -1438,9 +1492,19 @@ public sealed class CustomizationCommandTests
     /// </remarks>
     private sealed class RecordingUnitOfWork : IUnitOfWork
     {
-        public bool RolledBackOnly { get; private set; }
+        /// <summary>
+        /// Set by <see cref="MarkRollbackOnly"/> and never reset, as the real unit's is.
+        /// </summary>
+        /// <remarks>
+        /// ONE property, because there were two: a <c>RolledBackOnly</c> the cases asserted
+        /// and the interface's <c>IsRollbackOnly</c>, which <c>MarkRollbackOnly</c> never
+        /// touched. Every case read the one the mark set and none read the one
+        /// <c>TransactionBehavior</c> branches on, so this double reported a mark it would
+        /// have denied to the code under test.
+        /// </remarks>
+        public bool IsRollbackOnly { get; private set; }
 
-        public void MarkRollbackOnly() => RolledBackOnly = true;
+        public void MarkRollbackOnly() => IsRollbackOnly = true;
 
         public System.Data.Common.DbConnection Connection => throw new NotSupportedException();
 

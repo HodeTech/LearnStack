@@ -290,3 +290,45 @@ a primary key twice and is rejected by PostgreSQL.
   the canonical job-name catalogue the recurring-job id slots into.
 - [pg_partman](https://github.com/pgpartman/pg_partman) — rejected alternative;
   link kept for future revisit.
+
+### 2026-09-07 — Phase 02a creates a plain table, and this ADR does not order otherwise
+
+**Status: Accepted.** Raised by [ADR-0044](0044-audit-write-path.md), which ships
+`audit_log` in Phase 02a Packet 9.
+
+### What was ambiguous
+
+§ Decision and § Implementation Notes read as instructions to the migration that first
+creates `audit_log`: create it as a partitioned parent, `PARTITION BY RANGE (timestamp)`,
+with the current and next month's partitions seeded so the job has something to extend.
+Written in May that was the plan;
+[ADR-0033](0033-audit-durability-model.md) (2026-08-08) then moved partitioning to
+[Phase 11](../roadmap/phase-11-production-hardening.md) under
+[ADR-0035](0035-demand-gated-infrastructure.md), and the 2026-08-08 amendment above moved
+this ADR's schedule with it — but the DDL instruction was left reading as though Packet 9
+still executes it.
+
+### How it should be read
+
+**Phase 02a Packet 9 creates `audit_log` as a single, plain, unpartitioned table** with
+the composite primary key `(id, timestamp)`. Nothing in this ADR is executed by that
+migration. Phase 11 creates the partitioned parent, attaches the Packet 9 table to it, and
+recreates the indexes and the policy on the parent — which is the operation the composite
+key exists to keep cheap, since PostgreSQL has no `ALTER TABLE … PARTITION BY`.
+
+`Partition_Manager_Job_Is_Registered_AtStartup` moves with the job it guards. It is a
+**Phase 11** rule and is registered in
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md) by
+Phase 11; the assignment to Packet 9 in § Implementation Notes, and the claim that the
+rule is already catalogued, are both withdrawn. A rule registered against a job no phase
+has built is a rule that can only be satisfied by deleting it.
+
+The **Decision is unchanged**: when partitioning arrives it arrives as a Hangfire
+recurring job in `LearnStack.Infrastructure.Audit`, not as `pg_partman` and not as
+per-month migrations.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md), [Audit Coverage Standards](../standards/18-audit-coverage.md),
+[Audit Subsystem](../architecture/31-audit-subsystem.md) § 14, and
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md).

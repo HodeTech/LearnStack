@@ -16,7 +16,9 @@ model, and session-variable placement**),
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md),
 [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md),
-[ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md).
+[ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md),
+[ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
+(the audit row's tenant, capture, redaction, and the append-only layers).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -212,8 +214,14 @@ for the full strategy. Standards-side:
   `OrganizationId` means the row may be tenant-wide.
 - `IgnoreQueryFilters()` is allowed only inside the audited
   `EnterPlatformAdminScope(reason)` call path, which is itself the record of the
-  access. The architecture test `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
-  is a **path check**: no per-call-site attribute or comment marker exempts a call
+  access: the scope writes its `security-event` row through
+  `IAuditStore.WritePlatformScopeAsync` on its own platform-role connection **before**
+  the operation runs, and commits it on its own transaction rather than the scope's —
+  which an abandoned frame rolls back — so an operation that later fails is still
+  recorded ([ADR-0044 § 10](../decisions/0044-audit-write-path.md),
+  [05-database.md § How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`](05-database.md)).
+  The architecture test `No_IgnoreQueryFilters_Outside_PlatformAdminScope` is a
+  **path check**: no per-call-site attribute or comment marker exempts a call
   ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
   [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
@@ -278,11 +286,11 @@ placement rule above is unchanged and governs `app.scope` the moment a carrier e
 
 ### The out-of-band setters
 
-`TransactionBehavior` is the general case, not the only one. Seven setters exist in
+`TransactionBehavior` is the general case, not the only one. Eight setters exist in
 total and the set is closed
-([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md)
-is the authority; it is reproduced here because this section is the placement
-authority). Two set it on the **ambient** transaction; five own a **short
+([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
+with its Amendments 3 and 7, is the authority; it is reproduced here because this section
+is the placement authority). Two set it on the **ambient** transaction; six own a **short
 transaction of their own**, because they run where no ambient transaction exists
 yet:
 
@@ -295,6 +303,7 @@ yet:
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
 | The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
+| The tenant-flag loader (`FeatureFlags`) | its own short read | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 
 > **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
 > only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated
@@ -305,8 +314,16 @@ yet:
 > the set of setters is closed and a closed set is worth stating whole; it is not evidence
 > that a seventh short transaction runs on any Packet 7 request path.
 
-Every one of them connects as `learnstack_app`. A setter that reached for
-`learnstack_platform` would be invisible to the isolation suite, which is the
+**Both audit writers announce both variables.** `WriteStandaloneAsync` and
+`WriteBestEffortAsync` issue `app.tenant_id` **and** `app.organization_id` from the
+draft, as the first statements of their short transaction, because `audit_log` is
+organization-scoped: a row whose `organization_id` is non-null while the organization
+variable is unset fails `WITH CHECK`
+([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
+[ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
+
+Every one of the eight setters connects as `learnstack_app`. A setter that reached
+for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
 
@@ -319,23 +336,25 @@ the `SET LOCAL` pair on this transaction before any command a module `DbContext`
 runs on it.
 
 **Keyed on the transaction, not on the table**, and marked by one setter rather than
-seven — both narrower than an earlier wording here, and both for reasons the shipped
+eight — both narrower than an earlier wording here, and both for reasons the shipped
 mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
 every query and the database to decide something the transaction already answers.
-And of the seven out-of-band setters only `TransactionBehavior`, through
-`IUnitOfWork.SetTenantContextAsync`, marks anything today: five do not exist in code yet — the integration-event transport among them, and that
-one matters most, because it is the other setter that *opens* the ambient transaction and
-must therefore announce it when Phase 02b lands it — and the one that does exist,
-`OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception never
-sees. `CachedHostToTenantResolver` is not in this set at all: it sets
+And of the eight setters only `TransactionBehavior`, through
+`IUnitOfWork.SetTenantContextAsync`, marks anything today: two do not exist in code yet —
+the durable idempotency store, and the integration-event transport, which matters most,
+because it is the other setter that *opens* the ambient transaction and must therefore
+announce it when Phase 02b lands it — and the five that do, `OrganizationScopeValidator`,
+the two standalone audit writers and the two cached-projection loaders, issue raw
+`NpgsqlCommand`s on connections of their own, which EF interception never sees. `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming
 `TransactionBehavior` alone would reject the writes the idempotency store and the audit
 store legitimately make on their own short transactions — is real, and is answered by the
-guard reading a marker rather than a behavior's name: when those setters land, each marks
-the transaction it opens if and only if it reaches EF. It throws
+guard reading a marker rather than a behavior's name: a setter marks the transaction it
+opens if and only if it reaches EF. The audit store's writers have landed and reach none;
+the durable idempotency store will mark its own if it does. It throws
 `TenantContextMissingException` when it has not, which
 [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
 asserts in both directions. **Packet 7 owns it**: Packet 6 ships
@@ -468,8 +487,11 @@ which row today.
 
 429 responses include `Retry-After`. The edge half runs on **APISIX**
 (`limit-req` / `limit-count` plugins); the application half runs in ASP.NET, where
-plan-level `LimitKeys.MaxApiRequestsPerHour` can differ per tenant and the edge has
-no way to know it.
+the plan-level API-rate limit — `limits.api_rate_per_minute`, in the Hub's key
+vocabulary, which LearnStack adopts
+([ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md),
+[ADR-0021](../decisions/0021-feature-based-entitlement.md)) — can differ per tenant
+and the edge has no way to know it.
 
 ## Webhooks (Inbound)
 
@@ -494,10 +516,16 @@ no way to know it.
 
 ## Dependency Hygiene
 
-- Renovate / Dependabot enabled.
-- Critical / high vulnerabilities patched within 7 days.
-- Lockfiles committed.
-- No transitive dependency mismatch — `npm ci` / `dotnet restore --locked-mode` in CI.
+- Renovate / Dependabot enabled. **Not yet:** no update bot is configured, and
+  [Phase 11](../roadmap/phase-11-production-hardening.md) enables one.
+- Critical / high vulnerabilities patched within 7 days. The backend's restore reports an
+  advisory of **any** severity anywhere in the graph, transitive packages included, and CI
+  fails on it (`NuGetAuditMode` `all`, `NuGetAuditLevel` `low`, warnings as errors under
+  CI) — so the seven days are a deadline for a fix, never for noticing.
+- Lockfiles committed — `frontend/pnpm-lock.yaml` today. The backend has no NuGet lock
+  files yet; they arrive in [Phase 11](../roadmap/phase-11-production-hardening.md).
+- No transitive dependency mismatch — `pnpm install --frozen-lockfile` in CI today, and
+  `dotnet restore --locked-mode` once the backend has lock files to lock to (Phase 11).
 
 ## Container & Infrastructure
 
@@ -520,31 +548,91 @@ no way to know it.
 
 Every privileged operation writes an audit log entry per
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
-(supersedes ADR-0016) and the [18 Audit Coverage Standard](18-audit-coverage.md).
-Coverage is **MUST / SHOULD / MAY** per module-operation; the MediatR
-`AuditLogBehavior` writes through `IAuditStore` — modules never write `audit_log`
-directly. Entries are append-only and queryable by tenant admins for their own tenant
-(org-admins for their org).
+(supersedes ADR-0016),
+[ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md) and the
+[18 Audit Coverage Standard](18-audit-coverage.md). Coverage is
+**MUST / SHOULD / MAY** per module-operation; rows are written only through
+`IAuditStore` — modules never write `audit_log` directly. Entries are append-only and
+queryable by tenant admins for their own tenant (org-admins for their org).
 
 Security-relevant durability rules:
 
-- **MUST-class audit fails closed.** The row is written on the same **transaction**
-  as the business write — `AuditLogBehavior` classifies and parks the intent,
-  `TransactionBehavior` calls `IAuditStore.WritePendingAsync` immediately before
-  `COMMIT` — so a privileged operation cannot commit unaudited. It also means the
-  insert runs while `app.tenant_id` is set, which is what lets Row Level Security
-  accept it. "The same `DbContext.SaveChanges`" was the earlier formulation and
+- **MUST-class audit fails closed.** Its rows — one per audited
+  `(resource, operation)`, not one per request — are written on the same
+  **transaction** as the business write: `AuditLogBehavior` classifies and parks the
+  intents, and `TransactionBehavior` calls `IAuditStore.WritePendingAsync` on the
+  **owning** unit-of-work frame, immediately before `COMMIT`, draining every intent in
+  the scope ([ADR-0044 §§ 3–4](../decisions/0044-audit-write-path.md)). So a privileged
+  operation cannot commit unaudited. It also means the insert runs while
+  `app.tenant_id` is set, which is what lets Row Level Security accept it. "The same
+  `DbContext.SaveChanges`" was the earlier formulation and
   [ADR-0033](../decisions/0033-audit-durability-model.md) **withdrew** it: the
   guarantee is the transaction, which is what a reader of `audit_log` observes and
-  which needs no cross-context machinery.
-- **A failure to read `AuditConfig` fails closed too.** A tenant override may narrow
-  SHOULD/MAY coverage; it may never remove baseline MUST coverage.
+  which needs no cross-context machinery. Exactly two failures reject the operation —
+  an operation the catalogue does not classify (`audit_unclassified_operation`, 500)
+  and a MUST-class row that cannot be written durably (`audit_unavailable`, 503).
+- **A standalone MUST-class write failure follows the operation's own outcome.** A
+  standalone row recording an access that is being **granted** still rejects with
+  `503 audit_unavailable` — without it, data leaves the system unaudited. A standalone
+  row recording an operation that is **already being refused** — a `denied`
+  authorisation outcome, a rejected tenant assertion — keeps its own 403 / 404, because
+  nothing proceeds unaudited and downgrading the refusal would tell an anonymous caller
+  more, not less. Either way the failure logs at `Critical`, increments the
+  standalone-write-failure counter and marks the audit health check unhealthy
+  ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)). The
+  in-transaction class above is untouched by this.
+- **A failure to read a tenant's `AuditConfig` overrides does not reject.**
+  Classification falls back to the in-process catalogue, which carries the same MUST
+  floor, so nothing proceeds unaudited — and denying every request platform-wide
+  because one cached projection is unreachable is the worse compliance outcome. The
+  failure logs at `Error`; the audit health check does not move, because it answers only
+  whether a MUST-class row can be written
+  ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)). A tenant override
+  may narrow SHOULD/MAY coverage; it may never remove baseline MUST coverage
+  ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md);
+  registered as `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md) for Packet 10;
+  today `AuditConfigServiceTests` and `AuditLogBehaviorTests` hold its two halves).
+- **Snapshots are redacted at capture and bounded there.**
+  `AuditChangeTrackerInterceptor` captures every `Added` / `Modified` / `Deleted`
+  entry minus a named exclusion list, and two gates run before anything is parked: a
+  property marked `[PiiSensitive]` or matched by the shipped `SensitiveTokenCatalog`'s
+  name tokens has its value replaced with the redaction sentinel — the property is
+  kept, so the diff still records *that* it changed — and each of `before_state`,
+  `after_state` and `changes` is capped at `JsonValue.MaxRowBytes` (256 KiB), above
+  which the value becomes an explicit elision record
+  (`{"_elided": true, "bytes": …, "sha256": …}`) that preserves the column's JSON
+  type. Never a silent truncation and never a dropped field
+  ([ADR-0044 §§ 7–8](../decisions/0044-audit-write-path.md)).
+- **`audit_log` is tenant-owned and organization-scoped; `audit_config` is
+  tenant-owned and tenant-wide** — it has no `organization_id`, so it carries the tenant
+  term only and no restrictive write guards
+  ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). Both take the
+  canonical RLS template for their class from
+  [05-database.md § Table classes](05-database.md) unmodified — it is not repeated
+  here, or anywhere else. A tenant admin's read is bounded by the policy, not by the
+  query. `audit_log` carries no foreign key to `tenants`: the record of what happened
+  to a tenant has to outlive the tenant.
+- **Append-only holds in three layers, and each stops a different actor.**
+  `learnstack_app` holds `SELECT, INSERT` only and is stopped by the absent privilege;
+  `learnstack_platform` holds `UPDATE` on the redaction columns alone — any other
+  column is refused by the column-level grant, before the trigger runs — plus the
+  retention purge `DELETE`; and the table owner is stopped by neither, because it holds
+  every privilege implicitly and, under `FORCE`, the policy constrains it by **tenant**
+  rather than by immutability — measured, an owner `UPDATE` returns `UPDATE 0` with no
+  tenant announced and `UPDATE 1` with one, so `audit_log_append_only_guard` is the one
+  layer binding `learnstack_migration`. GDPR redaction and retention purge are the only
+  sanctioned mutations, and `IAuditStore` has no update method
+  ([ADR-0044 § 9](../decisions/0044-audit-write-path.md),
+  [18-audit-coverage.md § Storage](18-audit-coverage.md); asserted by
+  `AuditLog_Update_Is_Column_Restricted`).
 - SHOULD/MAY-class audit stays best-effort, and its accepted loss is written down rather
   than assumed.
 - Monthly partitioning and the retention job land in
   [Phase 11](../roadmap/phase-11-production-hardening.md) per
   [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) — audit correctness
-  cannot be retrofitted, audit scale can.
+  cannot be retrofitted, audit scale can. Phase 02a ships `audit_log` as a single plain
+  table ([ADR-0028 Amendment, 2026-09-07](../decisions/0028-audit-log-partition-management.md)).
 
 ## Incident Response
 

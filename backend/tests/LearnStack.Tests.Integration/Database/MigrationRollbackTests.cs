@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -47,18 +48,27 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(17L,
-            "eight tenancy tables, two platform tables, four customization tables, "
-            + "and the three history tables");
+        (await CountAsync(connection, TablesQuery)).Should().Be(21L,
+            "eight tenancy tables, three platform tables, four customization tables, "
+            + "two audit tables, and the four history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
+        (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L,
+            "fn_audit_log_append_only and fn_audit_log_no_truncate back the two "
+            + "append-only triggers");
 
         await _fixture.RollBackAsync();
 
         // The history tables survive: `database update 0` empties them, it does not
         // drop them. Everything the two migrations created is gone.
-        (await CountAsync(connection, TablesQuery)).Should().Be(3L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(4L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(0L);
+
+        // The audit triggers went with their table; the FUNCTIONS did not, and a
+        // Down() that dropped only the tables would leave both behind. Re-applying Up
+        // would then keep whichever body happened to be there, because CREATE FUNCTION
+        // with a matching signature is not an error the migration surfaces.
+        (await CountAsync(connection, AuditFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
     }
 
@@ -67,6 +77,10 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
     private const string FunctionQuery =
         "SELECT count(*) FROM pg_proc WHERE proname = 'fn_organization_id_immutable'";
+
+    private const string AuditFunctionQuery =
+        "SELECT count(*) FROM pg_proc WHERE proname IN "
+        + "('fn_audit_log_append_only', 'fn_audit_log_no_truncate')";
 
     private const string PolicyQuery =
         "SELECT count(*) FROM pg_policies WHERE schemaname = 'public'";
@@ -90,8 +104,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     {
         await Postgres.InitializeAsync();
 
-        // The shared applier, so a fourth chain reaches this fixture without anybody
-        // remembering. The three CreateX helpers below stay: the REVERSAL half needs
+        // The shared applier, so a fifth chain reaches this fixture without anybody
+        // remembering. The four CreateX helpers below stay: the REVERSAL half needs
         // per-chain control, which is the half that cannot be shared.
         await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
     }
@@ -105,6 +119,16 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     /// </summary>
     public async Task RollBackAsync()
     {
+        // Audit first, because it is the only chain that depends on another's tables:
+        // fk_audit_config_tenant references `tenants` with ON DELETE RESTRICT, and a
+        // DROP TABLE tenants while audit_config still exists fails on the dependency
+        // rather than on any row. Reversal order is application order reversed, which
+        // is what makes that fall out rather than have to be remembered.
+        await using (var audit = CreateAudit())
+        {
+            await audit.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
+        }
+
         await using (var customization = CreateCustomization())
         {
             await customization.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
@@ -132,6 +156,14 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
             .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
                 npgsql.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable))
             .Options);
+
+    private AuditDbContext CreateAudit() =>
+        new(
+            new DbContextOptionsBuilder<AuditDbContext>()
+                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
+                    npgsql.MigrationsHistoryTable(AuditDbContextFactory.HistoryTable))
+                .Options,
+            StaticTenantContextAccessor.Unresolved);
 
     private CustomizationDbContext CreateCustomization() =>
         new(

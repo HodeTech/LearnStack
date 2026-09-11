@@ -115,7 +115,7 @@ that tree is descriptive, not a delivery plan.
 | Studio shell, login, tenant switcher, org switcher, dashboard chrome, users, roles, invitations, `TenantCustomFieldDef` editor, tenant IdP federation surface | [Phase 03](phase-03-identity-admin.md) |
 | Content types, content entries, pages, page builder, `TenantPageBlock` editor, media library, navigation editor, publish / preview controls | [Phase 04](phase-04-cms-media-pages.md) |
 | Programs, courses, course structure, modules, lessons, lesson items, `TenantLessonItemType` editor, `TenantLevelTaxonomy` editor, `TenantCompletionRule` editor, course publish flow | [Phase 05](phase-05-education-learning-content.md) |
-| Branding and theme configuration, per-organization branding override, tenant settings (feature-flag overrides, read-only entitlement projection viewer, read-only custom-domain status), audit log viewer, the customization editor consolidation, cross-phase Studio information architecture | **Phase 06** |
+| Branding and theme configuration, per-organization branding override, tenant settings (feature-flag overrides, read-only entitlement projection viewer, read-only custom-domain status), audit log viewer, **audit coverage override editor**, the customization editor consolidation, cross-phase Studio information architecture | **Phase 06** |
 | Notification template library (`TenantTemplateLibrary`), assessment and question-bank screens, `TenantScoringRule` editor | [Phase 08a](phase-08a-assessment-notifications.md) |
 | Instructor availability, session and booking management | [Phase 08b](phase-08b-scheduling.md) |
 | Classroom session monitoring and recording metadata | [Phase 08c](phase-08c-classroom.md) |
@@ -134,10 +134,27 @@ read-only status ([27-custom-domain-tls.md](../architecture/27-custom-domain-tls
 - Tenant settings: feature-flag editor for `tenant_feature_flags` overrides
   ([21-feature-flags.md](../architecture/21-feature-flags.md)), read-only entitlement
   projection viewer for plan-level features and limits, read-only custom-domain status
-  viewer.
+  viewer. The editor is the table's first writer, so it ships the
+  `{tenant_id}:tenancy:feature-flags` invalidation with it — a generation counter the write
+  bumps, embedded in the key — which Packet 9 left as a 60-second TTL because there was
+  nothing to invalidate ([Infrastructure Stack § Cache layer cheat sheet](../standards/20-infrastructure-stack.md)).
 - **Audit log viewer** — paginated, filterable view over the Audit module's read API.
   Tenant admins see their tenant; organization admins see their organization
   ([31-audit-subsystem.md](../architecture/31-audit-subsystem.md)).
+- **Audit coverage override editor** — the only writer `audit_config` ever gets, and the
+  reason it is named here rather than left implied. Phase 02a Packet 9 creates that table
+  with `SELECT` for both runtime roles and **no** `INSERT`, `UPDATE` or `DELETE`, because
+  [Database Standards § GRANT matrix](../standards/05-database.md) writes each grant in
+  the migration that ships the command needing it. This phase therefore delivers three
+  things together: the screen, the commands behind it gated by `audit.config.write` /
+  `audit.config.delete` from [the module's matrix](../modules/audit/permissions.md), and
+  the migration that grants `learnstack_app` those three privileges. What the editor can
+  do is bounded and the bound is the point — a row narrows a SHOULD or a MAY and can never
+  remove a MUST, because `ClassifyAsync` re-applies the catalogue's floor after reading
+  the override ([ADR-0033](../decisions/0033-audit-durability-model.md)), so a compromised
+  tenant admin cannot switch off the detector that would catch the next cross-tenant probe.
+  Until this ships the table is empty, which reads as "no overrides" — the safe answer, and
+  why the gap costs nothing while it lasts.
 - **Customization editor consolidation** — the per-aggregate editors ship with their
   owning phases; Phase 06 assembles them into one coherent surface with a shared JSON
   Schema editor component and a shared sandboxed-DSL editor component, so a tenant admin

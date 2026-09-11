@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The fourteen tables the three chains create, used only to prove that a
+    /// The seventeen tables the four chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
@@ -74,6 +74,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         "outbox_messages", "idempotency_keys",
         "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items",
         "customization_generations",
+        "audit_log", "audit_config",
+        "platform_killswitches",
     ];
 
     /// <summary>What tenant A sees with its tenant context set and no organization scope.</summary>
@@ -95,6 +97,16 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
+        // Two rows exist. One is organization-scoped and invisible without
+        // app.organization_id, exactly as tenant_settings' pair is — audit_log is the
+        // second org-scoped table in the schema and the only one whose rows a tenant
+        // never writes directly.
+        ["audit_log"] = 1,
+        ["audit_config"] = 1,
+        // Platform-scoped and deliberately tenant-blind: one switch, visible to both
+        // tenants and to a request with no tenant at all. The only row in the schema for
+        // which "no tenant context ⇒ zero rows" is false on purpose.
+        ["platform_killswitches"] = 1,
     };
 
     /// <summary>What tenant B sees with its tenant context set.</summary>
@@ -114,6 +126,14 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
         ["customization_generations"] = 1,
+        ["audit_log"] = 1,
+        // Two: the second is tenant B's alone, and AuditConfigServiceTests asks tenant A
+        // about that slug to prove a scoped read from a leaking one.
+        ["audit_config"] = 2,
+        // Platform-scoped and deliberately tenant-blind: one switch, visible to both
+        // tenants and to a request with no tenant at all. The only row in the schema for
+        // which "no tenant context implies zero rows" is false on purpose.
+        ["platform_killswitches"] = 1,
     };
 
     public PostgresFixture Postgres { get; } = new();
@@ -139,10 +159,37 @@ public sealed class SchemaFixture : IAsyncLifetime
 
         // platform_host_to_tenant only: its four policies are role-qualified TO
         // learnstack_app, so under FORCE the owner is denied on it.
-        await using var app = await PostgresFixture.OpenAsync(Postgres.AppConnectionString);
-        await using var mappings = new NpgsqlCommand(HostMappingsSql, (NpgsqlConnection)app);
-        await mappings.ExecuteNonQueryAsync();
+        await using (var app = await PostgresFixture.OpenAsync(Postgres.AppConnectionString))
+        {
+            await using var mappings = new NpgsqlCommand(HostMappingsSql, (NpgsqlConnection)app);
+            await mappings.ExecuteNonQueryAsync();
+        }
+
+        // platform_killswitches as learnstack_platform, and it cannot be either of the
+        // two roles above: learnstack_app holds SELECT and nothing else, and the owner is
+        // denied for the same reason it is on platform_host_to_tenant — the only policy
+        // names learnstack_app, so under FORCE none applies to learnstack_migration.
+        // That is also the role every real toggle will use, through
+        // EnterPlatformAdminScope.
+        await using var platform = await PostgresFixture.OpenAsync(Postgres.PlatformConnectionString);
+        await using var killswitches = new NpgsqlCommand(KillswitchesSql, (NpgsqlConnection)platform);
+        await killswitches.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// One switch, enabled — the state a killswitch is in when nobody has flipped it.
+    /// </summary>
+    /// <remarks>
+    /// Seeded rather than left empty because the sweep's positive half needs a row to
+    /// find: <c>USING (true)</c> exists to guarantee that <c>learnstack_app</c> reads ALL
+    /// of this table with no tenant context, and a sweep against an empty table passes
+    /// whether or not the policy does anything.
+    /// </remarks>
+    private const string KillswitchesSql =
+        """
+        INSERT INTO platform_killswitches (key, is_enabled, reason, toggled_at, toggled_by)
+        VALUES ('killswitch.classroom.recording', true, NULL, now(), NULL);
+        """;
 
     private const string TenantRowsSql =
         """
@@ -229,6 +276,34 @@ public sealed class SchemaFixture : IAsyncLifetime
 
         INSERT INTO customization_generations (tenant_id, generation)
         VALUES ('11111111-1111-7111-8111-111111111111', 1);
+
+        -- The Audit chain. audit_log is the schema's second organization-scoped table,
+        -- so tenant A gets the same pair tenant_settings has: one tenant-wide row and
+        -- one under an organization, which is what makes the org half of the predicate
+        -- a number rather than an assumption. Neither is written by any command — the
+        -- runtime writer is PostgresAuditStore — so the seed is the owner's, and it
+        -- announces app.organization_id for the org-scoped row exactly as that writer
+        -- does. audit_config carries no organization_id and takes one row.
+        SET LOCAL app.organization_id = '';
+        INSERT INTO audit_log
+            (id, tenant_id, organization_id, module, operation, operation_type,
+             operation_class, outcome, timestamp)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111', NULL,
+                'tenancy','tenancy.tenant.provision','Create','Must','success', now());
+
+        SET LOCAL app.organization_id = 'aaaaaaaa-1111-7111-8111-111111111111';
+        INSERT INTO audit_log
+            (id, tenant_id, organization_id, module, operation, operation_type,
+             operation_class, outcome, timestamp)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111',
+                'aaaaaaaa-1111-7111-8111-111111111111',
+                'tenancy','tenancy.organization.create','Create','Must','success', now());
+
+        INSERT INTO audit_config
+            (id, tenant_id, module, operation, is_enabled, created_at, created_by, row_version)
+        VALUES (uuidv7(),'11111111-1111-7111-8111-111111111111',
+                'tenancy','tenancy.organization.create', false, now(),
+                '00000000-0000-7000-8000-000000000001', 0);
         COMMIT;
 
         BEGIN;
@@ -299,6 +374,30 @@ public sealed class SchemaFixture : IAsyncLifetime
 
         INSERT INTO customization_generations (tenant_id, generation)
         VALUES ('22222222-2222-7222-8222-222222222222', 2);
+
+        -- The Audit chain, tenant-wide on both tables. A count assertion against an
+        -- empty table passes whether or not the policy that should have emptied it
+        -- exists, so tenant B holds rows here too.
+        INSERT INTO audit_log
+            (id, tenant_id, organization_id, module, operation, operation_type,
+             operation_class, outcome, timestamp)
+        VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222', NULL,
+                'tenancy','tenancy.tenant.provision','Create','Must','success', now());
+
+        -- Two override rows, and the second one is what makes cross-tenant isolation
+        -- falsifiable here. Both tenants carrying the SAME slug was the earlier seed,
+        -- and under it a loader that announced the wrong tenant — or a cache key that
+        -- omitted it — produced the identical answer for both, so the isolation case
+        -- could not fail. tenancy.hostmapping.write is tenant B's alone: asking tenant A
+        -- about it separates a correctly scoped read from a leaking one.
+        INSERT INTO audit_config
+            (id, tenant_id, module, operation, is_enabled, created_at, created_by, row_version)
+        VALUES (uuidv7(),'22222222-2222-7222-8222-222222222222',
+                'tenancy','tenancy.organization.create', false, now(),
+                '00000000-0000-7000-8000-000000000001', 0),
+               (uuidv7(),'22222222-2222-7222-8222-222222222222',
+                'tenancy','tenancy.hostmapping.write', false, now(),
+                '00000000-0000-7000-8000-000000000001', 0);
         COMMIT;
         """;
 

@@ -304,7 +304,7 @@ were previously named for the first tenant that asked for them:
 | Was | Is | Why |
 |---|---|---|
 | `code-challenge-shell` (composite renderer) | **`submission-shell`** | The capability is "prompt + authoring surface + submit + evaluated result panel". It serves a code exercise, a pronunciation recording, an essay, and a portfolio upload equally |
-| `FeatureKeys.CodeChallengeRunner` | **`FeatureKeys.SandboxedEvaluation`** (`assessment.sandboxed_evaluation`) | The capability is "evaluate a learner's submitted artefact in a sandbox with a resource budget". Nothing about it is specific to code |
+| `FeatureKeys.CodeChallengeRunner` | **`FeatureKeys.SandboxedEvaluation`** (`assessment.sandboxed_evaluation`) — a **candidate**, registered in neither `FeatureKeys` nor the Hub's registry as of Packet 9, because no gate for it ships and ADR-0045 § 6 forbids inventing one | The capability is "evaluate a learner's submitted artefact in a sandbox with a resource budget". Nothing about it is specific to code |
 
 The rule is not stylistic. `Core_Modules_HaveNo_DomainSpecific_Names` enforces it
 mechanically from
