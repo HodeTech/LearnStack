@@ -505,17 +505,6 @@ merely exists, and an unused reference is one edit away from the first use while
 already exporting the assembly to every consumer. The second leg reads the
 `.csproj`.
 
-## References
-
-- [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)
-- [ADR-0031 PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) — native
-  UUIDv7 widens the design space; this ADR commits to Vogen-emitted wrappers on
-  that primitive.
-- [ADR-0032 Exception Handling, Logging, and Observability](0032-exception-handling-logging-and-observability.md)
-  — establishes the `backend/analyzers/` Roslyn analyzer location; future ID-shape
-  analyzers live alongside.
-- [Vogen on GitHub](https://github.com/SteveDunn/Vogen) — upstream project (MIT).
-
 ### Amendment 9 — `AuditEntryId` is the fourth cross-cutting identifier (2026-09-07)
 
 Amendment 2 named three identifiers that live in `LearnStack.SharedKernel.Identifiers`
@@ -559,3 +548,14 @@ them two identities, which is precisely the pair a reader is meant to recognise 
 commit-in-doubt event. `DEFAULT uuidv7()` stays on the column as a backstop for a row
 inserted by something other than `PostgresAuditStore`; every row the store writes carries
 an id the store supplied.
+
+## References
+
+- [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)
+- [ADR-0031 PostgreSQL — Start on 18.x](0031-postgresql-major-version.md) — native
+  UUIDv7 widens the design space; this ADR commits to Vogen-emitted wrappers on
+  that primitive.
+- [ADR-0032 Exception Handling, Logging, and Observability](0032-exception-handling-logging-and-observability.md)
+  — establishes the `backend/analyzers/` Roslyn analyzer location; future ID-shape
+  analyzers live alongside.
+- [Vogen on GitHub](https://github.com/SteveDunn/Vogen) — upstream project (MIT).

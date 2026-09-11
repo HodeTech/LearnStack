@@ -107,6 +107,13 @@ public sealed record ComplianceCap(bool Allowed, bool Forced, string? Value);
 public enum EntitlementRefreshOutcome { Applied, IgnoredAsStale }
 ```
 
+> **Erratum — 2026-09-11.** The paragraph below says two field names differ from the wire
+> and names `ExpiresAt` for the `valid_until` column. One differs from the wire —
+> `PlanCode` is `tier` — and one from the column: the wire spells `ExpiresAt` `expires_at`,
+> and it persists to `valid_until`. Shown by the paragraph's own list of wire names and the
+> `platform_entitlement_cache` columns. The Decision is unchanged. Current authority:
+> [the glossary](../glossary.md) (*Entitlement Projection*). Recorded in Amendment 4.
+
 **`Compliance` and `Generation` are carried because the contract requires them.**
 `entitlement-v1.schema.json` — the wire shape
 [ADR-0034](0034-hub-contract-surface-invariant.md) pins in **both** repositories — lists
@@ -586,6 +593,35 @@ grace period is the outage allowance for exactly that moment.
 [Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md)
 and [Phase 02c](../roadmap/phase-02c-hub-foundation.md)'s scope and completion criteria.
 ADR-0021 is unchanged; it is the text § 5 disagreed with.
+
+## Amendment 4 — Which name differs from the wire (2026-09-11)
+
+**Status: Accepted.** Raised by the fifth external review of PR #18. § 1 closes its
+paragraph on the projection's fields with "The two field names that differ from the wire —
+`PlanCode` for `tier`, `ExpiresAt` for the `valid_until` column — follow the shipped
+`PlatformEntitlement` entity". The second item names a column, not the wire, and the wire
+does not differ there: it lists `expires_at` among the fields the same paragraph quotes.
+The sentence was false when written, and the glossary and the port's own remarks repeated
+it. **§ Decision is unchanged**: the record carries every field the wire requires, under
+the names the entity already used.
+
+### How it should be read
+
+One name differs from the wire and one from the column. `PlanCode` is `tier` on the wire
+and `plan_code` in the column; `ExpiresAt` is `expires_at` on the wire and persists to
+`valid_until`. `grace_until` and `generation` keep their names in both. The fence above
+was right throughout — its two comments say `wire:` and `column:` — and only the prose
+merged them.
+
+*How it was shown wrong:* § 1's own list of required wire fields —
+`tenant_id, tier, features, limits, compliance, expires_at, grace_until, generation` — read
+against the `platform_entitlement_cache` columns Packet 6 created.
+
+### Carriers changed
+
+§ 1, by the erratum beside it; [the glossary](../glossary.md) (*Entitlement Projection*),
+which records the mapping; and `EntitlementProjection`'s remarks in
+`IEntitlementProvider.cs`. No other Accepted ADR's body changes.
 
 ## References
 

@@ -223,6 +223,15 @@ through the same builder in their fixture.
 
 ### 7. What the interceptor captures
 
+> **Erratum — 2026-09-11.** The paragraph below says five shipped entities the matrices
+> classify MUST carry no `AuditableEntity<>` base, and that both matrices single out
+> `PlatformHostMapping`. Six plain entities shipped when it was written, four of them MUST;
+> and only the Tenancy matrix names the host mapping — shown by the domain classes' base
+> types read against the two matrices. Seven are plain today, five MUST, with
+> `PlatformKillswitch`. The Decision is unchanged. Current authority:
+> [Audit Coverage Standards § Required Behaviours](../standards/18-audit-coverage.md#required-behaviours).
+> Recorded in Amendment 7.
+
 `AuditChangeTrackerInterceptor` captures **every** entity in the `ChangeTracker` whose
 state is `Added`, `Modified` or `Deleted`, minus a named exclusion list — the
 `AuditableEntity<>` predicate is withdrawn. Five shipped entities the two module
@@ -1023,6 +1032,56 @@ of the size cap.
 [the glossary](../glossary.md), [ADR-0033](0033-audit-durability-model.md) (its Amendment 5
 records § 3's refinement of the reconciled outcome), `.claude/skills/add-audit-coverage/SKILL.md`
 and [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md).
+
+## Amendment 7 — The entities § 7 counted (2026-09-11)
+
+**Status: Accepted.** Raised by the fifth external review of PR #18. § 7 justifies
+withdrawing the `AuditableEntity<>` predicate with "Five shipped entities the two module
+matrices classify MUST carry no such base class, and `PlatformHostMapping` is the one both
+matrices single out as mattering most." Both halves were false when written, and the
+documents that repeated it gave three different counts between them. **§ Decision is
+unchanged**: the interceptor captures every tracked entity in state `Added`, `Modified` or
+`Deleted`, minus the named exclusion list.
+
+### What was wrong
+
+*The count.* When § 7 entered the record the modules shipped six plain classes —
+`PlatformHostMapping`, `TenantLocale`, `TenantFeatureFlag`, `PlatformEntitlement`,
+`CustomizationGeneration` and `TenantLevelTaxonomyItem` — and the matrices classified four
+of them MUST: the host mapping, the feature flag and the entitlement refresh on Tenancy
+rows of their own, and the taxonomy band through the `LevelTaxonomy` rows that add, remove
+and rename bands. `TenantLocale` is SHOULD, and the generation counter is deliberately
+unaudited. `PlatformKillswitch` arrived later in the packet, MUST on the killswitch-toggle
+row — so five is true today, by an entity § 7 did not know about.
+
+*The matrices.* Only the Tenancy matrix names the host mapping; the Customization matrix
+has no row for it. "Both matrices" cited a second authority that says nothing.
+
+*How it was shown wrong:* the base types of the domain classes in
+`LearnStack.Modules.*.Domain` — each class above is declared without `AuditableEntity<>` —
+read against the rows of [the Tenancy matrix](../modules/tenancy/audit.md) and
+[the Customization matrix](../modules/customization/audit.md) as they stood at this ADR's
+commit, and the history of `PlatformProjections.cs`, where `PlatformKillswitch` first
+appears three days after it.
+
+### How it should be read
+
+Seven shipped entities carry no `AuditableEntity<>` base, five of them MUST in the module
+matrices, and the host mapping is the one the Tenancy matrix singles out. The reason for
+the withdrawal is § 7's and untouched: a predicate on the base class was blind to every one
+of them, MUST rows included. [Audit Coverage Standards § Required Behaviours](../standards/18-audit-coverage.md#required-behaviours)
+now holds the list as the canonical one, and the documents that name these classes link to
+it rather than counting them again.
+
+### Carriers changed
+
+§ 7, by the erratum beside it; [Audit Coverage Standards](../standards/18-audit-coverage.md);
+[Audit Subsystem](../architecture/31-audit-subsystem.md) (§ 3's interceptor listing, and
+§ 13, which spoke of two matrices where three ship); [the Tenancy matrix](../modules/tenancy/audit.md);
+[the glossary](../glossary.md) (*Audit Capture Pipeline*); the `add-audit-coverage` and
+`add-tenant-owned-entity` skills; [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md)'s
+Packet 9 scope; and `AuditChangeTrackerInterceptor`'s own remarks. No other Accepted ADR's
+body changes.
 
 ## References
 

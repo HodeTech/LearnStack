@@ -458,6 +458,17 @@ unconditionally for everything that reaches step 6, reads included, because a re
 the `SET LOCAL` as much as a write does. A granted MUST-class `read-sensitive` query
 therefore rides the **in-transaction** path.
 
+> **Erratum — 2026-09-11.** The list below names two shapes that never reach
+> `WriteStandaloneAsync`. A short-circuit at step 1 writes no row: validation is step 1 and
+> the audit step is step 3, so a refused request is never classified — shown by
+> `MediatRPipelineRegistration.CanonicalBehaviorOrder` and
+> `AuditWorkflowTests.A_validation_refusal_writes_no_row_because_nothing_has_classified_it`.
+> `EnterPlatformAdminScope` writes through `WritePlatformScopeAsync` (§ 6). The shapes are a
+> short-circuit at step 4 or 5, the rejected-assertion recorder, and the reconcile step.
+> The Decision is unchanged. Current authority:
+> [Audit Subsystem](../architecture/31-audit-subsystem.md). Recorded in Amendment 5 § 1 for
+> `EnterPlatformAdminScope` and in Amendment 7 for step 1.
+
 `WriteStandaloneAsync` is reached by three shapes, and only these: a short-circuit at step
 1, 4 or 5; a non-MediatR caller (`TenantAssertionMiddleware`, `EnterPlatformAdminScope`);
 and the reconcile step after a `RolledBack` or `Indeterminate` outcome. The `denied` and
@@ -622,6 +633,12 @@ scope's own `learnstack_platform` connection under `TenantId.PlatformSentinel`, 
 `WriteStandaloneAsync` refuses to announce the sentinel on a runtime connection. A writer who
 followed § 7 would route the sentinel through the application role.
 
+> **Erratum — 2026-09-11.** The restated list below still opens with "a short-circuit at
+> step 1". A step-1 refusal writes no row: validation runs outside the audit step, so
+> nothing has classified the request. The list is a short-circuit at step 4 or 5, the
+> recorder, and the reconcile step. The Decision is unchanged. Current authority:
+> [Audit Subsystem](../architecture/31-audit-subsystem.md). Recorded in Amendment 7.
+
 § 7's list reads: a short-circuit at step 1, 4 or 5; the one non-MediatR caller, the
 rejected-assertion recorder `TenantAssertionMiddleware` drives
 (`AuditingTenantAssertionRecorder`); and the reconcile step after a `RolledBack` or
@@ -677,6 +694,51 @@ on it, the addition is a counter beside the line — a metric, not a readiness s
 section), [the glossary](../glossary.md) (`AuditConfig`),
 [Phase 11](../roadmap/phase-11-production-hardening.md), and the code's own account of
 itself — `IAuditConfigService` and `AuditConfigService`'s log line.
+
+## Amendment 7 — A validation refusal is never audited (2026-09-11)
+
+**Status: Accepted.** Raised by the fifth external review of PR #18. Amendment 2 § 7 lists
+"a short-circuit at step 1, 4 or 5" among the shapes that reach `WriteStandaloneAsync`, and
+Amendment 5 § 1 restates the list with its step-1 item intact. That item was false when it
+entered the record. **§ Decision is unchanged**: a MUST-class row is written on the business
+transaction, an operation with no committed business transaction is written standalone,
+and the pipeline order is [ADR-0032](0032-exception-handling-logging-and-observability.md)'s.
+
+### What was wrong
+
+Step 1 is `ValidationBehavior` and the audit step is step 3. A request refused at step 1
+returns before step 3 runs, so no catalogue entry is consulted, no intent is declared, and
+the reconcile that writes standalone rows has nothing to write. The order was the same on
+2026-09-07 — fixed by ADR-0032 in Packet 3, and named in this ADR's own § Context — so the
+item was never true.
+
+*How it was shown wrong:* `MediatRPipelineRegistration.CanonicalBehaviorOrder` puts
+validation first and the audit step third, and
+`MediatR_Pipeline_Order_Matches_Canonical_Sequence` holds it there. An integration case
+sends a command that fails validation through the real pipeline and the real store, finds
+the tenant's row count unchanged, then sends the same operation valid and finds one more —
+`AuditWorkflowTests.A_validation_refusal_writes_no_row_because_nothing_has_classified_it`.
+With `ValidationBehavior` moved inside the audit step, the case fails.
+
+### How it should be read
+
+`WriteStandaloneAsync` is reached by three shapes, and only these: a short-circuit at step 4
+or 5; the one non-MediatR caller, `AuditingTenantAssertionRecorder`; and the reconcile step
+after a `RolledBack` or `Indeterminate` outcome. A `validation_failed` refusal that *does*
+reach the audit step is a handler's — [ADR-0043](0043-customization-payload-validation.md)'s
+payload gates return one — and is recorded `failed` like any other refusal. A request
+refused at step 1 is not an audited event: the pipeline refuses it before asking the
+catalogue what the operation is. Recording it would mean moving the audit step ahead of
+validation — a reordering of the kind § Context counts the cost of, and one this amendment
+does not make.
+
+### Carriers changed
+
+Amendment 2 § 7 and Amendment 5 § 1, by the errata beside them;
+[Audit Subsystem](../architecture/31-audit-subsystem.md) (§ 1);
+[Audit Coverage Standards](../standards/18-audit-coverage.md), which now says a step-1
+refusal writes no row; the `add-audit-coverage` skill; and `IAuditStore`'s own account of
+its standalone callers. No other Accepted ADR's body changes.
 
 ## References
 
