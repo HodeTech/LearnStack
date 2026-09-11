@@ -56,7 +56,11 @@ permissions:
   contents: read
 
 env:
-  DOTNET_SDK_VERSION: "10.0.100"
+  # The newest 10.0.1xx SDK, and with it the newest patched runtime the tests run on:
+  # 10.0.100 carried runtime 10.0.0, which a string of high-severity .NET advisories has
+  # since patched (GHSA-cvvh-rhrc-wg4q among them). Same feature band, so the compiler
+  # and analyzers the build gates on move by servicing only.
+  DOTNET_SDK_VERSION: "10.0.112"
   NODE_VERSION: "20.11.0"
   PNPM_VERSION: "9.12.3"
   DOTNET_NOLOGO: "true"
@@ -90,6 +94,13 @@ jobs:
 
       - name: Restore
         working-directory: backend
+        # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
+        # TreatWarningsAsErrors is what makes a high-severity advisory — transitive ones
+        # included (Directory.Build.props) — fail the job. A build with --no-restore only
+        # replays those findings as warnings. The runner sets CI=true on every step
+        # already; it is written down because the gate depends on it.
+        env:
+          CI: "true"
         run: dotnet restore LearnStack.slnx
 
       - name: Format verify (dotnet format)
@@ -170,6 +181,13 @@ jobs:
 
       - name: Restore
         working-directory: backend
+        # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
+        # TreatWarningsAsErrors is what makes a high-severity advisory — transitive ones
+        # included (Directory.Build.props) — fail the job. A build with --no-restore only
+        # replays those findings as warnings. The runner sets CI=true on every step
+        # already; it is written down because the gate depends on it.
+        env:
+          CI: "true"
         run: dotnet restore LearnStack.slnx
 
       - name: Build
