@@ -47,8 +47,12 @@ and the two seed tenants — `demo-english` and `demo-yoga`, which `make seed` w
 through the same commands a request uses. Packet 8 landed the Customization module:
 two tenant-authored aggregates, their schema under the corrected RLS template, and
 the four gates a tenant's JSON Schema passes before a row exists.
-[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
-infrastructure and the entitlement socket — is next.**
+Packet 9 landed the audit write path end to end — classification, capture, the
+in-transaction write and its standalone reconcile, the `audit` health check — and the
+entitlement socket: one port whose registered implementation decides every feature and
+limit answer, and a killswitch table shipped with no writer, because every toggle needs
+a permission that does not exist yet.
+[Packet 10](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) is next.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the

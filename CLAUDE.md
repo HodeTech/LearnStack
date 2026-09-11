@@ -36,12 +36,19 @@ repository holds only LearnStack's side of the boundary, in
 
 **Phase 01 complete.
 [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped; packets 3b–10 were re-scoped on 2026-08-08
+packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
-[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) — audit
-infrastructure and the entitlement socket, decided by
+[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9) —
+audit infrastructure and the entitlement socket, decided by
 [ADR-0044](docs/decisions/0044-audit-write-path.md) and
-[ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md) — is next.**
+[ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md) — shipped the
+lit audit write path, the `audit` health check, and the entitlement socket:
+`IEntitlementProvider` with `NullEntitlementProvider` registered in every deployment
+mode, `IFeatureFlags` composing over it, the three typed key registries, and
+`platform_killswitches` **read-only** — every toggle runs inside
+`EnterPlatformAdminScope`, whose gate refuses everyone until
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) brings the Platform-scope
+permission. Packet 10 is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -159,6 +166,34 @@ nothing still has something to render. Its record,
 is long for the reason Packets 5, 6 and 7's were: the defects are its own review
 rounds' findings, and the sharpest was a term added by one round that the next
 round found had no test — removing it left all 1390 cases green.
+
+**Packet 9** shipped the audit write path and the entitlement socket. Audit first,
+because everything else commits through it: the `audit_log` / `audit_config` schema
+with its three append-only layers, the change-tracker capture, `PostgresAuditStore`'s
+four writes, the merged `IAuditCatalog`, and the two pipeline steps that use them —
+`AuditLogBehavior` classifies and parks intents at step 3 and reconciles in its
+`finally`, `TransactionBehavior` flushes the MUST-class rows on the owning frame
+immediately before `COMMIT`. With them the observable half of the fail-closed rule
+([ADR-0033 Amendment 3](docs/decisions/0033-audit-durability-model.md)): the `audit`
+health check, two counters and a `Critical` line. Two non-pipeline writers land too —
+`PlatformAdminScope.EnterAsync` records its own `security-event` row before the
+operation runs, and `AuditingTenantAssertionRecorder` audits a rejected tenant
+assertion per occurrence when a principal is attached and as a **burst** when none is.
+Then the socket [ADR-0045](docs/decisions/0045-entitlement-and-feature-flag-socket.md)
+decides: `IEntitlementProvider` with `NullEntitlementProvider` registered in every
+deployment mode, `IFeatureFlags` composing over the port rather than reading
+`platform_entitlement_cache`, the three typed key registries carrying the Hub's own
+spellings, and `platform_killswitches` with its policies, its overlay and its cache
+family — and **no writer**, because every toggle runs inside a scope whose gate refuses
+everyone. Its record,
+[Delivery Record (Packet 9)](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9),
+carries something the earlier ones did not: four **decisions**, because three of them
+are readings of an Accepted ADR rather than applications of it — and a reading inferred
+from a diff is one nobody can disagree with later. The lesson the rounds kept
+repeating was narrower than Packet 8's and sharper: a rule that cannot tell *clean*
+from *blind*. Three separate guards passed because nothing in the repository violated
+them and their mechanism was never exercised; each now ships with a companion that
+proves it can fail.
 
 **The 2026-08-08 restructure** re-scoped packets 3b–10 along three lines,
 all recorded in the Phase 02a Status block:
