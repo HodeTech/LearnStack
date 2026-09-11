@@ -51,9 +51,10 @@ Out of scope:
 
 The catalog is **code-defined**, **typed**, and **enumerated in one place**. Free-form
 string flag keys are forbidden. Three static registries, shipped in Packet 9 and
-carrying **every** key below. The fence lists the key **strings** — the vocabulary —
-while each registry entry is a descriptor, and the members every descriptor carries are
-fixed by the rules that follow.
+carrying **every** key below. The fence lists the key **strings** — the vocabulary.
+Each `FeatureKeys` and `LimitKeys` entry is a descriptor — a `FeatureDescriptor` or a
+`LimitDescriptor` — whose members the rules that follow fix, and each `KillswitchKeys`
+entry is the switch's default.
 
 **Why the whole vocabulary rather than only keys with a consumer.**
 [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md) states both
@@ -61,10 +62,13 @@ filters — carry "the keys the corpus already names", and invent none because "
 that lists a capability nothing gates is a list that will be wrong before anything reads
 it" — and at Packet 9 the set of keys with a shipped consumer was measurably **empty**,
 so the second read literally ships three empty registries and leaves the Phase 02a
-completion criterion with no key to call `IsEnabledAsync` with. The reading applied, and
-recorded in the Packet 9 delivery record: the **spelling** is the one-way door — it lands
-in the Hub's plan validators, in persisted `jsonb` and in a wire schema pinned in both
-repositories — while **membership** has a written exit in § Removing a key below. Shipping
+completion criterion with no key to call `IsEnabledAsync` with. The reading applied —
+recorded first in the Packet 9 delivery record and since amended into
+[ADR-0045 (Amendment 2)](../decisions/0045-entitlement-and-feature-flag-socket.md) and
+[ADR-0021](../decisions/0021-feature-based-entitlement.md) — is that the **spelling** is the
+one-way door — it lands in the Hub's plan validators, in persisted `jsonb` and in a wire
+schema pinned in both repositories — while **membership** has a written exit in the
+removal rule below. Shipping
 a spelling early is cheap to keep and expensive to change; shipping it late is the
 opposite.
 
@@ -475,9 +479,10 @@ Both surfaces are MUST-audit security-events (see
   ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)):
   `IEntitlementProvider` + `EntitlementProjection` + `NullEntitlementProvider`;
   `IFeatureFlags` and its Tenancy implementation over the `ICacheService`-backed L1
-  cache; the `FeatureKeys` / `LimitKeys` / `KillswitchKeys` catalogs, each key carrying
-  its `Source`, its default, its failure class, its killswitch reference or none, and —
-  for a `LimitKey` — its `LimitEnforcement`
+  cache; the `FeatureKeys` / `LimitKeys` / `KillswitchKeys` catalogs — a
+  `FeatureDescriptor` per feature key (`Source`, default, `DegradedPosture`, killswitch
+  reference or none), a `LimitDescriptor` per limit key (floor, `LimitEnforcement`), and a
+  default of `true` per killswitch
   ([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md));
   the `AlterColumn` that makes `valid_until` nullable; `platform_killswitches`, the
   overlay and its cache family, read-only until Phase 03 ships the toggle; the
@@ -507,10 +512,13 @@ Both surfaces are MUST-audit security-events (see
   — the port, the read interface, the limit sentinel and the killswitch table.
   Amendment 1 (2026-09-08) settles the limit vocabulary, `valid_until`'s nullability,
   the generation guard's equal case, the unwritten killswitch table, and the two members
-  every key descriptor carries.
+  every feature-key descriptor carries. Amendment 2 (2026-09-11) makes a registry's
+  membership the vocabulary the contract names, with enforcement — not membership —
+  waiting for a consumer.
 - [ADR-0021 Feature-Based Entitlement Model](../decisions/0021-feature-based-entitlement.md)
   — Amendment 1 (2026-05-18) fixes the typed-registry shape; the 2026-09-08 amendment
-  moves `LimitKeys` to the Hub's `limits.` vocabulary.
+  moves `LimitKeys` to the Hub's `limits.` vocabulary; the 2026-09-11 amendment reads
+  membership as the whole vocabulary.
 - [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md)
 - [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md)
 - [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md) — the platform

@@ -162,12 +162,11 @@ Platform admin (LearnStack operator) access must be explicit:
   authenticated as `learnstack_platform` — the `BYPASSRLS` role of the four-role model.
   There is no `learnstack_audit_admin` role, and `learnstack_app` is not a member of
   `learnstack_platform`, so the application role cannot reach the bypass by `SET ROLE`.
-  Every cross-tenant access is recorded. Until
-  [Packet 9](../roadmap/phase-02a-kernel-tenancy.md) ships `audit_log` and `IAuditStore`,
-  `EnterPlatformAdminScope(reason)` records the entry through `ILogger` at `Warning` with
-  the `reason` and the caller — and **not** a sentinel platform tenant id, whose value
-  Packet 9 fixes with the schema that stores it. Packet 9 replaces the log line with the
-  audit row written inside the scope;
+  Every cross-tenant access is recorded. `EnterPlatformAdminScope(reason)` writes a
+  `security-event` row carrying `TenantId.PlatformSentinel` through
+  `IAuditStore.WritePlatformScopeAsync`, in a transaction of its own that commits before
+  the scope's work begins, and keeps the `Warning` log line beside it as the real-time
+  signal ([Packet 9](../roadmap/phase-02a-kernel-tenancy.md));
   [the Tenancy audit matrix](../modules/tenancy/audit.md) carries the classification. See
   [Database Standards § Database roles](../standards/05-database.md).
 - No hidden arbitrary `IgnoreQueryFilters()` usage; architecture test

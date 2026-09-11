@@ -9,15 +9,13 @@ publish. Eight more rows are classification ahead of code and carry `(planned)` 
 `Operation` column ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md));
 the last row carries no slug at all, and its own cell says why.
 
-**All four are unaudited today**, and publication is the one that matters most:
-it retires the incumbent and makes every subsequent write of that content type
-validate against a new shape, and nothing records who changed what a tenant's
-data is allowed to look like. `AuditLogBehavior` lights up in
-[Packet 9](../../roadmap/phase-02a-kernel-tenancy.md), which declares the same
-operations in code through `IAuditCatalogSource.Describe(IAuditCatalogBuilder)`
-rather than parsing this file — the catalogue is the executable artifact, this
-matrix is the human-readable one, and
-`Every_TenantOwned_Command_HasAuditCoverage` asserts the two agree
+**All four write MUST rows**, and publication is the one that matters most: it
+retires the incumbent and makes every subsequent write of that content type validate
+against a new shape, and the row is what records who changed what a tenant's data is
+allowed to look like. `CustomizationAuditCatalogSource` declares the same operations in
+code through `IAuditCatalogSource.Describe(IAuditCatalogBuilder)` rather than parsing
+this file — the catalogue is the executable artifact, this matrix is the human-readable
+one, and `AuditCoverageTests` joins them in both directions
 ([ADR-0044 § 6](../../decisions/0044-audit-write-path.md)).
 
 **That join runs in two directions and they have different domains**
@@ -30,24 +28,36 @@ keeps the marker from becoming a hole rather than a claim. Nothing in this modul
 written off the request path, so no row here carries the `(off-path)` marker the
 [Tenancy matrix](../tenancy/audit.md) needs for five of its own.
 
-**What these handlers already do so that Packet 9 is a wiring change and not a
-rewrite:** every one runs inside the ambient transaction
-([ADR-0040](../../decisions/0040-ambient-unit-of-work.md)), so the MUST-class row
-[ADR-0033](../../decisions/0033-audit-durability-model.md) requires commits with
-the state change or not at all, and it executes while `app.tenant_id` is set,
-which is what lets Row Level Security accept it. Every one attributes its write
-to `tenantContext.UserId ?? UserId.SystemActor`, so the actor the audit row needs
-is already resolved rather than reconstructed. Nothing has to move for the row to
-be added.
+**Why lighting up the pipeline changed no handler's transaction:** every one runs
+inside the ambient transaction ([ADR-0040](../../decisions/0040-ambient-unit-of-work.md)),
+so the MUST-class row [ADR-0033](../../decisions/0033-audit-durability-model.md) requires
+commits with the state change or not at all, and it executes while `app.tenant_id` is
+set, which is what lets Row Level Security accept it. The actor on the row is the
+principal `AuditLogBehavior` reads at step 3 — `NULL` when there is none — and not the
+handler's `tenantContext.UserId ?? UserId.SystemActor`, which is the aggregate's
+`created_by` attribution ([ADR-0044 Amendment 6 § 2](../../decisions/0044-audit-write-path.md)).
 
 **The band rows are captured with the aggregate.** `TenantLevelTaxonomyItem` is a
 plain class rather than an `AuditableEntity<>` descendant, and § Baseline Coverage
 requires both `before` and `after` on a customization schema change.
 `AuditChangeTrackerInterceptor` captures every `ChangeTracker` entry in state
 `Added`, `Modified` or `Deleted` minus a named exclusion list
-([ADR-0044 § 7](../../decisions/0044-audit-write-path.md)), so an added or removed
-band appears in the operation's `changes` array instead of being missed by a
-base-class predicate.
+([ADR-0044 § 7](../../decisions/0044-audit-write-path.md)), and a band — contained by
+its taxonomy through `HasMany(Items)` — is captured **inside the taxonomy's** snapshot
+and diff rather than on its own, keyed by its band key: `"Items": { "b2": { … } }` in
+`after_state`, `/TenantLevelTaxonomy/{id}/Items/b2/DisplayName` in `changes`. So an
+added or removed band is in the row that records the taxonomy. Captured on its own it
+carried a type name no intent declares, and the review of Packet 9 measured the
+consequence: the persisted row held none of the labels the tenant authored
+([ADR-0044 Amendment 6 § 4](../../decisions/0044-audit-write-path.md)).
+
+**A publication is one row, about the successor.** Publishing writes two revisions of
+one aggregate — the incumbent retired, the successor activated — so each publish handler
+designates the successor through `IAuditSubject`: `entity_id`, `before_state` and
+`after_state` are the successor's, and the incumbent's `Active → Deprecated` travels in
+`changes` under its own pointer. Without the designation the composer refuses the pair,
+which rolled back every replacement publication until the review found it
+([ADR-0044 Amendment 6 § 1](../../decisions/0044-audit-write-path.md)).
 
 This matrix is not the floor — [Audit Coverage § Baseline Coverage](../../standards/18-audit-coverage.md)
 is, and a module matrix "cannot remove anything in this list". This file adds
@@ -104,6 +114,5 @@ decision with a different owner:
 on `security-event` and says nothing about validation failures, and a tenant fixing
 its own draft in a loop would be the noisiest writer in the system.
 
-The classification is inert until
-[Packet 9](../../roadmap/phase-02a-kernel-tenancy.md) lights up
-`AuditLogBehavior`.
+The four unmarked rows are written by the pipeline today; the eight `(planned)` rows
+register with the commands that raise them.

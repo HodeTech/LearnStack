@@ -93,15 +93,15 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Sixty-eight test methods exist in
+Eighty-four test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 93 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 109 cases once the theories expand.
 Counted from
-`dotnet test --list-tests` at Packet 9 step 3's close, de-duplicated by method name; the
-figures before it were Packet 7's and were not updated when Packets 8 and 9 added their
-rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 67 and is wrong:
+`dotnet test --list-tests` at the close of Packet 9's external review round, de-duplicated
+by method name; the figures before it were Packet 9 step 3's and were not updated when the
+rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 67 and is wrong:
 two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
 which greps the suite for those very attributes. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
@@ -131,9 +131,10 @@ and a rule belongs where it can actually fail: the route-shape rule was
 originally written as a reflection scan in the architecture assembly and passed
 against a host serving unversioned endpoints.
 
-Packet 9 added **two** more behavioural rows to that assembly, both in
-`AuditPipelineTests` and both under § Audit: `MustClass_Audit_Writes_Share_The_Business_Transaction`
-and `Audit_Survives_Transaction_Rollback`. They are integration rows for the reason the
+Packet 9 added **three** more behavioural rows to that assembly, all under § Audit:
+`MustClass_Audit_Writes_Share_The_Business_Transaction` and
+`Audit_Survives_Transaction_Rollback` in `AuditPipelineTests`, and
+`AuditLog_Update_Is_Column_Restricted` in `AuditSchemaTests`. They are integration rows for the reason the
 route-shape rule is: a reflection scan cannot see whether a row committed with the
 business write, and a unit test against doubles passes whether or not Row Level Security
 would have accepted the insert. Both connect as `learnstack_app`.
@@ -178,14 +179,22 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Applies_The_Tenancy_Chain_First` | `PersistenceConventionTests.cs` |
 | `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` | `AuditConventionTests.cs` |
+| `AuditEntry_Inherits_Entity_Not_AuditableEntity` | `AuditConventionTests.cs` |
+| `AuditEntry_Is_AppendOnly` (with its companion) | `AuditConventionTests.cs` |
+| `OperationType_Enum_Matches_Catalog` | `AuditConventionTests.cs` |
+| `Every_Module_Has_An_AuditCoverage_Matrix` (with its companion) | `AuditConventionTests.cs` |
+| `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
 | `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix) | `AuditCoverageTests.cs` |
+| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its companion) | `AuditCoverageTests.cs` |
+| `Every_Module_That_Ships_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
+| `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
 
-Seven further rules in this catalogue are **implemented outside** that assembly and are
-no less binding. Four of them could not live in it: a policy that is well-formed
-and wrong, or a foreign key with no index, is only visible against an applied
-schema.
+Eleven further rules in this catalogue are **implemented outside** that assembly and are
+no less binding. Seven of them could not live in it: a policy that is well-formed
+and wrong, a foreign key with no index, or a row that did or did not commit with the
+business write, is only visible against an applied schema.
 
 | Rule | Where |
 |---|---|
@@ -196,6 +205,10 @@ schema.
 | `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
 | `Every_Foreign_Key_Has_A_Supporting_Index` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
 | `LearnStackException-DomainExceptionThrow` (`LS0001`) | `backend/analyzers/LearnStack.Analyzers` + `DomainExceptionThrowAnalyzerTests` |
+| `MustClass_Audit_Writes_Share_The_Business_Transaction` | `LearnStack.Tests.Integration` (`AuditPipelineTests`) |
+| `Audit_Survives_Transaction_Rollback` | `LearnStack.Tests.Integration` (`AuditPipelineTests`) |
+| `AuditLog_Update_Is_Column_Restricted` | `LearnStack.Tests.Integration` (`AuditSchemaTests`) |
+| `AuditStateCapture_ClearedPerRequest` | `LearnStack.Tests.Unit` (`AuditLogBehaviorTests`) |
 
 `Meta_NetArchTest_DetectsAPlantedViolation` deserves its own note: it plants a forbidden
 dependency and asserts NetArchTest **finds** it. If that meta-test ever passes in the
@@ -993,7 +1006,10 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Status:** **Implemented** (Packet 9 step 3, `LearnStack.Tests.Architecture`,
   `AuditConventionTests`). Mutation-checked three ways, each failing this case alone:
   flipping `ignoreCase` to `false`, dropping the `ToLowerInvariant()` from the write half,
-  and removing one member from the `operation_class` `CHECK`.
+  and removing one member from the `operation_class` `CHECK`. The commit that added the
+  Packet 9 step 8 audit rules replaced this case instead of adding beside it, and the row
+  here went on saying Implemented while no test read a `ck_audit_log_*` constraint; it was
+  restored in the packet's external-review round and re-measured.
 
 #### `Every_Foreign_Key_Has_A_Supporting_Index`
 
@@ -1623,9 +1639,9 @@ which decides identity, multiplicity, capture and classification;
   service against a dead data source and gets the declared tier back, and
   `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
   holds the rejection. What is missing is the end-to-end case this row names: a real MUST
-  command through the real pipeline with `audit_config` made unreadable. It lands with the
-  rest of Packet 9's rule work.
-- **Phase:** 02a (Packet 9).
+  command through the real pipeline with `audit_config` made unreadable. Packet 9 closed
+  without it; it lands in Packet 10, which gates phase exit on it.
+- **Phase:** 02a (Packet 9 introduces; Packet 10 closes).
 
 #### `AuditLog_Update_Is_Column_Restricted`
 
@@ -1689,21 +1705,43 @@ which decides identity, multiplicity, capture and classification;
 - **Status:** **Implemented** (`AuditLogBehaviorTests`, Packet 9 step 8). A theory over three endings — success, refusal, handler exception — because each leaves the behaviour by a different door and only the `finally` is common to them; plus the nested case, so the pair pins "exactly once, by the outermost" rather than merely "at least once".
 - **Phase:** 02a (Packet 9).
 
+#### `Every_Shipped_Request_Is_Registered`
+
+- **Asserts:** every request type with a handler — a closed `IRequestHandler<,>` or
+  `IRequestHandler<>` implemented in any project under `backend/src` — is registered in the
+  merged audit catalogue, `Off` included. An unclassified request fails the build rather
+  than defaulting to silence; at runtime, reaching step 3 unclassified is
+  `audit_unclassified_operation`, and there is no `RequestKind.Other`.
+- **Why it is keyed on the request type.** `AuditLogBehavior` looks a registration up by
+  request type, so the rule has to as well. The two slug-level directions cannot see a
+  request type nobody registered when another request shares its slug: measured by the
+  review of Packet 9, removing only `MustAudit<CreateOrganizationCommand>` left
+  `tenancy.organization.create` registered through provisioning, both directions stayed
+  green, and the running system would have refused every `CreateOrganizationCommand`.
+- **Companion:** `The_Request_Sweep_Can_Actually_Fail` runs the predicate over exactly that
+  catalogue and requires it to name the missing request.
+- **Source:** [18-audit-coverage.md § The join](18-audit-coverage.md);
+  [ADR-0044 § 6](../decisions/0044-audit-write-path.md).
+- **Type:** xUnit + reflection over every backend assembly. **Kind:** structural.
+- **Status:** **Implemented** (`AuditCoverageTests`, Packet 9's external-review round).
+  Mutation-checked: removing that one registration fails this case.
+- **Phase:** 02a (Packet 9).
+
 #### `Every_TenantOwned_Command_HasAuditCoverage`
 
-- **Asserts:** every command touching a `[TenantOwned]` aggregate is classified in the
-  **in-code** audit catalogue — the one each module registers through
-  `IAuditCatalogSource.Describe(IAuditCatalogBuilder)`, discovered from DI, which maps a
-  **request type** to one or more `(operation, OperationType, OperationClass)` triples —
-  and, for the off-path operations below, registers the same triple by slug alone.
+- **Asserts:** every entry the **in-code** audit catalogue holds — the one each module
+  registers through `IAuditCatalogSource.Describe(IAuditCatalogBuilder)`, discovered from
+  DI, which maps a **request type** to one or more `(operation, OperationType,
+  OperationClass)` triples, and, for the off-path operations below, the same triple by slug
+  alone — has a matrix row carrying the same slug, class and type.
   `OperationClass` is the declared tier and carries `Must | Should | May` only;
   `AuditClassification` is what `IAuditConfigService.ClassifyAsync` returns, and it is
   where `Off` and `Unclassified` live
   ([ADR-0044 Amendment 3 § 4](../decisions/0044-audit-write-path.md)). `Off` is a
   registration the builder takes — how a request that writes no row is declared, the
-  test-only types among them — and not a fourth tier. An unclassified command fails the
-  build rather than defaulting to silence, and at runtime reaching step 3 unclassified is
-  `audit_unclassified_operation` — there is no `RequestKind.Other`.
+  test-only types among them — and not a fourth tier. That every request type is in the
+  catalogue at all is [`Every_Shipped_Request_Is_Registered`](#every_shipped_request_is_registered)'s
+  assertion, not this rule's.
 - **The join key, and the two directions it runs in.** The key is `(module, operation)`,
   where `operation` is the dotted slug `{module}.{resource}.{verb}` —
   `tenancy.tenant.create`, `customization.content_type.publish`. The rule joins on the
@@ -1727,15 +1765,17 @@ which decides identity, multiplicity, capture and classification;
     catalogue-to-matrix half and `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` for
     the reverse, which also carries the anti-rot check and a guard against sweeping no rows
     at all.
-  - **Off the request path.** Some audited operations are not MediatR requests at all —
-    `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
-    `tenancy.entitlement.refresh`, and the two tenant-assertion keys ADR-0036 parks on
-    Packet 9 — `tenancy.tenant_assertion.reject` and
-    `tenancy.tenant_assertion.anonymous_burst`, snake_case within each segment since
+  - **Off the request path.** Some audited operations are not MediatR requests at all.
+    Seven rows carry `(off-path)`: Tenancy's `platform.admin_scope.enter`,
+    `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
+    `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst` —
+    snake_case within each segment since
     [ADR-0036 Amendment 7](../decisions/0036-tenant-resolution-trusted-inputs.md), so that
-    one parser reads every audit slug and every permission key. Their rows carry
-    `(off-path)`, their catalogue entries are registered by slug rather than by request
-    type, and they sit outside the request-type join in both directions.
+    one parser reads every audit slug and every permission key — and Audit's
+    `audit.redaction.apply` and `audit.purge.apply`. They sit outside the request-type join
+    in both directions and register by slug: the three whose writer ships through
+    `DeclareOffPath` today, the other four — which also carry `(planned)` — when their
+    writer lands.
 
   Stated as one unconditional join, the rule is red on its first run: the two shipped
   matrices classify many more operations than `backend/src/Modules` has request types, and
@@ -1758,27 +1798,48 @@ which decides identity, multiplicity, capture and classification;
   [ADR-0044 § 6 and Amendment 3 § 1, § 4](../decisions/0044-audit-write-path.md).
 - **Type:** xUnit + reflection over commands and the registered catalogue, cross-checked
   against the matrix's `Operation` column. **Kind:** structural.
-- **Status:** **Implemented, one direction of two** (Packet 9 step 5,
-  `LearnStack.Tests.Architecture`, `AuditCoverageTests`). The **catalogue → matrix**
-  direction is total per
-  [ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md) and is what ships:
-  every entry the merged catalogue holds has a matrix row carrying the same slug, and the
-  row's class and — where the row names one — its operation type agree with the
-  registration. Mutation-checked both ways: changing a registered slug's class or its type
-  fails this case and no other.
-  <br />The **matrix → catalogue** direction binds only to a slug whose request type
-  *exists*, so it has to re-derive the `(planned)` marker against the assemblies rather
-  than trust it; that half lands with the rest of Packet 9's architecture rules. Recording
-  the split is what stops a later reader taking the whole rule as satisfied — the shipped
-  half is the one that catches a registration disagreeing with its own row, which is the
-  drift that has actually happened.
+- **Status:** **Implemented** (`LearnStack.Tests.Architecture`, `AuditCoverageTests`) — the
+  **catalogue → matrix** direction, total per
+  [ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md): every entry the merged
+  catalogue holds has a row whose `Operation` cell carries the same slug, with the same class
+  and, where the row names one, the same type. The catalogue is merged from every
+  `IAuditCatalogSource` a backend assembly ships, discovered rather than listed.
+  Mutation-checked: changing a registered slug's class or type fails this case and no other.
+  The reverse direction is
+  [`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](#every_matrix_row_whose_command_exists_is_registered),
+  and "every request is classified" is
+  [`Every_Shipped_Request_Is_Registered`](#every_shipped_request_is_registered).
+- **Phase:** 02a (Packet 9).
+
+#### `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
+
+- **Asserts:** the **matrix → catalogue** direction of the join: every slug in a module
+  matrix's `Operation` column — every slug in a cell, not only the first — is registered in
+  the merged catalogue unless its cell carries `(planned)` or `(off-path)`; and a
+  `(planned)` row whose slug the catalogue **does** register fails, because the marker
+  outlived the command it was waiting for.
+- **Why the direction is scoped.** Classifying ahead of the command is what
+  [18-audit-coverage.md](18-audit-coverage.md) asks for, so a row may name an operation
+  nothing implements yet; the anti-rot check is what keeps that from becoming a hole. A
+  shipped command nobody registered is caught by type, one rule up, which this slug-level
+  direction cannot see.
+- **Companion:** `The_Matrix_Sweep_Reads_Every_Slug_And_Can_Actually_Fail` feeds a fixture
+  matrix with a two-slug cell, a stale `(planned)` marker and an unmarked unregistered row,
+  and requires all three findings — the parser read only a cell's first slug until the
+  review of Packet 9.
+- **Source:** [18-audit-coverage.md § The join](18-audit-coverage.md);
+  [ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md).
+- **Type:** xUnit + file scan against the merged catalogue. **Kind:** structural.
+- **Status:** **Implemented** (`AuditCoverageTests`, Packet 9 step 8; every slug in a cell
+  since the external-review round). Mutation-checked: reading one slug per cell fails the
+  companion.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Module_Has_An_AuditCoverage_Matrix`
 
 - **Asserts:** every module that has a spec — a directory under `docs/modules/` —
-  contains `docs/modules/<module>/audit.md` with a coverage matrix, and every module that
-  registers an `IAuditCatalogSource` has one. The file's existence is the assertion; the
+  contains `docs/modules/<module>/audit.md` with a coverage matrix. The file's existence is
+  the assertion; the
   one column read from it is `Operation`, and reading it is
   [`Every_TenantOwned_Command_HasAuditCoverage`](#every_tenantowned_command_hasauditcoverage)'s
   job, not this rule's.
@@ -1789,13 +1850,32 @@ which decides identity, multiplicity, capture and classification;
   ([13-documentation.md § Per-Module Specifications](13-documentation.md)), so a scaffold
   has no operations to classify and nothing for a matrix to hold; a rule over every
   directory would be red for reasons that have nothing to do with audit coverage. The
-  guard is on the reverse direction — registering audited operations with no matrix —
-  which is the shape `Every_Module_With_A_Schema_Is_Swept` already uses one level up.
+  guard on the reverse direction — a module that ships request types with no matrix — is
+  [`Every_Module_That_Ships_A_Request_Has_A_Matrix`](#every_module_that_ships_a_request_has_a_matrix),
+  the shape `Every_Module_With_A_Schema_Is_Swept` already uses one level up.
   Packet 9 brings `docs/modules/audit/` under it as it ships the Audit module.
 - **Source:** [18-audit-coverage.md](18-audit-coverage.md);
   [13-documentation.md § Per-Module Specifications](13-documentation.md).
 - **Type:** xUnit + file scan. **Kind:** structural.
 - **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), with a companion that exercises the predicate against a directory genuinely lacking the file. Every module has one today, so the rule alone passes whether its check works or is defeated — measured, a tautology left it green.
+- **Phase:** 02a (Packet 9).
+
+#### `Every_Module_That_Ships_A_Request_Has_A_Matrix`
+
+- **Asserts:** every module that ships a request type — a request with a handler whose
+  namespace is `LearnStack.Modules.<Name>.…` — has `docs/modules/<name>/audit.md`.
+- **Why it exists beside the rule above.** `Every_Module_Has_An_AuditCoverage_Matrix` walks
+  the spec directories that exist, so a module that ships commands with no spec directory
+  at all passes it — the state in which the catalogue ↔ matrix join has nothing to compare
+  against. [ADR-0044 Amendment 4 § 3](../decisions/0044-audit-write-path.md) binds the
+  matrix to a module with code; this rule walks the code.
+- **Companion:** `The_Module_Sweep_Can_Actually_Fail` requires the predicate to name a
+  module with no spec directory.
+- **Source:** [ADR-0044 Amendment 4 § 3](../decisions/0044-audit-write-path.md);
+  [13-documentation.md § Per-Module Specifications](13-documentation.md).
+- **Type:** xUnit + reflection + file scan. **Kind:** structural.
+- **Status:** **Implemented** (`AuditCoverageTests`, Packet 9's external-review round).
+  Mutation-checked: a blind predicate fails the companion.
 - **Phase:** 02a (Packet 9).
 
 #### `Modules_Do_Not_Write_AuditLog_Directly`
@@ -2847,16 +2927,19 @@ structural test proves — and what it does not.
 - **Asserts:** no `[PublicSurface]` request type is classified MUST-class `read-sensitive`. Otherwise an anonymous `GET` becomes a durable standalone audit write.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [Standards 04 § Public surface](04-api-design.md).
-- **Type:** xUnit + reflection (set-emptiness); the audit-catalogue cross-check from Packet 9. **Kind:** structural.
-- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6) — as set-emptiness only.
+- **Type:** xUnit + reflection, cross-checked against the merged audit catalogue. **Kind:** structural.
+- **Status:** **Implemented** (`RequestSurfaceTests`) — set-emptiness from Packet 7 step 6,
+  and the cross-check against `IAuditCatalog` since Packet 9's external-review round: every
+  `[PublicSurface]` request type is looked up in the catalogue the composition roots build,
+  and one registered MUST-class `read-sensitive` fails. The marked set is empty until
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), so the companion
+  `The_PublicSurface_Cross_Check_Can_Actually_Fail` runs the predicate over a marked probe
+  registered that way; inverting the predicate fails it.
 - **Phase:** 02a Packet 7; the cross-check leg, Packet 9.
-- **Note:** **vacuous on both sides today, and the Type field above said otherwise.** The
-  catalogued instrument was an audit-catalogue cross-check against a catalogue that does not
-  exist in code — `IAuditStore` and the operation catalogue are Packet 9 — so the leg that
-  runs is the emptiness of the marked set, which makes the claim trivially true rather than
-  checked. It is landed rather than deferred so that a marked type arriving before Packet 9
-  turns this rule red and forces the question, instead of passing quietly under a rule whose
-  stated instrument was never built.
+- **Note:** the leg was catalogued at Packet 7 against a catalogue that did not yet exist,
+  and shipped as set-emptiness so that a marked type arriving first would force the
+  question. Packet 9 shipped the catalogue and, until its review round, not the leg — the
+  row said Implemented for a check it did not make.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 

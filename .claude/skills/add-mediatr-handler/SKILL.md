@@ -191,11 +191,9 @@ Rules:
 
 ### Step 4: Audit matrix row + catalogue entry
 
-> **The ports exist; the behavior does not yet.** `IAuditCatalogSource`,
-> `IAuditCatalogBuilder`, `IAuditStore`, `OperationType` and the rest ship in
-> `LearnStack.SharedKernel.Audit` — write against them as spelled. What is still a
-> Packet 3 logging shell is `AuditLogBehavior`, which rejects nothing until Phase 02a
-> Packet 9 lights it up, so a registration written today is correct and inert. `IAuditStore` and the
+> **`AuditLogBehavior` is live.** `IAuditCatalogSource`, `IAuditCatalogBuilder`,
+> `IAuditStore`, `OperationType` and the rest ship in `LearnStack.SharedKernel.Audit` —
+> write against them as spelled. `IAuditStore` and the
 > value types the triple names — `OperationType` and `OperationClass` among them — land
 > in `LearnStack.SharedKernel.Audit` and not in the Audit module's Domain, because a
 > module's `Application` project references only SharedKernel, its own Domain and its own
@@ -203,7 +201,7 @@ Rules:
 > ([ADR-0044 § 11](../../../docs/decisions/0044-audit-write-path.md) and
 > [Amendment 3 § 3](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)).
 
-**From Packet 9, every request type must be classified.** There is no exempt kind and
+**Every request type must be classified.** There is no exempt kind and
 no implicit default: an `IRequest<Result<T>>` that reaches pipeline step 3 without a
 catalogue entry is rejected with `audit_unclassified_operation` (500)
 ([ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md)). This step is not

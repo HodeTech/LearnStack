@@ -114,8 +114,9 @@ Forbidden references (architecture test will catch them):
 >   root — one call, all modules, and it registers the validators from the same
 >   assemblies.
 > - **The audit catalogue** is a module-owned `IAuditCatalogSource` discovered from DI,
->   landing with **Phase 02a Packet 9** per
->   [ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md). It is not a method
+>   shipped in Phase 02a Packet 9 per
+>   [ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md). Register it at both
+>   composition roots, `LearnStack.Api` and `LearnStack.Tools.Seeder`. It is not a method
 >   on a module-loading interface. The merged `IAuditCatalog` that `AuditLogBehavior`
 >   injects is composition-root machinery built once at startup from every source; a
 >   module author never writes one, and must not re-merge the sources per request.
@@ -231,14 +232,12 @@ configuration's job. See
 ### Step 5: Architecture test fixture
 
 The dependency-direction and cross-module rules live in
-`backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs`. Both are
-`[Theory]`-driven from the literal `ModuleNames` array in that file, not scanned —
-**add `<Name>` to that array**. Until you do, the new module's `Domain` assembly is
-never inspected and both rules pass vacuously. What is still owed is
-`Every_Module_Has_An_AuditCoverage_Matrix`, registered in
-[21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
-and **awaiting backfill in Packet 9** with the audit catalogue it reads. Until it
-exists, the two matrix files below are a review check rather than a test.
+`backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs`. Both take their
+modules from `Modules.Names`, discovered from `backend/src/Modules`, so a new module is
+swept the moment its directory exists. `Every_Module_Has_An_AuditCoverage_Matrix` fails a
+spec directory with no `audit.md`, and `Every_Module_That_Ships_A_Request_Has_A_Matrix`
+fails a module that ships a request type with no matrix — both in
+[21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md).
 
 ### Step 6: Module spec files
 
@@ -254,8 +253,9 @@ create the spec files under `docs/modules/<name>/`:
   them and `(off-path)` on operations that are not MediatR requests (use the
   [add-audit-coverage](../add-audit-coverage/SKILL.md) skill; the matrix and the
   catalogue are checked against each other by
-  `Every_TenantOwned_Command_HasAuditCoverage`, in the two directions that skill's
-  Step 1 sets out).
+  `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix) and
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue), the two
+  directions that skill's Step 1 sets out).
 - `permissions.md` — permission matrix (use the
   [add-permission](../add-permission/SKILL.md) skill).
 - ER diagram, state diagrams, integration-event catalogue per the standard.
@@ -310,6 +310,7 @@ See [add-ef-migration](../add-ef-migration/SKILL.md) for migration conventions
 - **Writing code against `IModule`.** The type does not exist. Register through
   `AddLearnStackMediatRPipeline` and an `IAuditCatalogSource`; a module-loading
   interface is not what Phase 02a ships.
-- **Missing `docs/modules/<name>/` spec files.** Nothing fails.
-  `Every_Module_Has_An_AuditCoverage_Matrix` is Registered against Packet 9 and
-  there is no permission-matrix rule at all, so review is the only gate until then.
+- **Missing `docs/modules/<name>/` spec files.** A missing `audit.md` fails
+  `Every_Module_Has_An_AuditCoverage_Matrix`, or `Every_Module_That_Ships_A_Request_Has_A_Matrix`
+  once the module ships a request. No rule checks `permissions.md`, so review is the only
+  gate for it.

@@ -278,7 +278,7 @@ integration-event handler. `IAuditStore` is the only sanctioned write path: the 
 in `LearnStack.SharedKernel.Audit` and its implementation in
 `LearnStack.Infrastructure.Audit`, and
 [`Modules_Do_Not_Write_AuditLog_Directly`](../standards/21-architecture-tests-catalogue.md)
-enforces it.
+is the rule that enforces it, registered for Packet 10.
 
 ## OutboxProcessor (BackgroundService)
 

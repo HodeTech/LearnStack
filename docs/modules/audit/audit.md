@@ -13,11 +13,11 @@ about — which is the arrangement that makes them answerable rather than merely
 capture, the classifier and the pipeline that fills them; every operation this module
 declares belongs to a surface that lands later — the query API and the export job in
 [Phase 03](../../roadmap/phase-03-identity-admin.md), the override editor in
-[Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), and redaction and retention
-in [Phase 11](../../roadmap/phase-11-production-hardening.md). Every row therefore
-carries `(planned)`, and the marker is a claim
-`Every_TenantOwned_Command_HasAuditCoverage` re-checks on every run: a `(planned)` row
-whose command has since shipped fails.
+[Phase 06](../../roadmap/phase-06-renderer-admin-studio.md), redaction with Phase 03's
+erasure handler, and retention in
+[Phase 11](../../roadmap/phase-11-production-hardening.md). Every row therefore carries
+`(planned)`, and the marker is a claim `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
+re-checks on every run: a `(planned)` row whose command has since shipped fails.
 
 This matrix is not the floor —
 [Audit Coverage § Baseline Coverage](../../standards/18-audit-coverage.md) is, and a
@@ -32,8 +32,9 @@ match the permission key for the same resource, so `event` here is `audit.event.
 matches `audit.event.read` in [permissions.md](permissions.md).
 
 Two resource segments have no permission key to agree with, and keep their own names for
-the reason `tenancy.tenant_assertion.*` keeps its prefix: nothing in
-[permissions.md](permissions.md) gates a job the platform runs on its own.
+the reason `tenancy.tenant_assertion.*` keeps its prefix: the key that gates them is
+Platform-scope, does not share the `audit.` module segment, and has no name yet —
+[permissions.md](permissions.md) records who names it.
 `audit.redaction.apply` is the spelling
 [Audit Subsystem § 10](../../architecture/31-audit-subsystem.md) already writes into the
 draft it shows, and `audit.purge.apply` is its twin — one resource per act, one verb
@@ -86,8 +87,9 @@ join them to yet; each becomes a two-directional obligation the day its command 
 That is what keeps `(planned)` from being an exemption: the marker says "no request type
 yet", the rule re-derives whether that is true, and a row still marked `(planned)` after
 its command ships fails. The two `(off-path)` rows sit outside the join in both
-directions and are joined by neither — their writers are Phase 11 jobs, not requests, and
-their catalogue entries are registered by slug when those jobs land.
+directions and are joined by neither — their writers are not requests: the GDPR erasure
+handler Phase 03 lands and the retention purge Phase 11 lands, and each registers its slug
+when it does.
 
 ## Retention
 

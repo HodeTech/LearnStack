@@ -14,16 +14,19 @@ fail-closed rule ships with it — the `audit` health check, the two counters, a
 `Critical` line ([ADR-0033 Amendment 3](../../decisions/0033-audit-durability-model.md)).
 `AuditingTenantAssertionRecorder` ships with them, so both
 `tenancy.tenant_assertion.*` slugs are written rather than declared.
-**Still open inside Packet 9**: the entitlement socket of
-[ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md). Rows marked
+The entitlement socket of
+[ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md) shipped in the same
+packet. Rows marked
 `(planned)` in [the coverage matrix](audit.md) belong to the phase their cell names.
 The **read** side — the query API of
 [§ Querying](../../architecture/31-audit-subsystem.md), its export job and its permission
 registry — lands with Identity in
-[Phase 03](../../roadmap/phase-03-identity-admin.md). Partitioning, the retention purge
-and the GDPR redaction path land in
-[Phase 11](../../roadmap/phase-11-production-hardening.md) against written triggers
-([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).
+[Phase 03](../../roadmap/phase-03-identity-admin.md), and so does the GDPR redaction
+path, triggered by a user's erasure — `UserGdprDeletedIntegrationEventHandler` and each
+module's `IUserReferenceLocator`
+([Audit Subsystem § 10](../../architecture/31-audit-subsystem.md)). Partitioning and the
+retention purge land in [Phase 11](../../roadmap/phase-11-production-hardening.md) against
+written triggers ([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).
 
 The third module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -77,7 +80,8 @@ know before touching it.
   nothing else, which is what keeps that impossible. The **ports** those types implement
   live in `LearnStack.SharedKernel.Audit`, beside the value types every module's
   catalogue source names.
-- **The log's own retention or redaction.** Both are Phase 11, both run as
+- **The log's own retention or redaction.** Redaction is Phase 03's and the purge Phase
+  11's; both run as
   `learnstack_platform` through the audited `EnterPlatformAdminScope(reason)` path, and
   both are already bounded by what this packet's migration grants: a `DELETE`, and an
   `UPDATE` restricted to six columns.
@@ -390,10 +394,11 @@ Two budget-shaped facts that are not latency:
   Phase 03 registers. An absent override reads as "no overrides", which is the safe
   answer, so nothing is lost by the gap — but the override branch is exercised by a test
   that seeds the row as the migration role rather than by any shipped caller.
-- **Retention is unowned until Phase 11.** The purge, the partition-management job and
-  the GDPR redaction path all sit behind the same trigger — measured `audit_log` growth.
-  The grants they need are already written, which is the part that could not be added
-  later without a migration on a table nobody may rewrite.
+- **Retention is unowned until Phase 11.** The purge and the partition-management job
+  sit behind the same trigger — measured `audit_log` growth. GDPR redaction is not on it:
+  it is triggered by an erasure and lands with Phase 03's erasure handler. The grants all
+  three need are already written, which is the part that could not be added later without
+  a migration on a table nobody may rewrite.
 - **The read API's shape is Phase 03's to settle.** The four permission keys and the
   endpoint list in [Audit Subsystem § 11](../../architecture/31-audit-subsystem.md) are
   forward declarations; the export job's storage, its expiry and its own audit row are

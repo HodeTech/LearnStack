@@ -84,7 +84,10 @@ scope.
 **`Operation` column holding the catalogue's slug**
 ([ADR-0044 § 6](../../../docs/decisions/0044-audit-write-path.md)). The matrix is the
 human-readable artifact and the in-code catalogue is the executable one; neither is
-parsed from the other, and `Every_TenantOwned_Command_HasAuditCoverage` joins them.
+parsed from the other, and three rules in `AuditCoverageTests` join them —
+`Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix),
+`Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue) and
+`Every_Shipped_Request_Is_Registered` (every request type with a handler is registered).
 
 **The join has two directions and they have different domains**
 ([ADR-0044 Amendment 3 § 1](../../../docs/decisions/0044-audit-write-path.md#amendment-3--what-the-join-binds-to-and-the-types-the-ports-carry-2026-09-08)):
@@ -101,11 +104,13 @@ parsed from the other, and `Every_TenantOwned_Command_HasAuditCoverage` joins th
   marker is a claim the rule re-checks on every run, not an escape: a `(planned)` row
   whose command has since shipped **fails**.
 - **`(off-path)`** marks an operation that is not a MediatR request at all. Those rows
-  sit outside the request-type join in both directions and their catalogue entries are
-  registered by slug rather than by type. Today: `platform.admin_scope.enter`,
-  `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`, and the two ADR-0036 parks
-  on Packet 9 — `tenancy.tenant_assertion.reject` and
-  `tenancy.tenant_assertion.anonymous_burst`.
+  sit outside the request-type join in both directions and register by slug rather than
+  by type. Seven rows carry it: Tenancy's `platform.admin_scope.enter`,
+  `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
+  `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
+  Audit's `audit.redaction.apply` and `audit.purge.apply`. The three whose writer ships are
+  registered through `DeclareOffPath`; the other four also carry `(planned)` and register
+  when their writer lands.
 - **A row carries both markers where both are true** — off the request path *and* ahead
   of the code that will write it.
 
@@ -260,12 +265,11 @@ references only SharedKernel, its own Domain and its own Contracts, and a Shared
 back-edge to a module is a project cycle. The Audit module's `AuditEntry` consumes them;
 it does not declare them.
 
-> **The ports exist; the behavior does not yet.** `IAuditCatalogSource`,
-> `IAuditCatalogBuilder` and `IAuditStore` ship in `LearnStack.SharedKernel.Audit`, and
-> the builder's method names are fixed — `MustAudit` / `ShouldAudit` / `MayAudit`,
-> `Off` and `DeclareOffPath`. Write against them as spelled. What is still a Packet 3
-> logging shell is `AuditLogBehavior`, which rejects nothing until Packet 9 lights it
-> up, so a registration written today is correct and inert.
+> **The ports and the behavior both ship.** `IAuditCatalogSource`,
+> `IAuditCatalogBuilder` and `IAuditStore` live in `LearnStack.SharedKernel.Audit`, and
+> the builder's methods are `MustAudit` / `ShouldAudit` / `MayAudit`, `Off` and
+> `DeclareOffPath`. `AuditLogBehavior` is live: a registration takes effect on the next
+> request, and a request with none is refused with `audit_unclassified_operation`.
 
 ```csharp
 // LearnStack.Modules.Enrollment.Application/EnrollmentAuditCatalogSource.cs
@@ -357,7 +361,7 @@ call at all.
 ### Step 4: Sensitive-field redaction
 
 For PII fields, mark them in the domain entity with `[PiiSensitive]`, the SharedKernel
-property attribute Packet 9 adds:
+property attribute `LearnStack.SharedKernel.DataProtection.PiiSensitiveAttribute`:
 
 ```csharp
 public sealed class User : AuditableEntity<UserId>
@@ -394,8 +398,14 @@ The interceptor **captures only** — it builds no row and issues no SQL.
 
 Two shapes are binding on anything that reads the columns:
 
-- **`changes` is a JSON array** of `{ path, before, after }`, with an entity-qualified
-  RFC 6901 pointer in `path`. Never the polymorphic object-or-array shape ADR-0016 drew.
+- **`changes` is a JSON array** of `{ path, before, after }`, with an instance-qualified
+  pointer in `path` — `/{EntityType}/{EntityId}` and then an RFC 6901 pointer into that
+  instance's snapshot. Never the polymorphic object-or-array shape ADR-0016 drew.
+- **A handler that writes two instances of its declared aggregate designates one.** Inject
+  `IAuditSubject` and call `Designate(aggregate)` as soon as the instance the operation is
+  about is loaded — both customization publish handlers do, for the successor. Without it
+  the composer refuses the pair and the request fails closed. An entity the aggregate
+  contains through a navigation needs nothing: it is captured inside the aggregate's row.
 - **Over 256 KiB (`JsonValue.MaxRowBytes`) the value is elided, not truncated.** Each of
   `before_state`, `after_state` and `changes` is capped independently, and above the cap
   the value becomes `{"_elided": true, "bytes": <n>, "sha256": "<hex>"}` —
@@ -442,7 +452,7 @@ public async Task CreateEnrollment_writes_audit_entry()
         Assert.Equal(OperationType.Create, entry.OperationType);
         // outcome is one of four: success | denied | failed | indeterminate.
         // It is not a boolean — ADR-0016's `is_success` is superseded — and the
-        // enum's type name lands with Packet 9.
+        // enum is LearnStack.SharedKernel.Audit.AuditOutcome.
         Assert.Equal(AuditOutcome.Success, entry.Outcome);
         Assert.Equal(actorId, entry.ActorUserId);
         Assert.NotNull(entry.AfterState);
@@ -478,18 +488,19 @@ passes even when every policy is inert. See
   [21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
   — do not invent a second spelling:
   - `Every_Module_Has_An_AuditCoverage_Matrix` (the module's `audit.md` exists) —
-    Registered, backfilled in Packet 9.
+    Implemented (`AuditConventionTests`), and `Every_Module_That_Ships_A_Request_Has_A_Matrix`
+    — Implemented (`AuditCoverageTests`) — fails a module that ships a request with none.
   - `Modules_Do_Not_Write_AuditLog_Directly` (no module assembly outside
     `LearnStack.Modules.Audit.*` names `audit_log` or `AuditEntry`; the
     `LearnStack.SharedKernel.Audit` ports are explicitly out of scope) — Registered,
     Packet 10.
-  - `Every_TenantOwned_Command_HasAuditCoverage` — Registered, backfilled in Packet 9.
-    This is the rule that holds the matrix and the catalogue together. Both directions
-    run, on the two domains of Step 1: catalogue → matrix is total for a module's
-    source, matrix → catalogue binds only where the request type exists, and a
-    `(planned)` row whose command has shipped fails.
-  - `OperationType_Enum_Matches_Catalog` — Registered, Packet 9, if you touched the
-    `OperationType` list.
+  - `Every_TenantOwned_Command_HasAuditCoverage` — Implemented: catalogue → matrix, class
+    and type included. `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` runs
+    matrix → catalogue with the `(planned)` anti-rot check, and
+    `Every_Shipped_Request_Is_Registered` fails any request type with a handler that has
+    no registration — the half a slug comparison cannot see when two requests share one.
+  - `OperationType_Enum_Matches_Catalog` — Implemented (`AuditConventionTests`), if you
+    touched the `OperationType` list.
   - There is **no** registered PII-redaction rule. Redaction is proved by the
     integration test below, not by an architecture test.
 - An integration test demonstrates the new entry appears in `audit_log` with the
@@ -518,8 +529,8 @@ passes even when every policy is inert. See
   elision record of Step 4b, in the column's own JSON type. Never an empty object, never
   a silent cut, and never a pointer to a blob store that does not exist.
 - **Skipping the matrix update.** `Every_TenantOwned_Command_HasAuditCoverage` fails a
-  catalogue entry with no matrix row, and a matrix row whose request type exists with no
-  catalogue entry, once Packet 9 backfills it; until then review is the only gate.
+  catalogue entry with no matrix row, and `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`
+  fails an unmarked row nothing registers.
 - **Leaving `(planned)` on a row whose command has landed.** The marker is anti-rot, and
   the rule re-checks it: the commit that adds the command adds the catalogue entry and
   drops the marker, or the build goes red.

@@ -59,18 +59,20 @@ from the string
   ADR-0018.
 - Backend-only or frontend-only flags — every flag is readable from both surfaces
   through the same `IFeatureFlags` contract.
-- A key nothing gates yet. Packet 9 carries **only the keys the corpus already
-  names**; a registry listing a capability no code reads is a list that is wrong before
-  anything reads it. Each gate ships with the feature it gates.
+- A key neither the Hub contract nor the corpus names. A registry declares every key the
+  contract names whether or not anything gates it yet — enforcement is what waits for a
+  consumer, not membership
+  ([ADR-0045 Amendment 2](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md)).
+  Each gate ships with the feature it gates.
 
 ## Inputs
 
 | Input | Required | Description |
 |-------|----------|-------------|
 | Key name | Yes | C# field name (`ClassroomRecording`) + wire-format string (`classroom.recording`). |
-| Source | Yes | `PlanProjected` (through `IEntitlementProvider`), `TenantFlag` (`tenant_feature_flags`), or killswitch (`platform_killswitches`). |
+| Source | Feature only | `FeatureSource.PlanProjected` (through `IEntitlementProvider`) or `FeatureSource.TenantFlag` (`tenant_feature_flags`). A limit is always plan-projected, and a killswitch is its own registry (`platform_killswitches`). |
 | Default | Yes | The catalogue default when the key is absent from the projection. For a `LimitKey`: `-1` unlimited, `0` denied, `> 0` the allowance. Killswitch default is `true`. |
-| Failure posture | Feature and limit keys | Fail-open / fail-closed, per [26-hybrid-license-model.md § Failure policy by key class](../../../docs/architecture/26-hybrid-license-model.md#failure-policy-by-key-class). Lives in the registry, never at the call site ([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md)). A killswitch declares none — a failed read already resolves to its default, `true`. |
+| Failure posture | Feature only | `DegradedPosture.FailClosed` or `DegradedPosture.FailOpenToLastKnown`, per [26-hybrid-license-model.md § Failure policy by key class](../../../docs/architecture/26-hybrid-license-model.md#failure-policy-by-key-class). Lives in the registry, never at the call site ([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md)). A killswitch declares none — a failed read already resolves to its default, `true`. |
 | Killswitch | Feature only | The `KillswitchKeys` entry that can override this key, or none. Declared on the descriptor, never derived from the key string. |
 | Limit enforcement | Limit only | `Soft` (banner + `usage.alert.soft_limit_reached`) or `Hard` (403 ProblemDetails). Declared here in Packet 9; **enforced** from Phase 02c. |
 | Affected modules | Yes | Where the key is read. |
@@ -174,40 +176,31 @@ public static class KillswitchKeys
 }
 ```
 
-Pair each key with a **catalogue descriptor** so the runtime knows whether the key is
-plan-projected, tenant-flag-level or a killswitch, its default, its failure posture, the
-killswitch that can override it, and — for a `LimitKey` — its `LimitEnforcement`. The
-three catalogs, the two value objects and the descriptors ship in **Phase 02a Packet 9**
-([ADR-0045 § 6](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md));
-the property names below are illustrative, the **values** are not.
+Each feature and limit key has a **descriptor** in its registry's `All` map, and a
+killswitch has only its default. The shapes are the positional records in
+`LearnStack.SharedKernel.Entitlements/Keys.cs` — `FeatureDescriptor(Key, Source, Default,
+Degraded, Killswitch = null)` and `LimitDescriptor(Key, Default, Enforcement)` — and the
+three value objects are `FeatureKey`, `LimitKey` and `KillswitchKey`. The entries below are
+the shipped ones, verbatim:
 
 ```csharp
-// Illustrative shape — the descriptor type names land with Packet 9.
-descriptors.Add(FeatureKeys.ClassroomRecording, new FeatureKeyDescriptor
-{
-    Source = FeatureSource.PlanProjected,
-    Default = false,
-    Posture = FailurePosture.FailClosedOnColdStart,   // required — see below
-    Killswitch = KillswitchKeys.RecordingEnabled,     // nullable; declared, never derived
-    Description = "Enable in-app classroom recording",
-    Phase = "02c",
-    OwningAdr = "0021",
-});
+// FeatureKeys.All
+new(ClassroomRecording, FeatureSource.PlanProjected, false,
+    DegradedPosture.FailOpenToLastKnown, KillswitchKeys.RecordingEnabled),
 
-descriptors.Add(LimitKeys.ClassroomMinutesPerMonth, new LimitKeyDescriptor
-{
-    Default = 500,                                // the Starter floor compiled in.
-                                                  // Not -1 (a gift) and not 0 (an outage)
-    Enforcement = LimitEnforcement.Soft,
-    Posture = FailurePosture.BuiltInFloor,        // required — see below
-    Description = "Total classroom participant minutes per calendar month",
-    Phase = "02c",
-    OwningAdr = "0021",
-});
+// LimitKeys.All — the floor, never -1 (a gift) and never 0 (an outage). The Hub's
+// Starter row carries 0 for this key; 60 is LearnStack's smallest working allowance, and
+// LimitKeys.cs says why beside it.
+new(ClassroomMinutesPerMonth, 60, LimitEnforcement.Soft),
+
+// KillswitchKeys.All
+[RecordingEnabled] = true,
 ```
 
-**Two descriptor members are required, and both were added by
-[ADR-0045 Amendment 1 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08):**
+**Two `FeatureDescriptor` members carry
+[ADR-0045 Amendment 1 § 5](../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md#amendment-1--what-the-other-repository-already-shipped-2026-09-08):
+`Degraded`, a required `DegradedPosture`, and `Killswitch`, a nullable `KillswitchKey`.** A
+`LimitDescriptor` carries neither: every limit falls back to its `Default` floor.
 
 - **The failure posture**, because
   [ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md) requires
@@ -344,8 +337,8 @@ is what makes `tenancy.killswitch.toggle` a MUST-class audit row with a real act
 
 The overlay is read through the **L1 cache** and invalidated on toggle, under a second
 allowed platform `CacheKey` family — `platform:tenancy:killswitch`. `EnsureValid` admits
-one platform family today (`platform:hub:host-map:*`); Packet 9 enumerates the killswitch
-family as the second, and a third one is another decision. A read failure resolves to
+two platform families, `platform:hub:host-map:*` and, since Packet 9,
+`platform:tenancy:killswitch`; a third one is another decision. A read failure resolves to
 the key's default (`true`, enabled) and logs at `Error`: a cache outage must not disable
 every gated path platform-wide. A flip is eventually consistent across instances,
 bounded by the TTL and the invalidation event.

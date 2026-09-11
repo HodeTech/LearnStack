@@ -208,9 +208,9 @@ empty set — the honest state of a marker no request type carries yet.
 so a row naming a request type that does not carry `[PublicSurface]` fails the build:
 an entry here reads as a reviewed decision, and one with no attribute behind it is a
 decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSensitive`
-is the one to watch when the first row lands — its audit-catalogue cross-check needs
-`IAuditStore`, which arrives in Packet 9, so until then it asserts only that the set is
-empty and a row landing before that is what forces the question.
+is the one to watch when the first row lands — its cross-check against the audit
+catalogue, `IAuditCatalog`, shipped in Packet 9, is not written yet, so it asserts only
+that the set is empty, and the first row is what forces the question.
 
 ## Pagination
 

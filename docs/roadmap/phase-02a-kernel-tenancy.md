@@ -1,6 +1,7 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-09-06).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7 and 8 shipped;
+> **Status (2026-09-11).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped;
+> Packet 10 is next;
 > the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -18,7 +19,7 @@
 > | 6 | Tenancy schema and the corrected RLS template | ✅ [record](#delivery-record-packet-6) |
 > | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
 > | 8 | Tenant Customization foundation | ✅ [record](#delivery-record-packet-8) |
-> | 9 | Audit infrastructure and the entitlement socket | ⏳ [scope](#packet-sequence) |
+> | 9 | Audit infrastructure and the entitlement socket | ✅ [record](#delivery-record-packet-9) |
 > | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
 >
 > **[`## Packet Sequence`](#packet-sequence) says which packet lands which part, in what
@@ -31,8 +32,9 @@
 > [`## Delivery Record (Packet 4)`](#delivery-record-packet-4), Packet 5 in
 > [`## Delivery Record (Packet 5)`](#delivery-record-packet-5), and Packet 6 in
 > [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
-> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7) and Packet 8 in
-> [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) — each kept separate
+> [`## Delivery Record (Packet 7)`](#delivery-record-packet-7), Packet 8 in
+> [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) and Packet 9 in
+> [`## Delivery Record (Packet 9)`](#delivery-record-packet-9) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
 
 ## Goal
@@ -755,8 +757,8 @@ correctness cannot be added later, audit scale can.
 **Classification is executable, and the matrix is the document.** The catalogue is
 in-process, registered per module by `IAuditCatalogSource` and keyed by request type;
 `docs/modules/<module>/audit.md` carries the same `{module}.{resource}.{verb}` slugs in
-an `Operation` column, and `Every_TenantOwned_Command_HasAuditCoverage` asserts the two
-agree. **The join runs in two directions over two different domains**
+an `Operation` column, and `AuditCoverageTests` asserts the two agree. **The join runs
+in two directions over two different domains**
 ([ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md)): every entry a
 module's `IAuditCatalogSource` registers must have a matrix row carrying the same slug,
 without exemption; a matrix row fails only when a request type that raises it **exists**
@@ -764,8 +766,9 @@ and no catalogue entry names it. Both shipped matrices classify ahead of the com
 they describe and say so, so a row whose command has not shipped carries `(planned)` —
 and a `(planned)` row whose command *has* shipped fails, which is what stops the marker
 becoming a hole. Operations that are not MediatR requests at all carry `(off-path)` and
-are registered by slug rather than by type: entering the platform-admin scope, the
-killswitch toggle, the entitlement refresh, and the two tenant-assertion keys below.
+register by slug rather than by type: entering the platform-admin scope and the two
+tenant-assertion keys below, whose writers ship here; the killswitch toggle and the
+entitlement refresh, which also carry `(planned)` and register with their writers.
 
 Every request that reaches step 3 must be classified — there is no exempt kind — so the
 eight test-only request types register through the same builder, as `Off`. `Off` is a
@@ -933,8 +936,12 @@ Tests grouped by introducing packet:
   catalogue is authoritative and carries the full set, and four of them are
   **integration** tests — an architecture test cannot observe a transaction:
   `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
+  `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits`,
+  `Every_Shipped_Request_Is_Registered`,
   `Every_TenantOwned_Command_HasAuditCoverage`,
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`,
   `Every_Module_Has_An_AuditCoverage_Matrix`,
+  `Every_Module_That_Ships_A_Request_Has_A_Matrix`,
   `AuditEntry_Is_AppendOnly`,
   `OperationType_Enum_Matches_Catalog`,
   `AuditStateCapture_ClearedPerRequest`,
@@ -1441,10 +1448,14 @@ identifiers registered in
 - No `IgnoreQueryFilters()` outside the audited `EnterPlatformAdminScope(reason)`
   call path (`No_IgnoreQueryFilters_Outside_PlatformAdminScope`).
 - Audit-coverage matrix file exists per module
-  (`Every_Module_Has_An_AuditCoverage_Matrix`), and every command it classifies has a
-  matching entry in the module's in-code catalogue
-  (`Every_TenantOwned_Command_HasAuditCoverage`).
-- `AuditEntry_Inherits_Entity_Not_AuditableEntity`, `AuditEntry_Is_AppendOnly`,
+  (`Every_Module_Has_An_AuditCoverage_Matrix`, and
+  `Every_Module_That_Ships_A_Request_Has_A_Matrix` for a module with code); every request
+  type with a handler is registered (`Every_Shipped_Request_Is_Registered`); and the
+  in-code catalogue and the matrix agree in both directions
+  (`Every_TenantOwned_Command_HasAuditCoverage`,
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`).
+- `AuditEntry_Inherits_Entity_Not_AuditableEntity`,
+  `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits`, `AuditEntry_Is_AppendOnly`,
   `OperationType_Enum_Matches_Catalog`, `AuditStateCapture_ClearedPerRequest`.
 - `FeatureKey_AllReferences_AreInRegistry` and `PlanProjected_Keys_NotInTenantFlags` —
   per [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md).
@@ -3025,8 +3036,9 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1867 tests green** — 1 contract, 102 architecture, 1308 unit,
-> 456 integration. Counted from a run under `CI=true`, which makes warnings errors.
+> **Measured at close: 1935 tests green** — 1 contract, 109 architecture, 1355 unit,
+> 470 integration — after the external review's round; 1867 before it. Counted from a run
+> under `CI=true`, which makes warnings errors.
 
 ### The four decisions, and why the corpus did not settle them
 
@@ -3110,3 +3122,67 @@ in architecture/26 now carries all sixteen.
 - **`IEntitlementAdminQuery`.** `IFeatureFlags` throws on a request with no tenant rather
   than guessing one, and the cross-tenant operator read that is the alternative to that
   throw is Phase 02c's, with the surface that needs it.
+
+### The external review, and what it changed (2026-09-11)
+
+An external review of the pull request at `025b493` asked for changes: two blockers, seven
+majors, nine minors and two optional improvements. Each finding was checked against the
+code before anything moved, each was confirmed, and each is fixed in this packet rather
+than handed on. They share the lesson the review named and this record adopts: **the
+suite counted rows and did not check what the rows meant** — and several passing cases
+encoded the defect they should have caught.
+
+- **Replacing a live revision failed, for both customization aggregates.** A publication
+  retires the incumbent and activates the successor on one transaction; the composer saw two
+  instances of one type and refused, which rolled every replacement publication back. The
+  handler now designates the successor through `IAuditSubject`, and the retirement travels in
+  `changes` under an instance-qualified pointer
+  ([ADR-0044 Amendment 6 §§ 1, 5](../decisions/0044-audit-write-path.md)).
+- **Successful MUST rows carried no actor and no correlation id** — the in-transaction
+  writer never passed them. Both are read at step 3 and carried on the intent (§ 2).
+- **An inner request refused under an outer one that committed was recorded as success.**
+  Each audit frame records its own request's result on its intents (§ 3).
+- **A taxonomy's bands were captured and dropped.** A contained entity is folded into its
+  aggregate's capture (§ 4).
+- **The reconcile could replace the caller's outcome and skip its own cleanup.** A composer
+  refusal and a store failing before its first statement escaped a catch that named one
+  exception type; the reconcile now guards composition and write together, per intent.
+- **A platform-scope entry could be erased by the work it admitted.** The row rode the
+  caller's transaction, so reading across every tenant and then throwing rolled the only
+  record back. It now commits first, as ADR-0044 § 10 always required; the case that pinned
+  zero survivors is inverted.
+- **The coverage rules could not see a request whose slug another request shared.** They
+  now discover every request type with a handler and ask the catalogue for each, and read
+  every slug in a matrix cell.
+- **Two Accepted texts disagreed with what shipped.** Registry membership is now amended
+  into [ADR-0021](../decisions/0021-feature-based-entitlement.md) and
+  [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) as decision 1 above
+  records it, and [ADR-0033 Amendment 5](../decisions/0033-audit-durability-model.md)
+  corrects a list that routed `EnterPlatformAdminScope` through the wrong writer. An
+  unrelated edit to Accepted ADR-0043 that had ridden in undisclosed is reverted.
+- **The minors:** `ComplianceCaps.None` is frozen; a tenant-flag outage fails closed as the
+  degraded-operation table says; reversing the nullable `valid_until` migration refuses a
+  null expiry by name instead of backfilling with an `UPDATE` the owner could not see
+  through; the pending rows go in one round trip, as ADR-0044 § 3 said; the private-base PII
+  case no longer passes on a token name; the audit-before-commit case asserts order in one
+  trace; the Audit permission matrix names its future mutation keys' owner; and the stale
+  status text across skills, matrices and indexes is reconciled.
+
+The round's own sweep of the corpus found three more things the review had not, and each is
+fixed beside the rest:
+
+- **A rule the catalogue called Implemented had no code.** The commit that added the step 8
+  audit rules replaced `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` instead of
+  adding beside it; it is restored and re-measured.
+- **A catalogued leg was never written.** `PublicSurface_Requests_Are_Never_ReadSensitive`
+  waited on the audit catalogue, which this packet shipped; the cross-check now runs, with a
+  companion that proves it can fail while the marked set is still empty.
+- **A factory could fail only at request time.** Every shipped request handler is now
+  resolved from the API's own container inside an open unit of work, which host validation —
+  a static check that never runs a factory — could not do.
+
+Every guard added in the round was checked by mutation in an isolated worktree, each killed
+by the case written for it. One tooling defect surfaced along the way: the pre-commit hook's
+stash pop died of `SIGPIPE` under `pipefail` whenever the repository held two or more
+stashes, so a commit with unstaged work failed without a message and left that work
+stashed.

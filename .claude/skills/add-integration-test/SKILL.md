@@ -228,9 +228,11 @@ query filters without moving Phase 02d's first `/api/v1/*` read endpoints earlie
 
 ### Step 3: Outbox round-trip
 
-> **Steps 3 to 5 are the shape, not today's API.** `IOutbox`, the outbox
-> dispatcher and `audit_log` do not exist yet — Phase 02b owns the first two,
-> Packet 9 the third — and the durable `IIdempotencyStore` ships on the trigger
+> **Steps 3 to 5 are the shape, not today's API.** `IOutbox` and the outbox
+> dispatcher do not exist yet — Phase 02b owns both. `audit_log` shipped in Packet 9:
+> for a real audit assertion, follow `AuditWorkflowTests`, which drives commands through
+> the seeder's composition root on `SchemaFixture` as `learnstack_app` and reads the
+> persisted columns. The durable `IIdempotencyStore` ships on the trigger
 > [ADR-0037 Amendment 1](../../../docs/decisions/0037-idempotency-key-contract.md)
 > names: the first `[Idempotent]` endpoint, or the first deployment running more
 > than one instance. Packet 6 shipped the `idempotency_keys` table, not the store. The `_fx.*` members below are illustrative of what those phases will

@@ -579,8 +579,9 @@ Security-relevant durability rules:
   failure logs at `Error` and is surfaced on the audit health check. A tenant override
   may narrow SHOULD/MAY coverage; it may never remove baseline MUST coverage
   ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md);
-  asserted by `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
-  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
+  registered as `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md) for Packet 10;
+  today `AuditConfigServiceTests` and `AuditLogBehaviorTests` hold its two halves).
 - **Snapshots are redacted at capture and bounded there.**
   `AuditChangeTrackerInterceptor` captures every `Added` / `Modified` / `Deleted`
   entry minus a named exclusion list, and two gates run before anything is parked: a

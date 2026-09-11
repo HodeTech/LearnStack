@@ -427,6 +427,14 @@ rules:
   joiner that reports `Committed` claims durability for a row nothing committed.
   `ProvisionTenantCommand` is the shipped case: two aggregates, one transaction,
   two MUST rows.
+- **Write two instances of an operation's declared aggregate without naming which one
+  the row is about.** A row describes one instance. A handler that writes two — a
+  publication retires the incumbent and activates the successor — calls
+  `IAuditSubject.Designate(aggregate)`, and the other instance travels in `changes`
+  under its own instance-qualified pointer; undesignated, the composer refuses the pair
+  and the request fails closed. An entity the aggregate contains through a navigation
+  needs nothing: it is captured inside the aggregate's row
+  ([ADR-0044 Amendment 6](docs/decisions/0044-audit-write-path.md)).
 - **Declare an audit value type in the Audit module's `Domain`.**
   `LearnStack.SharedKernel.Audit` holds the value types beside the ports —
   `OperationType`, `OperationClass`, `AuditOutcome`, `AuditClassification`,

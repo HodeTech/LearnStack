@@ -19,7 +19,7 @@ keys gate.
 
 And one Platform-scope key, which is not in the table above because
 [Permission Standards](../../standards/19-permissions.md) scopes a key to Platform,
-Tenant or Organization and this one is the only Platform key the module has:
+Tenant or Organization and this one is the only Platform key the module declares today:
 
 | Key | Scope | Governs |
 |---|---|---|
@@ -28,9 +28,15 @@ Tenant or Organization and this one is the only Platform key the module has:
 **`event` has no `write`, no `delete` and no `admin`, and the absence is the point.**
 Every other resource in the corpus gets the actions its commands need. This one has no
 command at all: rows arrive from `PostgresAuditStore` on behalf of the operation being
-audited, and the two mutating paths that exist — GDPR redaction and the retention purge
-— are Phase 11's, run as `learnstack_platform`, and are gated by
-`platform.audit.read`'s Platform-scope sibling rather than by a tenant-facing key. A
+audited, and the two mutating paths that exist — GDPR redaction, which lands with the
+erasure handler in [Phase 03](../../roadmap/phase-03-identity-admin.md), and the retention
+purge, which lands in [Phase 11](../../roadmap/phase-11-production-hardening.md) — run as
+`learnstack_platform` through `EnterPlatformAdminScope(reason)` and are gated by a
+Platform-scope key rather than a tenant-facing one. **That key's name is pending.** Phase 03
+registers it with the permission registry and the erasure handler, in the closed action
+set [Permission Standards](../../standards/19-permissions.md) fixes, and Phase 11's purge
+takes the same key or a sibling Phase 03 names — so no writer of `audit_log` lands with a
+permission nobody has declared. A
 `write` on `event` would be a key a tenant admin could hold and a database grant would
 refuse: `learnstack_app` holds `SELECT, INSERT` on `audit_log` and no request path
 inserts through it. Two layers disagreeing about what is permitted is how a permission

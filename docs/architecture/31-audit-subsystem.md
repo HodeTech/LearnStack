@@ -114,7 +114,8 @@ Five components, separated concerns:
 
 1. **`AuditChangeTrackerInterceptor`** — runs inside `DbContext.SaveChangesAsync`, walks
    the ChangeTracker, snapshots every entry in state `Added`, `Modified` or `Deleted`
-   minus a named exclusion list (§ 3) into `IAuditStateCapture`. It **never** constructs
+   minus a named exclusion list (§ 3) into `IAuditStateCapture` — one capture per
+   aggregate, with the entities it contains folded in (§ 3). It **never** constructs
    an `AuditEntry` and never inserts one. Making it the writer would work in EF Core terms
    but would leave two questions unanswerable: which of several flushes in one transaction
    owns the row, and how the audit type gets mapped into every module's `DbContext`
@@ -270,9 +271,37 @@ and the elision record is what the one sentence that mentioned it was reaching f
 
 ### The `changes` shape
 
-`changes` serialises as a JSON **array** of `{ path, before, after }`, `path` being an
-entity-qualified RFC 6901 pointer — never the polymorphic object-or-array shape ADR-0016
-described. One shape, for every entity kind, on both sides of the size cap.
+`changes` serialises as a JSON **array** of `{ path, before, after }` — never the
+polymorphic object-or-array shape ADR-0016 described. One shape, for every entity kind, on
+both sides of the size cap.
+
+`path` is **instance-qualified**: `/{EntityType}/{EntityId}` followed by an RFC 6901 pointer
+into that instance's snapshot — `/TenantContentType/0190…/Status`, and for a contained
+entity `/TenantLevelTaxonomy/0190…/Items/b2/DisplayName`, which is exactly where the band
+sits in the root's `after_state`. Every reference token is escaped as RFC 6901 requires, so
+a composite key's `/` is `~1`. Qualified by type alone the pointer could not say which of
+two instances moved, and a publication's row carries two: the successor activated and the
+incumbent retired ([ADR-0044 Amendment 6 § 5](../decisions/0044-audit-write-path.md)).
+
+### Contained entities are captured with their aggregate
+
+A captured entity that is **not** an `IAggregateRoot<>`, and that exactly one relationship
+reaches through a navigation on its principal — the `HasMany(t => t.Items)` each module
+already writes to express its aggregate boundary for EF — is **folded into its root's
+capture** rather than captured on its own. Its state sits under the navigation's name in
+the root's snapshot, keyed by its own key within the root (its primary key minus the columns
+that point at the root): `"Items": { "a1": { … }, "b2": { … } }`. Its field changes join the
+root's diff under the same pointer, so an added band is in the new membership and the diff,
+and a removed one in the prior membership and the diff. Captured on its own it carried a type
+name no intent declares, the composer dropped it, and a taxonomy's row recorded none of the
+bands the tenant authored ([ADR-0044 Amendment 6 § 4](../decisions/0044-audit-write-path.md)).
+
+A navigation is snapshotted only when its membership is **known** — loaded with the root, or
+the root created earlier in this request, which the interceptor remembers because EF reports
+`IsLoaded = false` for a new entity even after it is saved. A root read without its
+collection is never recorded as owning nothing. A contained entity whose root is not tracked
+is captured on its own rather than dropped. `TenantLocale` and `TenantFeatureFlag` fold into
+`Tenant` by the same rule.
 
 ### Where it is attached
 
@@ -313,6 +342,15 @@ public interface IAuditStateCapture
     // many intents the scope holds.
     AuditIntentState State { get; }
 
+    // FRAMES. Every AuditLogBehavior invocation, outermost or nested, opens one before it
+    // declares and closes it on every way out. An intent belongs to the frame that
+    // declared it and a capture to the frame innermost when its flush ran, so a row is
+    // composed from its OWN request's writes; closing a frame records what that request
+    // returned on the intents it declared (ADR-0044 Amendment 6 § 3).
+    IReadOnlyList<CapturedEntityChange> ChangesOf(AuditIntent intent);
+    void OpenFrame();
+    void CloseFrame(AuditIntentResult result);
+
     void DeclareIntent(AuditIntent intent); // AuditLogBehavior, step 3; appends
     void MarkWrittenInTransaction();        // IAuditStore.WritePendingAsync
     void MarkCommitted();                   // TransactionBehavior, OWNING FRAME ONLY
@@ -332,26 +370,55 @@ public interface IAuditStateCapture
 // — is enforced before anything can be written rather than after.
 //
 // EntityType is the aggregate the row is about, from the catalogue entry, and is what
-// fills entity_type / entity_id. The store selects every CapturedEntityChange whose
-// EntityType matches its name and merges them: the EARLIEST such capture's BeforeJson,
-// the LATEST one's AfterJson, and their Fields concatenated in capture order. The merge
-// is not hypothetical — ProvisionTenantCommand saves three times and captures Tenant
-// twice, so picking one arbitrarily records half of what happened
-// ([ADR-0044 Amendment 5 § 2](../decisions/0044-audit-write-path.md)).
+// fills entity_type / entity_id. The composer takes the captures of that type made by the
+// intent's own request. entity_id is the SUBJECT instance — SubjectId when the handler
+// designated one through IAuditSubject, otherwise the one instance captured, and two
+// undesignated instances are refused rather than guessed between. before_state is the
+// subject's EARLIEST capture's BeforeJson and after_state its LATEST one's AfterJson — the
+// merge is not hypothetical, ProvisionTenantCommand captures Tenant twice — and `changes`
+// is every capture of the type in capture order, so a retired incumbent stays on the
+// record ([ADR-0044 Amendment 5 § 2, Amendment 6 § 1](../decisions/0044-audit-write-path.md)).
+//
+// ActorUserId and CorrelationId are read here, at step 3, beside the tenant, so both
+// writers carry them: the principal the request carried, or null — never a substituted
+// SystemActor ([ADR-0044 Amendment 6 § 2](../decisions/0044-audit-write-path.md)).
 public sealed record AuditIntent(
     AuditEntryId Id,
     TenantId TenantId,
     OrganizationId? OrganizationId,
+    UserId? ActorUserId,
+    string? CorrelationId,
     string ModuleName,
     string Operation,                       // {module}.{resource}.{verb}
     OperationType OperationType,
     OperationClass OperationClass,
     Type? EntityType,                       // the aggregate the row is about, or null
-    DateTimeOffset DeclaredAt);
+    DateTimeOffset DeclaredAt)
+{
+    public string? SubjectId { get; init; }            // IAuditSubject.Designate, or null
+    public AuditIntentResult? Result { get; init; }    // set when its frame closes
+}
+
+// What the declaring request returned: Succeeded, Refused(denied | failed, key), or Thrown.
+// The in-transaction row takes it (none = the owner's own request, which succeeded); a
+// reconciled row takes a returned refusal first, then `indeterminate` for a COMMIT in
+// doubt, then `success` only for a request that succeeded in a transaction that committed,
+// and `failed` otherwise (ADR-0044 Amendment 6 § 3).
+public sealed record AuditIntentResult(AuditOutcome Outcome, string? ErrorKey, bool Threw);
+
+// The port a handler names its row's subject through, when it writes two instances of the
+// aggregate its operation declares — a publication retires the incumbent and activates the
+// successor. The same scoped instance as IAuditStateCapture; it binds the innermost open
+// frame's intents of that type (ADR-0044 Amendment 6 § 1).
+public interface IAuditSubject
+{
+    void Designate<TId>(IAggregateRoot<TId> aggregate)
+        where TId : struct, IStronglyTypedId<Guid>;
+}
 
 // The interceptor's unit of capture, declared beside the buffer that holds it.
 // `Fields` is what the audit row's `changes` column serialises to: a JSON ARRAY of
-// { path, before, after }, `Path` an entity-qualified RFC 6901 pointer (§ 3).
+// { path, before, after }, `Path` an instance-qualified RFC 6901 pointer (§ 3).
 //
 // EVERY VALUE SLOT HERE HOLDS JSON TEXT, which is why each is named `…Json`. It is not
 // cosmetic: 42 and "42" are different values, a C# null is the JSON null rather than an
@@ -515,6 +582,13 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // security (§ 7). A read here would return ZERO ROWS SILENTLY — indistinguishable
         // from "this tenant has no overrides" — so no catch could ever fire. On a cache
         // miss the loader opens its OWN short transaction and sets app.tenant_id itself.
+        //
+        // A FRAME for this invocation, outermost or nested, opened before anything is
+        // declared: each intent belongs to the request that declared it, and each capture
+        // to the request whose handler flushed it. It is closed on every way out, below,
+        // with what this request returned (ADR-0044 Amendment 6 § 3).
+        capture.OpenFrame();
+
         foreach (var descriptor in descriptors)
         {
             // § 7's FOURTH case: an unresolved context that is not provisioning has no
@@ -545,6 +619,11 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 Id:             AuditEntryId.From(guidFactory.NewUuidV7()),
                 TenantId:       owner.Value.Tenant,
                 OrganizationId: owner.Value.Organization,
+                // Read HERE, beside the tenant, so both writers carry them: the principal
+                // the request carried, or null — never a substituted SystemActor
+                // (ADR-0044 Amendment 6 § 2).
+                ActorUserId:    context.UserId,
+                CorrelationId:  context.CorrelationId,
                 ModuleName:     descriptor.ModuleName,
                 Operation:      descriptor.Operation,   // {module}.{resource}.{verb}
                 OperationType:  descriptor.OperationType,
@@ -569,11 +648,13 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         // scope. The matching AuditFrame.Exit() is in the finally, beside the reconcile.
         var outermost = AuditFrame.Enter();
 
-        // Noted on the way through and acted on once, in the finally. A refusal returns, an
-        // exception throws, and a cancelled COMMIT does neither in a way this behaviour's
-        // catch can see — so the exits are reconciled in one place from the STATE the unit
-        // of work recorded, which is a fact about the database rather than the control flow.
-        Error? refusal = null;
+        // Recorded on the way through and acted on once, in the finally. A refusal returns,
+        // an exception throws, and a cancelled COMMIT does neither in a way this behaviour's
+        // catch can see — so the exits are reconciled in one place from two facts: what
+        // THIS request returned, recorded on its own intents, and the STATE the unit of work
+        // recorded, which is a fact about the database rather than the control flow.
+        // Thrown until the handler returns: none of the exceptional exits is a success.
+        var result = AuditIntentResult.Thrown;
 
         TResponse response;
         Exception? handlerException = null;
@@ -582,7 +663,9 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         {
             response = await next();
 
-            if (response.IsFailure) refusal = response.Error;
+            result = response.IsFailure
+                ? AuditIntentResult.Refused(OutcomeOf(response.Error), response.Error.Message.Key)
+                : AuditIntentResult.Succeeded;
         }
         catch (Exception ex)
         {
@@ -596,6 +679,11 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
             handlerException = ex;
             response = default!;
         }
+
+        // EVERY frame closes its own, joiner or owner. An outcome kept in a local here, as it
+        // once was, reached the write only for the outermost request — and the owner wrote
+        // an inner refusal its handler had absorbed as `success`.
+        capture.CloseFrame(result);
 
         if (!outermost)
         {
@@ -620,22 +708,25 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                     && capture.State == AuditIntentState.Committed)
                     continue;
 
-                // The SAME composer TransactionBehavior's in-transaction write uses —
-                // AuditDraftComposer, in SharedKernel because its two callers sit either
-                // side of a project boundary. A private one per writer is how the two
-                // diverged: only the happy-path row carried a snapshot, so every denied,
-                // failed and indeterminate row said nothing about what was attempted.
-                //
-                // A FRESH clock reading, not intent.DeclaredAt: the in-transaction row
-                // that may already exist under this id carries that, and the composite
-                // primary key (id, timestamp) is what makes the in-doubt pair legal rather
-                // than a 23505.
-                var draft = AuditDraftComposer.Compose(
-                    intent, capture.Changes, Outcome(capture.State, refusal),
-                    clock.UtcNow, context.UserId, context.CorrelationId, refusal?.Key);
-
                 try
                 {
+                    // The SAME composer TransactionBehavior's in-transaction write uses —
+                    // AuditDraftComposer, in SharedKernel because its two callers sit either
+                    // side of a project boundary. A private one per writer is how the two
+                    // diverged: only the happy-path row carried a snapshot, so every denied,
+                    // failed and indeterminate row said nothing about what was attempted.
+                    // It takes the intent's own request's captures and result and decides
+                    // the outcome by one rule; the caller passes nothing else it could
+                    // forget. Composed INSIDE the try, per intent: a composer refusal must
+                    // not cost the next intent its attempt, nor replace the caller's outcome.
+                    //
+                    // A FRESH clock reading, not intent.DeclaredAt: the in-transaction row
+                    // that may already exist under this id carries that, and the composite
+                    // primary key (id, timestamp) is what makes the in-doubt pair legal
+                    // rather than a 23505.
+                    var draft = AuditDraftComposer.Reconciled(
+                        intent, capture.ChangesOf(intent), capture.State, clock.UtcNow);
+
                     // CancellationToken.None, and it is the whole point: the paths this
                     // reconcile exists for are the ones where the request's own token is
                     // ALREADY cancelled, and handing it to the write abandons the row at
@@ -648,8 +739,13 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                     else
                         await store.WriteBestEffortAsync(draft, CancellationToken.None);
                 }
-                catch (AuditWriteFailedException ex)
+                catch (Exception ex)
                 {
+                    // EVERY exception, not only AuditWriteFailedException: a store that fails
+                    // before issuing a statement — a data source that cannot be built — and
+                    // a composer refusal both escaped the narrower catch this had, from a
+                    // finally, and replaced a 403 with a 500.
+                    //
                     // Critical, and swallowed here. ADR-0033 Amendment 1: the 503 replaces
                     // the response only when the operation would otherwise have SUCCEEDED.
                     // A row recording an operation that is ALREADY being refused — a
@@ -690,20 +786,21 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     // cancellation travel untouched — the reconcile still runs, because it is in the
     // finally, which is the point the inlined version above makes with a comment instead.
     //
-    // Outcome() is the one private helper this listing keeps, and it resolves:
-    //   Denied        — the Result carries `forbidden`
-    //   Failed        — any other failure Result, or a handler exception, or
-    //                   capture.State == RolledBack
-    //   Indeterminate — capture.State == Indeterminate
-    //   Success       — otherwise
-    // Everything else is AuditDraftComposer's: tenant, organization, module, operation,
-    // type, class and entity type come from the INTENT — never re-read from the accessor,
-    // which throws on the provisioning case and knows nothing of the sentinel one — and
-    // the snapshots come from capture.Changes, filtered to the intent's declared
-    // aggregate by type name. Actor and correlation are passed in from ITenantContext's
-    // UserId and CorrelationId, which are ordinary nullable members and readable on an
-    // unresolved context. A SHOULD/MAY intent is declared at step 3 exactly as a MUST one
-    // is; what differs is only which store method drains it.
+    // OutcomeOf(Error) is the one private helper this listing keeps: `forbidden`,
+    // `resource_scope_violation` and `feature_disabled` — the three codes HttpStatusMap
+    // answers 403 to — are Denied, and every other refusal is Failed. What a ROW says is
+    // AuditDraftComposer's, by one rule per writer (ADR-0044 Amendment 6 § 3): the
+    // in-transaction row takes the intent's result, and none means the owner's own request,
+    // which succeeded; a reconciled row takes a refusal its request returned, then
+    // `indeterminate` for a COMMIT in doubt, then `success` only for a request that
+    // succeeded in a transaction that committed, and `failed` otherwise. Everything else
+    // comes from the INTENT — tenant, organization, actor, correlation, module, operation,
+    // type, class and entity type — never re-read from the accessor, which throws on the
+    // provisioning case and knows nothing of the sentinel one; the snapshots come from
+    // capture.ChangesOf(intent), the captures of the intent's own request, filtered to its
+    // declared aggregate and resolved to its subject instance. A SHOULD/MAY intent is
+    // declared at step 3 exactly as a MUST one is; what differs is only which store method
+    // drains it.
 }
 ```
 
@@ -734,7 +831,14 @@ the ports; `IAuditConfigService` lands with `AuditLogBehavior`, which is its onl
 **Three of `audit_log`'s columns have no source in Packet 9, and the document says so
 rather than implying one.** `actor_user_id` and `correlation_id` come from
 `ITenantContext` — `UserId` and `CorrelationId`, on the accessor the behavior already
-injects. `actor_email` stays `NULL` until the `users` table lands in
+injects — read once at step 3 and carried on the intent, so the in-transaction write and the
+reconcile cannot disagree about them; the in-transaction write once had no way to reach them
+and wrote both columns `NULL` on every successful row
+([ADR-0044 Amendment 6 § 2](../decisions/0044-audit-write-path.md)). The actor is the
+principal the request carried, or `NULL` when it carried none: a handler's
+`UserId ?? UserId.SystemActor` for `created_by` attributes the aggregate and is not the audit
+actor, and an execution that acts as the system carries `UserId.SystemActor` in its own
+context. `actor_email` stays `NULL` until the `users` table lands in
 [Phase 03](../roadmap/phase-03-identity-admin.md); there is no `users` row to read it from
 and `actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
 enrichment `LearnStack.Application` cannot see — that project references no
@@ -1583,8 +1687,8 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
         //    AuditDbContext is bound to IUnitOfWork.Connection (ADR-0040) and stays on
         //    the request's learnstack_app connection whatever scope surrounds it, so
         //    issuing the UPDATE through `db` would raise 42501 rather than redact
-        //    anything. Entering the scope is recorded: at Warning today, as a
-        //    SecurityEvent row once Packet 9 ships audit_log.
+        //    anything. Entering the scope writes its own SecurityEvent row, committed
+        //    before the handle is returned (ADR-0044 § 10).
         await using var handle = await platformScope.EnterAsync(
             reason: $"gdpr-redaction:{@event.UserId}", ct);
 
@@ -1749,10 +1853,14 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
 
 **Structural** — `LearnStack.Tests.Architecture`:
 
-1. `Every_TenantOwned_Command_HasAuditCoverage` — the join between the module's **in-code**
-   catalogue (`IAuditCatalogSource`) and the `Operation` column of
-   `docs/modules/<module>/audit.md`. The key is declared in code and not parsed from
-   Markdown ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)). **It runs in two
+1. The join between the module's **in-code** catalogue (`IAuditCatalogSource`) and the
+   `Operation` column of `docs/modules/<module>/audit.md`, as three rules in
+   `AuditCoverageTests`: `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix),
+   `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue) and
+   `Every_Shipped_Request_Is_Registered`, which asks the catalogue for every request type
+   with a handler — the half a slug comparison cannot see when two requests share one. The
+   key is declared in code and not parsed from Markdown
+   ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)). **The join runs in two
    directions with two different domains**
    ([Amendment 3 § 1](../decisions/0044-audit-write-path.md)), because both matrices were
    written ahead of the commands they classify and the standard asks them to be:
@@ -1763,13 +1871,15 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
      ahead of its command carries `(planned)` and is outside this direction — and a
      `(planned)` row whose command has since shipped **fails**, which is what stops the
      marker from becoming an escape.
-   - *Off the request path.* Operations that are not MediatR requests at all —
+   - *Off the request path.* Operations that are not MediatR requests at all carry
+     `(off-path)` and are outside both directions. Seven rows carry it — Tenancy's
      `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
      `tenancy.entitlement.refresh` and
      [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)'s
-     `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst` —
-     carry `(off-path)` and are outside both directions; their catalogue entries are
-     registered by slug rather than by request type.
+     `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
+     Audit's `audit.redaction.apply` and `audit.purge.apply`. They register by slug: the
+     three whose writer ships through `DeclareOffPath`, the other four — also `(planned)` —
+     when their writer lands.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside
      both directions too (§ 5).
 2. `AuditEntry_Inherits_Entity_Not_AuditableEntity` — append-only by construction: an

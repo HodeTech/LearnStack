@@ -82,9 +82,10 @@ Every module ships this table in its module spec under `docs/modules/<module>/au
 
 One row per audited resource — or one row per group of its operations that share a
 class and a reason, the `Operation` cell then carrying each of their slugs separated by
-`/`. That is the grammar the two shipped matrices —
-[Tenancy](../modules/tenancy/audit.md) and
-[Customization](../modules/customization/audit.md) — already use:
+`/`. That grammar is permitted, and the parser reads every slug in a cell; the three
+shipped matrices — [Tenancy](../modules/tenancy/audit.md),
+[Customization](../modules/customization/audit.md) and [Audit](../modules/audit/audit.md)
+— use its one-slug-per-row form:
 
 | Resource | Operation | Class | Why |
 |---|---|:---:|---|
@@ -119,7 +120,12 @@ discovered from DI and keyed by request type, mapping one request type to one or
 `(operation, OperationType, OperationClass)` triples. Neither artifact is parsed from the
 other, and
 [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
-joins them on this column, reading a cell as the list of slugs it holds.
+joins them catalogue → matrix and
+[`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](21-architecture-tests-catalogue.md#every_matrix_row_whose_command_exists_is_registered)
+matrix → catalogue, each reading a cell as the list of slugs it holds. Neither can see a
+request type nobody registered when another request shares its slug, which is why
+[`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)
+asks the catalogue for every request type with a handler.
 
 ### The join
 
@@ -140,12 +146,14 @@ will raise them — which this standard requires it to do.
 - **`(planned)` is re-checked, not an escape.** A row still marked `(planned)` whose
   command has since shipped **fails**. The marker is a claim the rule tests on every run,
   which is what stops the scoping from becoming a hole.
-- **`(off-path)` is for operations that are not MediatR requests at all** —
-  `platform.admin_scope.enter`, `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`
-  and the two tenant-assertion keys of § Baseline Coverage. They sit outside the
-  request-type join in **both** directions, and their catalogue entries are registered by
-  slug rather than by type.
-- **A row can carry both markers**, and one does. `tenancy.killswitch.toggle` is
+- **`(off-path)` is for operations that are not MediatR requests at all.** Seven rows
+  carry it: Tenancy's `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
+  `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
+  and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
+  request-type join in **both** directions and register by slug rather than by type — the
+  three whose writer ships through `DeclareOffPath` today, the other four when their
+  writer lands.
+- **A row can carry both markers**, and four do. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
   and the read path but no writer —
@@ -240,9 +248,20 @@ Rules:
   composite primary key `(id, timestamp)`.
 - `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. Free-text, surfaced in the tenant admin's audit view.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
-- `changes` is always a JSON **array** of `{ path, before, after }` with an
-  entity-qualified RFC 6901 pointer, never the polymorphic object-or-array shape ADR-0016
-  described. A reader that has to branch on the shape gets it wrong once.
+- `changes` is always a JSON **array** of `{ path, before, after }`, never the polymorphic
+  object-or-array shape ADR-0016 described. A reader that has to branch on the shape gets
+  it wrong once. `path` is **instance-qualified** — `/{EntityType}/{EntityId}` and then an
+  RFC 6901 pointer into that instance's snapshot, `/TenantLevelTaxonomy/0190…/Items/b2/DisplayName`
+  — because one row can carry two instances of a type: a publication records the successor
+  it activated and the incumbent it retired
+  ([ADR-0044 Amendment 6 § 5](../decisions/0044-audit-write-path.md)).
+- **One row is about one instance.** `entity_id`, `before_state` and `after_state` describe
+  the operation's subject. A handler that writes two instances of the aggregate its
+  operation declares names the subject through `IAuditSubject.Designate`, and the other
+  instance stays in `changes`; undesignated, the pair is refused rather than guessed
+  between. An entity contained by its aggregate — a band in a taxonomy — is recorded in the
+  aggregate's row, not in one of its own
+  ([ADR-0044 Amendment 6 §§ 1, 4](../decisions/0044-audit-write-path.md)).
 - A module that holds a PII column names it in that module's audit spec. The pipeline
   **redacts rather than strips**: a property marked `[PiiSensitive]`, or matched by the
   shipped `SensitiveTokenCatalog`, keeps its place in `before`, `after` and `changes` and
@@ -254,8 +273,10 @@ Rules:
   `occurredAt` as `timestamp`, `resource` / `resourceId` as `entity_type` / `entity_id`,
   `sourceIp` as `ip_address`, and `operation.key` as `operation`. `actor.membershipId`,
   `actor.roles`, `actor.platformAdmin`, `actor.hubOperator` and `request.route` have no
-  column of their own; where `PostgresAuditStore` puts them is Packet 9's to settle when
-  it writes the store.
+  column of their own, and the shipped `PostgresAuditStore` writes none of them: nothing
+  on the request path carries a membership, a role set or a route yet.
+  [Phase 03](../roadmap/phase-03-identity-admin.md) settles where they go, with the
+  identity and request-context work that gives them a source.
 
 ## Storage
 
@@ -484,18 +505,24 @@ observes neither a rollback nor a `42501`.
 - [`AuditEntry_Inherits_Entity_Not_AuditableEntity`](21-architecture-tests-catalogue.md#auditentry_inherits_entity_not_auditableentity)
   — the audit aggregate is append-only by inheritance.
 - [`AuditEntry_Is_AppendOnly`](21-architecture-tests-catalogue.md#auditentry_is_appendonly)
-  — no `UPDATE` or `DELETE` targets `audit_log` outside the two named sites, and
+  — no `UPDATE` or `DELETE` targets `audit_log` outside the three named sites, and
   `IAuditStore` exposes no update method.
 - [`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog)
   — the enum and § Operation Types carry the same seven members.
+- [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)
+  — every request type with a handler in any backend assembly is in the catalogue, `Off`
+  included.
 - [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
-  — every command touching a `[TenantOwned]` aggregate is classified, and the in-code
-  catalogue and the module matrix agree on the `Operation` slug, in the two directions of
-  § The join.
+  — every catalogue entry has a matrix row with the same slug, class and type.
+- [`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](21-architecture-tests-catalogue.md#every_matrix_row_whose_command_exists_is_registered)
+  — every unmarked matrix row is registered, and no `(planned)` marker outlives its
+  command.
 - [`Every_Module_Has_An_AuditCoverage_Matrix`](21-architecture-tests-catalogue.md#every_module_has_an_auditcoverage_matrix)
-  — every module ships `docs/modules/<module>/audit.md`.
+  — every module spec ships `docs/modules/<module>/audit.md`, and
+  [`Every_Module_That_Ships_A_Request_Has_A_Matrix`](21-architecture-tests-catalogue.md#every_module_that_ships_a_request_has_a_matrix)
+  — every module that ships a request type has one.
 - [`Modules_Do_Not_Write_AuditLog_Directly`](21-architecture-tests-catalogue.md#modules_do_not_write_auditlog_directly)
-  — `IAuditStore` is the only sanctioned write path.
+  — `IAuditStore` is the only sanctioned write path. Registered; lands in Packet 10.
 
 **`LearnStack.Tests.Integration` — Testcontainers against a real PostgreSQL:**
 
@@ -506,7 +533,7 @@ observes neither a rollback nor a `42501`.
   outcome `failed`.
 - [`Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`](21-architecture-tests-catalogue.md#audit_classification_does_not_read_the_database_on_the_request_path)
   — an unreadable `audit_config` does not stop a MUST-class command, and an uncatalogued
-  operation is rejected.
+  operation is rejected. Registered; lands in Packet 10.
 - [`AuditLog_Update_Is_Column_Restricted`](21-architecture-tests-catalogue.md#auditlog_update_is_column_restricted)
   — `learnstack_app` gets `42501`; `learnstack_platform` gets the column-restricted
   redaction `UPDATE` and the purge `DELETE`, and nothing else; the table owner is stopped

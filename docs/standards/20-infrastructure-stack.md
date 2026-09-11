@@ -292,8 +292,8 @@ tenant is this?", so by construction there is no tenant to key it by, and a kill
 is one platform-wide switch per key, so there is none to key it by either. Every other
 family knows its tenant, so a `platform` sentinel there would be a bug wearing the
 sentinel's clothes — and `CacheKey.EnsureValid` admits platform families by
-**enumeration**, not by shape: the normalized host-map family today, the killswitch
-family with Packet 9's entitlement socket.
+**enumeration**, not by shape: the normalized host-map family and, since Packet 9, the
+killswitch family.
 
 > An earlier version of this table listed these as `hub:host:{host}`,
 > `hub:entitlement:{tenant_id}` and `tenant_feature_flags:{tenant_id}` — module
@@ -563,7 +563,8 @@ are the Hub's public API, governed by the Hub repository.
   classification per [18-audit-coverage.md](18-audit-coverage.md)) and the MediatR
   `AuditLogBehavior`; there is no per-module audit code.
 - `IAuditStore` is the only sanctioned write path; the architecture test
-  `Modules_Do_Not_Write_AuditLog_Directly` enforces this. It carries **four** write
+  `Modules_Do_Not_Write_AuditLog_Directly` is the rule that enforces it, registered for
+  Packet 10. The store carries **four** write
   methods and no update method: `WritePendingAsync` on the ambient transaction, the two
   standalone writers (`WriteStandaloneAsync`, `WriteBestEffortAsync`), and
   `WritePlatformScopeAsync`, whose only caller is `EnterPlatformAdminScope(reason)` —

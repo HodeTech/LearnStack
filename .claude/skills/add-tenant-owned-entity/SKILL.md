@@ -401,8 +401,9 @@ Two gaps remain, and both are yours to close by hand:
 - **A marker-gated rule cannot catch a missing marker.** It iterates what it
   finds. An entity you forget to mark is invisible to both rules, and the
   isolation test in Step 5 is the net for it.
-- **The reflection scope is the Tenancy domain assembly** until Packet 10 widens
-  it across every module.
+- **The sweep covers every module in `Modules.Scoped`** — Tenancy, Customization and
+  Audit today. A module with a schema that is missing from that list fails
+  `Every_Module_With_A_Schema_Is_Swept`, so add yours there.
 
 Also live against your migration: `Every_Foreign_Key_Has_A_Supporting_Index` and
 the schema sweeps in `TenancySchemaTests` — row security enabled *and* forced,
@@ -465,20 +466,18 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   the policies — the policies matching the canonical block in
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md)
   verbatim, with only `<name_plural>` substituted.
-- `LearnStack.Tests.Architecture` is green. Note that no rule covers this entity's
-  filter until Packet 7 lands the two in Step 4; the schema sweeps in
-  `TenancySchemaTests` are what run against your migration today.
+- `LearnStack.Tests.Architecture` is green: `Every_TenantOwned_Entity_HasFilterAndRlsPolicy`
+  and `Every_OrgScoped_Entity_HasOrgIdAndFilter` run against your entity, and the schema
+  sweeps in `TenancySchemaTests` run against your migration.
 - `LearnStack.Tests.Integration` includes the cross-tenant test (and cross-org if
   applicable).
 - The module's `docs/modules/<module>/audit.md` carries a row for each of the new
   entity's audited operations, with the `{module}.{resource}.{verb}` slug in its
-  `Operation` cell. From Packet 9 the module's `IAuditCatalogSource` registers the same
-  slugs and `Every_TenantOwned_Command_HasAuditCoverage` joins the two: a catalogue
-  entry with no matrix row always fails, and a matrix row fails once the request type
-  that raises it exists. A row written ahead of its command carries `(planned)` and is
-  outside that direction until the command lands — at which point the marker must go.
-  `IAuditCatalogSource` does not exist in `backend/src` yet, so today the matrix row is
-  the whole of it. See [add-audit-coverage](../add-audit-coverage/SKILL.md).
+  `Operation` cell. The module's `IAuditCatalogSource` registers the same slugs:
+  `Every_TenantOwned_Command_HasAuditCoverage` fails a catalogue entry with no row,
+  `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` fails an unmarked row nothing
+  registers, and a `(planned)` row the catalogue registers fails — so the commit that
+  lands the command drops the marker. See [add-audit-coverage](../add-audit-coverage/SKILL.md).
 - Glossary updated if the entity name is a new domain term.
 
 ## Common pitfalls

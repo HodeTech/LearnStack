@@ -264,10 +264,10 @@ solve none.
   authorization exactly as it does in Tenancy, and for the same reason: there is
   no HTTP endpoint. [Phase 03](../../roadmap/phase-03-identity-admin.md) brings
   the registry, and [permissions.md](permissions.md) is the forward declaration.
-- **No audit rows.** MUST-class audit is
-  [ADR-0033](../../decisions/0033-audit-durability-model.md)'s and lands with
-  Packet 9's infrastructure; [audit.md](audit.md) is the forward declaration and
-  says what these handlers already do to make that addition a wiring change.
+- **Audit rows ride the pipeline.** Since Packet 9 the four shipped commands write
+  MUST rows through `AuditLogBehavior` and `TransactionBehavior`
+  ([ADR-0033](../../decisions/0033-audit-durability-model.md)); [audit.md](audit.md)
+  classifies them and the eight `(planned)` operations.
 - **The additive claim on a revision is unchecked.** `ReviseSchema` enforces the
   half an aggregate can — that the body is still a draft — and leaves the diff
   that decides whether a change only *adds* to the editor,

@@ -29,13 +29,11 @@ the transaction announced — for provisioning that is
 store composes the row from the intent and never resolves a tenant of its own
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)).
 
-**All four are unaudited today**, and the host mapping is the one that matters
-most: it is described in the matrix below as "the row that decides whose data an
-anonymous request sees", and nothing records who pointed a hostname where.
-`AuditLogBehavior` lights up in
-[Packet 9](../../roadmap/phase-02a-kernel-tenancy.md), and `TransactionBehavior`
-carries the `TODO(2026-08-28, @platform, phase-02a-packet-9)` marking the line the
-MUST-class write goes on, immediately before the commit.
+**All four write MUST rows**, and the host mapping is the one that matters most: it
+is described in the matrix below as "the row that decides whose data an anonymous
+request sees", and its row is what records who pointed a hostname where.
+`TransactionBehavior` writes them through `IAuditStore.WritePendingAsync` immediately
+before the commit, since [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md).
 
 **The snapshots come with them.** `PlatformHostMapping`, `TenantLocale`,
 `TenantFeatureFlag` and `PlatformEntitlement` are plain classes rather than
@@ -74,7 +72,7 @@ already the permission key, and the first two segments of the two keys have to a
 so the spelling changes in both files or in neither.
 
 **A cell carries its slug and, where the row is not joined by request type, every marker
-that applies** — a row can carry both, and one does
+that applies** — a row can carry both, and two do
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). `(planned)` is a row
 classified ahead of the command that will raise it — the classification
 [Audit Coverage](../../standards/18-audit-coverage.md) asks for *before* the command
@@ -116,12 +114,10 @@ optional. `IFeatureFlags` reads the plan half through the provider and the tenan
 half from `tenant_feature_flags`, and no module reads the cache table directly
 ([ADR-0045 § 2](../../decisions/0045-entitlement-and-feature-flag-socket.md)).
 
-The classification is inert until [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md)
-lights up `AuditLogBehavior`. Packet 9 does not parse this file: it declares the same
-operations in code through `IAuditCatalogSource.Describe(IAuditCatalogBuilder)`, this
-matrix stays the human-readable artifact, and
-`Every_TenantOwned_Command_HasAuditCoverage` asserts the two agree
-([ADR-0044 § 6](../../decisions/0044-audit-write-path.md)).
+`TenancyAuditCatalogSource` declares the same operations in code through
+`IAuditCatalogSource.Describe(IAuditCatalogBuilder)` rather than parsing this file; the
+matrix stays the human-readable artifact, and `AuditCoverageTests` asserts the two agree
+in both directions ([ADR-0044 § 6](../../decisions/0044-audit-write-path.md)).
 
 **That join runs in two directions and they have different domains**
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). Catalogue → matrix
@@ -140,6 +136,9 @@ reason its own cell gives: `platform.admin_scope.enter`, written on the fourth w
 whose refreshing implementation lands in Phase 02c; and the two
 `tenancy.tenant_assertion.*` keys, written by a non-MediatR caller reaching
 `IAuditStore.WriteStandaloneAsync`
-([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md)). Their catalogue
-entries are registered by slug rather than by request type. Every other slug above is
+([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md)). Three are
+registered by slug through `DeclareOffPath` because their writer ships —
+`platform.admin_scope.enter` and the two `tenancy.tenant_assertion.*` keys.
+`tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry `(planned)` and
+register by slug when Phase 03 and Phase 02c land their writers. Every other slug above is
 joined in both directions the day its command lands.
