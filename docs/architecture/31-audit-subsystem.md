@@ -296,14 +296,20 @@ intent declares, the composer dropped it, and a taxonomy's row recorded none of 
 tenant authored ([ADR-0044 Amendment 6 § 4](../decisions/0044-audit-write-path.md)).
 
 **Membership goes into the snapshot only where it is known to be complete** — for a root
-created in this request, which contains exactly what was tracked with it; the interceptor
-remembers such a root because EF reports `IsLoaded = false` for a new entity even after it is
-saved. Its `after_state` then lists every contained entity under the navigation's name:
+created in this request, which contains exactly what was tracked with it, for as long as the
+tracker still holds every member it was seen with; the interceptor remembers such a root
+because EF reports `IsLoaded = false` for a new entity even after it is saved. Its
+`after_state` then lists every contained entity under the navigation's name:
 `"Items": { "a1": { … }, "b2": { … } }`. For any other root the collection is left out of
 both snapshots as unknown. `IsLoaded` is not evidence of completeness: a filtered `Include`
 sets it over a partial collection, and trusting it recorded a three-band taxonomy as owning
-one — measured on PostgreSQL. So a root read without its collection is never recorded as
-owning nothing, nor one read with part of it as owning only that part. A contained entity whose
+one — measured on PostgreSQL. Neither is creation once a member has left the tracker without
+being deleted — detached, or the tracker cleared and the root attached again alone: its row
+stays, so the root reads as unknown for the rest of the request (measured the same way: three
+bands saved, two detached, the root renamed — the row said one). A deleted member is no loss,
+because the save that deletes it is captured while it is still tracked. So a root read without
+its collection is never recorded as owning nothing, nor one read with part of it as owning
+only that part. A contained entity whose
 root is not tracked is captured on its own rather than dropped. `TenantLocale` and
 `TenantFeatureFlag` fold into `Tenant` by the same rule.
 

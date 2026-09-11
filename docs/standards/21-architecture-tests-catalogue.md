@@ -93,15 +93,15 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Eighty-five test methods exist in
+Eighty-six test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 110 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 111 cases once the theories expand.
 Counted from
-`dotnet test --list-tests` at the close of Packet 9's second external review round, de-duplicated
+`dotnet test --list-tests` at the close of Packet 9's third external review round, de-duplicated
 by method name; the figures before it were Packet 9 step 3's and were not updated when the
-rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 87 and is wrong:
+rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 88 and is wrong:
 two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
 which greps the suite for those very attributes. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
@@ -184,7 +184,7 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `OperationType_Enum_Matches_Catalog` | `AuditConventionTests.cs` |
 | `Every_Module_Has_An_AuditCoverage_Matrix` (with its companion) | `AuditConventionTests.cs` |
 | `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
-| `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix) | `AuditCoverageTests.cs` |
+| `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix, with its two companions) | `AuditCoverageTests.cs` |
 | `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its companion) | `AuditCoverageTests.cs` |
 | `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
 | `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
@@ -1815,10 +1815,19 @@ which decides identity, multiplicity, capture and classification;
   `IAuditCatalogSource` a backend assembly ships, discovered rather than listed.
   Mutation-checked: changing a registered slug's class or type fails this case and no other.
   A row it cannot read is a failure too, not a skipped comparison: a class cell stating none
-  of `MUST`, `SHOULD` or `MAY`, and an operation type in parentheses that `OperationType`
-  does not have — the second review of Packet 9 changed a registered MUST row's class to
-  `Off` and every case stayed green. `The_Forward_Sweep_Rejects_A_Class_Or_A_Type_It_Cannot_Read`
-  is the companion. The reverse direction is
+  of `MUST`, `SHOULD` or `MAY`, and a parenthesised operation type — extracted whatever it
+  says, then read in the documentation's spelling or the enum's — that `OperationType` does
+  not have. The second review of Packet 9 changed a registered MUST row's class to `Off`, and
+  the third an annotation to `ReadSensitive` and to `bogus_kind`, and every case stayed green;
+  `The_Forward_Sweep_Rejects_A_Class_Or_A_Type_It_Cannot_Read` is the companion. The row is
+  looked for in the **registering module's** matrix only, and a row for it in any other
+  module's matrix fails — moved or copied there, it is a classification the join never
+  compared; the third review moved `tenancy.tenant.create` into Customization's table and
+  every case stayed green. `platform.*` is the explicit exception: an off-path entry takes its
+  module from its slug, `platform` names no module and has no matrix, so its row sits in the
+  matrix of the module that writes it — Tenancy's for `platform.admin_scope.enter` — and in
+  exactly one. `The_Forward_Sweep_Reads_Only_The_Registering_Module_s_Matrix` is that half's
+  companion. The reverse direction is
   [`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](#every_matrix_row_whose_command_exists_is_registered),
   and "every request is classified" is
   [`Every_Shipped_Request_Is_Registered`](#every_shipped_request_is_registered).

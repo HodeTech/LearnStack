@@ -136,9 +136,11 @@ fails" is unsatisfiable while a module classifies operations ahead of the comman
 will raise them — which this standard requires it to do.
 
 - **Catalogue → matrix is total.** Every entry a module's `IAuditCatalogSource` registers
-  has a row in that module's matrix carrying the same slug. There is no exemption: shipped
-  code auditing an operation no matrix classifies is the drift worth failing a build over,
-  and adding the row always satisfies it. Test-only request types register in their own
+  has a row in that module's matrix carrying the same slug — that module's, and no other's.
+  There is no exemption: shipped code auditing an operation no matrix classifies is the drift
+  worth failing a build over, and adding the row always satisfies it. A `platform.*`
+  operation has no module of its own, so its one row sits in the matrix of the module that
+  writes it — Tenancy's, for `platform.admin_scope.enter`. Test-only request types register in their own
   fixtures rather than in a module source, and are outside this direction.
 - **Matrix → catalogue binds to what exists.** A matrix row fails only when a request type
   that raises it **exists** and no catalogue entry names it. A row classified ahead of its

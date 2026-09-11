@@ -53,10 +53,11 @@ persisted row held none of the labels the tenant authored
 
 **The full band list is in `after_state` only on the row that created the taxonomy**
 (`"Items": { "a1": { … }, "b2": { … } }`) — the one case where the tracked bands are known
-to be all of them. A later row leaves `Items` out of both snapshots rather than record
-whatever that request happened to load: a filtered `Include` marks a partial collection
-loaded, and the second review measured a three-band taxonomy recorded as owning one. The
-membership at any point is the creating row plus the `changes` of every row after it.
+to be all of them, and only while that request keeps every band it was created with
+tracked. A later row leaves `Items` out of both snapshots rather than record whatever that
+request happened to load: a filtered `Include` marks a partial collection loaded, and the
+second review measured a three-band taxonomy recorded as owning one. The membership at any
+point is the `changes` of the creating row and of every row after it.
 
 **A publication is one row, about the successor.** Publishing writes two revisions of
 one aggregate — the incumbent retired, the successor activated — so each publish handler

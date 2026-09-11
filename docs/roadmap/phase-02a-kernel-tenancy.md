@@ -3036,9 +3036,10 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1941 tests green** — 1 contract, 110 architecture, 1357 unit,
-> 473 integration — after the second external review's round; 1935 after the first, 1867
-> before it. Counted from a run under `CI=true`, which makes warnings errors.
+> **Measured at close: 1945 tests green** — 1 contract, 111 architecture, 1359 unit,
+> 474 integration — after the third external review's round; 1941 after the second, 1935
+> after the first, 1867 before it. Counted from a run under `CI=true`, which makes warnings
+> errors.
 
 ### The four decisions, and why the corpus did not settle them
 
@@ -3222,3 +3223,30 @@ the declaration above the protected block, and skipping the frame for a silent r
 left every unit case green. Both are pinned now — a cancelled classification still reconciles
 what it declared and clears, and a silent request still owns the frame a nested audited
 request joins — and each mutation fails its case.
+
+### The third review, and what it changed (2026-09-11)
+
+A third review of those commits found no blocker, one major and two minors. Each was
+reproduced before anything moved, and each is fixed here.
+
+- **A created root could still be recorded as owning part of its collection.** "Created in
+  this request" was taken as complete for the whole request, but a persisted band detached
+  between two flushes keeps its row and leaves the tracker: three bands saved, two detached,
+  the root renamed — the row said one. The interceptor now remembers what each created root
+  was seen with, and once a member leaves the tracker the membership is unknown for the rest
+  of the request. A deleted member is no loss: the save that deletes it is captured while it is
+  still tracked. No shipped handler detaches; the rule is pinned in the unit and workflow
+  suites.
+- **An operation type the extraction did not recognise was read as none.** The pattern took
+  lowercase and hyphens only, so `ReadSensitive` or `bogus_kind` on a registered row skipped
+  the comparison. The annotation is now extracted whatever it says, then normalised,
+  validated and compared. The one PascalCase annotation in the matrices, on Audit's
+  `audit.event.read`, now uses the documentation's spelling.
+- **The forward join accepted a row in another module's matrix.** It now reads the registering
+  module's matrix only and fails a row moved or copied elsewhere, with `platform.*` — no
+  module of its own — the explicit exception: one row, in the matrix of the module that writes
+  it.
+
+The round's mutation pass removed one of its own additions before it shipped: a set of deleted
+entities meant to excuse a deleted member, which no case could kill, because the save that
+deletes a member always captures it still tracked.
