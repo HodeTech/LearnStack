@@ -4,6 +4,7 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using MediatR;
 using Xunit;
 
@@ -84,42 +85,7 @@ public sealed partial class AuditCoverageTests
 
         catalog.All.Should().NotBeEmpty("a sweep over an empty catalogue passes vacuously");
 
-        var matrices = MatrixModules().ToDictionary(module => module, MatrixLines);
-        var problems = new List<string>();
-
-        foreach (var entry in catalog.All)
-        {
-            // Any module's matrix: a request-keyed entry's row is in its declaring module's
-            // file, and an off-path entry whose segment is `platform` — no module of its own
-            // — sits in the file a reader looks for it in.
-            var row = matrices.Values
-                .Select(lines => FindRow(entry.Operation, lines))
-                .FirstOrDefault(found => found is not null);
-
-            if (row is null)
-            {
-                problems.Add($"{entry.Operation}: no matrix row carries this slug");
-                continue;
-            }
-
-            var declared = ClassOf(row);
-
-            if (declared is not null && declared != entry.OperationClass)
-            {
-                problems.Add(
-                    $"{entry.Operation}: the catalogue says {entry.OperationClass}, "
-                    + $"the matrix says {declared}");
-            }
-
-            var type = TypeOf(row);
-
-            if (type is not null && type != entry.OperationType)
-            {
-                problems.Add(
-                    $"{entry.Operation}: the catalogue says {entry.OperationType}, "
-                    + $"the matrix says {type}");
-            }
-        }
+        var problems = ForwardProblems(catalog.All, [.. MatrixModules().Select(MatrixLines)]);
 
         problems.Should().BeEmpty(
             "the catalogue is code and the matrix is the document, and one architecture "
@@ -189,39 +155,140 @@ public sealed partial class AuditCoverageTests
             archive => archive.Should().StartWith("mod/mod.thing.archive:"));
     }
 
+    [Fact]
+    public void The_Forward_Sweep_Rejects_A_Class_Or_A_Type_It_Cannot_Read()
+    {
+        // A class cell that parses to nothing used to skip the comparison: the review of
+        // Packet 9 changed a registered MUST row's class to "Off" and every case stayed green.
+        // The same for a type named in parentheses that the enum does not have. An entry the
+        // catalogue registers has a class the matrix must state readably.
+        AuditCatalogEntry[] entries =
+        [
+            new("mod", "mod.thing.create", OperationType.Create, OperationClass.Must, typeof(object)),
+            new("mod", "mod.thing.read", OperationType.ReadSensitive, OperationClass.Must, typeof(object)),
+            new("mod", "mod.thing.update", OperationType.Update, OperationClass.Should, typeof(object)),
+        ];
+
+        string[] matrix =
+        [
+            "| Resource | Operation | Class | Why |",
+            "|---|---|---|---|",
+            "| `Thing` | `mod.thing.create` | Off | not a class |",
+            "| `Thing` | `mod.thing.read` | **MUST** (`bogus-kind`) | not a type |",
+            "| `Thing` | `mod.thing.update` | **MUST** | a disagreement |",
+        ];
+
+        ForwardProblems(entries, [matrix]).Should().SatisfyRespectively(
+            create => create.Should().StartWith("mod.thing.create:").And.Contain("no class"),
+            read => read.Should().StartWith("mod.thing.read:").And.Contain("bogus-kind"),
+            update => update.Should().StartWith("mod.thing.update:").And.Contain("the matrix says Must"));
+    }
+
     /// <summary>
-    /// A module that ships a request type has a coverage matrix to classify it in.
+    /// A module that ships an aggregate or a request type has a coverage matrix to classify
+    /// them in.
     /// </summary>
     [Fact]
-    public void Every_Module_That_Ships_A_Request_Has_A_Matrix()
+    public void Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix()
     {
         // ADR-0044 Amendment 4 § 3 binds the matrix to a module that has shipped an
         // aggregate or a request type. Every_Module_Has_An_AuditCoverage_Matrix walks the
-        // spec directories that exist; this walks the CODE, so a new module that ships a
-        // command with no spec directory at all is caught — the state in which the matrix
-        // join has nothing to compare against and passes.
-        var shipping = ShippedRequestTypes()
-            .Select(ModuleOf)
-            .OfType<string>()
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        // spec directories that exist; this walks the CODE, so a new module that ships an
+        // aggregate or a command with no spec directory at all is caught — the state in
+        // which the matrix join has nothing to compare against and passes. Aggregates are
+        // half of it: the review of Packet 9 added one to a scaffold module's Domain, with no
+        // handler and no matrix, and the request-only version of this rule stayed green.
+        var owning = ModulesWithCode(ShippedRequestTypes(), AuditCatalogDiscovery.Types());
 
-        shipping.Should().Contain(["Tenancy", "Customization"],
-            "a discovery that found no shipping module would pass while proving nothing");
+        owning.Should().Contain(["Tenancy", "Customization", "Audit"],
+            "a discovery that found no module would pass while proving nothing — and Audit "
+            + "ships aggregates and no request, which is exactly the half being checked");
 
-        ModulesWithoutMatrix(shipping, ModuleSpecs()).Should().BeEmpty(
-            "a module that ships a command owes a matrix that classifies it");
+        ModulesWithoutMatrix(owning, ModuleSpecs()).Should().BeEmpty(
+            "a module that ships an aggregate or a command owes a matrix that classifies it");
     }
 
     [Fact]
     public void The_Module_Sweep_Can_Actually_Fail()
     {
-        ModulesWithoutMatrix(["Tenancy", "Ghost"], ModuleSpecs()).Should().Equal("Ghost");
+        // Both halves, on a module with no spec directory: an aggregate root with no
+        // request, and the predicate that names what has no matrix.
+        var owning = ModulesWithCode([], [typeof(LearnStack.Modules.Ghost.Domain.GhostAggregate), typeof(string)]);
+
+        owning.Should().Equal("Ghost");
+        ModulesWithoutMatrix(["Tenancy", .. owning], ModuleSpecs()).Should().Equal("Ghost");
     }
 
     /// <summary>The request types among <paramref name="shipped"/> the catalogue does not know.</summary>
     private static List<Type> UnregisteredOf(IEnumerable<Type> shipped, AuditCatalog catalog) =>
         [.. shipped.Where(request => !catalog.TryGet(request, out _))];
+
+    /// <summary>The catalogue → matrix direction's findings, one line each.</summary>
+    /// <remarks>
+    /// Any module's matrix: a request-keyed entry's row is in its declaring module's file, and
+    /// an off-path entry whose segment is `platform` — no module of its own — sits in the file
+    /// a reader looks for it in.
+    /// </remarks>
+    private static List<string> ForwardProblems(
+        IEnumerable<AuditCatalogEntry> entries, IReadOnlyCollection<string[]> matrices)
+    {
+        var problems = new List<string>();
+
+        foreach (var entry in entries)
+        {
+            var row = matrices
+                .Select(lines => FindRow(entry.Operation, lines))
+                .FirstOrDefault(found => found is not null);
+
+            if (row is null)
+            {
+                problems.Add($"{entry.Operation}: no matrix row carries this slug");
+                continue;
+            }
+
+            var declared = ClassOf(row);
+
+            if (declared is null)
+            {
+                problems.Add(
+                    $"{entry.Operation}: the matrix states no class — MUST, SHOULD or MAY — "
+                    + $"for an operation the catalogue registers at {entry.OperationClass}");
+            }
+            else if (declared != entry.OperationClass)
+            {
+                problems.Add(
+                    $"{entry.Operation}: the catalogue says {entry.OperationClass}, "
+                    + $"the matrix says {declared}");
+            }
+
+            var (spelled, type) = TypeOf(row);
+
+            if (spelled is not null && type is null)
+            {
+                problems.Add(
+                    $"{entry.Operation}: the matrix names the operation type `{spelled}`, "
+                    + "which OperationType does not have");
+            }
+            else if (type is not null && type != entry.OperationType)
+            {
+                problems.Add(
+                    $"{entry.Operation}: the catalogue says {entry.OperationType}, "
+                    + $"the matrix says {type}");
+            }
+        }
+
+        return problems;
+    }
+
+    /// <summary>The modules that own a request type or an aggregate root, by name.</summary>
+    private static List<string> ModulesWithCode(IEnumerable<Type> requests, IEnumerable<Type> types) =>
+        [.. requests
+            .Concat(types.Where(type => type is { IsAbstract: false, IsInterface: false }
+                && type.GetInterfaces().Any(contract => contract.IsGenericType
+                    && contract.GetGenericTypeDefinition() == typeof(IAggregateRoot<>))))
+            .Select(ModuleOf)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)];
 
     /// <summary>The reverse direction's findings, one line each.</summary>
     private static List<string> ReverseProblems(
@@ -367,28 +434,31 @@ public sealed partial class AuditCoverageTests
     }
 
     /// <summary>
-    /// The operation type the row names in parentheses, or <c>null</c> when it names none.
+    /// The operation type the row names in parentheses, as spelled and as parsed — both
+    /// <c>null</c> when it names none.
     /// </summary>
     /// <remarks>
     /// The matrix writes it in Audit Coverage's hyphenated spelling — `security-event`,
     /// `read-sensitive` — and the enum is PascalCase, so the comparison strips the hyphen.
-    /// Only some rows name a type; a row that does not is classified by its class alone
-    /// and this returns <c>null</c> rather than guessing one.
+    /// Only some rows name a type; a row that does not is classified by its class alone. A
+    /// row that names one the enum does not have is a different case, and the caller refuses
+    /// it: a parse that returned nothing for it used to skip the comparison silently.
     /// </remarks>
-    private static OperationType? TypeOf(string row)
+    private static (string? Spelled, OperationType? Type) TypeOf(string row)
     {
         var match = TypePattern().Match(Cells(row)[3]);
 
         if (!match.Success)
         {
-            return null;
+            return (null, null);
         }
 
-        var spelled = match.Groups[1].Value.Replace("-", string.Empty, StringComparison.Ordinal);
+        var spelled = match.Groups[1].Value;
 
-        return Enum.TryParse<OperationType>(spelled, ignoreCase: true, out var parsed)
-            ? parsed
-            : null;
+        return Enum.TryParse<OperationType>(
+            spelled.Replace("-", string.Empty, StringComparison.Ordinal), ignoreCase: true, out var parsed)
+            ? (spelled, parsed)
+            : (spelled, null);
     }
 
     private static string[] Cells(string row) => row.Split('|');
