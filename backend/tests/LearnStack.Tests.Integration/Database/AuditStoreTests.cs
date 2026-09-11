@@ -86,13 +86,20 @@ public sealed class AuditStoreTests
         // success, so the refused operation was on the permanent record as having succeeded
         // — measured by the review against this table. Frames are opened here exactly as
         // AuditLogBehavior opens them (ADR-0044 Amendment 6 § 3).
+        //
+        // Each frame also writes an instance of the SAME type, so the case pins the other
+        // half of frame ownership on the writer that composes before COMMIT: a row carries
+        // its own request's writes. Composed from every capture in the scope instead, both
+        // rows would see two instances, and the undesignated pair would be refused.
         var capture = new AuditStateCapture();
 
         capture.OpenFrame();
-        var outer = Intent(capture, "tenancy.tenant.create");
+        var outer = Intent(capture, "tenancy.tenant.create", entityType: typeof(Frame));
+        capture.Add(FrameChange("outer-instance"));
 
         capture.OpenFrame();
-        var inner = Intent(capture, "tenancy.organization.create");
+        var inner = Intent(capture, "tenancy.organization.create", entityType: typeof(Frame));
+        capture.Add(FrameChange("inner-instance"));
         capture.CloseFrame(AuditIntentResult.Refused(AuditOutcome.Denied, "lockey_forbidden"));
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
@@ -112,6 +119,9 @@ public sealed class AuditStoreTests
 
             (await OutcomeAsync(outer.Id)).Should().Be(("success", (string?)null));
             (await OutcomeAsync(inner.Id)).Should().Be(("denied", "lockey_forbidden"));
+
+            (await EntityIdAsync(outer.Id)).Should().Be("outer-instance");
+            (await EntityIdAsync(inner.Id)).Should().Be("inner-instance");
         }
         finally
         {
@@ -1147,6 +1157,24 @@ public sealed class AuditStoreTests
         command.Parameters.Add(parameter);
 
         await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>A stand-in for the aggregate both frames of the nested case write.</summary>
+    private sealed class Frame;
+
+    private static CapturedEntityChange FrameChange(string id) =>
+        new(nameof(Frame), id, null, """{"v":1}""",
+            [new CapturedFieldChange($"/{nameof(Frame)}/{id}/v", null, "1")]);
+
+    private async Task<string?> EntityIdAsync(AuditEntryId id)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT entity_id FROM audit_log WHERE id = @id", (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("id", id.Value);
+
+        return await command.ExecuteScalarAsync() as string;
     }
 
     private async Task<(string Outcome, string? ErrorKey)> OutcomeAsync(AuditEntryId id)
