@@ -1,0 +1,4 @@
+# The git hooks are bash scripts run on every developer's machine and in CI. A CRLF
+# checkout breaks bash on the first line (`set: pipefail: invalid option name`), so
+# every commit would be refused; keep them LF whatever core.autocrlf says.
+.githooks/* text eol=lf

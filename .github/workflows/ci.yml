@@ -334,6 +334,13 @@ jobs:
         # nothing had said so — the only hook on disk is `.githooks/pre-commit`,
         # which cannot see a message.
         #
+        # The verdict is the commit-msg hook's, run on each commit's stored message —
+        # not a second copy of its grammar. Two copies drifted: the types, the scope
+        # characters, and which text each one judged (the hook read the file's first
+        # line, this step read git's joined first paragraph), so subjects passed
+        # locally and failed here. `Commit_Subject_Grammar_Is_Stated_Once` fails the
+        # build if this step stops running the hook.
+        #
         # Scoped to the pull request's own commits. On a push event there is no
         # base to diff against, so the step reports and passes rather than
         # re-judging history that is already merged.
@@ -346,36 +353,29 @@ jobs:
           fail=0
 
           # Materialized to a file FIRST, so the exit status is checked. Inside
-          # `< <(...)` a failing `git log` cannot fail the step — `pipefail` does
-          # not reach a process substitution — so an unresolvable BASE_SHA would
-          # feed the loop nothing and the check would report success on a range it
-          # never read. A file rather than a variable because the records are
-          # NUL-separated and command substitution drops NUL bytes.
-          #
-          # `-z` with `%s`: the subject alone, NUL-TERMINATED, because a subject
-          # can contain anything and because `%s%x00` leaves the record's trailing
-          # newline attached to the NEXT subject — measured, every length came back
-          # one too high and the two real violations reported 78 and 82.
-          if ! git log -z --no-merges --format='%s' \
-                  "${BASE_SHA}..${HEAD_SHA}" > "${RUNNER_TEMP}/subjects"; then
+          # `< <(...)` a failing `git rev-list` cannot fail the step — `pipefail`
+          # does not reach a process substitution — so an unresolvable BASE_SHA
+          # would feed the loop nothing and the check would report success on a
+          # range it never read.
+          if ! git rev-list --no-merges --reverse \
+                  "${BASE_SHA}..${HEAD_SHA}" > "${RUNNER_TEMP}/commits"; then
               echo "::error::could not read ${BASE_SHA}..${HEAD_SHA}"
               exit 1
           fi
 
-          while IFS= read -r -d '' subject; do
-              length=${#subject}
-              if [ "$length" -gt 72 ]; then
-                  echo "::error::subject is ${length} chars (limit 72): ${subject}"
+          while IFS= read -r sha; do
+              git log -1 --format=%B "$sha" > "${RUNNER_TEMP}/message"
+              # GIT_EDITOR=: because a stored message is already clean, so a `#`
+              # line in it is text, as git itself treats it; STRICT refuses the
+              # autosquash markers the hook admits locally.
+              if ! verdict=$(GIT_EDITOR=: LEARNSTACK_COMMIT_MSG_STRICT=1 \
+                      bash .githooks/commit-msg "${RUNNER_TEMP}/message" 2>&1); then
+                  echo "::error::$(git log -1 --format=%h "$sha"): ${verdict//$'\n'/ | }"
                   fail=1
               fi
-              if ! printf '%s' "$subject" \
-                  | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9., /-]+\))?!?: .+'; then
-                  echo "::error::subject is not Conventional Commits: ${subject}"
-                  fail=1
-              fi
-          done < "${RUNNER_TEMP}/subjects"
+          done < "${RUNNER_TEMP}/commits"
+
           if [ "$fail" -ne 0 ]; then
-              echo "Standards 14 § Commit messages: type(scope): subject, imperative, <= 72 chars."
               exit 1
           fi
           echo "Every commit subject is Conventional Commits and within 72 characters."

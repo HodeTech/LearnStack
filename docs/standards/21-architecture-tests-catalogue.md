@@ -614,18 +614,23 @@ otherwise).
 
 #### `Commit_Subject_Grammar_Is_Stated_Once`
 
-- **Asserts:** the extended regular expression the `commit-msg` hook applies to a commit
-  subject and the one CI's commit-hygiene step applies are the same string; the types its
-  leading alternation admits are exactly the types
-  [Standards 14 § Commits](14-git-workflow.md#commits) tabulates; and the grammar admits
-  a set of well-formed subjects and refuses a set of malformed ones.
-- **Why it matters:** the three copies drifted with nothing comparing them — nine types
-  in the standard, eleven in the hook, ten in CI, and scope characters that disagreed —
-  so a subject could pass locally and fail the pull request, or the reverse, while both
-  files claimed to enforce exactly what the other did. The behavioural leg is what stops
-  two identical copies of a broken pattern passing the comparison.
+- **Asserts:** CI's commit-hygiene step runs the `commit-msg` hook, in its strict mode,
+  and states no grammar of its own; the types the hook admits are exactly the types
+  [Standards 14 § Commits](14-git-workflow.md#commits) tabulates; and the hook, run for
+  real on a set of messages, admits and refuses each one as that section says — the
+  breaking-change `!`, an empty scope, a first paragraph that runs onto a second line, a
+  72-character subject counted in characters, git's `Revert "…"` subject, the autosquash
+  markers locally and in CI, and a leading `#` line with and without an editor.
+- **Why it matters:** three copies of the rule drifted with nothing comparing them — nine
+  types in the standard, eleven in the hook, ten in CI, scope characters that disagreed,
+  and two scripts judging different text (the hook the file's first line, CI git's joined
+  first paragraph) — so subjects passed locally and failed the pull request. CI now runs
+  the hook itself. Comparing text alone was not enough even then: a hook that matched its
+  pattern and forgot to fail, or a CI step whose only mention of the hook was a comment,
+  passed a comparison and fails this.
 - **Source:** [14-git-workflow.md § Commits](14-git-workflow.md#commits).
-- **Type:** xUnit + file scan. **Kind:** structural.
+- **Type:** xUnit + file scan + running the hook. **Kind:** behavioural (the hook's
+  verdicts) + structural (CI runs it; the type table).
 - **Status:** **Implemented** — `RepositoryLayoutTests.cs`, Packet 10.
 - **Phase:** 02a (Packet 10).
 

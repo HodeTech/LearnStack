@@ -33,16 +33,28 @@ We follow a relaxed Conventional Commits style:
 | `refactor` | Code change without behavior change |
 | `perf` | Performance improvement |
 | `test` | Test only |
-| `build` | Build system, SDK and package versions |
-| `ci` | CI workflows and repository automation |
-| `chore` | Tooling and scaffolding that fits none of the above |
-| `revert` | Revert an earlier commit |
+| `build` | Build system, SDK pin and package versions |
+| `ci` | CI workflows and the git hooks |
+| `chore` | Other tooling — scripts, the `Makefile`, editor and repository configuration |
+| `revert` | Revert an earlier commit — `revert: <original subject>` |
 
-The scope is optional: lowercase letters, digits, `.`, `,`, `/`, `-` and spaces, in
-parentheses, with a `!` after it for a breaking change. The `commit-msg` hook and CI's
-commit-hygiene step apply this exact grammar — one regular expression, written in both
-places — and `Commit_Subject_Grammar_Is_Stated_Once` fails the build when the two, or
-this table, disagree.
+The rest of the grammar:
+
+- The scope is optional and, when present, not empty: ASCII lowercase letters, digits,
+  `.`, `,`, `/`, `-` and spaces, in parentheses.
+- A `!` immediately before the colon marks a breaking change, with or without a scope —
+  `feat!: …`, `feat(api)!: …`.
+- The separator is exactly `: `, and a summary follows it.
+- The subject is what `git log --format=%s` prints — the first paragraph, its lines
+  joined by spaces — and it is at most 72 characters, counted as characters rather than
+  bytes. End the subject with a blank line, or a second line joins it.
+
+One script enforces all of it. The `commit-msg` hook runs on every local commit, and
+CI's commit-hygiene step runs the **same hook** on every commit of a pull request, so the
+two cannot reach different verdicts; [`Commit_Subject_Grammar_Is_Stated_Once`](21-architecture-tests-catalogue.md#commit_subject_grammar_is_stated_once)
+fails the build if CI stops running it or if this table and the hook's types differ.
+The hook admits git's autosquash markers — `fixup!`, `squash!`, `amend!` — so a local
+fixup workflow works; CI refuses them, so squash before the pull request is reviewed.
 
 Examples:
 - `feat(education): add CourseVersion publish flow`
@@ -162,6 +174,10 @@ See [17-code-review.md](17-code-review.md) for full review standards. Highlights
 ## Reverts
 
 - A revert is its own PR. Don't force-push a revert onto a public branch.
+- Its subject is `revert: <original subject>`, and its body keeps git's
+  `This reverts commit <sha>.` line. Git's default `Revert "…"` subject fails § Commits,
+  and `git revert` does not run the `commit-msg` hook, so reword it before pushing —
+  `git revert --no-commit <sha>` and then `git commit`, which does run it.
 - The revert PR description references the original PR and the reason.
 
 ## Tagging and Releases
