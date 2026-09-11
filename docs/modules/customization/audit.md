@@ -43,13 +43,20 @@ requires both `before` and `after` on a customization schema change.
 `AuditChangeTrackerInterceptor` captures every `ChangeTracker` entry in state
 `Added`, `Modified` or `Deleted` minus a named exclusion list
 ([ADR-0044 § 7](../../decisions/0044-audit-write-path.md)), and a band — contained by
-its taxonomy through `HasMany(Items)` — is captured **inside the taxonomy's** snapshot
-and diff rather than on its own, keyed by its band key: `"Items": { "b2": { … } }` in
-`after_state`, `/TenantLevelTaxonomy/{id}/Items/b2/DisplayName` in `changes`. So an
-added or removed band is in the row that records the taxonomy. Captured on its own it
-carried a type name no intent declares, and the review of Packet 9 measured the
-consequence: the persisted row held none of the labels the tenant authored
+its taxonomy through `HasMany(Items)` — is captured **inside the taxonomy's** diff
+rather than on its own, keyed by its band key:
+`/TenantLevelTaxonomy/{id}/Items/b2/DisplayName` in `changes`. So an added or removed
+band is in the row that records the taxonomy. Captured on its own it carried a type
+name no intent declares, and the review of Packet 9 measured the consequence: the
+persisted row held none of the labels the tenant authored
 ([ADR-0044 Amendment 6 § 4](../../decisions/0044-audit-write-path.md)).
+
+**The full band list is in `after_state` only on the row that created the taxonomy**
+(`"Items": { "a1": { … }, "b2": { … } }`) — the one case where the tracked bands are known
+to be all of them. A later row leaves `Items` out of both snapshots rather than record
+whatever that request happened to load: a filtered `Include` marks a partial collection
+loaded, and the second review measured a three-band taxonomy recorded as owning one. The
+membership at any point is the creating row plus the `changes` of every row after it.
 
 **A publication is one row, about the successor.** Publishing writes two revisions of
 one aggregate — the incumbent retired, the successor activated — so each publish handler

@@ -488,8 +488,9 @@ passes even when every policy is inert. See
   [21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md)
   — do not invent a second spelling:
   - `Every_Module_Has_An_AuditCoverage_Matrix` (the module's `audit.md` exists) —
-    Implemented (`AuditConventionTests`), and `Every_Module_That_Ships_A_Request_Has_A_Matrix`
-    — Implemented (`AuditCoverageTests`) — fails a module that ships a request with none.
+    Implemented (`AuditConventionTests`), and `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
+    — Implemented (`AuditCoverageTests`) — fails a module that ships an aggregate or a
+    request with none.
   - `Modules_Do_Not_Write_AuditLog_Directly` (no module assembly outside
     `LearnStack.Modules.Audit.*` names `audit_log` or `AuditEntry`; the
     `LearnStack.SharedKernel.Audit` ports are explicitly out of scope) — Registered,

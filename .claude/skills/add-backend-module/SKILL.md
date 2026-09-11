@@ -235,8 +235,8 @@ The dependency-direction and cross-module rules live in
 `backend/tests/LearnStack.Tests.Architecture/ModuleDependencyTests.cs`. Both take their
 modules from `Modules.Names`, discovered from `backend/src/Modules`, so a new module is
 swept the moment its directory exists. `Every_Module_Has_An_AuditCoverage_Matrix` fails a
-spec directory with no `audit.md`, and `Every_Module_That_Ships_A_Request_Has_A_Matrix`
-fails a module that ships a request type with no matrix — both in
+spec directory with no `audit.md`, and `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
+fails a module that ships an aggregate root or a request type with no matrix — both in
 [21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md).
 
 ### Step 6: Module spec files
@@ -311,6 +311,6 @@ See [add-ef-migration](../add-ef-migration/SKILL.md) for migration conventions
   `AddLearnStackMediatRPipeline` and an `IAuditCatalogSource`; a module-loading
   interface is not what Phase 02a ships.
 - **Missing `docs/modules/<name>/` spec files.** A missing `audit.md` fails
-  `Every_Module_Has_An_AuditCoverage_Matrix`, or `Every_Module_That_Ships_A_Request_Has_A_Matrix`
-  once the module ships a request. No rule checks `permissions.md`, so review is the only
+  `Every_Module_Has_An_AuditCoverage_Matrix`, or `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
+  once the module ships an aggregate or a request. No rule checks `permissions.md`, so review is the only
   gate for it.

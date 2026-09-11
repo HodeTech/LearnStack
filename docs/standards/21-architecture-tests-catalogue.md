@@ -93,15 +93,15 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Eighty-four test methods exist in
+Eighty-five test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 109 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 110 cases once the theories expand.
 Counted from
-`dotnet test --list-tests` at the close of Packet 9's external review round, de-duplicated
+`dotnet test --list-tests` at the close of Packet 9's second external review round, de-duplicated
 by method name; the figures before it were Packet 9 step 3's and were not updated when the
-rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 67 and is wrong:
+rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 87 and is wrong:
 two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
 which greps the suite for those very attributes. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
@@ -186,7 +186,7 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
 | `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix) | `AuditCoverageTests.cs` |
 | `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its companion) | `AuditCoverageTests.cs` |
-| `Every_Module_That_Ships_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
+| `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
 | `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
@@ -1720,6 +1720,15 @@ which decides identity, multiplicity, capture and classification;
   green, and the running system would have refused every `CreateOrganizationCommand`.
 - **Companion:** `The_Request_Sweep_Can_Actually_Fail` runs the predicate over exactly that
   catalogue and requires it to name the missing request.
+- **The catalogue it reads is the discovered one — so the roots are held to it.** This rule
+  constructs every `IAuditCatalogSource` by reflection, which is what lets it see a source
+  nobody listed and what makes it blind to the registrations: deleting the API's
+  `TenancyAuditCatalogSource` line left the whole suite green while the running system
+  refused every Tenancy request as unclassified — measured by the second review of Packet 9.
+  `CompositionRootCatalogueTests` in `LearnStack.Tests.Integration` is the runtime half: it
+  resolves `IAuditCatalog` from the API's container and from the seeder's, and requires each
+  to register every shipped request type and to hold exactly the entries the discovered
+  sources declare. Mutation-checked for both roots.
 - **Source:** [18-audit-coverage.md § The join](18-audit-coverage.md);
   [ADR-0044 § 6](../decisions/0044-audit-write-path.md).
 - **Type:** xUnit + reflection over every backend assembly. **Kind:** structural.
@@ -1805,7 +1814,11 @@ which decides identity, multiplicity, capture and classification;
   and, where the row names one, the same type. The catalogue is merged from every
   `IAuditCatalogSource` a backend assembly ships, discovered rather than listed.
   Mutation-checked: changing a registered slug's class or type fails this case and no other.
-  The reverse direction is
+  A row it cannot read is a failure too, not a skipped comparison: a class cell stating none
+  of `MUST`, `SHOULD` or `MAY`, and an operation type in parentheses that `OperationType`
+  does not have — the second review of Packet 9 changed a registered MUST row's class to
+  `Off` and every case stayed green. `The_Forward_Sweep_Rejects_A_Class_Or_A_Type_It_Cannot_Read`
+  is the companion. The reverse direction is
   [`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](#every_matrix_row_whose_command_exists_is_registered),
   and "every request is classified" is
   [`Every_Shipped_Request_Is_Registered`](#every_shipped_request_is_registered).
@@ -1850,8 +1863,9 @@ which decides identity, multiplicity, capture and classification;
   ([13-documentation.md § Per-Module Specifications](13-documentation.md)), so a scaffold
   has no operations to classify and nothing for a matrix to hold; a rule over every
   directory would be red for reasons that have nothing to do with audit coverage. The
-  guard on the reverse direction — a module that ships request types with no matrix — is
-  [`Every_Module_That_Ships_A_Request_Has_A_Matrix`](#every_module_that_ships_a_request_has_a_matrix),
+  guard on the reverse direction — a module that ships an aggregate or a request type with no
+  matrix — is
+  [`Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`](#every_module_with_an_aggregate_or_a_request_has_a_matrix),
   the shape `Every_Module_With_A_Schema_Is_Swept` already uses one level up.
   Packet 9 brings `docs/modules/audit/` under it as it ships the Audit module.
 - **Source:** [18-audit-coverage.md](18-audit-coverage.md);
@@ -1860,17 +1874,21 @@ which decides identity, multiplicity, capture and classification;
 - **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), with a companion that exercises the predicate against a directory genuinely lacking the file. Every module has one today, so the rule alone passes whether its check works or is defeated — measured, a tautology left it green.
 - **Phase:** 02a (Packet 9).
 
-#### `Every_Module_That_Ships_A_Request_Has_A_Matrix`
+#### `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
 
-- **Asserts:** every module that ships a request type — a request with a handler whose
-  namespace is `LearnStack.Modules.<Name>.…` — has `docs/modules/<name>/audit.md`.
+- **Asserts:** every module that ships an aggregate root or a request type — an
+  `IAggregateRoot<>` implementation, or a request with a handler, whose namespace is
+  `LearnStack.Modules.<Name>.…` — has `docs/modules/<name>/audit.md`.
 - **Why it exists beside the rule above.** `Every_Module_Has_An_AuditCoverage_Matrix` walks
-  the spec directories that exist, so a module that ships commands with no spec directory
-  at all passes it — the state in which the catalogue ↔ matrix join has nothing to compare
+  the spec directories that exist, so a module that ships code with no spec directory at all
+  passes it — the state in which the catalogue ↔ matrix join has nothing to compare
   against. [ADR-0044 Amendment 4 § 3](../decisions/0044-audit-write-path.md) binds the
-  matrix to a module with code; this rule walks the code.
-- **Companion:** `The_Module_Sweep_Can_Actually_Fail` requires the predicate to name a
-  module with no spec directory.
+  matrix to a module that has shipped an aggregate or a request type; this rule walks the
+  code. It was request-only until the second review of Packet 9 added an aggregate to a
+  scaffold module's `Domain`, with no handler and no matrix, and the rule stayed green —
+  the Audit module itself ships aggregates and no request.
+- **Companion:** `The_Module_Sweep_Can_Actually_Fail` feeds the discovery an aggregate root
+  in a module with no spec directory and no request, and requires the predicate to name it.
 - **Source:** [ADR-0044 Amendment 4 § 3](../decisions/0044-audit-write-path.md);
   [13-documentation.md § Per-Module Specifications](13-documentation.md).
 - **Type:** xUnit + reflection + file scan. **Kind:** structural.

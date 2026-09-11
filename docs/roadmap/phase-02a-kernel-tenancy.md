@@ -941,7 +941,7 @@ Tests grouped by introducing packet:
   `Every_TenantOwned_Command_HasAuditCoverage`,
   `Every_Matrix_Row_Whose_Command_Exists_Is_Registered`,
   `Every_Module_Has_An_AuditCoverage_Matrix`,
-  `Every_Module_That_Ships_A_Request_Has_A_Matrix`,
+  `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`,
   `AuditEntry_Is_AppendOnly`,
   `OperationType_Enum_Matches_Catalog`,
   `AuditStateCapture_ClearedPerRequest`,
@@ -1449,7 +1449,7 @@ identifiers registered in
   call path (`No_IgnoreQueryFilters_Outside_PlatformAdminScope`).
 - Audit-coverage matrix file exists per module
   (`Every_Module_Has_An_AuditCoverage_Matrix`, and
-  `Every_Module_That_Ships_A_Request_Has_A_Matrix` for a module with code); every request
+  `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` for a module with code); every request
   type with a handler is registered (`Every_Shipped_Request_Is_Registered`); and the
   in-code catalogue and the matrix agree in both directions
   (`Every_TenantOwned_Command_HasAuditCoverage`,
@@ -3036,9 +3036,9 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1935 tests green** — 1 contract, 109 architecture, 1355 unit,
-> 470 integration — after the external review's round; 1867 before it. Counted from a run
-> under `CI=true`, which makes warnings errors.
+> **Measured at close: 1941 tests green** — 1 contract, 110 architecture, 1357 unit,
+> 473 integration — after the second external review's round; 1935 after the first, 1867
+> before it. Counted from a run under `CI=true`, which makes warnings errors.
 
 ### The four decisions, and why the corpus did not settle them
 
@@ -3186,3 +3186,39 @@ by the case written for it. One tooling defect surfaced along the way: the pre-c
 stash pop died of `SIGPIPE` under `pipefail` whenever the repository held two or more
 stashes, so a commit with unstaged work failed without a message and left that work
 stashed.
+
+### The second review, and what it changed (2026-09-11)
+
+A second review of the round's local commits found no blocker, two majors, two minors and
+one suggestion. Each was checked against the code and reproduced before anything moved,
+and each is fixed here. Its two majors are the first round's lesson one level down: a
+guard whose **input** was not the thing it claimed to check.
+
+- **The coverage rules checked a catalogue no root builds.** They construct every
+  `IAuditCatalogSource` by reflection, so deleting the API's `TenancyAuditCatalogSource`
+  registration left every case green while the running system refused every Tenancy
+  request as unclassified. Each composition root's own `IAuditCatalog` — the API's and the
+  seeder's — is now resolved from its container and held to the discovered one: every
+  shipped request registered, no source missing, none extra.
+- **A partially loaded collection was recorded as the whole of it.** The capture trusted
+  EF's `IsLoaded`, which a filtered `Include` sets over a partial collection: a three-band
+  taxonomy loaded with one band persisted an `after_state` owning one band, on a table
+  nothing can correct. Membership is now written into a snapshot only for a root created in
+  the request — the one case the capture can know it is complete — and left out as unknown
+  otherwise; every member's own change still travels in `changes`
+  ([ADR-0044 Amendment 6 § 4](../decisions/0044-audit-write-path.md)).
+- **A module with an aggregate and no request escaped the matrix guard.** The rule is now
+  `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`, and its companion feeds it an
+  aggregate-only module.
+- **Audit Subsystem § 5's listing classified before the block that closes the frame**, and
+  returned early for a silent request that production still frames. The listing now follows
+  the file's order.
+- **A matrix row the forward rule could not read was skipped rather than failed** — a class
+  cell reading `Off`, or an operation type the enum does not have. Both now fail, with a
+  companion.
+
+The round's own sweep found that the lifecycle the listing now documents had no test: moving
+the declaration above the protected block, and skipping the frame for a silent request, each
+left every unit case green. Both are pinned now — a cancelled classification still reconciles
+what it declared and clears, and a silent request still owns the frame a nested audited
+request joins — and each mutation fails its case.

@@ -519,8 +519,8 @@ observes neither a rollback nor a `42501`.
   command.
 - [`Every_Module_Has_An_AuditCoverage_Matrix`](21-architecture-tests-catalogue.md#every_module_has_an_auditcoverage_matrix)
   — every module spec ships `docs/modules/<module>/audit.md`, and
-  [`Every_Module_That_Ships_A_Request_Has_A_Matrix`](21-architecture-tests-catalogue.md#every_module_that_ships_a_request_has_a_matrix)
-  — every module that ships a request type has one.
+  [`Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`](21-architecture-tests-catalogue.md#every_module_with_an_aggregate_or_a_request_has_a_matrix)
+  — every module that ships an aggregate root or a request type has one.
 - [`Modules_Do_Not_Write_AuditLog_Directly`](21-architecture-tests-catalogue.md#modules_do_not_write_auditlog_directly)
   — `IAuditStore` is the only sanctioned write path. Registered; lands in Packet 10.
 
