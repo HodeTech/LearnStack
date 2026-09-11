@@ -23,7 +23,8 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
   organization.
 - `TenantLocale` — the locales a tenant publishes in
   ([ADR-0008](../../decisions/0008-localization-schema.md)).
-- `TenantFeatureFlag` — the tenant's own switches.
+- `TenantFeatureFlag` — the tenant's own switches, keyed by a `FeatureKeys` member whose
+  descriptor reads `FeatureSource.TenantFlag`; `Tenant.SetFeatureFlag` refuses any other.
 - `platform_host_to_tenant` — the host → tenant resolution index, read *before*
   any tenant context exists.
 - `platform_entitlement_cache` — the durable projection of a tenant's plan. Read and

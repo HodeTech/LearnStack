@@ -129,8 +129,10 @@ Rules:
   `classroom.minutes_per_month`, `media.storage_gb` and the rest — are withdrawn.
 - Plan-level keys (`FeatureKeys.*` whose catalog descriptor marks them as
   plan-projected) **never** appear in `tenant_feature_flags`; they resolve only through
-  `IEntitlementProvider`, which owns the projection's storage. A direct write to
-  `tenant_feature_flags` for such a key fails an architecture test.
+  `IEntitlementProvider`, which owns the projection's storage. The aggregate refuses one:
+  `Tenant.SetFeatureFlag` takes a `FeatureKey` and admits only a key whose descriptor reads
+  `FeatureSource.TenantFlag`, and `PlanProjected_Keys_NotInTenantFlags` holds it — and the
+  rest of the write path — to that.
 - Tenant-flag-level keys default to `false` and can be set per tenant.
 - Every `FeatureKey` descriptor declares its **failure class** — fail-open or
   fail-closed — because

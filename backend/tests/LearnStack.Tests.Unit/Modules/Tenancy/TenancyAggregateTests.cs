@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LearnStack.Modules.Tenancy.Domain;
 using TenancyDomain = LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using Xunit;
@@ -103,12 +104,12 @@ public sealed class TenancyAggregateTests
 
         if (!isNew)
         {
-            tenant.SetFeatureFlag("beta", "true", Clock, Actor);
+            tenant.SetFeatureFlag(FeatureKeys.LessonPlayerV2, "true", Clock, Actor);
         }
 
         var before = (tenant.Version, tenant.UpdatedAt, Count: tenant.FeatureFlags.Count);
 
-        var refused = () => tenant.SetFeatureFlag("beta", "not json at all", Clock, Actor);
+        var refused = () => tenant.SetFeatureFlag(FeatureKeys.LessonPlayerV2, "not json at all", Clock, Actor);
 
         refused.Should().Throw<ArgumentException>($"the value is malformed for {what}");
 
@@ -307,7 +308,7 @@ public sealed class TenancyAggregateTests
     [InlineData("yes", false)]
     public void A_feature_flag_value_must_be_well_formed_json(string value, bool accepted)
     {
-        var create = () => NewTenant().SetFeatureFlag("live-classroom", value, Clock, Actor);
+        var create = () => NewTenant().SetFeatureFlag(FeatureKeys.AiPronunciationFeedback, value, Clock, Actor);
 
         if (accepted)
         {
@@ -475,7 +476,7 @@ public sealed class TenancyAggregateTests
         var at = sentinelClock ? default : Clock.UtcNow;
         var by = emptyActor ? UserId.From(Guid.Empty) : Actor;
 
-        var create = () => NewTenant().SetFeatureFlag("beta", "true", new FixedClock(at), by);
+        var create = () => NewTenant().SetFeatureFlag(FeatureKeys.LessonPlayerV2, "true", new FixedClock(at), by);
 
         create.Should().Throw<ArgumentException>();
     }
@@ -483,13 +484,44 @@ public sealed class TenancyAggregateTests
     [Fact]
     public void Setting_a_feature_flag_refuses_them_too()
     {
+        // The same key, and a value that is well-formed: the existing flag's own guard is
+        // the only thing left to refuse the sentinel. An earlier version set a second key
+        // to a malformed value, so the JSON guard refused it and this passed without the
+        // sentinel guard ever running.
         var tenant = NewTenant();
-        tenant.SetFeatureFlag("beta", "true", Clock, Actor);
+        tenant.SetFeatureFlag(FeatureKeys.LessonPlayerV2, "true", Clock, Actor);
         var flag = tenant.FeatureFlags.Single();
 
-        var set = () => tenant.SetFeatureFlag("false", "x", new FixedClock(default), Actor);
+        var set = () => tenant.SetFeatureFlag(
+            FeatureKeys.LessonPlayerV2, "false", new FixedClock(default), Actor);
 
         set.Should().Throw<ArgumentException>();
+        flag.Value.Should().Be("true", "a refused write changes nothing");
+    }
+
+    [Fact]
+    public void A_feature_flag_is_only_ever_a_tenant_flag()
+    {
+        // A plan-projected key stored as a tenant flag is a tenant granting itself what a
+        // plan sells (ADR-0045 § 2); an undeclared one is a key nothing else knows.
+        var planProjected = FeatureKeys.All.Values
+            .Where(descriptor => descriptor.Source == FeatureSource.PlanProjected)
+            .Select(descriptor => descriptor.Key)
+            .ToList();
+
+        planProjected.Should().NotBeEmpty();
+
+        foreach (var key in planProjected)
+        {
+            var tenant = NewTenant();
+            var set = () => tenant.SetFeatureFlag(key, "true", Clock, Actor);
+
+            set.Should().Throw<ArgumentException>().WithMessage("*plan-projected*");
+            tenant.FeatureFlags.Should().BeEmpty();
+        }
+
+        var undeclared = () => NewTenant().SetFeatureFlag(new FeatureKey("beta"), "true", Clock, Actor);
+        undeclared.Should().Throw<ArgumentException>().WithMessage("*not a declared feature key*");
     }
 
     [Fact]
@@ -657,22 +689,16 @@ public sealed class TenancyAggregateTests
         }
     }
 
-    [Theory]
-    [InlineData(200, true)]
-    [InlineData(201, false)]
-    public void A_feature_flag_key_is_bounded_by_the_length_its_column_holds(int length, bool accepted)
+    [Fact]
+    public void Every_tenant_flag_key_fits_the_column_that_stores_it()
     {
-        var create = () => NewTenant().SetFeatureFlag(
-            new string('k', length), "\"v\"", Clock, Actor);
-
-        if (accepted)
-        {
-            create.Should().NotThrow();
-        }
-        else
-        {
-            create.Should().Throw<ArgumentException>().WithMessage("*the column holds 200*");
-        }
+        // Only a declared tenant-flag key reaches the column, so the bound is a property of
+        // the registry: a key longer than the 200 characters tenant_feature_flags.key holds
+        // would be refused by the database with 22001 and no property name.
+        FeatureKeys.All.Values
+            .Where(descriptor => descriptor.Source == FeatureSource.TenantFlag)
+            .Should().NotBeEmpty()
+            .And.OnlyContain(descriptor => descriptor.Key.Value.Length <= 200);
     }
 
     /// <summary>
