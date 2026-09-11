@@ -285,9 +285,12 @@ See [add-ef-migration](../add-ef-migration/SKILL.md) for migration conventions
 ## Validation
 
 - `dotnet build` succeeds for all four projects.
-- `LearnStack.Tests.Architecture` is green; specifically the two rules that
-  actually run, `ModuleDomain_DoesNotDependOn_OtherModuleDomain` and
-  `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure`, for `<Name>`.
+- `LearnStack.Tests.Architecture` is green; specifically the dependency matrix for
+  `<Name>` — `ModuleDomain_DoesNotDependOn_OtherModuleDomain`,
+  `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure`,
+  `ModuleApplication_References_Only_Its_Own_Layers_And_Other_Contracts`,
+  `ModuleInfrastructure_References_Only_Its_Own_Layers_And_Core_Infrastructure` and
+  `ModuleContracts_Reference_Only_SharedKernel`.
 - `dotnet ef migrations script` for the module shows the expected baseline schema.
 - The module appears in [03-module-boundaries.md](../../../docs/architecture/03-module-boundaries.md)
   module map and in [docs/glossary.md](../../../docs/glossary.md) if it owns any

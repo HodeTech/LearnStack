@@ -1994,9 +1994,10 @@ update it constrains.
 3. `AuditEntry_Is_AppendOnly` — no `UPDATE` or `DELETE` against `audit_log` outside the
    closed exception list in `LearnStack.Modules.Audit.Infrastructure`, and `IAuditStore`
    exposes no update method.
-4. `Modules_Do_Not_Write_AuditLog_Directly` — no module assembly outside
-   `LearnStack.Modules.Audit.*` names `audit_log` or `AuditEntry`; `IAuditStore` is every
-   other module's only write path.
+4. `Modules_Do_Not_Write_AuditLog_Directly` — the types that name `AuditEntry` are the
+   entity, its configuration and `AuditDbContext`; the only SQL that inserts into
+   `audit_log` is `PostgresAuditStore`'s; and no module but Audit names the table.
+   `IAuditStore` is every other module's only write path.
 5. `OperationType_Enum_Matches_Catalog` — the `OperationType` enum and § Operation Types
    in [Audit Coverage Standards](../standards/18-audit-coverage.md) carry the same seven
    members.

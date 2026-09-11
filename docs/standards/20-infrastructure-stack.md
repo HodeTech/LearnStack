@@ -193,9 +193,11 @@ governs key isolation, the four-method port and single-flight behavior;
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) governs the Valkey/Dapr
 adapter trigger.
 
-- All Valkey access goes through `ICacheService`. Direct `IConnectionMultiplexer` /
-  `IDistributedCache` injections are forbidden by the architecture test
-  `Modules_Do_Not_Inject_Valkey_Directly`.
+- All cache access goes through `ICacheService`, Valkey or in-process. A module that
+  depends on `StackExchange.Redis` or on anything in `Microsoft.Extensions.Caching` —
+  `IConnectionMultiplexer`, `IDistributedCache`, `IMemoryCache` — fails the architecture
+  test `Modules_Do_Not_Inject_Valkey_Directly`, because the key is the isolation boundary
+  and only `CacheKey` builds one.
 - Cache keys are `{tenant_id}:{module}:{logical-name}`, or
   `{tenant_id}:{organization_id}:{module}:{logical-name}` when the value is scoped to
   one organization. The `tenant_id` segment comes **first** and is mandatory even when
@@ -572,8 +574,8 @@ are the Hub's public API, governed by the Hub repository.
   classification per [18-audit-coverage.md](18-audit-coverage.md)) and the MediatR
   `AuditLogBehavior`; there is no per-module audit code.
 - `IAuditStore` is the only sanctioned write path; the architecture test
-  `Modules_Do_Not_Write_AuditLog_Directly` is the rule that enforces it, registered for
-  Packet 10. The store carries **four** write
+  `Modules_Do_Not_Write_AuditLog_Directly` is the rule that enforces it. The store
+  carries **four** write
   methods and no update method: `WritePendingAsync` on the ambient transaction, the two
   standalone writers (`WriteStandaloneAsync`, `WriteBestEffortAsync`), and
   `WritePlatformScopeAsync`, whose only caller is `EnterPlatformAdminScope(reason)` —

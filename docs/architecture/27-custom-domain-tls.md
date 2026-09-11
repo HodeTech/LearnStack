@@ -577,8 +577,11 @@ instead of just `tenant_id`.
   [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md); a resolver, a
   middleware or a controller holding an `IHubClient` fails the build. This is the
   mechanical guard against the deleted `LookupHostAsync` pattern reappearing.
-- `Host_Resolution_Makes_No_Outbound_Calls` — integration test resolves a host with the
-  Hub client registered as a throwing stub and asserts the resolution still succeeds.
+- `Host_Resolution_Makes_No_Outbound_Calls` — two halves. Structurally, since Phase 02a
+  Packet 10: the resolver, and every LearnStack type it depends on, holds no HTTP, socket,
+  gRPC or Hub client. Behaviourally, from [Phase 02c](../roadmap/phase-02c-hub-foundation.md),
+  which ships the first Hub client: an integration test resolves a host with that client
+  registered as a throwing stub and asserts the resolution still succeeds.
 
 ## 11. Phasing
 

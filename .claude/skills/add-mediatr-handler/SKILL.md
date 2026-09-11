@@ -333,8 +333,9 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
   never raises a validation exception.
 - **Calling `IAuditStore` directly.** The `AuditLogBehavior` does this for you. A
   direct call writes a duplicate row. No architecture test catches it —
-  `Modules_Do_Not_Write_AuditLog_Directly` bans naming `audit_log` or `AuditEntry`
-  outside `LearnStack.Modules.Audit.*` and puts the SharedKernel ports out of scope —
+  `Modules_Do_Not_Write_AuditLog_Directly` bans naming `AuditEntry` outside its own three
+  types and `audit_log` outside the Audit module, and puts the SharedKernel ports out of
+  scope —
   so this one is on review.
 - **Leaving a new request type out of the catalogue.** It does not silently go
   unaudited — it is rejected with `audit_unclassified_operation` (500) at step 3.

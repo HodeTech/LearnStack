@@ -115,32 +115,33 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-**The shipped set is fourteen files, not a family per topic.** Add yours to the one whose
+**The shipped set is fifteen files, not a family per topic.** Add yours to the one whose
 subject it shares:
 
 | File | What it covers |
 |------|----------------|
-| `ModuleDependencyTests.cs` | Dependency direction between module packages, plus a planted-violation meta test that proves the scanner still detects one. |
-| `PersistenceConventionTests.cs` | `row_version` mapping, ambient-unit-of-work enlistment, the Docker trait, and the `migrate` recipe's chain coverage and credential redaction. |
-| `TenancyConventionTests.cs` | The ADR-0036 **request-edge** rules — what may read a host, where the effective host and `app.resolving_host` are computed, and the assertion budget's independence from `ICacheService`. Source scans, because most of the banned inputs are header names that appear only as string literals. |
-| `TenantScopingTests.cs` | The correspondence between the `[TenantOwned]` / `[OrganizationScoped]` markers, the EF global query filters, and the Row Level Security policies. |
+| `ModuleDependencyTests.cs` | The dependency matrix — each module layer, and the core `Application`, an allow-list over its IL and its project references — the Domain's one EF Core exception for Vogen's emitted converters, plus a planted-violation meta test that proves the scanner still detects one. |
+| `PersistenceConventionTests.cs` | `row_version` mapping, ambient-unit-of-work enlistment and the ban on fanning out over its connection, the Docker trait, and the `migrate` recipe's chain coverage and credential redaction. |
+| `TenancyConventionTests.cs` | The ADR-0036 **request-edge** rules — what may read a host, where the effective host and `app.resolving_host` are computed, the assertion budget's independence from `ICacheService`, and the host resolver's lack of outbound dependencies — and who may set a session variable: the out-of-band setters' read-only transactions and the ban on setting `app.scope`. Mostly source scans, because most of the banned inputs are header names and SQL that appear only as string literals. |
+| `TenantScopingTests.cs` | The correspondence between the `[TenantOwned]` / `[OrganizationScoped]` markers, the EF global query filters, and the Row Level Security policies, down to the tenant term in both of a policy's clauses. |
 | `TenantContextConstructionTests.cs` | How a tenant context comes into existence and who may write it: the factory's single entry point, the constructor's one call site, the enumerated accessor writers, and the composite-key organization read. |
 | `ApiConventionTests.cs` | Live majors, forwarded headers, required `Deployment:Mode`, unversioned route prefixes. |
-| `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, provider SDK exceptions). |
+| `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, the cache clients, the Hub, provider SDK exceptions). |
 | `RequestSurfaceTests.cs` | What the step-4 authority ceiling admits: the two request markers, their permitted sets, the shape of the attributes themselves, and the ban on request shapes MediatR runs with no pipeline. |
 | `PlatformAdminScopeConventionTests.cs` | The single sanctioned `BYPASSRLS` path: who may resolve the keyed platform data source, where connection strings are read, the entry gate, and what the scope must not touch. |
 | `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals`, the single-frontend-app rule, and the commit-subject grammar — checked by running the `commit-msg` hook. |
 | `AggregateWriteTests.cs` | The one sanctioned cross-aggregate write, and the count of aggregate roots a handler's ports can write that keeps it at one. |
 | `CustomizationRegistryTests.cs` | The closed renderer registries that exist twice — in C# and in TypeScript — and stop the two drifting. |
-| `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, and the `OperationType` table. |
+| `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, the closed set of `audit_log` writers, and the `OperationType` table. |
+| `EntitlementConventionTests.cs` | The entitlement socket: which types may name `platform_entitlement_cache`'s entity, and whose SQL may touch its rows. |
 | `AuditCoverageTests.cs` | The catalogue ↔ matrix join, keyed on request types discovered from every backend assembly, in both directions — plus the module-has-a-matrix rule. |
 
-Rules for surfaces no file covers yet — permissions, entitlement, the Hub contract — are
+Rules for surfaces no file covers yet — permissions, the Hub adapters and endpoints — are
 **Registered** in
 [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
 the phase that ships the code they inspect. Check its Status line before assuming a
 net is under you, and create a new file only when your rule's subject is not one of
-the fourteen above.
+the fifteen above.
 
 > **The tenancy rules live in three files, and the split is by subject, not by ADR.**
 > All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable

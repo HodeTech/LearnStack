@@ -118,9 +118,11 @@ Both references are scoped to **build-time / IL-level dependencies for
 generated or marker shapes**, not to hand-written Domain code calling EF
 Core or MediatR APIs.
 [`Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`](21-architecture-tests-catalogue.md#domain_does_not_depend_on_microsoft_entityframeworkcore_except_vogen_emitted_converters)
-encodes the exception. It was meant to land with the first module aggregate in Packet 6
-and did not; it is registered for
-[Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md). Adding a third such
+encodes the exception, in force since
+[Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) — it was meant to land with
+the first module aggregate in Packet 6 and did not. It admits the converter and comparer
+Vogen nests in each value object and the `__<Id>EfCoreExtensions` class beside it, and
+nothing hand-written. Adding a third such
 reference to Domain or SharedKernel requires an ADR. `SharedKernel`'s other three
 packages are not in that category: Vogen is the source generator itself, and Polly and
 `Microsoft.Extensions.Configuration.Abstractions` back the resilience and secret ports
