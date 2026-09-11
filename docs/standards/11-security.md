@@ -303,8 +303,8 @@ yet:
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
-| The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
-| The tenant-flag loader (`FeatureFlags`) | its own short read | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
+| The `AuditConfig` override loader | its own short read-only one | An out-of-band cached projection, never a request-path query |
+| The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 
 > **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
 > only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated

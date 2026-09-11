@@ -201,10 +201,11 @@ public sealed class FeatureFlags(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>BEGIN; SET LOCAL app.tenant_id; SELECT; COMMIT</c> — the announcement is the
-    /// point. Read-only, so the transaction exists for the <c>SET LOCAL</c> rather than
-    /// for atomicity: a <c>SET LOCAL</c> outside a transaction lasts for the statement and
-    /// would leave the pooled connection announcing a tenant afterwards.
+    /// <c>BEGIN; SET TRANSACTION READ ONLY; SET LOCAL app.tenant_id; SELECT; COMMIT</c> —
+    /// the announcement is the point. Read-only, so the transaction exists for the
+    /// <c>SET LOCAL</c> rather than for atomicity: a <c>SET LOCAL</c> outside a transaction
+    /// lasts for the statement and would leave the pooled connection announcing a tenant
+    /// afterwards.
     /// </para>
     /// <para>
     /// The <c>SELECT</c> names its tenant too, bound from the trusted argument rather than
@@ -222,6 +223,17 @@ public sealed class FeatureFlags(
 
         await using var transaction = await connection
             .BeginTransactionAsync(ct).ConfigureAwait(false);
+
+        // Read-only is the property that makes an out-of-band announcement of app.tenant_id
+        // acceptable: learnstack_app holds write grants on tenant_feature_flags, so nothing
+        // but this statement stops a later edit from writing under an announcement no request
+        // made. It precedes the announcement because PostgreSQL refuses SET TRANSACTION after
+        // the transaction's first statement (Out_Of_Band_Setters_Open_Read_Only_Transactions).
+        await using (var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY", connection, transaction))
+        {
+            await readOnly.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
 
         await using (var announce = new NpgsqlCommand(
             "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction))
