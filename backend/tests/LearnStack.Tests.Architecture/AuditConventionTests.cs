@@ -280,7 +280,7 @@ public sealed partial class AuditConventionTests
             var code = SourceText.WithoutComments(File.ReadAllText(file));
             var relative = Path.GetRelativePath(RepositoryPaths.BackendSrc(), file);
 
-            if (AuditLogMutation().IsMatch(code) && !IsSanctionedRedactionSite(relative))
+            if (AuditLogMutation().IsMatch(code) && !SanctionedRedactionSites.Contains(relative))
             {
                 offenders.Add(relative);
             }
@@ -301,10 +301,22 @@ public sealed partial class AuditConventionTests
         AuditLogMutation().IsMatch("delete from audit_log where id = @id").Should().BeTrue();
         AuditLogMutation().IsMatch("DELETE  FROM   audit_log").Should().BeTrue();
 
+        // Ordinary PostgreSQL spellings of the same target, which the first pattern missed —
+        // measured by the fourth review of Packet 9: schema-qualified, quoted, both, and ONLY,
+        // which the partitioned table Phase 11 builds makes the natural way to write one.
+        AuditLogMutation().IsMatch("UPDATE public.audit_log SET actor_email = NULL").Should().BeTrue();
+        AuditLogMutation().IsMatch("UPDATE \"audit_log\" SET actor_email = NULL").Should().BeTrue();
+        AuditLogMutation().IsMatch("DELETE FROM \"public\".\"audit_log\"").Should().BeTrue();
+        AuditLogMutation().IsMatch("delete from only public . audit_log where id = @id").Should().BeTrue();
+        AuditLogMutation().IsMatch("UPDATE ONLY \"audit_log\" SET ip_address = NULL").Should().BeTrue();
+
         // And the shapes it must not: the store's own INSERT, and a name that merely
-        // starts the same way.
+        // starts the same way, quoted or not.
         AuditLogMutation().IsMatch("INSERT INTO audit_log (id, tenant_id)").Should().BeFalse();
+        AuditLogMutation().IsMatch("INSERT INTO \"public\".\"audit_log\" (id)").Should().BeFalse();
         AuditLogMutation().IsMatch("DELETE FROM audit_log_archive").Should().BeFalse();
+        AuditLogMutation().IsMatch("UPDATE \"audit_log_archive\" SET x = 1").Should().BeFalse();
+        AuditLogMutation().IsMatch("UPDATE public.audit_log2 SET x = 1").Should().BeFalse();
     }
 
     [Fact]
@@ -321,17 +333,16 @@ public sealed partial class AuditConventionTests
     }
 
     /// <summary>
-    /// Whether the path is one of the three sites the standard names.
+    /// The files the standard's three sites are, by exact path under <c>backend/src</c>.
     /// </summary>
     /// <remarks>
-    /// None of them exists yet. The predicate ships with the rule so that the first one to
-    /// land is exempted by NAME rather than by widening the pattern — which is how a rule
-    /// stops meaning anything.
+    /// Empty, because none of them exists yet: Phase 03's GDPR redaction handler and each
+    /// module's <c>IUserReferenceLocator</c>, and Phase 11's retention purge. The first to
+    /// land adds its own path here, so it is exempted by NAME — never by a substring, which
+    /// the first version used and which exempted any file in the Audit module whose path
+    /// happened to contain "Redaction" (the fourth review of Packet 9).
     /// </remarks>
-    private static bool IsSanctionedRedactionSite(string relative) =>
-        relative.Contains("Modules.Audit.Infrastructure", StringComparison.Ordinal)
-            && (relative.Contains("Redaction", StringComparison.Ordinal)
-                || relative.Contains("RetentionPurge", StringComparison.Ordinal));
+    private static readonly HashSet<string> SanctionedRedactionSites = new(StringComparer.Ordinal);
 
     private static IEnumerable<string> SourceFiles() =>
         Directory
@@ -339,9 +350,12 @@ public sealed partial class AuditConventionTests
             .Where(file => !file.Split(Path.DirectorySeparatorChar)
                 .Any(segment => segment is "obj" or "bin"));
 
-    /// <summary>An `UPDATE` or `DELETE` whose target is `audit_log` itself.</summary>
+    /// <summary>
+    /// An `UPDATE` or `DELETE` whose target is `audit_log` itself — with or without
+    /// `ONLY`, a schema qualifier, or identifier quotes.
+    /// </summary>
     [GeneratedRegex(
-        @"\b(?:UPDATE\s+audit_log\b|DELETE\s+FROM\s+audit_log\b)",
+        @"\b(?:UPDATE|DELETE\s+FROM)(?:\s+ONLY)?\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?audit_log""?(?![A-Za-z0-9_])",
         RegexOptions.IgnoreCase)]
     private static partial Regex AuditLogMutation();
 

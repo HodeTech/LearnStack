@@ -199,6 +199,39 @@ public sealed partial class AuditCoverageTests
     }
 
     [Fact]
+    public void A_slug_classified_twice_fails_whichever_row_comes_first()
+    {
+        // The fourth review of Packet 9: a correct row followed by a contradictory copy
+        // passed the forward join, which read only the first carrier, and the same two rows
+        // in the other order failed it. Every carrier is compared now, and the reverse
+        // direction refuses the copy itself — in either order.
+        AuditCatalogEntry[] entries =
+        [
+            new("mod", "mod.thing.create", OperationType.Create, OperationClass.Must, typeof(object)),
+        ];
+
+        const string Header = "| Resource | Operation | Class | Why |";
+        const string Rule = "|---|---|---|---|";
+        const string Correct = "| `Thing` | `mod.thing.create` | **MUST** (`create`) | the row |";
+        const string Copy = "| `Thing` | `mod.thing.create` | MAY (`delete`) | a stale copy |";
+
+        string[][] orders = [[Header, Rule, Correct, Copy], [Header, Rule, Copy, Correct]];
+        var registered = new HashSet<string>(["mod.thing.create"], StringComparer.Ordinal);
+
+        foreach (var matrix in orders)
+        {
+            ForwardProblems(entries, new Dictionary<string, string[]> { ["mod"] = matrix })
+                .Should().BeEquivalentTo(
+                    ["mod.thing.create: the catalogue says Must, the matrix says May",
+                     "mod.thing.create: the catalogue says Create, the matrix says Delete"],
+                    "the copy disagrees wherever it sits");
+
+            ReverseProblems(MatrixSlugs(matrix).Select(row => ("mod", row.Slug, row.Cell)), registered)
+                .Should().ContainSingle().Which.Should().StartWith("mod.thing.create: classified in 2 rows");
+        }
+    }
+
+    [Fact]
     public void The_Forward_Sweep_Reads_Only_The_Registering_Module_s_Matrix()
     {
         // Audit Coverage: a module's registration has its row in THAT module's matrix. The
@@ -305,7 +338,7 @@ public sealed partial class AuditCoverageTests
         foreach (var entry in entries)
         {
             var carrying = matrices
-                .Where(matrix => FindRow(entry.Operation, matrix.Value) is not null)
+                .Where(matrix => FindRows(entry.Operation, matrix.Value).Count > 0)
                 .Select(matrix => matrix.Key)
                 .Order(StringComparer.Ordinal)
                 .ToList();
@@ -343,40 +376,47 @@ public sealed partial class AuditCoverageTests
                 continue;
             }
 
-            var row = FindRow(entry.Operation, matrices[home])!;
-
-            var declared = ClassOf(row);
-
-            if (declared is null)
+            // EVERY row that carries it, not the first: a correct row followed by a
+            // contradictory copy passed, and the same two rows in the other order failed —
+            // measured by the fourth review of Packet 9. That a slug has one row at all is the
+            // reverse direction's check; here each carrier has to agree.
+            foreach (var row in FindRows(entry.Operation, matrices[home]))
             {
-                problems.Add(
-                    $"{entry.Operation}: the matrix states no class — MUST, SHOULD or MAY — "
-                    + $"for an operation the catalogue registers at {entry.OperationClass}");
-            }
-            else if (declared != entry.OperationClass)
-            {
-                problems.Add(
-                    $"{entry.Operation}: the catalogue says {entry.OperationClass}, "
-                    + $"the matrix says {declared}");
-            }
-
-            var (spelled, type) = TypeOf(row);
-
-            if (spelled is not null && type is null)
-            {
-                problems.Add(
-                    $"{entry.Operation}: the matrix names the operation type `{spelled}`, "
-                    + "which OperationType does not have");
-            }
-            else if (type is not null && type != entry.OperationType)
-            {
-                problems.Add(
-                    $"{entry.Operation}: the catalogue says {entry.OperationType}, "
-                    + $"the matrix says {type}");
+                problems.AddRange(RowProblems(entry, row));
             }
         }
 
         return problems;
+    }
+
+    /// <summary>What one matrix row says that the catalogue entry does not.</summary>
+    private static IEnumerable<string> RowProblems(AuditCatalogEntry entry, string row)
+    {
+        var declared = ClassOf(row);
+
+        if (declared is null)
+        {
+            yield return $"{entry.Operation}: the matrix states no class — MUST, SHOULD or MAY — "
+                + $"for an operation the catalogue registers at {entry.OperationClass}";
+        }
+        else if (declared != entry.OperationClass)
+        {
+            yield return $"{entry.Operation}: the catalogue says {entry.OperationClass}, "
+                + $"the matrix says {declared}";
+        }
+
+        var (spelled, type) = TypeOf(row);
+
+        if (spelled is not null && type is null)
+        {
+            yield return $"{entry.Operation}: the matrix names the operation type `{spelled}`, "
+                + "which OperationType does not have";
+        }
+        else if (type is not null && type != entry.OperationType)
+        {
+            yield return $"{entry.Operation}: the catalogue says {entry.OperationType}, "
+                + $"the matrix says {type}";
+        }
     }
 
     /// <summary>
@@ -406,8 +446,9 @@ public sealed partial class AuditCoverageTests
         IEnumerable<(string Module, string Slug, string Cell)> rows, HashSet<string> registered)
     {
         var problems = new List<string>();
+        var all = rows.ToList();
 
-        foreach (var (module, slug, cell) in rows)
+        foreach (var (module, slug, cell) in all)
         {
             var planned = cell.Contains("(planned)", StringComparison.Ordinal);
             var offPath = cell.Contains("(off-path)", StringComparison.Ordinal);
@@ -433,6 +474,18 @@ public sealed partial class AuditCoverageTests
                     $"{module}/{slug}: the matrix classifies it and nothing registers "
                     + "it, and it carries no (planned) or (off-path) marker");
             }
+        }
+
+        // One operation, one row. A copy is a second answer to the question the matrix
+        // exists to settle, and it passes every comparison the moment it agrees — or, for a
+        // (planned) slug, before anything compares it at all.
+        foreach (var copies in all
+            .GroupBy(row => row.Slug, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1))
+        {
+            problems.Add(
+                $"{copies.Key}: classified in {copies.Count()} rows "
+                + $"({string.Join(", ", copies.Select(row => row.Module))}) — one operation has one row");
         }
 
         return problems;
@@ -512,18 +565,18 @@ public sealed partial class AuditCoverageTests
         }
     }
 
-    /// <summary>The matrix row whose Operation cell carries the slug, or <c>null</c>.</summary>
+    /// <summary>Every matrix row whose Operation cell carries the slug.</summary>
     /// <remarks>
     /// Matched on the cell rather than on the line, because a slug also appears in the
     /// prose above and below the table — and a prose mention is not a classification.
     /// </remarks>
-    private static string? FindRow(string operation, IEnumerable<string> lines) =>
-        lines
+    private static List<string> FindRows(string operation, IEnumerable<string> lines) =>
+        [.. lines
             .Where(line => line.StartsWith('|'))
             // Cell 2, not 1: splitting on '|' leaves an empty first element, so the
             // columns are Resource, Operation, Class at 1, 2 and 3.
-            .FirstOrDefault(line => Cells(line).Length >= 4
-                && Cells(line)[2].Contains('`' + operation + '`', StringComparison.Ordinal));
+            .Where(line => Cells(line).Length >= 4
+                && Cells(line)[2].Contains('`' + operation + '`', StringComparison.Ordinal))];
 
     /// <summary>
     /// The class the row's third cell states, or <c>null</c> when it states none.
