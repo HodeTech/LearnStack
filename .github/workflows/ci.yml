@@ -56,11 +56,10 @@ permissions:
   contents: read
 
 env:
-  # The newest 10.0.1xx SDK, and with it the newest patched runtime the tests run on:
-  # 10.0.100 carried runtime 10.0.0, which a string of high-severity .NET advisories has
-  # since patched (GHSA-cvvh-rhrc-wg4q among them). Same feature band, so the compiler
-  # and analyzers the build gates on move by servicing only.
-  DOTNET_SDK_VERSION: "10.0.112"
+  # No DOTNET_SDK_VERSION: both .NET jobs install the SDK backend/global.json pins, so a
+  # workstation, this workflow and a release build cannot disagree about it. It moved there
+  # when a security bump landed here alone and left every local build on the runtime the
+  # advisories were about (Packet 9's fifth review).
   NODE_VERSION: "20.11.0"
   PNPM_VERSION: "9.12.3"
   DOTNET_NOLOGO: "true"
@@ -79,10 +78,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # The one SDK pin is backend/global.json — 10.0.112, whose runtime carries the .NET
+      # security fixes 10.0.0 did not (GHSA-cvvh-rhrc-wg4q among them). The path is the
+      # backend's own; there is no repo-root global.json to point at.
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+          global-json-file: backend/global.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -95,7 +97,7 @@ jobs:
       - name: Restore
         working-directory: backend
         # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
-        # TreatWarningsAsErrors is what makes a high-severity advisory — transitive ones
+        # TreatWarningsAsErrors is what makes an advisory of any severity — transitive ones
         # included (Directory.Build.props) — fail the job. A build with --no-restore only
         # replays those findings as warnings. The runner sets CI=true on every step
         # already; it is written down because the gate depends on it.
@@ -131,6 +133,15 @@ jobs:
             --filter "Requires!=Docker" \
             --logger trx \
             --results-directory ../artifacts/backend-tests
+
+      # A filter that matches nothing exits 0, so a renamed trait or a project that fell
+      # out of the solution would leave this job green having run nothing. All four
+      # assemblies carry tests that need no Docker, so each must have executed some.
+      - name: Refuse a test run that executed nothing
+        run: |
+          python3 scripts/assert-tests-ran.py artifacts/backend-tests \
+            LearnStack.Tests.Unit LearnStack.Tests.Architecture \
+            LearnStack.Tests.Contract LearnStack.Tests.Integration
 
       # `--logger trx` without a LogFileName, deliberately. A fixed name makes all
       # four projects write the SAME path in the SAME results directory: measured,
@@ -169,20 +180,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # Same shape as the `backend` job: the SDK version comes from the
-      # workflow-level DOTNET_SDK_VERSION, not from a global.json — the only
-      # global.json in this repository is backend/global.json, and pointing
-      # setup-dotnet at a repo-root path that does not exist fails the job
-      # before a single test runs.
+      # Same shape as the `backend` job: the SDK comes from backend/global.json, by that
+      # path — a repo-root path does not exist, and setup-dotnet pointed at one fails the
+      # job before a single test runs.
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+          global-json-file: backend/global.json
 
       - name: Restore
         working-directory: backend
         # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
-        # TreatWarningsAsErrors is what makes a high-severity advisory — transitive ones
+        # TreatWarningsAsErrors is what makes an advisory of any severity — transitive ones
         # included (Directory.Build.props) — fail the job. A build with --no-restore only
         # replays those findings as warnings. The runner sets CI=true on every step
         # already; it is written down because the gate depends on it.
@@ -204,6 +213,12 @@ jobs:
             --filter "Requires=Docker" \
             --logger trx \
             --results-directory ../artifacts/backend-integration
+
+      # The job this matters most for: `Requires=Docker` matching nothing — the trait
+      # constant renamed, the filter mistyped — exits 0 and leaves the whole Docker suite
+      # unrun behind a green check. Only the integration assembly carries the trait.
+      - name: Refuse a test run that executed nothing
+        run: python3 scripts/assert-tests-ran.py artifacts/backend-integration LearnStack.Tests.Integration
 
       - name: Upload test results
         if: always()

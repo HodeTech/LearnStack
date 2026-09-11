@@ -46,7 +46,11 @@ cd "$REPO_ROOT"
 # (the two checks below already cover every WIP shape) and was removed.
 STASH_REF=""
 unstaged_changes=$(git diff --quiet || echo "yes")
-unstaged_untracked=$(git ls-files --others --exclude-standard | head -n 1)
+# `awk 'NR == 1'`, not `head -n 1`: head exits after one line, and git ls-files still
+# writing a listing longer than the pipe buffer is killed by SIGPIPE — under
+# `set -o pipefail` + `set -e` that ended the hook here, before the stash, with no
+# message. awk reads to the end. The same class as pop_stash's note below.
+unstaged_untracked=$(git ls-files --others --exclude-standard | awk 'NR == 1')
 if [[ -n "$unstaged_changes" || -n "$unstaged_untracked" ]]; then
     STASH_REF="learnstack-precommit-$(date +%s)"
     git stash push --keep-index --include-untracked --quiet -m "$STASH_REF"

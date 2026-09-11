@@ -47,11 +47,18 @@
       (through EF Core Design's MSBuild) and SSH.NET 2023.0.0 (through Testcontainers).
       Security Standards § Dependency Hygiene patches a high advisory within seven days,
       which a build that never reports one cannot do. Under CI's TreatWarningsAsErrors a
-      new advisory fails the build: move the package that brings it to a patched release,
-      and if none exists yet, suppress that one advisory with NuGetAuditSuppress beside a
-      dated reason — never by narrowing this mode again.
+      new advisory of ANY severity fails the build — NuGetAuditLevel is stated as `low`
+      below rather than inherited, because "high" was what the prose around it used to
+      say: move the package that brings it to a patched release, and if none exists yet,
+      suppress that one advisory with NuGetAuditSuppress beside a dated reason — never by
+      narrowing this mode or raising that level again.
+
+      NU1900 — the vulnerability data could not be fetched — fails CI the same way, and
+      deliberately: a restore that could not check the graph is not a clean one. Re-run
+      when the feed is back; do not demote the warning.
     -->
     <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>
