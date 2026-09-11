@@ -262,8 +262,8 @@ Small data migrations live inline as SQL. Larger migrations live as **idempotent
 Hangfire jobs** triggered by the migration. The job sets `app.tenant_id` per tenant
 before mutating data, on the **migration** connection:
 
-> This loop is a migration-time backfill, not an eighth entry in ADR-0040's closed
-> seven-setter set. Application code never opens its own connection to set the
+> This loop is a migration-time backfill, not a ninth entry in ADR-0040's closed
+> eight-setter set. Application code never opens its own connection to set the
 > variable — it goes through `IUnitOfWork.SetTenantContextAsync` on the ambient
 > transaction ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)).
 

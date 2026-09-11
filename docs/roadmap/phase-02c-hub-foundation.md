@@ -126,8 +126,14 @@ The ordering is the design, not an optimisation:
   ([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)),
   so a key with no declared class does not compile and no key written here can omit one.
   What this phase adds is the **behaviour**: what `HubEntitlementProvider` does with the
-  class when no usable projection is available — a cold start with nothing cached, or a
-  stored projection past its grace window. The classes themselves, and the key families
+  class when **no projection is available at all** — a cold start with nothing cached, no
+  durable row and the Hub unreachable. A stored projection past its grace window is not
+  that case: it resolves to the read-only projection
+  [ADR-0021](../decisions/0021-feature-based-entitlement.md) decides — every feature
+  `false`, every limit `0` — whatever a key's class, because the last word from the Hub
+  was an expiry and the grace the Hub granted for it has run out
+  ([ADR-0045 Amendment 3](../decisions/0045-entitlement-and-feature-flag-socket.md)). The
+  classes themselves, and the key families
   that carry each one, are the table in
   [Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md)
   and are not restated here — read it before assuming a key fails open.
@@ -394,8 +400,13 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
 - With the Hub unreachable and L1 and L2 cold, a feature check resolves from
   `platform_entitlement_cache` inside its `grace_until` window, returns a value, and does
   not throw.
-- Past `grace_until` with the Hub still unreachable, fail-open keys stay enabled and
-  fail-closed keys are refused — each according to its declared class, and each recorded.
+- With no projection anywhere — L1, L2 and the durable table all empty — and the Hub
+  unreachable, fail-open keys resolve enabled and fail-closed keys refused, each according
+  to its declared class, and each recorded.
+- Past `grace_until` with the Hub still unreachable, the stored projection resolves
+  read-only — every feature `false`, every limit `0`, writes refused with
+  `license.expired_read_only` and reads served — as
+  [ADR-0021](../decisions/0021-feature-based-entitlement.md) decides, whatever a key's class.
 - An operation gated by a `Hard` limit key is refused with `403 limit_exceeded` once
   usage reaches the limit; an operation gated by a `Soft` one succeeds and produces a
   `usage.alert.soft_limit_reached` report.

@@ -286,11 +286,11 @@ placement rule above is unchanged and governs `app.scope` the moment a carrier e
 
 ### The out-of-band setters
 
-`TransactionBehavior` is the general case, not the only one. Seven setters exist in
+`TransactionBehavior` is the general case, not the only one. Eight setters exist in
 total and the set is closed
-([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md)
-is the authority; it is reproduced here because this section is the placement
-authority). Two set it on the **ambient** transaction; five own a **short
+([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
+with its Amendments 3 and 7, is the authority; it is reproduced here because this section
+is the placement authority). Two set it on the **ambient** transaction; six own a **short
 transaction of their own**, because they run where no ambient transaction exists
 yet:
 
@@ -303,6 +303,7 @@ yet:
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
 | The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
+| The tenant-flag loader (`FeatureFlags`) | its own short read | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 
 > **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
 > only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated
@@ -321,7 +322,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the seven setters connects as `learnstack_app`. A setter that reached
+Every one of the eight setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -335,23 +336,25 @@ the `SET LOCAL` pair on this transaction before any command a module `DbContext`
 runs on it.
 
 **Keyed on the transaction, not on the table**, and marked by one setter rather than
-seven — both narrower than an earlier wording here, and both for reasons the shipped
+eight — both narrower than an earlier wording here, and both for reasons the shipped
 mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
 every query and the database to decide something the transaction already answers.
-And of the seven out-of-band setters only `TransactionBehavior`, through
-`IUnitOfWork.SetTenantContextAsync`, marks anything today: five do not exist in code yet — the integration-event transport among them, and that
-one matters most, because it is the other setter that *opens* the ambient transaction and
-must therefore announce it when Phase 02b lands it — and the one that does exist,
-`OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception never
-sees. `CachedHostToTenantResolver` is not in this set at all: it sets
+And of the eight setters only `TransactionBehavior`, through
+`IUnitOfWork.SetTenantContextAsync`, marks anything today: two do not exist in code yet —
+the durable idempotency store, and the integration-event transport, which matters most,
+because it is the other setter that *opens* the ambient transaction and must therefore
+announce it when Phase 02b lands it — and the five that do, `OrganizationScopeValidator`,
+the two standalone audit writers and the two cached-projection loaders, issue raw
+`NpgsqlCommand`s on connections of their own, which EF interception never sees. `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming
 `TransactionBehavior` alone would reject the writes the idempotency store and the audit
 store legitimately make on their own short transactions — is real, and is answered by the
-guard reading a marker rather than a behavior's name: when those setters land, each marks
-the transaction it opens if and only if it reaches EF. It throws
+guard reading a marker rather than a behavior's name: a setter marks the transaction it
+opens if and only if it reaches EF. The audit store's writers have landed and reach none;
+the durable idempotency store will mark its own if it does. It throws
 `TenantContextMissingException` when it has not, which
 [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
 asserts in both directions. **Packet 7 owns it**: Packet 6 ships
@@ -576,7 +579,9 @@ Security-relevant durability rules:
   Classification falls back to the in-process catalogue, which carries the same MUST
   floor, so nothing proceeds unaudited — and denying every request platform-wide
   because one cached projection is unreachable is the worse compliance outcome. The
-  failure logs at `Error` and is surfaced on the audit health check. A tenant override
+  failure logs at `Error`; the audit health check does not move, because it answers only
+  whether a MUST-class row can be written
+  ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)). A tenant override
   may narrow SHOULD/MAY coverage; it may never remove baseline MUST coverage
   ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md);
   registered as `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in

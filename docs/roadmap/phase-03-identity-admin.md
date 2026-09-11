@@ -362,6 +362,17 @@ is identical either way. See
 [Audit Coverage Standards](../standards/18-audit-coverage.md) for the MUST / SHOULD /
 MAY matrix.
 
+**The erasure's audit redaction owes a decision before its handler lands.** The handler
+[Audit Subsystem § 10](../architecture/31-audit-subsystem.md#10-gdpr--pii-redaction)
+sketches writes its `audit.redaction.apply` row on the platform transaction that does the
+redaction, before that transaction commits — a MUST row never follows the commit it
+describes. `IAuditStore.WritePlatformScopeAsync` is the write that takes a caller's
+platform transaction, and its contract admits one caller, the scope's own entry row. This
+phase amends [ADR-0044 § 10](../decisions/0044-audit-write-path.md) to admit the redaction
+result as a second, bounded caller or to give it a method of its own, and settles the
+inbox boundary with it: the inbox mark lives on another connection, so a redelivery must
+find the result row already written rather than record a second one.
+
 ### Cross-cutting follow-up at phase exit
 
 - **Escalate both analyzers from Warning to Error** — `LS0001`

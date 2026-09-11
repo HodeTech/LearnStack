@@ -265,8 +265,8 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   no tenant `AuditConfig` override has narrowed baseline MUST coverage. A tenant-override
   **read** failure does not reject the request: classification falls back to the
   in-process catalogue, which carries the same MUST floor, and the failure is logged at
-  `Error` and surfaced on the audit health check
-  ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md)).
+  `Error` — not on the audit health check, which answers only whether a MUST-class row can
+  be written ([ADR-0033 § Fail-closed, stated precisely, and Amendment 6](../decisions/0033-audit-durability-model.md)).
   What fails closed is an unclassified operation, and a MUST-class row that cannot be
   written durably for an operation that would otherwise have **succeeded** — a standalone
   row recording an operation already being refused keeps its own 403 / 404

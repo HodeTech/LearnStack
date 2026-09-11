@@ -93,15 +93,15 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Eighty-eight test methods exist in
+Eighty-nine test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 113 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 114 cases once the theories expand.
 Counted from
 `dotnet test --list-tests` at the close of Packet 9's review rounds, de-duplicated
 by method name; the figures before it were Packet 9 step 3's and were not updated when the
-rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 90 and is wrong:
+rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 91 and is wrong:
 two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
 which greps the suite for those very attributes. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
@@ -185,7 +185,7 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Every_Module_Has_An_AuditCoverage_Matrix` (with its companion) | `AuditConventionTests.cs` |
 | `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
 | `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix, with its two companions) | `AuditCoverageTests.cs` |
-| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its companion) | `AuditCoverageTests.cs` |
+| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its two companions) | `AuditCoverageTests.cs` |
 | `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
 | `No_Set_Based_Write_Bypasses_The_Audit_Capture` (with its companion) | `AuditConventionTests.cs` |
 | `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
@@ -1454,14 +1454,16 @@ because the filters hold, and removing both turns all five red.
 - **Status:** **Implemented** (`TenantContextGuardTests`, Packet 7 step 8).
 - **Phase:** 02a Packet 7.
 - **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
-  ADR-0040 Amendment 5 adds. **Only one of the seven sanctioned setters stamps it**, and
+  ADR-0040 Amendment 5 adds. **Only one of the eight sanctioned setters stamps it**, and
   that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the
-  other six, **five do not exist in code yet** — including the integration-event
-  transport, which is the one other setter that *opens* the ambient transaction and will
-  have to announce it when Phase 02b lands it — and the one that does,
-  `OrganizationScopeValidator`, issues raw `NpgsqlCommand`s, which EF interception cannot
-  see, so it needs neither a mark nor an exemption. (`CachedHostToTenantResolver` is not
-  one of the seven: it sets `app.resolving_host`.) The exemption list is empty for the
+  other seven, **two do not exist in code yet** — the durable idempotency store, and the
+  integration-event transport, which is the one other setter that *opens* the ambient
+  transaction and will have to announce it when Phase 02b lands it — and the five that do,
+  `OrganizationScopeValidator`, the two standalone audit writers and the two cached
+  projection loaders (`AuditConfig` and the tenant flags), issue raw `NpgsqlCommand`s on
+  connections of their own, which EF interception cannot see, so they need neither a mark
+  nor an exemption. (`CachedHostToTenantResolver` is not one of the eight: it sets
+  `app.resolving_host`.) The exemption list is empty for the
   same reason, which is why `PlatformAdminScope` — a `BYPASSRLS` connection that announces
   no tenant by design — is invisible here by construction rather than by a hand-written
   exception someone later widens.
@@ -1840,7 +1842,9 @@ which decides identity, multiplicity, capture and classification;
   matrix's `Operation` column — every slug in a cell, not only the first — is registered in
   the merged catalogue unless its cell carries `(planned)` or `(off-path)`; and a
   `(planned)` row whose slug the catalogue **does** register fails, because the marker
-  outlived the command it was waiting for.
+  outlived the command it was waiting for; and **no slug is classified in two rows**, in one
+  matrix or across two, whatever their markers — a copy is a second answer to the question
+  the matrix exists to settle.
 - **Why the direction is scoped.** Classifying ahead of the command is what
   [18-audit-coverage.md](18-audit-coverage.md) asks for, so a row may name an operation
   nothing implements yet; the anti-rot check is what keeps that from becoming a hole. A
@@ -1849,7 +1853,10 @@ which decides identity, multiplicity, capture and classification;
 - **Companion:** `The_Matrix_Sweep_Reads_Every_Slug_And_Can_Actually_Fail` feeds a fixture
   matrix with a two-slug cell, a stale `(planned)` marker and an unmarked unregistered row,
   and requires all three findings — the parser read only a cell's first slug until the
-  review of Packet 9.
+  review of Packet 9. `A_slug_classified_twice_fails_whichever_row_comes_first` feeds a
+  correct row and a contradictory copy in both orders: the forward direction compared only
+  the first carrier, so one order passed and the other failed, until the fourth review of
+  Packet 9 measured it. Every carrier is compared now, and this direction refuses the copy.
 - **Source:** [18-audit-coverage.md § The join](18-audit-coverage.md);
   [ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md).
 - **Type:** xUnit + file scan against the merged catalogue. **Kind:** structural.
@@ -1990,7 +1997,7 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 (carried from ADR-0016);
   [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
-- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log`; a companion that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption predicate ships with the rule, by NAME, so the first one to land is exempted rather than the pattern widened.
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".)
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`

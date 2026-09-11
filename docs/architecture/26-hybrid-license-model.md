@@ -350,6 +350,13 @@ case, and it is not a second return type either: `Unresolved(tenantId)` is an
 `Generation` `0`, so every key falls through to what its own registry entry says. One
 blanket answer would be wrong there, so each key class declares its posture
 **explicitly**, and the behaviour is a property of the key rather than of the call site.
+
+**A projection past its grace window is not this case.** There is something to evaluate —
+the last projection the Hub sent, with an expiry and the grace it granted — and
+[§ 3](#3-lifecycle) resolves it to `ReadOnly`, every feature `false` and every limit `0`,
+whatever a key's class ([ADR-0021](../decisions/0021-feature-based-entitlement.md);
+[ADR-0045 Amendment 3](../decisions/0045-entitlement-and-feature-flag-socket.md)). The
+class decides only when there is nothing to evaluate at all.
 For a `FeatureKey` the posture is a member of its descriptor in the
 [typed catalog](21-feature-flags.md), shipped with the registry in Phase 02a Packet 9
 ([ADR-0045 Amendment 1 § 5](../decisions/0045-entitlement-and-feature-flag-socket.md)),

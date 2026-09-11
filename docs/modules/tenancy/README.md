@@ -212,8 +212,8 @@ which commits. One transaction, one connection, one commit point.
 `TransactionBehavior`, and the distinction is not stylistic. A
 `BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)
 returns a nested frame on the same transaction, so it would be a no-op that
-reads like a boundary. An announcement from inside a handler would be an eighth
-setter of `app.tenant_id` against a set two ADRs close at seven, and would hand
+reads like a boundary. An announcement from inside a handler would be a ninth
+setter of `app.tenant_id` against a set ADR-0040 closes at eight, and would hand
 every handler in the solution the ability to move the ambient tenant.
 
 Three statements, one transaction. The tenant id is **never minted in the

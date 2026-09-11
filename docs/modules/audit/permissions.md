@@ -13,7 +13,7 @@ keys gate.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|
-| `event` | ✓ | – | – | – | tenant-admin: read |
+| `event` | ✓ | – | – | – | tenant-admin: read; org-admin: read, confined to its organization |
 | `event_export` | ✓ | ✓ | – | – | tenant-admin: read+write |
 | `config` | ✓ | ✓ | ✓ | – | tenant-admin: read+write+delete |
 
@@ -69,9 +69,17 @@ add up to the capability the key's name suggests — deliberately, because an at
 compromises one tenant admin must not be able to switch off the detector that would
 catch the next cross-tenant probe.
 
-**Scope.** `event`, `event_export` and `config` are **Tenant**-scope: an audit trail is
-read whole or not at all, and an organization-scoped view of it would hide exactly the
-cross-organization act an investigator is looking for. The organization dimension is on
-the row — `audit_log` is organization-scoped, and the policy's `app.scope = 'tenant'`
-arm is what a tenant-scope reader travels — so filtering by organization is a query
-parameter rather than a permission.
+**Scope.** `event_export` and `config` are **Tenant**-scope. `event.read` is registered
+Tenant-scope too, for the investigator: a tenant admin reads the trail whole, because an
+organization-scoped view would hide exactly the cross-organization act an investigation
+looks for. **It is also grantable through an organization-scoped role**, which is how
+[Security Standards](../../standards/11-security.md) and the Phase 06 audit viewer give an
+`Org Admin` their own organization's rows: per
+[Permission Standards § Scope](../../standards/19-permissions.md), an organization-scope
+binding requires the holder's organization to match the row's `organization_id`, so that
+reader sees its organization's rows and neither another organization's nor the tenant-wide
+ones. That confinement is **authorization**, decided by the binding, never a filter the
+caller chooses: an organization parameter on the query narrows what a tenant-scope reader
+asks for and widens nothing for anyone. [Phase 03](../../roadmap/phase-03-identity-admin.md)
+builds the read API and enforces both bindings; nothing reads `audit_log` from a request
+until then.

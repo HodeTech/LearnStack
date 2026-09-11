@@ -329,10 +329,14 @@ transaction; a published mirror of it would be a second answer to "what happened
 the two would disagree the first time a delivery failed.
 
 The Hub-side stream that
-[Audit Subsystem § 12](../../architecture/31-audit-subsystem.md) describes is a
-**read** of this table by the operator plane, not a publication by this module, and it
-is bounded by [ADR-0034](../../decisions/0034-hub-contract-surface-invariant.md)'s two
-invariants like every other crossing.
+[Audit Subsystem § 12](../../architecture/31-audit-subsystem.md) describes is **not** this
+table and not a read of it. The Hub keeps its own record of its operators' actions, in its
+own database (`hub_audit_log`); the two streams share nothing but `correlation_id`, which is
+how an inquiry spanning both joins them
+([Phase 09](../../roadmap/phase-09-billing-integrations-analytics.md) builds that query).
+Nothing in [ADR-0034](../../decisions/0034-hub-contract-surface-invariant.md)'s enumerated
+surface reads `audit_log` from the operator plane, and one that did would be a new crossing
+— decided by ADR in both repositories, like every other.
 
 This module **consumes** none either. It has no inbox and no projection.
 

@@ -3036,8 +3036,8 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1947 tests green** — 1 contract, 113 architecture, 1359 unit,
-> 474 integration — after the three external review rounds and the follow-ups closed with
+> **Measured at close: 1954 tests green** — 1 contract, 114 architecture, 1360 unit,
+> 479 integration — after the four external review rounds and the follow-ups closed with
 > them; 1935 after the first round, 1867 before it. Counted from a run under `CI=true`,
 > which makes warnings errors, on the SDK CI pins.
 
@@ -3250,6 +3250,45 @@ reproduced before anything moved, and each is fixed here.
 The round's mutation pass removed one of its own additions before it shipped: a set of deleted
 entities meant to excuse a deleted member, which no case could kill, because the save that
 deletes a member always captures it still tracked.
+
+### The fourth review, and what it changed (2026-09-11)
+
+A fourth review, of the pull request at `f54fc7b`, covered all 202 changed files and
+requested changes: one blocker, four majors and ten minors. Every finding was checked
+against the code before anything moved, and every one was still valid. One major and the
+blocker are in running code; three majors are recipes for phases not yet built, and they
+are fixed now because the next implementer would follow them exactly.
+
+- **Two raw reads left tenant isolation to row security alone.** The tenant-flag loader and
+  the `audit_config` override loader announced their tenant and selected without naming it;
+  with row security out of the way — measured as a role it does not bind — tenant B's
+  override became tenant A's. Both queries now carry `tenant_id = @tenant` from the trusted
+  argument, and two cases read as `learnstack_platform` so the predicate is the only layer
+  left to pass them.
+- **A valid host longer than 100 characters could not be mapped.** `audit_log.entity_id` was
+  `varchar(100)` while the host-mapping key admits 253; the MUST row failed with `22001`,
+  the mapping rolled back, and the standalone record of the attempt failed the same way. A
+  new migration makes the column `text` — the key is recorded whole, never truncated — and a
+  pipeline case maps hosts of 100, 101 and 253 characters.
+- **Three recipes contradicted the rules they serve.** The GDPR redaction committed before
+  writing its MUST result row, which now rides the same platform transaction — the port
+  change that allows it is Phase 03's decision, recorded there. The retention purge was
+  said to become a partition drop after Phase 11, while one monthly partition holds many
+  tenants and classes; it stays a row delete. And a projection past its grace window with
+  the Hub unreachable read as read-only in one document and per key class in another; it is
+  read-only, as ADR-0021 decides, and [ADR-0045 Amendment 3](../decisions/0045-entitlement-and-feature-flag-socket.md)
+  narrows the sentence that disagreed.
+- **The minors:** an override-read failure no longer claims to move the audit health check,
+  which answers only whether a MUST row can be written
+  ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)); a store failure
+  under the assertion recorder is one alert, not two, and the port now says the store
+  reports its own failures; the append-only guard reads schema-qualified, quoted and
+  `ONLY` targets, and its exemption list is exact; a slug classified twice fails whichever
+  row comes first; the tenant-flag loader is the eighth `app.tenant_id` setter
+  ([ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)); and five documents —
+  the Hub's own audit stream, the organization admin's audit view, three stale algorithm
+  listings, the `[PublicSurface]` guard's status and the feature-gating endpoint — now say
+  what the code and the decisions do.
 
 ### Follow-ups closed in the same pull request (2026-09-11)
 

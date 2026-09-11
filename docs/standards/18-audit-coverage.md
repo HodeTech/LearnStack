@@ -155,6 +155,10 @@ will raise them — which this standard requires it to do.
   request-type join in **both** directions and register by slug rather than by type — the
   three whose writer ships through `DeclareOffPath` today, the other four when their
   writer lands.
+- **One operation, one row.** A slug is classified in exactly one row across every
+  matrix. A copy is a second answer that passes every comparison the moment it agrees, so
+  the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
+  every row that carries a slug rather than the first.
 - **A row can carry both markers**, and four do. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
@@ -331,8 +335,12 @@ Rules:
     `user_agent`, `before_state`, `after_state` and `changes`. The trigger rejects an
     `UPDATE` altering any other column, including `actor_user_id`, `operation`, `outcome`
     and `timestamp`.
-  - **Retention purge** — a `DELETE` of rows past their retention. After Phase 11
-    partitioning this becomes `DETACH` + `DROP PARTITION` and issues no `DELETE` at all.
+  - **Retention purge** — a `DELETE` of rows past their tenant's and class's retention.
+    It stays a row-level `DELETE` after Phase 11 partitioning: one monthly partition holds
+    many tenants and several retention classes, so a partition cannot be dropped while any
+    row in it is still inside its window. Dropping a whole partition is the separate
+    partition-management job, and only past the platform's maximum retention
+    ([ADR-0028](../decisions/0028-audit-log-partition-management.md)).
 
   A rule that forbade *every* `UPDATE` and `DELETE` would have made both shipped-by-design
   paths unimplementable. See
@@ -439,7 +447,9 @@ table above is the policy those deliverables implement, not a description of tod
   catalogue is in-process; per-tenant `audit_config` overrides are a cached projection
   whose loader sets its own tenant GUC. A failure to read a tenant override falls back to
   the catalogue — which carries the MUST floor, so nothing proceeds unaudited — and is
-  logged and surfaced on the audit health check. An operation the catalogue does not
+  logged at `Error`. It does not move the audit health check, which answers only whether a
+  MUST-class row can be written ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)).
+  An operation the catalogue does not
   classify at all is **rejected** with `500 audit_unclassified_operation`
   ([09-error-handling.md](09-error-handling.md)): every `IRequest<Result<T>>` that reaches
   step 3 must be classified, `Off` included, there is no residual `RequestKind.Other`, and

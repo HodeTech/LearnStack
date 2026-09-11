@@ -291,11 +291,16 @@ with interactivity (forms, video players, the live classroom panel).
 
 ## Entitlement-Aware UI
 
-The frontend reads the tenant's entitlement projection through a thin API endpoint
-backed by **`IEntitlementProvider`** — never by a read of `platform_entitlement_cache`,
-whose storage belongs to the provider that owns it and which no module may query
-([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)). Two hooks
-expose the data:
+The frontend reads the tenant's **effective** flags and limits through a thin API endpoint
+backed by **`IFeatureFlags`** — the one module-facing read, which composes the plan
+projection with the tenant's own flags and lays the platform killswitches over both
+([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md)). The plan
+projection alone answers neither: a feature a killswitch has turned off still reads as
+granted there, and a tenant flag is not in it at all. Nothing reads
+`platform_entitlement_cache` either — its storage belongs to the provider that owns it. The
+raw `IEntitlementProvider` projection is for a surface that shows the plan itself — what
+was bought rather than what is on — and never for gating. Two hooks expose the gating
+data:
 
 ```ts
 const recordingEnabled = useFeatureFlag(FeatureKeys.ClassroomRecording);

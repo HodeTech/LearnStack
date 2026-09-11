@@ -157,10 +157,16 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
         var ctx = eventData.Context;
         if (ctx is null) return ValueTask.FromResult(result);
 
+        // WHAT THIS LISTING ELIDES. The shipped class runs one body, Capture(DbContext),
+        // from both SavingChanges hooks, and before describing anything it folds every
+        // contained entity into its aggregate root — one capture per aggregate, with the
+        // member's changes under the root's pointer (§ Contained entities, below). The loop
+        // here keeps the two things this section is about: which entries are captured, and
+        // what a capture holds. The file is the authority for the rest.
         foreach (var entry in ctx.ChangeTracker.Entries())
         {
-            if (!ShouldCapture(entry)) continue;
-            _capture.Add(BuildChange(entry));
+            if (!IsCaptured(entry)) continue;
+            _capture.Add(Describe(entry));
         }
         return ValueTask.FromResult(result);
     }
@@ -486,22 +492,64 @@ erase the outer request's intents and every snapshot before the owner committed.
 ```csharp
 namespace LearnStack.Infrastructure.Audit;
 
-public sealed class AuditStateCapture : IAuditStateCapture
+public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
 {
-    private readonly List<CapturedEntityChange> _changes = new();
-    private readonly List<AuditIntent> _intents = new();
+    // Index-parallel lists rather than dictionaries keyed by id: two intents may share an
+    // id in a harness, and position is what ties a change or an intent to its frame.
+    private const int RequestFrame = 0;                  // captures outside any frame
+    private readonly List<CapturedEntityChange> _changes = [];
+    private readonly List<int> _changeFrames = [];       // the frame each change arrived in
+    private readonly List<AuditIntent> _intents = [];
+    private readonly List<int> _intentFrames = [];       // the frame each intent was declared in
+    private readonly List<int> _openFrames = [];         // a stack; the last is innermost
+    private int _framesOpened;
 
     public IReadOnlyList<CapturedEntityChange> Changes => _changes;
     public IReadOnlyList<AuditIntent> Intents => _intents;
-
     public AuditIntentState State { get; private set; } = AuditIntentState.None;
 
-    public void Add(CapturedEntityChange change) => _changes.Add(change);
+    private int CurrentFrame => _openFrames.Count == 0 ? RequestFrame : _openFrames[^1];
+
+    public void Add(CapturedEntityChange change)
+    {
+        _changes.Add(change);
+        _changeFrames.Add(CurrentFrame);                 // the innermost frame when the flush ran
+    }
+
     public void DeclareIntent(AuditIntent intent)
     {
         _intents.Add(intent);
-        State = AuditIntentState.Pending;
+        _intentFrames.Add(CurrentFrame);
+        if (State == AuditIntentState.None) State = AuditIntentState.Pending;
     }
+
+    // A row is composed from its OWN request's writes — the changes captured in the frame
+    // that declared the intent (ADR-0044 Amendment 6 § 3). Found by reference: a copy made
+    // before its frame closed is refused rather than guessed at.
+    public IReadOnlyList<CapturedEntityChange> ChangesOf(AuditIntent intent)
+    {
+        var frame = _intentFrames[_intents.FindIndex(declared => ReferenceEquals(declared, intent))];
+        return [.. _changes.Where((_, index) => _changeFrames[index] == frame)];
+    }
+
+    public void OpenFrame() => _openFrames.Add(++_framesOpened);
+
+    // Records what the closing frame's request returned on the intents it declared, so an
+    // inner refusal an outer handler absorbed keeps its own outcome.
+    public void CloseFrame(AuditIntentResult result)
+    {
+        var frame = _openFrames[^1];
+        _openFrames.RemoveAt(_openFrames.Count - 1);
+        for (var index = 0; index < _intents.Count; index++)
+            if (_intentFrames[index] == frame)
+                _intents[index] = _intents[index] with { Result = result };
+    }
+
+    // IAuditSubject: binds the innermost frame's intents whose declared type the aggregate
+    // is; a second, different instance for the same intent throws (Amendment 6 § 1).
+    public void Designate<TId>(IAggregateRoot<TId> aggregate)
+        where TId : struct, IStronglyTypedId<Guid> =>
+        Designate(aggregate.GetType(), aggregate.Id.Value.ToString());
 
     // Set by the frame that owns the commit, and by nothing else. A joiner's
     // CompleteAsync commits nothing, so a joiner calling MarkCommitted would claim a
@@ -511,12 +559,17 @@ public sealed class AuditStateCapture : IAuditStateCapture
     public void MarkRolledBack() => State = AuditIntentState.RolledBack;
     public void MarkIndeterminate(Exception cause) => State = AuditIntentState.Indeterminate;
 
-    public void Clear()
+    public void Clear()                                  // every list, every counter, the state
     {
-        _changes.Clear();
-        _intents.Clear();
+        _changes.Clear(); _changeFrames.Clear();
+        _intents.Clear(); _intentFrames.Clear();
+        _openFrames.Clear(); _framesOpened = 0;
         State = AuditIntentState.None;
     }
+
+    // WHAT THIS LISTING ELIDES: argument guards, the non-generic Designate(Type, string)
+    // the generic one calls, the refusals ChangesOf and CloseFrame raise on a misuse, and
+    // the IndeterminateCause MarkIndeterminate keeps. The file is the authority.
 }
 ```
 
@@ -903,7 +956,9 @@ Key invariants enforced by this behavior:
   (HTTP **500** — a deployment defect the caller cannot act on).
 - **A tenant-override read failure does not reject.** Classification falls back to the
   in-process catalogue, which carries the MUST floor, and the failure is logged at `Error`
-  and surfaced on the audit health check. Rejecting every request platform-wide because a
+  — the whole of its report: the audit health check answers only whether a MUST-class row
+  can be written ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)).
+  Rejecting every request platform-wide because a
   cache is unavailable is a worse compliance outcome than losing one tenant's voluntary
   narrowing of a SHOULD or a MAY; the property ADR-0016 lost — silently switching
   auditing *off* —
@@ -997,21 +1052,26 @@ public async Task<TResponse> Handle(TRequest request,
     // MUST-class read-sensitive query rides the in-transaction path (§ 1).
     await using var scope = await unitOfWork.BeginTransactionAsync(ct);
 
-    // First statement inside the transaction, per ADR-0003 Amendment 3. The provisioning
-    // arm announces IProvisionsTenant.ProvisioningTenantId instead, and that is also the
-    // tenant its MUST-class rows carry (§ 7).
-    await unitOfWork.SetTenantContextAsync(tenantContext, ct);
-
     var committing = false;
 
     try
     {
+        // First statement inside the transaction, per ADR-0003 Amendment 3 — and inside
+        // the try, so an announcement that fails rolls back like everything after it. The
+        // provisioning arm is not optional: the tenant does not exist yet, so the context
+        // cannot resolve it, and the transaction announces the id the command carries —
+        // which is also the tenant its MUST-class rows carry (§ 7).
+        if (!tenantContext.IsResolved && request is IProvisionsTenant provisioning)
+            await unitOfWork.SetProvisioningTenantContextAsync(provisioning.ProvisioningTenantId, ct);
+        else
+            await unitOfWork.SetTenantContextAsync(tenantContext, ct);
+
         var response = await next();
 
         if (response.IsFailure)
         {
             await scope.FailAsync(CancellationToken.None);
-            if (scope.IsOwner) stateCapture.MarkRolledBack();
+            if (scope.IsOwner) capture.MarkRolledBack();
             return response;                       // audited standalone, outcome = failed
         }
 
@@ -1029,8 +1089,6 @@ public async Task<TResponse> Handle(TRequest request,
         try
         {
             await scope.CompleteAsync(ct);
-            if (scope.IsOwner)
-                stateCapture.MarkCommitted();      // the ONLY place durability is claimed
         }
         catch (Exception ex)
         {
@@ -1043,20 +1101,29 @@ public async Task<TResponse> Handle(TRequest request,
             // A cancellation is this case, not a separate one (ADR-0033 Amendment 4 § 2).
             if (scope.IsOwner)
             {
-                if (unitOfWork.IsRollbackOnly) stateCapture.MarkRolledBack();
-                else stateCapture.MarkIndeterminate(ex);
+                if (unitOfWork.IsRollbackOnly) capture.MarkRolledBack();
+                else capture.MarkIndeterminate(ex);
             }
 
             throw;
         }
+
+        if (scope.IsOwner)
+            capture.MarkCommitted();          // the ONLY place durability is claimed
 
         return response;
     }
     catch when (!committing)
     {
         unitOfWork.MarkRollbackOnly();
-        await scope.FailAsync(CancellationToken.None);
-        if (scope.IsOwner) stateCapture.MarkRolledBack();
+
+        // A rollback that fails is logged and never replaces the exception that caused it.
+        try { await scope.FailAsync(CancellationToken.None); }
+        catch (Exception rollbackFailure) { LogRollbackFailure(logger, typeof(TRequest).Name, rollbackFailure); }
+
+        // Never over an Indeterminate the commit arm already recorded.
+        if (scope.IsOwner && capture.State != AuditIntentState.Indeterminate)
+            capture.MarkRolledBack();
 
         // Rethrown, never converted to a Result. audit_unavailable travels as
         // AuditWriteFailedException : InfrastructureException carrying the Error, and
@@ -1071,9 +1138,11 @@ public async Task<TResponse> Handle(TRequest request,
 without naming any module's `DbContext`, and through which `IAuditStore` reaches the
 ambient connection. It **shipped** in
 [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) step 6, together with the
-`TransactionBehavior` body; the `auditStore` and `stateCapture` lines shipped with
-`IAuditStore` in Packet 9, and the block above is the shipped body rather than a plan for
-one.
+`TransactionBehavior` body; the `auditStore` and `capture` lines shipped with
+`IAuditStore` in Packet 9. The block above follows the shipped body statement for
+statement — the provisioning arm and the `try` boundary included — and elides only the
+argument guard and the log delegate's definition; the comments are this document's, and the
+file is the authority.
 
 The one structural change Packet 9 made was the `try`/`catch` around the commit call.
 Packet 6's body had a single catch filtered `when (!committing)` precisely so it did
@@ -1471,8 +1540,10 @@ GRANT UPDATE (actor_email, ip_address, user_agent, before_state, after_state, ch
 -- Exactly two mutating paths exist. Both are owned by the Audit module and both run as
 -- learnstack_platform through the audited EnterPlatformAdminScope(reason) path:
 --   1. GDPR redaction  — UPDATE, restricted to the redactable columns (§ 10).
---   2. Retention purge — DELETE of rows past retention (§ 9). After Phase 11
---      partitioning this becomes DETACH + DROP PARTITION and issues no DELETE at all.
+--   2. Retention purge — DELETE of rows past their tenant's and class's retention (§ 9).
+--      Still a row-level DELETE after Phase 11 partitioning: a monthly partition holds
+--      many tenants and classes. Only a partition past the platform's MAXIMUM retention is
+--      detached and dropped, by the separate partition-management job (ADR-0028).
 CREATE FUNCTION fn_audit_log_append_only()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1623,8 +1694,8 @@ branch seeds the row as the migration role.
 coverage; it cannot switch off an operation the catalogue classifies MUST.
 `ClassifyAsync` applies the override and then re-applies the MUST floor, and a read
 failure against this table falls back to the in-process catalogue — which carries that
-same MUST floor — logged at `Error` and surfaced on the audit health check, rather than
-rejecting the operation. Rejecting would turn a cache outage into a platform-wide denial
+same MUST floor — logged at `Error`, and not on the audit health check, which answers
+only whether a MUST-class row can be written — rather than rejecting the operation. Rejecting would turn a cache outage into a platform-wide denial
 of service; see [§ 5](#5-the-mediatr-behavior), which is the authority.
 
 ## 8. Per-module coverage matrix (baseline)
@@ -1740,31 +1811,28 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
         foreach (var locator in userReferenceLocators)
             await locator.RedactReferencesAsync(handle, @event.UserId, @event.TenantId, ct);
 
-        await handle.CommitAsync(ct);
-
-        // 5. Inbox: mark processed; SaveChanges. Ordinary learnstack_app work on the
-        //    ambient transaction, deliberately outside the scope block — it is not part
-        //    of the cross-tenant unit and must not read as though it rides it.
-        inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-        await db.SaveChangesAsync(ct);
-
-        // 6. Meta-audit. The redaction is itself a MUST-class security event, and a log
-        //    line is not an audit row — the previous version of this handler logged and
-        //    called it audited.
+        // 5. The result row — ON THE HANDLE'S TRANSACTION, before its commit. The redaction
+        //    is a MUST-class security event, and the row recording it commits with the
+        //    redaction or not at all (Audit Coverage: a MUST row is never written after the
+        //    transaction it describes has committed). An earlier version of this listing
+        //    committed the handle first and wrote the row standalone afterwards: a process
+        //    that stopped between the two left rows permanently redacted and no record of
+        //    it. The scope-entry row step 2 committed proves the scope was entered, not what
+        //    was done inside it — two events, two rows.
         //
-        //    Constructed explicitly rather than through the five-argument factory an
-        //    earlier draft of this document showed. That shorthand could not be written:
-        //    AuditEntryDraft has no factory, AuditEntryId has no New() (ADR-0023
-        //    Amendment 9), and Timestamp comes from IClock — so a call omitting all
-        //    three had nothing to bind to. If Phase 03 wants a factory it adds one
-        //    there, taking the id and the clock.
+        //    THE PORT DOES NOT SANCTION THIS CALL YET. WritePlatformScopeAsync writes on a
+        //    caller's platform transaction, and its contract admits one caller: the scope's
+        //    own entry row. Phase 03 extends it to this second, bounded caller — or gives the
+        //    result row a method of its own — by amending ADR-0044 § 10 before the handler
+        //    lands. The ORDER shown here is what that decision may not change.
         //
-        //    Every member is `required`, so the compiler refuses a construction that
-        //    omits one and every value arrives under its own name. That is a
-        //    correctness property, not a style: ELEVEN of the twenty-two fields are
-        //    string?, six of them consecutive, and a transposition among those lands in
-        //    the one table whose rows nothing can correct.
-        await auditStore.WriteStandaloneAsync(
+        //    Constructed explicitly: AuditEntryDraft has no factory, AuditEntryId has no
+        //    New() (ADR-0023 Amendment 9), and Timestamp comes from IClock. Every member is
+        //    `required`, so the compiler refuses a construction that omits one and every
+        //    value arrives under its own name — ELEVEN of the twenty-two fields are string?,
+        //    six of them consecutive, and a transposition lands in the one table whose rows
+        //    nothing can correct. The metadata carries the event id: see step 6.
+        await auditStore.WritePlatformScopeAsync(
             new AuditEntryDraft
             {
                 Id              = AuditEntryId.From(guidFactory.NewUuidV7()),
@@ -1789,9 +1857,25 @@ public sealed class UserGdprDeletedIntegrationEventHandler(
                 UserAgent       = null,
                 Timestamp       = clock.UtcNow,
                 Metadata        = JsonSerializer.Serialize(
-                                      new { subjectUserId = @event.UserId }),
+                                      new { subjectUserId = @event.UserId, eventId = @event.EventId }),
             },
+            handle.Connection,
+            handle.Transaction,
             ct);
+
+        // The redaction, the locators' updates and the row recording them: one commit.
+        await handle.CommitAsync(ct);
+
+        // 6. The inbox mark. It cannot join that commit — it is learnstack_app work on the
+        //    ambient connection, a different connection from the handle's — so a process
+        //    that stops between the two leaves the event unmarked, and it is delivered
+        //    again. The redelivery must therefore be harmless, and Phase 03 makes it so with
+        //    the port decision above: the redaction is idempotent by construction (the same
+        //    columns set to the same sentinel), and before redacting, the handler looks on
+        //    the handle for a result row whose metadata carries this event id — finding one,
+        //    it marks the inbox and stops, so one erasure never records two results.
+        inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
+        await db.SaveChangesAsync(ct);
     }
 }
 ```
