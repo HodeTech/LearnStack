@@ -93,7 +93,14 @@ data, and three concrete defects follow from it:
   runtime; column-level classification cannot see inside it. Retention, export and
   redaction are therefore undefined for exactly the data most likely to be personal.
 
-This phase resolves all three.
+This phase resolves all three — and settles one marking the audit capture is waiting on.
+`[PiiSensitive]`, the capture's redaction marker
+([ADR-0044 § 8 and Amendment 4 § 1](../decisions/0044-audit-write-path.md)), is on no
+property as of Phase 02a Packet 9, because no shipped aggregate holds personal data.
+`TenantSetting.Value` — a tenant-authored document on a MUST-class operation, whose whole
+value the marker would replace — is the first candidate. This phase decides whether it
+carries the marker, and no command writing `tenant_settings` lands before that decision,
+whichever phase ships it.
 
 **Attribute ownership.** Each attribute has exactly one owner, and the owner determines
 the table it lives in and who may write it.
@@ -248,6 +255,19 @@ refresh token storage, or brute-force protection — those are Keycloak responsi
   [Security Standards § Tenant Context](../standards/11-security.md).
   `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input` becomes non-vacuous here.
 
+- **The Platform-scope permission, and the writer it unlocks.** `EnterPlatformAdminScope`
+  is gated by `IPlatformAdminGate`, registered since
+  [Phase 02a Packet 9](phase-02a-kernel-tenancy.md) as `DenyAllPlatformAdminGate`, which
+  refuses everyone — so every operation that needs the scope is unreachable, every
+  killswitch toggle included. This phase replaces it with a gate that reads a
+  Platform-scope permission, and ships with it the killswitch toggle command, its
+  permission key and its incident runbook: the writer Packet 9 withheld on purpose
+  ([ADR-0045 Amendment 1 § 4](../decisions/0045-entitlement-and-feature-flag-socket.md)).
+  [Permissions](../standards/19-permissions.md) reserves no killswitch or entitlement key
+  yet, so reserving them is part of the work. The toggle's row is already classified —
+  `tenancy.killswitch.toggle`, `(off-path)` `(planned)`, MUST, in the
+  [Tenancy matrix](../modules/tenancy/audit.md).
+
 Authorization is the third layer, not the first. A permission check that passes still
 runs under the tenant's `ITenantContext` and under Row Level Security; a deny is a
 better error message, not the isolation boundary.
@@ -398,6 +418,8 @@ find the result row already written rather than record a second one.
   definition editor, and the schema-driven membership form.
 - Category-driven redaction of custom-field values in logs and error-tracking payloads.
 - `AuthorizationBehavior` as a real implementation, replacing the Phase 02a shell.
+- The Platform-scope permission gate replacing `DenyAllPlatformAdminGate`, with the
+  killswitch toggle command, its permission key and its runbook.
 - Admin login, tenant switcher and organization switcher via OIDC PKCE.
 - Tenant- and organization-aware user management screens.
 - Invitation flow end to end, tenant and organization bound.

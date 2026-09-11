@@ -36,8 +36,10 @@ request sees", and its row is what records who pointed a hostname where.
 before the commit, since [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md).
 
 **The snapshots come with them.** `PlatformHostMapping`, `TenantLocale`,
-`TenantFeatureFlag` and `PlatformEntitlement` are plain classes rather than
-`AuditableEntity<>` descendants, and `AuditChangeTrackerInterceptor` captures every
+`TenantFeatureFlag`, `PlatformEntitlement` and `PlatformKillswitch` are plain classes
+rather than `AuditableEntity<>` descendants — five of the seven
+[Audit Coverage § Required Behaviours](../../standards/18-audit-coverage.md#required-behaviours)
+lists — and `AuditChangeTrackerInterceptor` captures every
 `ChangeTracker` entry in state `Added`, `Modified` or `Deleted` minus a named
 exclusion list ([ADR-0044 § 7](../../decisions/0044-audit-write-path.md)) — so the
 row this file calls the most important one gets a real `before` and `after` rather

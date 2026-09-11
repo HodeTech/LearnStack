@@ -117,7 +117,7 @@ parsed from the other, and three rules in `AuditCoverageTests` join them —
 [Audit Coverage § The join](../../../docs/standards/18-audit-coverage.md) is the standard
 that carries this; read it before inventing a third marker.
 
-The two shipped matrices are the model — [Tenancy](../../../docs/modules/tenancy/audit.md)
+Two of the three shipped matrices are the model — [Tenancy](../../../docs/modules/tenancy/audit.md)
 and [Customization](../../../docs/modules/customization/audit.md):
 
 ```markdown
@@ -236,7 +236,7 @@ Under [ADR-0033](../../../docs/decisions/0033-audit-durability-model.md) the cla
   `SET LOCAL` as much as a write does — so classifying a query MUST costs a synchronous
   write before the result is returned, on the business transaction
   ([ADR-0033 Amendment 2 § 7](../../../docs/decisions/0033-audit-durability-model.md)).
-  `WriteStandaloneAsync` is reached only by a short-circuit at step 1, 4 or 5, by a
+  `WriteStandaloneAsync` is reached only by a short-circuit at step 4 or 5, by a
   non-MediatR caller, and by the reconcile step.
 - A tenant `AuditConfig` override can narrow SHOULD/MAY. It can never remove baseline
   MUST coverage; the catalogue re-applies the MUST floor after the override. A **failed
@@ -390,8 +390,10 @@ You do not opt an entity in. `AuditChangeTrackerInterceptor` captures **every**
 `ChangeTracker` entry in state `Added`, `Modified` or `Deleted`, minus a named exclusion
 list — `OutboxMessage` and `IdempotencyKey` (machinery), and `AuditEntry` / `AuditConfig`
 (the audit tables themselves). The old "`AuditableEntity<>` descendants only" predicate is
-**withdrawn**: it was blind to `PlatformHostMapping`, `TenantLocale`, `TenantFeatureFlag`,
-`PlatformEntitlement`, `CustomizationGeneration` and `TenantLevelTaxonomyItem`, five of
+**withdrawn**: it was blind to the seven plain classes
+[Audit Coverage § Required Behaviours](../../../docs/standards/18-audit-coverage.md#required-behaviours)
+lists — `PlatformHostMapping`, `TenantLocale`, `TenantFeatureFlag`, `PlatformEntitlement`,
+`PlatformKillswitch`, `CustomizationGeneration` and `TenantLevelTaxonomyItem` — five of
 which the shipped matrices classify MUST. A plain class is captured like any other.
 
 The interceptor **captures only** — it builds no row and issues no SQL.

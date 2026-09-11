@@ -239,7 +239,7 @@ different decisions:
 | `platform:hub:host-map:{normalized-host}` (host → tenant) | 2 min | 15 min | `learnstack.hub.custom-domain.activated/.deactivated` |
 | `platform:tenancy:killswitch` (overlay) | 60 s (hot-path default) | L1 only — no L2 figure | invalidated on toggle |
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
-| `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | generation key — see the rule below |
+| `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | none yet — see the note below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
 | `{tenant_id}:tenancy:settings` (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
 | `{tenant_id}:audit:config` (per-tenant audit overrides) | 5 min | 1 h | none yet — see the note below |
@@ -269,6 +269,14 @@ nothing to invalidate, and the TTL is the whole of the staleness bound: an overr
 at most the L1 TTL to take effect. The phase that ships the editor ships the invalidation
 with it, on the generation-key rule below — a row a tenant authors and does not see honour
 itself is a worse surprise than the same row taking five minutes.
+
+**`{tenant_id}:tenancy:feature-flags` has none either, for the same reason.** Nothing
+writes `tenant_feature_flags` until [Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s
+flag editor, so the key Packet 9 ships is plain — no counter in it — and
+`FeatureFlags.TenantFlagTtl`, 60 seconds, is the whole of the staleness bound: a toggled
+flag takes at most that long to be honoured. Phase 06 ships the invalidation with the
+editor, on the generation-key rule below, which puts a counter the write bumps into the key
+itself; the family's name does not change, only the key template under it.
 
 This table is also the allowlist for the low-cardinality `cache.name` metric label.
 An unregistered family is emitted as `other`; full keys and tenant, organization, host,

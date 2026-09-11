@@ -79,13 +79,19 @@ belongs to is decided by what it needs, not by what it is about:
   already does for `/api/v1/sideeffectprobe`. These live under `Database/` with the
   rest of the Docker-bound suite and carry the same trait.
 
-**Where a Docker-bound test lives is what routes it.**
-`Every_Database_Test_Carries_The_Docker_Trait` scans
-`LearnStack.Tests.Integration/Database` and nothing else, so a class placed outside
-that directory is never checked for the trait — and a missing trait does not fail the
-class, it runs it in the `backend` job. Both CI runners are `ubuntu-latest` and both
-carry a Docker socket, so the container starts and the test passes: nothing goes red,
-and the Docker suite stops being where the Docker tests live.
+**Where a Docker-bound test lives, and what it takes, is what routes it.**
+`Every_Database_Test_Carries_The_Docker_Trait` scans the whole of
+`LearnStack.Tests.Integration` and requires the trait on every test class under
+`Database/` and on every one elsewhere that takes a container fixture —
+`SchemaFixture`, `PostgresFixture` or the `SharedSchema` collection, as
+`ApiHandlerCompositionTests` does. It scanned `Database/` alone until Packet 9's fifth
+review, which left a class beside the HTTP suites unchecked. A missing trait does not fail
+the class, it runs it in the `backend` job: both CI runners are `ubuntu-latest` and both
+carry a Docker socket, so the container starts and the test passes — nothing goes red,
+and the Docker suite stops being where the Docker tests live. Its companion,
+`The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and must
+not flag. And neither backend job can pass having run nothing: each ends with
+`scripts/assert-tests-ran.py`, because a filter that matches no test exits `0`.
 
 All three: real module configuration, no mocked repositories, and coverage of the
 happy path and the edges.

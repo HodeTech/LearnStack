@@ -288,6 +288,12 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   `Hub_Client_Referenced_Only_By_Named_Adapters`.
 - **APISIX standalone config review**: route allow-list, plugin order, route-priority
   ordering, mTLS guard on `/api/internal/*`.
+- **Dependency automation and locked restores** — the three
+  [Security Standards § Dependency Hygiene](../standards/11-security.md) rules the backend
+  does not meet yet: an update bot (Renovate or Dependabot) opening version PRs, NuGet lock
+  files (`RestorePackagesWithLockFile`), and `dotnet restore --locked-mode` in CI against
+  them. Until they land, the backend's gate is the one Phase 02a Packet 9 shipped: NuGet
+  audit over the whole graph, at any severity, failing CI.
 
 ### Reliability
 
@@ -296,6 +302,14 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   phase before this one — the API maps `/healthz` only — so this is where it lands, with
   the `audit` check [Packet 9](phase-02a-kernel-tenancy.md) registers as one of its
   entries.
+- **Connection-pool sizing for the short second connection.** A request holds the unit of
+  work's connection for its whole scope, and several reads and writes take a second, short
+  one from the same application data source while it does: a flag, killswitch or
+  audit-override cache miss, an organization-scope check, and the audit reconcile's
+  standalone write — the last on exactly the requests that are already failing. A pool
+  sized for one connection per request exhausts under a burst of those at half the load it
+  was sized for, so the pool size and its saturation alert are set here, against that
+  count.
 - Background job retry policy.
 - Dead-letter handling (outbox DLQ + Hangfire DLQ), including the subscriber-side
   dead-letter destination for events that exhaust their retries.

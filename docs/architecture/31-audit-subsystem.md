@@ -45,7 +45,8 @@ transaction for everything that reaches step 6, reads included, because a read n
 `SET LOCAL` as much as a write does — so the durable path is the one a granted read takes
 ([ADR-0033 Amendment 2 § 7](../decisions/0033-audit-durability-model.md)).
 `WriteStandaloneAsync` is reached by three shapes and only these: a short-circuit at step
-1, 4 or 5; a non-MediatR caller, of which `AuditingTenantAssertionRecorder` is the one
+4 or 5 — a refusal at step 1 writes no row, because validation runs outside the audit step
+and nothing has been classified yet; a non-MediatR caller, of which `AuditingTenantAssertionRecorder` is the one
 Packet 9 ships — `TenantAssertionMiddleware` detects the mismatch and names no store, and
 the distinction is the architecture rule `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`
 enforces; and the reconcile step after a `RolledBack` or `Indeterminate` outcome.
@@ -172,13 +173,11 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
     }
 
     // EVERY tracked write, minus a closed exclusion list. NOT "AuditableEntity<>
-    // descendants": that predicate is withdrawn by ADR-0044 § 7, because six shipped
-    // entities carry no such base class — PlatformHostMapping, TenantLocale,
-    // TenantFeatureFlag, PlatformEntitlement, CustomizationGeneration and
-    // TenantLevelTaxonomyItem. The MUST rows the two shipped matrices do classify among
-    // them — the host mapping, the feature flag and the entitlement-cache refresh —
-    // would have carried empty snapshots, and the host mapping is the one the Tenancy
-    // matrix singles out as mattering most.
+    // descendants": that predicate is withdrawn by ADR-0044 § 7, because seven shipped
+    // entities carry no such base class — Audit Coverage § Required Behaviours names
+    // them and their classes. The five of them the matrices classify MUST would have
+    // carried empty snapshots, and the host mapping is the one the Tenancy matrix
+    // singles out as mattering most.
     //
     // Excluded BY NAME, not by type: LearnStack.Infrastructure.Audit may not reference a
     // module assembly (CoreInfrastructure_DoesNotDependOn_AnyModule), and two of the four
@@ -1283,9 +1282,10 @@ Five things about those declarations are decided rather than stylistic:
 - **`Outcome` replaces ADR-0016's `bool IsSuccess`.** A boolean cannot carry `denied`,
   which [Audit Coverage Standards](../standards/18-audit-coverage.md) requires in order
   to detect probing, nor `indeterminate`, which a reader has to be able to filter on.
-- **`Reason` is a first-class column.** It carries `EnterPlatformAdminScope(reason)` and
-  the cause of a denial — the two facts a compliance reviewer asks for and neither
-  `ErrorKey` nor `Metadata` answers.
+- **`Reason` is a first-class column.** It carries `EnterPlatformAdminScope(reason)` — why
+  a cross-tenant access happened, the fact a compliance reviewer asks for and neither
+  `ErrorKey` nor `Metadata` answers. A refusal's cause is not here: it is the refusal's
+  message key, in `ErrorKey`, and every writer other than the scope leaves `Reason` null.
 - **The property name *is* the column name.** `SnakeCaseNaming.ApplySnakeCaseNames`
   rewrites every mapped property with no per-property `HasColumnName`, deliberately, so
   that a forgotten one cannot stay silently `PascalCase`. `Metadata` is therefore the
@@ -1345,7 +1345,7 @@ CREATE TABLE audit_log (
     entity_id        text NULL,
     outcome          text NOT NULL,     -- see the CHECK below
     error_key        text NULL,
-    reason           text NULL,          -- EnterPlatformAdminScope(reason), denial cause
+    reason           text NULL,          -- EnterPlatformAdminScope(reason); a refusal's cause is error_key
     before_state     jsonb NULL,
     after_state      jsonb NULL,
     changes          jsonb NULL,
@@ -1967,7 +1967,7 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
    key is declared in code and not parsed from Markdown
    ([ADR-0044 § 6](../decisions/0044-audit-write-path.md)). **The join runs in two
    directions with two different domains**
-   ([Amendment 3 § 1](../decisions/0044-audit-write-path.md)), because both matrices were
+   ([Amendment 3 § 1](../decisions/0044-audit-write-path.md)), because the matrices are
    written ahead of the commands they classify and the standard asks them to be:
    - *Catalogue → matrix is total.* Every entry a module's source registers has a matrix
      row carrying the same slug. No exemption.

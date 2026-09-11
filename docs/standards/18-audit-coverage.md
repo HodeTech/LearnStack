@@ -252,7 +252,7 @@ Rules:
   `occurredAt` from `IClock` — the intent's declaration time in the transaction, a fresh
   reading for a standalone re-write — which is what keeps that pair legal under the
   composite primary key `(id, timestamp)`.
-- `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. Free-text, surfaced in the tenant admin's audit view.
+- `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. It is `EnterPlatformAdminScope(reason)`'s short operator-authored slug naming the operation — never caller-supplied text — and it is surfaced in the tenant admin's audit view. A refusal's cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
 - `changes` is always a JSON **array** of `{ path, before, after }`, never the polymorphic
   object-or-array shape ADR-0016 described. A reader that has to branch on the shape gets
@@ -378,12 +378,18 @@ Rules:
 - The interceptor captures **every** `ChangeTracker` entry in state `Added`, `Modified` or
   `Deleted`, minus a named exclusion list — `OutboxMessage` and `IdempotencyKey`
   (machinery) and `AuditEntry` / `AuditConfig` (the audit tables themselves). The
-  "`AuditableEntity<>` descendants only" predicate is **withdrawn**: it was blind to
-  `PlatformHostMapping`, `TenantLocale`, `TenantFeatureFlag`, `PlatformEntitlement`,
-  `CustomizationGeneration` and `TenantLevelTaxonomyItem` — four of them MUST in the
-  shipped matrices, `TenantLocale` SHOULD, and the generation counter deliberately
-  unaudited — and it could snapshot none of the six. A module opts no entity in, and the
-  interceptor constructs no row and issues no SQL.
+  "`AuditableEntity<>` descendants only" predicate is **withdrawn**: it was blind to the
+  seven plain classes the modules ship — `PlatformHostMapping`, `TenantLocale`,
+  `TenantFeatureFlag`, `PlatformEntitlement` and `PlatformKillswitch` in Tenancy,
+  `CustomizationGeneration` and `TenantLevelTaxonomyItem` in Customization — and could
+  snapshot none of them. Five are MUST: the host mapping, the feature flag, the
+  entitlement refresh and the killswitch toggle on rows of their own in the Tenancy
+  matrix, and the taxonomy band inside its aggregate's rows. `TenantLocale` is SHOULD, and
+  the generation counter is deliberately unaudited — bumped by one raw statement, so it is
+  never a `ChangeTracker` entry at all. The host mapping is the one the Tenancy matrix
+  singles out as mattering most. **This list is the canonical one**; a document that names
+  these classes links here rather than counting them again. A module opts no entity in,
+  and the interceptor constructs no row and issues no SQL.
 
 ## Retention
 
@@ -422,17 +428,20 @@ table above is the policy those deliverables implement, not a description of tod
   re-written standalone with outcome `failed`. A MUST-class operation is never left with
   no row.
 - MUST-class events with **no committed business transaction** — a pipeline
-  short-circuit at step 1, 4 or 5, a non-mutating security event, a non-MediatR caller
+  short-circuit at step 4 or 5, a non-mutating security event, a non-MediatR caller
   such as `TenantAssertionMiddleware`, and the reconcile re-write after a rollback or an
   indeterminate commit — are written standalone, in a short transaction on a connection
   outside any business transaction. That writer announces **both** session variables from
   the draft — `app.tenant_id` **and** `app.organization_id` — as its first statements:
   `audit_log` is org-scoped, so a row whose `organization_id` is non-null while the
   organization GUC is unset fails `WITH CHECK`
-  ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md)). Two things
+  ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md)). Three things
   are **not** on this path: a **granted** `read-sensitive` query, which rides the
   in-transaction path because `TransactionBehavior` has no request-kind gate (Amendment 2
-  § 7), and `EnterPlatformAdminScope`, whose row takes the fourth write method below.
+  § 7); `EnterPlatformAdminScope`, whose row takes the fourth write method below; and a
+  **validation refusal at step 1**, which writes no row at all — validation runs outside
+  the audit step, so the request is refused before anything has classified it
+  ([ADR-0033 Amendment 7](../decisions/0033-audit-durability-model.md)).
 - **A standalone MUST-class write failure changes the response only when the operation
   would otherwise have succeeded**
   ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)). A row recording

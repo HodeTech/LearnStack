@@ -139,13 +139,14 @@ that map exists to prevent.
   `HttpStatusMap.For(Exception)`'s existing `LearnStackException known =>
   For(known.Error)` branch maps it — `AuditLogBehavior`'s catch-and-rethrow contract
   is untouched. [04-api-design.md § Status Codes](04-api-design.md) requires
-  `Retry-After` on a 503, and no 503 path sets one today — the rate limiter's 429 is the
-  only response in the codebase that carries the header.
-  [Packet 9](../roadmap/phase-02a-kernel-tenancy.md), which adds both codes to
-  `HttpStatusMap.For(string)`, sets it on the **shared** Problem Details path that this
-  503 and `dependency_unavailable` both travel; setting it only where
-  `audit_unavailable` is minted would leave the idempotency-capacity 503 that already
-  ships without one.
+  `Retry-After` on a 503, and every 503 carries `Retry-After: 30` — thirty seconds being
+  the provider circuit breaker's default break duration. `RetryAfter.Apply` sets it where
+  the **status** is decided, on both Problem Details paths — `LearnStackExceptionHandler`
+  for an exception, `ProblemDetailsActionResult` for a result — rather than where each code
+  is minted, so this 503, `dependency_unavailable` and the idempotency store's capacity
+  refusal all carry it, and a 503 code added later inherits it. Packet 9 had said so before
+  it was true; its fifth review found no 503 carrying the header and set it
+  ([Delivery Record (Packet 9)](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9)).
 - **[ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md) narrows when
   that 503 is returned at all.** A **standalone** MUST-class write failure changes
   the response only when the operation would otherwise have **succeeded** — a

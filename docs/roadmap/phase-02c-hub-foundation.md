@@ -153,6 +153,14 @@ The ordering is the design, not an optimisation:
   `platform_entitlement_cache` — no module, Tenancy included
   (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). Module code reaches the plan half
   through `IFeatureFlags`, which composes over the port rather than querying the table.
+- **The adapter writes its own `source`.** `platform_entitlement_cache.source` is a
+  `CHECK`ed set — `hub`, `signed-license-key`, `null-provider` — and
+  `EntitlementProjection` carries no source, because the answer is a property of the
+  writer rather than of the plan. `HubEntitlementProvider` writes `hub`; the signed-licence
+  provider ([Phase 11](phase-11-production-hardening.md)) writes `signed-license-key`; and
+  `null-provider` is admitted and never written, since `NullEntitlementProvider` persists
+  nothing. A case asserts the constant on the stored row, so an adapter copied from another
+  cannot keep that writer's label.
 
 `NullEntitlementProvider` is the registered implementation in **every** deployment mode
 until the implementation for that mode exists
@@ -238,6 +246,14 @@ LearnStack implements the **Hub → LearnStack** half of the endpoint set enumer
 tenant create, entitlement push, status change, termination, usage pull, and host-mapping
 push. The table lives in the ADR and is not duplicated here; both repositories read the
 same list.
+
+**Termination decides what happens to the slug.** `ux_tenants_slug` counts soft-deleted
+tenants, so a terminated tenant's slug — its public hostname label — is held forever
+today, and the architecture rule that makes every other soft-deletable unique index
+partial names it as the one deliberate exception. Reissuing a slug would hand a later
+tenant the links, mail and bookmarks still pointing at the first one; the termination
+handler this phase builds decides whether a slug is ever released, and on what condition,
+before an index filter is allowed to decide it by accident.
 
 Each handler:
 
@@ -375,7 +391,10 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
   ([ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md)). It reaches
   rows no tenant context makes visible the way every operator list screen does: through
   the audited `EnterPlatformAdminScope(reason)` path as `learnstack_platform`, never from
-  an ambient tenant context ([Database Standards](../standards/05-database.md)).
+  an ambient tenant context ([Database Standards](../standards/05-database.md)). Its
+  permission key ships with it: [Permissions](../standards/19-permissions.md) reserves none
+  for entitlements yet, and the scope's gate refuses everyone until
+  [Phase 03](phase-03-identity-admin.md) brings the Platform-scope permission it reads.
 - The Hub → LearnStack internal-API handlers, on an internal-only listener, behind the
   full mTLS + RS256 JWT + HMAC + replay-protection chain.
 - `entitlement-v1.schema.json` checked in, with a snapshot test asserting the accepted

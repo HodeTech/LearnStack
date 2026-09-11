@@ -683,11 +683,14 @@ Two ADRs decide this packet before it starts, because the corpus that governs it
 written before the code it governs:
 [ADR-0044](../decisions/0044-audit-write-path.md) settles the audit write path and
 [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) the entitlement
-socket. Six earlier records carry dated amendments they owe — ADR-0020, ADR-0021,
-ADR-0023, ADR-0028, ADR-0033 and ADR-0036. Both deciding ADRs then took amendments of
-their own on 2026-09-08, after a cross-corpus review read them against the Hub
-repository's merged code: [ADR-0044 Amendments 1–5](../decisions/0044-audit-write-path.md) and
-[ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md). Read
+socket. Seven earlier records carry dated amendments they owe — ADR-0020, ADR-0021,
+ADR-0023, ADR-0028, ADR-0033, ADR-0036 and ADR-0040. Both deciding ADRs then took
+amendments of their own: on 2026-09-08, after a cross-corpus review read them against the
+Hub repository's merged code — [ADR-0044 Amendments 1–5](../decisions/0044-audit-write-path.md)
+and [ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md) — and
+on 2026-09-11, from the packet's own review rounds —
+[ADR-0044 Amendments 6–7](../decisions/0044-audit-write-path.md) and
+[ADR-0045 Amendments 2–4](../decisions/0045-entitlement-and-feature-flag-socket.md). Read
 all of it first, amendments included; the summary below is the scope, not the reasoning.
 
 `LearnStack.Infrastructure.Audit` with `AuditChangeTrackerInterceptor` (an EF
@@ -762,8 +765,8 @@ in two directions over two different domains**
 ([ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md)): every entry a
 module's `IAuditCatalogSource` registers must have a matrix row carrying the same slug,
 without exemption; a matrix row fails only when a request type that raises it **exists**
-and no catalogue entry names it. Both shipped matrices classify ahead of the commands
-they describe and say so, so a row whose command has not shipped carries `(planned)` —
+and no catalogue entry names it. Every shipped matrix classifies ahead of the commands
+it describes and says so, so a row whose command has not shipped carries `(planned)` —
 and a `(planned)` row whose command *has* shipped fails, which is what stops the marker
 becoming a hole. Operations that are not MediatR requests at all carry `(off-path)` and
 register by slug rather than by type: entering the platform-admin scope and the two
@@ -3036,10 +3039,11 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1954 tests green** — 1 contract, 114 architecture, 1360 unit,
-> 479 integration — after the four external review rounds and the follow-ups closed with
-> them; 1935 after the first round, 1867 before it. Counted from a run under `CI=true`,
-> which makes warnings errors, on the SDK CI pins.
+> **Measured at close: 1975 tests green** — 1 contract, 118 architecture, 1373 unit,
+> 483 integration — after the five external review rounds and the follow-ups closed with
+> them; 1954 after the fourth round, 1935 after the first, 1867 before any. Counted from a
+> run under `CI=true`, which makes warnings errors, on a 10.0 SDK the `backend/global.json`
+> pin admits.
 
 ### The four decisions, and why the corpus did not settle them
 
@@ -3289,6 +3293,90 @@ are fixed now because the next implementer would follow them exactly.
   the Hub's own audit stream, the organization admin's audit view, three stale algorithm
   listings, the `[PublicSurface]` guard's status and the feature-gating endpoint — now say
   what the code and the decisions do.
+
+### The fifth review, and what it changed (2026-09-11)
+
+A fifth review, of the pull request at `cb2d5a5`, requested changes: three blockers and
+eighteen majors, with minors and follow-ups. Every finding was checked against the code
+before anything moved; most were valid as written, several in part, and none is handed on
+unowned — what belongs to a later phase is written into that phase.
+
+- **The blockers.** `audit_config`'s unique index counted deleted rows, on a table whose
+  overrides have no setter: an override changes only by soft delete and a fresh
+  declaration, so its first change would have failed `23505` for good. A new migration
+  makes the index partial on `deleted_at IS NULL`, and
+  `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows` now sweeps every module
+  context for the shape, with `ux_tenants_slug` held table-wide by a decision
+  [Phase 02c](phase-02c-hub-foundation.md) owns. No `503` carried `Retry-After`, while
+  [Error Handling](../standards/09-error-handling.md) said this packet had set it; both
+  Problem Details paths now set `Retry-After: 30` wherever the status is `503`. And a
+  validation refusal was listed among the standalone writes although step 1 runs before the
+  audit step classifies anything: the six carriers now say so, a case sends a refused
+  command through the real pipeline and counts no row, and
+  [ADR-0033 Amendment 7](../decisions/0033-audit-durability-model.md) records the
+  correction.
+- **The write path's contracts.** A missing designation answered `503 audit_unavailable`
+  for a programmer error; the composer now throws `InvalidOperationException` — a `500`,
+  like an unclassified operation — and two keyless captures count as two instances. A draft
+  carrying the platform sentinel was reported by the store as a failed write — `Critical`,
+  counter, health — when it is the caller's error; both the standalone and best-effort
+  paths refuse it with `ArgumentException` before writing, and the caller that composed it
+  owns the alert. The reconcile raised a second `Critical` for a failure the store had
+  already reported; it now logs `Warning` there and keeps `Critical` for the refusals
+  nothing else reports, and the assertion recorder does the same. The catalogue accepted one
+  slug both request-keyed and off-path, one `(request, slug)` twice, and an entity type no
+  capture can carry; all three are refused at composition, and a matrix row's `(off-path)`
+  marker must now agree with how its slug is registered. `Reason` was documented as carrying
+  a denial's cause: only `EnterPlatformAdminScope` writes it, and a refusal's cause is
+  `error_key`.
+- **Cases that could not fail the way their names claimed.** The canonical same-transaction
+  rule's second clause — a MUST row that cannot be written takes its business write with it
+  — was catalogued as implemented and had no case; one now forces the failure through the
+  real pipeline with a trigger. `xmin` was tried first and cannot prove it — measured: EF
+  Core runs each `SaveChanges` inside an open transaction under a savepoint, so rows on one
+  transaction carry different `xmin`s. The anonymous burst's window staying consumed when
+  its write fails, a security invariant, had no case. A plan-projected key is now read
+  against a conflicting tenant row in both directions, and a limit against one too; without
+  the rows, a resolver that fell back to the tenant table passed. The Docker-trait sweep read
+  one folder and now reads the whole integration project, with a companion; both backend CI
+  jobs refuse a run that executed no test, because a filter that matches nothing exits `0`.
+  The best-effort path's "logged" half, the entitlement default in the `SaaS` mode, and a
+  resolved context naming no real tenant are asserted, and two source sweeps assert their
+  premise before their verdict.
+- **Build and CI.** The SDK pin moves into `backend/global.json` — 10.0.112 — which both CI
+  jobs now install from, so a workstation and CI cannot disagree; the follow-ups below name
+  CI's pin alone, which is where it stood before this round. The NuGet audit level is
+  stated as `low` rather than inherited: CI fails on an advisory of **any** severity, not
+  only a high one as those follow-ups say, and `NU1900` fails it too, deliberately. The
+  pre-commit hook's WIP probe carried the same `pipefail` trap its stash pop was fixed for,
+  one line above it — `head -n 1` killed `git ls-files` with `SIGPIPE`, measured with six
+  thousand untracked files.
+- **Written into the phases that own them.** [Phase 02b](phase-02b-events-auth.md): a
+  delivery's transaction must own the audit frame, or a consumer's command reconciles before
+  the delivery commits; and the rejected-assertion row's actor, once a principal exists.
+  [Phase 02c](phase-02c-hub-foundation.md): the `source` each adapter writes, and
+  `IEntitlementAdminQuery`'s permission key. [Phase 03](phase-03-identity-admin.md): the
+  Platform-scope gate with the killswitch toggle, its key and its runbook — none of which
+  that phase's document had said — and the `[PiiSensitive]` decision on
+  `TenantSetting.Value`. [Phase 06](phase-06-renderer-admin-studio.md): the tenant-flag
+  cache's invalidation, which the corpus had described as a generation key while the code
+  carries a 60-second TTL. [Phase 11](phase-11-production-hardening.md): dependency
+  automation and locked restores, and pool sizing for the short second connection a request
+  takes.
+- **Accepted texts.** [ADR-0044 Amendment 7](../decisions/0044-audit-write-path.md) corrects
+  § 7's count of plain entities and the matrix it said singled out the host mapping;
+  [ADR-0045 Amendment 4](../decisions/0045-entitlement-and-feature-flag-socket.md) says
+  which of two names differs from the wire; and ADR-0023's Amendment 9, which sat below its
+  References, moves above them. Three amendments the review found without a "Decision is
+  unchanged" restatement are left as they are: [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)
+  owes that sentence for a correction, and those three extend or read a decision rather than
+  correct one. Two amendments without a **Status** line stay so for the same reason: no rule
+  asks for one.
+- **The minors:** misplaced composition comments reattached and one `Lazy<NpgsqlDataSource>`
+  registration where there were two; stale counts, section references and test names; the
+  `IgnoredAsStale` summary, which described the equal case the guard applies; and a JSON
+  encoder that escaped every non-ASCII letter, so a Turkish display name reached the
+  256 KiB cap three times sooner than its bytes did.
 
 ### Follow-ups closed in the same pull request (2026-09-11)
 

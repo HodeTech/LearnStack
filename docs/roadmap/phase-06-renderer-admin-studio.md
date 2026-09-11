@@ -134,7 +134,10 @@ read-only status ([27-custom-domain-tls.md](../architecture/27-custom-domain-tls
 - Tenant settings: feature-flag editor for `tenant_feature_flags` overrides
   ([21-feature-flags.md](../architecture/21-feature-flags.md)), read-only entitlement
   projection viewer for plan-level features and limits, read-only custom-domain status
-  viewer.
+  viewer. The editor is the table's first writer, so it ships the
+  `{tenant_id}:tenancy:feature-flags` invalidation with it — a generation counter the write
+  bumps, embedded in the key — which Packet 9 left as a 60-second TTL because there was
+  nothing to invalidate ([Infrastructure Stack § Cache layer cheat sheet](../standards/20-infrastructure-stack.md)).
 - **Audit log viewer** — paginated, filterable view over the Audit module's read API.
   Tenant admins see their tenant; organization admins see their organization
   ([31-audit-subsystem.md](../architecture/31-audit-subsystem.md)).

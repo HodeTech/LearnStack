@@ -516,10 +516,16 @@ and the edge has no way to know it.
 
 ## Dependency Hygiene
 
-- Renovate / Dependabot enabled.
-- Critical / high vulnerabilities patched within 7 days.
-- Lockfiles committed.
-- No transitive dependency mismatch — `npm ci` / `dotnet restore --locked-mode` in CI.
+- Renovate / Dependabot enabled. **Not yet:** no update bot is configured, and
+  [Phase 11](../roadmap/phase-11-production-hardening.md) enables one.
+- Critical / high vulnerabilities patched within 7 days. The backend's restore reports an
+  advisory of **any** severity anywhere in the graph, transitive packages included, and CI
+  fails on it (`NuGetAuditMode` `all`, `NuGetAuditLevel` `low`, warnings as errors under
+  CI) — so the seven days are a deadline for a fix, never for noticing.
+- Lockfiles committed — `frontend/pnpm-lock.yaml` today. The backend has no NuGet lock
+  files yet; they arrive in [Phase 11](../roadmap/phase-11-production-hardening.md).
+- No transitive dependency mismatch — `pnpm install --frozen-lockfile` in CI today, and
+  `dotnet restore --locked-mode` once the backend has lock files to lock to (Phase 11).
 
 ## Container & Infrastructure
 

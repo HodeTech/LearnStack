@@ -1151,6 +1151,17 @@ changes `xmin` while leaving `row_version` intact.
 
 - The **columns** are not opt-in — `AuditableEntity<TId>` carries `DeletedAt` / `DeletedBy` for every aggregate, so every such table has them (§ Audit Columns). What is opt-in is whether an aggregate is ever soft-deleted and whether its query filter excludes deleted rows.
 - Soft-deleted rows excluded via global EF query filter where applicable.
+- **A unique index on a table with a `deleted_at` column carries
+  `WHERE deleted_at IS NULL`.** A table-wide one lets a deleted row hold its key forever,
+  and where soft delete is the only way to change a row — `audit_config` has no setter, so
+  an override changes by deleting it and declaring a fresh one — the second write fails
+  `23505` for good. Two shapes are exempt, and the rule
+  [`Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`](21-architecture-tests-catalogue.md#unique_indexes_on_soft_deletable_tables_exclude_deleted_rows)
+  names both: an index containing the whole primary key, which is a foreign-key target
+  rather than a natural key and can never collide with a successor; and
+  `ux_tenants_slug`, held table-wide **by decision** — a tenant slug is a hostname, and
+  whether a terminated tenant's slug may ever be reissued is
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md)'s call.
 - Scheduled purge job removes rows past retention.
 
 ## Migrations

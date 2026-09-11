@@ -93,17 +93,17 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Eighty-nine test methods exist in
+Ninety-three test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 114 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 118 cases once the theories expand.
 Counted from
-`dotnet test --list-tests` at the close of Packet 9's review rounds, de-duplicated
+`dotnet test --list-tests` at the close of Packet 9's fifth review round, de-duplicated
 by method name; the figures before it were Packet 9 step 3's and were not updated when the
-rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 91 and is wrong:
-two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
-which greps the suite for those very attributes. The runner is the authority here, which
+rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 99 and is wrong:
+the rest are string literals in `Every_Database_Test_Carries_The_Docker_Trait` and its
+companion, which grep the suite for those very attributes. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
 Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
@@ -169,7 +169,8 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
 | `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | `PersistenceConventionTests.cs` |
 | `The_registration_marker_does_not_vouch_across_containers` | `PersistenceConventionTests.cs` |
-| `Every_Database_Test_Carries_The_Docker_Trait` | `PersistenceConventionTests.cs` |
+| `Every_Database_Test_Carries_The_Docker_Trait` (with its companion) | `PersistenceConventionTests.cs` |
+| `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows` (with its companion) | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Refuses_An_Aliased_Runtime_Credential` (per-alias theory) | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Redacts_A_Quoted_Value_Whole` (per-shape theory) | `PersistenceConventionTests.cs` |
 | `Migrate_Target_Reads_The_Role_Through_A_Quoted_Value` | `PersistenceConventionTests.cs` |
@@ -185,7 +186,7 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Every_Module_Has_An_AuditCoverage_Matrix` (with its companion) | `AuditConventionTests.cs` |
 | `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
 | `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix, with its two companions) | `AuditCoverageTests.cs` |
-| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its two companions) | `AuditCoverageTests.cs` |
+| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its three companions) | `AuditCoverageTests.cs` |
 | `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
 | `No_Set_Based_Write_Bypasses_The_Audit_Capture` (with its companion) | `AuditConventionTests.cs` |
 | `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
@@ -1029,6 +1030,33 @@ rules that need a second `DbContext` are owed by Phase 03.
   `fk_platform_host_to_tenant_organization` — which is the evidence that it is not
   vacuous.
 
+#### `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`
+
+- **Asserts:** every unique index on an entity whose table carries a `deleted_at` column,
+  across every module `DbContext`, is filtered `deleted_at IS NULL` — except an index that
+  contains the whole primary key, which is a foreign-key target rather than a natural key,
+  and the indexes held table-wide by a recorded decision, each named with its reason. The
+  held set is checked against the model too, so an entry whose index has gone stops
+  exempting anything.
+- **Why it matters:** a table-wide unique lets a deleted row hold its key forever. Packet 9
+  shipped `ux_audit_config_tenant_id_module_operation` unfiltered on a table whose rows have
+  no setter — an override changes only by soft delete and a fresh declaration — so the
+  first change of any override would have failed `23505` permanently. Every other
+  soft-deletable table in the repository already filtered; nothing checked that the next
+  one would.
+- **Held by decision:** `ux_tenants_slug`. A tenant slug is a hostname, and whether a
+  terminated tenant's slug may ever be reissued is
+  [Phase 02c](../roadmap/phase-02c-hub-foundation.md)'s decision, recorded there.
+- **Source:** [Database Standards § Soft Delete](05-database.md).
+- **Type:** xUnit over the EF model (`LearnStack.Tests.Architecture`,
+  `PersistenceConventionTests`). **Kind:** structural.
+- **Status:** **Implemented** (Packet 9, fifth review). Its companion,
+  `The_Soft_Delete_Index_Sweep_Can_Actually_Fail`, runs the predicate over a probe context
+  carrying one unique index of each shape — counting deleted rows, partial, containing the
+  primary key, and on a table with no `deleted_at` — and expects exactly the first.
+  Mutation-checked: dropping the `audit_config` filter fails the rule on that index.
+- **Phase:** 02a (Packet 9).
+
 #### `SoftDelete_Advances_The_Row_Version`
 
 - **Asserts:** `AuditableEntity.SoftDelete` leaves `Version` strictly greater than it
@@ -1580,10 +1608,16 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 § Decision + Implementation Notes, Amendments 1 and 2;
   [ADR-0044 § 3, § 4, § 11](../decisions/0044-audit-write-path.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Implemented** — `AuditPipelineTests.cs`, Packet 9. Its companions in the
-  same file assert the halves that would otherwise let it pass vacuously: the row carries
-  the tenant the transaction announced, and it carries the snapshot the interceptor
-  captured. The owner-only half — a joiner frame writes no MUST rows and claims no commit
+- **Status:** **Implemented** — `AuditPipelineTests.cs`, Packet 9. The second clause is
+  `A_MUST_row_that_cannot_be_written_takes_its_business_write_down_with_it`: a trigger
+  refuses the audit insert for one host, and the mapping that host names does not commit,
+  the caller gets `audit_unavailable`, and the health check reports the refused standalone
+  attempt. It was claimed here from the start and written only in the fifth review of
+  Packet 9, and it is the direct proof of the rule's name — `xmin` cannot be, because EF
+  Core runs each `SaveChanges` inside an open transaction under a savepoint, so rows on one
+  transaction carry different `xmin`s. Its companions in the same file assert the halves
+  that would otherwise let it pass vacuously: the row carries the tenant the transaction
+  announced, and it carries the snapshot the interceptor captured. The owner-only half — a joiner frame writes no MUST rows and claims no commit
   — is `TransactionBehaviorTests.A_joiner_frame_writes_no_MUST_rows_and_claims_no_commit`,
   where a joiner can be constructed without a database.
 - **Phase:** 02a (Packet 9).
@@ -1842,9 +1876,11 @@ which decides identity, multiplicity, capture and classification;
   matrix's `Operation` column — every slug in a cell, not only the first — is registered in
   the merged catalogue unless its cell carries `(planned)` or `(off-path)`; and a
   `(planned)` row whose slug the catalogue **does** register fails, because the marker
-  outlived the command it was waiting for; and **no slug is classified in two rows**, in one
+  outlived the command it was waiting for; **no slug is classified in two rows**, in one
   matrix or across two, whatever their markers — a copy is a second answer to the question
-  the matrix exists to settle.
+  the matrix exists to settle; and **a row's `(off-path)` marker agrees with how the
+  catalogue registers its slug** — a slug a request type registers is not off-path, and one
+  the catalogue declares off-path carries the marker.
 - **Why the direction is scoped.** Classifying ahead of the command is what
   [18-audit-coverage.md](18-audit-coverage.md) asks for, so a row may name an operation
   nothing implements yet; the anti-rot check is what keeps that from becoming a hole. A
@@ -1857,6 +1893,10 @@ which decides identity, multiplicity, capture and classification;
   correct row and a contradictory copy in both orders: the forward direction compared only
   the first carrier, so one order passed and the other failed, until the fourth review of
   Packet 9 measured it. Every carrier is compared now, and this direction refuses the copy.
+  `An_off_path_marker_has_to_match_how_the_operation_is_registered` feeds both mismatches:
+  until the fifth review of Packet 9 the marker was never compared with the registration,
+  so a row could call a request-keyed operation off-path and step outside the join it
+  belongs to — and the catalogue itself now refuses a slug registered both ways.
 - **Source:** [18-audit-coverage.md § The join](18-audit-coverage.md);
   [ADR-0044 Amendment 3 § 1](../decisions/0044-audit-write-path.md).
 - **Type:** xUnit + file scan against the merged catalogue. **Kind:** structural.
@@ -1929,7 +1969,10 @@ which decides identity, multiplicity, capture and classification;
   `customization_generations` is the shipped case.
 - **Companion:** `The_Set_Based_Write_Sweep_Can_Actually_Fail` scans a probe directory
   holding one call split across two lines and one file that names every API only in a
-  comment, and requires exactly the first.
+  comment, and requires exactly the first. The companion proves the predicate; the rule
+  itself first asserts its premise — that the same scan over `backend/src` finds the
+  `SaveChangesAsync` calls that do go through the tracker — so a scan that read no file
+  cannot pass as a clean one (the fifth review of Packet 9).
 - **Source:** [ADR-0044 § 7](../decisions/0044-audit-write-path.md);
   [ADR-0033](../decisions/0033-audit-durability-model.md);
   [18-audit-coverage.md](18-audit-coverage.md).
@@ -1997,7 +2040,7 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 (carried from ADR-0016);
   [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
-- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".)
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read nothing passed as well.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
