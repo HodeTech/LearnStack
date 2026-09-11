@@ -101,9 +101,11 @@ shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
 Packet 6, Packet 7, Packet 8, Packet 9 and Packet 10 — 119 cases once the theories
 expand. Counted from `dotnet test --list-tests` after Packet 10's first step,
-de-duplicated by method name; Packet 10 recounts when it closes. Counting `[Fact]` / `[Theory]` occurrences in the source gives 99 and is wrong:
-the rest are string literals in `Every_Database_Test_Carries_The_Docker_Trait` and its
-companion, which grep the suite for those very attributes. The runner is the authority here, which
+de-duplicated by method name; Packet 10 recounts when it closes. Counting the literals
+`[Fact]` and `[Theory]` in the source gives 100 and is wrong both ways: seven are string
+literals in `Every_Database_Test_Carries_The_Docker_Trait` and its companion, which grep
+the suite for those very attributes, and the meta-test's `[Fact(DisplayName = …)]` is not
+the literal at all. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
 Methods are not rows: a `[Theory]`
 is one row and many cases, and several rows pair a rule with the companion
@@ -651,7 +653,11 @@ otherwise).
   real on a set of messages, admits and refuses each one as that section says — the
   breaking-change `!`, an empty scope, a first paragraph that runs onto a second line, a
   72-character subject counted in characters, git's `Revert "…"` subject, the autosquash
-  markers locally and in CI, and a leading `#` line with and without an editor.
+  markers locally and in CI, a leading `#` line with and without an editor, and a
+  ten-megabyte paragraph inside the timeout. It then runs the step's own script against a
+  scratch repository: a refused subject fails the step and is named in an `::error::`
+  line, an admitted one passes, and a base that does not resolve fails rather than
+  reporting success on a range it never read.
 - **Why it matters:** three copies of the rule drifted with nothing comparing them — nine
   types in the standard, eleven in the hook, ten in CI, scope characters that disagreed,
   and two scripts judging different text (the hook the file's first line, CI git's joined
@@ -660,8 +666,8 @@ otherwise).
   pattern and forgot to fail, or a CI step whose only mention of the hook was a comment,
   passed a comparison and fails this.
 - **Source:** [14-git-workflow.md § Commits](14-git-workflow.md#commits).
-- **Type:** xUnit + file scan + running the hook. **Kind:** behavioural (the hook's
-  verdicts) + structural (CI runs it; the type table).
+- **Type:** xUnit + file scan + running the hook and the CI step. **Kind:** behavioural
+  (the hook's verdicts and the step's) + structural (the type table; no grammar in CI).
 - **Status:** **Implemented** — `RepositoryLayoutTests.cs`, Packet 10.
 - **Phase:** 02a (Packet 10).
 
@@ -2436,9 +2442,9 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
 - **Asserts:** host resolution succeeds with the Hub client registered as a throwing stub
   ([27-custom-domain-tls.md § 10](../architecture/27-custom-domain-tls.md)). Until a Hub
   client exists to register, the structural half stands in for it: the one
-  `IHostToTenantResolver`, `CachedHostToTenantResolver`, takes and holds nothing that can
-  leave the process — no `HttpClient` or `IHttpClientFactory`, no gRPC channel, no Hub
-  client — only its cache and the application data source.
+  `IHostToTenantResolver`, `CachedHostToTenantResolver`, takes and holds no `HttpClient`,
+  `IHttpClientFactory`, gRPC channel or Hub client — only its caches, its options and the
+  application data source.
 - **Why it matters:** host resolution runs on every anonymous page load before a tenant is
   known, and [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) forbids it to
   call the Hub so that a Hub outage cannot take tenant sites down. Resolution with no
@@ -3492,7 +3498,8 @@ structural test proves — and what it does not.
 
 - **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
 - **Source:** ADR-0036 § The platform-admin override is not a resolution source.
-- **Type:** xUnit — reflection, a source scan and a constant. **Kind:** structural.
+- **Type:** xUnit — reflection, a source scan, and a call to the registered gate.
+  **Kind:** structural (the marker and the scan) + behavioural (the gate refuses).
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
 - **Phase:** 02a (Packet 7).
 - **Note:** **the permission clause is live in its mechanism and vacuous in its subject;

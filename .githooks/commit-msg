@@ -34,7 +34,9 @@ fi
 # Judge the subject git will store, not the file's first line. Git's default cleanup
 # strips comment lines only when an editor ran — and it runs this hook with GIT_EDITOR=:
 # exactly when none did — so after `-m` or `-F` a leading `#` line IS the subject.
-# `commit.cleanup` overrides that default either way.
+# `commit.cleanup` overrides that default either way. A `--cleanup=` given on the command
+# line cannot be seen from here: the hook then judges git's default, and CI, which reads
+# the message git actually stored, is what catches a subject the flag changed.
 cleanup=$(git config --get commit.cleanup 2>/dev/null || true)
 case "$cleanup" in
     strip) strip_comments=1 ;;
@@ -51,12 +53,14 @@ fi
 # The first paragraph, its lines joined by single spaces: what `git log --format=%s`
 # prints. awk reads to the end instead of exiting at the first line — under pipefail an
 # early-exiting reader SIGPIPEs its writer on a long message, and the `head -1` this
-# replaced killed the hook with no output (measured: a 10 MB message exited 141).
+# replaced killed the hook with no output (measured: a 10 MB message exited 141). The
+# lines are collected and joined once, not appended one by one: appending re-copies the
+# string every line, and a 10 MB first paragraph took 38 seconds that way.
 subject=$(printf '%s\n' "$cleaned" | awk '
     done { next }
-    NF == 0 { if (subject != "") done = 1; next }
-    { subject = (subject == "" ? $0 : subject " " $0) }
-    END { print subject }')
+    NF == 0 { if (n > 0) done = 1; next }
+    { line[n++] = $0 }
+    END { for (i = 0; i < n; i++) printf "%s%s", (i ? " " : ""), line[i]; print "" }')
 
 if [ -z "$subject" ]; then
     if [ "$strict" = 1 ]; then
@@ -75,10 +79,17 @@ case "$subject" in
             exit 0
         fi
         echo "commit-msg: an autosquash commit reached the pull request — squash it first:" >&2
-        echo "  $subject" >&2
+        echo "  ${subject:0:200}" >&2
         exit 1
         ;;
 esac
+
+# What a refusal prints: the subject, cut to something a terminal or a CI annotation
+# can show. The checks below still see all of it.
+shown="$subject"
+if [ "${#shown}" -gt 200 ]; then
+    shown="${shown:0:200}…"
+fi
 
 fail=0
 
@@ -90,7 +101,7 @@ length=$((length))
 
 if [ "$length" -gt 72 ]; then
     echo "commit-msg: subject is $length characters (limit 72):" >&2
-    echo "  $subject" >&2
+    echo "  $shown" >&2
     fail=1
 fi
 
@@ -98,7 +109,7 @@ fi
 # pipe, so there is no writer for an early-exiting `grep -q` to kill.
 if ! LC_ALL=C grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9., /-]+\))?!?: .+' <<<"$subject"; then
     echo "commit-msg: subject is not Conventional Commits:" >&2
-    echo "  $subject" >&2
+    echo "  $shown" >&2
     fail=1
 fi
 

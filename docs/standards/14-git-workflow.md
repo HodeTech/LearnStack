@@ -54,7 +54,10 @@ CI's commit-hygiene step runs the **same hook** on every commit of a pull reques
 two cannot reach different verdicts; [`Commit_Subject_Grammar_Is_Stated_Once`](21-architecture-tests-catalogue.md#commit_subject_grammar_is_stated_once)
 fails the build if CI stops running it or if this table and the hook's types differ.
 The hook admits git's autosquash markers — `fixup!`, `squash!`, `amend!` — so a local
-fixup workflow works; CI refuses them, so squash before the pull request is reviewed.
+fixup workflow works; CI refuses them, so squash before the pull request is reviewed. A
+`--cleanup=` flag given on the command line is invisible to the hook, which judges the
+subject git's default cleanup would store; set `commit.cleanup` in configuration instead,
+which it reads. CI judges the stored message, so it catches whatever the flag changed.
 
 Examples:
 - `feat(education): add CourseVersion publish flow`
