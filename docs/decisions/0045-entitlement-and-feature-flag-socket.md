@@ -5,7 +5,9 @@
 Accepted (**Amendment 1: 2026-09-08** — read against the Hub repository's merged code:
 the limit-key vocabulary is the Hub's, `expires_at` and `valid_until` are nullable, the
 generation guard admits the equal case, `platform_killswitches` ships **unwritten**, and
-every key descriptor carries its fail-open/fail-closed class and its killswitch by name.)
+every key descriptor carries its fail-open/fail-closed class and its killswitch by name.
+**Amendment 2: 2026-09-11** — a registry's membership is the vocabulary the contract names,
+not the keys that have a consumer; enforcement is what waits for one.)
 
 **Date:** 2026-09-07
 **Deciders:** @platform
@@ -507,6 +509,45 @@ its 2026-05-18 amendment fixed),
 [Phase 02c](../roadmap/phase-02c-hub-foundation.md),
 [the glossary](../glossary.md) and `.claude/skills/add-feature-key/SKILL.md`. The Hub
 repository changes nothing.
+
+## Amendment 2 — Membership is the vocabulary; enforcement waits for a consumer (2026-09-11)
+
+**Status: Accepted.** Raised by the external review of PR #18. § 6 and Amendment 1 § 1 state
+the registries' membership in two ways, the shipped registries follow neither literally, and a
+contributor enforcing either sentence would remove keys the contract requires. **§ Decision is
+unchanged.**
+
+### What the two sentences say, and what was measured
+
+§ 6 ships `FeatureKeys`, `LimitKeys` and `KillswitchKeys` "carrying **only the keys the corpus
+already names**", and closes: "No key is invented for this packet. A registry that lists a
+capability nothing gates is a list that will be wrong before anything reads it." Amendment
+1 § 1 adds that "Packet 9 ships only keys with a consumer". Measured at the packet, the set of
+keys with a shipped consumer was **empty** — no handler injects a flags port — and § 6 itself
+assigns the enforcement path to [Phase 02c](../roadmap/phase-02c-hub-foundation.md). Read by
+the first sentence, the registries carry every named key; read by the second, they are empty,
+and the Phase 02a completion criterion this ADR exists for has no key to resolve.
+
+### How they are read
+
+**A registry declares every key the contract names, each with its descriptor; membership does
+not wait for a consumer, and enforcement does.** That is the twenty-three strings the Hub pins
+— fourteen features and nine `limits.*` keys — and the five that exist on no other side,
+because the Hub projects neither a tenant flag nor a platform switch: two tenant flags and three
+killswitches, each already named in [Feature Flags](../architecture/21-feature-flags.md) before
+the packet.
+
+§ 6's first half stands as written: no key is invented, and a key the corpus and the Hub do
+not name is not added. Its rationale — a list that "will be wrong before anything reads it" —
+is drift, and drift is nil for a spelling the Hub pins and has no second spelling to come from
+for a LearnStack-only one. The spelling is the one-way door; membership has the deprecation
+cycle as its exit. Each gate still ships with the feature it gates, never speculatively.
+
+### Carriers changed
+
+[ADR-0021](0021-feature-based-entitlement.md) (its 2026-09-11 amendment, for `LimitKeys`) and
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md), whose Packet 9 record carried this reading
+first as its decision 1.
 
 ## References
 

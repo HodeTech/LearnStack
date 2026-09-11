@@ -10,7 +10,11 @@ supplies `timestamp`, both standalone writers announce two session variables, a 
 write method serves `EnterPlatformAdminScope`, and a read-sensitive query **does** reach
 step 6. **Amendment 3: 2026-09-08**: Packet 9 ships the audit health check, its metric and
 its `Critical` line; the deployment-level stop-serving backstop is demand-gated to Phase
-11 with a written trigger. All three at the bottom of the document.)
+11 with a written trigger. **Amendment 4: 2026-09-08**: a tenant override narrows and never
+elevates, a cancelled `COMMIT` is `Indeterminate`, and the override loader runs on a cache
+miss. **Amendment 5: 2026-09-11**: `EnterPlatformAdminScope` never reaches
+`WriteStandaloneAsync`, and a nested request's refusal outlives the commit it joined. All at
+the bottom of the document.)
 
 **Date:** 2026-08-08
 **Supersedes:** [ADR-0016](0016-audit-log-subsystem.md)
@@ -601,6 +605,44 @@ for every other cached projection.
 [Audit Coverage Standards](../standards/18-audit-coverage.md),
 [the glossary](../glossary.md),
 [the Audit module spec](../modules/audit/README.md), and the `add-audit-coverage` skill.
+
+## Amendment 5 — The standalone writer's callers, and whose outcome a reconciled row carries (2026-09-11)
+
+**Status: Accepted.** Two points the external review of PR #18 raised against Amendment 2,
+which entered this record in the same unmerged change. **§ Decision is unchanged.**
+
+### 1. `EnterPlatformAdminScope` never reaches `WriteStandaloneAsync`
+
+Amendment 2 § 7 lists the shapes that reach `WriteStandaloneAsync` and names
+`EnterPlatformAdminScope` among the non-MediatR callers. That was false when it was written:
+Amendment 2 § 6, one section earlier, gives the scope the fourth write method,
+`WritePlatformScopeAsync`, and says why the other three cannot serve it — the row runs on the
+scope's own `learnstack_platform` connection under `TenantId.PlatformSentinel`, and
+`WriteStandaloneAsync` refuses to announce the sentinel on a runtime connection. A writer who
+followed § 7 would route the sentinel through the application role.
+
+§ 7's list reads: a short-circuit at step 1, 4 or 5; the one non-MediatR caller, the
+rejected-assertion recorder `TenantAssertionMiddleware` drives
+(`AuditingTenantAssertionRecorder`); and the reconcile step after a `RolledBack` or
+`Indeterminate` outcome. `EnterPlatformAdminScope` writes through `WritePlatformScopeAsync`
+alone — and, since the same review, in a transaction of its own that commits before the
+caller's begins, which is what [ADR-0044 § 10](0044-audit-write-path.md)'s "an operation that
+later fails is still recorded" requires.
+
+### 2. A nested request's refusal outlives the commit it joined
+
+§ Decision has the reconcile write `indeterminate` when the `COMMIT`'s fate is unknown.
+[ADR-0044 Amendment 6 § 3](0044-audit-write-path.md) refines which outcome a reconciled row
+carries once requests nest: each intent keeps the result its own request returned, and a
+refusal it returned wins over `indeterminate`, because it is a fact about the operation that no
+`COMMIT` changes. In a flow without nesting nothing moves — a refused request never reaches
+`COMMIT` — so the rule this ADR states is still the rule every un-nested request sees.
+
+### Carriers changed
+
+[ADR-0044](0044-audit-write-path.md) (Amendment 6, the deciding record for § 2) and
+[Audit Subsystem](../architecture/31-audit-subsystem.md). No other Accepted ADR's body
+changes.
 
 ## References
 

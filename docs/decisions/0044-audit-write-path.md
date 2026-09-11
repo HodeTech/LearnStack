@@ -9,7 +9,12 @@ org-scoped; it has no `organization_id` column and § 9's "both" was wrong when 
 SECURITY` *does* constrain the owner, which changes the trigger's reason and not its
 necessity. Errata sit beside both statements. **Amendments 3–5: 2026-09-08** — the join's two
 domains and the value types' home; three things Packet 9 must not invent; and the
-sentinel's third producer plus what fills `entity_type` / `entity_id`. All at the bottom.)
+sentinel's third producer plus what fills `entity_type` / `entity_id`. **Amendment 6:
+2026-09-11** — what a row is about when a request writes more than one thing: a handler
+designates the subject when it writes two instances of its declared aggregate, the actor
+and correlation id travel on the intent, each intent keeps its own request's result, a
+contained entity is captured with its aggregate, and `changes` pointers are
+instance-qualified. All at the bottom.)
 
 **Date:** 2026-09-07
 **Deciders:** @platform
@@ -886,6 +891,138 @@ row records half of what happened.
 [Audit Subsystem](../architecture/31-audit-subsystem.md) §§ 4–5 and § 7,
 [Audit Coverage Standards](../standards/18-audit-coverage.md),
 [the glossary](../glossary.md) and `.claude/skills/add-audit-coverage/SKILL.md`.
+
+## Amendment 6 — What a row is about when a request writes more than one thing (2026-09-11)
+
+**Status: Accepted.** Raised by the external review of PR #18, which reproduced four
+defects against real PostgreSQL through the real pipeline. Three are gaps in Amendment 5
+§ 2's composition rule and one is a gap in § 4's nesting rule, and each answer is written
+into rows, so each is recorded here rather than inferred from a diff. **§ Decision is
+unchanged**; § 7's pointer shape and Amendment 5 § 2's matching rule are refined below.
+
+### 1. A request that writes two instances of its declared aggregate designates one
+
+Amendment 5 § 2 takes `entity_id` from the captures whose `EntityType` matches the declared
+aggregate, and the composer refused two *different* instances rather than merging them —
+rightly: a row naming one instance's id beside another's state is self-contradictory and
+permanent. The rule missed a shipped case. `PublishTenantContentTypeCommand` and
+`PublishTenantLevelTaxonomyCommand` retire the incumbent revision and activate the successor
+on one transaction — two instances of one aggregate. **Measured:** every replacement
+publication, the second publication of any key, failed with `AuditWriteFailedException`,
+rolled back, and left no row.
+
+- **The handler designates the subject** through a new SharedKernel port,
+  `IAuditSubject.Designate(aggregate)`, registered as the same scoped instance as
+  `IAuditStateCapture`. Both publish handlers designate the successor as soon as it is
+  loaded, so a refusal from that point on is recorded against it too.
+- **One row, about the successor.** `entity_id`, `before_state` and `after_state` are the
+  designated instance's — its earliest capture's before and its latest capture's after,
+  Amendment 5 § 2's merge applied per instance. **Every other captured instance of the type
+  travels in `changes`**, under its own pointer (§ 5), so the incumbent's
+  `Active → Deprecated` stays on the record. No slug and no matrix row is added: the
+  Customization matrix already describes publication as the act that retires the incumbent.
+- **Undesignated, the refusal stands.** Two instances and no designation are still refused;
+  nothing in the captures says which one the operation is about.
+- A designation binds only the intents of the request whose handler makes it — the innermost
+  open audit frame (§ 3) — and only those whose declared type the aggregate is. Designating a
+  second, different instance in one request is a programming error and throws; a designation
+  where nothing is audited binds nothing.
+
+### 2. The actor and the correlation id are read at step 3 and carried on the intent
+
+[Audit Subsystem § 7](../architecture/31-audit-subsystem.md) sources `actor_user_id` and
+`correlation_id` from `ITenantContext`. The reconcile passed them to the composer as
+optional arguments and `WritePendingAsync` did not, so **every successful MUST row — the
+commonest row in the table — carried neither**. Measured with an explicit actor and trace.
+
+`AuditIntent` gains `ActorUserId` and `CorrelationId`, read once at step 3 beside the tenant,
+and the composer takes nothing from its caller but the captures and its moment. The actor is
+the principal the request carried, or `NULL` when it carried none — never a substituted
+identity. A handler writes `created_by` as `UserId ?? UserId.SystemActor` because that column
+is `NOT NULL`, which attributes the aggregate and makes no claim about who authenticated; an
+execution that acts as the system already carries `UserId.SystemActor` in its context —
+`EventTenantContext` does — and therefore writes it.
+
+### 3. Each intent keeps its own request's result; the transaction's state says only what it can
+
+§ 4 makes the owning frame the only writer and the only reporter of the commit boundary.
+That is correct and was incomplete: the outcome lived in a local of each `AuditLogBehavior`
+frame, only the outermost one's survived, and `WritePendingAsync` wrote every pending MUST
+intent as `success`. Under [ADR-0040 § Nesting](0040-ambient-unit-of-work.md) an inner request
+can be refused, have the refusal absorbed by the outer handler, and see the transaction it
+joined commit. **Measured:** the refused operation was persisted as `success`, with no error
+key.
+
+- **Frames.** Every `AuditLogBehavior` invocation that lets its request through —
+  outermost or nested, one registered `Off` included — opens a frame in `IAuditStateCapture`
+  before anything that can throw or be cancelled, classification included, and closes it on
+  every way out. An intent belongs to the frame that declared it, and a captured change to
+  the frame that was innermost when its flush ran — the frame whose handler wrote it. A row
+  is composed from its own frame's captures only.
+- **Result.** Closing a frame records on its intents what its request returned:
+  `Succeeded`, `Refused` (`denied` or `failed`, with its key), or `Thrown`.
+- **The in-transaction row** takes the intent's result. An intent with none is the owning
+  request's own, and that request succeeded: `TransactionBehavior` reaches the write only on
+  its handler's success.
+- **A reconciled row**, in order: a refusal the request returned — a fact about the operation
+  that no `COMMIT` changes; `indeterminate` when the `COMMIT`'s fate is unknown; `success` for
+  a request that succeeded in a transaction that committed, which only a SHOULD or MAY row
+  reaches; `failed` otherwise. [ADR-0033](0033-audit-durability-model.md)'s `indeterminate`
+  still wins for every request that did not itself refuse — which, in a flow without nesting,
+  is every request.
+
+### 4. An entity contained by an aggregate is captured with it
+
+§ 7 captures every changed entity, and Amendment 5 § 2 selects by the declared aggregate's
+type — so a contained entity, captured under a type name no intent declares, reached no row.
+**Measured:** a taxonomy's `TenantLevelTaxonomyItem` rows were captured on registration and
+absent from the persisted `after_state` and `changes`. The band labels and metadata a tenant
+authored were not on the record, which the Customization matrix promises they are.
+
+*Contained* is read from the model rather than declared a second time: an entity type that
+is **not** an `IAggregateRoot<>` and that exactly one relationship reaches through a
+navigation on its principal — the `HasMany(t => t.Items)` each module already writes to
+express the aggregate boundary for EF. Such an entity is folded into its root's capture:
+its field changes join the root's diff, under a pointer through the navigation's name and its
+own key within the root — its primary key minus the columns that point at the root, so
+`/…/Items/b2/DisplayName` — and an added or removed band is in `changes` either way.
+
+**Membership is written into the snapshot only where it is known to be complete**, and the
+interceptor knows that in one case alone: a root created in this request, which contains
+exactly what was tracked with it — for as long as the tracker still holds every member it was
+seen with. Its `after_state` then lists every contained entity, keyed the same way —
+`"Items": { "b2": { … } }`. For any other root the collection is left out of `before_state`
+and `after_state` as unknown. EF's `IsLoaded` cannot prove completeness: a filtered `Include`
+sets it over a partial collection — measured on PostgreSQL by a second review, where trusting
+it recorded a three-band taxonomy as owning one band. Nor does creation, once a member has left
+the tracker without being deleted — detached, or the tracker cleared and the root attached
+again alone: its row stays, so the root reads as unknown for the rest of the request. Measured
+by a third review: a taxonomy saved with three bands, two detached and the root renamed, was
+recorded as owning one. A deleted member is no loss; the save that deletes it is captured with
+it still tracked. A root read without its collection is therefore never recorded as owning
+nothing, and one read with part of it never as owning only that part; every change to the
+membership is in `changes`, from the request that created it on. A contained entity whose root
+is not tracked is still captured on its own rather than dropped. `TenantLocale` and
+`TenantFeatureFlag` fold into `Tenant` by the same rule.
+
+### 5. `changes` pointers are instance-qualified
+
+§ 7 fixes `changes` as an array of `{ path, before, after }` with an "entity-qualified" RFC
+6901 pointer. Qualified by type alone it cannot say which of two instances moved, and § 1
+puts two in one row. The pointer is `/{EntityType}/{EntityId}` followed by an RFC 6901
+pointer into that instance's snapshot — `/TenantContentType/0190…/Status`,
+`/TenantLevelTaxonomy/0190…/Items/b2/DisplayName` — with every reference token escaped as
+RFC 6901 requires, so a composite key's `/` is `~1`. The column stays an array on both sides
+of the size cap.
+
+### Carriers changed
+
+[Audit Subsystem](../architecture/31-audit-subsystem.md),
+[Audit Coverage Standards](../standards/18-audit-coverage.md),
+[the Customization matrix](../modules/customization/audit.md),
+[the glossary](../glossary.md), [ADR-0033](0033-audit-durability-model.md) (its Amendment 5
+records § 3's refinement of the reconciled outcome), `.claude/skills/add-audit-coverage/SKILL.md`
+and [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md).
 
 ## References
 

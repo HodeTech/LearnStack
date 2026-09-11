@@ -511,3 +511,27 @@ only the members with a consumer.
 
 The **feature**-key set is not changed here: the two sides largely agree, and the gaps are
 keys neither has a consumer for.
+
+### 2026-09-11 — Membership is the agreed vocabulary; enforcement waits for a consumer
+
+The 2026-09-08 amendment above closes with "Packet 9 writes `LimitKeys` from that list, and
+only the members with a consumer." Measured at Packet 9, the set of keys with a shipped
+consumer was **empty** — no handler injects a flags port, and
+[ADR-0045 § 6](0045-entitlement-and-feature-flag-socket.md) assigns the enforcement path to
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md) — so that sentence, read literally,
+ships an empty registry and leaves the phase's own completion criterion with no key to
+resolve. The registries shipped the vocabulary instead, and the
+[Packet 9 delivery record](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9)
+says why; this amendment puts the reading where a contributor enforcing the decision will
+look for it.
+
+**A registry declares every key the contract names; a consumer is not a condition of
+membership.** `LimitKeys` carries all nine `limits.*` keys the Hub ships. The spelling is the
+one-way door — it lands in the Hub's plan validators, in persisted `jsonb` and in the wire
+schema both repositories pin — while membership has a written exit, the deprecation cycle
+[Feature Flags § Typed Catalog](../architecture/21-feature-flags.md#typed-catalog) fixes for
+removing a key. What waits for a
+consumer is **enforcement**: each gate ships with the feature it gates, never
+speculatively. No key is invented, and a key the contract does not name is not added.
+[ADR-0045 Amendment 2](0045-entitlement-and-feature-flag-socket.md) says the same of
+`FeatureKeys` and `KillswitchKeys`.
