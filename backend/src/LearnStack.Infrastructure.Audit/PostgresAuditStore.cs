@@ -197,6 +197,7 @@ public sealed class PostgresAuditStore : IAuditStore
         AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        EnsureNotPlatformScope(entry);
 
         try
         {
@@ -256,6 +257,42 @@ public sealed class PostgresAuditStore : IAuditStore
         _health.ReportStandaloneWriteSucceeded();
     }
 
+    /// <summary>
+    /// Refuses a draft carrying <see cref="TenantId.PlatformSentinel"/>, before any write.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The FIFTH announcement site, and it needs the same refusal the other four carry.
+    /// TenantId's own remarks enumerate the guards — SetProvisioningTenantContextAsync,
+    /// TenantOwnership.EnsureRealTenant, EventTenantContext.FromEnvelope and
+    /// SetTenantContextAsync — because a CHECK on <c>tenants</c> cannot stop a session variable
+    /// from being announced. The two standalone writes announce one from a draft, on a
+    /// <c>learnstack_app</c> connection, and <c>audit_log</c> deliberately has no foreign key
+    /// to <c>tenants</c> — so nothing else in the stack refuses it. Measured before the guard:
+    /// a draft carrying the sentinel wrote a platform-scope row through the runtime role. The
+    /// sentinel's rows have one writer: WritePlatformScopeAsync, on the scope's own
+    /// platform-role connection (ADR-0044 § 10).
+    /// </para>
+    /// <para>
+    /// <b>Before the write, and an <see cref="ArgumentException"/>.</b> It is a caller error,
+    /// not an outage: raised inside the write it was reported as one — the <c>audit</c> health
+    /// check taken unhealthy and the failure counted — for a draft no connection could ever
+    /// write (the fifth review of Packet 9).
+    /// </para>
+    /// </remarks>
+    private static void EnsureNotPlatformScope(AuditEntryDraft entry)
+    {
+        if (entry.TenantId == TenantId.PlatformSentinel)
+        {
+            throw new ArgumentException(
+                "A platform-scope row carries TenantId.PlatformSentinel and belongs to "
+                + "WritePlatformScopeAsync, which writes it on the scope's own platform-role "
+                + "connection. Announcing the sentinel on a runtime connection is refused here "
+                + "as it is at every other announcement site (ADR-0044 § 1, § 10).",
+                nameof(entry));
+        }
+    }
+
     /// <summary>Critical, counted, and the health check unhealthy — the three, together.</summary>
     /// <remarks>
     /// One helper because they are one event, and because two catch clauses reach it. A
@@ -275,14 +312,14 @@ public sealed class PostgresAuditStore : IAuditStore
         AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        EnsureNotPlatformScope(entry);
 
         try
         {
             await WriteOwnTransactionAsync(entry, cancellationToken).ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // Best effort's whole contract is that an outage leaves the operation unaffected.
-        catch (Exception failure)
-            when (failure is not (OperationCanceledException or AuditWriteFailedException))
+        catch (Exception failure) when (failure is not OperationCanceledException)
 #pragma warning restore CA1031
         {
             // The opposite posture to WriteStandaloneAsync, and the accepted loss is
@@ -296,10 +333,10 @@ public sealed class PostgresAuditStore : IAuditStore
             // caller's exception — from inside the reconcile's finally, replacing whatever
             // the request had actually returned.
             //
-            // Two things still leave. A cancellation is the caller's, not a loss. And the
-            // AuditWriteFailedException WriteOwnTransactionAsync raises for a sentinel draft
-            // is a CALLER error rather than an outage — swallowing it here would hide the
-            // one misuse the guard exists to surface.
+            // A cancellation still leaves: it is the caller's, not a loss. So does a draft
+            // carrying the platform sentinel — refused before this try, as the caller error
+            // it is, so that swallowing it here cannot hide the one misuse the guard exists
+            // to surface.
             LogBestEffortLost(_logger, entry.Operation, failure);
         }
     }
@@ -355,28 +392,6 @@ public sealed class PostgresAuditStore : IAuditStore
     private async Task WriteOwnTransactionAsync(
         AuditEntryDraft entry, CancellationToken cancellationToken)
     {
-        // The FIFTH announcement site, and it needs the same refusal the other four carry.
-        // TenantId's own remarks enumerate the guards — SetProvisioningTenantContextAsync,
-        // TenantOwnership.EnsureRealTenant, EventTenantContext.FromEnvelope and
-        // SetTenantContextAsync — because a CHECK on `tenants` cannot stop a session
-        // variable from being announced. This method announces one from a draft, on a
-        // learnstack_app connection, and audit_log deliberately has no foreign key to
-        // `tenants` — so nothing else in the stack refuses it. Measured before the guard:
-        // a draft carrying the sentinel wrote a platform-scope row through the runtime
-        // role, which is precisely what IAuditStore's own contract says cannot happen.
-        //
-        // The sentinel's rows have one writer: WritePlatformScopeAsync, on the scope's own
-        // platform-role connection (ADR-0044 § 10).
-        if (entry.TenantId == TenantId.PlatformSentinel)
-        {
-            throw new AuditWriteFailedException(
-                "A platform-scope row carries TenantId.PlatformSentinel and belongs to "
-                + "WritePlatformScopeAsync, which writes it on the scope's own "
-                + "platform-role connection. Announcing the sentinel on a runtime "
-                + "connection is refused here as it is at every other announcement site "
-                + "(ADR-0044 § 1, § 10).");
-        }
-
         await using var connection = await _dataSource.Value
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);

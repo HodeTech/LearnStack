@@ -174,12 +174,18 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     /// <para>
     /// <b>It never throws, and one row's failure never costs another its attempt.</b> This
     /// runs from a <c>finally</c>, where an exception replaces whatever the request was
-    /// leaving with. Composition and the write are guarded together, per intent: a composer
+    /// leaving with. Composition and the write are each guarded, per intent: a composer
     /// refusal and a store that failed before issuing a statement both escaped the narrower
     /// catch this had, replaced a <c>403</c> with a <c>500</c>, and skipped every intent
     /// after them. Everything reaching here is already failing, refused or in doubt, so
     /// ADR-0033 Amendment 1's rule — a standalone failure changes the response only for an
     /// operation that would otherwise have succeeded — leaves the response alone.
+    /// </para>
+    /// <para>
+    /// <b>One alert per failure, from whoever saw it.</b> The store reports a failed write
+    /// itself (IAuditStore), so that path logs a <c>Warning</c> saying the caller's status
+    /// stands; a composer refusal and a draft the store refused before writing are programmer
+    /// errors nothing else reports, and those log <c>Critical</c> here.
     /// </para>
     /// </remarks>
     private async Task ReconcileAsync()
@@ -196,6 +202,9 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 continue;
             }
 
+            AuditEntryDraft draft;
+
+#pragma warning disable CA1031 // A finally that threw would replace the exception or refusal the caller is meant to see.
             try
             {
                 // The SAME composer the in-transaction write uses. A private one here is how
@@ -206,9 +215,22 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 // A FRESH clock reading, not the intent's DeclaredAt: the in-transaction row
                 // that may already exist under this id carries that, and the composite
                 // primary key is what makes the pair legal rather than a 23505.
-                var draft = AuditDraftComposer.Reconciled(
+                draft = AuditDraftComposer.Reconciled(
                     intent, capture.ChangesOf(intent), state, clock.UtcNow);
+            }
+            catch (Exception refused)
+            {
+                // Critical, and swallowed. A composer refusal — two instances of the declared
+                // aggregate and none designated — is a programmer error that nothing else
+                // reports, and it must not cost the next intent its attempt nor replace the
+                // caller's outcome.
+                LogReconcileRowRefused(logger, intent.Operation, refused);
 
+                continue;
+            }
+
+            try
+            {
                 // The class decides the posture, not the outcome. A MUST row that cannot
                 // be written is a failure worth shouting about; a SHOULD row that cannot is
                 // an accepted loss the module's matrix already records.
@@ -234,19 +256,25 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                     await store.WriteBestEffortAsync(draft, CancellationToken.None).ConfigureAwait(false);
                 }
             }
-#pragma warning disable CA1031 // A finally that threw would replace the exception or refusal the caller is meant to see.
-            catch (Exception lost)
-#pragma warning restore CA1031
+            catch (ArgumentException refused)
             {
-                // Critical, and swallowed. ADR-0033 Amendment 1: a standalone write failure
+                // A draft the store refused before any write — the platform sentinel — is a
+                // caller error the store does not report (IAuditStore), so this is its alert.
+                LogReconcileRowRefused(logger, intent.Operation, refused);
+            }
+            catch (Exception lost)
+            {
+                // Swallowed, and NOT a second Critical. The store reports every failure of the
+                // write itself — Critical, counted, the `audit` health check unhealthy
+                // (IAuditStore) — and best effort logs and drops its own; the Critical this
+                // used to add was one alert twice (the fifth review of Packet 9). What this
+                // line adds is the one fact the store cannot know: ADR-0033 Amendment 1
                 // changes the response only when the operation would otherwise have
-                // SUCCEEDED. Everything reaching here is already failing, being refused, or
-                // in doubt — and turning a refusal into a 503 an anonymous caller can
-                // provoke tells them more, not less. The store has already marked the
-                // audit health check for a failed write; a composer refusal is a
-                // programming error, and this line is where it surfaces.
+                // SUCCEEDED, and everything reaching here is already failing, refused or in
+                // doubt, so the caller keeps its status.
                 LogReconcileRowLost(logger, intent.Operation, lost);
             }
+#pragma warning restore CA1031
         }
     }
 
@@ -358,9 +386,15 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
 
     private static readonly Action<ILogger, string, Exception?> LogReconcileRowLost =
         LoggerMessage.Define<string>(
-            LogLevel.Critical,
+            LogLevel.Warning,
             new EventId(2, nameof(LogReconcileRowLost)),
-            "The reconcile row for {Operation} could not be written. The caller keeps whatever status it already had: ADR-0033 Amendment 1 changes the response only for a write that would otherwise have SUCCEEDED, and turning a refusal into a 503 an anonymous caller can provoke tells them more, not less.");
+            "The reconcile row for {Operation} could not be written, and the audit store has reported the failure. The caller keeps whatever status it already had: ADR-0033 Amendment 1 changes the response only for a write that would otherwise have SUCCEEDED, and turning a refusal into a 503 an anonymous caller can provoke tells them more, not less.");
+
+    private static readonly Action<ILogger, string, Exception?> LogReconcileRowRefused =
+        LoggerMessage.Define<string>(
+            LogLevel.Critical,
+            new EventId(3, nameof(LogReconcileRowRefused)),
+            "The reconcile row for {Operation} was refused before any write — a programmer error no audit store reports, such as two instances of the declared aggregate with none designated. The row is not on the record, and the caller keeps whatever status it already had.");
 }
 
 /// <summary>

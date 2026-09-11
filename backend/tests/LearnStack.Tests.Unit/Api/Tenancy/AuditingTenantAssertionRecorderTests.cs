@@ -82,6 +82,34 @@ public sealed class AuditingTenantAssertionRecorderTests
     }
 
     [Fact]
+    public async Task A_burst_whose_write_fails_stays_consumed_for_its_window()
+    {
+        // The crossing is consumed BEFORE the write and stays consumed when the write fails.
+        // Releasing it would retry the write on every later anonymous occurrence in the window —
+        // one database round trip per request, the amplification the burst row exists to bound.
+        // Only the detector pinned it; every recorder failure case was authenticated (the fifth
+        // review of Packet 9).
+        var store = new RecordingStore { Fails = true };
+        var recorder = Recorder(store, out var clock, threshold: 3);
+
+        for (var occurrence = 0; occurrence < 8; occurrence++)
+        {
+            await recorder.RecordRejectionAsync(Rejection(authenticated: false));
+        }
+
+        store.Attempts.Should().Be(1, "one crossing is one attempt, whatever came of it");
+
+        clock.Advance(TimeSpan.FromMinutes(5));
+
+        for (var occurrence = 0; occurrence < 3; occurrence++)
+        {
+            await recorder.RecordRejectionAsync(Rejection(authenticated: false));
+        }
+
+        store.Attempts.Should().Be(2, "the next window crosses, and writes, again");
+    }
+
+    [Fact]
     public async Task An_authenticated_mismatch_does_not_spend_the_anonymous_budget()
     {
         // Separate tiers, separate counters. Feeding authenticated occurrences into the
@@ -258,6 +286,23 @@ public sealed class AuditingTenantAssertionRecorderTests
             .Should().Be(1, "the store owns the alert");
         recorderLogger.Entries.Should().NotContain(entry => entry.Level == LogLevel.Critical,
             "one failure is one alert, and the store has raised it");
+    }
+
+    [Fact]
+    public async Task A_draft_the_store_refuses_before_writing_is_the_recorder_s_alert()
+    {
+        // The store reports every failure of the write, and none before it: an
+        // ArgumentException is a draft it refused as a caller error (IAuditStore), so the
+        // recorder is the only one who can raise it — at Critical, with the response unchanged.
+        var store = new RecordingStore { FailsWith = new ArgumentException("a platform-scope draft", "entry") };
+        var logger = new CapturingLogger();
+        var recorder = Recorder(store, out _, logger: logger);
+
+        var act = async () => await recorder.RecordRejectionAsync(Rejection(authenticated: true));
+
+        await act.Should().NotThrowAsync("a failed record does not change a response that is already a refusal");
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Critical)
+            .Which.Message.Should().Contain(AuditingTenantAssertionRecorder.RejectOperation);
     }
 
     public static TheoryData<Exception> UntranslatedFailures()
@@ -470,6 +515,9 @@ public sealed class AuditingTenantAssertionRecorderTests
     {
         public List<AuditEntryDraft> Written { get; } = [];
 
+        /// <summary>Every write attempted, whether or not it failed.</summary>
+        public int Attempts { get; private set; }
+
         public bool Fails { get; init; }
 
         /// <summary>A failure the store does NOT translate, which is the escaping kind.</summary>
@@ -478,6 +526,8 @@ public sealed class AuditingTenantAssertionRecorderTests
         public Task WriteStandaloneAsync(
             AuditEntryDraft entry, CancellationToken cancellationToken = default)
         {
+            Attempts++;
+
             if (FailsWith is not null)
             {
                 throw FailsWith;

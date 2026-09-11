@@ -394,7 +394,14 @@ public sealed class AuditStoreTests
         var draft = Draft(organizationId: null) with { TenantId = TenantId.From(SchemaFixture.TenantB) };
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
-        var store = Store(new AuditStateCapture(), dataSource);
+        var health = new AuditHealth();
+        var logger = new CapturingLogger();
+        var store = new PostgresAuditStore(
+            new AuditStateCapture(),
+            new Lazy<NpgsqlDataSource>(() => dataSource),
+            logger,
+            MeterFactory,
+            health);
 
         // TenantB is a real tenant, but the draft's own announcement makes the row legal —
         // so to force a failure the row has to break something the announcement cannot
@@ -406,6 +413,15 @@ public sealed class AuditStoreTests
 
         await act.Should().NotThrowAsync();
         (await CountAsync(refused.Id)).Should().Be(0);
+
+        // "Logged" is half the name, and nothing asserted it (the fifth review of Packet
+        // 9): a catch that dropped the failure silently passed. One Error line naming the
+        // operation — and no Critical, no health change, because a SHOULD-class loss is the
+        // documented accepted one and not the standalone MUST failure the check reports.
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Error)
+            .Which.Message.Should().Contain(refused.Operation);
+        logger.Entries.Should().NotContain(entry => entry.Level == LogLevel.Critical);
+        health.IsHealthy.Should().BeTrue();
     }
 
     [Fact]
@@ -699,19 +715,25 @@ public sealed class AuditStoreTests
         var draft = Draft(organizationId: null) with { TenantId = TenantId.PlatformSentinel };
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
-        var store = Store(new AuditStateCapture(), dataSource);
+        var health = new AuditHealth();
+        var store = Store(new AuditStateCapture(), dataSource, health);
 
         var standalone = async () => await store.WriteStandaloneAsync(draft);
         var bestEffort = async () => await store.WriteBestEffortAsync(draft);
 
-        (await standalone.Should().ThrowAsync<AuditWriteFailedException>())
+        (await standalone.Should().ThrowAsync<ArgumentException>())
             .WithMessage("*WritePlatformScopeAsync*");
 
-        // Best effort swallows a DATABASE failure; it must not swallow this one, which is
-        // a caller error rather than an outage.
-        await bestEffort.Should().ThrowAsync<AuditWriteFailedException>();
+        // Best effort swallows an OUTAGE; it must not swallow this one, which is a caller
+        // error rather than an outage.
+        await bestEffort.Should().ThrowAsync<ArgumentException>();
 
         (await CountAsync(draft.Id)).Should().Be(0);
+
+        // And not reported as an outage either. Raised inside the write, it took the audit
+        // health check unhealthy for a draft no connection could ever write (the fifth
+        // review of Packet 9).
+        health.IsHealthy.Should().BeTrue("a caller error is not the audit path being down");
     }
 
     [Fact]
@@ -798,7 +820,7 @@ public sealed class AuditStoreTests
 
         var act = async () => await store.WritePendingAsync(unitOfWork);
 
-        (await act.Should().ThrowAsync<AuditWriteFailedException>())
+        (await act.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage("*different instances*");
 
         (await CountAsync(intent.Id)).Should().Be(0);

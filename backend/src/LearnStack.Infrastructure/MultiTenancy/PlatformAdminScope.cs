@@ -200,27 +200,6 @@ public sealed class PlatformAdminScope(
     }
 
     /// <summary>
-    /// The row one entry writes: the sentinel tenant, the catalogue's tier, and the
-    /// caller's provenance.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>The only class of row that carries <see cref="TenantId.PlatformSentinel"/>.</b>
-    /// It is a platform-scope operation with no resolvable tenant, and it is written
-    /// standalone on the scope's own platform-role connection — which is the one place the
-    /// sentinel is legal, every other announcement site refusing it (ADR-0044 § 1, § 10).
-    /// </para>
-    /// <para>
-    /// <b>No actor and no correlation id, and both are deliberate.</b> There is no
-    /// principal in the process — authentication is Phase 02b — so the caller is known
-    /// only through the compiler-supplied provenance, which lands in <c>metadata</c>
-    /// rather than being flattened into <c>reason</c>: the reason is an operator-authored
-    /// slug that a query groups by, and appending a file and a line to it would make every
-    /// group of one. The correlation id is scoped state, and this scope is entered from
-    /// background work as readily as from a request.
-    /// </para>
-    /// </remarks>
-    /// <summary>
     /// Writes the entry row on the scope's connection, in a transaction of its own, and
     /// commits it.
     /// </summary>
@@ -244,6 +223,27 @@ public sealed class PlatformAdminScope(
         await recording.CommitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The row one entry writes: the sentinel tenant, the catalogue's tier, and the
+    /// caller's provenance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The only class of row that carries <see cref="TenantId.PlatformSentinel"/>.</b>
+    /// It is a platform-scope operation with no resolvable tenant, and it is written
+    /// standalone on the scope's own platform-role connection — which is the one place the
+    /// sentinel is legal, every other announcement site refusing it (ADR-0044 § 1, § 10).
+    /// </para>
+    /// <para>
+    /// <b>No actor and no correlation id, and both are deliberate.</b> There is no
+    /// principal in the process — authentication is Phase 02b — so the caller is known
+    /// only through the compiler-supplied provenance, which lands in <c>metadata</c>
+    /// rather than being flattened into <c>reason</c>: the reason is an operator-authored
+    /// slug that a query groups by, and appending a file and a line to it would make every
+    /// group of one. The correlation id is scoped state, and this scope is entered from
+    /// background work as readily as from a request.
+    /// </para>
+    /// </remarks>
     private AuditEntryDraft Compose(
         string reason,
         AuditCatalogEntry declared,

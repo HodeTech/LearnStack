@@ -90,7 +90,9 @@ public sealed record AuditEntryDraft
 
     /// <summary>
     /// Why a cross-tenant access happened — <c>EnterPlatformAdminScope(reason)</c>'s
-    /// operator-authored slug — or the denial's cause. Never caller-supplied text.
+    /// operator-authored slug — and nothing else today: a refusal's cause is
+    /// <see cref="ErrorKey"/>, and every other writer leaves this null. Never
+    /// caller-supplied text.
     /// </summary>
     public required string? Reason { get; init; }
 

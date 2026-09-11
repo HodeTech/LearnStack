@@ -208,6 +208,12 @@ public sealed class AuditingTenantAssertionRecorder(
             // health check unhealthy (ADR-0033 Amendments 1 and 3).
             await _store.WriteStandaloneAsync(draft).ConfigureAwait(false);
         }
+        catch (ArgumentException refused)
+        {
+            // A draft the store refused before any write — a caller error it does not report
+            // (IAuditStore) — so this is its only alert. The response still does not change.
+            LogRowRefused(_logger, operation, refused);
+        }
         catch (Exception refused)
         {
             // WIDE, and the width is the decision. ADR-0036 says a failed record does not
@@ -261,6 +267,12 @@ public sealed class AuditingTenantAssertionRecorder(
             LogLevel.Warning,
             new EventId(4003, nameof(LogRowNotWritten)),
             "A '{Operation}' row could not be written, and the audit store has reported the failure. The response is unchanged — a refusal stays a refusal — but this occurrence is not on the record.");
+
+    private static readonly Action<ILogger, string, Exception?> LogRowRefused =
+        LoggerMessage.Define<string>(
+            LogLevel.Critical,
+            new EventId(4004, nameof(LogRowRefused)),
+            "A '{Operation}' row was refused by the audit store before any write — a programmer error nothing else reports. The response is unchanged — a refusal stays a refusal — but this occurrence is not on the record.");
 
     private static readonly Action<ILogger, string, Exception?> LogUndeclared =
         LoggerMessage.Define<string>(

@@ -53,14 +53,12 @@ namespace LearnStack.Application.Pipeline;
 /// <c>MarkRollbackOnly</c> before failing its frame.
 /// </para>
 /// <para>
-/// <b>What is not here yet.</b> The MUST-class audit write —
-/// <c>IAuditStore.WritePendingAsync(unitOfWork, ct)</c> immediately before
-/// <c>COMMIT</c>, per ADR-0033 — belongs on the marked line and lands with
-/// <c>IAuditStore</c> in
-/// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 9</see>,
-/// together with the <c>IAuditStateCapture</c> transitions that make the commit
-/// the only place durability is claimed. The commit boundary is here now so that
-/// the write has somewhere to go.
+/// <b>The MUST-class audit write is the last statement before <c>COMMIT</c></b>, on the
+/// owning frame only — <c>IAuditStore.WritePendingAsync(unitOfWork, ct)</c>, per ADR-0033 —
+/// so the state change and its record commit together or neither does. The
+/// <c>IAuditStateCapture</c> transitions beside it make the commit the only place
+/// durability is claimed. Packet 6 shipped the boundary with the line reserved;
+/// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 9</see> wrote it.
 /// </para>
 /// </remarks>
 public sealed class TransactionBehavior<TRequest, TResponse>(
@@ -118,7 +116,8 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             // a window inside this transaction where app.tenant_id is the empty string —
             // every statement in it silently fail-closed — and would hand every handler
             // in the solution the ability to move the ambient tenant. This stays the
-            // only caller, which is what keeps ADR-0040's setter set closed at seven.
+            // only caller, which is what keeps ADR-0040's setter set closed — at eight, since
+            // its Amendment 7.
             //
             // WRITE-ONLY, and the asymmetry is the reason. This announces the tenant to
             // PostgreSQL; it does not touch ITenantContextAccessor, which is what the EF

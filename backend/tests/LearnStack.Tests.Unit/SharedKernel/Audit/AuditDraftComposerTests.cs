@@ -150,7 +150,21 @@ public sealed class AuditDraftComposerTests
         var act = () => AuditDraftComposer.InTransaction(
             Intent(typeof(Probe)), [Capture("one", "{}", "{}"), Capture("two", "{}", "{}")]);
 
-        act.Should().Throw<AuditWriteFailedException>().WithMessage("*IAuditSubject*");
+        // A programmer error, so a 500 — never audit_unavailable, a 503 telling the caller to
+        // retry a request that will fail the same way every time (the fifth review of Packet 9).
+        act.Should().Throw<InvalidOperationException>().WithMessage("*IAuditSubject*");
+    }
+
+    [Fact]
+    public void Two_keyless_captures_are_two_instances_and_are_refused()
+    {
+        // Distinct over the ids used to collapse two null keys into one "instance" and merge
+        // them — the exact merge the refusal above exists to prevent. A capture with no key
+        // cannot be told apart from another, so each counts on its own.
+        var act = () => AuditDraftComposer.InTransaction(
+            Intent(typeof(Probe)), [Capture(null, "{}", "{}"), Capture(null, "{}", "{}")]);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*2 different instances*");
     }
 
     [Fact]
@@ -171,7 +185,7 @@ public sealed class AuditDraftComposerTests
 
     private sealed class Probe;
 
-    private static CapturedEntityChange Capture(string id, string? before, string? after) =>
+    private static CapturedEntityChange Capture(string? id, string? before, string? after) =>
         new(nameof(Probe), id, before, after,
             [new CapturedFieldChange($"/Probe/{id}/Status", before is null ? null : "\"x\"", after is null ? null : "\"y\"")]);
 

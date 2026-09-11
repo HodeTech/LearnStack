@@ -226,6 +226,65 @@ public sealed class AuditCatalogTests
             .Should().Equal(reversed.All.Select(entry => entry.Operation));
     }
 
+    [Fact]
+    public void One_request_may_not_declare_the_same_slug_twice()
+    {
+        // Appended, the second declaration was a second intent and a second row for one act,
+        // and nothing refused it (the fifth review of Packet 9).
+        var build = () => Catalog(new Source("tenancy", builder => builder
+            .MustAudit<AlphaCommand>("tenancy.alpha.create", OperationType.Create, typeof(ProbeAggregate))
+            .MustAudit<AlphaCommand>("tenancy.alpha.create", OperationType.Create, typeof(ProbeAggregate))));
+
+        build.Should().Throw<InvalidOperationException>().WithMessage("*twice*");
+    }
+
+    [Fact]
+    public void An_operation_has_one_writer_whichever_kind_is_declared_first()
+    {
+        // Request-keyed and off-path at once is two writers for one act — the pipeline and
+        // the off-path caller — and the matrix can mark only one of them. Both orders, because
+        // the merge visits sources by module name and either kind can arrive first.
+        var offPathSecond = () => Catalog(
+            new Source("tenancy", builder => builder
+                .MustAudit<AlphaCommand>("tenancy.alpha.create", OperationType.Create, typeof(ProbeAggregate))
+                .DeclareOffPath("tenancy.alpha.create", OperationType.Create, OperationClass.Must)));
+
+        var requestSecond = () => Catalog(
+            new Source("tenancy", builder => builder
+                .DeclareOffPath("tenancy.alpha.create", OperationType.Create, OperationClass.Must)
+                .MustAudit<AlphaCommand>("tenancy.alpha.create", OperationType.Create, typeof(ProbeAggregate))));
+
+        offPathSecond.Should().Throw<InvalidOperationException>().WithMessage("*one writer*");
+        requestSecond.Should().Throw<InvalidOperationException>().WithMessage("*one writer*");
+    }
+
+    [Theory]
+    [InlineData(typeof(AbstractProbe))]
+    [InlineData(typeof(IProbeContract))]
+    [InlineData(typeof(GenericProbe<>))]
+    public void An_entity_type_no_capture_can_carry_is_refused(Type entityType)
+    {
+        // The interceptor records each tracked entry's concrete type and the composer selects
+        // by that name, while a designation matches by assignability: a base type bound the
+        // designation and found no capture, so entity_id was set and both snapshots empty.
+        var requestKeyed = () => Catalog(new Source("tenancy", builder =>
+            builder.MustAudit<AlphaCommand>("tenancy.alpha.create", OperationType.Create, entityType)));
+
+        var offPath = () => Catalog(new Source("tenancy", builder =>
+            builder.DeclareOffPath("tenancy.alpha.purge", OperationType.Delete, OperationClass.Must, entityType)));
+
+        requestKeyed.Should().Throw<InvalidOperationException>().WithMessage("*concrete*");
+        offPath.Should().Throw<InvalidOperationException>().WithMessage("*concrete*");
+    }
+
+    private sealed class ProbeAggregate;
+
+    private abstract class AbstractProbe;
+
+    private interface IProbeContract;
+
+    private sealed class GenericProbe<T>;
+
     private static AuditCatalog Catalog(params IAuditCatalogSource[] sources) => new(sources);
 
     private sealed class Source(string moduleName, Action<IAuditCatalogBuilder> describe)

@@ -138,10 +138,9 @@ public sealed class AuditJsonTests
     {
         // A jsonb column's cost is bytes, and a stored document reaches the cap
         // unescaped — Render passes it through rather than re-encoding it, which is the
-        // whole point of that branch and also the only path on which a character is more
-        // than one byte. The emoji below is four bytes and one char in .NET terms two
-        // chars, so a cap counting characters would let roughly twice the payload
-        // through. Measured against Encoding.UTF8 rather than assumed.
+        // whole point of that branch. The emoji below is four bytes and one char in .NET
+        // terms two chars, so a cap counting characters would let roughly twice the
+        // payload through. Measured against Encoding.UTF8 rather than assumed.
         var padding = string.Concat(Enumerable.Repeat("😀", (AuditJson.MaxBytes / 4) + 8));
         var json = $$"""{"v":"{{padding}}"}""";
 
@@ -153,6 +152,23 @@ public sealed class AuditJsonTests
         AuditJson.Render(json, storedAsJson: true).Should().BeSameAs(json,
             "a jsonb column passes through");
         AuditJson.CapObject(json).Should().Contain("_elided");
+    }
+
+    [Fact]
+    public void A_letter_outside_ASCII_is_written_as_itself_and_counts_as_itself()
+    {
+        // The default encoder wrote every one of these as a six-byte \uXXXX escape, and the
+        // cap is measured on the written text — so a value in Turkish reached it three
+        // times sooner than its bytes did and was elided (the fifth review of Packet 9).
+        AuditJson.Render("Şule Çağrı 日本").Should().Be("\"Şule Çağrı 日本\"");
+
+        // 100 000 × 'ş' is 200 000 bytes of UTF-8 — under the 256 KiB cap — and 600 000
+        // escaped, which is over it.
+        var name = AuditJson.Render(new string('ş', 100_000));
+        AuditJson.CapObject($$"""{"v":{{name}}}""").Should().NotContain("_elided");
+
+        // What the default escaped beyond that, it still does.
+        AuditJson.Render("<b>&").Should().Be("\"\\u003Cb\\u003E\\u0026\"");
     }
 
     [Fact]

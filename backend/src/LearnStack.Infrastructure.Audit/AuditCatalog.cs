@@ -149,6 +149,24 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
     {
         EnsureSlugShape(operation);
 
+        if (entityType is not null)
+        {
+            EnsureConcrete(operation, entityType);
+        }
+
+        // One writer per operation. A slug a request type already registers would be
+        // written twice for one act — once by the pipeline, once by the off-path writer —
+        // and the matrix could only mark one of them (the fifth review of Packet 9).
+        if (_registrations.Values.Any(registration =>
+            registration.Entries.Any(entry =>
+                string.Equals(entry.Operation, operation, StringComparison.Ordinal))))
+        {
+            throw new InvalidOperationException(
+                $"'{operation}' is declared off-path, and a request type already registers it. "
+                + "An operation has one writer: either the pipeline records it or the off-path "
+                + "caller does.");
+        }
+
         // Refused rather than shadowed. Off-path entries are reached BY SLUG — that is the
         // whole of their addressing, there being no request type — so a second declaration
         // means two modules disagree about the tier of one operation and the writer takes
@@ -190,6 +208,7 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
     {
         ArgumentNullException.ThrowIfNull(entityType);
         EnsureSlugShape(operation);
+        EnsureConcrete(operation, entityType);
 
         var module = Source().ModuleName;
 
@@ -216,6 +235,24 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
                 + "cannot be both.");
         }
 
+        if (existing is not null
+            && existing.Entries.Any(declared =>
+                string.Equals(declared.Operation, operation, StringComparison.Ordinal)))
+        {
+            // Appended, it would be a second intent and a second row for one act.
+            throw new InvalidOperationException(
+                $"{module} declared '{operation}' for {request.Name} twice. One request "
+                + "writes one row per audited operation.");
+        }
+
+        if (_offPath.Any(declared => string.Equals(declared.Operation, operation, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"{module} registered '{operation}' for {request.Name}, and it is already "
+                + "declared off-path. An operation has one writer: either the pipeline records it "
+                + "or the off-path caller does.");
+        }
+
         Claim(request);
 
         var entry = new AuditCatalogEntry(module, operation, operationType, operationClass, entityType);
@@ -232,6 +269,27 @@ internal sealed partial class AuditCatalogBuilder : IAuditCatalogBuilder
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// Refuses an entity type no capture can carry: abstract, an interface, or open generic.
+    /// </summary>
+    /// <remarks>
+    /// The interceptor records the concrete CLR type each tracked entry has, and the composer
+    /// selects captures by that name. A registration naming a base type would bind a
+    /// designation — <c>Designate</c> matches by assignability — and then find no capture of
+    /// its own: <c>entity_id</c> set and both snapshots empty, silently (the fifth review of
+    /// Packet 9). Refusing it here keeps the two matches the same.
+    /// </remarks>
+    private static void EnsureConcrete(string operation, Type entityType)
+    {
+        if (entityType.IsAbstract || entityType.IsInterface || entityType.ContainsGenericParameters)
+        {
+            throw new InvalidOperationException(
+                $"'{operation}' names {entityType.Name} as its entity type, which no capture can "
+                + "carry: the interceptor records the concrete type of each tracked entry. Name "
+                + "the concrete aggregate.");
+        }
     }
 
     /// <summary>

@@ -64,25 +64,32 @@ public interface IAuditStore
     /// Amendment 2 § 5</see>).
     /// </para>
     /// <para>
-    /// Reached by three shapes and only these: a short-circuit at pipeline step 1, 4 or
-    /// 5; a non-MediatR caller; and the reconcile step after a <c>RolledBack</c> or
-    /// <c>Indeterminate</c> outcome. A granted <c>read-sensitive</c> query is <b>not</b>
+    /// Reached by three shapes and only these: a short-circuit at pipeline step 4 or 5; a
+    /// non-MediatR caller; and the reconcile step after a <c>RolledBack</c> or
+    /// <c>Indeterminate</c> outcome. A refusal at step 1 is not among them: validation runs
+    /// outside the audit step, so nothing has been classified and no row is written. A granted <c>read-sensitive</c> query is <b>not</b>
     /// among them — it rides the in-transaction path, because
     /// <c>TransactionBehavior</c> has no request-kind gate.
     /// </para>
     /// <para>
-    /// <b>A failure is reported here, not by the caller.</b> Every exception this throws has
-    /// already been logged at <c>Critical</c>, counted on
+    /// <b>A failure of the write is reported here, not by the caller.</b> Every exception the
+    /// write throws has already been logged at <c>Critical</c>, counted on
     /// <c>learnstack_audit_standalone_write_failures_total</c> and marked on the <c>audit</c>
     /// health check — a database failure arriving as <see cref="AuditWriteFailedException"/>,
     /// anything else unchanged. A caller decides what the failure does to its response and
-    /// does not raise the same alert a second time.
+    /// does not raise the same alert a second time. The one exception is an
+    /// <see cref="ArgumentException"/>: a draft refused before any write — one carrying
+    /// <c>TenantId.PlatformSentinel</c>, which only <see cref="WritePlatformScopeAsync"/> may
+    /// carry — is a caller error, not an outage, so nothing here reports it and the caller
+    /// owes the alert.
     /// </para>
     /// </remarks>
     Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Writes one SHOULD/MAY-class row, best effort. A failure is logged here and dropped.
+    /// Writes one SHOULD/MAY-class row, best effort. A failure is logged here and dropped; a
+    /// draft refused before the write throws <see cref="ArgumentException"/>, as it does for
+    /// <see cref="WriteStandaloneAsync"/>.
     /// </summary>
     /// <remarks>
     /// Same shape as <see cref="WriteStandaloneAsync"/>, same two session variables, and

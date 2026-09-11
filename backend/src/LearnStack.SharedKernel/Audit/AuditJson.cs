@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Unicode;
 using LearnStack.SharedKernel.Domain;
 
 namespace LearnStack.SharedKernel.Audit;
@@ -54,6 +56,14 @@ public static class AuditJson
         // No indentation and no cycle handling: the values reaching here are scalars and
         // strings read off a ChangeTracker entry, never object graphs.
         WriteIndented = false,
+
+        // Letters as letters. The default encoder writes every non-ASCII character as a
+        // six-byte \uXXXX escape, and the cap below is measured on this text — so a
+        // display name in Turkish or Japanese reached it three to six times sooner than
+        // its value did and was elided, while jsonb stores the decoded character either
+        // way (the fifth review of Packet 9). UnicodeRanges.All still escapes what the
+        // default does beyond that: the HTML-sensitive characters and the controls.
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
     };
 
     /// <summary>The JSON literal <c>null</c>, which is not the same as an absent key.</summary>

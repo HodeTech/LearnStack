@@ -6,6 +6,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -230,7 +231,9 @@ public sealed class AuditLogBehaviorTests
     [InlineData("resource_scope_violation", AuditOutcome.Denied)]
     [InlineData("feature_disabled", AuditOutcome.Denied)]
     // A malformed request is not a refused one, and counting it as a denial would bury
-    // the probes the denied class exists to surface.
+    // the probes the denied class exists to surface. The validation_failed that reaches
+    // this step is a handler's — ADR-0043's payload gates return it; step 1's never does,
+    // because validation runs outside the audit step.
     [InlineData("validation_failed", AuditOutcome.Failed)]
     [InlineData("business_rule_violation", AuditOutcome.Failed)]
     public async Task A_refusal_is_recorded_with_the_outcome_its_status_implies(
@@ -812,6 +815,7 @@ public sealed class AuditLogBehaviorTests
         // it escape the finally. The 403 became a 500, the capture was never cleared, and
         // the flow still believed a frame was open.
         var capture = new AuditStateCapture();
+        var logger = new CapturingLogger();
         var store = new RecordingAuditStore
         {
             StandaloneThrows = new InvalidOperationException("the data source could not be built"),
@@ -820,7 +824,7 @@ public sealed class AuditLogBehaviorTests
             new FakeCatalog(
                 AuditPipelineHarness.Entry("tenancy.tenant.create"),
                 AuditPipelineHarness.Entry("tenancy.organization.create", OperationClass.Should)),
-            store, capture);
+            store, capture, logger: logger);
 
         var forbidden = new Error(new LocalizedMessage(LocalizedMessage.RequiredPrefix + "forbidden"));
 
@@ -834,6 +838,11 @@ public sealed class AuditLogBehaviorTests
             "one row's failure does not cost the next intent its attempt");
         capture.Intents.Should().BeEmpty("the outermost frame clears whatever the reconcile did");
 
+        // One alert per failure. The store reports a failed write itself (IAuditStore), so the
+        // reconcile adds a Warning and not a second Critical (the fifth review of Packet 9).
+        logger.Levels.Should().NotContain(LogLevel.Critical);
+        logger.Levels.Should().ContainSingle(level => level == LogLevel.Warning);
+
         await AssertTheNextRequestIsOutermostAsync(store);
     }
 
@@ -843,9 +852,11 @@ public sealed class AuditLogBehaviorTests
         // The composer's own refusal — two instances of the declared type, none designated —
         // was thrown OUTSIDE the reconcile's try, and took the same way out.
         var capture = new AuditStateCapture();
+        var logger = new CapturingLogger();
         var store = new RecordingAuditStore();
         var behavior = Behavior(
-            new FakeCatalog(AuditPipelineHarness.Entry(entityType: typeof(Subject))), store, capture);
+            new FakeCatalog(AuditPipelineHarness.Entry(entityType: typeof(Subject))), store, capture,
+            logger: logger);
 
         var forbidden = new Error(new LocalizedMessage(LocalizedMessage.RequiredPrefix + "forbidden"));
 
@@ -864,6 +875,9 @@ public sealed class AuditLogBehaviorTests
         result.Error!.Code.Should().Be("forbidden");
         store.Standalone.Should().BeEmpty("the row could not be composed, and nothing was guessed");
         capture.Intents.Should().BeEmpty();
+
+        // A programmer error nothing else reports, so this is its alert.
+        logger.Levels.Should().ContainSingle(level => level == LogLevel.Critical);
 
         await AssertTheNextRequestIsOutermostAsync(store);
     }
@@ -941,7 +955,8 @@ public sealed class AuditLogBehaviorTests
         IAuditCatalog catalog,
         RecordingAuditStore store,
         AuditStateCapture? capture = null,
-        IAuditConfigService? classifier = null) =>
+        IAuditConfigService? classifier = null,
+        ILogger<AuditLogBehavior<DummyCommand, Result<string>>>? logger = null) =>
         new(
             catalog,
             classifier ?? new FakeClassifier(),
@@ -950,5 +965,23 @@ public sealed class AuditLogBehaviorTests
             new HarnessTenantContext(),
             new HarnessClock(DateTimeOffset.UnixEpoch),
             new HarnessGuidFactory(),
-            NullLogger<AuditLogBehavior<DummyCommand, Result<string>>>.Instance);
+            logger ?? NullLogger<AuditLogBehavior<DummyCommand, Result<string>>>.Instance);
+
+    /// <summary>Every log line the behavior writes, by level.</summary>
+    private sealed class CapturingLogger : ILogger<AuditLogBehavior<DummyCommand, Result<string>>>
+    {
+        public List<LogLevel> Levels { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) => Levels.Add(logLevel);
+    }
 }

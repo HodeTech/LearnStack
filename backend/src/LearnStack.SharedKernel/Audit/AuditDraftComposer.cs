@@ -180,7 +180,7 @@ public static class AuditDraftComposer
         }
 
         var entries = fields.Select(field =>
-            "{\"path\":" + System.Text.Json.JsonSerializer.Serialize(field.Path)
+            "{\"path\":" + AuditJson.Quote(field.Path)
             + ",\"before\":" + (field.BeforeJson ?? AuditJson.Null)
             + ",\"after\":" + (field.AfterJson ?? AuditJson.Null) + "}");
 
@@ -233,26 +233,45 @@ public static class AuditDraftComposer
         }
 
         /// <remarks>
+        /// <para>
         /// Two DIFFERENT instances of one type under one undesignated intent are refused
         /// rather than merged: nothing in the captures says which one the operation is
         /// about, so <c>entity_id</c> would name one while <c>after_state</c> described the
         /// other. That row is self-contradictory and permanent. The handler that wrote both
         /// knows, and <see cref="IAuditSubject"/> is how it says (ADR-0044 Amendment 6 § 1).
+        /// </para>
+        /// <para>
+        /// A capture with no key cannot be told apart from another, so each counts as an
+        /// instance of its own — <c>Distinct</c> over the ids used to collapse two keyless
+        /// captures into one and merge them, the very thing this refuses.
+        /// </para>
+        /// <para>
+        /// <b>An <see cref="InvalidOperationException"/>, not
+        /// <see cref="AuditWriteFailedException"/>.</b> A handler that forgot to designate is
+        /// a programmer error — a 500, like an unclassified operation — and the store is not
+        /// down: <c>audit_unavailable</c> is a 503 that tells the caller to retry a request
+        /// that will fail the same way every time (the fifth review of Packet 9). The business
+        /// transaction still rolls back, because <c>TransactionBehavior</c> fails closed on any
+        /// exception before its commit.
+        /// </para>
         /// </remarks>
         private static string? SoleInstance(AuditIntent intent, List<CapturedEntityChange> ofType)
         {
             var identities = ofType
+                .Where(change => change.EntityId is not null)
                 .Select(change => change.EntityId)
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
 
-            return identities.Count switch
+            var instances = identities.Count + ofType.Count(change => change.EntityId is null);
+
+            return instances switch
             {
                 0 => null,
-                1 => identities[0],
-                _ => throw new AuditWriteFailedException(
+                1 => identities.SingleOrDefault(),
+                _ => throw new InvalidOperationException(
                     $"The intent for {intent.Operation} names {intent.EntityType!.Name} and the "
-                    + $"request captured {identities.Count} different instances of it without "
+                    + $"request captured {instances} different instances of it without "
                     + "designating one. An audit row is about one aggregate: composing these "
                     + "would put one instance's id beside another's state, on a table nothing "
                     + "can correct. The handler that writes both designates its subject through "

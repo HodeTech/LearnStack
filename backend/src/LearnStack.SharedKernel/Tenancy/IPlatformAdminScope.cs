@@ -58,7 +58,7 @@ public interface IPlatformAdminScope
     /// </summary>
     /// <param name="reason">
     /// Why this cross-tenant access is happening. Required, non-blank, and the value
-    /// Packet 9 will write durably — so it is a short operator-authored slug naming the
+    /// the entry row writes durably — so it is a short operator-authored slug naming the
     /// operation, never a caller-supplied string and never anything carrying personal
     /// data beyond the identifier the operation is already about.
     /// </param>

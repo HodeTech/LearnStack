@@ -102,8 +102,8 @@ public sealed class AuditEntry
     public string? ErrorKey { get; private set; }
 
     /// <summary>
-    /// Why a cross-tenant access happened, or a denial's cause. Operator-authored,
-    /// never caller-supplied.
+    /// Why a cross-tenant access happened. Operator-authored, never caller-supplied; a
+    /// refusal's cause is <see cref="ErrorKey"/>.
     /// </summary>
     public string? Reason { get; private set; }
 
