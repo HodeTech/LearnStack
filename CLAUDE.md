@@ -488,6 +488,11 @@ rules:
 - Write `audit_log`, `platform_entitlement_cache`, or `outbox_messages`
   directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`,
   `IOutbox`.
+- Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
+  `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
+  ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with
+  no before, after or changes and nothing fails;
+  `No_Set_Based_Write_Bypasses_The_Audit_Capture` enforces it.
 - Accept `learnstack-hub` realm tokens on tenant-facing endpoints, or
   `learnstack` realm tokens on `/api/internal/*`.
 - Reuse an ADR number.

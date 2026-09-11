@@ -227,6 +227,8 @@ backend treat business rejections as system failures.
 | `learnstack_cache_factory_duration_seconds` | histogram | `cache.name`, `outcome` |
 | `learnstack_audit_standalone_write_failures_total` | counter | `operation` |
 | `learnstack_audit_standalone_duplicates_total` | counter | `operation` |
+| `learnstack_entitlement_source_total` | counter | `source` |
+| `learnstack_entitlement_unresolved_total` | counter | — |
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
@@ -244,6 +246,17 @@ is an operation that succeeded with no record of it, which also takes the `audit
 check unhealthy and logs at `Critical`; a **duplicate** is the opposite signal, positive
 evidence that a business `COMMIT` landed whose outcome the process could not observe, so a
 rate that moves is about the database connection rather than about any one request.
+
+The two entitlement counters belong to the Hub-backed provider's read path
+([Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md))
+and land with `HubEntitlementProvider` in
+[Phase 02c](../roadmap/phase-02c-hub-foundation.md): `NullEntitlementProvider`, the one
+registered today, has no cache, durable row or Hub to report on. `source` is one of
+`cache`, `durable`, `hub` or `floor`. `learnstack_entitlement_unresolved_total` carries
+**no** label: the answer it counts — no cache, no durable row, no Hub — is a platform
+condition that reaches every cold tenant at once, so the tenant goes in the `Error` log
+line and the span, and a per-tenant label would add one series for every tenant an outage
+touched.
 
 ### Health checks
 

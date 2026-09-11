@@ -242,6 +242,15 @@ is precisely why the audit rows are not built here. `TransactionBehavior` compos
 once, after the last flush and before `COMMIT`, so the snapshots are complete regardless
 of how many times the handler saved.
 
+**It sees what the `ChangeTracker` holds, and nothing else**
+([ADR-0044 § 7](../decisions/0044-audit-write-path.md)). EF Core's set-based writes —
+`ExecuteUpdate`, `ExecuteDelete`, `ExecuteSql*` — change rows no entry describes, so an
+operation written that way commits a row with no `before_state`, no `after_state` and no
+`changes`, and nothing fails. Backend source uses none of them, and
+[`No_Set_Based_Write_Bypasses_The_Audit_Capture`](../standards/21-architecture-tests-catalogue.md#no_set_based_write_bypasses_the_audit_capture)
+keeps it that way. Hand-written SQL is the visible exception
+[Database Standards § Raw SQL](../standards/05-database.md#raw-sql) governs.
+
 ### Two gates run inside the capture
 
 Both run before anything reaches `IAuditStateCapture`

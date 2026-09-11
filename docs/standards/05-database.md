@@ -1409,6 +1409,17 @@ Allowed when:
 
 Forbidden: string interpolation with non-constant values.
 
+**A hand-written write is outside the audit capture**, which sees only what the
+`ChangeTracker` holds ([ADR-0044 § 7](../decisions/0044-audit-write-path.md)). An
+`INSERT`, `UPDATE` or `DELETE` on an `NpgsqlCommand` is therefore used only where the
+module's audit matrix says how that write is recorded or why it is not —
+`customization_generations`, bumped by one `ON CONFLICT … DO UPDATE` and deliberately
+unaudited, is the shipped case — and an audited entity is written through its aggregate
+and `SaveChanges`. EF Core's set-based writes — `ExecuteUpdate`, `ExecuteDelete`,
+`ExecuteSql*` — are not used at all: they read as ordinary EF, which makes them the
+likely accident, and they bypass the capture the same way
+([`No_Set_Based_Write_Bypasses_The_Audit_Capture`](21-architecture-tests-catalogue.md#no_set_based_write_bypasses_the_audit_capture)).
+
 ## Connection Management
 
 - Npgsql connection multiplexing where appropriate.

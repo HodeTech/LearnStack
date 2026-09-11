@@ -525,6 +525,9 @@ observes neither a rollback nor a `42501`.
   — every module that ships an aggregate root or a request type has one.
 - [`Modules_Do_Not_Write_AuditLog_Directly`](21-architecture-tests-catalogue.md#modules_do_not_write_auditlog_directly)
   — `IAuditStore` is the only sanctioned write path. Registered; lands in Packet 10.
+- [`No_Set_Based_Write_Bypasses_The_Audit_Capture`](21-architecture-tests-catalogue.md#no_set_based_write_bypasses_the_audit_capture)
+  — no backend source writes through `ExecuteUpdate`, `ExecuteDelete` or `ExecuteSql*`,
+  which leave the change tracker, and so the capture, without an entry.
 
 **`LearnStack.Tests.Integration` — Testcontainers against a real PostgreSQL:**
 

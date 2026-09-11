@@ -495,6 +495,10 @@ passes even when every policy is inert. See
     `LearnStack.Modules.Audit.*` names `audit_log` or `AuditEntry`; the
     `LearnStack.SharedKernel.Audit` ports are explicitly out of scope) — Registered,
     Packet 10.
+  - `No_Set_Based_Write_Bypasses_The_Audit_Capture` (no `ExecuteUpdate`,
+    `ExecuteDelete` or `ExecuteSql*` in backend source — the capture sees only the change
+    tracker, so the operation you are classifying must write through its aggregate and
+    `SaveChanges`) — Implemented (`AuditConventionTests`).
   - `Every_TenantOwned_Command_HasAuditCoverage` — Implemented: catalogue → matrix, class
     and type included. `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` runs
     matrix → catalogue with the `(planned)` anti-rot check, and

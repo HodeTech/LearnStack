@@ -93,15 +93,15 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Eighty-six test methods exist in
+Eighty-eight test methods exist in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 111 cases once the theories expand.
+Packet 6, Packet 7, Packet 8 and Packet 9 — 113 cases once the theories expand.
 Counted from
-`dotnet test --list-tests` at the close of Packet 9's third external review round, de-duplicated
+`dotnet test --list-tests` at the close of Packet 9's review rounds, de-duplicated
 by method name; the figures before it were Packet 9 step 3's and were not updated when the
-rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 88 and is wrong:
+rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 90 and is wrong:
 two of them are string literals inside `Every_Database_Test_Carries_The_Docker_Trait`,
 which greps the suite for those very attributes. The runner is the authority here, which
 is why this sentence now names the command rather than the packet.
@@ -187,6 +187,7 @@ would have accepted the insert. Both connect as `learnstack_app`.
 | `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix, with its two companions) | `AuditCoverageTests.cs` |
 | `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its companion) | `AuditCoverageTests.cs` |
 | `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
+| `No_Set_Based_Write_Bypasses_The_Audit_Capture` (with its companion) | `AuditConventionTests.cs` |
 | `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
 | `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
 | `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
@@ -1903,6 +1904,32 @@ which decides identity, multiplicity, capture and classification;
 - **Type:** xUnit + reflection + file scan. **Kind:** structural.
 - **Status:** **Implemented** (`AuditCoverageTests`, Packet 9's external-review round).
   Mutation-checked: a blind predicate fails the companion.
+- **Phase:** 02a (Packet 9).
+
+#### `No_Set_Based_Write_Bypasses_The_Audit_Capture`
+
+- **Asserts:** no source file under `backend/src` calls EF Core's set-based write APIs —
+  `ExecuteUpdate`, `ExecuteDelete` and `ExecuteSql*`, synchronous or async. A mention in a
+  comment does not count; the scan strips comments first.
+- **Why.** The audit capture sees what the `ChangeTracker` holds and nothing else
+  ([ADR-0044 § 7](../decisions/0044-audit-write-path.md)). A set-based write changes rows
+  no entry describes, so a MUST-class operation written that way commits a row with no
+  `before_state`, no `after_state` and no `changes` — and nothing fails, because the intent
+  still writes its row. The three read as ordinary EF, which is what makes them the likely
+  accident. Hand-written SQL on an `NpgsqlCommand` is outside this rule because it is
+  visibly SQL: [Database Standards § Raw SQL](05-database.md#raw-sql) governs it, and uses
+  it only where the module's matrix says how the write is recorded or why it is not —
+  `customization_generations` is the shipped case.
+- **Companion:** `The_Set_Based_Write_Sweep_Can_Actually_Fail` scans a probe directory
+  holding one call split across two lines and one file that names every API only in a
+  comment, and requires exactly the first.
+- **Source:** [ADR-0044 § 7](../decisions/0044-audit-write-path.md);
+  [ADR-0033](../decisions/0033-audit-durability-model.md);
+  [18-audit-coverage.md](18-audit-coverage.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9's review round). A live
+  negative — nothing in `backend/src` uses any of the three — and mutation-checked: an
+  `ExecuteDeleteAsync` planted in a module's persistence folder fails it.
 - **Phase:** 02a (Packet 9).
 
 #### `Modules_Do_Not_Write_AuditLog_Directly`

@@ -3036,10 +3036,10 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at close: 1945 tests green** — 1 contract, 111 architecture, 1359 unit,
-> 474 integration — after the third external review's round; 1941 after the second, 1935
-> after the first, 1867 before it. Counted from a run under `CI=true`, which makes warnings
-> errors.
+> **Measured at close: 1947 tests green** — 1 contract, 113 architecture, 1359 unit,
+> 474 integration — after the three external review rounds and the follow-ups closed with
+> them; 1935 after the first round, 1867 before it. Counted from a run under `CI=true`,
+> which makes warnings errors, on the SDK CI pins.
 
 ### The four decisions, and why the corpus did not settle them
 
@@ -3250,3 +3250,31 @@ reproduced before anything moved, and each is fixed here.
 The round's mutation pass removed one of its own additions before it shipped: a set of deleted
 entities meant to excuse a deleted member, which no case could kill, because the save that
 deletes a member always captures it still tracked.
+
+### Follow-ups closed in the same pull request (2026-09-11)
+
+Three things the review rounds named as outside the pull request's defects were closed in it
+rather than handed on, and one of them turned out larger than it was named.
+
+- **Dependency advisories.** Named as one — Microsoft.OpenApi 2.0.0 — it was three, all high
+  severity and all transitive: that package through `Microsoft.AspNetCore.OpenApi`,
+  System.Security.Cryptography.Xml 9.0.0 through EF Core Design's MSBuild, and SSH.NET
+  2023.0.0 through Testcontainers. None had been reported because `NuGetAuditMode` was
+  `direct`. The Microsoft set moves to its 10.0.12 servicing release, with EF Relational
+  referenced beside every Npgsql provider so the relational layer is the same release;
+  Testcontainers moves to 4.15.0, which pins a patched SSH.NET; the audit now covers the
+  whole graph, and CI's restore fails on a high advisory — measured by reverting one bump.
+  CI's SDK moves from 10.0.100 to 10.0.112, whose runtime carries the .NET advisories
+  10.0.0 did not. [Security Standards § Dependency Hygiene](../standards/11-security.md)
+  gives a high advisory seven days, which a build that never reports one cannot keep.
+- **Set-based writes.** EF Core's `ExecuteUpdate`, `ExecuteDelete` and `ExecuteSql*` write
+  rows the change tracker never sees, and so the audit capture never records. Nothing used
+  them; `No_Set_Based_Write_Bypasses_The_Audit_Capture` keeps it so, with a companion, and
+  [Database Standards § Raw SQL](../standards/05-database.md#raw-sql) states where a
+  hand-written write may still go.
+- **The unresolved-entitlement counter.** [Hybrid License Model](../architecture/26-hybrid-license-model.md)
+  labelled `learnstack_entitlement_unresolved_total` by tenant, for a condition that is a
+  platform outage rather than a tenant's, and neither entitlement counter was in
+  [Observability Standards § Metrics](../standards/10-observability.md#metrics). Both are
+  now, with `HubEntitlementProvider` in Phase 02c as their owner, and the unresolved one
+  carries no label — the tenant goes in the log line and the span.

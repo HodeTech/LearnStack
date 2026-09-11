@@ -380,7 +380,11 @@ Two consequences worth naming:
 
 - Cold-start-unresolved is **rare and loud**: it requires an empty L1, an empty L2, no
   durable row, and an unreachable Hub. It is alerted on
-  `learnstack_entitlement_unresolved_total{tenant_id}`, not silently absorbed.
+  `learnstack_entitlement_unresolved_total`, not silently absorbed — **unlabelled**, and
+  the tenant it reached is in the `Error` log line and the span, never a label. It is a
+  platform condition rather than a tenant one: the outage that causes it reaches every
+  cold tenant at once, and a label per tenant would add a series for each of them to a
+  counter whose only question is "has this happened".
 - The source of every answer is observable —
   `learnstack_entitlement_source_total{source}` over `cache | durable | hub | floor`. A
   rising `durable` share means the Hub is degraded; a non-zero `floor` share means
