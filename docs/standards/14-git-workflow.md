@@ -28,13 +28,21 @@ We follow a relaxed Conventional Commits style:
 |------|-----|
 | `feat` | New behavior |
 | `fix` | Bug fix |
-| `refactor` | Code change without behavior change |
 | `docs` | Documentation only |
-| `test` | Test only |
-| `chore` | Tooling, deps, scaffolding |
+| `style` | Formatting only — no change in behavior or meaning |
+| `refactor` | Code change without behavior change |
 | `perf` | Performance improvement |
-| `build` | Build system / CI |
+| `test` | Test only |
+| `build` | Build system, SDK and package versions |
+| `ci` | CI workflows and repository automation |
+| `chore` | Tooling and scaffolding that fits none of the above |
 | `revert` | Revert an earlier commit |
+
+The scope is optional: lowercase letters, digits, `.`, `,`, `/`, `-` and spaces, in
+parentheses, with a `!` after it for a breaking change. The `commit-msg` hook and CI's
+commit-hygiene step apply this exact grammar — one regular expression, written in both
+places — and `Commit_Subject_Grammar_Is_Stated_Once` fails the build when the two, or
+this table, disagree.
 
 Examples:
 - `feat(education): add CourseVersion publish flow`

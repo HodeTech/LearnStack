@@ -612,6 +612,23 @@ otherwise).
 - **Status:** **Implemented** — `RepositoryLayoutTests.cs`.
 - **Phase:** 01.
 
+#### `Commit_Subject_Grammar_Is_Stated_Once`
+
+- **Asserts:** the extended regular expression the `commit-msg` hook applies to a commit
+  subject and the one CI's commit-hygiene step applies are the same string; the types its
+  leading alternation admits are exactly the types
+  [Standards 14 § Commits](14-git-workflow.md#commits) tabulates; and the grammar admits
+  a set of well-formed subjects and refuses a set of malformed ones.
+- **Why it matters:** the three copies drifted with nothing comparing them — nine types
+  in the standard, eleven in the hook, ten in CI, and scope characters that disagreed —
+  so a subject could pass locally and fail the pull request, or the reverse, while both
+  files claimed to enforce exactly what the other did. The behavioural leg is what stops
+  two identical copies of a broken pattern passing the comparison.
+- **Source:** [14-git-workflow.md § Commits](14-git-workflow.md#commits).
+- **Type:** xUnit + file scan. **Kind:** structural.
+- **Status:** **Implemented** — `RepositoryLayoutTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
 #### `Generic_Primitives_Only_In_Renderer`
 
 - **Asserts:** the frontend `PRIMITIVE_KEYS` array and the backend's

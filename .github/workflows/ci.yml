@@ -369,7 +369,7 @@ jobs:
                   fail=1
               fi
               if ! printf '%s' "$subject" \
-                  | grep -qE '^(feat|fix|docs|test|chore|refactor|perf|build|ci|revert)(\([a-z0-9.,: -]+\))?!?: .+'; then
+                  | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9., /-]+\))?!?: .+'; then
                   echo "::error::subject is not Conventional Commits: ${subject}"
                   fail=1
               fi

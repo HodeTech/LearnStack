@@ -46,18 +46,11 @@ move fast and `git log --grep` stays useful.
 
 ### Step 1: Pick `type(scope): subject`
 
-Conventional Commits style. Allowed types:
-
-| Type | When |
-|------|------|
-| `feat` | New behavior the user can observe. |
-| `fix` | Bug fix. |
-| `refactor` | Internal restructure with no user-visible change. |
-| `perf` | Performance improvement. |
-| `test` | Adding or fixing tests only. |
-| `chore` | Build / CI / tooling. |
-| `docs` | Documentation-only change. |
-| `build` | Project / SDK / package version bumps. |
+Conventional Commits style. The allowed types, and the characters a scope may use, are
+the table in
+[Git Workflow § Commits](../../../docs/standards/14-git-workflow.md#commits) — the
+`commit-msg` hook and CI apply exactly that grammar, so a subject the table does not
+admit fails locally and again in CI.
 
 Scope:
 
