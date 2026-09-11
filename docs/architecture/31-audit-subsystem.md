@@ -1952,9 +1952,11 @@ happened to tenant X on date Y" pulls from both streams and joins by correlation
 Blocker-level rules, registered by
 [Phase 02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) in
 [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md), which is
-authoritative for each rule's canonical name, **assembly and kind**. Four of them are not
-architecture tests at all: they need a live PostgreSQL and run as `learnstack_app` under
+authoritative for each rule's canonical name, **assembly, kind and status**. Four of them
+are not architecture tests at all: they need a live PostgreSQL under
 `[Trait(RequiresDocker…)]`, because an architecture test cannot observe a transaction.
+Three connect as `learnstack_app`; the fourth, rule 11, connects as each role whose
+update it constrains.
 
 **Structural** — `LearnStack.Tests.Architecture`:
 
@@ -2004,8 +2006,8 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
 7. `Every_Module_Has_An_AuditCoverage_Matrix` — a module without a matrix cannot classify
    its operations, and under ADR-0033 classification is functional, not documentary.
 
-**Runtime** — `LearnStack.Tests.Integration/Database`, Testcontainers, connected as
-`learnstack_app` (`NOBYPASSRLS`):
+**Behavioural** — `LearnStack.Tests.Integration/Database`, Testcontainers, connected as
+`learnstack_app` (`NOBYPASSRLS`) except where rule 11 says otherwise:
 
 8. `MustClass_Audit_Writes_Share_The_Business_Transaction` — the binding test for
    [ADR-0033](../decisions/0033-audit-durability-model.md). A MUST-class command produces

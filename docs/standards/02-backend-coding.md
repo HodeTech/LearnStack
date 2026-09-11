@@ -219,7 +219,7 @@ Rules:
 
 - Aggregates are the only entry points for state changes.
 - Aggregate methods enforce invariants; setters are private.
-- Domain events raised from aggregate methods; collected by the unit-of-work and dispatched on commit.
+- Domain events raised from aggregate methods; collected by the unit of work and dispatched in-process inside the ambient transaction, before it commits ([ADR-0010](../decisions/0010-cross-module-communication.md) puts a domain event in the same transaction as the change that raised it). The collection and dispatch land in [Phase 02b](../roadmap/phase-02b-events-auth.md); until then an aggregate can raise and nothing hears it.
 - Avoid anemic models (data + getters/setters with logic outside).
 - Avoid primitive obsession; use value objects.
 - **Entity equality is identity equality, and it is defined once.** `Entity<TId>`

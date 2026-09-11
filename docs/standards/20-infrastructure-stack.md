@@ -62,7 +62,7 @@ named phase when a written trigger fires.
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` (the same registration) | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
 | Custom-domain TLS automation | `IHostToTenantResolver` + `ITlsCertificateProvider` | `platform_host_to_tenant` rows managed by configuration | [Phase 11](../roadmap/phase-11-production-hardening.md) | A tenant needs its own domain in production |
 | `audit_log` partitioning + retention | schema-internal | Single unpartitioned table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
-| Durable idempotency store | `IIdempotencyStore` | `InMemoryIdempotencyStore` | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | The first endpoint carrying `[Idempotent]`, **or** more than one application instance runs concurrently |
+| Durable idempotency store | `IIdempotencyStore` | `InMemoryIdempotencyStore` | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) shipped the table; `PostgresIdempotencyStore` lands with whichever phase fires the trigger first — the first `[Idempotent]` endpoint's, or [Phase 11](../roadmap/phase-11-production-hardening.md)'s multi-instance deployment ([ADR-0037 Amendment 1](../decisions/0037-idempotency-key-contract.md)) | The first endpoint carrying `[Idempotent]`, **or** more than one application instance runs concurrently |
 | Meilisearch | `ITenantSearch` | PostgreSQL full-text search | [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | Search quality or scale exceeds PostgreSQL FTS |
 | LiveKit | `ILiveClassProvider` | none — scheduled, not gated; see the exception below | [Phase 08c](../roadmap/phase-08c-classroom.md) | Live classes become a product requirement |
 | Managed video transcoding | `IVideoTranscoder` | ffmpeg-backed worker ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) | [Phase 11](../roadmap/phase-11-production-hardening.md) | In-house transcode backlog or per-minute cost exceeds the managed alternative |
@@ -409,13 +409,14 @@ host lookup was added to the Hub client without being recorded at all.
 1. **The Hub stores no tenant content.** Courses, lessons, learners, enrollments,
    classroom sessions, media and content entries live exclusively in LearnStack. The Hub
    holds tenant *metadata* — plan, subscription, licence, custom domain, compliance caps,
-   aggregated usage. Enforced by `Hub_NeverStores_TenantData` (a Hub-schema scan, owned
-   by the Hub repository).
+   aggregated usage. Held by `Hub_NeverStores_TenantData`, a Hub-schema scan owned and
+   run by the Hub repository from [Phase 02c](../roadmap/phase-02c-hub-foundation.md).
 2. **Every LearnStack↔Hub crossing goes through a named adapter** —
    `IEntitlementProvider`, `IUsageReporter`, `IHubTenantSync`. No other type in the
-   codebase may hold a Hub client. Enforced by
-   `Hub_Client_Referenced_Only_By_Named_Adapters` and
-   `LearnStack_Modules_DoNotReference_Hub`.
+   codebase may hold a Hub client. `LearnStack_Modules_DoNotReference_Hub` holds the
+   modules to it from Phase 02a Packet 10, and
+   `Hub_Client_Referenced_Only_By_Named_Adapters` the rest of the codebase from
+   [Phase 02c](../roadmap/phase-02c-hub-foundation.md), which ships the first Hub client.
 
 Adding an endpoint still requires an ADR — not because the count is sacred, but because
 the surface is a cross-repository contract and both repositories have to agree on it.

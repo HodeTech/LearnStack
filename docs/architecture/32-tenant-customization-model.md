@@ -71,7 +71,7 @@ and `frontend/apps/web/src/lib/customization/primitives.ts` carries exactly thes
 An earlier version of this table listed `badge`, `divider` and `spacer` as well and
 spelled the last key `embed_html` — three primitives the ADR does not grant and a key no
 tenant row could ever match. `Generic_Primitives_Only_In_Renderer`
-([Packet 10](../roadmap/phase-02a-kernel-tenancy.md)) freezes one set; it cannot freeze
+([Packet 8](../roadmap/phase-02a-kernel-tenancy.md)) freezes one set; it cannot freeze
 two.
 
 These map 1:1 to JSON Schema `type` + `format` combinations:
@@ -715,10 +715,11 @@ arrives with the aggregate it edits, per [§ 12](#12-phasing).
 
 Architecture tests enforce:
 
-1. **No domain-specific names in LearnStack modules.** `Cefr`, `Asana`, `CodeChallenge`,
-   `English*`, `Yoga*`, `Coding*` — none appear in any LearnStack module type, namespace,
-   file, renderer key, or feature key. `Core_Modules_HaveNo_DomainSpecific_Names`
-   enforces it from
+1. **No domain-specific names in LearnStack modules.** No type, namespace, file,
+   renderer key or feature key the platform ships names a domain. The forbidden terms,
+   and every subject they are checked against, are
+   [`Core_Modules_HaveNo_DomainSpecific_Names`](../standards/21-architecture-tests-catalogue.md#core_modules_haveno_domainspecific_names)'s
+   entry, which enforces it from
    [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md); it is the mechanical
    guarantee behind the platform's entire premise, and the rename in
    [§ 3](#3-worked-example-three-tenants-same-modules) exists because the old names would

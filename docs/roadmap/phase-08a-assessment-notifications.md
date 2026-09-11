@@ -92,7 +92,7 @@ test as:
 - A `TenantScoringRule` row that weights grammar / vocabulary / listening / speaking
   sections and emits a CEFR level recommendation.
 - A `TenantLevelTaxonomy` row declaring CEFR (A1, A2, B1, B2, C1, C2).
-- A `TenantContentType` for `SpeakingPrompt`, `VocabularyCard`, `GrammarTopic` question
+- A `TenantContentType` for `speaking-prompt`, `vocabulary-card`, `grammar-topic` question
   content.
 
 The **yoga tenant** seeded in [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) ships the

@@ -397,10 +397,11 @@ describes.
   test data is new. It breaks the tenant whose pages are three months old. The save-time
   diff exists precisely because the failure is invisible to the person making it.
 - **Re-introducing per-domain block keys into code.** `english.*` and `yoga.*`
-  identifiers are forbidden by ADR-0018 and caught by
-  `Core_Modules_HaveNo_DomainSpecific_Names` from
-  [Phase 02a Packet 10](phase-02a-kernel-tenancy.md). Tenant data expresses the
-  per-domain shape.
+  identifiers are forbidden by ADR-0018.
+  [`Core_Modules_HaveNo_DomainSpecific_Names`](../standards/21-architecture-tests-catalogue.md#core_modules_haveno_domainspecific_names)
+  holds the names the platform ships from Phase 02a Packet 10, renderer keys among them,
+  and its entry lists every subject; this phase adds the block registry to that list.
+  Tenant data expresses the per-domain shape.
 - **The unified content-type decision half-landing.** Deleting `ContentType` from the
   domain model is easy; the risk is a Content-module class quietly re-creating it
   because reading Customization through an application contract is slightly more work

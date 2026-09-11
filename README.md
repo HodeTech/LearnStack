@@ -124,11 +124,12 @@ make seed      # stack up + migrate, then write the two demo tenants
   [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)). The canonical SQL
   lives in exactly one file:
   [Database Standards](docs/standards/05-database.md).
-- **Foundation ports:** `IEventBus`, `ICacheService`, `ISecretProvider`,
-  `IHostToTenantResolver`, `IEntitlementProvider`, `IFeatureFlags` and `IAuditStore` in
-  `LearnStack.SharedKernel`, each with a working default implementation —
-  `NullEntitlementProvider` for entitlements, until the Hub-backed provider's trigger
-  fires. Vendor adapters — Dapr
+- **Ports:** the three foundation ports — `IEventBus`, `ICacheService`,
+  `ISecretProvider` — each with a working default, plus `IHostToTenantResolver`,
+  `IEntitlementProvider`, `IFeatureFlags` and `IAuditStore`, all in
+  `LearnStack.SharedKernel`. `IEntitlementProvider`'s is `NullEntitlementProvider` until
+  [Phase 02c](docs/roadmap/phase-02c-hub-foundation.md)'s Hub-backed provider, whose
+  trigger is a tenant that must be billed or plan-gated. Vendor adapters — Dapr
   ([ADR-0038](docs/decisions/0038-cross-cutting-port-and-event-contracts.md)), Kafka, Valkey
   ([ADR-0030](docs/decisions/0030-redis-compatible-store-valkey.md)), Vault, APISIX
   ([ADR-0015](docs/decisions/0015-api-gateway-apisix.md)) — are **demand-gated**: each

@@ -102,14 +102,24 @@ table itself ships in Packet 6. The consumer side lands here too.
 - **A worked sample flow** — a synthetic `PlatformPingedV1` published by one module and
   consumed idempotently by another — so the path is exercised before a real consumer
   depends on it.
-- **Domain events collected and dispatched.** `Entity<TId>` has raised and held
-  `IDomainEvent`s since [Phase 02a Packet 2](phase-02a-kernel-tenancy.md), and nothing
-  collects them. The owning unit-of-work frame gathers them from the tracked aggregates
-  and publishes them in-process through MediatR **inside** the ambient transaction,
-  before `COMMIT` — [ADR-0010](../decisions/0010-cross-module-communication.md) puts a
-  domain event in the same transaction as the change that raised it, so a handler's
-  write, and an outbox row it enqueues, commit with that change or not at all. It lands
-  here, beside the outbox, because the handler that turns a domain event into an
+- **Domain events collected and dispatched.** `Entity<TId>` has carried the
+  raise-and-clear list since [Phase 02a Packet 2](phase-02a-kernel-tenancy.md); no
+  aggregate raises an event yet, and nothing collects them. The owning unit-of-work frame
+  gathers them from the tracked aggregates and publishes them in-process through MediatR
+  **inside** the ambient transaction — [ADR-0010](../decisions/0010-cross-module-communication.md)
+  puts a domain event in the same transaction as the change that raised it. Two limits
+  hold from the first line:
+  - A handler reacts within its own module and does not write a second aggregate root:
+    [Architecture Standards § Aggregate Ownership](../standards/01-architecture-standards.md)
+    still holds, and `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` counts
+    notification handlers. What it adds to the transaction is an outbox row, or state the
+    raising aggregate owns.
+  - Dispatch runs before the MUST-class audit flush that
+    [ADR-0033](../decisions/0033-audit-durability-model.md) puts immediately before
+    `COMMIT`, or a handler's write escapes the audit capture. That ordering is recorded
+    as an ADR-0040 / ADR-0044 amendment when it lands.
+
+  It lands here, beside the outbox, because the handler that turns a domain event into an
   integration event is the first consumer that needs it.
 
 #### Correction: the dispatcher's claim is released before the work is done

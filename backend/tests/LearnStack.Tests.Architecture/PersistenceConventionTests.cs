@@ -734,7 +734,12 @@ public sealed class PersistenceConventionTests
             "postgres://learnstack_app:hunter2@localhost:5432/learnstack"); // leakwatch:ignore
 
         exitCode.Should().NotBe(0, "{0}", output);
+
+        // The whole userinfo, not only its password half: the user is the role this
+        // recipe exists to keep out of a log, and an entry that says "without echoing its
+        // userinfo" is a claim about both.
         output.Should().NotContain("hunter2");
+        output.Should().NotContain("learnstack_app", "the userinfo is redacted whole");
         output.Should().Contain("key/value", "the message names the form that would work");
     }
 

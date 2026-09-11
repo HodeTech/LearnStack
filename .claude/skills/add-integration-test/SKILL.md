@@ -69,7 +69,7 @@ architecture test) plus any other invariant the change touches. See
 > what almost every test wants: **every** migration chain applied — through
 > `MigrationChains.ApplyAllAsync`, never a list a fixture keeps itself — and every
 > table seeded for two tenants, with a second organization under tenant A. There
-> are three chains and fourteen tables as of Packet 8; a fixture that names them is
+> are four chains and seventeen tables as of Packet 9; a fixture that names them is
 > a fixture that goes stale, which is the defect below. Share it with `[Collection(SharedSchema.Name)]` rather than
 > `IClassFixture<>`, so one container serves the whole schema suite.
 >
@@ -173,11 +173,11 @@ public async Task Unsetting_tenant_context_returns_zero_rows_through_RLS()
 }
 ```
 
-Nothing throws `TenantContextMissingException` today — the type itself shipped in
-Packet 3, in `LearnStack.SharedKernel/Errors/`. The `DbCommandInterceptor` that
-throws it is described in Standards 05 and 11 and lands in **Packet 7**, which owns
-it. Until it does, the fail-closed behaviour is the empty result, which is what to
-assert. From Packet 7 the same read **through a module `DbContext`** is a loud
+A raw connection with no announcement fails closed as the empty result, which is what
+to assert. `TenantContextMissingException` — the type shipped in Packet 3, in
+`LearnStack.SharedKernel/Errors/` — is thrown from Packet 7 on by the
+`TenantContextGuardInterceptor` Standards 05 and 11 describe, and since Packet 9 by
+`FeatureFlags` when asked with no tenant. The same read **through a module `DbContext`** is a loud
 `TenantContextMissingException` — the interceptor is an EF `DbCommandInterceptor`
 keyed on the marker a sanctioned setter stamps, so it never sees a raw
 `NpgsqlCommand`. The case above opens its own connection from `PostgresFixture` and
@@ -212,7 +212,8 @@ and neither write does. Without that case both `AS RESTRICTIVE` guards can be
 deleted with the suite green — measured, in Packet 6. Set the variable in the test
 itself; nothing sets it at runtime, because the flag derives from the actor's role
 and roles arrive in
-[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md). See
+[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md), after Phase 02b's
+authenticated principal. See
 `TenancySchemaTests.TheTenantScopeHatchWidensReadsAndNeitherWrite`.
 
 The Packet 7 half of these cases goes through the **request**, and it needs no

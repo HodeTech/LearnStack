@@ -227,11 +227,15 @@ here:
   with a course and a handful of lessons each. One of the two tenants has **two** enabled
   locales with genuinely different slugs per locale, so the schema is exercised rather
   than merely declared; the other has one.
-- Each tenant's **own** customization data and branding — the table in § Genericity
-  proof — authored through the Customization module's commands, as Phase 02a's seed is.
-  Phase 02a seeds both tenants with the same built-in `card` content type and `plain`
-  taxonomy, owned per tenant: that proves the rows are isolated, not that they differ,
-  and making them differ is this phase's.
+- Each tenant's **own** customization data — the table in § Genericity proof — authored
+  through the Customization module's commands, as Phase 02a's seed is; and its own
+  branding tokens in `tenant_settings`, written through a Tenancy `tenancy.setting.write`
+  command — MUST-class and `(planned)` in [the Tenancy audit matrix](../modules/tenancy/audit.md)
+  — so the seed stays on the request path. The surface a tenant admin writes them through
+  is [Phase 06](phase-06-renderer-admin-studio.md)'s. Phase 02a seeds both tenants with
+  the same built-in `card` content type and `plain` taxonomy, owned per tenant: that
+  proves the rows are isolated, not that they differ, and making them differ is this
+  phase's.
 - A demo script (`make demo` or equivalent) that boots the stack, seeds, and prints the
   two URLs.
 - Frontend tests covering host-to-tenant resolution and `(public)` route rendering —
@@ -299,7 +303,7 @@ here:
   block or content-type resolution path, where a missing generic primitive is easiest to
   paper over with a conditional. Any such branch is a defect in the customization model
   and should be fixed there.
-- **Shortcuts around the pipeline.** Two read endpoints are simple enough to write as
+- **Shortcuts around the pipeline.** Three read endpoints are simple enough to write as
   direct queries. Doing so skips the tenant-context behavior and the RLS session
   variables — the exact machinery this phase exists to exercise.
   `Handlers_Return_Result` catches the shape; reviewers catch the intent.

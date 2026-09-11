@@ -387,7 +387,7 @@ migrations run as `learnstack_migration`, which owns the table. Integration test
 this entity must connect as `learnstack_app` — a test that connects as the owner passes
 against an inert policy and proves nothing.
 
-### Step 4: Architecture test (implemented for Tenancy; Packet 10 closes it)
+### Step 4: Architecture test (implemented for every module with a schema)
 
 `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
 `Every_OrgScoped_Entity_HasOrgIdAndFilter` are **implemented** as of Phase 02a

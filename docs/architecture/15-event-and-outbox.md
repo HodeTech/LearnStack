@@ -27,6 +27,7 @@ not land together.
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Ships even though nothing dispatches from it yet — the schema and its ownership are a one-way door |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `OutboxProcessor`, `IInboxGuard`, the claim protocol, the first real integration event | [Phase 02b](../roadmap/phase-02b-events-auth.md) | The durable dispatcher |
+| Domain events collected and dispatched in-process, inside the ambient transaction | [Phase 02b](../roadmap/phase-02b-events-auth.md) | `Entity<TId>` has carried the raise-and-clear list since Phase 02a Packet 2; nothing collects it yet |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
 **`InProcessEventBus` is a first-class transport, not a stub.** It uses the same

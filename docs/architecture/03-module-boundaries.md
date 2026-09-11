@@ -236,14 +236,17 @@ Owns external provider credentials, webhooks, API keys, LTI/xAPI readiness, inte
 | Allowed | Forbidden |
 |---------|-----------|
 | Reference another module's **public contract** (interfaces in `Application.Contracts`). | Reference another module's EF entities or DbContext. |
-| Subscribe to another module's **integration event** (via the outbox → Dapr pub/sub). | Cross-module EF navigation properties. |
+| Subscribe to another module's **integration event** — delivered from the outbox through `IEventBus` (`InProcessEventBus` today, Dapr pub/sub on its trigger). | Cross-module EF navigation properties. |
 | Read another module's **public read model** (projection table). | Joining across module-owned tables in SQL. |
-| Use the **shared kernel** (ids, audit fields, errors, pagination, base types, `IEventBus`, `ICacheService`, `ISecretProvider`, `IEntitlementProvider`). | Importing another module's `Domain` namespace. |
+| Use the **shared kernel** (ids, audit fields, errors, pagination, base types, `ICacheService`, `ISecretProvider`, `IFeatureFlags`). | Importing another module's `Domain` namespace. |
+| Publish an integration event by enqueueing it in the **outbox** ([Phase 02b](../roadmap/phase-02b-events-auth.md) ships `IOutbox`). | Holding `IEventBus`: a module that publishes directly gets a synchronous cross-module call with no durability (`Modules_Do_Not_Inject_IEventBus_Directly`). |
 | Provide an **adapter implementation** at the composition root. | Domain-specific names (`CEFR`, `Asana`, `Kyu`, …) anywhere in a core module — those belong to tenant customization data, not code. |
-| Read a **Hub-mirrored projection** (`platform_entitlement_cache`, `platform_host_to_tenant`) for read-only entitlement / host resolution. | Direct HTTPS calls to Hub from anywhere except the `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync` adapter implementations; resolving a host by calling the Hub at all — `IHostToTenantResolver` reads `platform_host_to_tenant` and nothing else ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). |
+| Ask **`IFeatureFlags`** for an entitlement and **`IHostToTenantResolver`** for a host — the two ports over the Hub-mirrored projections. | Reading `platform_entitlement_cache` or `platform_host_to_tenant` directly: the entitlement provider and the host resolver are their only readers — not `IFeatureFlags`, and not the Tenancy module that maps both tables (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). Direct HTTPS calls to Hub from anywhere except the `IEntitlementProvider` / `IUsageReporter` / `IHubTenantSync` adapter implementations; resolving a host by calling the Hub at all — `IHostToTenantResolver` reads `platform_host_to_tenant` and nothing else ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)). |
 | Reference the `LearnStack.Modules.Audit` module via integration events (Audit subscribes to events from other modules). | Writing to `audit_log` directly from outside the Audit infrastructure pipeline. |
 
-Architecture tests enforce these rules — see [Testing Standards](../standards/06-testing.md).
+Architecture tests enforce these rules — each is a named rule in
+[the architecture-test catalogue](../standards/21-architecture-tests-catalogue.md), which
+says whether it runs yet.
 
 ## Cross-module Contracts
 

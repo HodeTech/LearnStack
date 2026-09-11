@@ -156,8 +156,9 @@ match the change:
 
 - Backend changes → `dotnet build`, `LearnStack.Tests.Architecture`,
   `LearnStack.Tests.Unit`, `LearnStack.Tests.Integration` (Testcontainers).
-- Frontend changes → `pnpm lint`, `pnpm test`, `pnpm test:a11y`,
-  Lighthouse on representative routes if the public surface changed.
+- Frontend changes → `pnpm lint`, `pnpm typecheck`, `pnpm test`, and Lighthouse on
+  representative routes if the public surface changed. There is no `pnpm test:a11y` yet
+  — the axe suite arrives in Phase 06 ([run-tests-locally](../run-tests-locally/SKILL.md)).
 - Documentation-only → broken-link sweep + `docs/analysis/` residual scan
   (see Step 7's link audit).
 

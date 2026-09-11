@@ -193,6 +193,7 @@ tenant eventually carries belongs to a phase that has not written its schema yet
 | Keycloak OIDC wiring and the realm's `tenant_id` claim mapper | [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) |
 | `TenantContentType`, `TenantLevelTaxonomy` | **Shipped** — [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). `SeedRunner` writes the built-in pair through `RegisterTenantContentTypeCommand` / `PublishTenantContentTypeCommand` and their taxonomy siblings, so a seeded tenant already has something to render |
 | `Course`, `Lesson` and their translation satellites | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
+| Each tenant's **own** content type, level taxonomy and branding tokens — the seed that makes the two tenants differ, not only the built-in pair they share | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), with the `tenancy.setting.write` command the branding tokens need |
 | `TenantCustomFieldDef` | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
 | `TenantPageBlock` | [Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md) |
 | `TenantLessonItemType`, `TenantScoringRule`, `TenantCompletionRule` | [Phase 05](../../../docs/roadmap/phase-05-education-learning-content.md) |

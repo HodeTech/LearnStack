@@ -57,24 +57,29 @@ In `<Module>.Application.Contracts/<Aggregate>/<Verb><Aggregate>Command.cs`:
 
 ```csharp
 public sealed record CreateEnrollmentCommand(
-    UserId LearnerId,
-    CourseVersionId CourseVersionId,
-    CohortId? CohortId,
-    EnrollmentSource Source)
+    UserId LearnerId,        // SharedKernel id: typed everywhere
+    Guid CourseVersionId,    // module-local id: crosses the contract as Guid
+    Guid? CohortId,
+    EnrollmentSource Source) // declared in this Contracts assembly
     : IRequest<Result<EnrollmentDto>>;
 ```
 
 Rules:
 
 - Records, not classes.
-- Strongly-typed ids; no raw `Guid` in the command surface.
+- A `SharedKernel` id — `TenantId`, `OrganizationId`, `UserId` — stays typed. A
+  **module-local** id crosses the contract as `Guid`, and the handler builds the typed id
+  one layer in ([ADR-0023 Amendment 8](../../../docs/decisions/0023-strongly-typed-id-source-generator.md)):
+  naming `CourseVersionId` here would put the module's `Domain` into every sender's IL,
+  and `ModuleContracts_DoNotDependOn_AnyModuleDomain` fails the build. Everything the
+  record names lives in `Application.Contracts` or `SharedKernel`.
 - `: IRequest<Result<T>>` for both writes and reads — MediatR's own marker.
   There is no `ICommand<T>` / `IQuery<T>` layer in LearnStack: nothing declares one,
   and [Standards 02 § MediatR Use Cases](../../../docs/standards/02-backend-coding.md)
   shows `IRequest` / `IRequestHandler` directly. Name the type for the intent instead
   (`…Command` / `…Query`).
-- Live in `Application.Contracts` so other modules can subscribe to the typed contract
-  (rare; usually they consume integration events instead).
+- Live in `Application.Contracts`, the module's cross-module surface — another module
+  sends one through `ISender` (rare; usually it consumes an integration event instead).
 
 ### Step 2: FluentValidation validator
 
@@ -337,21 +342,21 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
 - **Dispatching a nested `ISender` request and expecting it to audit its own boundary.**
   A nested frame joins the ambient unit of work; only the owning frame flushes intents
   and reports the commit outcome ([ADR-0044 § 4](../../../docs/decisions/0044-audit-write-path.md)).
-- **Two transactions for write + outbox.** The outbox row must be in the **same**
-  `SaveChangesAsync` as the aggregate. Otherwise the system can publish without
-  committing (or commit without publishing).
+- **Two transactions for write + outbox.** The outbox row must be written on the
+  **same transaction** as the aggregate change — the ambient one `IUnitOfWork` owns
+  ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)), not a shared
+  `SaveChangesAsync`, a formulation [ADR-0033](../../../docs/decisions/0033-audit-durability-model.md)
+  withdrew. Otherwise the system can publish without committing (or commit without
+  publishing).
 - **Trusting `TenantId` from the request body.** Always read from
   `ITenantContext`. The API edge sets it from the JWT + host; body input is not
   authoritative.
 - **Missing permission registration.** The endpoint compiles but every request is
   rejected at runtime because the policy is unknown.
-- **Using raw `Guid` for an id the command's own module owns.** Inside a module the
-  typed id is the rule. A command that is a cross-module contract is the one exception,
-  and it runs the other way: a **module-local** id crosses it as `Guid`, because naming
-  the typed id would put the owning module's `Domain` into every sender's IL
-  ([ADR-0023 Amendment 8](../../../docs/decisions/0023-strongly-typed-id-source-generator.md)),
-  and `ModuleContracts_DoNotDependOn_AnyModuleDomain` holds the direction. A
-  `SharedKernel` id — `TenantId`, `OrganizationId`, `UserId` — stays typed everywhere.
+- **Typing a module-local id in a contract.** Carry it as `Guid` and build the typed id
+  in the handler (Step 1); a `SharedKernel` id stays typed. Inside the module — the
+  aggregate, its ports, its stores — the typed id is the rule, and a raw `Guid` there is
+  the mistake.
 - **Logging `ILogger.LogError(ex, ...)` then rethrowing.** The L1
   `IExceptionHandler` already logs + records the OTel span error + captures
   to `IErrorTrackingProvider` per

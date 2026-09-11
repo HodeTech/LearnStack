@@ -225,7 +225,8 @@ for the full strategy. Standards-side:
   ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
   [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
-  payload; jobs without it fail at registration.
+  payload. From [Phase 02b](../roadmap/phase-02b-events-auth.md), which ships Hangfire, a
+  job enqueued without it fails at enqueue time (`Hangfire_Job_Payloads_Include_TenantId`).
 - The `app.tenant_id` and `app.organization_id` session variables are set with
   `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
   which is the single authority for that placement.

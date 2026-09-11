@@ -190,10 +190,12 @@ public abstract record JobParams
 ```
 
 Workers restore tenant + org context (`accessor.Current = ...`) before reading or
-writing tenant-owned data. `LearnStackJob<TParams>` base class enforces this
-(Nexora analogue: `Nexora/docs/architecture/multi-tenancy.md` and
-`Nexora/docs/decisions/0012-tenant-management.md`; LearnStack will implement
-equivalent `LearnStackJob<TParams>` in Phase 02).
+writing tenant-owned data. `LearnStackJob<TParams>`, the base class
+[Phase 02b](../roadmap/phase-02b-events-auth.md) ships with the tenant-aware
+`JobActivator`, is where that write happens, and
+`LearnStackJob_RunAsync_SetsTenantBeforeExecute` holds it there (Nexora analogue:
+`Nexora/docs/architecture/multi-tenancy.md` and
+`Nexora/docs/decisions/0012-tenant-management.md`).
 
 `PlatformJob<TParams>` (cross-tenant background work) iterates all active tenants:
 
@@ -224,11 +226,12 @@ public abstract class PlatformJob<TParams> : LearnStackJob<TParams>
 }
 ```
 
-## Architecture tests (Phase 02 blocker)
+## Architecture tests
 
 Canonical rule names **and their assertions** live in the
-[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md); this
-table repeats the isolation-facing half of each.
+[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md), with each
+one's owning phase and whether it runs yet; this table repeats the isolation-facing half
+of each.
 
 | Test | Asserts |
 |------|---------|

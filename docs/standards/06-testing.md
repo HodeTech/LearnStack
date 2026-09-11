@@ -37,8 +37,8 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 |------|---------|------|
 | Unit | `LearnStack.Tests.Unit` | xUnit, FluentAssertions |
 | Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 6, Testcontainers marked `[Trait("Requires","Docker")]` — CI runs the two halves in separate jobs by that trait |
-| Architecture | `LearnStack.Tests.Architecture` | NetArchTest / ArchUnitNET |
-| API contract | `LearnStack.Tests.Contract` | OpenAPI snapshot, Pact-style consumer tests |
+| Architecture | `LearnStack.Tests.Architecture` | xUnit with NetArchTest (Mono.Cecil), reflection and source scans |
+| API contract | `LearnStack.Tests.Contract` | The published OpenAPI document; the snapshot-diff gate activates in Phase 02d, per § API Contract Tests |
 | End-to-end | none yet | Playwright, per § End-to-End Tests below. No project exists; the owning phase is named there |
 
 ### Unit Tests
@@ -102,23 +102,22 @@ passes even when every policy is inert, and therefore proves nothing.
 
 ### Architecture Tests
 
-Non-skippable. Enforced on every PR.
-
-| Rule | Failure mode |
-|------|--------------|
-| Module dependency direction | Domain references infrastructure → fail |
-| No cross-module Domain imports | Module B → Module A.Domain → fail |
-| Every `[TenantOwned]` has a query filter | Missing filter → fail |
-| Every tenant-owned table has an RLS policy | Migration scan fails → fail |
-| No `IgnoreQueryFilters()` outside platform scope | Analyzer → fail |
-| Provider SDK types not in Domain/Application | Reflection → fail |
-| Hangfire job payloads carry `TenantId` | Reflection → fail |
+Non-skippable: no architecture test carries `Skip`, and the suite runs in the required
+`backend` job on every PR. The rules — canonical names, what each asserts, and whether it
+runs yet — are [the architecture-test catalogue](21-architecture-tests-catalogue.md). This
+section keeps no second list: the table that stood here named checks, such as a Hangfire
+payload scan and a provider-SDK reflection rule, that are registered for later phases
+and were read as running.
 
 ### API Contract Tests
 
 - Validate every endpoint against the published OpenAPI.
-- OpenAPI snapshot in the repo; CI fails on drift.
 - Breaking changes require a version bump.
+- **What runs today:** `LearnStack.Tests.Contract` asserts the document is served, and
+  nothing more — there is no business endpoint to hold to it yet. The OpenAPI
+  breaking-change check in CI activates with the first one, in
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), which is also where a committed
+  snapshot first has something to pin.
 
 ### End-to-End Tests
 
@@ -186,7 +185,9 @@ Rules:
 - Builders / factories for entity construction.
 - No global mutable fixtures.
 - Seed only what a test needs.
-- Factories live in `LearnStack.Tests.TestKit`.
+- Factories live beside the suite that uses them — `SchemaFixture` and the seeder's
+  composition for the integration suite. There is no shared test-kit project; one earns
+  its place when two suites need the same builder.
 
 ## Coverage Targets
 
@@ -234,17 +235,20 @@ Real LiveKit is **not** required in CI; a fake provider satisfies the contract.
 
 ## CI Pipeline
 
-1. Restore + build.
-2. Static analysis (Roslyn analyzers, ESLint, TypeScript).
-3. Unit tests.
-4. Architecture tests.
-5. Integration tests.
-6. Contract tests.
-7. Frontend unit + component tests.
-8. E2E tests.
-9. Coverage report.
+1. Restore + build, warnings as errors.
+2. Static analysis — the Roslyn analyzers run in the build; ESLint and TypeScript in the
+   `frontend` job.
+3. Unit, architecture and contract tests, and the Docker-free integration tests — the
+   `backend` job.
+4. The Docker-bound integration tests — the `backend-integration` job.
+5. Frontend unit and component tests — the `frontend` job.
+6. E2E tests — from [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), per
+   § End-to-End Tests; allowed to retry on infra flake, with logged justification.
+7. Coverage report — none yet, per § Coverage Targets.
 
-Any failure in 1–6 blocks merge. Step 8 is required for main; allowed to retry on infra flake (with logged justification).
+A failure in any step that runs fails the pull request. Which checks block a merge is a
+repository setting, and [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md)
+lists them.
 
 ## Forbidden
 
