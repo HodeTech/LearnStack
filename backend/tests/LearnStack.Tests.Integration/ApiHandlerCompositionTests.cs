@@ -1,4 +1,3 @@
-using System.Reflection;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
@@ -46,7 +45,7 @@ public sealed class ApiHandlerCompositionTests : IClassFixture<WebApplicationFac
     [Fact]
     public async Task Every_Shipped_Request_Handler_Resolves_From_The_Api_Container()
     {
-        var contracts = HandlerContracts();
+        var contracts = BackendDiscovery.HandlerContracts();
 
         contracts.Should().Contain(contract => contract.GenericTypeArguments[0].Name == "PublishTenantContentTypeCommand",
             "a discovery that found no handler would pass while proving nothing");
@@ -79,44 +78,5 @@ public sealed class ApiHandlerCompositionTests : IClassFixture<WebApplicationFac
         unresolved.Should().BeEmpty(
             "a handler whose dependencies the API does not register fails its first request "
             + "rather than the build");
-    }
-
-    /// <summary>Every closed request-handler contract a backend assembly implements.</summary>
-    private static List<Type> HandlerContracts() =>
-        [.. Directory
-            .EnumerateFiles(BackendSrc(), "*.csproj", SearchOption.AllDirectories)
-            .Select(path => Assembly.Load(Path.GetFileNameWithoutExtension(path)))
-            .SelectMany(LoadableTypes)
-            .Where(type => type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false })
-            .SelectMany(type => type.GetInterfaces())
-            .Where(contract => contract.IsGenericType
-                && (contract.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
-                    || contract.GetGenericTypeDefinition() == typeof(IRequestHandler<>)))
-            .Distinct()];
-
-    private static IEnumerable<Type> LoadableTypes(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException partial)
-        {
-            return partial.Types.OfType<Type>();
-        }
-    }
-
-    private static string BackendSrc()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "LearnStack.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return Path.Combine(
-            directory?.FullName ?? throw new InvalidOperationException("LearnStack.slnx was not found above the test binaries."),
-            "src");
     }
 }
