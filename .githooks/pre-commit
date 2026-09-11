@@ -55,7 +55,16 @@ if [[ -n "$unstaged_changes" || -n "$unstaged_untracked" ]]; then
     pop_stash() {
         if [[ -n "$STASH_REF" ]]; then
             # Find the stash entry by message and pop it.
-            entry=$(git stash list | awk -F: -v m="$STASH_REF" '$0 ~ m { print $1; exit }')
+            #
+            # awk reads to the END rather than `exit`ing on the first match. With an
+            # early exit, `git stash list` is killed by SIGPIPE whenever it has more
+            # lines to write — any repository holding two or more stashes — and under
+            # `set -o pipefail` + `set -e` that aborted THIS function before the pop:
+            # the developer's unstaged work stayed in the stash and the trap's failure
+            # became the hook's exit status, so the commit failed with no message.
+            # Measured with four stashes present. The same pipefail class as the probe
+            # note further down.
+            entry=$(git stash list | awk -F: -v m="$STASH_REF" '!found && $0 ~ m { print $1; found = 1 }')
             if [[ -n "$entry" ]]; then
                 git stash pop --quiet "$entry" || \
                     printf "pre-commit: stash pop failed for %s — recover with: git stash list\n" "$entry" >&2
