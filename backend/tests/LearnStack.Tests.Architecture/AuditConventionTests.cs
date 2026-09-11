@@ -198,6 +198,68 @@ public sealed partial class AuditConventionTests
             .Select(Path.GetFileName)
             .ToList();
 
+    /// <summary>
+    /// No backend source writes through EF Core's set-based APIs, which leave the change
+    /// tracker — and therefore the audit capture — without an entry.
+    /// </summary>
+    [Fact]
+    public void No_Set_Based_Write_Bypasses_The_Audit_Capture()
+    {
+        // ADR-0044 § 7: the interceptor captures what the ChangeTracker holds, and nothing
+        // else. ExecuteUpdate and ExecuteDelete write rows no entry describes, and so does
+        // ExecuteSql*, so a MUST-class operation written that way commits with no before,
+        // no after and no changes — silently, because the intent still writes its row.
+        // They look like ordinary EF, which is what makes them the likely accident; a
+        // hand-written NpgsqlCommand is visibly SQL, and Database Standards § Raw SQL
+        // governs it. A live negative: nothing in backend/src uses any of the three.
+        SetBasedWrites(SourceScan.SourceRoot).Should().BeEmpty(
+            "a write the change tracker never sees is never audited — load the entities, "
+            + "change them through the aggregate, and let SaveChanges write them");
+    }
+
+    [Fact]
+    public void The_Set_Based_Write_Sweep_Can_Actually_Fail()
+    {
+        // Nothing in backend/src violates the rule, so it passes whether its scan works or
+        // not. The probe writes one call across two lines, as a formatter would leave it,
+        // and one file that names every API only in prose.
+        var probe = Directory.CreateTempSubdirectory("learnstack-set-based-probe");
+
+        try
+        {
+            File.WriteAllText(Path.Combine(probe.FullName, "Purge.cs"), """
+                internal static class Purge
+                {
+                    public static Task<int> RunAsync(IQueryable<object> rows) => rows
+                        .ExecuteDeleteAsync();
+                }
+                """);
+            File.WriteAllText(Path.Combine(probe.FullName, "Prose.cs"), """
+                // ExecuteUpdate, ExecuteDelete and ExecuteSqlRaw bypass the capture.
+                internal static class Prose;
+                """);
+
+            SetBasedWrites(probe.FullName).Should().Equal("Purge.cs");
+        }
+        finally
+        {
+            probe.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>The files under <paramref name="root"/> that call a set-based write API.</summary>
+    /// <remarks>
+    /// Each name is a prefix of its async form and <c>ExecuteSql</c> of every raw variant,
+    /// so three needles cover the nine methods.
+    /// </remarks>
+    private static List<string> SetBasedWrites(string root) =>
+        [.. SetBasedWriteApis
+            .SelectMany(api => SourceScan.FilesContaining(root, api, except: null))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)];
+
+    private static readonly string[] SetBasedWriteApis = ["ExecuteUpdate", "ExecuteDelete", "ExecuteSql"];
+
     [Fact]
     public void AuditEntry_Is_AppendOnly()
     {
