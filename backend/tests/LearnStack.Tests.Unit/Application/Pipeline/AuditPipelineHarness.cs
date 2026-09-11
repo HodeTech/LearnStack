@@ -107,12 +107,27 @@ internal sealed class RecordingAuditStore : IAuditStore
 
     public int PendingWrites { get; private set; }
 
+    /// <summary>
+    /// Runs inside <see cref="WritePendingAsync"/>, so a case can put the write into the
+    /// SAME ordered trace as the calls it must precede — two separate counters cannot say
+    /// which came first.
+    /// </summary>
+    public Action? OnWritePending { get; init; }
+
     /// <summary>When set, every standalone write throws — the fail-closed path.</summary>
     public bool StandaloneFails { get; init; }
+
+    /// <summary>
+    /// When set, every standalone write throws THIS — the shape of a store that fails before
+    /// it issues a statement, which the real one rethrows unchanged rather than wrapping.
+    /// </summary>
+    public Exception? StandaloneThrows { get; init; }
 
     public Task WritePendingAsync(IUnitOfWork unitOfWork, CancellationToken cancellationToken = default)
     {
         PendingWrites++;
+        OnWritePending?.Invoke();
+
         return Task.CompletedTask;
     }
 
@@ -127,6 +142,11 @@ internal sealed class RecordingAuditStore : IAuditStore
         if (StandaloneFails)
         {
             throw new AuditWriteFailedException("the standalone write failed");
+        }
+
+        if (StandaloneThrows is not null)
+        {
+            throw StandaloneThrows;
         }
 
         Standalone.Add(entry);

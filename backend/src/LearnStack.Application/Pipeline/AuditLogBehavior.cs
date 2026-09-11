@@ -74,7 +74,16 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         }
 
         var outermost = AuditFrame.Enter();
-        Error? refusal = null;
+
+        // A frame per invocation, outermost or nested, so each intent belongs to the
+        // request that declared it and each captured change to the request whose handler
+        // wrote it (ADR-0044 Amendment 6 §§ 1, 3).
+        capture.OpenFrame();
+
+        // Thrown until the handler RETURNS: a behavior, the handler, a cancellation and a
+        // faulted COMMIT all leave by an exception, and every one of them is a result the
+        // row must not call a success.
+        var result = AuditIntentResult.Thrown;
 
         try
         {
@@ -82,14 +91,13 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
 
             var response = await next().ConfigureAwait(false);
 
-            // Noted rather than acted on. Every exit reconciles in one place below, so a
+            // Recorded rather than acted on. Every exit reconciles in one place below, so a
             // refusal, an exception and a cancellation cannot drift apart — and the
             // cancelled COMMIT, which reaches neither the catch nor this line, is covered
             // by the same code as the other two (ADR-0033 Amendment 4 § 2).
-            if (response.IsFailure)
-            {
-                refusal = response.Error;
-            }
+            result = response.IsFailure
+                ? AuditIntentResult.Refused(OutcomeOf(response.Error!), response.Error!.Message.Key)
+                : AuditIntentResult.Succeeded;
 
             return response;
         }
@@ -104,15 +112,36 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
         }
         finally
         {
+            // EVERY frame records what its own request returned, on the intents it declared.
+            // Only the outermost frame used to keep an outcome at all, in a local, so an
+            // inner refusal an outer handler absorbed was written by the owner as success
+            // (ADR-0044 Amendment 6 § 3).
+            capture.CloseFrame(result);
+
             // Only the OUTERMOST frame reconciles and clears. A joiner that cleared would
             // erase the outer request's intents and every snapshot before the owner had
             // committed (ADR-0033 Amendment 2 § 2).
             if (outermost)
             {
-                await ReconcileAsync(refusal).ConfigureAwait(false);
-
-                AuditFrame.Exit();
-                capture.Clear();
+                try
+                {
+                    await ReconcileAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    // Unconditional. A reconcile that threw used to skip both lines, which
+                    // left the flow believing a frame was still open — so the NEXT request
+                    // in it would never be outermost, never reconcile and never clear — and
+                    // left this request's intents and snapshots in the scope's buffer.
+                    //
+                    // Not independently observable now, and better said than implied: the
+                    // reconcile guards every intent, so it no longer throws, and the two
+                    // cases that pin the cleanup — a store failing before it writes, a
+                    // composer refusal — pass with or without this finally. It stays so the
+                    // cleanup does not rest on the reconcile's own catch staying complete.
+                    AuditFrame.Exit();
+                    capture.Clear();
+                }
             }
         }
     }
@@ -126,7 +155,8 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     /// pipeline: a refusal returns, an exception throws, and a cancelled <c>COMMIT</c>
     /// does neither in a way this behavior's <c>catch</c> can see. What separates them is
     /// the <b>state</b> the owning unit-of-work frame recorded, which is a fact about the
-    /// database rather than about the control flow.
+    /// database, and each intent's own <b>result</b>, which is a fact about its request —
+    /// <see cref="AuditDraftComposer.Reconciled"/> holds the rule that combines them.
     /// </para>
     /// <para>
     /// <b>A MUST intent is re-written only when it is not already durable.</b>
@@ -141,14 +171,19 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
     /// <c>WritePendingAsync</c> flushes MUST alone, so these are written here, best effort,
     /// with the outcome the request actually had.
     /// </para>
+    /// <para>
+    /// <b>It never throws, and one row's failure never costs another its attempt.</b> This
+    /// runs from a <c>finally</c>, where an exception replaces whatever the request was
+    /// leaving with. Composition and the write are guarded together, per intent: a composer
+    /// refusal and a store that failed before issuing a statement both escaped the narrower
+    /// catch this had, replaced a <c>403</c> with a <c>500</c>, and skipped every intent
+    /// after them. Everything reaching here is already failing, refused or in doubt, so
+    /// ADR-0033 Amendment 1's rule — a standalone failure changes the response only for an
+    /// operation that would otherwise have succeeded — leaves the response alone.
+    /// </para>
     /// </remarks>
-    private async Task ReconcileAsync(Error? refusal)
+    private async Task ReconcileAsync()
     {
-        if (capture.Intents.Count == 0)
-        {
-            return;
-        }
-
         var state = capture.State;
 
         foreach (var intent in capture.Intents)
@@ -161,26 +196,19 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 continue;
             }
 
-            var outcome = Outcome(state, refusal);
-            // The SAME composer the in-transaction write uses. A private one here is how
-            // the two diverged: only the happy-path row carried a snapshot, so every
-            // denied, failed and indeterminate row said nothing about what was attempted —
-            // which is the class of row ADR-0033 calls the common case it protects.
-            //
-            // A FRESH clock reading, not the intent's DeclaredAt: the in-transaction row
-            // that may already exist under this id carries that, and the composite primary
-            // key is what makes the pair legal rather than a 23505.
-            var draft = AuditDraftComposer.Compose(
-                intent,
-                capture.Changes,
-                outcome,
-                clock.UtcNow,
-                tenantContext.UserId,
-                tenantContext.CorrelationId,
-                refusal?.Message.Key);
-
             try
             {
+                // The SAME composer the in-transaction write uses. A private one here is how
+                // the two diverged: only the happy-path row carried a snapshot, so every
+                // denied, failed and indeterminate row said nothing about what was attempted
+                // — which is the class of row ADR-0033 calls the common case it protects.
+                //
+                // A FRESH clock reading, not the intent's DeclaredAt: the in-transaction row
+                // that may already exist under this id carries that, and the composite
+                // primary key is what makes the pair legal rather than a 23505.
+                var draft = AuditDraftComposer.Reconciled(
+                    intent, capture.ChangesOf(intent), state, clock.UtcNow);
+
                 // The class decides the posture, not the outcome. A MUST row that cannot
                 // be written is a failure worth shouting about; a SHOULD row that cannot is
                 // an accepted loss the module's matrix already records.
@@ -206,43 +234,21 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                     await store.WriteBestEffortAsync(draft, CancellationToken.None).ConfigureAwait(false);
                 }
             }
-            catch (AuditWriteFailedException lost)
+#pragma warning disable CA1031 // A finally that threw would replace the exception or refusal the caller is meant to see.
+            catch (Exception lost)
+#pragma warning restore CA1031
             {
                 // Critical, and swallowed. ADR-0033 Amendment 1: a standalone write failure
                 // changes the response only when the operation would otherwise have
                 // SUCCEEDED. Everything reaching here is already failing, being refused, or
                 // in doubt — and turning a refusal into a 503 an anonymous caller can
-                // provoke tells them more, not less.
-                LogReconcileRowLost(logger, intent.Operation, lost);
-            }
-            catch (OperationCanceledException lost)
-            {
-                // Reachable only from inside the store now that the request's token is not
-                // passed in — a provider-side timeout, say. Logged rather than rethrown: a
-                // finally that threw would replace the exception the caller is meant to
-                // see.
+                // provoke tells them more, not less. The store has already marked the
+                // audit health check for a failed write; a composer refusal is a
+                // programming error, and this line is where it surfaces.
                 LogReconcileRowLost(logger, intent.Operation, lost);
             }
         }
     }
-
-    /// <summary>
-    /// The outcome a re-written row carries.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="AuditIntentState.Indeterminate"/> wins over a refusal: when the
-    /// <c>COMMIT</c>'s fate is unknown the row's honest content is that it is unknown, and
-    /// a reader filtering for <c>indeterminate</c> is asking a question about the database
-    /// rather than about the caller.
-    /// </remarks>
-    private static AuditOutcome Outcome(AuditIntentState state, Error? refusal) => state switch
-    {
-        AuditIntentState.Indeterminate => AuditOutcome.Indeterminate,
-        _ when refusal is not null => OutcomeOf(refusal),
-        AuditIntentState.Committed => AuditOutcome.Success,
-        AuditIntentState.RolledBack => AuditOutcome.Failed,
-        _ => AuditOutcome.Failed,
-    };
 
     /// <summary>
     /// Parks one intent per audited <c>(resource, operation)</c>.
@@ -310,6 +316,13 @@ public sealed class AuditLogBehavior<TRequest, TResponse>(
                 AuditEntryId.From(guidFactory.NewUuidV7()),
                 tenantId.Value,
                 organizationId,
+
+                // Read HERE, with the tenant, and carried to both writers on the intent. The
+                // in-transaction write had no way to reach them and wrote both columns NULL
+                // on every successful row (ADR-0044 Amendment 6 § 2). The principal the
+                // request carried, or null — never a substituted SystemActor.
+                tenantContext.UserId,
+                tenantContext.CorrelationId,
                 entry.ModuleName,
                 entry.Operation,
                 entry.OperationType,

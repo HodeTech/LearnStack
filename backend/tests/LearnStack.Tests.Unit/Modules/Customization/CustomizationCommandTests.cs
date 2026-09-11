@@ -3,6 +3,7 @@ using FluentValidation;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
@@ -557,6 +558,47 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
 
         result.Error!.Message.Key.Should().Be("lockey_not_found");
+    }
+
+    [Theory]
+    [InlineData("content-type")]
+    [InlineData("taxonomy")]
+    public async Task A_publication_designates_its_successor_and_never_the_incumbent(string subject)
+    {
+        // The replacement publication writes two instances of one aggregate — the incumbent
+        // retired, the successor activated — and the audit composer refuses to guess which
+        // of them the operation is about. Before the designation that refusal rolled back
+        // every replacement publication of both aggregates (ADR-0044 Amendment 6 § 1). The
+        // designation is what tells it, so the case pins WHICH instance is named, not merely
+        // that one is: naming the incumbent would write a row whose entity_id is the
+        // revision the operation retired.
+        var (sender, stores) = Build();
+        Guid successor;
+
+        if (subject == "content-type")
+        {
+            await sender.Send(RegisterContentType(version: 1));
+            await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
+
+            successor = Guid.Parse("0199a000-0000-7000-8000-0000000000c9");
+            await sender.Send(RegisterContentType(successor, version: 2));
+            stores.Designated.Clear();
+
+            (await sender.Send(new PublishTenantContentTypeCommand(successor))).IsSuccess.Should().BeTrue();
+        }
+        else
+        {
+            await sender.Send(RegisterTaxonomy(version: 1));
+            await sender.Send(new PublishTenantLevelTaxonomyCommand(TaxonomyId));
+
+            successor = Guid.Parse("0199a000-0000-7000-8000-0000000000d9");
+            await sender.Send(RegisterTaxonomy(successor, version: 2));
+            stores.Designated.Clear();
+
+            (await sender.Send(new PublishTenantLevelTaxonomyCommand(successor))).IsSuccess.Should().BeTrue();
+        }
+
+        stores.Designated.Should().Equal(successor);
     }
 
     [Theory]
@@ -1202,6 +1244,7 @@ public sealed class CustomizationCommandTests
         services.AddSingleton<ITenantLevelTaxonomyStore>(stores);
         services.AddSingleton<ITenantLevelTaxonomyCatalog>(stores);
         services.AddSingleton<ICustomizationGenerationStore>(stores);
+        services.AddSingleton<IAuditSubject>(stores);
         services.AddSingleton(gate ?? new StubGate(admitSchemas));
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IUnitOfWork, RecordingUnitOfWork>();
@@ -1223,11 +1266,22 @@ public sealed class CustomizationCommandTests
     /// </remarks>
     private sealed class RecordingStores
         : ITenantContentTypeStore, ITenantLevelTaxonomyStore, ICustomizationGenerationStore,
-          ITenantLevelTaxonomyCatalog
+          ITenantLevelTaxonomyCatalog, IAuditSubject
     {
         private long _generation;
 
         public List<string> Writes { get; } = [];
+
+        /// <summary>Every instance a handler designated as its audit row's subject, in order.</summary>
+        /// <remarks>
+        /// Kept apart from <see cref="Writes"/>: a designation is not a write, and the
+        /// sequences asserted there are the transaction's.
+        /// </remarks>
+        public List<Guid> Designated { get; } = [];
+
+        public void Designate<TId>(IAggregateRoot<TId> aggregate)
+            where TId : struct, IStronglyTypedId<Guid> =>
+            Designated.Add(aggregate.Id.Value);
 
         public Dictionary<Guid, TenantContentType> ContentTypes { get; } = [];
 

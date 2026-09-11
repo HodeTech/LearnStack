@@ -149,21 +149,35 @@ public sealed class PostgresAuditStore : IAuditStore
                 + "(ADR-0033); there is nothing here for them to commit with.");
         }
 
+        // Composed BEFORE anything is sent, through the shared composer, because the
+        // reconcile writes the other rows and the two must not diverge — they did, and only
+        // this path carried a snapshot. Each intent's own request's captures, and its own
+        // result: the owner used to write every intent in the scope as `success`, so an
+        // inner request refused and absorbed under ADR-0040's nesting was recorded as
+        // having succeeded (ADR-0044 Amendment 6 § 3).
+        var drafts = pending
+            .Select(intent => AuditDraftComposer.InTransaction(intent, _capture.ChangesOf(intent)))
+            .ToList();
+
         try
         {
-            foreach (var intent in pending)
+            // ONE round trip for every pending row, which is what ADR-0044 § 3 decides and
+            // what this method did not do: it sent one INSERT per intent, so provisioning
+            // paid two network round trips inside the business transaction — the window
+            // every lock it holds stays held for.
+            await using var batch = unitOfWork.Connection.CreateBatch();
+            batch.Transaction = unitOfWork.Transaction;
+
+            foreach (var draft in drafts)
             {
-                await using var command = unitOfWork.Connection.CreateCommand();
-                command.CommandText = InsertSql;
-                command.Transaction = unitOfWork.Transaction;
+                var insert = batch.CreateBatchCommand();
+                insert.CommandText = InsertSql;
+                Bind(insert.Parameters, draft);
 
-                // The shared composer, because the reconcile writes the other rows and the two
-                // must not diverge — they did, and only this path carried a snapshot.
-                Bind(command, AuditDraftComposer.Compose(
-                    intent, _capture.Changes, AuditOutcome.Success, intent.DeclaredAt));
-
-                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                batch.BatchCommands.Add(insert);
             }
+
+            await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (DbException failure)
         {
@@ -266,10 +280,26 @@ public sealed class PostgresAuditStore : IAuditStore
         {
             await WriteOwnTransactionAsync(entry, cancellationToken).ConfigureAwait(false);
         }
-        catch (DbException failure)
+#pragma warning disable CA1031 // Best effort's whole contract is that an outage leaves the operation unaffected.
+        catch (Exception failure)
+            when (failure is not (OperationCanceledException or AuditWriteFailedException))
+#pragma warning restore CA1031
         {
             // The opposite posture to WriteStandaloneAsync, and the accepted loss is
             // written down in the module's coverage matrix rather than assumed here.
+            //
+            // Every OUTAGE and not only a DbException, for the reason WriteStandaloneAsync
+            // gives: the data source is built lazily, so a missing credential arrives as an
+            // InvalidOperationException from the Lazy factory, and the connection
+            // initializer that refuses a row-security-bypassing role throws one too. A
+            // best-effort write that let those escape turned a SHOULD row's loss into the
+            // caller's exception — from inside the reconcile's finally, replacing whatever
+            // the request had actually returned.
+            //
+            // Two things still leave. A cancellation is the caller's, not a loss. And the
+            // AuditWriteFailedException WriteOwnTransactionAsync raises for a sentinel draft
+            // is a CALLER error rather than an outage — swallowing it here would hide the
+            // one misuse the guard exists to surface.
             LogBestEffortLost(_logger, entry.Operation, failure);
         }
     }
@@ -296,7 +326,7 @@ public sealed class PostgresAuditStore : IAuditStore
             command.CommandText = InsertSql;
             command.Transaction = transaction;
 
-            Bind(command, entry);
+            Bind(command.Parameters, entry);
 
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -362,8 +392,8 @@ public sealed class PostgresAuditStore : IAuditStore
                 "SELECT set_config('app.tenant_id', @tenant, true), "
                 + "set_config('app.organization_id', @organization, true)";
 
-            Add(announce, "tenant", entry.TenantId.Value.ToString());
-            Add(announce, "organization", entry.OrganizationId?.Value.ToString() ?? string.Empty);
+            Add(announce.Parameters, "tenant", entry.TenantId.Value.ToString());
+            Add(announce.Parameters, "organization", entry.OrganizationId?.Value.ToString() ?? string.Empty);
 
             await announce.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -373,7 +403,7 @@ public sealed class PostgresAuditStore : IAuditStore
             command.Transaction = transaction;
             command.CommandText = InsertSql;
 
-            Bind(command, entry);
+            Bind(command.Parameters, entry);
 
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -381,45 +411,46 @@ public sealed class PostgresAuditStore : IAuditStore
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static void Bind(DbCommand command, AuditEntryDraft entry)
+    /// <summary>Binds one row's parameters, for a command or for one command of a batch.</summary>
+    /// <remarks>
+    /// Onto the parameter collection rather than the command, because the in-transaction
+    /// path writes through a <see cref="DbBatch"/> and the other three through a
+    /// <see cref="DbCommand"/>, and one binding is what keeps the four writing one row
+    /// shape.
+    /// </remarks>
+    private static void Bind(DbParameterCollection parameters, AuditEntryDraft entry)
     {
-        Add(command, "id", entry.Id.Value);
-        Add(command, "tenant_id", entry.TenantId.Value);
-        Add(command, "organization_id", entry.OrganizationId?.Value);
-        Add(command, "actor_user_id", entry.ActorUserId?.Value);
-        Add(command, "actor_email", entry.ActorEmail);
-        Add(command, "module", entry.ModuleName);
-        Add(command, "operation", entry.Operation);
-        Add(command, "operation_type", entry.OperationType.ToString());
-        Add(command, "operation_class", entry.OperationClass.ToString());
-        Add(command, "entity_type", entry.EntityType);
-        Add(command, "entity_id", entry.EntityId);
+        Add(parameters, "id", entry.Id.Value);
+        Add(parameters, "tenant_id", entry.TenantId.Value);
+        Add(parameters, "organization_id", entry.OrganizationId?.Value);
+        Add(parameters, "actor_user_id", entry.ActorUserId?.Value);
+        Add(parameters, "actor_email", entry.ActorEmail);
+        Add(parameters, "module", entry.ModuleName);
+        Add(parameters, "operation", entry.Operation);
+        Add(parameters, "operation_type", entry.OperationType.ToString());
+        Add(parameters, "operation_class", entry.OperationClass.ToString());
+        Add(parameters, "entity_type", entry.EntityType);
+        Add(parameters, "entity_id", entry.EntityId);
 
         // Lowercase, because two Accepted ADRs write the four values that way and
         // ck_audit_log_outcome admits nothing else. The other two closed sets store the
         // C# member name unchanged, which is why only this one is transformed.
-        Add(command, "outcome", entry.Outcome.ToString().ToLowerInvariant());
+        Add(parameters, "outcome", entry.Outcome.ToString().ToLowerInvariant());
 
-        Add(command, "error_key", entry.ErrorKey);
-        Add(command, "reason", entry.Reason);
-        AddJsonb(command, "before_state", entry.BeforeState);
-        AddJsonb(command, "after_state", entry.AfterState);
-        AddJsonb(command, "changes", entry.Changes);
-        Add(command, "correlation_id", entry.CorrelationId);
-        Add(command, "ip_address", entry.IpAddress);
-        Add(command, "user_agent", entry.UserAgent);
-        Add(command, "timestamp", entry.Timestamp);
-        AddJsonb(command, "metadata", entry.Metadata);
+        Add(parameters, "error_key", entry.ErrorKey);
+        Add(parameters, "reason", entry.Reason);
+        AddJsonb(parameters, "before_state", entry.BeforeState);
+        AddJsonb(parameters, "after_state", entry.AfterState);
+        AddJsonb(parameters, "changes", entry.Changes);
+        Add(parameters, "correlation_id", entry.CorrelationId);
+        Add(parameters, "ip_address", entry.IpAddress);
+        Add(parameters, "user_agent", entry.UserAgent);
+        Add(parameters, "timestamp", entry.Timestamp);
+        AddJsonb(parameters, "metadata", entry.Metadata);
     }
 
-    private static void Add(DbCommand command, string name, object? value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
-
-        command.Parameters.Add(parameter);
-    }
+    private static void Add(DbParameterCollection parameters, string name, object? value) =>
+        parameters.Add(new NpgsqlParameter(name, value ?? DBNull.Value));
 
     /// <summary>
     /// Binds a <c>jsonb</c> parameter, typed explicitly.
@@ -429,15 +460,11 @@ public sealed class PostgresAuditStore : IAuditStore
     /// <c>text</c> to <c>jsonb</c> — so an inferred parameter fails at execute time on
     /// every row carrying a snapshot, which is every row this store exists to write.
     /// </remarks>
-    private static void AddJsonb(DbCommand command, string name, string? json)
-    {
-        var parameter = new NpgsqlParameter(name, NpgsqlDbType.Jsonb)
+    private static void AddJsonb(DbParameterCollection parameters, string name, string? json) =>
+        parameters.Add(new NpgsqlParameter(name, NpgsqlDbType.Jsonb)
         {
             Value = (object?)json ?? DBNull.Value,
-        };
-
-        command.Parameters.Add(parameter);
-    }
+        });
 
     // LoggerMessage source-generated delegates (CA1848), matching the house style in
     // TransactionBehavior and LoggingBehavior.

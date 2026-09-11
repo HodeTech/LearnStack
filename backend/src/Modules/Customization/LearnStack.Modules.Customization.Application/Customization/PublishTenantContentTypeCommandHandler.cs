@@ -1,6 +1,7 @@
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
@@ -42,6 +43,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
     ICustomizationGenerationStore generations,
     IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
+    IAuditSubject auditSubject,
     IClock clock)
     : IRequestHandler<PublishTenantContentTypeCommand, Result<TenantContentTypeDto>>
 {
@@ -62,6 +64,16 @@ internal sealed class PublishTenantContentTypeCommandHandler(
             return CustomizationFailures.NotFound<TenantContentTypeDto>(
                 nameof(PublishTenantContentTypeCommand.ContentTypeId));
         }
+
+        // The successor is what this operation is about, and it has to be said: the
+        // request also writes the incumbent — a second instance of the same aggregate —
+        // and nothing in the captures tells the composer which of the two the publication
+        // is, so it refuses rather than guess. Before the designation that refusal rolled
+        // back every replacement publication. Named here, as soon as the instance is
+        // known, so a refusal from this point on is recorded against it too; the
+        // incumbent's retirement still travels in `changes` under its own pointer
+        // (ADR-0044 Amendment 6 § 1).
+        auditSubject.Designate(successor);
 
         // Checked here rather than caught from the aggregate. `Publish` guards the
         // same thing with an `InvalidOperationException`, which is a backstop

@@ -1,6 +1,7 @@
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
@@ -27,6 +28,7 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
     ICustomizationGenerationStore generations,
     IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
+    IAuditSubject auditSubject,
     IClock clock)
     : IRequestHandler<PublishTenantLevelTaxonomyCommand, Result<TenantLevelTaxonomyDto>>
 {
@@ -47,6 +49,11 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
             return CustomizationFailures.NotFound<TenantLevelTaxonomyDto>(
                 nameof(PublishTenantLevelTaxonomyCommand.TaxonomyId));
         }
+
+        // The successor is this operation's subject, for the reason the content type's
+        // handler gives: the incumbent is a second instance of the same aggregate, and the
+        // composer refuses to guess between them (ADR-0044 Amendment 6 § 1).
+        auditSubject.Designate(successor);
 
         if (successor.Status != CustomizationStatus.Draft)
         {

@@ -79,6 +79,109 @@ public sealed class AuditStoreTests
     }
 
     [Fact]
+    public async Task An_absorbed_inner_refusal_is_persisted_with_its_own_outcome()
+    {
+        // ADR-0040 § Nesting: an inner request refused, the refusal absorbed by the outer
+        // handler, the transaction committed. The owner wrote every pending MUST row as
+        // success, so the refused operation was on the permanent record as having succeeded
+        // — measured by the review against this table. Frames are opened here exactly as
+        // AuditLogBehavior opens them (ADR-0044 Amendment 6 § 3).
+        var capture = new AuditStateCapture();
+
+        capture.OpenFrame();
+        var outer = Intent(capture, "tenancy.tenant.create");
+
+        capture.OpenFrame();
+        var inner = Intent(capture, "tenancy.organization.create");
+        capture.CloseFrame(AuditIntentResult.Refused(AuditOutcome.Denied, "lockey_forbidden"));
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(capture, dataSource);
+
+        try
+        {
+            await using (var unitOfWork = new NpgsqlUnitOfWork(dataSource, NullLogger<NpgsqlUnitOfWork>.Instance))
+            {
+                await using var scope = await unitOfWork.BeginTransactionAsync();
+                await AnnounceAsync(unitOfWork);
+
+                // The outer frame is still open, as it is when TransactionBehavior writes.
+                await store.WritePendingAsync(unitOfWork);
+                await scope.CompleteAsync();
+            }
+
+            (await OutcomeAsync(outer.Id)).Should().Be(("success", (string?)null));
+            (await OutcomeAsync(inner.Id)).Should().Be(("denied", "lockey_forbidden"));
+        }
+        finally
+        {
+            await DeleteAsync(outer.Id, inner.Id);
+        }
+    }
+
+    [Fact]
+    public async Task WritePending_sends_every_pending_row_in_one_round_trip()
+    {
+        // ADR-0044 § 3 says one round trip, and the store sent one INSERT per intent —
+        // provisioning paid two inside the business transaction, the window every lock it
+        // holds stays held for. Counted through Npgsql's own tracing: one activity per
+        // command or batch executed, and only those under this case's own parent, so a
+        // concurrently running suite cannot move the count.
+        var capture = new AuditStateCapture();
+        var first = Intent(capture, "tenancy.tenant.create");
+        var second = Intent(capture, "tenancy.organization.create");
+        var third = Intent(capture, "tenancy.hostmapping.write");
+
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        var store = Store(capture, dataSource);
+
+        using var parent = new System.Diagnostics.ActivitySource("LearnStack.Tests.AuditRoundTrip");
+        var executed = new System.Collections.Concurrent.ConcurrentBag<string>();
+        string? parentId = null;
+
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name is "Npgsql" or "LearnStack.Tests.AuditRoundTrip",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity =>
+            {
+                if (activity.Source.Name == "Npgsql" && activity.ParentId == parentId && parentId is not null)
+                {
+                    executed.Add(activity.DisplayName);
+                }
+            },
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+
+        try
+        {
+            await using (var unitOfWork = new NpgsqlUnitOfWork(dataSource, NullLogger<NpgsqlUnitOfWork>.Instance))
+            {
+                await using var scope = await unitOfWork.BeginTransactionAsync();
+                await AnnounceAsync(unitOfWork);
+
+                using (var measured = parent.StartActivity("write-pending"))
+                {
+                    parentId = measured!.Id;
+                    await store.WritePendingAsync(unitOfWork);
+                }
+
+                await scope.CompleteAsync();
+            }
+
+            executed.Should().ContainSingle("three rows, one round trip");
+            (await CountAsync(first.Id)).Should().Be(1);
+            (await CountAsync(second.Id)).Should().Be(1);
+            (await CountAsync(third.Id)).Should().Be(1);
+        }
+        finally
+        {
+            await DeleteAsync(first.Id, second.Id, third.Id);
+        }
+    }
+
+    [Fact]
     public async Task A_rolled_back_transaction_takes_its_audit_rows_with_it()
     {
         // The guarantee ADR-0033 makes, stated as an observation rather than an argument:
@@ -165,6 +268,8 @@ public sealed class AuditStoreTests
             AuditEntryId.From(Guid.CreateVersion7()),
             TenantId.From(SchemaFixture.TenantB),
             OrganizationId: null,
+            ActorUserId: null,
+            CorrelationId: null,
             "tenancy",
             "tenancy.tenant.create",
             OperationType.Create,
@@ -600,6 +705,25 @@ public sealed class AuditStoreTests
     }
 
     [Fact]
+    public async Task A_best_effort_write_swallows_a_data_source_that_cannot_be_built()
+    {
+        // The outage that is not a DbException. The data source is built lazily, so a
+        // missing credential arrives as an InvalidOperationException from the Lazy factory —
+        // and best effort let it escape, from inside the reconcile's finally, replacing
+        // whatever the request had returned with a SHOULD row's loss.
+        var store = new PostgresAuditStore(
+            new AuditStateCapture(),
+            new Lazy<NpgsqlDataSource>(() => throw new InvalidOperationException("no credential")),
+            NullLogger<PostgresAuditStore>.Instance,
+            MeterFactory,
+            new AuditHealth());
+
+        var bestEffort = async () => await store.WriteBestEffortAsync(Draft(organizationId: null));
+
+        await bestEffort.Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task The_durable_duplicate_is_counted_as_well_as_logged()
     {
         // ADR-0033 § 4 and ADR-0044 § 5 both say "logged, counted, and swallowed". The
@@ -964,6 +1088,8 @@ public sealed class AuditStoreTests
             AuditEntryId.From(Guid.CreateVersion7()),
             TenantId.From(StoreTenant),
             OrganizationId: null,
+            ActorUserId: null,
+            CorrelationId: null,
             operation.Split('.')[0],
             operation,
             OperationType.Create,
@@ -1021,6 +1147,20 @@ public sealed class AuditStoreTests
         command.Parameters.Add(parameter);
 
         await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task<(string Outcome, string? ErrorKey)> OutcomeAsync(AuditEntryId id)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(
+            "SELECT outcome, error_key FROM audit_log WHERE id = @id", (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("id", id.Value);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue("the row exists");
+
+        return (reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1));
     }
 
     private async Task<long> CountAsync(AuditEntryId id)

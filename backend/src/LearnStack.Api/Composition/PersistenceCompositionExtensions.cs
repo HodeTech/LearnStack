@@ -186,6 +186,12 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IAuditStateCapture>(
             provider => provider.GetRequiredService<AuditStateCapture>());
 
+        // The SAME instance, behind the narrow port a handler designates its row's subject
+        // through. Two registrations of the concrete type would give the handler a buffer
+        // the behavior never reads, and every designation would silently bind nothing.
+        services.TryAddScoped<IAuditSubject>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
+
         // As ISaveChangesInterceptor, which is the type AddModuleDbContext resolves and
         // passes to AddInterceptors. A registration by its own concrete type would
         // resolve and never attach — measured on EF Core 10.

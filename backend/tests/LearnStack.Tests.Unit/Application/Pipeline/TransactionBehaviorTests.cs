@@ -394,14 +394,21 @@ public sealed class TransactionBehaviorTests
         // Immediately before, and on the owning frame only. The ordering is the whole of
         // ADR-0033's guarantee: the row and the state change commit together or neither
         // does, so a write AFTER the commit would be a row that could outlive a rollback.
-        var store = new RecordingAuditStore();
+        //
+        // ONE trace for both, which is the only thing that can show an order: the store
+        // writes into the unit's own call list. Two separate counters — the write happened,
+        // and the commit came after the handler — were both true of a write placed after the
+        // commit.
         var unitOfWork = new RecordingUnitOfWork();
+        var store = new RecordingAuditStore { OnWritePending = () => unitOfWork.Calls.Add("audit") };
 
         await Build(unitOfWork, store).Handle(
             new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
 
         store.PendingWrites.Should().Be(1);
-        unitOfWork.Calls.Should().ContainInOrder("handler", "commit");
+        unitOfWork.Calls.Should().ContainInOrder("handler", "audit", "commit");
+        unitOfWork.Calls.IndexOf("audit").Should().Be(
+            unitOfWork.Calls.IndexOf("commit") - 1, "IMMEDIATELY before, with nothing between");
     }
 
     private static TransactionBehavior<DummyCommand, Result<string>> Build(

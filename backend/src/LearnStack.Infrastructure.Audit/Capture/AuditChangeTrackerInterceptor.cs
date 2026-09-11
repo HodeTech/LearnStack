@@ -3,10 +3,12 @@ using System.Reflection;
 using System.Text;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.DataProtection;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Secrets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace LearnStack.Infrastructure.Audit.Capture;
@@ -116,6 +118,34 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// </remarks>
     private static readonly ConcurrentDictionary<(Type, string), bool> SensitivityCache = new();
 
+    /// <summary>How far containment is followed, in either direction.</summary>
+    /// <remarks>
+    /// A bound rather than a trust: a well-formed model cannot loop, because containment
+    /// runs from a non-root to a different type and a root ends it. The shipped depth is
+    /// one — a taxonomy and its bands, a tenant and its locales.
+    /// </remarks>
+    private const int MaxContainmentDepth = 8;
+
+    /// <summary>Which relationship contains each entity type, if any. See <c>ContainmentOf</c>.</summary>
+    private static readonly ConcurrentDictionary<IEntityType, IForeignKey?> ContainmentCache = new();
+
+    /// <summary>Whether a CLR type is an <c>IAggregateRoot&lt;&gt;</c>.</summary>
+    private static readonly ConcurrentDictionary<Type, bool> AggregateRootCache = new();
+
+    /// <summary>
+    /// Every entity this interceptor has seen <c>Added</c>, for the life of its scope — one
+    /// request.
+    /// </summary>
+    /// <remarks>
+    /// An owner created in this request contains exactly what was tracked with it, so its
+    /// collections are complete. EF does not say so: <c>IsLoaded</c> is <c>false</c> for a
+    /// new entity and stays <c>false</c> after it is saved — measured on EF Core 10 — so
+    /// provisioning's third flush, which modifies the tenant it created in the first, would
+    /// otherwise have dropped the tenant's locales from the capture the row's
+    /// <c>after_state</c> is taken from.
+    /// </remarks>
+    private readonly HashSet<object> _created = new(ReferenceEqualityComparer.Instance);
+
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData, InterceptionResult<int> result)
     {
@@ -142,6 +172,7 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// Snapshots every captured entity this context is about to write.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Public because it is what this class does, not because a test needs it — though a
     /// test is the second caller. EF reaches it through the two <c>SavingChanges</c>
     /// hooks above; anything else that knows a <see cref="DbContext"/> is about to flush
@@ -149,6 +180,18 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// <c>ChangeTracker</c> does not have one. A <c>null</c> context is a no-op rather
     /// than a throw: EF passes one for a few diagnostic events, and an interceptor that
     /// threw there would fail a save for a reason unrelated to the save.
+    /// </para>
+    /// <para>
+    /// <b>One capture per aggregate, not per entity.</b> An entity that is not an aggregate
+    /// root and is reached through its root's navigation — a taxonomy's bands, a tenant's
+    /// locales — is described inside the root it belongs to: in its snapshot, under the
+    /// navigation's name, and in its diff, under the same pointer. Captured on its own it
+    /// carried a type name no intent declares, so the composer dropped it and the band
+    /// labels a tenant authored never reached the row that recorded the taxonomy
+    /// (<see href="../../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment 6
+    /// § 4</see>). A contained entity whose root is not tracked is still captured, on its
+    /// own, rather than dropped here.
+    /// </para>
     /// </remarks>
     public void Capture(DbContext? context)
     {
@@ -158,102 +201,375 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         }
 
         // BEFORE the save, which is the only moment both states exist: after it, EF has
-        // accepted the changes and OriginalValues equals CurrentValues.
-        foreach (var entry in context.ChangeTracker.Entries())
+        // accepted the changes and OriginalValues equals CurrentValues. Every tracked entry
+        // and not only the changed ones, because the root a changed band belongs to may be
+        // unchanged itself — and the root is what the row describes.
+        var tracked = context.ChangeTracker.Entries()
+            .Where(entry => !Excluded.Contains(entry.Metadata.ClrType.Name))
+            .ToList();
+
+        foreach (var added in tracked.Where(candidate => candidate.State == EntityState.Added))
         {
-            if (!IsCaptured(entry))
+            _created.Add(added.Entity);
+        }
+
+        var scene = new Scene(tracked, _created);
+        var subjects = new List<EntityEntry>();
+        var described = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+        foreach (var entry in tracked)
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
             {
                 continue;
             }
 
-            capture.Add(Describe(entry));
+            var subject = RootOf(entry, tracked);
+
+            if (described.Add(subject.Entity))
+            {
+                subjects.Add(subject);
+            }
+        }
+
+        foreach (var subject in subjects)
+        {
+            capture.Add(Describe(subject, scene));
         }
     }
 
-    private static bool IsCaptured(EntityEntry entry) =>
-        entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
-        && !Excluded.Contains(entry.Metadata.ClrType.Name);
-
-    private static CapturedEntityChange Describe(EntityEntry entry)
+    private static CapturedEntityChange Describe(EntityEntry entry, Scene scene)
     {
         var type = entry.Metadata.ClrType;
+        var id = KeyOf(entry);
+
+        // An INSTANCE-qualified RFC 6901 pointer, because `changes` carries every capture of
+        // the declared type and a publication captures two instances of it: the successor
+        // activated and the incumbent retired. `/TenantContentType/Status` could not say
+        // which of them moved (ADR-0044 Amendment 6 § 5).
+        var pointer = "/" + Segment(type.Name) + (id is null ? string.Empty : "/" + Segment(id));
+
         var fields = new List<CapturedFieldChange>();
-
-        // An entity-qualified RFC 6901 pointer, because `changes` is one array for the
-        // whole request and a bare `/slug` would not say whose slug it was.
-        var prefix = "/" + type.Name + "/";
-
-        var before = new StringBuilder("{");
-        var after = new StringBuilder("{");
-        var first = true;
-
-        var snapshotted = entry.Properties
-            .Where(property => !NotSnapshotted.Contains(property.Metadata.Name))
-            .OrderBy(property => property.Metadata.Name, StringComparer.Ordinal);
-
-        foreach (var property in snapshotted)
-        {
-            var name = property.Metadata.Name;
-            var sensitive = IsSensitive(type, name);
-
-            // Whether the COLUMN is jsonb, read from the model — the only place the
-            // answer is knowable, and never guessed from the value.
-            var storedAsJson = string.Equals(
-                property.Metadata.GetColumnType(), "jsonb", StringComparison.OrdinalIgnoreCase);
-
-            // The converter, so the snapshot records WHAT THE COLUMN HOLDS rather than
-            // what the CLR object looks like. `Property.CurrentValue` is the model value,
-            // and for a converted property the two are different objects with different
-            // shapes — measured, and the difference is not cosmetic: a `LocalizedText`
-            // display name stores {"en":"Vocabulary Card","tr":"Kelime Kartı"} and
-            // serialises from its CLR side as {"Locales":["en","tr"]}, which records which
-            // languages exist and none of the text. Every display name in Customization —
-            // the tenant-authored values that module exists for — would have been audited
-            // as a list of locale codes, and the row is append-only so nothing could
-            // recover the words afterwards.
-            var converter = property.Metadata.GetValueConverter();
-
-            var beforeJson = entry.State == EntityState.Added
-                ? null
-                : Value(Stored(converter, property.OriginalValue), sensitive, storedAsJson);
-
-            var afterJson = entry.State == EntityState.Deleted
-                ? null
-                : Value(Stored(converter, property.CurrentValue), sensitive, storedAsJson);
-
-            if (!first)
-            {
-                before.Append(',');
-                after.Append(',');
-            }
-
-            first = false;
-
-            var key = AuditJson.Quote(name);
-            before.Append(key).Append(':').Append(beforeJson ?? AuditJson.Null);
-            after.Append(key).Append(':').Append(afterJson ?? AuditJson.Null);
-
-            // Only what CHANGED, on a modify. On an insert and a delete every property
-            // is the change, which is what makes the diff and the snapshot agree.
-            if (entry.State != EntityState.Modified || property.IsModified)
-            {
-                fields.Add(new CapturedFieldChange(prefix + name, beforeJson, afterJson));
-            }
-        }
-
-        before.Append('}');
-        after.Append('}');
+        CollectFields(entry, pointer, [], scene, fields, depth: 0);
 
         return new CapturedEntityChange(
             EntityType: type.Name,
-            EntityId: KeyOf(entry),
+            EntityId: id,
             BeforeJson: entry.State == EntityState.Added
                 ? null
-                : AuditJson.CapObject(before.ToString()),
+                : AuditJson.CapObject(Snapshot(entry, original: true, [], scene, depth: 0)),
             AfterJson: entry.State == EntityState.Deleted
                 ? null
-                : AuditJson.CapObject(after.ToString()),
+                : AuditJson.CapObject(Snapshot(entry, original: false, [], scene, depth: 0)),
             Fields: fields);
+    }
+
+    /// <summary>
+    /// The entity as a JSON object: its snapshotted properties, then each navigation to
+    /// the entities it contains.
+    /// </summary>
+    /// <param name="original">The prior state rather than the new one.</param>
+    /// <param name="hidden">
+    /// For a contained entity, the foreign-key properties that point at its owner. They
+    /// repeat the owner's own key, which is already the path the entity sits under.
+    /// </param>
+    private static string Snapshot(
+        EntityEntry entry,
+        bool original,
+        IReadOnlyList<IProperty> hidden,
+        Scene scene,
+        int depth)
+    {
+        var json = new StringBuilder("{");
+        var first = true;
+
+        foreach (var property in Snapshotted(entry, hidden))
+        {
+            AppendMember(json, ref first, property.Metadata.Name, Render(entry, property, original));
+        }
+
+        if (depth >= MaxContainmentDepth)
+        {
+            return json.Append('}').ToString();
+        }
+
+        foreach (var navigation in ContainmentsOf(entry.Metadata))
+        {
+            // Not loaded is not known. An owner read without its collection would otherwise
+            // be recorded as owning nothing — a claim that every band was removed, made on a
+            // table nothing can correct. An owner created in this request is complete by
+            // construction: every entity it contains was tracked with it.
+            if (!scene.Created.Contains(entry.Entity) && !entry.Navigation(navigation.Name).IsLoaded)
+            {
+                continue;
+            }
+
+            var members = MembersThrough(entry, navigation, scene.Tracked, original);
+            var ownerKey = navigation.ForeignKey.Properties;
+
+            if (!navigation.IsCollection)
+            {
+                AppendMember(json, ref first, navigation.Name, members.Count == 0
+                    ? AuditJson.Null
+                    : Snapshot(members[0], original, ownerKey, scene, depth + 1));
+
+                continue;
+            }
+
+            // An object keyed by each member's own key rather than an array: a pointer into
+            // an array is an index, and an index names a different band the moment one is
+            // removed ahead of it.
+            var set = new StringBuilder("{");
+            var firstMember = true;
+
+            foreach (var member in members
+                .Select(member => (Key: LocalKeyOf(member, navigation.ForeignKey, original), Member: member))
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                AppendMember(set, ref firstMember, member.Key,
+                    Snapshot(member.Member, original, ownerKey, scene, depth + 1));
+            }
+
+            AppendMember(json, ref first, navigation.Name, set.Append('}').ToString());
+        }
+
+        return json.Append('}').ToString();
+    }
+
+    /// <summary>
+    /// The per-property diff of an entity and of everything it contains, each under its
+    /// pointer.
+    /// </summary>
+    private static void CollectFields(
+        EntityEntry entry,
+        string pointer,
+        IReadOnlyList<IProperty> hidden,
+        Scene scene,
+        List<CapturedFieldChange> fields,
+        int depth)
+    {
+        foreach (var property in Snapshotted(entry, hidden))
+        {
+            // Only what CHANGED, on a modify. On an insert and a delete every property
+            // is the change, which is what makes the diff and the snapshot agree.
+            if (entry.State is EntityState.Added or EntityState.Deleted
+                || (entry.State == EntityState.Modified && property.IsModified))
+            {
+                fields.Add(new CapturedFieldChange(
+                    pointer + "/" + Segment(property.Metadata.Name),
+                    entry.State == EntityState.Added ? null : Render(entry, property, original: true),
+                    entry.State == EntityState.Deleted ? null : Render(entry, property, original: false)));
+            }
+        }
+
+        if (depth >= MaxContainmentDepth)
+        {
+            return;
+        }
+
+        foreach (var navigation in ContainmentsOf(entry.Metadata))
+        {
+            // Both memberships: a removed band is only in the prior one and an added band
+            // only in the new one, and each is a change the row has to carry.
+            var members = MembersThrough(entry, navigation, scene.Tracked, original: false)
+                .Union<EntityEntry>(MembersThrough(entry, navigation, scene.Tracked, original: true), ReferenceEqualityComparer.Instance)
+                .Select(member => (
+                    Key: LocalKeyOf(member, navigation.ForeignKey, original: member.State == EntityState.Deleted),
+                    Member: member))
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal);
+
+            foreach (var (key, member) in members)
+            {
+                var at = pointer + "/" + Segment(navigation.Name)
+                    + (navigation.IsCollection ? "/" + Segment(key) : string.Empty);
+
+                CollectFields(member, at, navigation.ForeignKey.Properties, scene, fields, depth + 1);
+            }
+        }
+    }
+
+    private static IEnumerable<PropertyEntry> Snapshotted(EntityEntry entry, IReadOnlyList<IProperty> hidden) =>
+        entry.Properties
+            .Where(property => !NotSnapshotted.Contains(property.Metadata.Name)
+                && !hidden.Contains(property.Metadata))
+            .OrderBy(property => property.Metadata.Name, StringComparer.Ordinal);
+
+    /// <summary>One property's value as JSON text, through both gates.</summary>
+    private static string Render(EntityEntry entry, PropertyEntry property, bool original)
+    {
+        var metadata = property.Metadata;
+
+        // Whether the COLUMN is jsonb, read from the model — the only place the answer is
+        // knowable, and never guessed from the value.
+        var storedAsJson = string.Equals(
+            metadata.GetColumnType(), "jsonb", StringComparison.OrdinalIgnoreCase);
+
+        // The converter, so the snapshot records WHAT THE COLUMN HOLDS rather than what the
+        // CLR object looks like. `Property.CurrentValue` is the model value, and for a
+        // converted property the two are different objects with different shapes —
+        // measured, and the difference is not cosmetic: a `LocalizedText` display name
+        // stores {"en":"Vocabulary Card","tr":"Kelime Kartı"} and serialises from its CLR
+        // side as {"Locales":["en","tr"]}, which records which languages exist and none of
+        // the text. Every display name in Customization — the tenant-authored values that
+        // module exists for — would have been audited as a list of locale codes, and the
+        // row is append-only so nothing could recover the words afterwards.
+        var value = Stored(
+            metadata.GetValueConverter(),
+            original ? property.OriginalValue : property.CurrentValue);
+
+        return IsSensitive(entry.Metadata.ClrType, metadata.Name)
+            ? AuditJson.Quote(SensitiveTokenCatalog.RedactedValue)
+            : AuditJson.Render(value, storedAsJson);
+    }
+
+    private static void AppendMember(StringBuilder json, ref bool first, string name, string value)
+    {
+        if (!first)
+        {
+            json.Append(',');
+        }
+
+        first = false;
+        json.Append(AuditJson.Quote(name)).Append(':').Append(value);
+    }
+
+    /// <summary>One RFC 6901 reference token: <c>~</c> as <c>~0</c>, then <c>/</c> as <c>~1</c>.</summary>
+    private static string Segment(string value) =>
+        value.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The foreign key through which <paramref name="type"/> is contained, or <c>null</c>
+    /// when it is an aggregate in its own right.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read from the model rather than declared a second time: the type is <b>not</b> an
+    /// <c>IAggregateRoot&lt;&gt;</c>, and exactly one relationship reaches it through a
+    /// navigation on its principal — the <c>HasMany(t =&gt; t.Items)</c> each module already
+    /// writes to express the aggregate boundary for EF. A root is never contained, however
+    /// its relationships run; a type two owners reach is contained by neither, and is
+    /// captured on its own.
+    /// </para>
+    /// <para>
+    /// The model is fixed for the life of a <c>DbContext</c> type, so the answer is cached
+    /// per entity type.
+    /// </para>
+    /// </remarks>
+    private static IForeignKey? ContainmentOf(IEntityType type) =>
+        ContainmentCache.GetOrAdd(type, static entityType =>
+        {
+            if (IsAggregateRoot(entityType.ClrType))
+            {
+                return null;
+            }
+
+            IForeignKey? containment = null;
+
+            foreach (var foreignKey in entityType.GetForeignKeys())
+            {
+                if (foreignKey.PrincipalToDependent is null
+                    || foreignKey.PrincipalEntityType.ClrType == entityType.ClrType)
+                {
+                    continue;
+                }
+
+                if (containment is not null)
+                {
+                    return null;
+                }
+
+                containment = foreignKey;
+            }
+
+            return containment;
+        });
+
+    private static IEnumerable<INavigation> ContainmentsOf(IEntityType type) =>
+        type.GetNavigations()
+            .Where(navigation => !navigation.IsOnDependent
+                && ReferenceEquals(ContainmentOf(navigation.TargetEntityType), navigation.ForeignKey))
+            .OrderBy(navigation => navigation.Name, StringComparer.Ordinal);
+
+    private static bool IsAggregateRoot(Type type) =>
+        AggregateRootCache.GetOrAdd(type, static clrType => clrType.GetInterfaces().Any(contract =>
+            contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IAggregateRoot<>)));
+
+    /// <summary>The root an entity belongs to, or the entity itself when it is one.</summary>
+    private static EntityEntry RootOf(EntityEntry entry, List<EntityEntry> tracked)
+    {
+        var current = entry;
+
+        // Bounded, though a well-formed model cannot loop: containment runs from a non-root
+        // to a different type, and a root ends the walk.
+        for (var depth = 0; depth < MaxContainmentDepth; depth++)
+        {
+            var containment = ContainmentOf(current.Metadata);
+            var owner = containment is null ? null : OwnerOf(current, containment, tracked);
+
+            if (owner is null)
+            {
+                return current;
+            }
+
+            current = owner;
+        }
+
+        return current;
+    }
+
+    private static EntityEntry? OwnerOf(
+        EntityEntry member, IForeignKey containment, List<EntityEntry> tracked)
+    {
+        // A deleted member's foreign key is its ORIGINAL one: that is the owner it was
+        // removed from.
+        var reference = Values(member, containment.Properties, member.State == EntityState.Deleted);
+
+        return tracked.FirstOrDefault(candidate =>
+            containment.PrincipalEntityType.ClrType.IsAssignableFrom(candidate.Metadata.ClrType)
+            && reference.SequenceEqual(Values(candidate, containment.PrincipalKey.Properties, original: false)));
+    }
+
+    /// <summary>
+    /// The tracked entities an owner contains through one navigation, in the prior state
+    /// or the new one.
+    /// </summary>
+    private static List<EntityEntry> MembersThrough(
+        EntityEntry owner, INavigation navigation, List<EntityEntry> tracked, bool original)
+    {
+        var key = Values(owner, navigation.ForeignKey.PrincipalKey.Properties, original);
+
+        return [.. tracked.Where(candidate =>
+            navigation.TargetEntityType.ClrType.IsAssignableFrom(candidate.Metadata.ClrType)
+            && (original
+                ? candidate.State != EntityState.Added
+                : candidate.State != EntityState.Deleted)
+            && key.SequenceEqual(Values(candidate, navigation.ForeignKey.Properties, original)))];
+    }
+
+    private static object?[] Values(EntityEntry entry, IReadOnlyList<IProperty> properties, bool original) =>
+        [.. properties.Select(property => original
+            ? entry.Property(property.Name).OriginalValue
+            : entry.Property(property.Name).CurrentValue)];
+
+    /// <summary>
+    /// A contained entity's key within its owner: its primary key minus the columns that
+    /// point at the owner — a band's <c>b2</c> rather than the four-column key it is stored
+    /// under.
+    /// </summary>
+    /// <remarks>
+    /// The whole key when nothing is left, and the same converter-then-text rendering
+    /// <see cref="KeyOf"/> uses, so one key is never spelled two ways.
+    /// </remarks>
+    private static string LocalKeyOf(EntityEntry member, IForeignKey containment, bool original)
+    {
+        var key = member.Metadata.FindPrimaryKey()?.Properties ?? [];
+        var local = key.Where(property => !containment.Properties.Contains(property)).ToList();
+
+        return string.Join('/', (local.Count == 0 ? key : local).Select(property => Stored(
+            property.GetValueConverter(),
+            original
+                ? member.Property(property.Name).OriginalValue
+                : member.Property(property.Name).CurrentValue)?.ToString() ?? string.Empty));
     }
 
     /// <summary>
@@ -270,18 +586,15 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     private static object? Stored(ValueConverter? converter, object? value) =>
         converter is null || value is null ? value : converter.ConvertToProvider(value);
 
-    private static string Value(object? value, bool sensitive, bool storedAsJson) =>
-        sensitive
-            ? AuditJson.Quote(SensitiveTokenCatalog.RedactedValue)
-            : AuditJson.Render(value, storedAsJson);
-
     /// <summary>
     /// The entity's primary key rendered as text, or <c>null</c> for a keyless shape.
     /// </summary>
     /// <remarks>
-    /// A composite key is joined with <c>/</c> in key order, which is the same rendering
-    /// the pointer above uses for a path segment — so a reader that can read one can read
-    /// the other. <c>tenant_level_taxonomy_items</c> is the shipped four-column case.
+    /// A composite key is joined with <c>/</c> in key order —
+    /// <c>tenant_level_taxonomy_items</c> is the shipped four-column case — and escaped as
+    /// <c>~1</c> where it becomes one segment of a pointer. A Guid key renders as the
+    /// Guid's own <c>ToString()</c>, which is the text <see cref="AuditStateCapture"/>
+    /// renders a designated subject as; the two are compared as text.
     /// </remarks>
     private static string? KeyOf(EntityEntry entry)
     {
@@ -353,4 +666,7 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
 
         return false;
     }
+
+    /// <summary>What one <c>Capture</c> call sees: every tracked entry, and the owners created in this request.</summary>
+    private sealed record Scene(List<EntityEntry> Tracked, IReadOnlySet<object> Created);
 }

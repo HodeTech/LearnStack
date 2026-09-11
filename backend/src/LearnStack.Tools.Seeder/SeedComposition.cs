@@ -127,6 +127,8 @@ public static class SeedComposition
         services.AddScoped<AuditStateCapture>();
         services.AddScoped<IAuditStateCapture>(
             provider => provider.GetRequiredService<AuditStateCapture>());
+        services.AddScoped<IAuditSubject>(
+            provider => provider.GetRequiredService<AuditStateCapture>());
         // TryAddEnumerable, not TryAddScoped. ISaveChangesInterceptor is a MULTI
         // registration — AddModuleDbContext resolves the whole collection — and
         // TryAddScoped skips when ANY registration of the service type exists, so the

@@ -90,14 +90,18 @@ public sealed class AuditCaptureWiringTests
         // /Tenant/TenantId and /Tenant/RowVersion — neither of which exists, because Tenant
         // is self-keyed and the concurrency token's PROPERTY is Version — so it asserted
         // the absence of three paths nothing could have produced.
+        //
+        // On the INSTANCE-qualified prefix every pointer now carries, positives first: a
+        // negative spelled "/Tenant/Version" would pass whatever the exclusion set held.
         var paths = change.Fields.Select(field => field.Path).ToList();
+        var at = $"/Tenant/{WiringTenant}/";
 
-        paths.Should().NotContain("/Tenant/CreatedAt");
-        paths.Should().NotContain("/Tenant/UpdatedAt");
-        paths.Should().NotContain("/Tenant/Version",
+        paths.Should().Contain(at + "Slug");
+        paths.Should().Contain(at + "CreatedBy", "who did it is the record, not bookkeeping");
+        paths.Should().NotContain(at + "CreatedAt");
+        paths.Should().NotContain(at + "UpdatedAt");
+        paths.Should().NotContain(at + "Version",
             "the concurrency token moves on every write and buries what changed");
-        paths.Should().Contain("/Tenant/Slug");
-        paths.Should().Contain("/Tenant/CreatedBy", "who did it is the record, not bookkeeping");
 
         // Rolled back rather than committed: the shared fixture's counts are asserted by
         // the cases in this collection, and a probe tenant would move them.

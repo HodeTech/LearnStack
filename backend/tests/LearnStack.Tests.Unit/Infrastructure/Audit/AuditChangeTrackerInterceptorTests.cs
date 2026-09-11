@@ -60,8 +60,8 @@ public sealed class AuditChangeTrackerInterceptorTests
         change.AfterJson.Should().NotBeNull();
 
         change.Fields.Select(field => field.Path).Should().BeEquivalentTo(
-            "/Person/Id", "/Person/DisplayName", "/Person/Password", "/Person/Notes",
-            "/Person/Nickname", "/Person/Inherited");
+            "/Person/1/Id", "/Person/1/DisplayName", "/Person/1/Password", "/Person/1/Notes",
+            "/Person/1/Nickname", "/Person/1/Inherited");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         var change = capture.Changes.Should().ContainSingle().Subject;
-        change.Fields.Select(field => field.Path).Should().Equal("/Person/DisplayName");
+        change.Fields.Select(field => field.Path).Should().Equal("/Person/7/DisplayName");
         change.Fields[0].BeforeJson.Should().Be("\"Ada\"");
         change.Fields[0].AfterJson.Should().Be("\"Ada Lovelace\"");
 
@@ -135,7 +135,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         var field = capture.Changes.Single().Fields.Should().ContainSingle().Subject;
-        field.Path.Should().Be("/Person/Nickname");
+        field.Path.Should().Be("/Person/1/Nickname");
         field.BeforeJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
         field.AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
 
@@ -165,12 +165,12 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         var change = capture.Changes.Single();
         change.AfterJson.Should().NotContain("hunter2");
-        change.Fields.Single(field => field.Path == "/Person/Password")
+        change.Fields.Single(field => field.Path == "/Person/2/Password")
             .AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
 
         // And an ordinary property beside it is untouched, so the gate is not simply
         // redacting everything.
-        change.Fields.Single(field => field.Path == "/Person/DisplayName")
+        change.Fields.Single(field => field.Path == "/Person/2/DisplayName")
             .AfterJson.Should().Be("\"Ada\"");
     }
 
@@ -197,7 +197,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         var change = capture.Changes.Single();
         change.AfterJson.Should().NotContain("personal");
-        change.Fields.Single(field => field.Path == "/Person/Inherited")
+        change.Fields.Single(field => field.Path == "/Person/5/Inherited")
             .AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
     }
 
@@ -226,7 +226,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         capture.Changes.Single().Fields.Select(field => field.Path).Should().BeEquivalentTo(
-            "/Bookkept/Id", "/Bookkept/DeletedAt", "/Bookkept/Payload");
+            "/Bookkept/1/Id", "/Bookkept/1/DeletedAt", "/Bookkept/1/Payload");
     }
 
     [Fact]
@@ -244,9 +244,9 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         var fields = capture.Changes.Single().Fields;
-        fields.Single(field => field.Path == "/Documented/Document")
+        fields.Single(field => field.Path == "/Documented/1/Document")
             .AfterJson.Should().Be("{\"a\":1}", "a jsonb column is emitted verbatim");
-        fields.Single(field => field.Path == "/Documented/Text")
+        fields.Single(field => field.Path == "/Documented/1/Text")
             .AfterJson.Should().Be("\"[1,2,3]\"", "a text column stays the string it is");
     }
 
@@ -264,7 +264,7 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         capture.Changes.Single().Fields
-            .Single(field => field.Path == "/Documented/Status")
+            .Single(field => field.Path == "/Documented/2/Status")
             .AfterJson.Should().Be("\"Second\"");
     }
 
@@ -293,12 +293,12 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         var fields = capture.Changes.Single().Fields;
 
-        fields.Single(field => field.Path == "/Converted/Label")
+        fields.Single(field => field.Path == "/Converted/1/Label")
             .AfterJson.Should().Be(
                 """{"text":"Vocabulary Card"}""",
                 "the jsonb column holds the converter's output, not the CLR object's shape");
 
-        fields.Single(field => field.Path == "/Converted/Grade")
+        fields.Single(field => field.Path == "/Converted/1/Grade")
             .AfterJson.Should().Be(
                 "\"Second\"",
                 "an enum mapped as text is stored by name, and the snapshot must agree "
@@ -340,6 +340,11 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         capture.Changes.Single().EntityId.Should().Be("t/proficiency/beginner");
+
+        // And the key is ONE pointer segment, so its `/` is escaped the way RFC 6901 says.
+        // Unescaped, "/Band/t/proficiency/beginner/Key" reads as four levels of nesting.
+        capture.Changes.Single().Fields.Should().Contain(
+            field => field.Path == "/Band/t~1proficiency~1beginner/Key");
     }
 
     [Fact]
@@ -466,11 +471,16 @@ public sealed class AuditChangeTrackerInterceptorTests
         new AuditChangeTrackerInterceptor(capture).Capture(context);
 
         var paths = capture.Changes.Single().Fields.Select(field => field.Path).ToList();
+        var at = $"/TenantContentType/{contentType.Id.Value}/";
 
-        paths.Should().NotContain("/TenantContentType/Version");
-        paths.Should().NotContain("/TenantContentType/CreatedAt");
-        paths.Should().NotContain("/TenantContentType/TenantId");
-        paths.Should().Contain("/TenantContentType/Key", "the record itself stays");
+        // The positive assertion FIRST, and on the same prefix the negatives use. Pointers
+        // are instance-qualified now; left spelled "/TenantContentType/Version", the three
+        // negatives below would pass whatever the exclusion set held — the vacuous shape
+        // this case was written against in the first place.
+        paths.Should().Contain(at + "Key", "the record itself stays");
+        paths.Should().NotContain(at + "Version");
+        paths.Should().NotContain(at + "CreatedAt");
+        paths.Should().NotContain(at + "TenantId");
     }
 
     [Fact]
@@ -484,7 +494,10 @@ public sealed class AuditChangeTrackerInterceptorTests
         var capture = new AuditStateCapture();
 
         var hidden = new Hidden { Id = 1, Open = "public" };
-        hidden.SetSecret("private-personal-data");
+        hidden.SetBirthplace("private-personal-data");
+
+        // The name is no token, or the marker is not what this case measures.
+        SensitiveTokenCatalog.IsSensitive("Birthplace").Should().BeFalse();
 
         context.Add(hidden);
 
@@ -492,7 +505,7 @@ public sealed class AuditChangeTrackerInterceptorTests
 
         var change = capture.Changes.Single();
         change.AfterJson.Should().NotContain("private-personal-data");
-        change.Fields.Single(field => field.Path == "/Hidden/Secret")
+        change.Fields.Single(field => field.Path == "/Hidden/1/Birthplace")
             .AfterJson.Should().Be(Quoted(SensitiveTokenCatalog.RedactedValue));
     }
 
@@ -517,6 +530,256 @@ public sealed class AuditChangeTrackerInterceptorTests
             "the column stores the converter's output, and entity_id points at the column");
     }
 
+    [Fact]
+    public void A_contained_entity_is_captured_inside_its_root_and_never_on_its_own()
+    {
+        // The shape ADR-0044 Amendment 6 § 4 decides. Captured on its own, a member carried
+        // a type name no catalogue entry declares, so the composer dropped it: a taxonomy's
+        // band labels — the content the tenant authored — never reached the taxonomy's row.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        var folder = new Folder { Id = 1, Title = "Levels" };
+        folder.Leaves.Add(new Leaf { FolderId = 1, Key = "b", Label = "Upper" });
+        folder.Leaves.Add(new Leaf { FolderId = 1, Key = "a", Label = "Lower" });
+        context.Add(folder);
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var change = capture.Changes.Should().ContainSingle(
+            "the members are part of their root's capture, not captures of their own").Subject;
+        change.EntityType.Should().Be(nameof(Folder));
+
+        using var after = JsonDocument.Parse(change.AfterJson!);
+        var leaves = after.RootElement.GetProperty("Leaves");
+
+        // Keyed by each member's own key, in key order — an index would name a different
+        // member the moment one ahead of it was removed.
+        leaves.EnumerateObject().Select(member => member.Name).Should().Equal("a", "b");
+        leaves.GetProperty("b").GetProperty("Label").GetString().Should().Be("Upper");
+        leaves.GetProperty("a").TryGetProperty("FolderId", out _).Should().BeFalse(
+            "the owner's key is the path the member sits under; repeating it says nothing");
+
+        change.Fields.Should().Contain(field =>
+            field.Path == "/Folder/1/Leaves/b/Label" && field.AfterJson == "\"Upper\"");
+    }
+
+    [Fact]
+    public void A_removed_member_is_in_the_before_state_and_the_diff_and_not_in_the_after_state()
+    {
+        // A removed band strands every row that referenced it, so its removal is the fact the
+        // row most needs to carry — and it is only in the PRIOR membership.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        var folder = new Folder { Id = 2, Title = "Levels" };
+        folder.Leaves.Add(new Leaf { FolderId = 2, Key = "a", Label = "Lower" });
+        folder.Leaves.Add(new Leaf { FolderId = 2, Key = "b", Label = "Upper" });
+        context.Attach(folder);
+
+        // What an Include leaves behind; Attach alone does not set it.
+        context.Entry(folder).Collection(owner => owner.Leaves).IsLoaded = true;
+
+        folder.Leaves.RemoveAt(1);
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var change = capture.Changes.Should().ContainSingle().Subject;
+        change.EntityType.Should().Be(nameof(Folder), "an unchanged root is still what the row is about");
+
+        using (var before = JsonDocument.Parse(change.BeforeJson!))
+        {
+            before.RootElement.GetProperty("Leaves").EnumerateObject()
+                .Select(member => member.Name).Should().Equal("a", "b");
+        }
+
+        using (var after = JsonDocument.Parse(change.AfterJson!))
+        {
+            after.RootElement.GetProperty("Leaves").EnumerateObject()
+                .Select(member => member.Name).Should().Equal("a");
+        }
+
+        change.Fields.Should().Contain(field =>
+            field.Path == "/Folder/2/Leaves/b/Label"
+            && field.BeforeJson == "\"Upper\"" && field.AfterJson == null);
+        change.Fields.Should().NotContain(field => field.Path.StartsWith("/Folder/2/Leaves/a/",
+            StringComparison.Ordinal), "an unchanged member is in the snapshot, not the diff");
+    }
+
+    [Fact]
+    public void An_unloaded_collection_is_left_out_rather_than_recorded_empty()
+    {
+        // Not loaded is not known. An owner read without its collection and then modified
+        // would otherwise be written down as owning nothing — a claim that every member was
+        // removed, on a table nothing can correct.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        var folder = new Folder { Id = 3, Title = "Levels" };
+        context.Attach(folder);
+        folder.Title = "Grades";
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        using var after = JsonDocument.Parse(capture.Changes.Single().AfterJson!);
+        after.RootElement.GetProperty("Title").GetString().Should().Be("Grades");
+        after.RootElement.TryGetProperty("Leaves", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void An_owner_created_earlier_in_the_request_keeps_its_members()
+    {
+        // Provisioning's shape: the tenant is created in the first flush and modified in the
+        // third, and the row's after_state is the LATEST capture. EF reports IsLoaded=false
+        // for a new entity and keeps reporting it after the save — measured — so a rule that
+        // trusted IsLoaded alone would drop every member from the capture that matters.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+        var interceptor = new AuditChangeTrackerInterceptor(capture);
+
+        var folder = new Folder { Id = 4, Title = "Levels" };
+        folder.Leaves.Add(new Leaf { FolderId = 4, Key = "a", Label = "Lower" });
+        context.Add(folder);
+
+        interceptor.Capture(context);
+        context.ChangeTracker.AcceptAllChanges();
+
+        context.Entry(folder).Collection(owner => owner.Leaves).IsLoaded.Should().BeFalse(
+            "the premise: EF does not call a new entity's collection loaded");
+
+        folder.Title = "Grades";
+        interceptor.Capture(context);
+
+        using var after = JsonDocument.Parse(capture.Changes[^1].AfterJson!);
+        after.RootElement.GetProperty("Leaves").GetProperty("a").GetProperty("Label")
+            .GetString().Should().Be("Lower");
+    }
+
+    [Fact]
+    public void A_member_whose_owner_is_not_tracked_is_captured_on_its_own()
+    {
+        // Folded when its owner is there to fold it into; never dropped when it is not.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        context.Add(new Leaf { FolderId = 9, Key = "a", Label = "Lower" });
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var change = capture.Changes.Should().ContainSingle().Subject;
+        change.EntityType.Should().Be(nameof(Leaf));
+        change.EntityId.Should().Be("9/a");
+    }
+
+    [Fact]
+    public void An_aggregate_root_is_never_folded_into_another()
+    {
+        // A navigation from one aggregate to another is a reference, not containment. Each
+        // root is its own row's subject, and folding one into another would attribute its
+        // change to the wrong aggregate.
+        using var context = new ProbeContext();
+        var capture = new AuditStateCapture();
+
+        var holder = new Holder { Id = 1 };
+        holder.Children.Add(new Rooted { Id = new ProbeId(Guid.CreateVersion7()), HolderId = 1, Name = "n" });
+        context.Add(holder);
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        capture.Changes.Select(change => change.EntityType).Should().BeEquivalentTo(
+            [nameof(Holder), nameof(Rooted)]);
+        capture.Changes.Single(change => change.EntityType == nameof(Holder)).AfterJson
+            .Should().NotContain("Children");
+    }
+
+    [Fact]
+    public void The_bands_a_tenant_authored_reach_the_taxonomy_capture()
+    {
+        // The shipped case, on the REAL Customization model: the stand-ins above prove the
+        // mechanism, and this proves the mapping every taxonomy uses reaches it — the
+        // containment is read from CustomizationDbContext's own HasMany(Items).
+        using var context = RealCustomizationContext();
+        var capture = new AuditStateCapture();
+        var clock = new FixedClock(DateTimeOffset.UnixEpoch);
+        var actor = UserId.From(Guid.CreateVersion7());
+
+        var taxonomy = TenantLevelTaxonomy.Create(
+            TenantLevelTaxonomyId.From(Guid.CreateVersion7()),
+            TenantId.From(Guid.CreateVersion7()),
+            "cefr",
+            1,
+            LocalizedText.From(("en", "CEFR")),
+            clock,
+            actor);
+        taxonomy.AddItem("a1", LocalizedText.From(("en", "Breakthrough")), 1, """{"color":"#e74c3c"}""", clock, actor);
+        taxonomy.AddItem("b2", LocalizedText.From(("en", "Vantage")), 2, null, clock, actor);
+        context.Add(taxonomy);
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+
+        var change = capture.Changes.Should().ContainSingle().Subject;
+        change.EntityType.Should().Be(nameof(TenantLevelTaxonomy));
+        change.AfterJson.Should().Contain("Breakthrough").And.Contain("#e74c3c").And.Contain("Vantage");
+
+        change.Fields.Should().Contain(field =>
+            field.Path == $"/TenantLevelTaxonomy/{taxonomy.Id.Value}/Items/b2/DisplayName");
+
+        using var after = JsonDocument.Parse(change.AfterJson!);
+        var band = after.RootElement.GetProperty("Items").GetProperty("a1");
+        band.TryGetProperty("TaxonomyKey", out _).Should().BeFalse();
+        band.TryGetProperty("SchemaVersion", out _).Should().BeFalse();
+        band.GetProperty("Metadata").GetProperty("color").GetString().Should().Be("#e74c3c",
+            "metadata is a jsonb column, so it lands as the document it is");
+    }
+
+    [Fact]
+    public void Designation_and_capture_render_one_key()
+    {
+        // The subject a handler designates and the entity_id the interceptor captures are
+        // compared as TEXT, by the composer, so they must be spelled one way. Two renderings
+        // of one Guid that differed — a format specifier, a converter — would leave every
+        // publication's row with an entity_id and no state, silently.
+        using var context = RealCustomizationContext();
+        var capture = new AuditStateCapture();
+
+        capture.DeclareIntent(new AuditIntent(
+            AuditEntryId.From(Guid.CreateVersion7()),
+            TenantId.From(Guid.CreateVersion7()),
+            OrganizationId: null,
+            ActorUserId: null,
+            CorrelationId: null,
+            "customization",
+            "customization.content_type.publish",
+            OperationType.Update,
+            OperationClass.Must,
+            typeof(TenantContentType),
+            DateTimeOffset.UnixEpoch));
+
+        var contentType = TenantContentType.Create(
+            TenantContentTypeId.From(Guid.CreateVersion7()),
+            TenantId.From(Guid.CreateVersion7()),
+            "vocabulary-card",
+            1,
+            LocalizedText.From(("en", "Vocabulary Card")),
+            """{"type":"object"}""",
+            "default-card",
+            new FixedClock(DateTimeOffset.UnixEpoch),
+            UserId.From(Guid.CreateVersion7()));
+        context.Add(contentType);
+
+        new AuditChangeTrackerInterceptor(capture).Capture(context);
+        capture.Designate(contentType);
+
+        capture.Intents.Single().SubjectId.Should().Be(capture.Changes.Single().EntityId);
+    }
+
+    private static CustomizationDbContext RealCustomizationContext() =>
+        new(
+            new DbContextOptionsBuilder<CustomizationDbContext>()
+                .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
+                .Options,
+            StaticTenantContextAccessor.Unresolved);
+
     private static string Quoted(string value) => JsonSerializer.Serialize(value);
 
     private sealed class ProbeContext : DbContext
@@ -531,8 +794,20 @@ public sealed class AuditChangeTrackerInterceptorTests
         {
             builder.Entity<Person>();
             builder.Entity<Band>().HasKey(band => new { band.TenantId, band.Taxonomy, band.Key });
+            builder.Entity<Folder>()
+                .HasMany(folder => folder.Leaves)
+                .WithOne()
+                .HasForeignKey(leaf => leaf.FolderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            builder.Entity<Leaf>().HasKey(leaf => new { leaf.FolderId, leaf.Key });
+            builder.Entity<Holder>()
+                .HasMany(holder => holder.Children)
+                .WithOne()
+                .HasForeignKey(child => child.HolderId);
+            builder.Entity<Rooted>().Property(rooted => rooted.Id)
+                .HasConversion(id => id.Value, value => new ProbeId(value));
             builder.Entity<Bookkept>();
-            builder.Entity<Hidden>(entity => entity.Property("Secret"));
+            builder.Entity<Hidden>(entity => entity.Property("Birthplace"));
             builder.Entity<Keyed>(entity =>
             {
                 entity.HasKey(keyed => keyed.Code);
@@ -573,10 +848,20 @@ public sealed class AuditChangeTrackerInterceptorTests
     /// </summary>
     private abstract class Concealing
     {
+        /// <summary>
+        /// Marked, private, declared on a base class — and named for no
+        /// <see cref="SensitiveTokenCatalog"/> token.
+        /// </summary>
+        /// <remarks>
+        /// It was called <c>Secret</c>, and <c>secret</c> is a token: the name redactor
+        /// masked it first, so the case passed with the marker deleted and asserted nothing
+        /// about the hierarchy walk it is named for. The <c>Nickname</c> probe below had
+        /// already been renamed for exactly that reason; this one had not.
+        /// </remarks>
         [PiiSensitive]
-        private string Secret { get; set; } = string.Empty;
+        private string Birthplace { get; set; } = string.Empty;
 
-        public void SetSecret(string value) => Secret = value;
+        public void SetBirthplace(string value) => Birthplace = value;
     }
 
     private sealed class Hidden : Concealing
@@ -705,6 +990,47 @@ public sealed class AuditChangeTrackerInterceptorTests
         public string Taxonomy { get; set; } = string.Empty;
 
         public string Key { get; set; } = string.Empty;
+    }
+
+    /// <summary>An owner and the members it contains — the shape of a taxonomy and its bands.</summary>
+    private sealed class Folder
+    {
+        public int Id { get; set; }
+
+        public string Title { get; set; } = string.Empty;
+
+        public List<Leaf> Leaves { get; } = [];
+    }
+
+    private sealed class Leaf
+    {
+        public int FolderId { get; set; }
+
+        public string Key { get; set; } = string.Empty;
+
+        public string Label { get; set; } = string.Empty;
+    }
+
+    /// <summary>A navigation to another aggregate root, which is a reference and not containment.</summary>
+    private sealed class Holder
+    {
+        public int Id { get; set; }
+
+        public List<Rooted> Children { get; } = [];
+    }
+
+    private sealed class Rooted : IAggregateRoot<ProbeId>
+    {
+        public ProbeId Id { get; set; }
+
+        public int HolderId { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private readonly record struct ProbeId(Guid Value) : IStronglyTypedId<Guid>
+    {
+        public bool IsInitialized() => Value != Guid.Empty;
     }
 
     // The four excluded names, as the interceptor matches them: by CLR type name, so a
