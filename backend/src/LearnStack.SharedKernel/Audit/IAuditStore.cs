@@ -70,11 +70,19 @@ public interface IAuditStore
     /// among them — it rides the in-transaction path, because
     /// <c>TransactionBehavior</c> has no request-kind gate.
     /// </para>
+    /// <para>
+    /// <b>A failure is reported here, not by the caller.</b> Every exception this throws has
+    /// already been logged at <c>Critical</c>, counted on
+    /// <c>learnstack_audit_standalone_write_failures_total</c> and marked on the <c>audit</c>
+    /// health check — a database failure arriving as <see cref="AuditWriteFailedException"/>,
+    /// anything else unchanged. A caller decides what the failure does to its response and
+    /// does not raise the same alert a second time.
+    /// </para>
     /// </remarks>
     Task WriteStandaloneAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Writes one SHOULD/MAY-class row, best effort. The caller logs and drops a failure.
+    /// Writes one SHOULD/MAY-class row, best effort. A failure is logged here and dropped.
     /// </summary>
     /// <remarks>
     /// Same shape as <see cref="WriteStandaloneAsync"/>, same two session variables, and

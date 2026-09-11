@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Api.Tenancy;
@@ -203,13 +204,60 @@ public sealed class AuditingTenantAssertionRecorderTests
         await act.Should().NotThrowAsync(
             "a failed record does not change a response that is already a refusal");
 
-        // And it is not swallowed silently. A wide catch with no log is the one shape that
-        // would be worse than the 500 it replaces: an operation refused, unrecorded, and
-        // invisible. Critical because nothing downstream will say it again — the store
-        // could not translate this failure, so no counter and no health signal fired for
-        // it there either.
-        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Critical)
+        // And not swallowed silently — but not a second alert either. The store reports
+        // every failure it throws (IAuditStore), so this line says only that the refusal
+        // stands; the case below composes the real store to prove the first half.
+        logger.Entries.Should().NotContain(entry => entry.Level == LogLevel.Critical);
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Warning)
             .Which.Message.Should().Contain(AuditingTenantAssertionRecorder.RejectOperation);
+    }
+
+    [Fact]
+    public async Task The_real_store_reports_a_failure_once_and_the_recorder_does_not_repeat_it()
+    {
+        // The fourth review of Packet 9 composed the two for real: a data source that cannot
+        // be built made ONE failure produce two Critical lines, the second saying the store
+        // had not counted it — beside a counter of 1 and an unhealthy check. The stub above
+        // throws without reporting, so only the real store can pin the whole of it.
+        var health = new AuditHealth();
+        var storeLogger = new CapturingLogger<PostgresAuditStore>();
+        var recorderLogger = new CapturingLogger();
+        var meterFactory = new ServiceCollection().AddMetrics()
+            .BuildServiceProvider().GetRequiredService<IMeterFactory>();
+
+        var store = new PostgresAuditStore(
+            new AuditStateCapture(),
+            new Lazy<NpgsqlDataSource>(
+                () => throw new InvalidOperationException("ConnectionStrings:Default is absent.")),
+            storeLogger,
+            meterFactory,
+            health);
+
+        var counted = 0L;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, active) =>
+        {
+            if (instrument.Meter.Name == PostgresAuditStore.MeterName
+                && instrument.Name == PostgresAuditStore.StandaloneWriteFailureCounterName)
+            {
+                active.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => counted += measurement);
+        listener.Start();
+
+        var recorder = Recorder(store, out _, logger: recorderLogger);
+
+        var act = async () => await recorder.RecordRejectionAsync(Rejection(authenticated: true));
+
+        await act.Should().NotThrowAsync("the refusal stays a refusal");
+
+        counted.Should().Be(1);
+        health.IsHealthy.Should().BeFalse();
+        storeLogger.Entries.Count(entry => entry.Level == LogLevel.Critical)
+            .Should().Be(1, "the store owns the alert");
+        recorderLogger.Entries.Should().NotContain(entry => entry.Level == LogLevel.Critical,
+            "one failure is one alert, and the store has raised it");
     }
 
     public static TheoryData<Exception> UntranslatedFailures()
@@ -361,7 +409,7 @@ public sealed class AuditingTenantAssertionRecorderTests
         new(Resolved, dimension, Asserted, authenticated);
 
     private static AuditingTenantAssertionRecorder Recorder(
-        RecordingStore store,
+        IAuditStore store,
         out MovableClock clock,
         int threshold = 10,
         IAuditCatalog? catalog = null,
@@ -461,7 +509,9 @@ public sealed class AuditingTenantAssertionRecorderTests
             throw new NotSupportedException("that path has its own caller");
     }
 
-    private sealed class CapturingLogger : ILogger<AuditingTenantAssertionRecorder>
+    private sealed class CapturingLogger : CapturingLogger<AuditingTenantAssertionRecorder>;
+
+    private class CapturingLogger<T> : ILogger<T>
     {
         private readonly List<(LogLevel Level, string Message)> _entries = [];
 

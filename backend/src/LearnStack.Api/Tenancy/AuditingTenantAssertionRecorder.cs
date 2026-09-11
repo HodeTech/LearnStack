@@ -44,8 +44,8 @@ namespace LearnStack.Api.Tenancy;
 /// anonymous caller can generate is a remotely triggerable availability signal that same
 /// caller controls. The store has already logged <c>Critical</c>, counted
 /// <c>learnstack_audit_standalone_write_failures_total</c> and taken the <c>audit</c>
-/// health check unhealthy (ADR-0033 Amendments 1 and 3); this catch adds nothing to that
-/// and deliberately does not repeat it.
+/// health check unhealthy (ADR-0033 Amendments 1 and 3); this catch deliberately does not
+/// repeat it, and adds only a <c>Warning</c> that the refusal stands.
 /// </para>
 /// </remarks>
 public sealed class AuditingTenantAssertionRecorder(
@@ -208,12 +208,7 @@ public sealed class AuditingTenantAssertionRecorder(
             // health check unhealthy (ADR-0033 Amendments 1 and 3).
             await _store.WriteStandaloneAsync(draft).ConfigureAwait(false);
         }
-        catch (AuditWriteFailedException)
-        {
-            // Swallowed on purpose — see the class remarks. The store has already logged
-            // Critical, counted the failure and taken the health check unhealthy.
-        }
-        catch (Exception lost)
+        catch (Exception refused)
         {
             // WIDE, and the width is the decision. ADR-0036 says a failed record does not
             // change the response, without qualification — and the store translates only
@@ -224,11 +219,13 @@ public sealed class AuditingTenantAssertionRecorder(
             // remotely triggerable availability signal this design refuses to produce,
             // handed to an anonymous caller for the price of ten wrong headers.
             //
-            // Nothing is hidden by it: Critical carries the exception, and the response
-            // was already a refusal, so there is no success being reported over a failure.
-            // The narrow catch that used to be here was agreed with by its own test,
-            // which threw exactly the one type it caught.
-            LogRowLost(_logger, operation, lost);
+            // And NOT reported a second time. WriteStandaloneAsync reports every failure it
+            // throws — Critical, counted, the `audit` health check unhealthy — before it
+            // propagates, translated or not (IAuditStore). A Critical here was one alert
+            // twice, and its text said the store had not counted the failure, which the real
+            // store had: measured by the fourth review of Packet 9. What this line adds is
+            // the one fact the store cannot know — the refusal it belonged to is unchanged.
+            LogRowNotWritten(_logger, operation, refused);
         }
     }
 
@@ -259,11 +256,11 @@ public sealed class AuditingTenantAssertionRecorder(
             + ",\"authenticated\":" + (rejection.IsAuthenticated ? "true" : "false") + "}");
     }
 
-    private static readonly Action<ILogger, string, Exception?> LogRowLost =
+    private static readonly Action<ILogger, string, Exception?> LogRowNotWritten =
         LoggerMessage.Define<string>(
-            LogLevel.Critical,
-            new EventId(4003, nameof(LogRowLost)),
-            "A '{Operation}' row was abandoned before the store could count the failure. The response is unchanged — a refusal stays a refusal — but this occurrence is not on the record.");
+            LogLevel.Warning,
+            new EventId(4003, nameof(LogRowNotWritten)),
+            "A '{Operation}' row could not be written, and the audit store has reported the failure. The response is unchanged — a refusal stays a refusal — but this occurrence is not on the record.");
 
     private static readonly Action<ILogger, string, Exception?> LogUndeclared =
         LoggerMessage.Define<string>(
