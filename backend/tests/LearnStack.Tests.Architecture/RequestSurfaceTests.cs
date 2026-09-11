@@ -1,6 +1,9 @@
 using System.Reflection;
 using FluentAssertions;
+using LearnStack.Infrastructure.Audit;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Xunit;
@@ -86,23 +89,63 @@ public sealed class RequestSurfaceTests
     [Fact]
     public void PublicSurface_Requests_Are_Never_ReadSensitive()
     {
-        // Vacuous on BOTH sides today, and that is stated in the catalogue rather than
-        // left for a reader to infer from a green run: the marked set is empty, and
-        // there is no audit catalogue in code to classify anything against — IAuditStore
-        // and the operation catalogue arrive in Packet 9. What this can assert now is
-        // the emptiness that makes the claim trivially true, so that the day a marked
-        // type appears without the cross-check existing, this rule is the thing that
-        // has to be revisited rather than the thing that quietly passed.
+        // The cross-check this rule was catalogued with, now that the catalogue exists in
+        // code. It was set-emptiness only while the audit catalogue was a Packet 9 promise;
+        // Packet 9 shipped IAuditCatalog and left this leg unwritten, so the rule went on
+        // claiming a check it did not make. An anonymous GET classified MUST-class
+        // read-sensitive would become a durable standalone audit write, triggered at will
+        // by a caller nobody authenticated.
+        //
+        // The marked set is still empty — its first rows land in Phase 02d — so the check
+        // runs over nothing today, and the companion below is what shows it can fail.
         var marked = RequestTypes()
-            .Where(type => type.IsDefined(typeof(PublicSurfaceAttribute), inherit: false))
-            .ToList();
+            .Where(type => type.IsDefined(typeof(PublicSurfaceAttribute), inherit: false));
 
-        marked.Should().BeEmpty(
-            "no [PublicSurface] type may be MUST-class read-sensitive — an anonymous "
-            + "GET would become a durable standalone audit write — and until Packet 9 "
-            + "ships the audit catalogue there is nothing to check that against, so a "
-            + "marked type arriving before it is a decision this rule must be told about");
+        ReadSensitive(marked, AuditCatalogDiscovery.Catalogue()).Should().BeEmpty(
+            "no [PublicSurface] type may be MUST-class read-sensitive: an anonymous GET "
+            + "would become a durable standalone audit write");
     }
+
+    [Fact]
+    public void The_PublicSurface_Cross_Check_Can_Actually_Fail()
+    {
+        // With no marked type shipped, the rule above passes whether its predicate works or
+        // matches nothing — the defect this suite has found in itself more than once. A
+        // marked probe registered MUST read-sensitive is what it has to catch.
+        var catalog = new AuditCatalog([new ReadSensitiveProbeSource()]);
+
+        ReadSensitive([typeof(PublicProbeQuery), typeof(QuietProbeQuery)], catalog)
+            .Should().Equal(nameof(PublicProbeQuery));
+    }
+
+    /// <summary>The marked types a catalogue classifies MUST-class read-sensitive.</summary>
+    private static List<string> ReadSensitive(IEnumerable<Type> marked, AuditCatalog catalog) =>
+        [.. marked
+            .Where(type => catalog.TryGet(type, out var registration)
+                && registration.Entries.Any(entry =>
+                    entry.OperationClass == OperationClass.Must
+                    && entry.OperationType == OperationType.ReadSensitive))
+            .Select(type => type.Name)];
+
+    [PublicSurface]
+    private sealed record PublicProbeQuery : IRequest<Result<string>>;
+
+    [PublicSurface]
+    private sealed record QuietProbeQuery : IRequest<Result<string>>;
+
+    /// <summary>One marked probe registered read-sensitive, and one registered silent.</summary>
+    private sealed class ReadSensitiveProbeSource : IAuditCatalogSource
+    {
+        public string ModuleName => "probe";
+
+        public void Describe(IAuditCatalogBuilder builder) =>
+            builder
+                .MustAudit<PublicProbeQuery>("probe.page.read", OperationType.ReadSensitive, typeof(ProbePage))
+                .Off<QuietProbeQuery>();
+    }
+
+    /// <summary>A stand-in for the aggregate the probe's row would be about.</summary>
+    private sealed class ProbePage;
 
     [Fact]
     public void Requests_Are_Never_Streamed()

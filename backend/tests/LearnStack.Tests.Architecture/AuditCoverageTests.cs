@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
@@ -276,8 +275,7 @@ public sealed partial class AuditCoverageTests
     /// without a line here.
     /// </remarks>
     private static List<Type> ShippedRequestTypes() =>
-        [.. BackendAssemblies()
-            .SelectMany(LoadableTypes)
+        [.. AuditCatalogDiscovery.Types()
             .Where(type => type is { IsAbstract: false, IsInterface: false })
             .SelectMany(type => type.GetInterfaces())
             .Where(contract => contract.IsGenericType
@@ -286,39 +284,8 @@ public sealed partial class AuditCoverageTests
             .Select(contract => contract.GetGenericArguments()[0])
             .Distinct()];
 
-    /// <summary>
-    /// The catalogue merged from every <see cref="IAuditCatalogSource"/> the backend ships.
-    /// </summary>
-    /// <remarks>
-    /// Discovered rather than listed, for the reason <see cref="ShippedRequestTypes"/> is: a
-    /// source the composition root registers and this file forgot would make every rule here
-    /// report on a catalogue the running system does not have.
-    /// </remarks>
-    private static AuditCatalog Catalogue() =>
-        new(BackendAssemblies()
-            .SelectMany(LoadableTypes)
-            .Where(type => type is { IsAbstract: false, IsInterface: false }
-                && typeof(IAuditCatalogSource).IsAssignableFrom(type))
-            .Select(type => (IAuditCatalogSource)Activator.CreateInstance(type)!)
-            .ToList());
-
-    private static IEnumerable<Assembly> BackendAssemblies() =>
-        Directory
-            .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.csproj", SearchOption.AllDirectories)
-            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .Select(path => Assembly.Load(Path.GetFileNameWithoutExtension(path)));
-
-    private static IEnumerable<Type> LoadableTypes(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException partial)
-        {
-            return partial.Types.OfType<Type>();
-        }
-    }
+    /// <summary>The catalogue the composition roots build — see <see cref="AuditCatalogDiscovery"/>.</summary>
+    private static AuditCatalog Catalogue() => AuditCatalogDiscovery.Catalogue();
 
     /// <summary>The module a request type belongs to, from its namespace, or <c>null</c>.</summary>
     private static string? ModuleOf(Type request)
