@@ -8,11 +8,23 @@
     Packages actively referenced by Phase-01 scaffolding.
   -->
   <ItemGroup Label="Phase-01 (in use)">
-    <!-- ASP.NET / hosting (Api host) -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <!-- ASP.NET / hosting (Api host). 10.0.0 took Microsoft.OpenApi at 2.0.0, inside the
+         range of a high-severity advisory (GHSA-v5pm-xwqc-g5wc); 10.0.12 requires
+         2.12.0 or later. -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
 
-    <!-- EF Core (per-module Infrastructure projects) -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+    <!-- EF Core (per-module Infrastructure projects). One servicing release for the
+         whole EF set, and every project that references the Npgsql provider references
+         Relational beside it: the provider takes Relational at its dependency floor, so
+         without the direct reference a module compiles against an older relational
+         layer than the EF Core it runs, and LearnStack.Infrastructure — which gets the
+         current one through Design — no longer binds (MSB3277). -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+    <!-- Design-time only (IDesignTimeDbContextFactory, migrations), always
+         PrivateAssets="all". Its MSBuild dependency is what carried
+         System.Security.Cryptography.Xml 9.0.0 before 10.0.12. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <!-- The raw ADO.NET provider. Referenced by the integration fixture, which
          connects as each of the four database roles directly: the assertions are
@@ -49,7 +61,7 @@
     <PackageVersion Include="FluentAssertions" Version="6.12.2" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
 
     <!-- Architecture tests -->
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
@@ -57,9 +69,11 @@
     <!-- Integration test infrastructure. Phase 02a Packet 6 brought the first
          real Testcontainers-backed suite: the four-role provisioning cases, both
          migration chains and the schema-level isolation suite, all under
-         `[Trait("Requires","Docker")]` in CI's `backend-integration` job. -->
-    <PackageVersion Include="Testcontainers" Version="3.10.0" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
+         `[Trait("Requires","Docker")]` in CI's `backend-integration` job. The 4.x line
+         because every 3.x release pins SSH.NET 2023.0.0, inside a high-severity advisory
+         (GHSA-q939-rpr3-3284); 4.15.0 pins the patched 2026.0.0. -->
+    <PackageVersion Include="Testcontainers" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <!-- Versioned here and referenced by NO project. That is the whole state: a
          PackageVersion binds a version if someone asks; it pulls nothing on its own.
          The integration project used to carry a PackageReference to both and use
@@ -75,7 +89,7 @@
          fixture's seeded row counts are what the isolation assertions compare
          against. If Phase 03's second module context does not need it either,
          drop it then. -->
-    <PackageVersion Include="Testcontainers.Redis" Version="3.10.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.15.0" />
     <PackageVersion Include="Respawn" Version="6.2.1" />
   </ItemGroup>
 
@@ -88,20 +102,20 @@
     Modules_Do_Not_Reference_Sentry_SDK_Directly architecture test).
   -->
   <ItemGroup Label="Phase 02a (in use)">
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <!--
       IHealthCheck alone, for the `audit` check ADR-0033 Amendment 3 assigns to
       Packet 9. The abstraction rather than the full HealthChecks package: the
       registration and the readiness surface belong to the API host, which has the
       ASP.NET Core shared framework and needs no reference here.
     -->
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.12" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
 
     <!-- Serilog (primary logger; OTel via OTLP sink, no AddOpenTelemetry().WithLogging()). -->
@@ -133,9 +147,6 @@
   </ItemGroup>
 
   <!--
-    Reserved for later Phase 02a packets (EF migrations + design-time).
-  -->
-  <!--
     Phase 02a Packet 4 — API conventions (ADR-0024, ADR-0036).
     Scalar renders the OpenAPI document Microsoft.AspNetCore.OpenApi emits.
     Swashbuckle is NOT used: it does not ship a .NET 10 document generator,
@@ -144,11 +155,6 @@
   -->
   <ItemGroup Label="Phase 02a Packet 4 (in use)">
     <PackageVersion Include="Scalar.AspNetCore" Version="2.16.20" />
-  </ItemGroup>
-
-  <ItemGroup Label="Reserved for later Phase 02a packets">
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
   </ItemGroup>
 
   <!--
