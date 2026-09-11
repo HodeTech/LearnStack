@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using MediatR;
@@ -61,6 +62,41 @@ public sealed class AuditLogBehaviorTests
         capture.Intents.Should().BeEmpty();
         store.Standalone.Should().BeEmpty();
         store.BestEffort.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_silent_request_still_owns_the_frame_a_nested_audited_request_joins()
+    {
+        // Silent is not frameless. The outer request's TransactionBehavior owns the unit of
+        // work whatever its audit registration says, so it is the outer frame that drains the
+        // scope's intents on its way out — and an inner audited request that believed itself
+        // outermost reconciled BEFORE the owner committed, wrote a `failed` row for an
+        // operation about to commit, and cleared the intent the owner was to write. Measured:
+        // skipping the frame for a silent request left every other unit case green.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var outer = Behavior(new FakeCatalog { Silent = true }, store, capture);
+        var inner = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
+
+        await outer.Handle(
+            new DummyCommand(),
+            async () =>
+            {
+                await inner.Handle(
+                    new DummyCommand(), () => Task.FromResult(Result.Ok("inner")), default);
+
+                capture.Intents.Should().ContainSingle(
+                    "the inner request joined the silent one's frame and left its intent to the owner");
+                store.Standalone.Should().BeEmpty("a joiner reconciles nothing");
+
+                capture.MarkCommitted();
+
+                return Result.Ok("outer");
+            },
+            default);
+
+        store.Standalone.Should().BeEmpty("the inner MUST row committed with the owner's transaction");
+        capture.Intents.Should().BeEmpty("and the silent owner cleared on its way out");
     }
 
     [Fact]
@@ -327,6 +363,45 @@ public sealed class AuditLogBehaviorTests
         store.Abandoned.Should().Be(0);
         store.Standalone.Should().ContainSingle()
             .Which.Outcome.Should().Be(AuditOutcome.Failed);
+    }
+
+    [Fact]
+    public async Task A_cancelled_classification_still_reconciles_what_was_declared_and_clears()
+    {
+        // The lifecycle Audit Subsystem § 5 documents, pinned: the declaration runs INSIDE
+        // the block the finally guards. ClassifyAsync can be cancelled — on a cache miss it
+        // opens a transaction of its own — and a declaration above the try leaves by a door
+        // nothing guards: the first operation's intent declared and never written, its frame
+        // never closed, the buffer never cleared. Measured: moving the declaration above the
+        // try left every other case in this class green.
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var behavior = Behavior(
+            new FakeCatalog(
+                AuditPipelineHarness.Entry("tenancy.tenant.create"),
+                AuditPipelineHarness.Entry("tenancy.organization.create")),
+            store,
+            capture,
+            new CancelledOnSecondClassifier());
+
+        var handlerRan = false;
+
+        var act = async () => await behavior.Handle(
+            new DummyCommand(),
+            () => { handlerRan = true; return Task.FromResult(Result.Ok("ok")); },
+            default);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        handlerRan.Should().BeFalse();
+
+        var row = store.Standalone.Should().ContainSingle(
+            "the intent declared before the cancellation is an attempt, and the attempt is the record")
+            .Which;
+
+        row.Operation.Should().Be("tenancy.tenant.create");
+        row.Outcome.Should().Be(AuditOutcome.Failed, "nothing committed and nothing succeeded");
+        capture.Intents.Should().BeEmpty("the outermost frame clears on this way out too");
     }
 
     [Fact]
@@ -849,6 +924,18 @@ public sealed class AuditLogBehaviorTests
 
     /// <summary>A stand-in for the aggregate an intent names.</summary>
     private sealed class Subject;
+
+    /// <summary>Classifies the first entry at its declared tier and is cancelled on the second.</summary>
+    private sealed class CancelledOnSecondClassifier : IAuditConfigService
+    {
+        private int _calls;
+
+        public Task<AuditClassification> ClassifyAsync(
+            TenantId? tenantId, AuditCatalogEntry entry, CancellationToken cancellationToken = default) =>
+            ++_calls == 1
+                ? Task.FromResult(AuditClassification.Must)
+                : Task.FromCanceled<AuditClassification>(new CancellationToken(canceled: true));
+    }
 
     private static AuditLogBehavior<DummyCommand, Result<string>> Behavior(
         IAuditCatalog catalog,
