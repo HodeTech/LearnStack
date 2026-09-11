@@ -166,10 +166,15 @@ public sealed class AuditConfigService(
             .ConfigureAwait(false);
 
         // Read-only is the property that makes an out-of-band announcement of app.tenant_id
-        // acceptable: learnstack_app holds write grants on audit_config, so nothing but this
-        // statement stops a later edit from writing under an announcement no request made.
-        // It precedes the announcement because PostgreSQL refuses SET TRANSACTION after the
-        // transaction's first statement (Out_Of_Band_Setters_Open_Read_Only_Transactions).
+        // acceptable. This connection is learnstack_app, which holds write grants across the
+        // schema — audit_config itself is SELECT-only for it, but the announcement is what
+        // every tenant-owned table's policy reads, so nothing but this statement stops a later
+        // edit here from writing under a tenant no request asked for.
+        //
+        // It precedes the announcement because the statement binds only what FOLLOWS it.
+        // PostgreSQL accepts it after other statements — measured, including after an INSERT,
+        // which still commits — so "first" is the rule's doing, not the server's
+        // (Out_Of_Band_Setters_Open_Read_Only_Transactions).
         await using (var readOnly = new NpgsqlCommand(
             "SET TRANSACTION READ ONLY", connection, transaction))
         {

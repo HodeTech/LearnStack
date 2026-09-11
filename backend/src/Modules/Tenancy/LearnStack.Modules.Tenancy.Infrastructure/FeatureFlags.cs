@@ -225,10 +225,14 @@ public sealed class FeatureFlags(
             .BeginTransactionAsync(ct).ConfigureAwait(false);
 
         // Read-only is the property that makes an out-of-band announcement of app.tenant_id
-        // acceptable: learnstack_app holds write grants on tenant_feature_flags, so nothing
-        // but this statement stops a later edit from writing under an announcement no request
-        // made. It precedes the announcement because PostgreSQL refuses SET TRANSACTION after
-        // the transaction's first statement (Out_Of_Band_Setters_Open_Read_Only_Transactions).
+        // acceptable: learnstack_app holds INSERT, UPDATE and DELETE on tenant_feature_flags,
+        // so nothing but this statement stops a later edit here from writing under an
+        // announcement no request made.
+        //
+        // It precedes the announcement because the statement binds only what FOLLOWS it.
+        // PostgreSQL accepts it after other statements — measured, including after an INSERT,
+        // which still commits — so "first" is the rule's doing, not the server's
+        // (Out_Of_Band_Setters_Open_Read_Only_Transactions).
         await using (var readOnly = new NpgsqlCommand(
             "SET TRANSACTION READ ONLY", connection, transaction))
         {
