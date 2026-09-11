@@ -85,7 +85,9 @@ public sealed partial class AuditCoverageTests
 
         catalog.All.Should().NotBeEmpty("a sweep over an empty catalogue passes vacuously");
 
-        var problems = ForwardProblems(catalog.All, [.. MatrixModules().Select(MatrixLines)]);
+        var problems = ForwardProblems(
+            catalog.All,
+            MatrixModules().ToDictionary(module => module, MatrixLines, StringComparer.OrdinalIgnoreCase));
 
         problems.Should().BeEmpty(
             "the catalogue is code and the matrix is the document, and one architecture "
@@ -160,13 +162,19 @@ public sealed partial class AuditCoverageTests
     {
         // A class cell that parses to nothing used to skip the comparison: the review of
         // Packet 9 changed a registered MUST row's class to "Off" and every case stayed green.
-        // The same for a type named in parentheses that the enum does not have. An entry the
-        // catalogue registers has a class the matrix must state readably.
+        // The same for a type named in parentheses that the enum does not have — and, until
+        // the third review, for any annotation the extraction did not recognise as one: a
+        // PascalCase or snake_case spelling read as "names no type". An entry the catalogue
+        // registers has a class and a type the matrix must state readably.
         AuditCatalogEntry[] entries =
         [
             new("mod", "mod.thing.create", OperationType.Create, OperationClass.Must, typeof(object)),
             new("mod", "mod.thing.read", OperationType.ReadSensitive, OperationClass.Must, typeof(object)),
             new("mod", "mod.thing.update", OperationType.Update, OperationClass.Should, typeof(object)),
+            new("mod", "mod.thing.grant", OperationType.SecurityEvent, OperationClass.Must, typeof(object)),
+            new("mod", "mod.thing.purge", OperationType.SecurityEvent, OperationClass.Must, typeof(object)),
+            new("mod", "mod.thing.erase", OperationType.SecurityEvent, OperationClass.Must, typeof(object)),
+            new("mod", "mod.thing.revoke", OperationType.SecurityEvent, OperationClass.Must, typeof(object)),
         ];
 
         string[] matrix =
@@ -176,12 +184,65 @@ public sealed partial class AuditCoverageTests
             "| `Thing` | `mod.thing.create` | Off | not a class |",
             "| `Thing` | `mod.thing.read` | **MUST** (`bogus-kind`) | not a type |",
             "| `Thing` | `mod.thing.update` | **MUST** | a disagreement |",
+            "| `Thing` | `mod.thing.grant` | **MUST** (`ReadSensitive`) | read, then compared |",
+            "| `Thing` | `mod.thing.purge` | **MUST** (`bogus_kind`) | read, and not a type |",
+            "| `Thing` | `mod.thing.erase` | **MUST** (`SecurityEvent`) | the enum's spelling agrees |",
+            "| `Thing` | `mod.thing.revoke` | **MUST** (`security-event`) | the documentation's agrees |",
         ];
 
-        ForwardProblems(entries, [matrix]).Should().SatisfyRespectively(
+        ForwardProblems(entries, new Dictionary<string, string[]> { ["mod"] = matrix }).Should().SatisfyRespectively(
             create => create.Should().StartWith("mod.thing.create:").And.Contain("no class"),
             read => read.Should().StartWith("mod.thing.read:").And.Contain("bogus-kind"),
-            update => update.Should().StartWith("mod.thing.update:").And.Contain("the matrix says Must"));
+            update => update.Should().StartWith("mod.thing.update:").And.Contain("the matrix says Must"),
+            grant => grant.Should().StartWith("mod.thing.grant:").And.Contain("the matrix says ReadSensitive"),
+            purge => purge.Should().StartWith("mod.thing.purge:").And.Contain("bogus_kind"));
+    }
+
+    [Fact]
+    public void The_Forward_Sweep_Reads_Only_The_Registering_Module_s_Matrix()
+    {
+        // Audit Coverage: a module's registration has its row in THAT module's matrix. The
+        // sweep searched every matrix, so the third review of Packet 9 moved
+        // tenancy.tenant.create's row into Customization's table and every case stayed green.
+        // A copy left beside the real row is the same drift from the other side: a reader of
+        // the second matrix sees a classification the catalogue never compares.
+        //
+        // A platform-scope operation is the explicit exception: no module of its own, so its
+        // one row sits in whichever matrix the module that writes it keeps — and one is the
+        // number that matters.
+        AuditCatalogEntry[] entries =
+        [
+            new("mod", "mod.thing.create", OperationType.Create, OperationClass.Must, typeof(object)),
+            new("mod", "mod.thing.update", OperationType.Update, OperationClass.Must, typeof(object)),
+            new("platform", "platform.scope.enter", OperationType.SecurityEvent, OperationClass.Must, null),
+            new("platform", "platform.scope.leave", OperationType.SecurityEvent, OperationClass.Must, null),
+        ];
+
+        var matrices = new Dictionary<string, string[]>
+        {
+            ["mod"] =
+            [
+                "| Resource | Operation | Class | Why |",
+                "|---|---|---|---|",
+                "| `Thing` | `mod.thing.update` | **MUST** | where it belongs |",
+                "| any | `platform.scope.leave` `(off-path)` | **MUST** | one of two |",
+            ],
+            ["other"] =
+            [
+                "| Resource | Operation | Class | Why |",
+                "|---|---|---|---|",
+                "| `Thing` | `mod.thing.create` | **MUST** | moved here |",
+                "| `Thing` | `mod.thing.update` | SHOULD | copied here |",
+                "| any | `platform.scope.enter` `(off-path)` | **MUST** | the one row, in the writer's matrix |",
+                "| any | `platform.scope.leave` `(off-path)` | **MUST** | two of two |",
+            ],
+        };
+
+        ForwardProblems(entries, matrices).Should().SatisfyRespectively(
+            moved => moved.Should().StartWith("mod.thing.create:").And.Contain("other's matrix"),
+            missing => missing.Should().StartWith("mod.thing.create:").And.Contain("no row in mod's matrix"),
+            copied => copied.Should().StartWith("mod.thing.update:").And.Contain("other's matrix"),
+            twice => twice.Should().StartWith("platform.scope.leave:").And.Contain("mod and other"));
     }
 
     /// <summary>
@@ -225,26 +286,64 @@ public sealed partial class AuditCoverageTests
 
     /// <summary>The catalogue → matrix direction's findings, one line each.</summary>
     /// <remarks>
-    /// Any module's matrix: a request-keyed entry's row is in its declaring module's file, and
-    /// an off-path entry whose segment is `platform` — no module of its own — sits in the file
-    /// a reader looks for it in.
+    /// <para>
+    /// The registering module's matrix, and no other: Audit Coverage puts a module's
+    /// registrations in its own file, and a sweep of every file accepted a row moved into —
+    /// or copied into — the wrong one.
+    /// </para>
+    /// <para>
+    /// <see cref="PlatformSegment"/> is the one exception, and it is explicit: a
+    /// platform-scope operation's row sits in the matrix of the module that writes it, in
+    /// exactly one.
+    /// </para>
     /// </remarks>
     private static List<string> ForwardProblems(
-        IEnumerable<AuditCatalogEntry> entries, IReadOnlyCollection<string[]> matrices)
+        IEnumerable<AuditCatalogEntry> entries, Dictionary<string, string[]> matrices)
     {
         var problems = new List<string>();
 
         foreach (var entry in entries)
         {
-            var row = matrices
-                .Select(lines => FindRow(entry.Operation, lines))
-                .FirstOrDefault(found => found is not null);
+            var carrying = matrices
+                .Where(matrix => FindRow(entry.Operation, matrix.Value) is not null)
+                .Select(matrix => matrix.Key)
+                .Order(StringComparer.Ordinal)
+                .ToList();
 
-            if (row is null)
+            string? home;
+
+            if (string.Equals(entry.ModuleName, PlatformSegment, StringComparison.Ordinal))
             {
-                problems.Add($"{entry.Operation}: no matrix row carries this slug");
+                if (carrying.Count > 1)
+                {
+                    problems.Add(
+                        $"{entry.Operation}: {string.Join(" and ", carrying)} all classify it — a "
+                        + "platform operation has one row, in the matrix of the module that writes it");
+                }
+
+                home = carrying.FirstOrDefault();
+            }
+            else
+            {
+                foreach (var stray in carrying.Where(module =>
+                    !string.Equals(module, entry.ModuleName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    problems.Add(
+                        $"{entry.Operation}: {stray}'s matrix classifies it, but {entry.ModuleName} "
+                        + "registers it — a module's operations are classified in its own matrix");
+                }
+
+                home = carrying.FirstOrDefault(module =>
+                    string.Equals(module, entry.ModuleName, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (home is null)
+            {
+                problems.Add($"{entry.Operation}: no row in {entry.ModuleName}'s matrix carries this slug");
                 continue;
             }
+
+            var row = FindRow(entry.Operation, matrices[home])!;
 
             var declared = ClassOf(row);
 
@@ -279,6 +378,18 @@ public sealed partial class AuditCoverageTests
 
         return problems;
     }
+
+    /// <summary>
+    /// The one slug segment that names no module: a platform-scope operation.
+    /// </summary>
+    /// <remarks>
+    /// The builder takes an off-path entry's module from its slug's first segment, so
+    /// <c>platform.admin_scope.enter</c> reaches the join as <c>platform</c> — a module with no
+    /// matrix, because there is no such module to write one
+    /// (<see href="../../../docs/decisions/0044-audit-write-path.md">ADR-0044 Amendment 4
+    /// § 3</see>). Tenancy writes it and Tenancy's matrix carries its row.
+    /// </remarks>
+    private const string PlatformSegment = "platform";
 
     /// <summary>The modules that own a request type or an aggregate root, by name.</summary>
     private static List<string> ModulesWithCode(IEnumerable<Type> requests, IEnumerable<Type> types) =>
@@ -438,11 +549,19 @@ public sealed partial class AuditCoverageTests
     /// <c>null</c> when it names none.
     /// </summary>
     /// <remarks>
-    /// The matrix writes it in Audit Coverage's hyphenated spelling — `security-event`,
-    /// `read-sensitive` — and the enum is PascalCase, so the comparison strips the hyphen.
-    /// Only some rows name a type; a row that does not is classified by its class alone. A
-    /// row that names one the enum does not have is a different case, and the caller refuses
-    /// it: a parse that returned nothing for it used to skip the comparison silently.
+    /// <para>
+    /// Extracted whatever it says, then read: an extraction that matched only the spelling
+    /// it could parse turned every other annotation into "names no type", and the comparison
+    /// was skipped for it — measured by the third review with `ReadSensitive` and
+    /// `bogus_kind`. A row that names a type the enum does not have is refused by the caller.
+    /// </para>
+    /// <para>
+    /// The matrix writes Audit Coverage's hyphenated spelling — `security-event`,
+    /// `read-sensitive` — and the enum is PascalCase, so the hyphen is stripped and case
+    /// ignored; the enum's own spelling reads the same. Letters only, because
+    /// <c>Enum.TryParse</c> also accepts a number and a comma-separated list, and neither is a
+    /// type.
+    /// </para>
     /// </remarks>
     private static (string? Spelled, OperationType? Type) TypeOf(string row)
     {
@@ -453,10 +572,12 @@ public sealed partial class AuditCoverageTests
             return (null, null);
         }
 
-        var spelled = match.Groups[1].Value;
+        var spelled = match.Groups[1].Value.Trim();
+        var normalized = spelled.Replace("-", string.Empty, StringComparison.Ordinal);
 
-        return Enum.TryParse<OperationType>(
-            spelled.Replace("-", string.Empty, StringComparison.Ordinal), ignoreCase: true, out var parsed)
+        return normalized.Length > 0
+            && normalized.All(char.IsAsciiLetter)
+            && Enum.TryParse<OperationType>(normalized, ignoreCase: true, out var parsed)
             ? (spelled, parsed)
             : (spelled, null);
     }
@@ -474,7 +595,8 @@ public sealed partial class AuditCoverageTests
                 .MustAudit<ProvisionTenantCommand>("tenancy.organization.create", OperationType.Create, typeof(Organization));
     }
 
-    [GeneratedRegex("\\(`([a-z-]+)`\\)")]
+    /// <summary>A parenthesised annotation in the Class cell, backticked or not, whatever it says.</summary>
+    [GeneratedRegex("\\(\\s*`?([^`()]+)`?\\s*\\)")]
     private static partial Regex TypePattern();
 
     /// <summary>A dotted audit slug in backticks: `{module}.{resource}.{verb}`.</summary>
