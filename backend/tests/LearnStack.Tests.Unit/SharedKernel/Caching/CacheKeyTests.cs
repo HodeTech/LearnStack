@@ -117,7 +117,7 @@ public sealed class CacheKeyTests
     [InlineData("platform:identity:permissions:session")]
     [InlineData("platform:hub:host-map")]
     [InlineData("platform:hub:host-map:127.0.0.1")]
-    public void The_Platform_Sentinel_Is_Reserved_For_Normalized_Host_Mappings(string key)
+    public void The_Platform_Sentinel_Is_Reserved_For_Its_Enumerated_Families(string key)
     {
         var act = () => CacheKey.EnsureValid(key);
 
@@ -187,7 +187,7 @@ public sealed class CacheKeyTests
     }
 
     [Fact]
-    public void The_Killswitch_Overlay_Is_The_Second_And_Last_Platform_Family()
+    public void The_Killswitch_Overlay_Is_An_Enumerated_Platform_Family()
     {
         // ADR-0045 § 5 widens a closed guard, and the widening is ENUMERATED. One entry
         // holds the whole switch set, so the family is three segments — a toggle then

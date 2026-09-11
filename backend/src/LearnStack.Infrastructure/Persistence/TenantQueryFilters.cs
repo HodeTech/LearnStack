@@ -139,9 +139,10 @@ public static class TenantQueryFilters
 
             if (!typeof(ITenantOwned).IsAssignableFrom(clrType))
             {
-                // The platform-scoped host map, which is read before any tenant
-                // exists. Not an omission — a table class, see Database Standards
-                // § Table classes. A tenant-keyed predicate here would make host
+                // The platform-scoped tables: the host map, read before any tenant
+                // exists, and the killswitch table, whose rows belong to no tenant.
+                // Not an omission — a table class, see Database Standards § Table
+                // classes. A tenant-keyed predicate on the host map would make host
                 // resolution return zero rows forever.
                 continue;
             }

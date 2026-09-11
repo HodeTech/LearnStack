@@ -100,9 +100,10 @@ public sealed class PlatformEntitlement : ITenantOwned
 /// </summary>
 /// <remarks>
 /// <para>
-/// The one <b>platform-scoped</b> table: <c>IHostToTenantResolver</c> reads it in
-/// order to <i>determine</i> the tenant, so the ordinary tenant-owned predicate
-/// would return zero rows and no tenant could ever resolve. Its policies are
+/// A <b>platform-scoped</b> table, one of two with <see cref="PlatformKillswitch"/>:
+/// <c>IHostToTenantResolver</c> reads it in order to <i>determine</i> the tenant, so the
+/// ordinary tenant-owned predicate would return zero rows and no tenant could ever
+/// resolve. Its policies are
 /// role-qualified and per-command — the read admits the single row the resolver
 /// announces through <c>app.resolving_host</c>, writes stay tenant-keyed
 /// (<see href="../../../../../docs/standards/05-database.md">Database Standards

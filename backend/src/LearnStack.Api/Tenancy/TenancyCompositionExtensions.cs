@@ -3,7 +3,6 @@ using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace LearnStack.Api.Tenancy;
 
@@ -187,18 +186,16 @@ public static class TenancyCompositionExtensions
         services.AddSingleton(new HostResolutionOptions());
         services.AddSingleton<UnknownHostCache>();
 
-        // Lazy, so the resolver's construction builds no data source: a request on
-        // a platform host is answered from configuration and must cost nothing
-        // below it. The composition root already registers the data source as a
-        // factory rather than an instance, so this preserves that deferral instead
-        // of collapsing it at the first classified request.
-        services.AddSingleton(provider =>
-            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+        // The resolver takes the data source as a Lazy, so its construction builds none: a
+        // request on a platform host is answered from configuration and must cost nothing
+        // below it. That Lazy is AddLearnStackPersistence's, registered once beside the
+        // data source it defers — a second registration here made which one the container
+        // kept a matter of call order.
         services.AddSingleton<IHostToTenantResolver, CachedHostToTenantResolver>();
 
         // The membership reader that covers nothing, and the organization scope
         // validator — the two ports the reconciliation matrix consults beyond the
-        // host. Both are stateless singletons; the validator shares the Lazy above,
+        // host. Both are stateless singletons; the validator shares the resolver's Lazy,
         // so a platform-only deployment still builds no data source.
         //
         // Registered UNCONDITIONALLY, with no DeploymentMode anywhere near them. A

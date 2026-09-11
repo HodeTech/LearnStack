@@ -31,10 +31,11 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// policy says so — so the predicate compares <c>Id</c> rather than a
 /// <c>TenantId</c> column. An earlier version of this paragraph said it got no
 /// filter at all, which the self-keyed branch in <c>TenantQueryFilters</c>
-/// contradicts. One of the eight entity types genuinely gets none:
-/// <see cref="PlatformHostMappings"/>, which is <b>platform-scoped</b> and read
-/// in order to determine the tenant, so a tenant-keyed predicate on it would make
-/// host resolution return zero rows forever. Row Level Security remains the
+/// contradicts. Two of the nine entity types genuinely get none, both
+/// <b>platform-scoped</b>: <see cref="PlatformHostMappings"/>, read in order to
+/// determine the tenant, so a tenant-keyed predicate on it would make host
+/// resolution return zero rows forever; and <see cref="PlatformKillswitches"/>,
+/// whose rows belong to no tenant at all. Row Level Security remains the
 /// isolation boundary
 /// (<see href="../../../../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md">ADR-0003
 /// Amendment 3</see>); the filters are the layer above it.
@@ -50,9 +51,7 @@ public sealed class TenancyDbContext(
 
     public DbSet<TenantDomain> TenantDomains => Set<TenantDomain>();
 
-
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
-
 
     public DbSet<PlatformEntitlement> PlatformEntitlements => Set<PlatformEntitlement>();
 

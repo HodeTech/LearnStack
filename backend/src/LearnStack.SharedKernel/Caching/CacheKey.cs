@@ -92,7 +92,8 @@ public static class CacheKey
             logicalName);
 
     /// <summary>
-    /// Composes the one platform-wide key family: a normalized host to tenant mapping.
+    /// Composes the host-map family: one normalized host to tenant mapping per key. One of
+    /// the two families the platform sentinel admits, with <see cref="ForKillswitchOverlay"/>.
     /// </summary>
     /// <remarks>
     /// The host has already passed the trusted-input normalization described by

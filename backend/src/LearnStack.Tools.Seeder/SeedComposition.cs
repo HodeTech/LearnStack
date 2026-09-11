@@ -138,6 +138,7 @@ public static class SeedComposition
         // idempotence this actually wants.
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
+
         // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
         // factory. AddMetrics is idempotent and the API host already calls it through
         // AddOpenTelemetry; naming it here keeps this root self-sufficient, which is what
@@ -152,21 +153,6 @@ public static class SeedComposition
             provider.GetRequiredService<IClock>(),
             provider.GetRequiredService<IMeterFactory>()));
 
-        // The store reports the standalone path's last outcome to this; a singleton for
-        // the reason the API root's is one. The seeder maps no readiness surface and needs
-        // none — what it needs is the graph to build, and a missing singleton here would
-        // surface as a container error on the first seeded command rather than at startup.
-        // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
-        // not Development only: ADR-0035 names NullEntitlementProvider the working default
-        // for this gate, with Phase 02c as the owning phase and "a tenant must be billed
-        // or plan-gated" as the trigger. Until that fires there is no billing to enforce
-        // and no Hub to ask, so a mode-conditional registration would make four of the
-        // five modes unbootable for a capability none of them uses (ADR-0045 § 4).
-        //
-        // Swapping this one line is the whole of the Phase 02a completion criterion: it
-        // changes the answer without touching module code, which is only true because
-        // IFeatureFlags composes over the PORT rather than reading
-        // platform_entitlement_cache itself.
         // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
         // and answers for one tenant, which is one request. It does NOT take a module
         // DbContext: both halves it reads are policy-guarded tables it reaches on
@@ -181,8 +167,23 @@ public static class SeedComposition
         // cache flight that runs it outlives the caller that started it.
         services.TryAddScoped<IKillswitchOverlay, KillswitchOverlay>();
 
+        // The entitlement socket. A SINGLETON and registered in EVERY deployment mode,
+        // not Development only: ADR-0035 names NullEntitlementProvider the working default
+        // for this gate, with Phase 02c as the owning phase and "a tenant must be billed
+        // or plan-gated" as the trigger. Until that fires there is no billing to enforce
+        // and no Hub to ask, so a mode-conditional registration would make four of the
+        // five modes unbootable for a capability none of them uses (ADR-0045 § 4).
+        //
+        // Swapping this one line is the whole of the Phase 02a completion criterion: it
+        // changes the answer without touching module code, which is only true because
+        // IFeatureFlags composes over the PORT rather than reading
+        // platform_entitlement_cache itself.
         services.TryAddSingleton<IEntitlementProvider, NullEntitlementProvider>();
 
+        // The store reports the standalone path's last outcome to this; a singleton for
+        // the reason the API root's is one. The seeder maps no readiness surface and needs
+        // none — what it needs is the graph to build, and a missing singleton here would
+        // surface as a container error on the first seeded command rather than at startup.
         services.TryAddSingleton<IAuditHealth, AuditHealth>();
 
         services.AddScoped<IAuditStore, PostgresAuditStore>();
@@ -201,7 +202,6 @@ public static class SeedComposition
         // The classifier is scoped because its cache reads are per request, and it holds
         // no state of its own between them.
         services.TryAddScoped<IAuditConfigService, AuditConfigService>();
-
 
         // Its own short read-only transaction on its own connection, which is why it takes
         // a Lazy data source rather than the ambient unit of work: it answers "is this
