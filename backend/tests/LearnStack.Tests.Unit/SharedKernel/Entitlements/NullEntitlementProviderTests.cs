@@ -83,4 +83,33 @@ public sealed class NullEntitlementProviderTests
         (await new NullEntitlementProvider().RefreshAsync(projection))
             .Should().Be(EntitlementRefreshOutcome.IgnoredAsStale);
     }
+
+    [Fact]
+    public async Task No_projection_can_change_what_the_next_tenant_is_handed()
+    {
+        // Every map the Null provider hands out is shared by every tenant's projection, so
+        // each must refuse a write even through a cast. ComplianceCaps.None was a Dictionary
+        // behind IReadOnlyDictionary, and a cap added through IDictionary showed up in the
+        // next tenant's projection (measured by the review of Packet 9). The feature and
+        // limit maps were frozen already; the case covers all three so the next map added
+        // is not the one that slips.
+        var provider = new NullEntitlementProvider();
+        var first = await provider.GetAsync(TenantId.From(Guid.CreateVersion7()));
+
+        var writes = new Action[]
+        {
+            () => ((IDictionary<string, ComplianceCap>)first.Compliance.Caps)
+                .Add("data_residency", new ComplianceCap(true, true, "eu")),
+            () => ((IDictionary<string, bool>)first.Features).Add("injected", true),
+            () => ((IDictionary<string, long>)first.Limits).Add("limits.injected", 1),
+        };
+
+        foreach (var write in writes)
+        {
+            write.Should().Throw<NotSupportedException>();
+        }
+
+        var next = await provider.GetAsync(TenantId.From(Guid.CreateVersion7()));
+        next.Compliance.Caps.Should().BeEmpty();
+    }
 }

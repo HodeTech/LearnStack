@@ -119,6 +119,44 @@ public sealed class FeatureFlagsTests
     }
 
     [Fact]
+    public async Task A_tenant_flag_fails_closed_when_its_table_cannot_be_reached()
+    {
+        // Architecture/26 fixes the posture — fail closed, treat as disabled — and the read
+        // threw instead, so every path gated on a tenant flag failed outright during the
+        // outage the posture exists for. Measured the way the review measured it: a data
+        // source pointed at a port nothing listens on.
+        var flags = Unreachable();
+
+        (await flags.IsEnabledAsync(FeatureKeys.LessonPlayerV2)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_cancelled_tenant_flag_read_still_leaves_as_a_cancellation()
+    {
+        // The fallback answers an OUTAGE. A caller that cancelled is not asking any more,
+        // and a `false` returned to it would be an answer nobody requested.
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        var act = async () => await Unreachable().IsEnabledAsync(FeatureKeys.LessonPlayerV2, cancelled.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    /// <summary>The resolver over a database nothing answers on.</summary>
+    private static FeatureFlags Unreachable() =>
+        new(Resolved,
+            new NullEntitlementProvider(),
+            new EnabledOverlay(),
+            new Lazy<NpgsqlDataSource>(() => NpgsqlDataSource.Create(
+                "Host=127.0.0.1;Port=1;Database=none;Username=none;Timeout=2")),
+            new InMemoryCacheService(
+                new SystemClock(),
+                new ServiceCollection().AddMetrics().BuildServiceProvider()
+                    .GetRequiredService<IMeterFactory>()),
+            NullLogger<FeatureFlags>.Instance);
+
+    [Fact]
     public async Task A_killswitch_overrides_a_granted_plan_feature()
     {
         // LAST, and it wins. The provider grants recording; the switch is flipped off.

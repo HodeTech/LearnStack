@@ -210,6 +210,22 @@ public sealed class KeyRegistryTests
     }
 
     [Fact]
+    public void Every_tenant_flag_fails_closed()
+    {
+        // Hybrid License Model § Degraded operation fixes one posture for the whole class —
+        // an unreachable tenant table is a database outage, under which an experiment is off
+        // — and FeatureFlags answers `disabled` on that outage without reading a posture.
+        // A tenant flag declaring anything else would be a descriptor the resolver silently
+        // disagrees with.
+        var tenantFlags = FeatureKeys.All.Values
+            .Where(descriptor => descriptor.Source == FeatureSource.TenantFlag)
+            .ToList();
+
+        tenantFlags.Should().NotBeEmpty("a sweep over no keys agrees with any posture");
+        tenantFlags.Should().OnlyContain(descriptor => descriptor.Degraded == DegradedPosture.FailClosed);
+    }
+
+    [Fact]
     public void A_tenant_flag_is_never_plan_projected_and_a_plan_feature_never_a_tenant_flag()
     {
         // The two halves are resolved from different tables. A plan-projected key served

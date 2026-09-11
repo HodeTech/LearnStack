@@ -131,11 +131,35 @@ public sealed class FeatureFlags(
     private async Task<bool> TenantGrantsAsync(
         FeatureDescriptor descriptor, TenantId tenantId, CancellationToken ct)
     {
-        var flags = await cache.GetOrSetAsync(
-            CacheKey.ForTenant(tenantId.Value, "tenancy", "feature-flags"),
-            token => LoadTenantFlagsAsync(tenantId, token),
-            new CacheOptions(TenantFlagTtl),
-            ct).ConfigureAwait(false);
+        IReadOnlyDictionary<string, string> flags;
+
+        try
+        {
+            flags = await cache.GetOrSetAsync(
+                CacheKey.ForTenant(tenantId.Value, "tenancy", "feature-flags"),
+                token => LoadTenantFlagsAsync(tenantId, token),
+                new CacheOptions(TenantFlagTtl),
+                ct).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // The documented posture for an unreachable tenant table is an answer, not an exception.
+        catch (Exception failure) when (failure is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            // Fail closed — treat as disabled — which is the posture Hybrid License Model
+            // § Degraded operation writes for every tenant flag, and the one each of their
+            // descriptors declares (Every_tenant_flag_fails_closed pins it): the source is a
+            // table in this deployment, so unreachable means a database outage, and under
+            // one an experiment is off rather than on. It threw instead, so every path gated
+            // on a tenant flag failed outright during the outage the posture exists for.
+            //
+            // Every failure and not only a DbException: the data source is built lazily, so
+            // a missing credential arrives as an InvalidOperationException. A cancellation
+            // still leaves — it is the caller's, not an outage. Logged at Error, because an
+            // outage this answers silently is one nobody sees.
+            LogTenantFlagsUnreachable(logger, descriptor.Key.Value, failure);
+
+            return false;
+        }
 
         if (!flags.TryGetValue(descriptor.Key.Value, out var raw))
         {
@@ -242,6 +266,12 @@ public sealed class FeatureFlags(
                 $"'{key}' was resolved on a request with no tenant. IFeatureFlags answers "
                 + "for the tenant in context and there is none; a cross-tenant read is "
                 + "IEntitlementAdminQuery's, which Phase 02c ships.");
+
+    private static readonly Action<ILogger, string, Exception?> LogTenantFlagsUnreachable =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(2, nameof(LogTenantFlagsUnreachable)),
+            "The tenant's flags could not be read, so {Key} answered disabled: a tenant flag fails closed, because its source is a table in this deployment and an unreachable one is a database outage (architecture/26 § Degraded operation).");
 
     private static readonly Action<ILogger, string, string, Exception?> LogUnreadableFlag =
         LoggerMessage.Define<string, string>(

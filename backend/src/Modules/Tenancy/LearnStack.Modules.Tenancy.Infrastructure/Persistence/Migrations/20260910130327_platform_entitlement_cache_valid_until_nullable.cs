@@ -47,38 +47,61 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                 oldClrType: typeof(DateTimeOffset),
                 oldType: "timestamp with time zone");
 
-            // Down() installs a column DEFAULT to fill the nulls it cannot represent, and
-            // ALTER COLUMN ... DROP NOT NULL does not remove one. Without this line a
-            // down-then-up cycle leaves the column nullable AND carrying a default that no
-            // migration and no model snapshot declares — a schema state nothing describes,
-            // reached only by a rollback drill, which is exactly when nobody is looking.
+            // The first Down() installed a column DEFAULT, and ALTER COLUMN ... DROP NOT NULL
+            // does not remove one — so a database reversed by it and re-applied would be left
+            // nullable AND carrying a default no migration and no model snapshot declares. The
+            // current Down() installs none; this line stays for a database the earlier one
+            // reversed, and it is a no-op everywhere else.
             migrationBuilder.Sql(
                 "ALTER TABLE platform_entitlement_cache ALTER COLUMN valid_until DROP DEFAULT;");
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// <b>Reversing this cannot preserve meaning, and the value chosen fails closed.</b>
-        /// A row whose expiry is null says "no scheduled expiry"; a <c>NOT NULL</c> column
-        /// has no way to say that, so every such row has to become some instant. The
-        /// scaffolder's own default — <c>DateTimeOffset.MinValue</c> — is kept deliberately
-        /// rather than replaced with a far-future date: it reads as long expired, so a
-        /// rolled-back deployment treats an unknown entitlement as lapsed rather than as
-        /// perpetual. Granting an unbounded entitlement on the way DOWN a rollback is the
-        /// one outcome worse than losing the row's meaning.
+        /// <para>
+        /// <b>A table holding a projection with no scheduled expiry refuses to be reversed,
+        /// and says so.</b> A null <c>valid_until</c> means "no scheduled expiry", and a
+        /// <c>NOT NULL</c> column has no way to say that. The first version of this method
+        /// backfilled <c>DateTimeOffset.MinValue</c> with the scaffolder's
+        /// <c>UPDATE … WHERE valid_until IS NULL</c> — which matched <b>zero rows</b>, because
+        /// <c>learnstack_migration</c> is <c>NOBYPASSRLS</c> and the table is
+        /// <c>FORCE ROW LEVEL SECURITY</c> — and the <c>SET NOT NULL</c> after it then failed
+        /// on the rows the <c>UPDATE</c> could not see. Measured on PostgreSQL 18 by the review
+        /// of Packet 9: the documented backfill never ran.
+        /// </para>
+        /// <para>
+        /// <b>Why a refusal and not a working backfill.</b> Database Standards § Data
+        /// Migrations makes a backfill tenant-aware — one <c>SET LOCAL app.tenant_id</c> per
+        /// tenant — and the owner cannot enumerate the tenants to announce: every table that
+        /// would list them is under the same policy, and granting the migration role a bypass
+        /// is what that section names as <em>not</em> the fix. Lifting <c>FORCE</c> for the
+        /// statement is the same bypass spelled differently. And the backfill itself was the
+        /// weaker half: it rewrote "no expiry" as "expired in year 1", a value nobody could
+        /// later tell from a real one.
+        /// </para>
+        /// <para>
+        /// So <c>SET NOT NULL</c> runs on its own — its scan reads the heap and does not
+        /// consult a policy, so it sees every row — and a null it meets becomes an error that
+        /// names the table, the reason and the way out. An empty table, or one whose rows all
+        /// carry an expiry, reverses exactly as Packet 6 created it. The table is a cache the
+        /// Hub re-sends on its next push, which is why emptying it is the documented remedy.
+        /// </para>
         /// </remarks>
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<DateTimeOffset>(
-                name: "valid_until",
-                table: "platform_entitlement_cache",
-                type: "timestamp with time zone",
-                nullable: false,
-                defaultValue: new DateTimeOffset(
-                    new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), TimeSpan.Zero),
-                oldClrType: typeof(DateTimeOffset),
-                oldType: "timestamp with time zone",
-                oldNullable: true);
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                    ALTER TABLE platform_entitlement_cache ALTER COLUMN valid_until SET NOT NULL;
+                EXCEPTION
+                    WHEN not_null_violation THEN
+                        RAISE EXCEPTION 'Reversing platform_entitlement_cache_valid_until_nullable is refused: the table holds entitlement projections with no scheduled expiry, and a NOT NULL valid_until cannot represent one.'
+                            USING ERRCODE = 'object_not_in_prerequisite_state',
+                                  HINT = 'platform_entitlement_cache is a cache of Hub projections. Delete its rows as learnstack_platform, which holds DELETE on it, then reverse; the Hub re-sends every projection on its next push.';
+                END
+                $$;
+                """);
         }
     }
 }

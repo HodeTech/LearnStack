@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Entitlements;
@@ -106,8 +107,15 @@ public sealed record EntitlementProjection(
 public sealed record ComplianceCaps(IReadOnlyDictionary<string, ComplianceCap> Caps)
 {
     /// <summary>No caps at all.</summary>
+    /// <remarks>
+    /// A <see cref="FrozenDictionary{TKey,TValue}"/>, as the Null provider's feature and
+    /// limit maps already are. This instance is shared by every projection that carries it,
+    /// for every tenant, and a <c>Dictionary</c> behind the read-only interface was one cast
+    /// away from a write — measured by the review of Packet 9: a cap added through
+    /// <c>IDictionary</c> appeared in the next tenant's projection.
+    /// </remarks>
     public static readonly ComplianceCaps None =
-        new(new Dictionary<string, ComplianceCap>(StringComparer.Ordinal));
+        new(FrozenDictionary<string, ComplianceCap>.Empty);
 }
 
 /// <summary>One compliance cap.</summary>
