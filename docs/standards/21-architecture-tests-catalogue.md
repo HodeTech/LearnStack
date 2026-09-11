@@ -428,17 +428,29 @@ otherwise).
 #### `Domain_Methods_Do_Not_Throw_For_Expected_Cases`
 
 - **Asserts:** the Roslyn analyzer `LearnStackException-DomainExceptionThrow`
-  (diagnostic id `LS0001`) produces zero Warnings inside `Domain` +
-  `Application` projects of every module. Walks `Result<T>`-returning
-  methods and asserts the analyzer report is empty for the module.
+  (diagnostic id `LS0001`), run over the sources of the core `Domain` and `Application` and
+  every module's, reports nothing the rule refuses: no **unsuppressed** report anywhere —
+  that is a Warning nobody has justified — and no report at all, suppressed or not, inside a
+  `Result`-returning method, because a method with a channel for an expected case has no
+  excuse for throwing one. A suppressed report in a method that returns no result is the
+  sanctioned aggregate-invariant throw and passes. Each project is also asserted to reference
+  the analyzer as an analyzer, or the discipline holds only inside this test.
 - **Source:** ADR-0032 § Sub-decision 4;
   [09-error-handling.md § Domain Exceptions](09-error-handling.md).
-- **Type:** xUnit + Roslyn analyzer report inspection. **Kind:** compile-time.
-- **Status:** **Registered.** The enforcement it represents is already live — the
-  `LS0001` analyzer runs in every module's `Domain` + `Application` build and
-  `DomainExceptionThrowAnalyzerTests` locks its behaviour — and the report-walking
-  architecture test has had module domain code to walk since Packet 6: Tenancy,
-  Customization and Audit. Packet 10 writes it.
+- **Type:** xUnit + Roslyn analyzer report inspection. **Kind:** structural — the question
+  is a shape of the source, and the analyzer is how it is read. The compile-time row is the
+  analyzer itself, `LearnStackException-DomainExceptionThrow`.
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`, over `AnalyzerReport`,
+  Packet 10. The build cannot be the gate: `LS0001` is in `WarningsNotAsErrors` until the
+  Phase 03 escalation, and a pragma is the sanctioned way to keep a genuine invariant throw —
+  so the test compiles each project's sources itself, sets the severity, and reports
+  suppressed diagnostics. It fails loudly on a source it cannot parse, because a compiler
+  behind the SDK reads a new language feature as a syntax error and a scan that cannot read a
+  file sees nothing in it. Its companion,
+  `The_Domain_Exception_Report_Can_Actually_Fail`, plants all four shapes — thrown from a
+  `Result` method, the same one silenced by a pragma, a pragma-silenced invariant guard, and
+  an unsuppressed throw — and requires exactly the three the rule refuses. Mutation-checked:
+  a `throw new DomainException(...)` in a `Result`-returning method in Tenancy fails it.
 - **Phase:** 02a (Packet 10); severity escalates Warning → Error after Phase 03 exit.
 
 #### `LearnStackException-DomainExceptionThrow` (Roslyn analyzer)
@@ -628,11 +640,15 @@ otherwise).
 - **Type:** xUnit — reflection over the production assemblies, the EF models, the
   audit catalogue and the key registries, plus a file scan of `frontend/apps/web`.
   **Kind:** structural.
-- **Status:** **Registered.** This is the mechanical guarantee behind the platform's
-  entire premise — "the core stays generic" — and it has had no implementation while its
-  far weaker sibling `No_Source_Folder_Named_Verticals` has been green since Phase 01. Renaming a folder is
-  not the failure mode anyone was worried about; `CefrLevel` on an Education aggregate
-  is.
+- **Status:** **Implemented** — `DomainGenericityTests.cs`, Packet 10. It is the mechanical
+  guarantee behind the platform's entire premise — "the core stays generic" — and it had no
+  implementation while its far weaker sibling `No_Source_Folder_Named_Verticals` stayed green
+  from Phase 01: renaming a folder is not the failure mode anyone was worried about;
+  `CefrLevel` on an Education aggregate is. Each subject asserts it read something, so a
+  collector that stops seeing its names fails rather than reporting clean, and the companion,
+  `The_Domain_Term_Scan_Can_Actually_Fail`, feeds the matcher every shape the Asserts line
+  claims — and the ones it must not flag, `Grade`, `Danger` and `ai.pronunciation_feedback`
+  among them. Mutation-checked: a `CefrLevel` property on `Tenant` fails it.
 - **Phase:** 02a (Packet 10).
 
 #### `Frontend_Has_Only_The_Web_App`
@@ -951,8 +967,14 @@ otherwise).
   [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md);
   [21-feature-flags.md](../architecture/21-feature-flags.md).
 - **Type:** xUnit + an IL scan (Mono.Cecil) for key construction outside the three
-  registries. **Kind:** structural.
-- **Status:** **Registered** — the registries shipped in Packet 9 carrying the **full
+  registries. It reads the two ways a name is **spelled** — a constructor call, and the
+  `init` setter a `with` expression runs. `default(FeatureKey)` is not scanned: it carries no
+  name to be wrong about, every registry lookup misses it, and the compiler emits one into
+  every async state machine that takes a key. **Kind:** structural.
+- **Status:** **Implemented** — `EntitlementKeyTests.cs`, Packet 10, with
+  `The_Entitlement_Key_Scans_Can_Actually_Fail` planting both spellings in this test assembly
+  and requiring the same filter to report them; the rule asserts first that it sees the
+  registries construct their own keys. The registries shipped in Packet 9 carrying the **full
   vocabulary**, not only the keys with a consumer, which measured empty at that point; the
   reading and its reasoning are in the Packet 9 delivery record. `LimitKeys` takes its
   strings from the Hub's `limits.`
@@ -971,15 +993,21 @@ otherwise).
 - **Asserts:** no key whose catalog descriptor declares a plan-projected `Source` is
   written to `tenant_feature_flags`. The registry's `Source` descriptor is the join: a
   plan-projected key resolves through `IEntitlementProvider`, a tenant-flag key through
-  the table, and never the other way round.
+  the table, and never the other way round. Four legs: `Tenant.SetFeatureFlag` takes a
+  `FeatureKey` rather than a string, so which key is a question the compiler asks; it refuses
+  every plan-projected key and every undeclared one, and accepts every tenant-flag key; it is
+  the only production code that creates a `TenantFeatureFlag`; and no SQL under
+  `backend/src` writes the table's rows.
 - **Why it matters:** the two halves answer with different authority. A plan-projected key
   served from the tenant table is a tenant editing its own entitlement, which is the one
   thing the projection exists to prevent.
 - **Source:** [ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md);
   [21-feature-flags.md](../architecture/21-feature-flags.md).
-- **Type:** xUnit + reflection over the key registries, cross-checked against the
-  `tenant_feature_flags` write path. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection over the key registries, an IL scan for the entity's creation
+  sites, and the aggregate exercised with each key. **Kind:** structural + behavioural.
+- **Status:** **Implemented** — `EntitlementKeyTests.cs`, Packet 10. The refusal lives in the
+  aggregate, where the row comes into being, rather than in a validator a second caller could
+  skip. Mutation-checked: dropping the `Source` guard from `Tenant.SetFeatureFlag` fails it.
 - **Phase:** 02a (Packet 10).
 
 #### `Aggregates_Do_Not_Redeclare_Entity_Equality`
@@ -1010,8 +1038,16 @@ otherwise).
   for one question, decided by static type.
 - **Source:** [02-backend-coding.md § Domain Modeling](02-backend-coding.md);
   [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection over declared members. **Kind:** structural.
+- **Status:** **Implemented** — `DomainModelTests.cs`, Packet 10, over every type below
+  `Entity<>` in every production assembly. Its companion,
+  `The_Aggregate_Shape_Rules_Can_Actually_Fail`, plants the three shapes the compiler does
+  not stop — a typed overload, a declared `IEquatable<TSelf>`, and an explicit
+  re-implementation of the inherited `IEquatable<Entity<TId>>` — and requires the same
+  predicate to report each. The operator pair is not among them: with `Equals(object?)` and
+  `GetHashCode()` sealed, a derived `operator ==` cannot silence CS0660 / CS0661, so it
+  fails the build rather than this test. Mutation-checked: a `bool Equals(Tenant?)` overload
+  on `Tenant` fails it.
 - **Phase:** 02a (Packet 3b registers this entry, Packet 10 writes the test).
 
 #### `Aggregate_Roots_Use_StronglyTypedId`
@@ -1024,8 +1060,12 @@ otherwise).
 - **Source:** [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md)
   (§ Implementation Notes and Amendment 1).
 - **Type:** xUnit + reflection over every production assembly. **Kind:** structural.
-- **Status:** **Registered.** ADR-0023 Amendment 1 placed it with the first aggregate, which
-  Packet 6 shipped; no row carried it until Packet 10's sweep.
+- **Status:** **Implemented** — `DomainModelTests.cs`, Packet 10. ADR-0023 Amendment 1 placed
+  it with the first aggregate, which Packet 6 shipped; no row carried it until Packet 10's
+  sweep. The mask is read from the attribute's `conversions` argument rather than inferred
+  from the attribute's presence — the converters are what the attribute is required for — and
+  `The_Aggregate_Shape_Rules_Can_Actually_Fail` feeds the predicate a hand-written struct
+  that satisfies `IStronglyTypedId<Guid>` and a value object declared with a narrower mask.
 - **Phase:** 02a (Packet 10).
 
 #### `Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`

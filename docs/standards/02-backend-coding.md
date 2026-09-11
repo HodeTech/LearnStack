@@ -242,7 +242,7 @@ Rules:
 - **`Equals(object?)` and `GetHashCode()` on `Entity<TId>` are `sealed override`.**
   A derived aggregate that overrode them could also declare its own `operator ==`;
   sealed, it cannot silence CS0660 / CS0661 and the build fails instead. Aggregates
-  never redefine equality — enforced from Packet 10 by
+  never redefine equality — enforced since Packet 10 by
   [`Aggregates_Do_Not_Redeclare_Entity_Equality`](21-architecture-tests-catalogue.md#aggregates_do_not_redeclare_entity_equality),
   which catches the one case the compiler cannot: a derived `Equals(TSelf?)`
   **overload**, which is a new method rather than an override.

@@ -115,7 +115,7 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-**The shipped set is fifteen files, not a family per topic.** Add yours to the one whose
+**The shipped set is eighteen files, not a family per topic.** Add yours to the one whose
 subject it shares:
 
 | File | What it covers |
@@ -134,6 +134,9 @@ subject it shares:
 | `CustomizationRegistryTests.cs` | The closed renderer registries that exist twice — in C# and in TypeScript — and stop the two drifting. |
 | `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, the closed set of `audit_log` writers, and the `OperationType` table. |
 | `EntitlementConventionTests.cs` | The entitlement socket: which types may name `platform_entitlement_cache`'s entity, and whose SQL may touch its rows. |
+| `EntitlementKeyTests.cs` | The entitlement vocabulary: where a feature, limit or killswitch key may be spelled, and which keys the tenant's own flag table admits. |
+| `DomainModelTests.cs` | The shape every aggregate carries: identity equality declared once, and an aggregate root's id generated rather than hand-written. |
+| `DomainGenericityTests.cs` | The genericity guarantee: no name the platform ships — backend, database, audit slug, key, renderer or frontend — carries a domain term. |
 | `AuditCoverageTests.cs` | The catalogue ↔ matrix join, keyed on request types discovered from every backend assembly, in both directions — plus the module-has-a-matrix rule. |
 
 Rules for surfaces no file covers yet — permissions, the Hub adapters and endpoints — are
@@ -141,7 +144,7 @@ Rules for surfaces no file covers yet — permissions, the Hub adapters and endp
 [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
 the phase that ships the code they inspect. Check its Status line before assuming a
 net is under you, and create a new file only when your rule's subject is not one of
-the fifteen above.
+the eighteen above.
 
 > **The tenancy rules live in three files, and the split is by subject, not by ADR.**
 > All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable
