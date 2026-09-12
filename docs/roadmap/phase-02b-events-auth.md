@@ -114,9 +114,13 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
   `platform-admin` role check owes;
   [Phase 11](phase-11-production-hardening.md#security) carries the APISIX half.
 - **Job definitions.** This phase ships the runner, its tenant contract and its enqueue
-  guard, and registers no job. The first jobs arrive in
+  guard, and registers no job of its own. The first tenant-scoped jobs arrive in
   [Phase 04](phase-04-cms-media-pages.md) and
-  [Phase 08a](phase-08a-assessment-notifications.md).
+  [Phase 08a](phase-08a-assessment-notifications.md). The first **tenantless** ones are
+  [ADR-0028](../decisions/0028-audit-log-partition-management.md)'s two audit jobs, whose
+  implementation [Phase 11](phase-11-production-hardening.md) owns — and they are why
+  **G9** has to settle a platform-job class: they run with no tenant to announce,
+  against an enqueue guard that refuses a payload without one.
 - **The Keycloak-mirrored identity-event feed.** `user.created` and
   `password.reset.requested` need a producer, an authenticated ingress and an Identity
   module, all of which [Phase 03](phase-03-identity-admin.md) owns; the Audit module
