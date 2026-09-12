@@ -17,6 +17,56 @@ customization row.
 
 ---
 
+## What it does
+
+An education business that teaches live needs more than a course list. It needs a public
+site it can edit, a catalog that reflects what it actually sells, a way to enrol people
+and track what they finished, a room to teach in, and a schedule behind it. LearnStack is
+that whole path, once, for every tenant on it.
+
+```mermaid
+flowchart LR
+  visitor[Visitor lands on the tenant's site]
+  signup[Signs up, takes a placement test]
+  enroll[Is enrolled in a course]
+  learn[Works through lessons, progress tracked]
+  live[Joins a live session in the classroom]
+
+  visitor --> signup --> enroll --> learn --> live
+```
+
+Each tenant gets three surfaces, served by one deployment:
+
+- **The public site** — landing pages, catalog and lesson pages, built from content the
+  tenant authors and rendered from its own branding tokens.
+- **Admin Studio** — where staff write that content, define their own shapes, manage
+  people and watch what happened.
+- **The learner portal** — enrolment, progress, assessments, and the in-app live
+  classroom with attendance and optional consent-aware recording.
+
+Four roles, scoped per tenant and per organization: `tenant-admin`, `editor`,
+`instructor`, `learner`. A tenant may be one school or a chain of branches — an
+**organization** is a sub-unit inside a tenant, and the isolation model treats it as a
+first-class boundary rather than a filter someone remembers to apply
+([ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)).
+
+### What a tenant authors as data, not as code
+
+This is the part that makes one binary serve unrelated businesses. A tenant declares its
+own **content types**, **page blocks**, **lesson item types**, **level taxonomy**,
+**scoring rules**, **completion rules**, **custom fields** and **notification
+templates** — each a JSON Schema or a sandboxed expression, validated before a row is
+written ([ADR-0043](docs/decisions/0043-customization-payload-validation.md)).
+
+CEFR levels, a vocabulary card, a placement test that recommends a level, kyu/dan ranks,
+an asana catalog: all of them are rows. None of them is a branch in any module. When a
+yoga studio and an English school render different sites from the same deployment, that
+is the mechanism doing its job — and
+[Phase 10](docs/roadmap/phase-10-english-learning-mvp.md) is the showcase that fills all
+eight aggregates at once for a single tenant, not the proof that it works.
+
+---
+
 ## Quickstart
 
 ```bash
@@ -45,29 +95,40 @@ once at the end.
 
 ---
 
-## Status
+## Where it is today
 
-**Phase 01 and [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) are complete.** The
-platform kernel is real: tenancy and organization isolation, the Customization module,
-the audit write path, the entitlement socket, and the architecture-test corpus that keeps
-them honest. The whole suite runs with **zero skips**, and the runner refuses to let that
-change.
+**The platform kernel is finished; the product layers land on top of it.** What runs today
+is multi-tenancy with real isolation, the customization foundation, the audit trail, and
+the API conventions everything else is built against. What does not run yet is every
+learner-facing surface — there are no users, no courses and no classroom in this
+repository right now, and the documentation says so wherever it describes them.
 
-**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is next** — the first milestone
-someone who does not read C# can evaluate: two hosts, two tenants, two education sites,
-one binary and one database.
+| Capability | Phase | State |
+|---|---|---|
+| Multi-tenancy, organizations, isolation to the database row | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
+| Tenant customization foundation — content types and level taxonomy | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** (2 of the 8 aggregates) |
+| Audit trail, written inside the business transaction | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
+| API conventions, entitlement socket, foundation ports | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
+| Two tenants rendering their own sites, side by side | [02d](docs/roadmap/phase-02d-walking-skeleton.md) | **Next** |
+| Authentication, sessions, events | [02b](docs/roadmap/phase-02b-events-auth.md) | Planned |
+| Users, roles, permissions, admin foundation | [03](docs/roadmap/phase-03-identity-admin.md) | Planned |
+| Headless CMS, page builder, media library | [04](docs/roadmap/phase-04-cms-media-pages.md) | Planned |
+| Course catalog and learning content | [05](docs/roadmap/phase-05-education-learning-content.md) | Planned |
+| Public site renderer and Admin Studio | [06](docs/roadmap/phase-06-renderer-admin-studio.md) | Planned |
+| Enrolment, learner portal, progress | [07](docs/roadmap/phase-07-enrollment-learner-portal.md) | Planned |
+| Assessment, notifications, background jobs | [08a](docs/roadmap/phase-08a-assessment-notifications.md) | Planned |
+| Scheduling and booking | [08b](docs/roadmap/phase-08b-scheduling.md) | Planned |
+| In-app live classroom | [08c](docs/roadmap/phase-08c-classroom.md) | Planned |
+| Billing, integrations, analytics | [09](docs/roadmap/phase-09-billing-integrations-analytics.md) | Planned |
+| Production hardening and the demand-gated adapters | [11](docs/roadmap/phase-11-production-hardening.md) | Planned |
+
+The order is dependency-driven, not numeric — [the roadmap](docs/roadmap/README.md) is
+authoritative, and it explains why `02d` runs before `02b`. Every phase document carries
+the same six sections, and a shipped one carries a delivery record listing what it built
+**and the defects it introduced and caught in its own review rounds**.
 
 Three modules hold domain code today — **Tenancy**, **Customization** and **Audit**. The
-other four module assemblies are scaffolded and empty; the docs describe their intended
-shape, and the corpus says so wherever it does.
-
-Each packet's delivery record lists what it built **and the defects it introduced and
-caught in its own review rounds**. They are the most useful reading in the repository:
-[Packet 6](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-6) ·
-[Packet 7](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-7) ·
-[Packet 8](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-8) ·
-[Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9) ·
-[Packet 10](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-10)
+other four module assemblies are scaffolded and empty.
 
 ---
 
@@ -235,7 +296,7 @@ adapter ([ADR-0034](docs/decisions/0034-hub-contract-surface-invariant.md)).
 | [`docs/architecture/`](docs/architecture/01-platform-vision.md) | What we are building, conceptually — 33 numbered documents | Editable as the system evolves |
 | [`docs/decisions/`](docs/decisions/README.md) | ADRs: one-time decisions with context and consequences | Accepted ADRs change only by dated Amendment or the two bounded corrections in [ADR-0041](docs/decisions/0041-correcting-false-statements-in-accepted-adrs.md) |
 | [`docs/standards/`](docs/standards/README.md) | The rules every PR is held to, 00–21, each labelled `Active` or `Adopted` by what actually enforces it | Editable as the team learns; changes cite an ADR |
-| [`docs/roadmap/`](docs/roadmap/README.md) | Phases 00–12, with dependency order that filename order does not imply | Editable per phase; a shipped packet's record is not rewritten |
+| [`docs/roadmap/`](docs/roadmap/README.md) | Phases 00–12, with dependency order that filename order does not imply | Editable per phase; a shipped phase's delivery record is not rewritten |
 | [`docs/modules/`](docs/modules/tenancy/README.md) | Per-module specs, with permission and audit matrices | Editable with the module |
 
 ---
