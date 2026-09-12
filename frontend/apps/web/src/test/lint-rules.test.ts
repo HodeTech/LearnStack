@@ -123,6 +123,20 @@ describe('the lint rules the architecture-test catalogue names', () => {
     expect(computed).toContain(RESTRICTED_SYNTAX);
   });
 
+  it('refuses the name written as a template literal, which is the same string', async () => {
+    // A template literal is a different AST node from a string, and the selector keyed on
+    // `Literal` does not see it — so the variable-key route reopens one backtick later.
+    const rules = await lint(
+      'const key = `dangerouslySetInnerHTML`;\n' +
+        'export const Block = (html: string) => {\n' +
+        '  const props: Record<string, unknown> = { [key]: { __html: html } };\n' +
+        '  return <div {...props} />;\n' +
+        '};\n',
+    );
+
+    expect(rules).toContain(RESTRICTED_SYNTAX);
+  });
+
   it('leaves an ordinary component alone', async () => {
     // The control: without it, a rule that flagged everything would pass every case above.
     // It carries a REAL attribute, because the first version of this fixture was `<p>{text}</p>`

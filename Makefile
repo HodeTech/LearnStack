@@ -231,6 +231,11 @@ sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
 
 # ─── Tests ────────────────────────────────────────────────────────────────
 .PHONY: test
+.NOTPARALLEL:   # `test` installs before it tests, `seed` migrates before it seeds, and
+                # several recipes drive the same compose project. Under `make -j` those
+                # prerequisites would start together, and the first thing to fail would be
+                # a restore racing the build that needs it.
+
 test: install test-backend test-frontend ## Run all test suites (backend + frontend).
 	@# `install` first, and it is not belt and braces: on a clean checkout
 	@# `test-frontend` runs vitest out of `frontend/apps/web/node_modules`, which does

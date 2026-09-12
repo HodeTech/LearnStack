@@ -138,7 +138,10 @@ public sealed class AmbientUnitOfWorkTests
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton(NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
+        // A factory rather than a ready-made instance: the container disposes what it
+        // creates, and an instance handed to it is one it leaves alone — so every case here
+        // leaked a connection pool for the life of the test run.
+        services.AddSingleton(_ => NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
         services.AddLogging();
         services.AddSingleton<ITenantContextAccessor>(new StaticAccessor(TenantA));
         services.AddTransient<ITenantContext>(provider =>

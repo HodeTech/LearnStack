@@ -382,7 +382,12 @@ public sealed partial class DomainGenericityTests
     private static partial Regex CreateTable();
 
     /// <summary>A column declaration: an identifier at the start of a line inside the body.</summary>
-    [GeneratedRegex(@"^\s{2,}""?(?<column>[a-z_][a-z0-9_]*)""?\s+[a-z]", RegexOptions.Multiline)]
+    /// <remarks>
+    /// The type token may be written in either case — <c>text</c> and <c>TEXT</c> are the same
+    /// type — and requiring a lower-case one hid every column in a migration that spells its
+    /// types the way SQL keywords are spelled here.
+    /// </remarks>
+    [GeneratedRegex(@"^\s{2,}""?(?<column>[a-z_][a-z0-9_]*)""?\s+[A-Za-z]", RegexOptions.Multiline)]
     private static partial Regex ColumnName();
 
     [GeneratedRegex(@"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])")]

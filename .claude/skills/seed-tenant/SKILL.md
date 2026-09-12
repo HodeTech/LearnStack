@@ -197,11 +197,11 @@ tenant eventually carries belongs to a phase that has not written its schema yet
 | Keycloak OIDC wiring and the realm's `tenant_id` claim mapper | [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) |
 | `TenantContentType`, `TenantLevelTaxonomy` | **Shipped** — [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). `SeedRunner` writes the built-in pair through `RegisterTenantContentTypeCommand` / `PublishTenantContentTypeCommand` and their taxonomy siblings, so a seeded tenant already has something to render |
 | `Course`, `Lesson` and their translation satellites | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
-| Each tenant's **own** content type, level taxonomy and branding tokens — the seed that makes the two tenants differ, not only the built-in pair they share | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), with the `tenancy.setting.write` command the branding tokens need |
+| Each tenant's **own** content type and level taxonomy, and its branding token **values** written as `TenantSetting` rows — the seed that makes the two tenants differ, not only the built-in pair they share | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), through the `tenancy.setting.write` command those rows need |
 | `TenantCustomFieldDef` | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
 | `TenantPageBlock` | [Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md) |
 | `TenantLessonItemType`, `TenantScoringRule`, `TenantCompletionRule` | [Phase 05](../../../docs/roadmap/phase-05-education-learning-content.md) |
-| Branding tokens and the surface that writes them | [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) |
+| The tenant-admin surface for editing branding tokens — the Studio screens and their write path, not the seeded values above | [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) |
 | `TenantTemplateLibrary` | [Phase 08a](../../../docs/roadmap/phase-08a-assessment-notifications.md) |
 | `InstructorAvailability`, `LiveSession`, `LiveBooking` | [Phase 08b](../../../docs/roadmap/phase-08b-scheduling.md) / [Phase 08c](../../../docs/roadmap/phase-08c-classroom.md) |
 | Hub tenant mirror and the entitlement projection | [Phase 02c](../../../docs/roadmap/phase-02c-hub-foundation.md) / Packet 9 |
@@ -215,8 +215,10 @@ is in
 table.
 
 There is **no `tenant_branding` table** and no `tenant_branding` row to write.
-Branding tokens are read from `TenantSetting`; the configuration surface that
-writes them is Phase 06.
+Branding tokens are read from `TenantSetting`. Phase 02d seeds each tenant's own
+values there so the two render differently; Phase 06 adds the tenant-admin surface
+that lets someone edit them. Seeded data and the configuration surface are separate
+deliverables, and the rows the first writes are the rows the second edits.
 
 Keycloak users are **not** seeded by this skill. `infra/keycloak/realms/learnstack.json`
 imports them at compose boot and `scripts/seed.sh` prints their credentials; there

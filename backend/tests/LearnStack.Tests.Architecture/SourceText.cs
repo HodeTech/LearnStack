@@ -23,6 +23,17 @@ internal static class SourceText
         {
             var c = source[i];
 
+            // `\/` is an escaped slash, and two of them in a row — `/https:\/\//` — used to
+            // read as a comment and swallow the rest of the line. The frontend scans walk
+            // TypeScript, where that pattern is ordinary, and a swallowed line hides whatever
+            // followed it, including an export a rule is looking for.
+            if (c == '/' && i > 0 && source[i - 1] == '\\')
+            {
+                kept.Append(c);
+                i++;
+                continue;
+            }
+
             if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
             {
                 while (i < source.Length && source[i] != '\n')

@@ -63,7 +63,7 @@ internal static class Il
     public static List<string> MethodsNaming(TypeDefinition type, string namedTypeFullName) =>
         [.. Methods(type)
             .Where(method => MethodReferences(method.Definition).Any(reference =>
-                NameOf(reference) == namedTypeFullName))
+                NamesOf(reference).Contains(namedTypeFullName, StringComparer.Ordinal)))
             .Select(method => method.DeclaredAs)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)];
@@ -180,11 +180,30 @@ internal static class Il
         }
     }
 
-    /// <summary>A reference's own name, or the name of the type it is built over.</summary>
-    private static string NameOf(TypeReference reference) =>
-        reference is GenericInstanceType generic
-            ? generic.GenericArguments.Select(NameOf).FirstOrDefault(name => name.Length > 0) ?? generic.ElementType.FullName
-            : reference.GetElementType().FullName;
+    /// <summary>Every name a reference carries: its own, and each type it is built over.</summary>
+    /// <remarks>
+    /// All of them, not the first. A <c>DbSet&lt;Guarded&gt;</c> names the guarded type in its
+    /// only argument, but a <c>Dictionary&lt;Guid, Guarded&gt;</c> names it in the second — and
+    /// taking the first argument answered <c>System.Guid</c> and reported the member clean.
+    /// The constructed type's own name is included too, so a member typed
+    /// <c>Guarded&lt;T&gt;</c> is found by its element name.
+    /// </remarks>
+    private static IEnumerable<string> NamesOf(TypeReference reference)
+    {
+        if (reference is GenericInstanceType generic)
+        {
+            yield return generic.ElementType.GetElementType().FullName;
+
+            foreach (var name in generic.GenericArguments.SelectMany(NamesOf))
+            {
+                yield return name;
+            }
+
+            yield break;
+        }
+
+        yield return reference.GetElementType().FullName;
+    }
 
     /// <summary>Every type reference one type carries.</summary>
     private static IEnumerable<TypeReference> ReferencedTypes(TypeDefinition type)
@@ -219,49 +238,12 @@ internal static class Il
             yield return property.PropertyType;
         }
 
-        foreach (var method in type.Methods)
+        // One walker, not two: this loop used to carry its own copy, and the copy saw less —
+        // a called method's return and parameter types were invisible to it, so a namespace
+        // named only there was never reported.
+        foreach (var reference in type.Methods.SelectMany(MethodReferences))
         {
-            yield return method.ReturnType;
-
-            foreach (var parameter in method.Parameters)
-            {
-                yield return parameter.ParameterType;
-            }
-
-            if (!method.HasBody)
-            {
-                continue;
-            }
-
-            foreach (var variable in method.Body.Variables)
-            {
-                yield return variable.VariableType;
-            }
-
-            foreach (var handler in method.Body.ExceptionHandlers.Where(handler => handler.CatchType is not null))
-            {
-                yield return handler.CatchType;
-            }
-
-            foreach (var instruction in method.Body.Instructions)
-            {
-                switch (instruction.Operand)
-                {
-                    case GenericInstanceMethod generic:
-                        foreach (var argument in generic.GenericArguments)
-                        {
-                            yield return argument;
-                        }
-
-                        break;
-                    case TypeReference operand:
-                        yield return operand;
-                        break;
-                    case MemberReference member when member.DeclaringType is { } declaring:
-                        yield return declaring;
-                        break;
-                }
-            }
+            yield return reference;
         }
     }
 

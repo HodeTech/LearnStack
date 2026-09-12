@@ -2,3 +2,8 @@
 # checkout breaks bash on the first line (`set: pipefail: invalid option name`), so
 # every commit would be refused; keep them LF whatever core.autocrlf says.
 .githooks/* text eol=lf
+
+# Same reason, same failure: a CRLF checkout puts a `\r` on the shebang line, and the
+# kernel then looks for an interpreter named `bash\r`. `scripts/seed.sh` is the one a
+# developer runs first, so it would be the first thing to break on a Windows checkout.
+*.sh text eol=lf

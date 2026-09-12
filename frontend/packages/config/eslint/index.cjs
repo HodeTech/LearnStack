@@ -104,6 +104,12 @@ module.exports = {
         selector: 'Literal[value="dangerouslySetInnerHTML"]',
         message: DANGEROUS_HTML,
       },
+      {
+        // And the same string written as a template literal, which is a different node with
+        // the same consequence: `const k = `dangerouslySetInnerHTML`` then `{ [k]: … }`.
+        selector: 'TemplateElement[value.raw="dangerouslySetInnerHTML"]',
+        message: DANGEROUS_HTML,
+      },
     ],
 
     // Standards 03 § Forbidden bars direct `fetch`, and architecture/14 names

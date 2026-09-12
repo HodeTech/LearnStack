@@ -359,11 +359,19 @@ public sealed class CrossCuttingFoundationTests
     /// Read as an element rather than as a line: the attributes may be written in either order,
     /// comments are not references, and a <c>Condition</c> is refused outright — a conditionally
     /// referenced analyzer is one that does not run in the configuration the condition excludes,
-    /// and this rule cannot tell which that is.
+    /// and this rule cannot tell which that is. The condition may sit on the reference or on
+    /// the <c>ItemGroup</c> around it, and both hide the analyzer equally well, so a
+    /// conditional group is removed before the references are read.
     /// </remarks>
     internal static bool WiresTheAnalyzer(string projectXml)
     {
         var project = Regex.Replace(projectXml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+        project = Regex.Replace(
+            project,
+            @"<ItemGroup\b[^>]*\bCondition\s*=.*?</ItemGroup>",
+            string.Empty,
+            RegexOptions.Singleline);
 
         return Regex.Matches(project, @"<ProjectReference\b(?<attributes>[^>]*)/?>", RegexOptions.Singleline)
             .Select(match => match.Groups["attributes"].Value)

@@ -360,6 +360,8 @@ public sealed partial class AuditConventionTests
         AuditLogTable().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeTrue();
         AuditLogTable().IsMatch("\"ck_audit_log_outcome\"").Should().BeFalse();
         AuditLogTable().IsMatch("audit_logger").Should().BeFalse();
+        AuditLogTable().IsMatch("SELECT * FROM AUDIT_LOG").Should().BeTrue(
+            "an unquoted identifier folds case, so this names the same table");
 
         // And the entity leg reports a type that names AuditEntry and is not on the list.
         Types.InAssembly(typeof(AuditConventionTests).Assembly)
@@ -395,7 +397,11 @@ public sealed partial class AuditConventionTests
     private static partial Regex AuditLogInsert();
 
     /// <summary>The table's name as an identifier, not as part of a longer one.</summary>
-    [GeneratedRegex(@"(?<![A-Za-z0-9_])audit_log(?![A-Za-z0-9_])")]
+    /// <remarks>
+    /// Case-insensitive, because an unquoted identifier is: <c>SELECT * FROM AUDIT_LOG</c>
+    /// reads the same table, and a case-sensitive scan would have reported the module clean.
+    /// </remarks>
+    [GeneratedRegex(@"(?<![A-Za-z0-9_])audit_log(?![A-Za-z0-9_])", RegexOptions.IgnoreCase)]
     private static partial Regex AuditLogTable();
 
     /// <summary>

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.Versioning;
 using LearnStack.Analyzers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -84,15 +85,42 @@ internal static class AnalyzerReport
     /// The preprocessor symbols this build defines: the configuration the test assembly was
     /// compiled in, and the target framework's own.
     /// </summary>
-    private static readonly string[] BuildSymbols =
-    [
-        typeof(AnalyzerReport).Assembly
+    private static readonly string[] BuildSymbols = [.. FrameworkSymbols()];
+
+    /// <summary>The symbols the SDK defines for this assembly's own target framework.</summary>
+    /// <remarks>
+    /// Read from <see cref="TargetFrameworkAttribute"/> rather than written down. The literal
+    /// list said <c>NET10_0</c>, so the first target-framework bump would have compiled the
+    /// module sources with the wrong symbols — quietly, since a source excluded by an
+    /// <c>#if</c> the compiler never enters raises no diagnostic for the analyzer to find.
+    /// </remarks>
+    private static IEnumerable<string> FrameworkSymbols()
+    {
+        yield return typeof(AnalyzerReport).Assembly
             .GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration?.ToUpperInvariant()
-            ?? "DEBUG",
-        "NET",
-        "NET10_0",
-        "NET10_0_OR_GREATER",
-    ];
+            ?? "DEBUG";
+
+        yield return "NET";
+
+        var framework = typeof(AnalyzerReport).Assembly
+            .GetCustomAttribute<TargetFrameworkAttribute>()?.FrameworkName;
+        var version = framework is null
+            ? Environment.Version
+            : new FrameworkName(framework).Version;
+
+        yield return $"NET{version.Major}_{version.Minor}";
+
+        // The `_OR_GREATER` chain the SDK emits, down to the first version that carried it.
+        for (var major = 5; major <= version.Major; major++)
+        {
+            var last = major == version.Major ? version.Minor : 0;
+
+            for (var minor = 0; minor <= last; minor++)
+            {
+                yield return $"NET{major}_{minor}_OR_GREATER";
+            }
+        }
+    }
 
     /// <summary>The two core projects the analyzer is wired into.</summary>
     private static readonly string[] CoreProjects = ["LearnStack.Domain", "LearnStack.Application"];

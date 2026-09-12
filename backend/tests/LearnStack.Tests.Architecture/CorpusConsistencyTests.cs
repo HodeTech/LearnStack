@@ -392,9 +392,15 @@ public sealed partial class CorpusConsistencyTests
             Declaration().Count(SourceText.WithoutCommentsOrLiterals(File.ReadAllText(file))));
 
     /// <summary>Every test method this assembly declares.</summary>
+    /// <remarks>
+    /// Over stripped text, for the same reason the declaration count is: a method signature
+    /// quoted inside a fixture string is not a method, and one named in a comment is not
+    /// either — either would let a catalogue entry point at a method nobody wrote.
+    /// </remarks>
     private static HashSet<string> TestMethods() =>
         [.. SuiteFiles()
-            .SelectMany(file => TestMethod().Matches(File.ReadAllText(file)))
+            .SelectMany(file => TestMethod().Matches(
+                SourceText.WithoutCommentsOrLiterals(File.ReadAllText(file))))
             .Select(match => match.Groups["name"].Value)];
 
     /// <summary>The number words the index's summary sentence uses.</summary>

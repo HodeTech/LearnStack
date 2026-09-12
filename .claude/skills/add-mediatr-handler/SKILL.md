@@ -135,9 +135,15 @@ public sealed class CreateEnrollmentCommandHandler(
     public async Task<Result<EnrollmentDto>> Handle(
         CreateEnrollmentCommand request, CancellationToken cancellationToken)
     {
+        // The typed id is built here, one layer in, because the contract carries a
+        // module-local id as a Guid (Step 1). Everything below compares and stores the
+        // typed value; `request.CourseVersionId` is a Guid and has no `.Value`.
+        var courseVersionId = CourseVersionId.From(request.CourseVersionId);
+        var cohortId = request.CohortId is { } cohort ? CohortId.From(cohort) : (CohortId?)null;
+
         // Domain check
         var existing = await db.Enrollments.AnyAsync(
-            x => x.LearnerId == request.LearnerId && x.CourseVersionId == request.CourseVersionId,
+            x => x.LearnerId == request.LearnerId && x.CourseVersionId == courseVersionId,
             cancellationToken);
 
         if (existing)
@@ -148,8 +154,8 @@ public sealed class CreateEnrollmentCommandHandler(
             tenantContext.TenantId,
             tenantContext.OrganizationId,
             request.LearnerId,
-            request.CourseVersionId,
-            request.CohortId,
+            courseVersionId,
+            cohortId,
             request.Source);
 
         db.Enrollments.Add(enrollment);
@@ -167,8 +173,8 @@ public sealed class CreateEnrollmentCommandHandler(
             TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
             EnrollmentId = enrollment.Id.Value,
             LearnerId = request.LearnerId.Value,
-            CourseVersionId = request.CourseVersionId.Value,
-            CohortId = request.CohortId?.Value,
+            CourseVersionId = courseVersionId.Value,
+            CohortId = cohortId?.Value,
         }, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);   // atomic: aggregate + outbox row

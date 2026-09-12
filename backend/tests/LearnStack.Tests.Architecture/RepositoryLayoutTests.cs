@@ -239,7 +239,18 @@ public sealed class RepositoryLayoutTests
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
 
-        process.WaitForExit(milliseconds: 30_000).Should().BeTrue("`{0}` finishes in seconds", program);
+        // Killed before the assertion, not after it: a failing assertion throws, the caller
+        // deletes the scratch directory in its `finally`, and a child still running in that
+        // directory turns one clear failure into a second, unrelated one.
+        var exited = process.WaitForExit(milliseconds: 30_000);
+
+        if (!exited)
+        {
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+        }
+
+        exited.Should().BeTrue("`{0}` finishes in seconds", program);
         Task.WaitAll(stdout, stderr);
 
         return (process.ExitCode, stdout.Result + stderr.Result);

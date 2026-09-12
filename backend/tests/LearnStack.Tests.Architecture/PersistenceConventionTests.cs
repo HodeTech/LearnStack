@@ -311,6 +311,11 @@ public sealed partial class PersistenceConventionTests
         FansOut("await Parallel.ForAsync(0, count, work);").Should().BeTrue();
         FansOut("Parallel . Invoke(one, two);").Should().BeTrue();
         FansOut("var rows = items.AsParallel().Select(Map).ToList();").Should().BeTrue();
+        FansOut("var work = Task.Run(() => context.Items.ToListAsync(ct));").Should().BeTrue(
+            "a task started on the pool runs on the ambient connection from another thread");
+        FansOut("var work = Task.Factory.StartNew(Read);").Should().BeTrue();
+        FansOut("var work = Task.Run<int>(Count);").Should().BeTrue(
+            "an explicit type argument sits between the name and the parenthesis");
         FansOut("await Task.WhenAll<int>(first, second);").Should().BeTrue(
             "an explicit type argument sits between the name and the parenthesis");
         FansOut("var whenAllowed = policy.WhenAllowed;").Should().BeFalse();
@@ -349,6 +354,8 @@ public sealed partial class PersistenceConventionTests
     [GeneratedRegex(
         @"\b(?:WhenAll|WhenAny|WhenEach)\s*(?:<[^;()<>]*>)?\s*\("
         + @"|\bParallel\s*\.\s*(?:ForAsync|ForEachAsync|ForEach|For|Invoke)\b"
+        + @"|\bTask\s*\.\s*Run\s*(?:<[^;()<>]*>)?\s*\("
+        + @"|\bTask\s*\.\s*Factory\s*\.\s*StartNew\s*(?:<[^;()<>]*>)?\s*\("
         + @"|\.\s*AsParallel\s*\(")]
     private static partial Regex FanOut();
 

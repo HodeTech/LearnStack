@@ -297,7 +297,7 @@ public sealed partial class EntitlementKeyTests
     /// migration is exactly where a plan key would be seeded.
     /// </remarks>
     [GeneratedRegex(
-        @"(?:\b(?:INSERT\s+INTO|MERGE\s+INTO|COPY|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?|(?:Insert|Update|Delete)Data\s*\(\s*table\s*:\s*)""?tenant_feature_flags""?(?![A-Za-z0-9_])",
+        @"(?:\b(?:INSERT\s+INTO|MERGE\s+INTO|COPY|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:ONLY\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?|(?:Insert|Update|Delete)Data\s*\(\s*table\s*:\s*)""?tenant_feature_flags""?(?![A-Za-z0-9_])",
         RegexOptions.IgnoreCase)]
     private static partial Regex TenantFlagWrite();
 }
