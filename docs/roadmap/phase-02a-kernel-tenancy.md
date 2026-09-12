@@ -3472,11 +3472,12 @@ three cases the rule had been passing for exactly that reason.
 
 > **Packet 10 — Architecture tests green and phase exit ✅**
 >
-> **Measured at merge: 2038 tests green** — 1 contract, 174 architecture, 1373 unit,
-> 490 integration — with **zero skips**, which is now a rule rather than a habit. Counted
-> from a run under `CI=true`, which makes warnings errors. The architecture assembly grew
-> from 118 methods to 130; thirty-four catalogue rules moved from **Registered** to
-> **Implemented**.
+> **Measured at merge: 2039 tests green** — 1 contract, 175 architecture, 1373 unit,
+> 490 integration — with **zero skips**, which is now a rule rather than a habit, checked
+> both in the suite and at the runner. Counted from a run under `CI=true`, which makes
+> warnings errors. The architecture assembly grew from **93 `[Fact]` / `[Theory]`
+> declarations to 132**; **32** catalogue rules became **Implemented** during the packet —
+> 13 of them entries that already existed and were waiting, 19 entries the packet wrote.
 
 ### What it put in force
 
@@ -3531,8 +3532,16 @@ the rule observes rather than what it returns.
    suite in the repository. It now observes whether the data source was ever asked for,
    through a `Lazy` whose factory records the request.
 2. **`Every_Implemented_Rule_Names_A_Test_That_Exists` checked two fifths of its subject.**
-   It matched the spelling `ManyTests.cs`; most catalogue entries name the bare class. 38
-   of 95.
+   It matched the file spelling with its extension; most catalogue entries name the bare
+   class. 38 of 95. Its review round then found two more of the same kind in the same file:
+   the scan resolved classes in the suite's top directory only, so moving one into a
+   subfolder dropped its entries out of the subject rather than failing, and
+   `No_Architecture_Test_Is_Skippable` matched an attribute's arguments with a pattern that
+   stops at the first `)` — so a `Skip` written after a display name containing parentheses
+   was invisible, and the assembly ships exactly one such attribute, on the meta-test that
+   certifies every other NetArchTest row is not vacuous. A fourth: the rule exempted its own
+   file so the companion's fixtures were not read as code, which made the corpus guards the
+   only tests one edit could switch off.
 3. **The sanitised-HTML rule was wrong in both directions at once.** It missed the shape a
    generic field renderer takes — a key held in a variable, which no identifier selector can
    see — and it refused a read of the prop and
@@ -3554,8 +3563,17 @@ policy or role exists; Phase 03's). Each names the phase that will promote it.
 
 **Every rule ships with a companion, including the rules about the corpus.**
 `The_Corpus_Guards_Can_Actually_Fail` feeds each parser the shapes it must read and the ones
-it must not, which is why `CorpusConsistencyTests.cs` is the one file the no-skip scan
-exempts: the `Skip` shapes live there as string literals.
+it must not. The guards are not exempt from each other: literal contents are stripped before
+the no-skip scan reads a file, so the companion's fixtures are not code and no file needs an
+exemption. What a test cannot do is report its own `Skip`, so `scripts/assert-tests-ran.py`
+refuses any run whose results report a case that did not execute.
+
+**A number in the corpus is a copy, and a copy goes stale.** § Implemented today deleted a
+hand-written rule → file table for that reason and kept four counts, which were wrong in the
+commit that wrote them — it published "ninety-five in that assembly" while adding three more
+entries to that assembly in the same diff. `The_Catalogue_Counts_Its_Own_Rules` recomputes
+all four, and caught the next drift immediately: adding its own catalogue entry moved two of
+them.
 
 **Rules with no subject today are written now.** Several — the Valkey ban, the Hub ban, the
 killswitch and entitlement-cache bans — have nothing in the repository to catch. Each ships

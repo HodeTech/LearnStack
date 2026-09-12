@@ -56,6 +56,41 @@ internal static class SourceText
         return kept.ToString();
     }
 
+    /// <summary>Strips comments <b>and</b> the contents of every literal.</summary>
+    /// <remarks>
+    /// The scans that look for code — an attribute argument, a declaration — want the text a
+    /// compiler sees, not the text a reader does. A rule that searches raw source finds its own
+    /// test fixtures: <c>No_Architecture_Test_Is_Skippable</c> reported the very
+    /// <c>[Fact(Skip = …)]</c> shapes its companion feeds it, which is why that rule used to
+    /// exempt its own file — an exemption that also let the corpus guards be switched off.
+    /// Dropping literal contents removes the need for the exemption and the hole with it.
+    /// </remarks>
+    public static string WithoutCommentsOrLiterals(string source)
+    {
+        var text = WithoutComments(source);
+        var kept = new System.Text.StringBuilder(text.Length);
+        var i = 0;
+
+        while (i < text.Length)
+        {
+            if (text[i] is '"' or '\'' or '`')
+            {
+                var literal = new System.Text.StringBuilder();
+                i = CopyLiteral(text, i, literal);
+
+                // A placeholder rather than nothing, so `x = "a" + "b"` does not become `x = +`
+                // and a scan for an empty argument list cannot be fooled by a deleted string.
+                kept.Append("\"\"");
+                continue;
+            }
+
+            kept.Append(text[i]);
+            i++;
+        }
+
+        return kept.ToString();
+    }
+
     /// <summary>Copies one string or character literal and returns the index after it.</summary>
     /// <remarks>
     /// <para>

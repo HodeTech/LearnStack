@@ -95,40 +95,45 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**A hundred and thirty test methods — 174 cases once the theories expand — run in
+**132 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9 and Packet 10. Counted from `dotnet test --list-tests`, de-duplicated by
-method name. Counting the literals `[Fact]` and `[Theory]` in the source gives a different
-number and is wrong both ways: several are string literals in
-`Every_Database_Test_Carries_The_Docker_Trait` and its companion, which grep the suite for
-those very attributes, and the meta-test's `[Fact(DisplayName = …)]` is not the literal at all.
-The runner is the authority, which is why this sentence names the command.
+Packet 8, Packet 9 and Packet 10. Methods are not rows: a `[Theory]` is one row and many cases,
+and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
-Methods are not rows: a `[Theory]` is one row and many cases, and most rows pair a rule with the
-companion assertion that stops it passing vacuously.
+**Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
+are a second copy of what the repository already knows, and the first version of this section
+proved the point by being wrong on arrival: it published "ninety-five in that assembly" in the
+same commit that added three more. The count of methods is the count of `[Fact]` and `[Theory]`
+**declarations**, one per line, over source with literal contents removed — the attributes
+written as strings inside `Every_Database_Test_Carries_The_Docker_Trait` and its companion are
+not declarations, and the meta-test's `[Fact(DisplayName = …)]` is.
 
 **The rows and the code are held together by a test, not by a table.** This section used to
-carry a hand-written list of rule → file, and it went stale the way any second copy does — it
-named ninety-four methods on the day the suite ran a hundred and thirty.
+carry a hand-written list of rule → file, and it went stale the way any second copy does — on
+the day it was deleted it named ninety-four methods and the suite declared a hundred and
+thirty-one.
 `Every_Implemented_Rule_Names_A_Test_That_Exists` replaces it: every entry below whose
 **Status** reports *Implemented* in a file of that assembly must be a test method of exactly
-that name, or the build fails. It reads both spellings the entries actually use — the file
-`ManyTests.cs` and the bare class `ManyTests` — because matching only the first covered
-**38** of the ninety-five, and a guard that silently checks two fifths of its subject is the
-defect this section is about. A renamed method, a moved file or a quietly deleted rule now
-shows up as a red build rather than as a catalogue that reads well and describes nothing.
+that name, or the build fails. It reads both spellings the entries
+actually use — the file, with its extension, and the bare class name — because matching only
+the first was measured at **38** of the 95 entries on the day it was written, and a guard that
+silently checks two fifths of its subject is the defect this section is about. It also refuses an entry naming a
+test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
+out of the subject instead of failing.
 
-**A hundred and thirty-six rules in this catalogue are Implemented, and ninety-five of them are
-in that assembly.** The other forty-one are no less binding, and most could not live there:
+**139 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
+The other 40 are no less binding, and most could not live there. The table says where and
+why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
+and the first version of this table claimed "three rules" for a suite that holds ten.
 
 | Where | Why not the architecture assembly |
 |---|---|
 | `LearnStack.Tests.Integration`, against an applied schema | A policy that is well-formed and wrong, a foreign key with no index, a row that did or did not commit with the business write, and a request that reached a route are only visible against a real PostgreSQL and a real host. |
-| `LearnStack.Tests.Unit` | Three rules are about what one type does when exercised — `ValidationBehavior` returning rather than throwing, the span processor surviving a missing context, a soft delete advancing the row version — and a reflection scan cannot see any of them. |
+| `LearnStack.Tests.Unit` | What one type does when exercised: `ValidationBehavior` returning rather than throwing, an idempotency sweep racing a claim, a malformed `If-Match` failing rather than counting as absent, the span processor surviving a missing context, a soft delete advancing the row version. A reflection scan sees none of it. |
 | `backend/analyzers/LearnStack.Analyzers` | `LearnStackException-DomainExceptionThrow` is the analyzer itself; the architecture assembly runs it over module source in `Domain_Methods_Do_Not_Throw_For_Expected_Cases`. |
-| `frontend/` | `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is an ESLint rule, with a Vitest case that lints fixtures through the app's own configuration so a preset that stops applying it fails rather than falls silent. |
+| `frontend/` | `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is an ESLint rule, with a Vitest case that lints fixtures through the real configuration so a preset that stops applying it fails rather than falls silent. |
 
 Both backend assemblies run in the same required `backend` CI check, split only by the
 `Requires=Docker` trait, and a rule belongs where it can actually fail: the route-shape rule was
@@ -638,16 +643,18 @@ otherwise).
 #### `Every_Implemented_Rule_Names_A_Test_That_Exists`
 
 - **Asserts:** every entry in this catalogue whose **Status** reports *Implemented* in a
-  file of the architecture assembly is a test method of exactly that name. Both spellings
-  the entries use count — `ManyTests.cs` and the bare `ManyTests` — and the rule asserts
-  its own reach first, because a matcher that recognised only the file spelling covered 38
-  of the ninety-five.
+  file of the architecture assembly is a test method of exactly that name; and no entry
+  names a test class that exists nowhere in the repository. Both spellings the entries use
+  count — the file with its extension, and the bare class name — and the rule pins its own
+  reach to the count § Implemented today publishes, because a matcher that recognised only
+  the file spelling covered 38 of the ninety-five, and an entry whose class stops resolving
+  leaves the subject instead of failing.
 - **Why it matters:** the **Status** line is the authority on whether a rule runs, and it
   is prose. A renamed method, a moved file or a rule quietly deleted leaves the entry
   claiming the opposite of the truth — worse than a rule that was never written, because a
   reader stops looking. This replaces the hand-written rule → file table that used to live
-  in § Implemented today, which named ninety-four methods on the day the suite ran a
-  hundred and thirty.
+  in § Implemented today, which on the day it was deleted named ninety-four methods while
+  the suite declared a hundred and thirty-one.
 - **Source:** [§ Naming convention](#naming-convention), this document's own Status lines.
 - **Type:** xUnit + a parse of this file against the suite's method names. **Kind:**
   structural.
@@ -657,16 +664,43 @@ otherwise).
 #### `No_Architecture_Test_Is_Skippable`
 
 - **Asserts:** no test in the architecture assembly carries a `Skip` on its `[Fact]` or
-  `[Theory]`.
+  `[Theory]`, and — at the runner, where the rule itself cannot see — no suite reports a
+  case that did not run.
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
   the situation the policy exists to prevent, since a rule that can be turned off for a
-  release is a rule nobody has to satisfy. `CorpusConsistencyTests.cs` is the one file the
-  scan skips, and it is not a loophole: the shapes the pattern must catch live there as
-  string literals, fed to it by the companion.
+  release is a rule nobody has to satisfy. Two layers, because one cannot be enough. The
+  source scan reads each attribute's argument list with a depth counter, over text whose
+  comments and literal contents are gone: a pattern that stopped at the first `)` could not
+  see a `Skip` written **after** `DisplayName = "(meta) …"`, and the assembly ships exactly
+  one such attribute — on the meta-test that certifies every NetArchTest row is not
+  vacuous. Then `scripts/assert-tests-ran.py` refuses any run whose `.trx` reports a case
+  that did not run, which is what catches a `Skip` placed on the scan itself; a skipped
+  test does not execute, so it cannot report its own absence. An earlier version instead
+  exempted this rule's own file, so the companion's fixtures were not read as code — and
+  the exemption made the four corpus guards the only tests in the assembly that one edit
+  could switch off. Stripping literals removed the reason for it.
 - **Source:** [06-testing.md § Architecture tests](06-testing.md).
-- **Type:** xUnit + a source scan with comments stripped. **Kind:** structural.
+- **Type:** xUnit + a source scan with comments and literals stripped, plus a `.trx`
+  assertion in CI. **Kind:** structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
+#### `The_Catalogue_Counts_Its_Own_Rules`
+
+- **Asserts:** the four numbers [§ Implemented today](#implemented-today) publishes about
+  this catalogue — the test methods the architecture assembly declares, the entries
+  reported *Implemented*, how many of those name a class of that assembly, and how many do
+  not — are the numbers a recount produces.
+- **Why it matters:** § Implemented today deleted a hand-written rule → file table on the
+  argument that a second copy goes stale and a test does not, and kept four numbers, which
+  are a second copy too. They were wrong on arrival: the commit that published "ninety-five
+  in that assembly" added three entries to that assembly in the same diff. Those numbers
+  are what a reader uses to judge whether the catalogue is honest about its own coverage,
+  so they are the last thing that should be taken on trust.
+- **Source:** [§ Implemented today](#implemented-today).
+- **Type:** xUnit + a recount of the suite and of this file. **Kind:** structural.
 - **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
 - **Phase:** 02a (Packet 10).
 

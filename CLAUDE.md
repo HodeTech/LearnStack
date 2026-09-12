@@ -34,9 +34,8 @@ repository holds only LearnStack's side of the boundary, in
 
 ## What state this is in
 
-**Phase 01 complete.
-[Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped; packets 3b–10 were re-scoped on 2026-08-08
+**Phase 01 and [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) complete —
+every packet 0–10 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
 [Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9) —
 audit infrastructure and the entitlement socket, decided by
@@ -254,14 +253,15 @@ For any task, read in this order:
 5. [docs/standards/00-principles.md](docs/standards/00-principles.md) — the beliefs every other standard descends from.
 6. [docs/glossary.md](docs/glossary.md) — terminology; the single source of truth for project-specific terms.
 
-Then read the two phases that are live:
+Then read the phase that is live and the one it stands on:
 
-- [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md)
-  — the current phase, with a dated Status block listing every packet.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
-  — what Phase 02a is building toward. `02d` sorts after `02b`/`02c` but
-  runs **before** them; the roadmap dependency map is authoritative for
-  order, filename order is not.
+  — **the current phase**, and where new work belongs. `02d` sorts after
+  `02b`/`02c` but runs **before** them; the roadmap dependency map is
+  authoritative for order, filename order is not.
+- [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md)
+  — complete, with a dated Status block and a delivery record per packet. It is
+  the authority on what the kernel already guarantees, not on what to build next.
 
 Once the high-level reading is done, pick **exactly one** skill entry point based
 on the user's intent. The entry point dispatches the rest internally; do not
