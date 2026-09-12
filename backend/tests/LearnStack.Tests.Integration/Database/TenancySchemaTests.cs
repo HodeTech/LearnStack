@@ -1,3 +1,4 @@
+using System.Data.Common;
 using FluentAssertions;
 using Npgsql;
 using Xunit;
@@ -147,6 +148,122 @@ public sealed class TenancySchemaTests
 
     /// <summary>The one table for which "no tenant context implies zero rows" is false.</summary>
     private const string KillswitchTable = "platform_killswitches";
+
+    [Fact]
+    public async Task App_Role_Cannot_Enumerate_Tenants()
+    {
+        // The completion criterion, under its catalogue name. `SELECT … FROM tenants` with no
+        // app.tenant_id returns zero rows — so the customer list is not something the
+        // application role can read, and every operator screen goes through
+        // EnterPlatformAdminScope(reason) instead. Asserted on its own rather than inside the
+        // whole-schema sweep because the phase gates its exit on this table by name.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        (await ScalarAsync(connection, "SELECT count(*) FROM tenants")).Should().Be(0L,
+            "an unset app.tenant_id makes every policy predicate NULL, which is false");
+
+        // And with a context it sees exactly its own row, so the zero above is the policy
+        // answering rather than an empty table.
+        await using var transaction = await connection.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+
+        (await ScalarAsync(connection, "SELECT count(*) FROM tenants", transaction)).Should().Be(1L,
+            "the tenant sees itself and no other");
+    }
+
+    [Fact]
+    public async Task App_Role_Cannot_Enumerate_Host_Map()
+    {
+        // The host map is read before any tenant exists, by a policy keyed on
+        // app.resolving_host — so the role that resolves one host must not be able to list
+        // them all. With neither variable announced the table answers with nothing.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        (await ScalarAsync(connection, "SELECT count(*) FROM platform_host_to_tenant")).Should().Be(0L,
+            "no announced host, no row — the resolver's read is one row wide by construction");
+
+        // The control: the announced host is admitted, so the zero above is the policy and not
+        // an empty table. TheResolvingHostAdmitsExactlyItsOwnRowBeforeAnyTenantContext asserts
+        // the other half — which row it is.
+        await using var transaction = await connection.BeginTransactionAsync();
+        await SchemaQueries.SetSettingAsync(connection, transaction, "app.resolving_host", SchemaFixture.HostA);
+
+        (await ScalarAsync(connection, "SELECT count(*) FROM platform_host_to_tenant", transaction))
+            .Should().Be(1L, "the announced host, and only it");
+    }
+
+    [Fact]
+    public async Task Tenant_A_Cannot_Repoint_Tenant_B_Host()
+    {
+        // Both halves, because a host is repointed two ways. The INSERT half is refused by
+        // WITH CHECK — a row naming another tenant cannot be written. The UPDATE half is the
+        // one nothing tested: tenant A cannot see B's row, so the statement matches nothing and
+        // affects zero rows rather than raising. A silent zero is the refusal here, and a rule
+        // that only asserted "it throws" would have passed a policy that let the update through.
+        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+
+        // Two transactions, because the first half aborts its own: a refused WITH CHECK leaves
+        // the transaction in 25P02, where every later statement is ignored — and a second half
+        // run there would report a zero that means nothing.
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+
+            await using (var insert = new NpgsqlCommand(
+                """
+            INSERT INTO platform_host_to_tenant (host, tenant_id, organization_id)
+            VALUES (@host, @tenant, NULL)
+            """,
+                (NpgsqlConnection)connection, (NpgsqlTransaction)transaction))
+            {
+                insert.Parameters.AddWithValue("host", SchemaFixture.HostB);
+                insert.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
+
+                var refused = async () => await insert.ExecuteNonQueryAsync();
+
+                (await refused.Should().ThrowAsync<PostgresException>())
+                    .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                        "a row naming another tenant fails WITH CHECK");
+            }
+
+            await transaction.RollbackAsync();
+        }
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+
+            await using var repoint = new NpgsqlCommand(
+                "UPDATE platform_host_to_tenant SET tenant_id = @tenant WHERE host = @host",
+                (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+
+            repoint.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            repoint.Parameters.AddWithValue("host", SchemaFixture.HostB);
+
+            (await repoint.ExecuteNonQueryAsync()).Should().Be(0,
+                "B's row is invisible to A, so the statement matches nothing rather than raising");
+
+            await transaction.RollbackAsync();
+        }
+
+        // And B's mapping is untouched, read as the platform role — the assertion that makes
+        // the zero above mean "nothing changed" rather than "nothing was there".
+        await using var platform = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+
+        (await ScalarAsync(platform,
+                $"SELECT count(*) FROM platform_host_to_tenant WHERE host = '{SchemaFixture.HostB}' "
+                + $"AND tenant_id = '{SchemaFixture.TenantB}'"))
+            .Should().Be(1L, "tenant B still owns its host");
+    }
+
+    private static async Task<object?> ScalarAsync(
+        DbConnection connection, string sql, DbTransaction? transaction = null)
+    {
+        await using var command = new NpgsqlCommand(
+            sql, (NpgsqlConnection)connection, (NpgsqlTransaction?)transaction);
+
+        return await command.ExecuteScalarAsync();
+    }
 
     [Fact]
     public async Task Exactly_One_Policy_In_The_Schema_Reads_Unconditionally()

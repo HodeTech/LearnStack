@@ -3,6 +3,12 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.Tools.Seeder;
 using MediatR;
+using LearnStack.Infrastructure.Caching;
+using LearnStack.SharedKernel.Caching;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Time;
+using System.Diagnostics.Metrics;
+using LearnStack.Infrastructure.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -157,6 +163,67 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path()
+    {
+        // AuditLogBehavior classifies at step 3, before TransactionBehavior announces the tenant
+        // at step 6 — and audit_config carries ENABLE + FORCE row level security. A
+        // classification query there would return ZERO ROWS SILENTLY, which is
+        // indistinguishable from "this tenant has no overrides", so no catch could ever fire
+        // (ADR-0033 § Decision). The in-process catalogue is what answers, and this is the case
+        // that can tell the difference: with SELECT revoked the read would THROW rather than
+        // filter, so a request that still completes and still writes its rows is a request that
+        // never made it.
+        await ExecuteAsOwnerAsync("REVOKE SELECT ON audit_config FROM learnstack_app;");
+
+        try
+        {
+            await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+
+            var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English]);
+
+            exitCode.Should().Be(0,
+                "classification reads the in-process catalogue, and the tenant override read is "
+                + "the one failure ADR-0033 does not reject the operation for");
+
+            var rows = await RowsAsync(SeedData.English.TenantId.Value);
+
+            rows.Select(row => row.Operation).Should().Contain("tenancy.tenant.create",
+                "the MUST rows are written at the classification the catalogue carries");
+            rows.Should().OnlyContain(row => row.Outcome == "success");
+
+            // The half the command alone cannot show. A MUST short-circuits before any read, so
+            // a seed of MUST operations passes whether the classifier reads or not; a SHOULD is
+            // the operation that reaches the loader. Under the same REVOKE its read FAILS — and
+            // the declared tier still comes back, which is ADR-0033's one non-rejecting failure.
+            var classifier = Classifier(dataSource);
+
+            (await classifier.ClassifyAsync(
+                    TenantId.From(SchemaFixture.TenantA),
+                    Operation("tenancy.tenant.create", OperationClass.Should),
+                    CancellationToken.None))
+                .Should().Be(AuditClassification.Should,
+                    "a tenant-override read failure falls back to the declared tier rather than "
+                    + "rejecting the operation (ADR-0033 § Decision)");
+
+            // And a MUST answers without asking at all: a data source that cannot connect is
+            // proof the floor is decided in process.
+            await using var unreachable = NpgsqlDataSource.Create(
+                "Host=127.0.0.1;Port=1;Username=nobody;Database=nothing;Timeout=1");
+
+            (await Classifier(unreachable).ClassifyAsync(
+                    TenantId.From(SchemaFixture.TenantA),
+                    Operation("tenancy.tenant.create", OperationClass.Must),
+                    CancellationToken.None))
+                .Should().Be(AuditClassification.Must,
+                    "the floor is not overridable, so there is nothing to read for one");
+        }
+        finally
+        {
+            await ExecuteAsOwnerAsync("GRANT SELECT ON audit_config TO learnstack_app;");
+        }
+    }
+
+    [Fact]
     public async Task The_row_carries_the_tenant_the_transaction_announced()
     {
         // The one value the row's own WITH CHECK accepts. A provisioning command runs
@@ -208,6 +275,35 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         tenantRow.AfterState.Should().NotContain("\"DefaultOrganizationId\":null");
     }
 
+    [Fact]
+    public async Task The_host_mapping_row_carries_the_state_it_changed()
+    {
+        // The entity the first capture predicate would have missed. PlatformHostMapping is a
+        // keyless projection row rather than an aggregate root, and a capture that only walked
+        // roots wrote `tenancy.hostmapping.write` with no before, no after and no changes — a
+        // row that records that something happened and not what.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+
+        var mapping = (await RowsAsync(SeedData.English.TenantId.Value))
+            .Single(row => row.Operation == "tenancy.hostmapping.write");
+
+        mapping.EntityType.Should().Be("PlatformHostMapping");
+        mapping.EntityId.Should().Be(SeedData.English.Host);
+
+        mapping.BeforeState.Should().BeNull("the host is mapped for the first time here");
+        mapping.AfterState.Should().NotBeNull().And.Contain(SeedData.English.Host,
+            "the row says which host now points where");
+        mapping.AfterState.Should().Contain("IsPubliclyLive",
+            "and the flags that decide whether the host serves anything");
+
+        // The tenant is the row's own column rather than a snapshot field: every row in
+        // audit_log carries one, and repeating it inside the state would be a second place for
+        // it to be wrong.
+        mapping.TenantId.Should().Be(SeedData.English.TenantId.Value);
+    }
+
     /// <summary>
     /// A refused second run leaves the first run's rows alone and puts its own refusal on
     /// the record, written standalone after the transaction went away.
@@ -242,6 +338,34 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
         rows.Where(row => row.Outcome != "success")
             .Should().OnlyContain(row => row.Outcome == "failed" || row.Outcome == "denied");
+
+        // INTENTS ARE PLURAL, and a refusal is where that is easiest to get wrong: the refused
+        // provisioning declares two — the tenant and its default organization — and both are
+        // reconciled, so the refusal is two rows rather than one (ADR-0033 Amendment 2 § 1).
+        rows.Where(row => row.Outcome != "success").Select(row => row.Operation)
+            .Should().Contain("tenancy.tenant.create")
+            .And.Contain("tenancy.organization.create",
+                "ProvisionTenantCommand declares two intents and the refusal reconciles both — a "
+                + "singular reading would record the tenant's half and drop the organization's");
+
+        // And the refused run wrote no business row: the counts are the first run's, exactly.
+        (await ScalarAsync("SELECT count(*) FROM tenants WHERE id = @tenant",
+            SeedData.English.TenantId.Value)).Should().Be(1L,
+            "a refused run leaves the row the first run committed and adds none");
+        (await ScalarAsync("SELECT count(*) FROM organizations WHERE tenant_id = @tenant",
+            SeedData.English.TenantId.Value)).Should().Be(2L,
+            "the seed's two organizations, and the refused run added neither");
+    }
+
+    /// <summary>Reads one number as <c>learnstack_platform</c>, which the rows outlive a context.</summary>
+    private async Task<long> ScalarAsync(string sql, Guid tenant)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("tenant", tenant);
+
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     private sealed record Row(
@@ -309,6 +433,21 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     }
 
     /// <summary>DDL on the shared schema, as its owner — the only role that may alter it.</summary>
+    /// <summary>The real classifier, with the cache implementation the composition roots pick.</summary>
+    private static AuditConfigService Classifier(NpgsqlDataSource dataSource)
+    {
+        var meterFactory = new ServiceCollection().AddMetrics()
+            .BuildServiceProvider().GetRequiredService<IMeterFactory>();
+
+        return new AuditConfigService(
+            new InMemoryCacheService(new SystemClock(), meterFactory),
+            new Lazy<NpgsqlDataSource>(() => dataSource),
+            NullLogger<AuditConfigService>.Instance);
+    }
+
+    private static AuditCatalogEntry Operation(string operation, OperationClass operationClass) =>
+        new("tenancy", operation, OperationType.Create, operationClass, typeof(object));
+
     private async Task ExecuteAsOwnerAsync(string sql)
     {
         await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
