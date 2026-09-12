@@ -311,12 +311,24 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   sized for one connection per request exhausts under a burst of those at half the load it
   was sized for, so the pool size and its saturation alert are set here, against that
   count.
-- Background job retry policy.
-- Dead-letter handling (outbox DLQ + Hangfire DLQ), including the subscriber-side
-  dead-letter destination for events that exhaust their retries.
-- Outbox dispatcher reliability under multi-pod load — the claim mechanism must hold
-  across the whole batch or use a lease column, so two dispatchers cannot both claim the
-  same rows.
+- Background job retry policy under multi-pod load. The single-process retry and
+  dead-letter contract — producer-side, subscriber-side and job-side — is
+  [Phase 02b](phase-02b-events-auth.md)'s; this phase verifies it holds across pods and
+  adds the fair-share and alerting surround, and does not rebuild it.
+- Dead-letter operability: the alerting thresholds on each of the two **event**
+  dead-letter counters and on the **job** terminal counter, the operator runbook, and
+  the multi-pod behaviour of the replay path. The
+  dead-letter mechanism itself — the terminal state, the counter and the MUST-class
+  audit row — ships in [Phase 02b](phase-02b-events-auth.md).
+- Outbox dispatcher reliability under multi-pod load. The claim protocol is already
+  specified — [Events and Outbox § The claim protocol](../architecture/15-event-and-outbox.md#the-claim-protocol)
+  writes the lease, [ADR-0006 Amendment 2](../decisions/0006-events-and-outbox.md)
+  assigns its columns and grant to Phase 02b's migration, and
+  [§ The simpler alternative, and its cost](../architecture/15-event-and-outbox.md#the-simpler-alternative-and-its-cost)
+  demotes the batch-held transaction to a fallback. What this phase adds is the
+  multi-instance evidence the single-instance phase cannot produce: two real dispatcher
+  processes across pods, lease-duration tuning against measured tail latency, and the
+  lost-lease alert.
 - Idempotent webhook handling.
 - Graceful shutdown.
 - Live classroom provider failure handling.
@@ -429,6 +441,13 @@ same `ILiveClassProvider`.
 - Seed data strategy.
 - Data retention policy.
 - Soft delete and purge jobs.
+- Processed `outbox_messages` and aged `inbox_messages` purging. Both tables start
+  filling in [Phase 02b](phase-02b-events-auth.md), which records the constraint rather
+  than solving it: the `DELETE` grant belongs to `learnstack_platform`, whose only entry
+  takes a reason and no actor, so a recurring job has no principal to present — and an
+  inbox purge shorter than the redelivery window silently breaks deduplication. Phase
+  02b states how long a pair stays replayable; this phase picks the principal and the
+  interval that honours it.
 - Recording retention and purge jobs.
 - `audit_log` retention and partition lifecycle — see **Demand-gated building blocks**
   above; the jobs and their cadence are specified by
@@ -495,6 +514,12 @@ same `ILiveClassProvider`.
 - Managed-transcoder adapter behind `IVideoTranscoder`, or a recorded decision that its
   trigger has not fired.
 - Air-gapped telemetry file target with its operational controls and its no-egress test.
+- `GET /readyz` mapped and reading the registered health checks — the `audit` check from
+  [Packet 9](phase-02a-kernel-tenancy.md) and the `outbox` check from
+  [Phase 02b](phase-02b-events-auth.md) — plus the deployment-level backstop that stops
+  serving past a configured unhealthy window. `/healthz` stays a liveness probe. The
+  route is already in the host-classification bypass set and is mapped by no earlier
+  phase.
 - Resource-fairness controls: role-scoped `statement_timeout`, per-tenant pool
   partitioning, query cost ceiling, Hangfire fair-share dispatch with per-tenant
   concurrency caps, and bounded `data_source` queries.
@@ -517,12 +542,49 @@ same `ILiveClassProvider`.
 - A second application instance can be started without a correctness regression:
   distributed cache, cross-instance invalidation, and outbox dispatch under two
   dispatchers all behave.
-- An integration event crosses a process boundary through Dapr and is consumed exactly
-  once by a subscriber in another process, with tenant context restored on the consumer
-  side.
+- An integration event crosses a process boundary through Dapr and is delivered
+  **at-least-once** to a subscriber in another process, with tenant context restored on
+  the consumer side — and a forced redelivery of the same envelope produces exactly one
+  effective business side effect, absorbed by `IInboxGuard`. That contract is stated by
+  [Events and Outbox](../architecture/15-event-and-outbox.md#what-the-processor-guarantees)
+  and by the glossary, and a cross-process transport does not change it. The retry and
+  dead-letter contract being exercised here is
+  [Phase 02b](phase-02b-events-auth.md)'s, unchanged.
+- Two dispatcher processes in separate pods drain one pending batch with no duplicate
+  business effect; a lease that expires mid-dispatch is reclaimed, the stale processor's
+  writes are no-ops under the ownership fence, and `learnstack_outbox_lease_lost_total`
+  both increments and pages. The lease duration is set against measured tail latency
+  rather than left at its single-instance default.
+- Every dead-letter alert fires only when a **real** terminal transition is driven —
+  exhausting the attempt budget, not inserting a terminal row directly, which increments
+  nothing — and none fires on ordinary retry. The producer alert is additionally
+  asserted on the **rate** of `learnstack_outbox_deadletter_total` over a named window;
+  a cumulative threshold alone does not satisfy the shape
+  [Events and Outbox § Dead-letter](../architecture/15-event-and-outbox.md#dead-letter-two-sides-two-failure-domains)
+  states — "the alert is on the counter's rate, not on the table's size". The subscriber
+  and job alerts keep their own thresholds, and the three are asserted separately, with
+  a runbook entry for each.
+- Each failure domain's recovery is asserted on its own path, because the two sides fail
+  independently and the job side is a third: a producer-side replay resets the row and
+  the next poll dispatches it, the consumer's guard absorbing the duplicate; a
+  subscriber-side replay resets one `(event, consumer)` pair, reaches that subscription
+  and no other, and a late success racing it is absorbed by `IInboxGuard`; and a
+  terminal job is recovered by requeue and runs once. Each case names the single effect
+  it expects, and each runs while a second pod holds the lease.
+- The outbox and inbox purge jobs run under a principal the platform-admin gate admits —
+  named, not borrowed from the dispatcher's credential — and the inbox retention floor
+  is at least the maximum redelivery window, asserted by a case that advances retention
+  and shows a still-replayable event performing its effect once rather than twice.
 - No module references a Dapr, Kafka, Valkey or Vault client type.
   `Modules_Do_Not_Reference_DeploymentMode` is green.
 - Production deployment is repeatable and documented.
+- `GET /readyz` reads **both** registered checks — `audit` from Packet 9 and `outbox`
+  from Phase 02b — and reports unhealthy when **either** is unhealthy; the orchestrator
+  stops routing to that instance, and the deployment-level backstop stops serving once
+  the configured unhealthy window elapses. `GET /healthz` answers 200 throughout — the
+  liveness-versus-readiness split
+  [Observability Standards § Health checks](../standards/10-observability.md#health-checks)
+  sets.
 - Backup restore test passes on a fresh instance.
 - Tenant + organization isolation regression tests exist, are not skippable, and run as
   `learnstack_app`.

@@ -44,7 +44,7 @@ not deferred to the showcase phase.
 - [Phase 01: Repository, Tooling, and Local Infrastructure](phase-01-repository-tooling.md) — **complete**
 - [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped; [Phase 02d](phase-02d-walking-skeleton.md) is next)
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md)
-- [Phase 02b: Identity Integration, Session, and Events](phase-02b-events-auth.md)
+- [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)
