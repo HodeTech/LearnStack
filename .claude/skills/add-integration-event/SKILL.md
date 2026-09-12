@@ -110,9 +110,11 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
-    // The contract carries a module-local id as a Guid (add-mediatr-handler § Step 1),
-    // so it travels as it arrives. `courseVersionId` is the handler's typed local; either
-    // spelling works, and `request.CourseVersionId.Value` does not compile.
+    // Three types, two of them the same. The contract carries a module-local id as a
+    // `Guid` (add-mediatr-handler § Step 1) and this event declares one, so the request's
+    // value assigns directly — `request.CourseVersionId.Value` does not compile, because a
+    // `Guid` has no `Value`. The handler's own `courseVersionId` is the TYPED id it built
+    // one layer in, so that spelling needs `courseVersionId.Value`.
     CourseVersionId = request.CourseVersionId,
     CohortId = request.CohortId,
     Source = request.Source.ToString().ToLowerInvariant(),

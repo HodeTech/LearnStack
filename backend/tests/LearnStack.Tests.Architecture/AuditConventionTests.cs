@@ -355,6 +355,9 @@ public sealed partial class AuditConventionTests
         ComposedTableName().IsMatch("$\"insert into {Table} (id) values (@id)\"").Should().BeTrue(
             "a composed statement written in lower case names its table just as well");
         ComposedTableName().IsMatch("$\"truncate table {Table}\"").Should().BeTrue();
+        ComposedTableName().IsMatch("$\"update {Table} SET tenant_id = @tenant\"").Should().BeTrue(
+            "a statement's target is its target in either case");
+        ComposedTableName().IsMatch("$\"copy {Table} FROM STDIN\"").Should().BeTrue();
         ComposedTableName().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeFalse(
             "a literal name is what every other leg here reads");
         ComposedTableName().IsMatch("$\"SELECT * FROM audit_log WHERE tenant_id = {tenant}\"").Should().BeFalse(
@@ -411,16 +414,24 @@ public sealed partial class AuditConventionTests
     /// A statement whose table name is interpolated or concatenated rather than written.
     /// </summary>
     /// <remarks>
-    /// Two classes of keyword, because they carry different risks. <c>INSERT INTO</c>,
-    /// <c>MERGE INTO</c>, <c>DELETE FROM</c> and <c>TRUNCATE</c> are two-word or distinctive, so
-    /// they are matched in any case and a lower-case composed statement is caught. <c>FROM</c>,
-    /// <c>JOIN</c>, <c>COPY</c> and <c>UPDATE</c> are ordinary English words and are matched in
-    /// upper case only: a log line reading "(from {Member} at {File})" is prose, and a pattern
-    /// that could not tell the two apart failed on exactly that — measured.
+    /// Two classes of keyword, because they carry different risks. Everything that names a
+    /// table as the <b>target</b> of a statement — <c>INSERT INTO</c>, <c>MERGE INTO</c>,
+    /// <c>DELETE FROM</c>, <c>TRUNCATE</c>, <c>COPY</c>, <c>UPDATE</c> — is matched in any
+    /// case, because SQL folds case and a lower-case statement composes a table name just as
+    /// well. <c>FROM</c> and <c>JOIN</c> are matched in upper case only: they are ordinary
+    /// English words in the position this pattern looks at, and a log line reading
+    /// "(from {Member} at {File})" is prose — a pattern that could not tell the two apart
+    /// failed on exactly that, measured.
+    /// </remarks>
+    /// <remarks>
+    /// The residual cost is a lower-case <c>update {…}</c> or <c>copy {…}</c> in a message,
+    /// which this now refuses. Nothing in <c>backend/src</c> writes one — measured — and the
+    /// repair is to reword the message or name the table in a constant, which is what the rule
+    /// asks for anyway.
     /// </remarks>
     [GeneratedRegex(
-        @"\b(?:(?i:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)"
-        + @"|COPY|UPDATE|FROM|JOIN)\s+(?:\{|""\s*\+)")]
+        @"\b(?:(?i:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|COPY|UPDATE)"
+        + @"|FROM|JOIN)\s+(?:\{|""\s*\+)")]
     private static partial Regex ComposedTableName();
 
     /// <summary>

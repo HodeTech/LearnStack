@@ -129,6 +129,14 @@ public sealed partial class DomainGenericityTests
         // The shapes it used to miss, each an ordinary spelling rather than an evasion.
         ExportedIdentifiers("export const Generic = 1, KataSequence = 2;\n")
             .Should().Contain("KataSequence", "a second declarator binds a name too");
+        ExportedIdentifiers("export const Options = { a: 1 }, CefrLevel = 2;\n")
+            .Should().Contain("CefrLevel", "and one that follows a nested initializer still does");
+        ExportedIdentifiers("export const Config = { a: 1, YogaLevel: 2 };\n")
+            .Should().BeEquivalentTo(["Config"],
+                "an object's properties are not bindings, and reading them as exports refused "
+                + "a file that was clean");
+        ExportedIdentifiers("export const Pair = compute(1, KataSequence, 2);\n")
+            .Should().BeEquivalentTo(["Pair"], "neither are a call's arguments");
         ExportedIdentifiers("export const { BeltRank } = data;\n")
             .Should().Contain("BeltRank", "so does a destructured one");
         ExportedIdentifiers("export const { rank: BeltRank } = data;\n")
@@ -414,14 +422,67 @@ public sealed partial class DomainGenericityTests
             .Where(entry => entry.Length > 0 && char.IsLetter(entry[0]) || entry.StartsWith('_'));
 
     /// <summary>The further declarators of one <c>export const A = 1, B = 2;</c> statement.</summary>
-    private static IEnumerable<string> Declarators(string code, Match declaration)
+    /// <remarks>
+    /// Only commas at the statement's own level. Matching every comma up to the semicolon read
+    /// an object's properties and a call's arguments as bindings, so
+    /// <c>export const Config = { a: 1, YogaLevel: 2 };</c> reported <c>YogaLevel</c> as an
+    /// export and the rule refused a clean file. Stopping at the first bracket instead would
+    /// lose the real declarator in <c>export const Options = { a: 1 }, CefrLevel = 2;</c>, so
+    /// the depth is counted rather than avoided.
+    /// </remarks>
+    private static List<string> Declarators(string code, Match declaration)
     {
-        var rest = code[(declaration.Index + declaration.Length)..];
-        var end = rest.IndexOf(';', StringComparison.Ordinal);
+        var names = new List<string>();
+        var depth = 0;
 
-        return end < 0
-            ? []
-            : FurtherDeclarator().Matches(rest[..end]).Select(match => match.Groups["name"].Value);
+        for (var i = declaration.Index + declaration.Length; i < code.Length; i++)
+        {
+            var character = code[i];
+
+            if (character is '{' or '[' or '(')
+            {
+                depth++;
+                continue;
+            }
+
+            if (character is '}' or ']' or ')')
+            {
+                depth--;
+
+                // Past the statement's own scope — a file whose last declaration has no
+                // semicolon would otherwise be read to its end.
+                if (depth < 0)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (depth > 0)
+            {
+                continue;
+            }
+
+            if (character == ';')
+            {
+                break;
+            }
+
+            if (character != ',')
+            {
+                continue;
+            }
+
+            var match = FurtherDeclarator().Match(code[i..]);
+
+            if (match.Success && match.Index == 0)
+            {
+                names.Add(match.Groups["name"].Value);
+            }
+        }
+
+        return names;
     }
 
     [GeneratedRegex(@"- \*\*Forbidden terms:\*\*(?<terms>.*?)(?=\n- \*\*)", RegexOptions.Singleline)]
