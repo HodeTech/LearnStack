@@ -432,8 +432,8 @@ otherwise).
   every module's, reports nothing the rule refuses: no **unsuppressed** report anywhere —
   that is a Warning nobody has justified — and no report at all, suppressed or not, inside a
   `Result`-returning method — property and indexer included, since `Result<T> Current => …`
-  carries the same channel — because a member with a channel for an expected case has no excuse
-  for throwing one. A suppressed report in a method that returns no result is the
+  carries the same channel, and a local function or lambda counts as the member that contains
+  it — because a member with a channel for an expected case has no excuse for throwing one. A suppressed report in a method that returns no result is the
   sanctioned aggregate-invariant throw and passes. Each project is also asserted to reference
   the analyzer as an analyzer, or the discipline holds only inside this test.
 - **Source:** ADR-0032 § Sub-decision 4;
@@ -448,8 +448,10 @@ otherwise).
   suppressed diagnostics. It parses with the symbols the build defines, so an `#if` region is
   read rather than skipped, and it fails loudly on a source it cannot parse, because a compiler
   behind the SDK reads a new language feature as a syntax error and a scan that cannot read a
-  file sees nothing in it. The wiring leg strips XML comments before looking for the analyzer
-  reference: a commented-out one is not a reference. Its companion,
+  file sees nothing in it. The wiring leg reads the reference as an element rather than as a
+  line: the attributes may be written in either order, a commented-out reference is not a
+  reference, and a `Condition` is refused outright — a conditional analyzer does not run in the
+  configuration the condition excludes, and this rule cannot tell which that is. Its companion,
   `The_Domain_Exception_Report_Can_Actually_Fail`, plants all four shapes — thrown from a
   `Result` method, the same one silenced by a pragma, a pragma-silenced invariant guard, and
   an unsuppressed throw — and requires exactly the three the rule refuses. Mutation-checked:
@@ -977,8 +979,9 @@ otherwise).
   [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md);
   [21-feature-flags.md](../architecture/21-feature-flags.md).
 - **Type:** xUnit + an IL scan (Mono.Cecil) for key construction outside the three
-  registries. It reads the two ways a name is **spelled** — a constructor call, and the
-  `init` setter a `with` expression runs. `default(FeatureKey)` is not scanned: it carries no
+  registries. It reads the three ways a name is **spelled** — a constructor call, the `init`
+  setter a `with` expression runs, and a key the runtime builds for a method that hands it a key
+  type's token (`Activator.CreateInstance`, `ConstructorInfo.Invoke`). `default(FeatureKey)` is not scanned: it carries no
   name to be wrong about, every registry lookup misses it, and the compiler emits one into
   every async state machine that takes a key. **Kind:** structural.
 - **Status:** **Implemented** — `EntitlementKeyTests.cs`, Packet 10, with
@@ -1007,9 +1010,11 @@ otherwise).
   the table, and never the other way round. Four legs: `Tenant.SetFeatureFlag` takes a
   `FeatureKey` rather than a string, so which key is a question the compiler asks; it refuses
   every plan-projected key and every undeclared one, and accepts every tenant-flag key; it is
-  the only production code that creates a `TenantFeatureFlag`; and nothing under `backend/src`
-  writes the table's rows — not SQL, and not a migration's `InsertData`, which writes a row with
-  no statement anywhere in the file and is exactly where a plan key would be seeded.
+  the only production code that creates a `TenantFeatureFlag`; exactly one entity type maps the
+  table across every swept model, since a second mapping is a second write path that names
+  neither the entity nor the table in any statement; and nothing under `backend/src` writes the
+  table's rows — not SQL, and not a migration's `InsertData`, which writes a row with no
+  statement anywhere in the file and is exactly where a plan key would be seeded.
 - **Why it matters:** the two halves answer with different authority. A plan-projected key
   served from the tenant table is a tenant editing its own entitlement, which is the one
   thing the projection exists to prevent.
@@ -1052,7 +1057,10 @@ otherwise).
   [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
 - **Type:** xUnit + reflection over declared members. **Kind:** structural.
 - **Status:** **Implemented** — `DomainModelTests.cs`, Packet 10, over every type below
-  `Entity<>` in every production assembly. Its companion,
+  `Entity<>` in every production assembly **and** every `IAggregateRoot<TId>`, whatever it
+  derives from — a root outside that hierarchy would carry no equality at all, and declaring one
+  is the very thing this refuses. A method whose name merely ends in `Equals` — a domain
+  predicate like `SlugEquals` — is not an equality member and is not reported. Its companion,
   `The_Aggregate_Shape_Rules_Can_Actually_Fail`, plants the three shapes the compiler does
   not stop — a typed overload, a declared `IEquatable<TSelf>`, and an explicit
   re-implementation of the inherited `IEquatable<Entity<TId>>`, and a `new GetHashCode()` that

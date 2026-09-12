@@ -109,6 +109,10 @@ public sealed partial class DomainGenericityTests
             .Select(match => match.Groups["column"].Value)
             .Should().BeEquivalentTo(["id", "belt_rank"]);
 
+        SourceText.WithoutComments("const url = `https://example/{id}`;\nexport const Belt = 1;")
+            .Should().Contain("export const Belt",
+                "a template literal carries // as text, and truncating there hides what follows");
+
         ExportedIdentifiers(
                 "export const KATA_SEQUENCE = 1;\n"
                 + "export { Foo as BeltRank };\n"
@@ -259,9 +263,10 @@ public sealed partial class DomainGenericityTests
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
             .Select(Path.GetFileName)
             .OfType<string>()
-            // The seeder's seed data is exempt as a type, and a file that carries nothing else is
-            // exempt for the same reason: two demo domains are what make the claim checkable.
-            .Where(name => !name.StartsWith("SeedData", StringComparison.Ordinal));
+            // The seeder's seed data is exempt as a type, and its own file for the same reason:
+            // two demo domains are what make the claim checkable. Exact, like the type
+            // exemption — `SeedDataExtensions.cs` is code and is a subject.
+            .Where(name => name != "SeedData.cs");
 
     /// <summary>Every table and column a model maps.</summary>
     private static List<string> ModelNames(DbContext context)

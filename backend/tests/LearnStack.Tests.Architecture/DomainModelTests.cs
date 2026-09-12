@@ -32,9 +32,14 @@ public sealed class DomainModelTests
         // compiler says nothing. Measured on such a type: a.Equals(b) answers true while
         // a == b and ((Entity<CourseId>)a).Equals(b) answer false for the same pair. Three
         // answers to one question, decided by the static type at the call site.
+        // Every type below Entity<> — and every aggregate root, whatever it derives from. The
+        // two sets are the same today and the union is what keeps them so: a root that
+        // implemented IAggregateRoot<TId> without Entity<TId> would carry no equality at all,
+        // and declaring one would be the very thing this rule refuses.
         var entities = ProductionAssemblies.All()
             .SelectMany(assembly => assembly.GetTypes())
-            .Where(DerivesFromEntity)
+            .Where(type => DerivesFromEntity(type) || AggregateIdentifiers(type).Any())
+            .Distinct()
             .ToList();
 
         entities.Should().Contain(typeof(LearnStack.Modules.Tenancy.Domain.Tenant),
@@ -90,6 +95,8 @@ public sealed class DomainModelTests
                 "the compiler allows `new int GetHashCode()` — measured — so this rule is what refuses it");
         RedeclaredEquality(typeof(Probes.PlainEntity)).Should().BeEmpty(
             "an aggregate that declares no equality member is what every real one looks like");
+        RedeclaredEquality(typeof(Probes.PredicateEntity)).Should().BeEmpty(
+            "a domain predicate whose name merely ends in Equals answers a different question");
 
         // And the shapes the equality predicate must not confuse with a redeclaration.
         DerivesFromEntity(typeof(Probes.PlainEntity)).Should().BeTrue();
@@ -135,14 +142,9 @@ public sealed class DomainModelTests
         const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Instance
             | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
-        foreach (var method in type.GetMethods(Declared))
+        foreach (var method in type.GetMethods(Declared).Where(IsEqualityMember))
         {
-            if (method.Name.EndsWith("Equals", StringComparison.Ordinal)
-                || method.Name.EndsWith("GetHashCode", StringComparison.Ordinal)
-                || method.Name is "op_Equality" or "op_Inequality")
-            {
-                yield return method.Name;
-            }
+            yield return method.Name;
         }
 
         if (!type.IsGenericTypeDefinition
@@ -151,6 +153,20 @@ public sealed class DomainModelTests
             yield return $"IEquatable<{type.Name}>";
         }
     }
+
+    /// <summary>
+    /// Whether a declared method redeclares equality.
+    /// </summary>
+    /// <remarks>
+    /// The name is matched whole, or as the tail of an explicit implementation — which is spelled
+    /// <c>System.IEquatable&lt;Course&gt;.Equals</c> in metadata, so a plain equality check misses
+    /// it. A domain predicate called <c>SlugEquals</c> is not an equality member and is not this
+    /// rule's business.
+    /// </remarks>
+    private static bool IsEqualityMember(MethodInfo method) =>
+        method.Name is "Equals" or "GetHashCode" or "op_Equality" or "op_Inequality"
+        || method.Name.EndsWith(".Equals", StringComparison.Ordinal)
+        || method.Name.EndsWith(".GetHashCode", StringComparison.Ordinal);
 
     /// <summary>The identifiers a type is an aggregate root of, as declared on it.</summary>
     private static IEnumerable<Type> AggregateIdentifiers(Type type) =>

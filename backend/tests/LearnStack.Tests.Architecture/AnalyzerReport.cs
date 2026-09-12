@@ -191,9 +191,15 @@ internal static class AnalyzerReport
         var tree = diagnostic.Location.SourceTree!;
         var node = tree.GetRoot().FindNode(diagnostic.Location.SourceSpan);
 
-        var member = node.AncestorsAndSelf().FirstOrDefault(ancestor =>
+        // Every member the throw sits in, not the nearest one: a local function or a lambda
+        // inside a Result-returning method runs on that method's behalf, and classifying the
+        // throw by the inner member alone admitted a suppressed one there.
+        var members = node.AncestorsAndSelf().Where(ancestor =>
             ancestor is MethodDeclarationSyntax or LocalFunctionStatementSyntax
-                or PropertyDeclarationSyntax or IndexerDeclarationSyntax);
+                or PropertyDeclarationSyntax or IndexerDeclarationSyntax)
+            .ToList();
+
+        var member = members.FirstOrDefault();
 
         return new Finding(
             position.Path,
@@ -206,7 +212,7 @@ internal static class AnalyzerReport
                 IndexerDeclarationSyntax => "this[]",
                 _ => "(no enclosing member)",
             },
-            member is not null && ReturnsResult(ReturnTypeOf(member)),
+            members.Any(enclosing => ReturnsResult(ReturnTypeOf(enclosing))),
             diagnostic.IsSuppressed);
     }
 

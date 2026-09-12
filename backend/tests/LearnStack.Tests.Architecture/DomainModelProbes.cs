@@ -26,6 +26,14 @@ internal readonly partial struct WrongMaskProbeId;
 /// <summary>An aggregate that declares no equality member, as every real one does.</summary>
 internal sealed class PlainEntity : Entity<ProbeId>;
 
+/// <summary>
+/// Declares a domain predicate whose name ends in <c>Equals</c> and redeclares nothing.
+/// </summary>
+internal sealed class PredicateEntity : Entity<ProbeId>
+{
+    public bool SlugEquals(string slug) => slug.Length == Id.Value.ToString().Length;
+}
+
 /// <summary>Declares a typed <c>Equals</c> overload — the three-answers case.</summary>
 internal sealed class OverloadingEntity : Entity<ProbeId>
 {

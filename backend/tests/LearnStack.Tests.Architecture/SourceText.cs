@@ -43,7 +43,7 @@ internal static class SourceText
             // A literal is copied through verbatim, so nothing inside it is read
             // as a comment marker — and nothing inside it is lost, so a banned
             // literal written as a string is still found.
-            if (c is '"' or '\'')
+            if (c is '"' or '\'' or '`')
             {
                 i = CopyLiteral(source, i, kept);
                 continue;
@@ -58,6 +58,7 @@ internal static class SourceText
 
     /// <summary>Copies one string or character literal and returns the index after it.</summary>
     /// <remarks>
+    /// <para>
     /// Three shapes, because C# has three and they terminate differently: a
     /// normal literal ends at an unescaped quote, a verbatim one (<c>@"…"</c>)
     /// escapes a quote by doubling it, and a raw one opens with a <b>run</b> of
@@ -65,6 +66,12 @@ internal static class SourceText
     /// a raw literal's first quote as its terminator puts the scanner back
     /// inside code while it is still inside a string — which is how a <c>//</c>
     /// there would swallow the rest of the line again.
+    /// </para>
+    /// <para>
+    /// A backtick opens a fourth: TypeScript's template literal, which spans lines and carries
+    /// <c>//</c> and <c>/*</c> as text — a URL in one truncated the rest of the file when this
+    /// helper was pointed at the frontend.
+    /// </para>
     /// </remarks>
     public static int CopyLiteral(string source, int start, System.Text.StringBuilder kept)
     {
@@ -87,7 +94,7 @@ internal static class SourceText
         // `@"…"`, `$@"…"` and `@$"…"` are all verbatim, and the prefix can be two characters:
         // reading only the character before the quote made `@$"a ""b"" c"` end at the doubled
         // quote, which puts the scanner back into code while it is still inside a string.
-        var verbatim = false;
+        var verbatim = quote == '`';
 
         for (var prefix = start - 1; prefix >= 0 && source[prefix] is '@' or '$'; prefix--)
         {
@@ -110,9 +117,17 @@ internal static class SourceText
                 continue;
             }
 
+            if (quote == '`' && c == '\\' && i + 1 < source.Length)
+            {
+                // A template literal escapes with a backslash, unlike a verbatim C# string.
+                kept.Append(c).Append(source[i + 1]);
+                i += 2;
+                continue;
+            }
+
             if (c == quote)
             {
-                if (verbatim && i + 1 < source.Length && source[i + 1] == quote)
+                if (verbatim && quote != '`' && i + 1 < source.Length && source[i + 1] == quote)
                 {
                     kept.Append(c).Append(source[i + 1]);
                     i += 2;

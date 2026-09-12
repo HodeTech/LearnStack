@@ -11,6 +11,10 @@ internal static class KeyInventorProbe
     /// <summary>A key spelled at the call site.</summary>
     public static FeatureKey Invent(string name) => new(name);
 
+    /// <summary>A key the runtime builds, with no call to the type at all.</summary>
+    public static FeatureKey Reflect(string name) =>
+        (FeatureKey)Activator.CreateInstance(typeof(FeatureKey), name)!;
+
     /// <summary>A key copied from a registry member and renamed.</summary>
     public static KillswitchKey Rename(KillswitchKey key) => key with { Value = "killswitch.invented" };
 }

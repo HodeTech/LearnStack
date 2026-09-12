@@ -5,6 +5,7 @@ using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
+using Microsoft.EntityFrameworkCore;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Xunit;
@@ -104,6 +105,13 @@ public sealed partial class EntitlementKeyTests
             + "nothing else in the platform knows");
         undeclared.FeatureFlags.Should().BeEmpty();
 
+        // And one CLR type maps the table. A second entity mapped to tenant_feature_flags would
+        // write rows through its own DbSet, naming neither TenantFeatureFlag nor the table in any
+        // statement — invisible to both legs below.
+        MappedTo("tenant_feature_flags").Should().Equal(
+            [typeof(TenantFeatureFlag).FullName!],
+            "one table, one entity — a second mapping is a second write path");
+
         // And nothing else reaches the table: no other production code creates the entity,
         // and no SQL writes its rows.
         EntityCreationSites().Should().Equal(
@@ -139,9 +147,10 @@ public sealed partial class EntitlementKeyTests
             [
                 $"{typeof(Probes.KeyInventorProbe).FullName}.{nameof(Probes.KeyInventorProbe.Invent)}",
                 $"{typeof(Probes.KeyInventorProbe).FullName}.{nameof(Probes.KeyInventorProbe.Rename)}",
+                $"{typeof(Probes.KeyInventorProbe).FullName}.{nameof(Probes.KeyInventorProbe.Reflect)}",
             ],
-            "the scan reads a constructor call and a `with` expression — the two ways a name "
-            + "that is not a registry member gets spelled");
+            "the scan reads a constructor call, a `with` expression and a key built by reflection "
+            + "— the three ways a name that is not a registry member gets spelled");
 
         TenantFlagWrite().IsMatch("INSERT INTO tenant_feature_flags (tenant_id, key)").Should().BeTrue();
         TenantFlagWrite().IsMatch("migrationBuilder.InsertData(table: \"tenant_feature_flags\", columns: new[] { \"key\" })")
@@ -188,19 +197,41 @@ public sealed partial class EntitlementKeyTests
 
         return [.. module.GetTypes()
             .SelectMany(type => type.Methods.Where(method => method.HasBody)
-                .Where(method => method.Body.Instructions.Any(Constructs))
+                .Where(method => method.Body.Instructions.Any(Constructs) || ConstructsByReflection(method))
                 .Select(method => (DeclaringType: Outermost(type).FullName.Replace('/', '+'), method.Name)))];
     }
 
     /// <remarks>
+    /// <para>
     /// <c>default(FeatureKey)</c> is not a spelling and is not scanned: it carries no name to
     /// be wrong about, every registry lookup misses it, and the compiler emits one into every
     /// async state machine that takes a key — clearing its fields on completion.
+    /// </para>
+    /// <para>
+    /// Reflection is: <c>Activator.CreateInstance(typeof(FeatureKey), name)</c> builds one with
+    /// no call to the type at all, so a method that loads a key type's token and then asks the
+    /// runtime to construct something counts as a construction site.
+    /// </para>
     /// </remarks>
     private static bool Constructs(Instruction instruction) =>
         instruction.Operand is MethodReference method
         && KeyTypes.Contains(method.DeclaringType.FullName)
         && method.Name is ".ctor" or "set_Value";
+
+    /// <summary>Whether a method hands a key type's token to the runtime to construct.</summary>
+    private static bool ConstructsByReflection(MethodDefinition method)
+    {
+        var loadsKeyToken = method.Body.Instructions.Any(instruction =>
+            instruction.OpCode == OpCodes.Ldtoken
+            && instruction.Operand is TypeReference type
+            && KeyTypes.Contains(type.FullName));
+
+        return loadsKeyToken && method.Body.Instructions.Any(instruction =>
+            instruction.Operand is MethodReference call
+            && (call.DeclaringType.FullName == "System.Activator" && call.Name == "CreateInstance"
+                || call.Name == "Invoke" && call.DeclaringType.FullName is "System.Reflection.ConstructorInfo"
+                    or "System.Reflection.MethodBase"));
+    }
 
     private static TypeDefinition Outermost(TypeDefinition type)
     {
@@ -212,6 +243,18 @@ public sealed partial class EntitlementKeyTests
 
         return outermost;
     }
+
+    /// <summary>The entity types every module model maps to one physical table.</summary>
+    private static List<string> MappedTo(string table) =>
+        [.. Modules.Scoped.SelectMany(module =>
+        {
+            using var context = module.Context();
+            return context.Model.GetEntityTypes()
+                .Where(entity => entity.GetTableName() == table)
+                .Select(entity => entity.ClrType.FullName!);
+        })
+        .Distinct(StringComparer.Ordinal)
+        .Order(StringComparer.Ordinal)];
 
     /// <summary>Every method that creates a <see cref="TenantFeatureFlag"/>.</summary>
     private static List<string> EntityCreationSites() =>

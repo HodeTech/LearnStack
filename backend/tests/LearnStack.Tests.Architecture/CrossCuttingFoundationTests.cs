@@ -333,11 +333,7 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var project in AnalyzerReport.Projects())
         {
-            // Comments stripped first: a commented-out reference is not a reference, and the
-            // project files in this repository carry long explanatory comments.
-            Regex.Replace(File.ReadAllText(project), "<!--.*?-->", string.Empty, RegexOptions.Singleline)
-                .Should().MatchRegex(
-                @"<ProjectReference\s[^>]*LearnStack\.Analyzers\.csproj[^>]*OutputItemType=""Analyzer""",
+            WiresTheAnalyzer(File.ReadAllText(project)).Should().BeTrue(
                 $"{Path.GetFileName(project)} runs the LS0001 analyzer in its own build "
                 + "(ADR-0032 Amendment 1), or the discipline holds only in this test");
 
@@ -354,6 +350,27 @@ public sealed class CrossCuttingFoundationTests
             .Should().BeEmpty(
                 "a method with a Result channel returns the expected case instead of throwing "
                 + "it, and an unsuppressed LS0001 is a Warning nobody has justified");
+    }
+
+    /// <summary>
+    /// Whether a project references the analyzer <b>as an analyzer</b>, unconditionally.
+    /// </summary>
+    /// <remarks>
+    /// Read as an element rather than as a line: the attributes may be written in either order,
+    /// comments are not references, and a <c>Condition</c> is refused outright — a conditionally
+    /// referenced analyzer is one that does not run in the configuration the condition excludes,
+    /// and this rule cannot tell which that is.
+    /// </remarks>
+    internal static bool WiresTheAnalyzer(string projectXml)
+    {
+        var project = Regex.Replace(projectXml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+        return Regex.Matches(project, @"<ProjectReference\b(?<attributes>[^>]*)/?>", RegexOptions.Singleline)
+            .Select(match => match.Groups["attributes"].Value)
+            .Where(attributes => attributes.Contains("LearnStack.Analyzers.csproj", StringComparison.Ordinal))
+            .Any(attributes =>
+                Regex.IsMatch(attributes, @"OutputItemType\s*=\s*""Analyzer""")
+                && !Regex.IsMatch(attributes, @"\bCondition\s*="));
     }
 
     [Fact]
@@ -409,6 +426,19 @@ public sealed class CrossCuttingFoundationTests
             .Should().BeEquivalentTo(
                 ["Returned", "Silenced", "Loud"],
                 "the invariant guard is the sanctioned suppression; the other three are not");
+
+        // And the wiring check reads an element rather than a line: either attribute order, no
+        // comment, and no condition.
+        const string Reference = """<ProjectReference Include="..\LearnStack.Analyzers.csproj" """;
+
+        WiresTheAnalyzer(Reference + """OutputItemType="Analyzer" />""").Should().BeTrue();
+        WiresTheAnalyzer("""<ProjectReference OutputItemType="Analyzer" Include="..\LearnStack.Analyzers.csproj" />""")
+            .Should().BeTrue("the attributes may be written in either order");
+        WiresTheAnalyzer(Reference + """/>""").Should().BeFalse("a plain reference is not an analyzer");
+        WiresTheAnalyzer("""<ProjectReference Condition="'$(CI)' == 'true'" Include="..\LearnStack.Analyzers.csproj" OutputItemType="Analyzer" />""")
+            .Should().BeFalse("a conditional analyzer does not run in the configuration the condition excludes");
+        WiresTheAnalyzer("<!-- " + Reference + """OutputItemType="Analyzer" /> -->""")
+            .Should().BeFalse("a commented-out reference is not a reference");
     }
 
     [Fact]
