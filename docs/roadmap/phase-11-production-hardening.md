@@ -555,12 +555,22 @@ same `ILiveClassProvider`.
   writes are no-ops under the ownership fence, and `learnstack_outbox_lease_lost_total`
   both increments and pages. The lease duration is set against measured tail latency
   rather than left at its single-instance default.
-- Each dead-letter counter has an alert threshold that fires when a **real** terminal
-  transition is driven — exhausting the attempt budget, not inserting a terminal row
-  directly, which increments nothing — and does not fire on ordinary retry. The two
-  event counters and the job counter alert separately, and a replay issued while a
-  second pod holds the lease produces one effective business effect and no duplicate.
-  The runbook entry for each is in `docs/runbooks/`.
+- Every dead-letter alert fires only when a **real** terminal transition is driven —
+  exhausting the attempt budget, not inserting a terminal row directly, which increments
+  nothing — and none fires on ordinary retry. The producer alert is additionally
+  asserted on the **rate** of `learnstack_outbox_deadletter_total` over a named window;
+  a cumulative threshold alone does not satisfy the shape
+  [Events and Outbox § Dead-letter](../architecture/15-event-and-outbox.md#dead-letter-two-sides-two-failure-domains)
+  states — "the alert is on the counter's rate, not on the table's size". The subscriber
+  and job alerts keep their own thresholds, and the three are asserted separately, with
+  a runbook entry for each.
+- Each failure domain's recovery is asserted on its own path, because the two sides fail
+  independently and the job side is a third: a producer-side replay resets the row and
+  the next poll dispatches it, the consumer's guard absorbing the duplicate; a
+  subscriber-side replay resets one `(event, consumer)` pair, reaches that subscription
+  and no other, and a late success racing it is absorbed by `IInboxGuard`; and a
+  terminal job is recovered by requeue and runs once. Each case names the single effect
+  it expects, and each runs while a second pod holds the lease.
 - The outbox and inbox purge jobs run under a principal the platform-admin gate admits —
   named, not borrowed from the dispatcher's credential — and the inbox retention floor
   is at least the maximum redelivery window, asserted by a case that advances retention
@@ -568,9 +578,11 @@ same `ILiveClassProvider`.
 - No module references a Dapr, Kafka, Valkey or Vault client type.
   `Modules_Do_Not_Reference_DeploymentMode` is green.
 - Production deployment is repeatable and documented.
-- `GET /readyz` reports unhealthy while a registered check is unhealthy and the
-  orchestrator stops routing to that instance, while `GET /healthz` still answers 200 —
-  the liveness-versus-readiness split
+- `GET /readyz` reads **both** registered checks — `audit` from Packet 9 and `outbox`
+  from Phase 02b — and reports unhealthy when **either** is unhealthy; the orchestrator
+  stops routing to that instance, and the deployment-level backstop stops serving once
+  the configured unhealthy window elapses. `GET /healthz` answers 200 throughout — the
+  liveness-versus-readiness split
   [Observability Standards § Health checks](../standards/10-observability.md#health-checks)
   sets.
 - Backup restore test passes on a fresh instance.
