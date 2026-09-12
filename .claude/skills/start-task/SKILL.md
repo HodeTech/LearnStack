@@ -93,7 +93,11 @@ Open [docs/roadmap/README.md](../../../docs/roadmap/README.md) and confirm:
 - The current phase is the one that **owns** this work. If the work belongs to a
   later phase, stop and surface that explicitly — the user may want to defer.
 - Any **pending ADRs** ([decisions/README.md § Open ADR Drafts](../../../docs/decisions/README.md))
-  that block this phase are Accepted. If they aren't, surface that.
+  and open gates that block this packet are Accepted. If they aren't, the packet opens
+  with its decision pass
+  ([Roadmap § Decision Timing](../../../docs/roadmap/README.md#decision-timing)):
+  re-verify each premise against `HEAD`, draft the records for the user's approval, and
+  commit them before any code.
 
 ### Step 3: Confirm the change is allowed
 

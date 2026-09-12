@@ -73,6 +73,12 @@ Output at the end of Step 1: a one-paragraph problem statement in your own
 words, the phase the task belongs to, the standards that govern the change, and
 the specific skill(s) you'll invoke for the implementation.
 
+When the task is a phase packet, Step 1 also opens its **decision pass**
+([Roadmap § Decision Timing](../../../docs/roadmap/README.md#decision-timing)): the
+gates the packet waits on are re-verified against `HEAD`, their records are shown to
+the user and Accepted, and the decisions are the packet's first commit — before Step 4
+writes any code.
+
 ### Step 2 — Inspect and understand
 
 Read every file the change will touch **before** modifying any of them. Trace
