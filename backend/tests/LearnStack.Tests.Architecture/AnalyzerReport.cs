@@ -80,6 +80,20 @@ internal static class AnalyzerReport
         ];
     }
 
+    /// <summary>
+    /// The preprocessor symbols this build defines: the configuration the test assembly was
+    /// compiled in, and the target framework's own.
+    /// </summary>
+    private static readonly string[] BuildSymbols =
+    [
+        typeof(AnalyzerReport).Assembly
+            .GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration?.ToUpperInvariant()
+            ?? "DEBUG",
+        "NET",
+        "NET10_0",
+        "NET10_0_OR_GREATER",
+    ];
+
     /// <summary>The two core projects the analyzer is wired into.</summary>
     private static readonly string[] CoreProjects = ["LearnStack.Domain", "LearnStack.Application"];
 
@@ -94,7 +108,10 @@ internal static class AnalyzerReport
     {
         var name = Path.GetFileNameWithoutExtension(projectPath);
         var directory = Path.GetDirectoryName(projectPath)!;
-        var parse = new CSharpParseOptions(LanguageVersion.Latest, DocumentationMode.None);
+        // The symbols the build defines, so an `#if` region is parsed rather than skipped: code
+        // inside one the parser drops is code this rule cannot see, and the rule is the gate.
+        var parse = new CSharpParseOptions(LanguageVersion.Latest, DocumentationMode.None)
+            .WithPreprocessorSymbols(BuildSymbols);
 
         var trees = Sources(directory)
             .Select(file => CSharpSyntaxTree.ParseText(File.ReadAllText(file), parse, file))
@@ -174,8 +191,9 @@ internal static class AnalyzerReport
         var tree = diagnostic.Location.SourceTree!;
         var node = tree.GetRoot().FindNode(diagnostic.Location.SourceSpan);
 
-        var member = node.AncestorsAndSelf()
-            .FirstOrDefault(ancestor => ancestor is MethodDeclarationSyntax or LocalFunctionStatementSyntax);
+        var member = node.AncestorsAndSelf().FirstOrDefault(ancestor =>
+            ancestor is MethodDeclarationSyntax or LocalFunctionStatementSyntax
+                or PropertyDeclarationSyntax or IndexerDeclarationSyntax);
 
         return new Finding(
             position.Path,
@@ -184,7 +202,9 @@ internal static class AnalyzerReport
             {
                 MethodDeclarationSyntax method => method.Identifier.ValueText,
                 LocalFunctionStatementSyntax local => local.Identifier.ValueText,
-                _ => "(no enclosing method)",
+                PropertyDeclarationSyntax property => property.Identifier.ValueText,
+                IndexerDeclarationSyntax => "this[]",
+                _ => "(no enclosing member)",
             },
             member is not null && ReturnsResult(ReturnTypeOf(member)),
             diagnostic.IsSuppressed);
@@ -193,13 +213,20 @@ internal static class AnalyzerReport
     /// <summary>Every method and local function in a tree whose return type is a result.</summary>
     public static IReadOnlyList<SyntaxNode> ResultReturningMembers(SyntaxTree tree) =>
         [.. tree.GetRoot().DescendantNodes()
-            .Where(node => node is MethodDeclarationSyntax or LocalFunctionStatementSyntax)
+            .Where(node => node is MethodDeclarationSyntax or LocalFunctionStatementSyntax
+                or PropertyDeclarationSyntax or IndexerDeclarationSyntax)
             .Where(node => ReturnsResult(ReturnTypeOf(node)))];
 
+    /// <remarks>
+    /// A property counts as much as a method: <c>Result&lt;T&gt; Current =&gt; …</c> has the same
+    /// channel for an expected case, and a throw inside its accessor is the same defect.
+    /// </remarks>
     private static TypeSyntax? ReturnTypeOf(SyntaxNode member) => member switch
     {
         MethodDeclarationSyntax method => method.ReturnType,
         LocalFunctionStatementSyntax local => local.ReturnType,
+        PropertyDeclarationSyntax property => property.Type,
+        IndexerDeclarationSyntax indexer => indexer.Type,
         _ => null,
     };
 

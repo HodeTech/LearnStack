@@ -81,10 +81,13 @@ public sealed class DomainModelTests
             .Which.Should().Be("Equals", "a typed overload is a second answer");
         RedeclaredEquality(typeof(Probes.SelfEquatableEntity)).Should().NotBeEmpty(
             "an explicitly implemented IEquatable<TSelf> is named "
-            + "System.IEquatable<TSelf>.Equals in metadata, which a plain name check misses");
+            + "System.IEquatable<TSelf>.Equals in metadata, which an exact name check misses");
         RedeclaredEquality(typeof(Probes.ReimplementingEntity)).Should().NotBeEmpty(
             "re-implementing the INHERITED IEquatable<Entity<TId>> declares no new interface, "
             + "so GetInterfaces().Except(BaseType.GetInterfaces()) sees nothing");
+        RedeclaredEquality(typeof(Probes.HidingHashEntity)).Should().ContainSingle()
+            .Which.Should().Be("GetHashCode",
+                "the compiler allows `new int GetHashCode()` — measured — so this rule is what refuses it");
         RedeclaredEquality(typeof(Probes.PlainEntity)).Should().BeEmpty(
             "an aggregate that declares no equality member is what every real one looks like");
 

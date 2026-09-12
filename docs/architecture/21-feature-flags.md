@@ -312,7 +312,10 @@ Architecture tests:
 - `platform_entitlement_cache` is read **and** written by an `IEntitlementProvider`
   implementation and by nothing else — no module, Tenancy included
   (`Modules_Do_Not_Read_Entitlement_Cache_Directly`). Direct SQL against
-  `tenant_feature_flags` outside the Tenancy module's infrastructure is forbidden.
+  `tenant_feature_flags` is the loader's alone, and only to **read**: `FeatureFlags` selects a
+  tenant's rows on its own short read-only transaction, and nothing anywhere writes that table by
+  SQL or by a migration's data API — a row is written through `Tenant.SetFeatureFlag`, which takes
+  a `FeatureKey` and admits only a tenant flag (`PlanProjected_Keys_NotInTenantFlags`).
 - A key must exist in `FeatureKeys` / `LimitKeys` before `IFeatureFlags` can reference
   it, and in `KillswitchKeys` before a guarded path reads a switch directly
   (compile-time guarantee through the `FeatureKey` / `LimitKey` / `KillswitchKey` value

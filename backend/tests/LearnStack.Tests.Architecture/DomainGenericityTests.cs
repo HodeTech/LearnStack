@@ -93,8 +93,30 @@ public sealed partial class DomainGenericityTests
         using var probe = new GenericityProbeContext();
         ModelNames(probe).Should().Contain("belt_ranks").And.Contain("kyu_level");
 
-        ExportedIdentifiers("export const KATA_SEQUENCE = 1;\nexport { Foo as BeltRank };")
-            .Should().BeEquivalentTo(["KATA_SEQUENCE", "BeltRank"]);
+        // And the tables no model maps, which the migration leg reads instead.
+        MigratedNames().Should().Contain("outbox_messages")
+            .And.Contain("idempotency_keys", "a table created in raw SQL belongs to no DbContext");
+
+        var created = CreateTable().Match("""
+            CREATE TABLE kata_sequences (
+                id uuid NOT NULL,
+                belt_rank text NOT NULL
+            );
+            """);
+        created.Success.Should().BeTrue();
+        created.Groups["table"].Value.Should().Be("kata_sequences");
+        ColumnName().Matches(created.Groups["columns"].Value)
+            .Select(match => match.Groups["column"].Value)
+            .Should().BeEquivalentTo(["id", "belt_rank"]);
+
+        ExportedIdentifiers(
+                "export const KATA_SEQUENCE = 1;\n"
+                + "export { Foo as BeltRank };\n"
+                + "const AsanaCard = () => null;\n"
+                + "export default AsanaCard;\n"
+                + "// export const CefrLevel = 1; — prose, not an export\n")
+            .Should().BeEquivalentTo(["KATA_SEQUENCE", "BeltRank", "AsanaCard"],
+                "a default export of an identifier is an export, and a commented-out one is not");
     }
 
     /// <summary>Every name the platform ships, by the subject it belongs to.</summary>
@@ -107,6 +129,7 @@ public sealed partial class DomainGenericityTests
             using var context = module.Context();
             return ModelNames(context);
         })]);
+        yield return ("a migrated table or column", [.. MigratedNames()]);
         yield return ("an audit slug", [.. AuditCatalogDiscovery.Catalogue().All.Select(entry => entry.Operation)]);
         yield return ("an entitlement key", [.. EntitlementKeys()]);
         yield return ("a renderer key", [.. PrimitiveRendererKey.All.Concat(CompositeRendererKey.All)]);
@@ -116,7 +139,7 @@ public sealed partial class DomainGenericityTests
     }
 
     /// <summary>The forbidden terms, read from the catalogue entry that owns them.</summary>
-    private static IReadOnlyList<string> ForbiddenTerms()
+    private static List<string> ForbiddenTerms()
     {
         var catalogue = File.ReadAllText(Path.Combine(
             RepositoryPaths.RepoRoot(), "docs", "standards", "21-architecture-tests-catalogue.md"));
@@ -127,14 +150,22 @@ public sealed partial class DomainGenericityTests
             "Standards 21 carries the list in a `- **Forbidden terms:**` bullet, and this test "
             + "reads it — a renamed or reformatted bullet empties the rule rather than changing it");
 
-        return [.. Regex.Matches(bullet.Groups["terms"].Value, "`(?<term>[A-Za-z]+)`")
-            .Select(match => match.Groups["term"].Value)];
+        var quoted = Regex.Matches(bullet.Groups["terms"].Value, "`(?<term>[^`]+)`")
+            .Select(match => match.Groups["term"].Value)
+            .ToList();
+
+        quoted.Should().OnlyContain(term => Regex.IsMatch(term, "^[A-Za-z]+$"),
+            "every forbidden term is a word this scan can segment — one written with a digit, a "
+            + "space or a hyphen would be dropped silently, and a count that only checks how many "
+            + "survived cannot see that");
+
+        return quoted;
     }
 
     /// <summary>
     /// Whether a name carries a forbidden term as a whole word segment, singular or plural.
     /// </summary>
-    private static bool NamesADomainTerm(string name, IReadOnlyList<string> terms)
+    private static bool NamesADomainTerm(string name, List<string> terms)
     {
         var segments = Segments(name);
 
@@ -209,14 +240,28 @@ public sealed partial class DomainGenericityTests
     /// The seeder's seed data, which is two demo tenants in unrelated domains on purpose —
     /// a language school and a yoga studio are what make the genericity claim checkable.
     /// </summary>
-    private static bool ExemptSeedData(Type type) =>
-        type.FullName?.StartsWith("LearnStack.Tools.Seeder.SeedData", StringComparison.Ordinal) == true;
+    private static bool ExemptSeedData(Type type)
+    {
+        var declaring = type;
+        while (declaring.DeclaringType is { } outer)
+        {
+            declaring = outer;
+        }
+
+        return declaring.FullName == SeedDataType;
+    }
+
+    /// <summary>The seeder's seed-data type, exempt by name rather than by prefix.</summary>
+    private const string SeedDataType = "LearnStack.Tools.Seeder.SeedData";
 
     private static IEnumerable<string> BackendFileNames() =>
         Directory.EnumerateFiles(RepositoryPaths.BackendSrc(), "*", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
             .Select(Path.GetFileName)
-            .OfType<string>();
+            .OfType<string>()
+            // The seeder's seed data is exempt as a type, and a file that carries nothing else is
+            // exempt for the same reason: two demo domains are what make the claim checkable.
+            .Where(name => !name.StartsWith("SeedData", StringComparison.Ordinal));
 
     /// <summary>Every table and column a model maps.</summary>
     private static List<string> ModelNames(DbContext context)
@@ -241,6 +286,31 @@ public sealed partial class DomainGenericityTests
         return names;
     }
 
+    /// <summary>
+    /// Every table and column a migration creates in raw SQL, which no model maps.
+    /// </summary>
+    /// <remarks>
+    /// <c>outbox_messages</c> and <c>idempotency_keys</c> are created by `CREATE TABLE` and
+    /// belong to no <c>DbContext</c>, so the model leg above never sees them — and a column
+    /// named for one domain would ship in the same migration as everything else.
+    /// </remarks>
+    private static IEnumerable<string> MigratedNames()
+    {
+        foreach (var file in Directory.EnumerateFiles(RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
+            .Where(file => file.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        {
+            foreach (Match table in CreateTable().Matches(File.ReadAllText(file)))
+            {
+                yield return table.Groups["table"].Value;
+
+                foreach (Match column in ColumnName().Matches(table.Groups["columns"].Value))
+                {
+                    yield return column.Groups["column"].Value;
+                }
+            }
+        }
+    }
+
     /// <summary>Every feature, limit and killswitch key the registries declare.</summary>
     private static IEnumerable<string> EntitlementKeys() =>
         new[] { typeof(FeatureKeys), typeof(LimitKeys), typeof(KillswitchKeys) }
@@ -255,23 +325,44 @@ public sealed partial class DomainGenericityTests
             })
             .OfType<string>();
 
-    /// <summary>The web app's own sources — not its dependencies, its build output or its tests.</summary>
+    /// <summary>
+    /// The frontend's own sources — every app and every package, not their dependencies, their
+    /// build output or their tests.
+    /// </summary>
+    /// <remarks>
+    /// The packages are in scope as much as the app: `packages/ui` is where a component extracted
+    /// out of `apps/web` lands, and a domain-named one there ships in exactly the same release.
+    /// </remarks>
     private static IEnumerable<string> FrontendFiles() =>
         Directory.EnumerateFiles(
-                Path.Combine(RepositoryPaths.FrontendApps(), "web"), "*", SearchOption.AllDirectories)
+                Path.GetDirectoryName(RepositoryPaths.FrontendApps())!, "*", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar)
-                .Any(segment => segment is "node_modules" or ".next" or "coverage" or "test" or "__tests__"))
+                .Any(segment => segment is "node_modules" or ".next" or "coverage" or "dist" or "out"
+                    or "test" or "tests" or "__tests__" or ".turbo"))
             .Where(file => !TestFile().IsMatch(Path.GetFileName(file)));
 
     /// <summary>The identifiers a TypeScript module exports.</summary>
-    private static List<string> ExportedIdentifiers(string source) =>
-        [.. ExportedDeclaration().Matches(source)
-            .Select(match => match.Groups["name"].Value),
-          .. ExportedList().Matches(source)
-            .SelectMany(match => match.Groups["names"].Value.Split(','))
-            .Select(entry => entry.Trim().Split(" as ")[^1].Trim())
-            .Select(entry => entry.Replace("type ", string.Empty, StringComparison.Ordinal).Trim())
-            .Where(entry => entry.Length > 0)];
+    /// <remarks>
+    /// Comments are stripped first — prose is not a subject of this rule, and a sentence that
+    /// happens to read "export default Yoga…" exports nothing. <c>export default Component;</c>
+    /// is read as well as <c>export default function Component()</c>: both are how a React
+    /// component leaves a file.
+    /// </remarks>
+    private static List<string> ExportedIdentifiers(string source)
+    {
+        var code = SourceText.WithoutComments(source);
+
+        return
+        [
+            .. ExportedDeclaration().Matches(code).Select(match => match.Groups["name"].Value),
+            .. ExportedDefault().Matches(code).Select(match => match.Groups["name"].Value),
+            .. ExportedList().Matches(code)
+                .SelectMany(match => match.Groups["names"].Value.Split(','))
+                .Select(entry => entry.Trim().Split(" as ")[^1].Trim())
+                .Select(entry => entry.Replace("type ", string.Empty, StringComparison.Ordinal).Trim())
+                .Where(entry => entry.Length > 0),
+        ];
+    }
 
     [GeneratedRegex(@"- \*\*Forbidden terms:\*\*(?<terms>.*?)(?=\n- \*\*)", RegexOptions.Singleline)]
     private static partial Regex TermsBullet();
@@ -279,10 +370,20 @@ public sealed partial class DomainGenericityTests
     [GeneratedRegex(@"[^A-Za-z0-9]+")]
     private static partial Regex Separators();
 
+    /// <summary>A <c>CREATE TABLE</c> statement and the body that declares its columns.</summary>
+    [GeneratedRegex(
+        @"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?""?(?<table>[A-Za-z_][A-Za-z0-9_]*)""?\s*\((?<columns>.*?)\n\s*\)\s*;",
+        RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex CreateTable();
+
+    /// <summary>A column declaration: an identifier at the start of a line inside the body.</summary>
+    [GeneratedRegex(@"^\s{2,}""?(?<column>[a-z_][a-z0-9_]*)""?\s+[a-z]", RegexOptions.Multiline)]
+    private static partial Regex ColumnName();
+
     [GeneratedRegex(@"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])")]
     private static partial Regex WordBoundary();
 
-    [GeneratedRegex(@"\.(test|spec)\.[jt]sx?$|^setup\.ts$")]
+    [GeneratedRegex(@"\.(test|spec)\.[jt]sx?$")]
     private static partial Regex TestFile();
 
     [GeneratedRegex(@"export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:function\*?|class|const|let|var|type|interface|enum|namespace)\s+(?<name>[A-Za-z_$][A-Za-z0-9_$]*)")]
@@ -290,6 +391,10 @@ public sealed partial class DomainGenericityTests
 
     [GeneratedRegex(@"export\s*\{(?<names>[^}]*)\}")]
     private static partial Regex ExportedList();
+
+    /// <summary>A default export of an identifier declared elsewhere in the file.</summary>
+    [GeneratedRegex(@"export\s+default\s+(?<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*;")]
+    private static partial Regex ExportedDefault();
 
     /// <summary>
     /// A model that maps a domain-specific table and column, for

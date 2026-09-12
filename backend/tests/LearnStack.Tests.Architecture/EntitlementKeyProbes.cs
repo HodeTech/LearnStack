@@ -3,7 +3,7 @@ using LearnStack.SharedKernel.Entitlements;
 namespace LearnStack.Tests.Architecture.Probes;
 
 /// <summary>
-/// Invents entitlement keys the three ways IL can, for
+/// Invents entitlement keys the two ways IL can spell one, for
 /// <c>The_Entitlement_Key_Scans_Can_Actually_Fail</c>. Never called.
 /// </summary>
 internal static class KeyInventorProbe

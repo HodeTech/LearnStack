@@ -53,5 +53,15 @@ internal sealed class ReimplementingEntity : Entity<ProbeId>, IEquatable<Entity<
     bool IEquatable<Entity<ProbeId>>.Equals(Entity<ProbeId>? other) => other is not null;
 }
 
+/// <summary>
+/// Hides the sealed <c>GetHashCode</c> with a new one. The compiler allows it — measured — so
+/// the rule is what catches it: two hash codes for one entity partition a <c>HashSet</c> by
+/// which reference the caller holds.
+/// </summary>
+internal sealed class HidingHashEntity : Entity<ProbeId>
+{
+    public new int GetHashCode() => Id.Value.GetHashCode();
+}
+
 /// <summary>An aggregate root whose identifier is hand-written.</summary>
 internal sealed class HandWrittenIdRoot : Entity<ProbeId>, IAggregateRoot<ProbeId>;

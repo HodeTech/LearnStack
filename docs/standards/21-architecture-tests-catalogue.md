@@ -431,8 +431,9 @@ otherwise).
   (diagnostic id `LS0001`), run over the sources of the core `Domain` and `Application` and
   every module's, reports nothing the rule refuses: no **unsuppressed** report anywhere —
   that is a Warning nobody has justified — and no report at all, suppressed or not, inside a
-  `Result`-returning method, because a method with a channel for an expected case has no
-  excuse for throwing one. A suppressed report in a method that returns no result is the
+  `Result`-returning method — property and indexer included, since `Result<T> Current => …`
+  carries the same channel — because a member with a channel for an expected case has no excuse
+  for throwing one. A suppressed report in a method that returns no result is the
   sanctioned aggregate-invariant throw and passes. Each project is also asserted to reference
   the analyzer as an analyzer, or the discipline holds only inside this test.
 - **Source:** ADR-0032 § Sub-decision 4;
@@ -444,9 +445,11 @@ otherwise).
   Packet 10. The build cannot be the gate: `LS0001` is in `WarningsNotAsErrors` until the
   Phase 03 escalation, and a pragma is the sanctioned way to keep a genuine invariant throw —
   so the test compiles each project's sources itself, sets the severity, and reports
-  suppressed diagnostics. It fails loudly on a source it cannot parse, because a compiler
+  suppressed diagnostics. It parses with the symbols the build defines, so an `#if` region is
+  read rather than skipped, and it fails loudly on a source it cannot parse, because a compiler
   behind the SDK reads a new language feature as a syntax error and a scan that cannot read a
-  file sees nothing in it. Its companion,
+  file sees nothing in it. The wiring leg strips XML comments before looking for the analyzer
+  reference: a commented-out one is not a reference. Its companion,
   `The_Domain_Exception_Report_Can_Actually_Fail`, plants all four shapes — thrown from a
   `Result` method, the same one silenced by a pragma, a pragma-silenced invariant guard, and
   an unsuppressed throw — and requires exactly the three the rule refuses. Mutation-checked:
@@ -625,11 +628,14 @@ otherwise).
   `Chord`, `CodeChallenge`, `IELTS`, `TOEFL`. This line is the list: the test reads it, so
   adding a term is a one-line change here and nowhere else.
 - **Subjects:** in every production backend assembly, type, member, namespace and file
-  names; the EF table and column names each module's model maps; the audit operation
-  slugs the catalogue registers; the feature, limit and killswitch keys; the primitive and
-  composite renderer keys; the permission keys once the registry exists, and the block
-  registry once [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; and, in
-  `frontend/apps/web`, file names and exported identifiers. **Not** subjects: test code, the seeder's seed data — two demo tenants in
+  names; the EF table and column names each module's model maps **and** the ones a migration
+  creates in raw SQL, which belong to no model — `outbox_messages` and `idempotency_keys` are
+  both; the audit operation slugs the catalogue registers; the feature, limit and killswitch
+  keys; the primitive and composite renderer keys; the permission keys once the registry exists,
+  and the block registry once [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; and,
+  across `frontend/` — every app and every package, because `packages/ui` is where a component
+  extracted out of the app lands — file names and exported identifiers, comments stripped
+  first. **Not** subjects: test code, the seeder's seed data — two demo tenants in
   unrelated domains are the point of it, so `SeedData.English` is data, not a platform
   name — and comments and free text. A capability that serves every domain is not a
   domain term: `ai.pronunciation_feedback` names what the platform does, not whom for
@@ -648,7 +654,11 @@ otherwise).
   collector that stops seeing its names fails rather than reporting clean, and the companion,
   `The_Domain_Term_Scan_Can_Actually_Fail`, feeds the matcher every shape the Asserts line
   claims — and the ones it must not flag, `Grade`, `Danger` and `ai.pronunciation_feedback`
-  among them. Mutation-checked: a `CefrLevel` property on `Tenant` fails it.
+  among them — and exercises each collector on a probe: a type and member in this assembly, a
+  model that maps `belt_ranks.kyu_level`, a `CREATE TABLE` a migration would carry, and a
+  module that exports a default, a rename and a commented-out declaration. The term list is
+  read whole: a term written with a digit, a space or a hyphen fails the parse rather than
+  being dropped. Mutation-checked: a `CefrLevel` property on `Tenant` fails it.
 - **Phase:** 02a (Packet 10).
 
 #### `Frontend_Has_Only_The_Web_App`
@@ -973,8 +983,9 @@ otherwise).
   every async state machine that takes a key. **Kind:** structural.
 - **Status:** **Implemented** — `EntitlementKeyTests.cs`, Packet 10, with
   `The_Entitlement_Key_Scans_Can_Actually_Fail` planting both spellings in this test assembly
-  and requiring the same filter to report them; the rule asserts first that it sees the
-  registries construct their own keys. The registries shipped in Packet 9 carrying the **full
+  and requiring the same filter to report them — the probes only, since the test assembly also
+  spells an undeclared key on purpose, where the rule below proves the aggregate refuses one. The
+  rule asserts first that it sees the registries construct their own keys. The registries shipped in Packet 9 carrying the **full
   vocabulary**, not only the keys with a consumer, which measured empty at that point; the
   reading and its reasoning are in the Packet 9 delivery record. `LimitKeys` takes its
   strings from the Hub's `limits.`
@@ -996,8 +1007,9 @@ otherwise).
   the table, and never the other way round. Four legs: `Tenant.SetFeatureFlag` takes a
   `FeatureKey` rather than a string, so which key is a question the compiler asks; it refuses
   every plan-projected key and every undeclared one, and accepts every tenant-flag key; it is
-  the only production code that creates a `TenantFeatureFlag`; and no SQL under
-  `backend/src` writes the table's rows.
+  the only production code that creates a `TenantFeatureFlag`; and nothing under `backend/src`
+  writes the table's rows — not SQL, and not a migration's `InsertData`, which writes a row with
+  no statement anywhere in the file and is exactly where a plan key would be seeded.
 - **Why it matters:** the two halves answer with different authority. A plan-projected key
   served from the tenant table is a tenant editing its own entitlement, which is the one
   thing the projection exists to prevent.
@@ -1043,8 +1055,11 @@ otherwise).
   `Entity<>` in every production assembly. Its companion,
   `The_Aggregate_Shape_Rules_Can_Actually_Fail`, plants the three shapes the compiler does
   not stop — a typed overload, a declared `IEquatable<TSelf>`, and an explicit
-  re-implementation of the inherited `IEquatable<Entity<TId>>` — and requires the same
-  predicate to report each. The operator pair is not among them: with `Equals(object?)` and
+  re-implementation of the inherited `IEquatable<Entity<TId>>`, and a `new GetHashCode()` that
+  hides the sealed one, which the compiler allows (measured) — and requires the same predicate to
+  report each. The declared-interface clause is belt and braces rather than a fourth shape:
+  anything that satisfies `IEquatable<TSelf>` declares a method whose name ends in `Equals`,
+  which the first check already reports. The operator pair is not among them: with `Equals(object?)` and
   `GetHashCode()` sealed, a derived `operator ==` cannot silence CS0660 / CS0661, so it
   fails the build rather than this test. Mutation-checked: a `bool Equals(Tenant?)` overload
   on `Tenant` fails it.

@@ -482,21 +482,25 @@ public sealed class TenancyAggregateTests
     }
 
     [Fact]
-    public void Setting_a_feature_flag_refuses_them_too()
+    public void Setting_an_existing_feature_flag_refuses_the_sentinels_at_the_root()
     {
-        // The same key, and a value that is well-formed: the existing flag's own guard is
-        // the only thing left to refuse the sentinel. An earlier version set a second key
-        // to a malformed value, so the JSON guard refused it and this passed without the
-        // sentinel guard ever running.
+        // Named for what it constrains. On the NEW-flag path the child's own guard refuses the
+        // sentinel — TenantFeatureFlag.Create runs before the root stamps, and the case above
+        // covers it. On the EXISTING-flag path the root stamps first, so MarkUpdated is what
+        // refuses, and the child's SetValue guard is a second layer this call cannot reach. An
+        // earlier version claimed the child's guard here and never ran it: the value it passed
+        // was malformed, so the JSON check refused before either guard was asked.
         var tenant = NewTenant();
         tenant.SetFeatureFlag(FeatureKeys.LessonPlayerV2, "true", Clock, Actor);
         var flag = tenant.FeatureFlags.Single();
+        var before = (tenant.Version, tenant.UpdatedAt);
 
         var set = () => tenant.SetFeatureFlag(
             FeatureKeys.LessonPlayerV2, "false", new FixedClock(default), Actor);
 
         set.Should().Throw<ArgumentException>();
         flag.Value.Should().Be("true", "a refused write changes nothing");
+        (tenant.Version, tenant.UpdatedAt).Should().Be(before, "the root included");
     }
 
     [Fact]

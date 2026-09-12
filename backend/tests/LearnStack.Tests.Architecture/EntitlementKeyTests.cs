@@ -97,14 +97,28 @@ public sealed partial class EntitlementKeyTests
             tenant.FeatureFlags.Should().ContainSingle().Which.Key.Should().Be(key.Value);
         }
 
+        var undeclared = NewTenant();
+        var refused = () => undeclared.SetFeatureFlag(new FeatureKey("beta"), "true", Clock, Actor);
+
+        refused.Should().Throw<ArgumentException>("a key the registry does not declare is a key "
+            + "nothing else in the platform knows");
+        undeclared.FeatureFlags.Should().BeEmpty();
+
         // And nothing else reaches the table: no other production code creates the entity,
         // and no SQL writes its rows.
         EntityCreationSites().Should().Equal(
             [$"{typeof(Tenant).FullName}.{nameof(Tenant.SetFeatureFlag)}"],
             "the aggregate root is the only way a tenant_feature_flags row comes into being");
 
-        Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
+        var scanned = Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        scanned.Where(file => SourceText.WithoutComments(File.ReadAllText(file))
+                .Contains("tenant_feature_flags", StringComparison.Ordinal))
+            .Should().NotBeEmpty("the premise: this enumeration reaches the files that name the table");
+
+        scanned
             .Where(file => TenantFlagWrite().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
             .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
             .Should().BeEmpty("tenant_feature_flags is written through the aggregate, never by SQL");
@@ -117,7 +131,11 @@ public sealed partial class EntitlementKeyTests
         // SQL, so both rules above pass whether their scans work or not.
         var planted = KeyConstructionSites(typeof(EntitlementKeyTests).Assembly.Location).ToList();
 
-        Unsanctioned(planted).Should().BeEquivalentTo(
+        // The probes only: this test assembly also spells an undeclared key on purpose, where
+        // PlanProjected_Keys_NotInTenantFlags proves the aggregate refuses one.
+        Unsanctioned(planted)
+            .Where(site => site.StartsWith(typeof(Probes.KeyInventorProbe).FullName!, StringComparison.Ordinal))
+            .Should().BeEquivalentTo(
             [
                 $"{typeof(Probes.KeyInventorProbe).FullName}.{nameof(Probes.KeyInventorProbe.Invent)}",
                 $"{typeof(Probes.KeyInventorProbe).FullName}.{nameof(Probes.KeyInventorProbe.Rename)}",
@@ -126,6 +144,9 @@ public sealed partial class EntitlementKeyTests
             + "that is not a registry member gets spelled");
 
         TenantFlagWrite().IsMatch("INSERT INTO tenant_feature_flags (tenant_id, key)").Should().BeTrue();
+        TenantFlagWrite().IsMatch("migrationBuilder.InsertData(table: \"tenant_feature_flags\", columns: new[] { \"key\" })")
+            .Should().BeTrue("a migration writes rows through the data APIs, not only through SQL");
+        TenantFlagWrite().IsMatch("migrationBuilder.UpdateData(table: \"tenant_feature_flags\")").Should().BeTrue();
         TenantFlagWrite().IsMatch("update \"public\".\"tenant_feature_flags\" set value = @v").Should().BeTrue();
         TenantFlagWrite().IsMatch("COPY tenant_feature_flags FROM STDIN").Should().BeTrue();
         TenantFlagWrite().IsMatch("GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_feature_flags TO learnstack_app")
@@ -227,8 +248,13 @@ public sealed partial class EntitlementKeyTests
         UserId.From(Guid.Parse("00000000-0000-7000-8000-000000000001"));
 
     /// <summary>A statement that writes rows of <c>tenant_feature_flags</c>.</summary>
+    /// <remarks>
+    /// The EF data APIs are here beside the SQL: <c>migrationBuilder.InsertData(table:
+    /// "tenant_feature_flags", …)</c> writes a row without a statement anywhere in the file, and a
+    /// migration is exactly where a plan key would be seeded.
+    /// </remarks>
     [GeneratedRegex(
-        @"\b(?:INSERT\s+INTO|MERGE\s+INTO|COPY|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?tenant_feature_flags""?(?![A-Za-z0-9_])",
+        @"(?:\b(?:INSERT\s+INTO|MERGE\s+INTO|COPY|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?|(?:Insert|Update|Delete)Data\s*\(\s*table\s*:\s*)""?tenant_feature_flags""?(?![A-Za-z0-9_])",
         RegexOptions.IgnoreCase)]
     private static partial Regex TenantFlagWrite();
 }

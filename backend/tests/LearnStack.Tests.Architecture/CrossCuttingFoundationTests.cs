@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
@@ -332,7 +333,10 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var project in AnalyzerReport.Projects())
         {
-            File.ReadAllText(project).Should().MatchRegex(
+            // Comments stripped first: a commented-out reference is not a reference, and the
+            // project files in this repository carry long explanatory comments.
+            Regex.Replace(File.ReadAllText(project), "<!--.*?-->", string.Empty, RegexOptions.Singleline)
+                .Should().MatchRegex(
                 @"<ProjectReference\s[^>]*LearnStack\.Analyzers\.csproj[^>]*OutputItemType=""Analyzer""",
                 $"{Path.GetFileName(project)} runs the LS0001 analyzer in its own build "
                 + "(ADR-0032 Amendment 1), or the discipline holds only in this test");
