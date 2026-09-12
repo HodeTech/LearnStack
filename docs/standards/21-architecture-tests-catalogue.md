@@ -746,7 +746,15 @@ otherwise).
 - **Source:** [32-tenant-customization-model.md § 8.5](../architecture/32-tenant-customization-model.md)
   and its § 11 hard invariants.
 - **Type:** ESLint rule in `frontend/`. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — a `no-restricted-syntax` pair in
+  `frontend/packages/config/eslint/index.cjs`, Packet 10: the JSX attribute and the object
+  property, because a helper writes the second where a component writes the first. Its companion
+  is `frontend/apps/web/src/test/lint-rules.test.ts`, which lints three fixtures through the
+  app's own configuration and asserts which rule answers — `pnpm lint` is green whether a rule
+  is configured or not, and a rule nothing violates looks exactly like a rule that is not there.
+  The primitive's own file carries the single suppression when
+  [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; nothing calls the API today,
+  which is why the rule lands before the first caller.
 - **Phase:** 02a (Packet 10).
 
 #### `ModuleDomain_DoesNotDependOn_OtherModuleDomain`
@@ -1518,7 +1526,11 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Source:** ADR-0040 § Context and § Implementation Notes.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), as `learnstack_app`.
   **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `AmbientUnitOfWorkTests` (integration), Packet 10.
+  Customization writes, Tenancy reads it before `COMMIT`, and a second connection sees
+  nothing — the control that stops the case agreeing with itself, since a context that
+  committed on `SaveChanges` would satisfy the first half alone. Mutation-checked: giving each
+  context its own connection fails both cases in this file.
 - **Phase:** 02a (Packet 10) — ADR-0040 staged it for Phase 03, and the second module
   `DbContext` arrived in Packet 8.
 
@@ -1532,7 +1544,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Source:** ADR-0040 § Context and § Implementation Notes.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), as `learnstack_app`.
   **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `AmbientUnitOfWorkTests` (integration), Packet 10: two
+  modules write, the outer frame throws before the commit, and both tables are empty read from
+  a connection of its own.
 - **Phase:** 02a (Packet 10), for the same reason as the rule above.
 
 #### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
@@ -2147,15 +2161,18 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 § Decision;
   [31-audit-subsystem.md § 5](../architecture/31-audit-subsystem.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
-- **Status:** **Registered** — and the name still has no code, but it is no longer "no
-  code yet" in the ordinary sense, which is worth saying so a reader does not conclude the
-  rule is unenforced. Both halves are held apart today:
-  `AuditConfigServiceTests.A_read_failure_falls_back_to_the_declared_tier` drives the
-  service against a dead data source and gets the declared tier back, and
-  `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
-  holds the rejection. What is missing is the end-to-end case this row names: a real MUST
-  command through the real pipeline with `audit_config` made unreadable. Packet 9 closed
-  without it; it lands in Packet 10, which gates phase exit on it.
+- **Status:** **Implemented** — `AuditPipelineTests` (integration), Packet 10. With
+  `SELECT` on `audit_config` **revoked** from `learnstack_app`, the seed's MUST commands still
+  complete and still write their rows; a SHOULD classification, which is the tier that does
+  reach the loader, still answers `Should` because the read failure falls back rather than
+  rejecting; and a MUST answers against a data source that cannot connect at all, which is what
+  "the floor is decided in process" means. The revoke is what makes the case able to tell a read
+  from no read: under Row Level Security the read would return zero rows **silently**, and
+  silence is indistinguishable from "this tenant has no overrides". Mutation-checked: removing
+  the loader's fallback fails it. `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
+  holds the other half — the `audit_unclassified_operation` rejection — where a handler can be
+  registered for a request the catalogue does not know; the seeder's composition root ships one
+  request type per shipped command and has no unregistered one to send.
 - **Phase:** 02a (Packet 9 introduces; Packet 10 closes).
 
 #### `AuditLog_Update_Is_Column_Restricted`

@@ -41,6 +41,30 @@ module.exports = {
     ],
     'no-console': ['warn', { allow: ['warn', 'error'] }],
 
+    // ADR-0018 § Renderer architecture and architecture/32 § 8.5: the sanitised-HTML
+    // primitive is the ONE component allowed to call `dangerouslySetInnerHTML`, and it
+    // does so on the sanitiser's output alone. This is
+    // `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` — the rule that keeps
+    // the sanitisation contract from being bypassed by a convenient one-off. The
+    // primitive's own file carries the single sanctioned suppression when Phase 04 ships
+    // it; until then nothing in the app calls it at all, which is why the rule lands now:
+    // the first call arrives as a red build rather than as a review someone has to catch.
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
+        message:
+          'Only the sanitised-HTML primitive may call dangerouslySetInnerHTML, and only ' +
+          'on the sanitiser output (architecture/32 § 8.5). Render through a primitive.',
+      },
+      {
+        selector: 'Property[key.name="dangerouslySetInnerHTML"]',
+        message:
+          'Only the sanitised-HTML primitive may call dangerouslySetInnerHTML, and only ' +
+          'on the sanitiser output (architecture/32 § 8.5). Render through a primitive.',
+      },
+    ],
+
     // Standards 03 § Forbidden bars direct `fetch`, and architecture/14 names
     // the SDK as the only sanctioned way to reach the API. This is the rule
     // that makes those true. It is `no-restricted-globals` and not

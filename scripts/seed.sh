@@ -33,7 +33,10 @@ set -eu -o pipefail
 # parses `docker compose config --format json` to derive the per-service
 # healthcheck exemption; jq is not used because it is less commonly present
 # on a fresh macOS box than python3.
-for _dep in docker python3; do
+# curl is the second: the realm gate below calls it directly, and a box without it
+# failed there with a bare `command not found` mid-run rather than here with a name.
+# dotnet is the third — the seeder itself is a dotnet run.
+for _dep in docker python3 curl dotnet; do
     if ! command -v "$_dep" >/dev/null 2>&1; then
         echo "seed: '$_dep' is required and was not found on PATH." >&2
         exit 1
@@ -241,8 +244,11 @@ fi
 # Passed in the environment, not on argv: the value carries the database
 # password, and an argument is visible to any local user through `ps`. The
 # seeder reads this variable and takes no flag for it.
-if ! ConnectionStrings__Default="$seed_cs" \
-        dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo; then
+# Run from `backend/`, where the SDK pin lives (`backend/global.json`): from the
+# repository root no global.json applies and whichever SDK is newest answers, which is
+# not the one CI and `make migrate` use.
+if ! (cd backend && ConnectionStrings__Default="$seed_cs" \
+        dotnet run --project src/LearnStack.Tools.Seeder --nologo); then
     red "seed: tenant seeding failed."
     red "  Has the schema been applied? → make migrate"
     exit 1
