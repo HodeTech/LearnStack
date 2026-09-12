@@ -76,11 +76,16 @@ The following are kept current and treated as code:
 | ADR (`decisions/`) | A one-time decision with status, context, decision, consequences | Immutable after acceptance, except for dated Amendments and the bounded corrections in § Correcting and Amending ADRs |
 | Standard (`standards/`) | Ongoing engineering rules | Editable as the team learns |
 | Runbook (`runbooks/`) | Operational procedures | Editable; review quarterly |
-| Roadmap (`roadmap/`) | Phased plan | Editable per phase |
+| Roadmap (`roadmap/`) | Phased plan | Editable per phase; a shipped packet's delivery record is not rewritten |
+
+A delivery record that cites something false — an amendment withdrawn before merge, a test
+since renamed — gets a dated correction inline beside the false text, in the shape of an
+[ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) erratum. The
+original words stay: the record says what the packet believed when it shipped.
 
 ## Anchored Standards
 
-Every standard begins with a `**Derives from:**` line on the second line that names its authority. The authority is one of:
+Every standard opens with its title, a `**Status:**` line, and directly under it a `**Derives from:**` line that names its authority — [Principles](00-principles.md) excepted, since every other standard derives from it. The authority is one of:
 
 - An ADR — preferred when one exists (`[ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md)`).
 - An authoritative external standard — when LearnStack adopts an external rule directly (`WCAG 2.2 AA`).
@@ -193,6 +198,10 @@ When a module reaches "design stable, ready to implement", it gets a spec under 
 A module spec without these sections is not "done"; reviewers block merges that skip required diagrams.
 
 ## Correcting and Amending ADRs
+
+<!-- The section was "ADR Amendments" until ADR-0041 renamed it, and ADR-0038, which is
+Accepted, still links to that anchor; the alias keeps the link landing here. -->
+<a id="adr-amendments"></a>
 
 **Derives from:** [ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)
 

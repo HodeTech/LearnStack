@@ -110,8 +110,13 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
-    CourseVersionId = request.CourseVersionId.Value,
-    CohortId = request.CohortId?.Value,
+    // Three types, two of them the same. The contract carries a module-local id as a
+    // `Guid` (add-mediatr-handler § Step 1) and this event declares one, so the request's
+    // value assigns directly — `request.CourseVersionId.Value` does not compile, because a
+    // `Guid` has no `Value`. The handler's own `courseVersionId` is the TYPED id it built
+    // one layer in, so that spelling needs `courseVersionId.Value`.
+    CourseVersionId = request.CourseVersionId,
+    CohortId = request.CohortId,
     Source = request.Source.ToString().ToLowerInvariant(),
 }, cancellationToken);
 
@@ -120,9 +125,12 @@ await db.SaveChangesAsync(cancellationToken);   // atomic
 
 Rules:
 
-- `IOutbox.EnqueueAsync` enrolls in the **ambient** `DbContext`. Do not open a new
-  transaction.
-- `SaveChangesAsync` commits the aggregate change and the outbox row together.
+- `IOutbox.EnqueueAsync` enlists in the **ambient unit of work** — the one connection and
+  transaction `IUnitOfWork` owns ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)),
+  not a module's `DbContext`. Do not open a second transaction.
+- `SaveChangesAsync` **flushes** the context; it does not commit. `TransactionBehavior` owns
+  the commit boundary, so the aggregate change and the outbox row land together because they
+  share that transaction — not because one `SaveChanges` wrote both.
 
 ### Step 3: Topic declaration
 
@@ -178,10 +186,14 @@ public sealed class CreateAuditEntryOnEnrollmentCreated(
 Rules:
 
 - **Every** `IIntegrationEventHandler` invokes `IInboxGuard.IsAlreadyProcessedAsync`
-  before any business logic. Architecture test
-  `Integration_Event_Handlers_Use_InboxGuard` enforces this.
-- `MarkAsProcessed` enrolls in the same `DbContext`; the inbox marker and the
-  business write commit atomically.
+  before any business logic. The architecture test
+  `Integration_Event_Handlers_Use_InboxGuard` holds every handler to it from
+  [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which ships the guard; it
+  is registered, not running, until then.
+- `MarkAsProcessed` writes on the same **transaction** as the business write — the ambient
+  one the transport opens per delivery through `IUnitOfWork`
+  ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)) — so the inbox marker
+  and the business write commit atomically.
 - The **transport** — not middleware — restores tenant context from
   `@event.TenantId` before your handler runs, and puts the publisher's own back
   afterwards. Read it through `ITenantContext` as usual; don't read it from
@@ -232,10 +244,12 @@ Two tests minimum:
 ## Validation
 
 - `dotnet build` and `dotnet test` pass.
-- `LearnStack.Tests.Architecture` is green; specifically
-  `Integration_Events_Inherit_From_IntegrationEventBase`,
-  `Integration_Event_Handlers_Use_InboxGuard`,
-  `Integration_Event_TopicNames_FollowConvention`.
+- `LearnStack.Tests.Architecture` is green — `Integration_Event_TopicNames_FollowConvention`
+  runs today; `Integration_Events_Inherit_From_IntegrationEventBase` and
+  `Integration_Event_Handlers_Use_InboxGuard` are registered for
+  [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) and run from there. Check
+  [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) for their
+  status rather than assuming a net is under you.
 - An integration test confirms the round-trip: handler enqueues → outbox row
   created → outbox processor dispatches → consumer handles + writes business
   state + inbox row.

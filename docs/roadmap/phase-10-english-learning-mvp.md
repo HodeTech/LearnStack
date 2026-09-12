@@ -40,7 +40,7 @@ eight, and where a gap in any of them stops being theoretical.
 
 | Aggregate | Delivered by | What the English tenant puts in it |
 |---|---|---|
-| `TenantContentType` | [Phase 02a Packet 8](phase-02a-kernel-tenancy.md) | `VocabularyCard` (word + part of speech + definition + examples + audio reference), `GrammarTopic` (title + summary + examples + level reference), `SpeakingPrompt` (prompt + difficulty + sample answers), `LessonPackage` (composite referencing courses + supplementary content) |
+| `TenantContentType` | [Phase 02a Packet 8](phase-02a-kernel-tenancy.md) | `vocabulary-card` (word + part of speech + definition + examples + audio reference), `grammar-topic` (title + summary + examples + level reference), `speaking-prompt` (prompt + difficulty + sample answers), `lesson-package` (composite referencing courses + supplementary content) |
 | `TenantLevelTaxonomy` | [Phase 02a Packet 8](phase-02a-kernel-tenancy.md) | CEFR levels A1 … C2. The taxonomy declares the vocabulary; the `Level` table holds items keyed by `(tenant_id, taxonomy_key, key)` |
 | `TenantCustomFieldDef` | [Phase 03](phase-03-identity-admin.md) | `User.preferredAccent` (BrE / AmE / AusE / other), `InstructorProfile.dialectsTaught`, `Enrollment.preferredPace` |
 | `TenantPageBlock` | [Phase 04](phase-04-cms-media-pages.md) | `vocabulary-list`, `level-card`, `placement-test-entry`, `instructor-grid` — each pointing at a built-in `content-list` / `card-grid` / `default-card` composite renderer |
@@ -114,7 +114,7 @@ Composed entirely from customization data:
 - Enrolled-course dashboard.
 - Lesson player rendering custom lesson-item types through the `TenantLessonItemType`
   registry.
-- Vocabulary resources driven by `VocabularyCard` entries.
+- Vocabulary resources driven by `vocabulary-card` entries.
 - Speaking-session booking against instructor availability from
   [Phase 08b](phase-08b-scheduling.md).
 - Classroom entry from the learner portal.

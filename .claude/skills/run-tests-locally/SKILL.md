@@ -33,7 +33,7 @@ flags, and a triage map for the most common failure shapes.
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend`. (`e2e` arrives in Phase 02d.) |
+| Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend`. (`e2e` arrives in [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md).) |
 | Filter | No | `--filter <expr>` to run a subset. |
 | Docker available? | Integration (`Requires=Docker`) | A running daemon. Postgres only — no Valkey, no Kafka. |
 
@@ -71,9 +71,9 @@ backend/tests/
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Vitest. The axe-core and Playwright suites
-                                   # arrive with the first content-bearing pages
-                                   # in Phase 02d, which is also when CI's
-                                   # `lighthouse budget` job stops being deferred.
+                                   # arrive in Phase 06; CI's `lighthouse budget`
+                                   # job stops being deferred earlier, in Phase 02d,
+                                   # with the first content-bearing pages.
 ```
 
 ### Step 3: Run unit tests
@@ -111,13 +111,13 @@ before concluding a net is under you.
 | `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | A context opened its own connection — register it with `AddModuleDbContext<T>`, per [ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md). |
 | `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | The `row_version` mapping is missing a save behaviour; the token stays 0 and every ETag comparison is meaningless ([ADR-0039](../../../docs/decisions/0039-optimistic-concurrency-token.md)). |
 | `Modules_Do_Not_Reference_DeploymentMode` | The composition root branches on the mode; modules never. |
-| `Modules_Do_Not_Inject_IEventBus_Directly` | The only sanctioned publisher is the outbox processor; enqueue through `IOutbox`. |
+| `Modules_Do_Not_Inject_IEventBus_Directly` | The only sanctioned publisher is the outbox processor; a module enqueues in the outbox — through `IOutbox`, which Phase 02b ships. |
 | `Modules_Do_Not_Reference_Sentry_SDK_Directly` | Capture through `IErrorTrackingProvider`. |
-| `Handlers_Return_Result` | A handler threw where it should return `Result.Fail(...)`. |
+| `Handlers_Return_Result` | A handler's response type is not a `Result` — return `Result<T>` or `Result<None>`, or the pipeline's `IResultBase`-constrained behaviors skip it. |
 | `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | A behavior moved; the eight-step order is fixed by [ADR-0032](../../../docs/decisions/0032-exception-handling-logging-and-observability.md). |
 | `Integration_Event_TopicNames_FollowConvention` | Topic isn't `learnstack.{module}.{aggregate}`. |
 | `No_Source_Folder_Named_Verticals` | A `Verticals/` folder exists; ADR-0018 forbids it. |
-| `Every_Database_Test_Carries_The_Docker_Trait` | A `Database/` test class is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
+| `Every_Database_Test_Carries_The_Docker_Trait` | A test class under `Database/`, or one anywhere that takes a database fixture, is missing `[Trait(RequiresDocker.Key, RequiresDocker.Value)]` and would run in the wrong CI job. |
 | `Migrate_Target_Covers_Every_Migration_Chain` | A new chain exists that `make migrate` does not apply. |
 
 ### Step 5: Run integration tests
@@ -160,10 +160,10 @@ pnpm lint                # next lint — what `pnpm -r lint` runs in CI
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
-> `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 02d**
-> with the first content-bearing public pages — the same phase that activates
-> CI's deferred `lighthouse budget` job. Until then there is no accessibility or
-> end-to-end gate to run.
+> `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
+> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md); CI's
+> deferred `lighthouse budget` job activates earlier, in Phase 02d, with the first
+> content-bearing pages. Until then there is no accessibility or end-to-end gate to run.
 
 ### Step 7: Single-test focus
 
@@ -247,7 +247,7 @@ dotnet test --blame-hang --blame-hang-timeout 5min
 - For integration suites, Docker is running and nothing else holds 5432.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
-  The accessibility gate joins this list in Phase 02d, with the suite that
+  The accessibility gate joins this list in Phase 06, with the suite that
   enforces it.
 
 ## Common pitfalls
@@ -265,7 +265,7 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   against stale binaries.
 - **Assuming an accessibility gate exists.**
   [16-accessibility.md](../../../docs/standards/16-accessibility.md) makes WCAG
-  2.2 AA binding, and Phase 02d is what makes a suite enforce it. Reading the
+  2.2 AA binding, and Phase 06 is what makes a suite enforce it. Reading the
   standard is the gate until then.
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.

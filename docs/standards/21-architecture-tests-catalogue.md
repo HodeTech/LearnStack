@@ -27,10 +27,9 @@ the rule still lives there. The catalogue only owns the **name**, the
 
 That was the theory. In practice the drift this document exists to prevent had already
 happened before a single named test was written: **six** competing spellings of the
-tenant-isolation rule across eleven files, and **five** of the organization-scope rule.
-§ Canonical names and superseded spellings reconciles them. Reconciling now is a
-find-and-replace in Markdown; reconciling once the tests exist is a refactor across a
-dozen files plus the test code.
+tenant-isolation rule and **five** of the organization-scope rule, across eleven files
+between them. § Canonical names and superseded spellings records the mapping, and what
+survived the reconciliation.
 
 ## What a structural test proves — and what it does not
 
@@ -53,15 +52,16 @@ Two consequences, both binding:
 - **Structural assertions stay.** They are cheap, they run on every build, and they
   catch the common failure — someone forgot the policy entirely. They are a *coverage*
   check, not a *correctness* check, and this catalogue labels them as such.
-- **The binding proof of isolation is runtime.** Isolation is a property of what a
+- **The binding proof of isolation is behavioural.** Isolation is a property of what a
   query returns, and only a query can observe it. The proof lives in the
   [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) integration suite, which
   connects as **`learnstack_app`** — a non-owning, `NOBYPASSRLS` role. A test that
   connects as the table owner or as a `BYPASSRLS` role passes even when every policy on
   every table is inert, and therefore proves nothing at all.
 
-Rows in this catalogue carry a **Kind** of *structural*, *runtime*, or *compile-time* so
-a reader can tell which question the test answers.
+Rows in this catalogue carry a **Kind** — *structural*, *behavioural*, *compile-time* or
+*startup*, defined in § Implementation status — so a reader can tell which question the
+test answers.
 
 ## Implementation status
 
@@ -78,149 +78,76 @@ Each row also carries a **Kind**:
 
 | Kind | Asserts |
 |---|---|
-| **structural** | A shape — types, references, attributes, configuration |
-| **behavioural** | What the real thing does when started or exercised |
-| **compile** | That the build fails, via an analyzer diagnostic |
-| **runtime** | That the host refuses to start, via a composition-root guard |
+| **structural** | A shape — types, references, attributes, configuration, source text, a schema catalogue, an endpoint list, a published document |
+| **behavioural** | What the real thing does when exercised — a request sent, a pipeline or a predicate run, a query or a transaction executed, a script run |
+| **compile-time** | That the build fails, via an analyzer diagnostic |
+| **startup** | That the host refuses to start, via a composition-root guard |
 
 A structural assertion that a rule *exists* is not a proof that it *holds*; see
-§ What a structural test proves — and what it does not. `compile` and `runtime`
+§ What a structural test proves — and what it does not. `compile-time` and `startup`
 are the two kinds that fail *before* anything can be observed misbehaving, which
-is why they are named separately rather than folded into `structural`.
+is why they are named separately rather than folded into `structural`. The Kind follows
+the question, not the assembly: an integration test that reads `pg_indexes` is
+structural, and a unit test that runs a predicate is behavioural.
 
 Claiming a rule is "enforced by an architecture test" when the test is registered but
 not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Ninety-three test methods exist in
-[`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
+**132 test methods run in
+[`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8 and Packet 9 — 118 cases once the theories expand.
-Counted from
-`dotnet test --list-tests` at the close of Packet 9's fifth review round, de-duplicated
-by method name; the figures before it were Packet 9 step 3's and were not updated when the
-rest of the packet added its rules. Counting `[Fact]` / `[Theory]` occurrences in the source gives 99 and is wrong:
-the rest are string literals in `Every_Database_Test_Carries_The_Docker_Trait` and its
-companion, which grep the suite for those very attributes. The runner is the authority here, which
-is why this sentence now names the command rather than the packet.
-Methods are not rows: a `[Theory]`
-is one row and many cases, and several rows pair a rule with the companion
-assertion that stops it passing vacuously.
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
+Packet 8, Packet 9 and Packet 10. Methods are not rows: a `[Theory]` is one row and many cases,
+and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
-**Not every implemented rule lives in that assembly.** Packet 4 added eight
-rules there — four API-convention ones
-(`Live_Majors_Are_At_Most_Two_Adjacent`,
-`Unversioned_Route_Prefixes_Are_Declared_Once`,
-`Forwarded_Headers_Are_Not_Wired`, `Deployment_Mode_Is_Required_Configuration`)
-and the four ADR-0036 tenancy-edge scans in `TenancyConventionTests` — plus
-**six** behavioural rows in
-[`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration),
-all under § API conventions: `Every_Endpoint_Is_Under_Versioned_Route`, the four
-startup guards (`An_Absolute_Controller_Route_Fails_At_Startup` and
-`An_Absolute_Action_Route_Fails_At_Startup` share one row,
-`A_Major_Outside_LiveMajors_Fails_At_Startup`,
-`A_Bare_ControllerBase_Fails_At_Startup`, and
-`A_Hand_Written_Prefix_That_Disagrees_With_The_Attribute_Fails_At_Startup`), and
-`An_Absolute_Internal_Route_Is_Exempt_At_Both_Levels`, which is a guard's mirror
-rather than a guard — it asserts a host that *does* start. Rows are not test
-methods: `VersionedRouteEnforcementTests` carries ten, because several rows pair
-a rule with the companion assertion that stops it passing vacuously. Both assemblies run in the same required `backend` CI check,
-and a rule belongs where it can actually fail: the route-shape rule was
-originally written as a reflection scan in the architecture assembly and passed
-against a host serving unversioned endpoints.
+**Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
+are a second copy of what the repository already knows, and the first version of this section
+proved the point by being wrong on arrival: it published "ninety-five in that assembly" in the
+same commit that added three more. The count of methods is the count of `[Fact]` and `[Theory]`
+**declarations**, one per line, over source with literal contents removed — the attributes
+written as strings inside `Every_Database_Test_Carries_The_Docker_Trait` and its companion are
+not declarations, and the meta-test's `[Fact(DisplayName = …)]` is.
 
-Packet 9 added **three** more behavioural rows to that assembly, all under § Audit:
-`MustClass_Audit_Writes_Share_The_Business_Transaction` and
-`Audit_Survives_Transaction_Rollback` in `AuditPipelineTests`, and
-`AuditLog_Update_Is_Column_Restricted` in `AuditSchemaTests`. They are integration rows for the reason the
-route-shape rule is: a reflection scan cannot see whether a row committed with the
-business write, and a unit test against doubles passes whether or not Row Level Security
-would have accepted the insert. Both connect as `learnstack_app`.
+**The rows and the code are held together by a test, not by a table.** This section used to
+carry a hand-written list of rule → file, and it went stale the way any second copy does — on
+the day it was deleted it named ninety-four methods and the suite declared a hundred and
+thirty-one.
+`Every_Implemented_Rule_Names_A_Test_That_Exists` replaces it: every entry below whose
+**Status** reports *Implemented* in a file of that assembly must be a test method of exactly
+that name, or the build fails. It reads all three spellings the entries
+actually use — the bare class, the file with its extension, and `Class.Method`, which is how
+the entries outside this assembly name their test — because matching only the file spelling was
+measured at **38** of the 95 entries on the day it was written, and a guard that silently checks
+two fifths of its subject is the defect this section is about. It also refuses an entry naming a
+test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
+out of the subject instead of failing.
 
-| Test | File |
+**140 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
+The other 41 are no less binding, and most could not live there. The table says where and
+why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
+and the first version of this table claimed "three rules" for a suite that holds ten.
+
+| Where | Why not the architecture assembly |
 |---|---|
-| `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | `CrossCuttingFoundationTests.cs` |
-| `IExceptionHandler_Registered_AtStartup` | `CrossCuttingFoundationTests.cs` |
-| `OTel_Pipeline_Includes_TenantContextSpanProcessor` | `CrossCuttingFoundationTests.cs` |
-| `Logging_Goes_Through_Microsoft_Extensions_Logging` | `CrossCuttingFoundationTests.cs` |
-| `Modules_Do_Not_Reference_Sentry_SDK_Directly` | `CrossCuttingFoundationTests.cs` |
-| `Adapters_Wrap_Provider_Exceptions` | `CrossCuttingFoundationTests.cs` |
-| `Handlers_Return_Result` | `CrossCuttingFoundationTests.cs` |
-| `Modules_Do_Not_Reference_DeploymentMode` | `CrossCuttingFoundationTests.cs` |
-| `IErrorTrackingProvider_Is_Singleton` | `CrossCuttingFoundationTests.cs` |
-| `Modules_Do_Not_Inject_IEventBus_Directly` | `CrossCuttingFoundationTests.cs` |
-| `Integration_Event_TopicNames_FollowConvention` | `CrossCuttingFoundationTests.cs` |
-| `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
-| `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
-| `ModuleContracts_DoNotDependOn_AnyModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
-| `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
-| `Live_Majors_Are_At_Most_Two_Adjacent` | `ApiConventionTests.cs` |
-| `Unversioned_Route_Prefixes_Are_Declared_Once` | `ApiConventionTests.cs` |
-| `Forwarded_Headers_Are_Not_Wired` | `ApiConventionTests.cs` |
-| `Deployment_Mode_Is_Required_Configuration` | `ApiConventionTests.cs` |
-| `Effective_Host_Computed_In_One_Place` | `TenancyConventionTests.cs` |
-| `Tenant_Headers_Are_Never_A_Resolution_Source` | `TenancyConventionTests.cs` |
-| `Assertion_Recorder_Is_The_Only_Mismatch_Writer` | `TenancyConventionTests.cs` |
-| `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs` | `TenancyConventionTests.cs` |
-| `Assertion_Budget_Does_Not_Depend_On_ICacheService` | `TenancyConventionTests.cs` |
-| `Organization_Aggregate_Declared_In_Tenancy_Domain` (per-type theory) | `TenancyConventionTests.cs` |
-| `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
-| `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | `PersistenceConventionTests.cs` |
-| `The_registration_marker_does_not_vouch_across_containers` | `PersistenceConventionTests.cs` |
-| `Every_Database_Test_Carries_The_Docker_Trait` (with its companion) | `PersistenceConventionTests.cs` |
-| `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows` (with its companion) | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Refuses_An_Aliased_Runtime_Credential` (per-alias theory) | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Redacts_A_Quoted_Value_Whole` (per-shape theory) | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Reads_The_Role_Through_A_Quoted_Value` | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo` | `PersistenceConventionTests.cs` |
-| `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` | `PersistenceConventionTests.cs` |
-| `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Applies_The_Tenancy_Chain_First` | `PersistenceConventionTests.cs` |
-| `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` | `AuditConventionTests.cs` |
-| `AuditEntry_Inherits_Entity_Not_AuditableEntity` | `AuditConventionTests.cs` |
-| `AuditEntry_Is_AppendOnly` (with its companion) | `AuditConventionTests.cs` |
-| `OperationType_Enum_Matches_Catalog` | `AuditConventionTests.cs` |
-| `Every_Module_Has_An_AuditCoverage_Matrix` (with its companion) | `AuditConventionTests.cs` |
-| `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
-| `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix, with its two companions) | `AuditCoverageTests.cs` |
-| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its three companions) | `AuditCoverageTests.cs` |
-| `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
-| `No_Set_Based_Write_Bypasses_The_Audit_Capture` (with its companion) | `AuditConventionTests.cs` |
-| `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
-| `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
-| `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
+| `LearnStack.Tests.Integration`, against an applied schema | A policy that is well-formed and wrong, a foreign key with no index, a row that did or did not commit with the business write, and a request that reached a route are only visible against a real PostgreSQL and a real host. |
+| `LearnStack.Tests.Unit` | What one type does when exercised: `ValidationBehavior` returning rather than throwing, an idempotency sweep racing a claim, a malformed `If-Match` failing rather than counting as absent, the span processor surviving a missing context, a soft delete advancing the row version. A reflection scan sees none of it. |
+| `backend/analyzers/LearnStack.Analyzers` | `LearnStackException-DomainExceptionThrow` is the analyzer itself; the architecture assembly runs it over module source in `Domain_Methods_Do_Not_Throw_For_Expected_Cases`. |
+| `frontend/` | `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is an ESLint rule, with a Vitest case that lints fixtures through the real configuration so a preset that stops applying it fails rather than falls silent. |
 
-Eleven further rules in this catalogue are **implemented outside** that assembly and are
-no less binding. Seven of them could not live in it: a policy that is well-formed
-and wrong, a foreign key with no index, or a row that did or did not commit with the
-business write, is only visible against an applied schema.
-
-| Rule | Where |
-|---|---|
-| `ValidationBehavior_DoesNotThrow_ValidationException` | `LearnStack.Tests.Unit` + `LearnStack.Tests.Integration` |
-| `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` | `LearnStack.Tests.Unit` |
-| `SoftDelete_Advances_The_Row_Version` | `LearnStack.Tests.Unit` (`AuditableEntityTests`) |
-| `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
-| `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
-| `Every_Foreign_Key_Has_A_Supporting_Index` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
-| `LearnStackException-DomainExceptionThrow` (`LS0001`) | `backend/analyzers/LearnStack.Analyzers` + `DomainExceptionThrowAnalyzerTests` |
-| `MustClass_Audit_Writes_Share_The_Business_Transaction` | `LearnStack.Tests.Integration` (`AuditPipelineTests`) |
-| `Audit_Survives_Transaction_Rollback` | `LearnStack.Tests.Integration` (`AuditPipelineTests`) |
-| `AuditLog_Update_Is_Column_Restricted` | `LearnStack.Tests.Integration` (`AuditSchemaTests`) |
-| `AuditStateCapture_ClearedPerRequest` | `LearnStack.Tests.Unit` (`AuditLogBehaviorTests`) |
+Both backend assemblies run in the same required `backend` CI check, split only by the
+`Requires=Docker` trait, and a rule belongs where it can actually fail: the route-shape rule was
+originally written as a reflection scan in the architecture assembly and passed against a host
+serving unversioned endpoints.
 
 `Meta_NetArchTest_DetectsAPlantedViolation` deserves its own note: it plants a forbidden
-dependency and asserts NetArchTest **finds** it. If that meta-test ever passes in the
-inverted sense — NetArchTest reporting the planted dependency as absent — every other
-NetArchTest-based row in this catalogue is vacuously green. Keep it in perpetuity.
+dependency and asserts NetArchTest **finds** it, and it asserts that every type a production
+assembly declares reaches NetArchTest's list at all. If either half ever passes in the inverted
+sense, every other NetArchTest-based row in this catalogue is vacuously green. Keep it in
+perpetuity.
 
-Every other rule in this document carries its own **Status** line, and that line —
-not this section — is the authority. This index is a reader's orientation and goes
-stale the moment a packet closes a row without updating it; the Status column is
-what a reviewer checks.
+Every rule in this document carries its own **Status** line, and that line is the authority.
 
 ## Canonical names and superseded spellings
 
@@ -280,9 +207,34 @@ they entered the record and are stale now, which is history rather than error. I
 drift ever needs to be visible in ADR-0018 itself, the instrument is a dated Amendment
 or an inline erratum — never a rewrite.
 
-The reconciliation is a [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md)
-deliverable: the canonical names go green in CI and the superseded spellings disappear
-from the corpus in the same pass.
+The reconciliation was owed by [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md)
+and is complete. The tenant and organization rules have run under their canonical names
+since Packet 7 — across every module with a schema since Packet 8 — and
+`Core_Modules_HaveNo_DomainSpecific_Names` is registered under its own for Packet 10. A
+superseded spelling appears only in this catalogue, which maps each one to its canonical
+name, and in Accepted ADR bodies, which keep it as history
+([ADR-0041](../decisions/0041-correcting-false-statements-in-accepted-adrs.md)); the
+rest of the corpus carries none.
+
+### Entitlement projection schema
+
+**Canonical: `LicenseKey_Payload_MatchesSchema`** — `entitlement-v1.schema.json` pinned
+by a snapshot test in both repositories, registered under § Awaiting backfill for Phase
+02c.
+
+| Superseded spelling | Where it appeared |
+|---|---|
+| `EntitlementProjection_Shape_IsStable` | [ADR-0021](../decisions/0021-feature-based-entitlement.md) |
+
+### Entitlement keys
+
+**Canonical: `FeatureKey_AllReferences_AreInRegistry`** — one rule over every key a call
+site names, feature, limit and killswitch alike.
+
+| Superseded spelling | Where it appeared |
+|---|---|
+| `FeatureFlagKeys_AllReferences_AreInRegistry` | [ADR-0021](../decisions/0021-feature-based-entitlement.md), whose own 2026-05-18 amendment renames it |
+| `LimitKeys_AllReferences_AreInRegistry` | [ADR-0021](../decisions/0021-feature-based-entitlement.md) |
 
 ## How to add an entry
 
@@ -298,11 +250,20 @@ When a new test or analyzer lands:
    canonical identifier, use it rather than minting a near-synonym.
 3. Add a row to the right section table below, with **Status**, **Kind**, and **Phase**.
 4. Cite the catalogue entry from the originating doc:
-   `[name](../standards/21-architecture-tests-catalogue.md#name-lowercased-with-dashes)`.
+   `[name](../standards/21-architecture-tests-catalogue.md#name_lowercased)` — GitHub
+   lowercases the heading and keeps its underscores, so `Every_Module_Has_An_AuditCoverage_Matrix`
+   is `#every_module_has_an_auditcoverage_matrix`.
 
 When a rule is agreed but not yet written, register it with **Status: Registered** and
 the owning packet. Registering costs one row and makes the gap legible; the alternative
 is a rule that lives only in an ADR's implementation notes.
+
+A rule may ship before its first subject exists only with a companion that plants the
+violation it exists to catch and shows the rule reporting it. Without one, register the
+rule and implement it with that subject: a rule with nothing to scan is green whether its
+mechanism works or not, which is why
+[ADR-0023 Amendment 1](../decisions/0023-strongly-typed-id-source-generator.md) moved
+`Aggregate_Roots_Use_StronglyTypedId` to the first aggregate.
 
 When a test is renamed:
 
@@ -382,23 +343,41 @@ otherwise).
   via `WebApplicationFactory<Program>` and the
   `CrossCuttingTestController.validate` endpoint). The integration
   variant lights up the full controller → MediatR pipeline → Problem
-  Details body shape so a regression at any layer surfaces. **Kind:** runtime.
+  Details body shape so a regression at any layer surfaces. **Kind:** behavioural.
 - **Status:** **Implemented** — both variants, outside the Architecture assembly.
 - **Phase:** 02a (Packet 3).
 
 #### `Domain_Methods_Do_Not_Throw_For_Expected_Cases`
 
 - **Asserts:** the Roslyn analyzer `LearnStackException-DomainExceptionThrow`
-  (diagnostic id `LS0001`) produces zero Warnings inside `Domain` +
-  `Application` projects of every module. Walks `Result<T>`-returning
-  methods and asserts the analyzer report is empty for the module.
+  (diagnostic id `LS0001`), run over the sources of the core `Domain` and `Application` and
+  every module's, reports nothing the rule refuses: no **unsuppressed** report anywhere —
+  that is a Warning nobody has justified — and no report at all, suppressed or not, inside a
+  `Result`-returning method — property and indexer included, since `Result<T> Current => …`
+  carries the same channel, and a local function or lambda counts as the member that contains
+  it — because a member with a channel for an expected case has no excuse for throwing one. A suppressed report in a method that returns no result is the
+  sanctioned aggregate-invariant throw and passes. Each project is also asserted to reference
+  the analyzer as an analyzer, or the discipline holds only inside this test.
 - **Source:** ADR-0032 § Sub-decision 4;
   [09-error-handling.md § Domain Exceptions](09-error-handling.md).
-- **Type:** xUnit + Roslyn analyzer report inspection. **Kind:** compile-time.
-- **Status:** **Registered.** The enforcement it represents is already live — the
-  `LS0001` analyzer runs in every module's `Domain` + `Application` build and
-  `DomainExceptionThrowAnalyzerTests` locks its behaviour — but the report-walking
-  architecture test needs module domain code to walk, and none exists yet.
+- **Type:** xUnit + Roslyn analyzer report inspection. **Kind:** structural — the question
+  is a shape of the source, and the analyzer is how it is read. The compile-time row is the
+  analyzer itself, `LearnStackException-DomainExceptionThrow`.
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`, over `AnalyzerReport`,
+  Packet 10. The build cannot be the gate: `LS0001` is in `WarningsNotAsErrors` until the
+  Phase 03 escalation, and a pragma is the sanctioned way to keep a genuine invariant throw —
+  so the test compiles each project's sources itself, sets the severity, and reports
+  suppressed diagnostics. It parses with the symbols the build defines, so an `#if` region is
+  read rather than skipped, and it fails loudly on a source it cannot parse, because a compiler
+  behind the SDK reads a new language feature as a syntax error and a scan that cannot read a
+  file sees nothing in it. The wiring leg reads the reference as an element rather than as a
+  line: the attributes may be written in either order, a commented-out reference is not a
+  reference, and a `Condition` is refused outright — a conditional analyzer does not run in the
+  configuration the condition excludes, and this rule cannot tell which that is. Its companion,
+  `The_Domain_Exception_Report_Can_Actually_Fail`, plants all four shapes — thrown from a
+  `Result` method, the same one silenced by a pragma, a pragma-silenced invariant guard, and
+  an unsuppressed throw — and requires exactly the three the rule refuses. Mutation-checked:
+  a `throw new DomainException(...)` in a `Result`-returning method in Tenancy fails it.
 - **Phase:** 02a (Packet 10); severity escalates Warning → Error after Phase 03 exit.
 
 #### `LearnStackException-DomainExceptionThrow` (Roslyn analyzer)
@@ -442,9 +421,9 @@ otherwise).
   [02-backend-coding.md § MediatR Use Cases](02-backend-coding.md).
 - **Type:** xUnit + reflection over `IRequestHandler<,>` implementations.
   **Kind:** structural.
-- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`. Vacuous until handlers
-  exist; the first real handlers arrive in
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md).
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`. Live since Packet 7 with
+  Tenancy's three handlers; Customization's four joined in Packet 8, and all seven return
+  a `Result`.
 - **Phase:** 02a (Packet 3).
 
 #### `Adapters_Wrap_Provider_Exceptions`
@@ -537,7 +516,7 @@ otherwise).
   `Activity` instances created during startup, background tasks before
   any scope populated the accessor).
 - **Source:** ADR-0032 § Sub-decision 10.
-- **Type:** xUnit unit test (`LearnStack.Tests.Unit`). **Kind:** runtime.
+- **Type:** xUnit unit test (`LearnStack.Tests.Unit`). **Kind:** behavioural.
 - **Status:** **Implemented** — outside the Architecture assembly.
 - **Phase:** 02a (Packet 3).
 
@@ -565,22 +544,45 @@ otherwise).
 
 #### `Core_Modules_HaveNo_DomainSpecific_Names`
 
-- **Asserts:** no class, file, table, column, permission key, audit operation, feature
-  key, or namespace inside a core module carries a domain term from the maintained
-  forbidden list (`CEFR`, `English`, `Asana`, `Kyu`, `Dan`, `Kata`, `Chord`,
-  `CodeChallenge`, …). Matching is on word segments, so `ClassName` and `Grade` survive
-  while `CefrLevel` and `AsanaPose` do not.
+- **Asserts:** no name the platform ships carries a term from the forbidden list below.
+  Matching is on word segments — PascalCase and acronym boundaries, `_`, `-`, `.` and
+  `/` — and a plural counts as its singular, so `ClassName` and `Grade` survive while
+  `CefrLevel`, `asana-pose` and `Yogas` do not.
+- **Forbidden terms:** `CEFR`, `English`, `Asana`, `Yoga`, `Kyu`, `Dan`, `Kata`, `Belt`,
+  `Chord`, `CodeChallenge`, `IELTS`, `TOEFL`. This line is the list: the test reads it, so
+  adding a term is a one-line change here and nowhere else.
+- **Subjects:** in every production backend assembly, type, member, namespace and file
+  names; the EF table and column names each module's model maps **and** the ones a migration
+  creates in raw SQL, which belong to no model — `outbox_messages` and `idempotency_keys` are
+  both; the audit operation slugs the catalogue registers; the feature, limit and killswitch
+  keys; the primitive and composite renderer keys; the permission keys once the registry exists,
+  and the block registry once [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; and,
+  across `frontend/` — every app and every package, because `packages/ui` is where a component
+  extracted out of the app lands — file names and exported identifiers, comments stripped
+  first. **Not** subjects: test code, the seeder's seed data — two demo tenants in
+  unrelated domains are the point of it, so `SeedData.English` is data, not a platform
+  name — and comments and free text. A capability that serves every domain is not a
+  domain term: `ai.pronunciation_feedback` names what the platform does, not whom for
+  ([Platform Vision § Genericity boundary](../architecture/01-platform-vision.md)).
 - **Source:** [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)
   (and its 2026-08-08 genericity-boundary amendment);
   [00-principles.md § 1](00-principles.md).
-- **Type:** xUnit + NetArchTest over type / member names, plus a migration and
-  permission-catalogue scan. **Kind:** structural.
-- **Status:** **Registered.** This is the mechanical guarantee behind the platform's
-  entire premise — "the core stays generic" — and it is the one rule in the whole
-  corpus that has never had an implementation, while its far weaker sibling
-  `No_Source_Folder_Named_Verticals` has been green since Phase 01. Renaming a folder is
-  not the failure mode anyone was worried about; `CefrLevel` on an Education aggregate
-  is.
+- **Type:** xUnit — reflection over the production assemblies, the EF models, the
+  audit catalogue and the key registries, plus a file scan of `frontend/apps/web`.
+  **Kind:** structural.
+- **Status:** **Implemented** — `DomainGenericityTests.cs`, Packet 10. It is the mechanical
+  guarantee behind the platform's entire premise — "the core stays generic" — and it had no
+  implementation while its far weaker sibling `No_Source_Folder_Named_Verticals` stayed green
+  from Phase 01: renaming a folder is not the failure mode anyone was worried about;
+  `CefrLevel` on an Education aggregate is. Each subject asserts it read something, so a
+  collector that stops seeing its names fails rather than reporting clean, and the companion,
+  `The_Domain_Term_Scan_Can_Actually_Fail`, feeds the matcher every shape the Asserts line
+  claims — and the ones it must not flag, `Grade`, `Danger` and `ai.pronunciation_feedback`
+  among them — and exercises each collector on a probe: a type and member in this assembly, a
+  model that maps `belt_ranks.kyu_level`, a `CREATE TABLE` a migration would carry, and a
+  module that exports a default, a rename and a commented-out declaration. The term list is
+  read whole: a term written with a digit, a space or a hyphen fails the parse rather than
+  being dropped. Mutation-checked: a `CefrLevel` property on `Tenant` fails it.
 - **Phase:** 02a (Packet 10).
 
 #### `Frontend_Has_Only_The_Web_App`
@@ -593,9 +595,120 @@ otherwise).
 - **Status:** **Implemented** — `RepositoryLayoutTests.cs`.
 - **Phase:** 01.
 
+#### `Commit_Subject_Grammar_Is_Stated_Once`
+
+- **Asserts:** CI's commit-hygiene step runs the `commit-msg` hook, in its strict mode,
+  and states no grammar of its own; the types the hook admits are exactly the types
+  [Standards 14 § Commits](14-git-workflow.md#commits) tabulates; and the hook, run for
+  real on a set of messages, admits and refuses each one as that section says — the
+  breaking-change `!`, an empty scope, a first paragraph that runs onto a second line, a
+  72-character subject counted in characters, git's `Revert "…"` subject, the autosquash
+  markers locally and in CI, a leading `#` line with and without an editor, and a
+  ten-megabyte paragraph inside the timeout. It then runs the step's own script against a
+  scratch repository: a refused subject fails the step and is named in an `::error::`
+  line, an admitted one passes, and a base that does not resolve fails rather than
+  reporting success on a range it never read.
+- **Why it matters:** three copies of the rule drifted with nothing comparing them — nine
+  types in the standard, eleven in the hook, ten in CI, scope characters that disagreed,
+  and two scripts judging different text (the hook the file's first line, CI git's joined
+  first paragraph) — so subjects passed locally and failed the pull request. CI now runs
+  the hook itself. Comparing text alone was not enough even then: a hook that matched its
+  pattern and forgot to fail, or a CI step whose only mention of the hook was a comment,
+  passed a comparison and fails this.
+- **Source:** [14-git-workflow.md § Commits](14-git-workflow.md#commits).
+- **Type:** xUnit + file scan + running the hook and the CI step. **Kind:** behavioural
+  (the hook's verdicts and the step's) + structural (the type table; no grammar in CI).
+- **Status:** **Implemented** — `RepositoryLayoutTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
+#### `Standard_Status_Headers_Match_The_Index`
+
+- **Asserts:** each of the twenty-two standards declares the same status in its own
+  header as [the index](README.md) assigns it in the table, and the sentence that counts
+  the split — "Nineteen `Active`, three `Adopted`" — matches the table it summarises.
+- **Why it matters:** these are two views of one claim, *what is actually enforced*, and
+  they disagreed for a month: every document declared `Active` while the index classified
+  eight of them `Adopted`, with the index carrying a paragraph saying so and asking the
+  reader to prefer it. The header is what an author sees, the table what a reviewer reads,
+  and a promotion that lands in one and not the other leaves the corpus asserting both.
+  Counting them in words is a third copy, so it is checked too.
+- **Source:** [README.md § Honest status today](README.md),
+  [13-documentation.md](13-documentation.md).
+- **Type:** xUnit + a parse of the headers, the table and the summary sentence.
+  **Kind:** structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10. Its companion,
+  `The_Corpus_Guards_Can_Actually_Fail`, feeds each parser the shapes it must read and the
+  ones it must not.
+- **Phase:** 02a (Packet 10).
+
+#### `Every_Implemented_Rule_Names_A_Test_That_Exists`
+
+- **Asserts:** every entry in this catalogue whose **Status** reports *Implemented* in a
+  file of the architecture assembly is a test method of exactly that name; and no entry
+  names a test class that exists nowhere in the repository. All three spellings the entries
+  use count — the bare class, the file with its extension, and `Class.Method` — and the rule
+  pins its own reach to the count § Implemented today publishes, because a matcher that
+  recognised only the file spelling covered 38 of the ninety-five, one that could not read
+  `Class.Method` left three shipped rules with nothing to resolve, and an entry whose class
+  stops resolving leaves the subject instead of failing.
+- **Why it matters:** the **Status** line is the authority on whether a rule runs, and it
+  is prose. A renamed method, a moved file or a rule quietly deleted leaves the entry
+  claiming the opposite of the truth — worse than a rule that was never written, because a
+  reader stops looking. This replaces the hand-written rule → file table that used to live
+  in § Implemented today, which on the day it was deleted named ninety-four methods while
+  the suite declared a hundred and thirty-one.
+- **Source:** [§ Naming convention](#naming-convention), this document's own Status lines.
+- **Type:** xUnit + a parse of this file against the suite's method names. **Kind:**
+  structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
+#### `No_Architecture_Test_Is_Skippable`
+
+- **Asserts:** no test in the architecture assembly carries a `Skip` on its `[Fact]` or
+  `[Theory]`, and — at the runner, where the rule itself cannot see — no suite reports a
+  case that did not run.
+- **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
+  in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
+  green, and it reports the same number of passing files as before — which is precisely
+  the situation the policy exists to prevent, since a rule that can be turned off for a
+  release is a rule nobody has to satisfy. Two layers, because one cannot be enough. The
+  source scan reads each attribute's argument list with a depth counter, over text whose
+  comments and literal contents are gone: a pattern that stopped at the first `)` could not
+  see a `Skip` written **after** `DisplayName = "(meta) …"`, and the assembly ships exactly
+  one such attribute — on the meta-test that certifies every NetArchTest row is not
+  vacuous. Then `scripts/assert-tests-ran.py` refuses any run whose `.trx` reports a case
+  that did not run, which is what catches a `Skip` placed on the scan itself; a skipped
+  test does not execute, so it cannot report its own absence. An earlier version instead
+  exempted this rule's own file, so the companion's fixtures were not read as code — and
+  the exemption made the four corpus guards the only tests in the assembly that one edit
+  could switch off. Stripping literals removed the reason for it.
+- **Source:** [06-testing.md § Architecture tests](06-testing.md).
+- **Type:** xUnit + a source scan with comments and literals stripped, plus a `.trx`
+  assertion in CI. **Kind:** structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
+#### `The_Catalogue_Counts_Its_Own_Rules`
+
+- **Asserts:** the four numbers [§ Implemented today](#implemented-today) publishes about
+  this catalogue — the test methods the architecture assembly declares, the entries
+  reported *Implemented*, how many of those name a class of that assembly, and how many do
+  not — are the numbers a recount produces.
+- **Why it matters:** § Implemented today deleted a hand-written rule → file table on the
+  argument that a second copy goes stale and a test does not, and kept four numbers, which
+  are a second copy too. They were wrong on arrival: the commit that published "ninety-five
+  in that assembly" added three entries to that assembly in the same diff. Those numbers
+  are what a reader uses to judge whether the catalogue is honest about its own coverage,
+  so they are the last thing that should be taken on trust.
+- **Source:** [§ Implemented today](#implemented-today).
+- **Type:** xUnit + a recount of the suite and of this file. **Kind:** structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
 #### `Generic_Primitives_Only_In_Renderer`
 
-- **Asserts:** the frontend `PRIMITIVE_RENDERERS` map and the backend's
+- **Asserts:** the frontend `PRIMITIVE_KEYS` array and the backend's
   `PrimitiveRendererKey.All` each contain exactly the documented closed set of generic
   primitives. A new primitive is a LearnStack release guarded by CODEOWNERS, not a tenant
   action — tenant-specific blocks are `TenantPageBlock` rows pointing at a composite
@@ -633,14 +746,36 @@ otherwise).
 
 #### `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml`
 
-- **Asserts:** the sanitised-HTML primitive is the only component in `apps/web` that
+- **Asserts:** the sanitised-HTML primitive is the only component in the frontend that
   calls `dangerouslySetInnerHTML`, and it does so exclusively on the sanitiser's output.
   This is the rule that stops the `embed-html` sanitisation contract being bypassed by a
   convenient one-off.
 - **Source:** [32-tenant-customization-model.md § 8.5](../architecture/32-tenant-customization-model.md)
   and its § 11 hard invariants.
 - **Type:** ESLint rule in `frontend/`. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — four `no-restricted-syntax` selectors in
+  `frontend/packages/config/eslint/index.cjs`, Packet 10, chosen so the rule refuses the ways
+  the prop **reaches an element** and leaves alone the ways code inspects or strips it: the JSX
+  attribute a component writes; a key in an object being *built*, scoped to `ObjectExpression`
+  because ESTree gives a destructuring binding the same node and the unscoped form refused
+  `const { dangerouslySetInnerHTML, ...safe } = props`, the idiom that guarantees the prop is
+  **not** forwarded; the assignment onto a props object, scoped to the left-hand side because
+  the unscoped form refused a read that renders nothing; and the name itself wherever it is
+  written as a string, because a selector keyed on an identifier cannot see through
+  `const k = 'dangerouslySetInnerHTML'` followed by `{ [k]: … }` — which is not an exotic
+  bypass but what a generic field renderer looks like. What is left uncovered is a name
+  assembled from fragments at runtime. Packet 10
+  also gave `frontend/packages/ui` a configuration and a `lint` script, because `pnpm lint`
+  walked only `apps/web` and the package [ADR-0009 § Decision](../decisions/0009-frontend-single-app-first.md)
+  sends an extracted primitive to was linted by nothing. Its companion is
+  `frontend/apps/web/src/test/lint-rules.test.ts`, which lints each of those spellings through
+  the real configuration — the app's and the package's — and asserts both the rule that answers
+  and its **severity**, because a rule downgraded to `warn` still reports while `pnpm lint`
+  exits 0. `pnpm lint` is green whether a rule is configured or not, and a rule nothing violates
+  looks exactly like a rule that is not there. The primitive's own file carries the single
+  suppression when [Phase 05](../roadmap/phase-05-education-learning-content.md) ships the
+  `embed-html` sanitisation contract; nothing calls the API today, which is why the rule lands
+  before the first caller.
 - **Phase:** 02a (Packet 10).
 
 #### `ModuleDomain_DoesNotDependOn_OtherModuleDomain`
@@ -652,16 +787,28 @@ otherwise).
 - **Source:** ADR-0010; [01-architecture-standards.md](01-architecture-standards.md).
 - **Type:** xUnit theory + NetArchTest, one case per module. **Kind:** structural.
 - **Status:** **Implemented** — `ModuleDependencyTests.cs`.
-- **Phase:** 02a (Packet 2).
+- **Phase:** 01.
 
 #### `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure`
 
-- **Asserts:** per module, `Domain` depends on neither `Application` nor
-  `Infrastructure` — the dependency direction points inward only.
+- **Asserts:** per module, `Domain` references no LearnStack assembly but
+  `LearnStack.SharedKernel` — no `Application` or `Infrastructure`, core or any module's —
+  in its IL or its project file. The dependency direction points inward only.
 - **Source:** ADR-0010; [01-architecture-standards.md](01-architecture-standards.md).
-- **Type:** xUnit theory + NetArchTest, one case per module. **Kind:** structural.
-- **Status:** **Implemented** — `ModuleDependencyTests.cs`.
-- **Phase:** 02a (Packet 2).
+- **Type:** xUnit theory, one case per module, over referenced assemblies and project
+  references. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`. Until Packet 10 it checked the
+  module's **own** `Application` and `Infrastructure` and the core ones, so another
+  module's reached no rule at all; it is now an allow-list, as the Application, Infrastructure
+  and Contracts rules below are, with the declared leg an unused reference needs — read from
+  `obj/project.assets.json`, the set restore resolved, because a regex over the project file saw
+  one spelling of three and passed a forbidden edge written with `Condition` before `Include`,
+  with single quotes, or injected from an imported `Directory.Build.props`. All three were
+  measured. The four share a companion with
+  `CoreApplication_DoesNotDependOn_Any_Infrastructure_Or_Module`:
+  `The_Dependency_Matrix_Can_Actually_Fail` feeds each layer one reference it may hold and
+  one it may not, and the core rule one of each family it forbids.
+- **Phase:** 01; widened in 02a (Packet 10).
 
 #### `ModuleContracts_DoNotDependOn_AnyModuleDomain`
 
@@ -678,23 +825,106 @@ otherwise).
 - **Status:** **Implemented** — `ModuleDependencyTests.cs`.
 - **Phase:** 02a (Packet 8).
 
+#### `ModuleApplication_References_Only_Its_Own_Layers_And_Other_Contracts`
+
+- **Asserts:** per module, `LearnStack.Modules.<X>.Application` references no LearnStack
+  assembly but `LearnStack.SharedKernel`, its own `Domain` and `Application.Contracts`,
+  and other modules' `Application.Contracts` — not in its IL, which is what it uses, and
+  not in its project file, which is what it could start using with no further edit. Its
+  own `Infrastructure` is outside the list: the composition root wires the implementation
+  in.
+- **Why it matters:** the Phase 01 rules checked `Domain` only, and a TODO in
+  `ModuleDependencyTests` carried the rest until Packet 10. An `Application` that reaches
+  another module's `Domain` or `Application` makes a cross-module call none of
+  [ADR-0010](../decisions/0010-cross-module-communication.md)'s four mechanisms sanctions.
+- **Source:** ADR-0010;
+  [01-architecture-standards.md § Dependency Direction](01-architecture-standards.md).
+- **Type:** xUnit theory, one case per module, over referenced assemblies and project
+  references. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`, Packet 10, with
+  `The_Dependency_Matrix_Can_Actually_Fail` as its companion.
+- **Phase:** 02a (Packet 10).
+
+#### `ModuleInfrastructure_References_Only_Its_Own_Layers_And_Core_Infrastructure`
+
+- **Asserts:** per module, `LearnStack.Modules.<X>.Infrastructure` references no
+  LearnStack assembly but `LearnStack.SharedKernel`, its own `Domain`, `Application` and
+  `Application.Contracts`, and core `LearnStack.Infrastructure` — the shared persistence
+  seam [Architecture Standards](01-architecture-standards.md) sanctions — in its IL or its
+  project file. Provider SDKs are outside the rule; every other module and every other core
+  assembly is inside it.
+- **Why it matters:** `Module A → Module B.Infrastructure` and `→ Module B.Domain` are the
+  two edges Architecture Standards forbids by name, and an infrastructure layer is where a
+  shortcut to another module's tables looks most like plumbing. It is also the coupling
+  that makes a module impossible to extract.
+- **Source:** ADR-0002; ADR-0010;
+  [01-architecture-standards.md § Dependency Direction](01-architecture-standards.md).
+- **Type:** xUnit theory, one case per module, over referenced assemblies and project
+  references. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`, Packet 10, with
+  `The_Dependency_Matrix_Can_Actually_Fail` as its companion.
+- **Phase:** 02a (Packet 10).
+
+#### `ModuleContracts_Reference_Only_SharedKernel`
+
+- **Asserts:** per module, `LearnStack.Modules.<X>.Application.Contracts` references no
+  LearnStack assembly but `LearnStack.SharedKernel`, in its IL or its project file.
+- **Why it matters:** wider than
+  [`ModuleContracts_DoNotDependOn_AnyModuleDomain`](#modulecontracts_donotdependon_anymoduledomain),
+  which bans a `Domain` only. A contract is referenced by every sender: one that referenced
+  its own `Application` would export the handler assembly to all of them, and one that
+  referenced another module's contracts would chain two modules' surfaces together.
+- **Source:** [01-architecture-standards.md § Dependency Direction](01-architecture-standards.md);
+  [ADR-0023 Amendment 8](../decisions/0023-strongly-typed-id-source-generator.md).
+- **Type:** xUnit theory, one case per module. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`, Packet 10, with
+  `The_Dependency_Matrix_Can_Actually_Fail` as its companion.
+- **Phase:** 02a (Packet 10).
+
+#### `CoreApplication_DoesNotDependOn_Any_Infrastructure_Or_Module`
+
+- **Asserts:** `LearnStack.Application` — the pipeline behaviors — references no
+  `LearnStack.Infrastructure*` assembly and no `LearnStack.Modules.*` assembly, in its IL or
+  its project file.
+- **Why it matters:** the core's half of the direction rule, as
+  [`CoreInfrastructure_DoesNotDependOn_AnyModule`](#coreinfrastructure_doesnotdependon_anymodule)
+  is core Infrastructure's. `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
+  holds one behavior to it; this holds the assembly every behavior lives in.
+- **Source:** [01-architecture-standards.md § Dependency Direction](01-architecture-standards.md).
+- **Type:** xUnit over referenced assemblies and the project file. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`, Packet 10, with
+  `The_Dependency_Matrix_Can_Actually_Fail` as its companion.
+- **Phase:** 02a (Packet 10).
+
 #### `Meta_NetArchTest_DetectsAPlantedViolation`
 
-- **Asserts:** NetArchTest reports a **deliberately planted** forbidden dependency. If
-  this test ever reports the planted dependency as absent, every NetArchTest-based row
-  in this catalogue is vacuously green and the suite is meaningless.
+- **Asserts:** two things, because a NetArchTest rule goes vacuous two ways. That NetArchTest
+  reports a **deliberately planted** forbidden dependency — if it ever reports that dependency
+  as absent, every NetArchTest-based row in this catalogue is vacuously green and the suite is
+  meaningless. And that every type a production assembly declares reaches NetArchTest's list at
+  all: it drops anything whose full name begins with `System`, `Microsoft`, `xunit` or
+  `netstandard`, ours included, and `namespace Microsoft.Extensions.DependencyInjection` is the
+  idiomatic place for a registration extension. The day such a type is written, this fails and
+  names it, rather than every rule quietly not seeing it.
 - **Source:** [06-testing.md](06-testing.md) — a test suite must be able to fail.
 - **Type:** xUnit + NetArchTest. **Kind:** structural (meta).
-- **Status:** **Implemented** — `ModuleDependencyTests.cs`. Keep in perpetuity.
-- **Phase:** 02a (Packet 2).
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`; the type-coverage half from
+  Packet 10's review round, which measured a hand-written extension class in a `Microsoft.*`
+  namespace inside a module assembly passing every NetArchTest-based rule. Keep in perpetuity.
+- **Phase:** 01.
 
 #### `Modules_Do_Not_Inject_Valkey_Directly`
 
-- **Asserts:** no module assembly injects `IConnectionMultiplexer` or
-  `IDistributedCache`. All cache access goes through `ICacheService`.
+- **Asserts:** no module assembly depends on `StackExchange.Redis` or on anything in
+  `Microsoft.Extensions.Caching` — `IConnectionMultiplexer`, `IDistributedCache`,
+  `IMemoryCache`. All cache access goes through `ICacheService`, because `CacheKey` is the
+  isolation boundary of a cache and a module keying its own entries can collide one
+  tenant's with another's; an in-process cache has the same hole as a distributed one.
 - **Source:** [20-infrastructure-stack.md § `ICacheService`](20-infrastructure-stack.md).
 - **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`, Packet 10. Its companion,
+  `The_Direct_Client_Bans_Can_Actually_Fail`, plants an `IDistributedCache` holder in this
+  test assembly and requires the same check to report it.
 - **Phase:** 02a (Packet 10).
 
 #### `Modules_Do_Not_Read_Entitlement_Cache_Directly`
@@ -735,7 +965,21 @@ otherwise).
   [ADR-0021](../decisions/0021-feature-based-entitlement.md).
 - **Type:** xUnit + a DML scan over source and SQL — statements against the table, not
   occurrences of its name. **Kind:** structural.
-- **Status:** **Registered.** The rule gets its subject from the socket Packet 9 ships:
+- **Status:** **Implemented** — `EntitlementConventionTests.cs`, Packet 10, in two legs.
+  The entity: the types that name `PlatformEntitlement` are the entity, its configuration,
+  `TenancyDbContext` and an `IEntitlementProvider` implementation — asserting first that the
+  scan sees `TenancyDbContext`'s `DbSet`, or it sees nothing. The context's exemption is for the
+  **mapping**: the only member of it that may name the row is that `DbSet`'s getter, because a
+  query helper declared on the context would launder the read — its caller names only the
+  context, which every module may. That member scan reads a compiler-generated state machine as
+  part of the method that declares it: an `async` helper's body lives there, and a walk over the
+  declaring method alone saw boilerplate — measured, the synchronous twin of the same violation
+  was caught and the `async` one was not. The SQL: no statement reads or writes the table's rows —
+  after `FROM`, `JOIN`, `INTO`, `UPDATE`, `COPY`, `USING`, `TRUNCATE` or a comma, since an
+  implicit join names it there, and not the DDL, grants and policies that name it — outside an
+  exact-path list the Hub-backed provider joins in Phase 02c. Its companion, `The_Entitlement_Cache_Scan_Can_Actually_Fail`,
+  feeds the pattern both kinds of statement and plants a `DbSet` reader. The rule got its
+  subject from the socket Packet 9 ships:
   no row of the table has been read or written since Packet 6 created it, and until there
   was a port allowed to read it there was nothing to route through.
   `NullEntitlementProvider` answers from constants and touches no table; the first
@@ -749,9 +993,11 @@ otherwise).
 
 #### `FeatureKey_AllReferences_AreInRegistry`
 
-- **Asserts:** every `FeatureKey` and `LimitKey` reachable from a call site resolves to a
-  member of the `FeatureKeys` / `LimitKeys` registries. A key constructed anywhere else —
-  a free-form string at a call site, a key invented in a payload — fails the build.
+- **Asserts:** every `FeatureKey`, `LimitKey` and `KillswitchKey` a production call site
+  names is a member of its registry — `FeatureKeys`, `LimitKeys`, `KillswitchKeys`. A key
+  constructed anywhere else — a free-form string at a call site, a key invented in a
+  payload — fails the build. The converse is not asserted: the registries carry the full
+  vocabulary, and a declared key nothing reads yet is expected.
 - **Canonical name.** No `s` after `Key`: the rule matches `FeatureKey` **references**,
   not `FeatureKeys.*` string constants
   ([ADR-0021 Amendment 1](../decisions/0021-feature-based-entitlement.md)). One document
@@ -761,9 +1007,17 @@ otherwise).
 - **Source:** ADR-0021 Amendment 1;
   [ADR-0045 § 6](../decisions/0045-entitlement-and-feature-flag-socket.md);
   [21-feature-flags.md](../architecture/21-feature-flags.md).
-- **Type:** xUnit + source scan over `FeatureKey` / `LimitKey` construction sites.
-  **Kind:** structural.
-- **Status:** **Registered** — the registries shipped in Packet 9 carrying the **full
+- **Type:** xUnit + an IL scan (Mono.Cecil) for key construction outside the three
+  registries. It reads the three ways a name is **spelled** — a constructor call, the `init`
+  setter a `with` expression runs, and a key the runtime builds for a method that hands it a key
+  type's token (`Activator.CreateInstance`, `ConstructorInfo.Invoke`). `default(FeatureKey)` is not scanned: it carries no
+  name to be wrong about, every registry lookup misses it, and the compiler emits one into
+  every async state machine that takes a key. **Kind:** structural.
+- **Status:** **Implemented** — `EntitlementKeyTests.cs`, Packet 10, with
+  `The_Entitlement_Key_Scans_Can_Actually_Fail` planting both spellings in this test assembly
+  and requiring the same filter to report them — the probes only, since the test assembly also
+  spells an undeclared key on purpose, where the rule below proves the aggregate refuses one. The
+  rule asserts first that it sees the registries construct their own keys. The registries shipped in Packet 9 carrying the **full
   vocabulary**, not only the keys with a consumer, which measured empty at that point; the
   reading and its reasoning are in the Packet 9 delivery record. `LimitKeys` takes its
   strings from the Hub's `limits.`
@@ -782,15 +1036,24 @@ otherwise).
 - **Asserts:** no key whose catalog descriptor declares a plan-projected `Source` is
   written to `tenant_feature_flags`. The registry's `Source` descriptor is the join: a
   plan-projected key resolves through `IEntitlementProvider`, a tenant-flag key through
-  the table, and never the other way round.
+  the table, and never the other way round. Four legs: `Tenant.SetFeatureFlag` takes a
+  `FeatureKey` rather than a string, so which key is a question the compiler asks; it refuses
+  every plan-projected key and every undeclared one, and accepts every tenant-flag key; it is
+  the only production code that creates a `TenantFeatureFlag`; exactly one entity type maps the
+  table across every swept model, since a second mapping is a second write path that names
+  neither the entity nor the table in any statement; and nothing under `backend/src` writes the
+  table's rows — not SQL, and not a migration's `InsertData`, which writes a row with no
+  statement anywhere in the file and is exactly where a plan key would be seeded.
 - **Why it matters:** the two halves answer with different authority. A plan-projected key
   served from the tenant table is a tenant editing its own entitlement, which is the one
   thing the projection exists to prevent.
 - **Source:** [ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md);
   [21-feature-flags.md](../architecture/21-feature-flags.md).
-- **Type:** xUnit + reflection over the key registries, cross-checked against the
-  `tenant_feature_flags` write path. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection over the key registries, an IL scan for the entity's creation
+  sites, and the aggregate exercised with each key. **Kind:** structural + behavioural.
+- **Status:** **Implemented** — `EntitlementKeyTests.cs`, Packet 10. The refusal lives in the
+  aggregate, where the row comes into being, rather than in a validator a second caller could
+  skip. Mutation-checked: dropping the `Source` guard from `Tenant.SetFeatureFlag` fails it.
 - **Phase:** 02a (Packet 10).
 
 #### `Aggregates_Do_Not_Redeclare_Entity_Equality`
@@ -821,9 +1084,70 @@ otherwise).
   for one question, decided by static type.
 - **Source:** [02-backend-coding.md § Domain Modeling](02-backend-coding.md);
   [ADR-0023 Amendment 3](../decisions/0023-strongly-typed-id-source-generator.md).
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + reflection over declared members. **Kind:** structural.
+- **Status:** **Implemented** — `DomainModelTests.cs`, Packet 10, over every type below
+  `Entity<>` in every production assembly **and** every `IAggregateRoot<TId>`, whatever it
+  derives from — a root outside that hierarchy would carry no equality at all, and declaring one
+  is the very thing this refuses. A method whose name merely ends in `Equals` — a domain
+  predicate like `SlugEquals` — is not an equality member and is not reported. Its companion,
+  `The_Aggregate_Shape_Rules_Can_Actually_Fail`, plants the three shapes the compiler does
+  not stop — a typed overload, a declared `IEquatable<TSelf>`, and an explicit
+  re-implementation of the inherited `IEquatable<Entity<TId>>`, and a `new GetHashCode()` that
+  hides the sealed one, which the compiler allows (measured) — and requires the same predicate to
+  report each. The declared-interface clause is belt and braces rather than a fourth shape:
+  anything that satisfies `IEquatable<TSelf>` declares a method whose name ends in `Equals`,
+  which the first check already reports. The operator pair is not among them: with `Equals(object?)` and
+  `GetHashCode()` sealed, a derived `operator ==` cannot silence CS0660 / CS0661, so it
+  fails the build rather than this test. Mutation-checked: a `bool Equals(Tenant?)` overload
+  on `Tenant` fails it.
 - **Phase:** 02a (Packet 3b registers this entry, Packet 10 writes the test).
+
+#### `Aggregate_Roots_Use_StronglyTypedId`
+
+- **Asserts:** every type implementing `IAggregateRoot<TId>` has a `TId` that carries
+  Vogen's `[ValueObject<Guid>]` with `LearnStackVogenDefaults.IdMask`. The interface
+  constraint already makes `TId` an `IStronglyTypedId<Guid>`; the attribute is what makes
+  it a generated value object — its EF Core converter, its JSON converter and its
+  `IsInitialized()` — rather than a hand-written struct that satisfies the interface.
+- **Source:** [ADR-0023](../decisions/0023-strongly-typed-id-source-generator.md)
+  (§ Implementation Notes and Amendment 1).
+- **Type:** xUnit + reflection over every production assembly. **Kind:** structural.
+- **Status:** **Implemented** — `DomainModelTests.cs`, Packet 10. ADR-0023 Amendment 1 placed
+  it with the first aggregate, which Packet 6 shipped; no row carried it until Packet 10's
+  sweep. The mask is read from the attribute's `conversions` argument rather than inferred
+  from the attribute's presence — the converters are what the attribute is required for — and
+  `The_Aggregate_Shape_Rules_Can_Actually_Fail` feeds the predicate a hand-written struct
+  that satisfies `IStronglyTypedId<Guid>` and a value object declared with a narrower mask.
+- **Phase:** 02a (Packet 10).
+
+#### `Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`
+
+- **Asserts:** in `LearnStack.SharedKernel` and every module `Domain` assembly, the only
+  types with an IL dependency on `Microsoft.EntityFrameworkCore` are the ones Vogen emits
+  for a `[ValueObject]` type: the `EfCoreValueConverter` and `EfCoreValueComparer` nested
+  in it, and the `__<Id>EfCoreExtensions` class beside it. Each is pinned to a real value
+  object, so a hand-written class cannot pass by borrowing the name. Hand-written domain
+  code names no EF Core type.
+- **Why it matters:** [Architecture Standards § Build-time-only exceptions](01-architecture-standards.md)
+  sanctions the EF Core reference for exactly those emitted types. Without a test the
+  exception is an open door: the reference is already there, so the first
+  `using Microsoft.EntityFrameworkCore;` in an aggregate compiles.
+- **Source:** Architecture Standards § Build-time-only exceptions; ADR-0023.
+- **Type:** xUnit + NetArchTest over the assemblies' types. **Kind:** structural.
+- **Status:** **Implemented** — `ModuleDependencyTests.cs`, Packet 10; Architecture
+  Standards had promised it with Packet 6. It asserts its premise — the emitted converters
+  are found — and its companion, `The_Domain_EF_Core_Rule_Can_Actually_Fail`, requires the
+  scan to report this test assembly's hand-written `DbContext` probes, and the predicate to
+  refuse both emitted names borrowed by a type that is not a value object, and a third name
+  borrowed inside one that is. It reads the IL directly rather than through NetArchTest, whose
+  type list drops everything whose full name starts with `System` or `Microsoft` — including a
+  type our own assembly declares, and `namespace Microsoft.EntityFrameworkCore` is exactly
+  where an extension class for EF Core is idiomatically written. The IL walk reads generic
+  constraints, `catch` clauses and generic call-site type arguments, each of which carries a type
+  a signature scan does not. Mutation-checked: a planted `typeof(DbContext)` in `Tenancy.Domain`
+  fails it, and so does one written in a `Microsoft.*` namespace, which the NetArchTest version
+  passed.
+- **Phase:** 02a (Packet 10).
 
 #### `Organization_Aggregate_Declared_In_Tenancy_Domain`
 
@@ -843,12 +1167,14 @@ otherwise).
 - **Type:** xUnit + reflection over the enumerated module `Domain` assemblies.
   **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 4,
-  `LearnStack.Tests.Architecture`, `TenancyConventionTests`). `Organization`
-  exists and is asserted; `OrganizationBranding` does not yet, and "exactly one,
-  in Tenancy" is satisfied by none — which is what stops the first one landing in
-  the wrong module. Closes in Packet 10 when the remaining module `Domain`
-  assemblies carry types.
-- **Phase:** 02a (Packet 6 introduces, Packet 10 closes).
+  `LearnStack.Tests.Architecture`, `TenancyConventionTests`), and whole: it reads every
+  module `Domain` assembly, including the four — Content, Education, Identity, Media —
+  that declare no domain type yet, only an `AssemblyMarker`, so the first `Organization` or `OrganizationBranding` to land
+  in one of them fails it. `OrganizationBranding` itself arrives with
+  [Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s branding; until then "exactly
+  one, in Tenancy" is satisfied by none, which is what stops the first one landing in the
+  wrong module.
+- **Phase:** 02a (Packet 6).
 
 #### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
 
@@ -860,8 +1186,8 @@ otherwise).
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented.**
-- **Phase:** 02a Packet 7.
+- **Status:** **Implemented** (`AggregateWriteTests`).
+- **Phase:** 02a (Packet 7).
 - **Note:** the rule counts **aggregate roots reached through ports**, not `DbSet`
   use, and the change is not cosmetic. ADR-0042 § Implementation Notes specified a
   source scan for `Add` / `Update` / `Remove` against more than one `DbSet`; under the
@@ -889,8 +1215,11 @@ otherwise).
 
 Source: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md),
 [ADR-0040](../decisions/0040-ambient-unit-of-work.md). Introduced by
-[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md); the two behavioural
-rules that need a second `DbContext` are owed by Phase 03.
+[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md). ADR-0040 staged the two
+behavioural rules that need a second module `DbContext`, and the parallelism rule, for
+Phase 03, because that was where it expected one; Packet 8 shipped it, and
+[ADR-0040 § Architecture Tests](../decisions/0040-ambient-unit-of-work.md) names this
+catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `Aggregates_With_Optimistic_Concurrency_Map_RowVersion`
 
@@ -919,6 +1248,7 @@ rules that need a second `DbContext` are owed by Phase 03.
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
   Mutation-checked: dropping `.ValueGeneratedNever()` from `MapAuditColumns`
   fails this case and only this case.
+- **Phase:** 02a (Packet 6; swept across every module with a schema in Packet 8).
 
 #### `Migration_Startup_Project_References_EntityFrameworkCore_Design`
 
@@ -934,6 +1264,7 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Type:** xUnit + project-file inspection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 4,
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
 
 #### `Migrate_Target_Covers_Every_Migration_Chain`
 
@@ -950,6 +1281,7 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Status:** **Implemented** (Packet 6 step 5,
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
   Mutation-checked: narrowing the loop back to `src/Modules` fails this case.
+- **Phase:** 02a (Packet 6).
 
 #### `Migrate_Target_Applies_The_Tenancy_Chain_First`
 
@@ -978,6 +1310,59 @@ rules that need a second `DbContext` are owed by Phase 03.
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
   Mutation-checked: deleting the Tenancy prefix from the recipe fails this case and
   no other.
+- **Phase:** 02a (Packet 9).
+
+#### `Migrate_Target_Refuses_An_Aliased_Runtime_Credential`
+
+- **Asserts:** `make migrate` refuses a migration credential naming `learnstack_app`
+  whichever alias Npgsql accepts for the user and the password — `Username`/`Password`,
+  `UID`/`PWD`, `User ID`/`PSW`, `USERID`/`Pwd` — names the role it refused, and prints no
+  password.
+- **Why it matters:** the recipe recognised the first pair only, so the other three read
+  the role as empty, passed the ownership check, and echoed the password into a terminal
+  or a CI log — from the one target whose purpose is keeping that credential in one place.
+- **Source:** [05-database.md § Database roles](05-database.md);
+  [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
+- **Type:** xUnit executing the recipe (no database: the role check refuses first).
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
+
+#### `Migrate_Target_Redacts_A_Quoted_Value_Whole`
+
+- **Asserts:** a quoted value carrying a semicolon — either quote character, with the
+  doubled-quote escape — is redacted whole, and the role after it is still read.
+- **Why it matters:** Npgsql accepts a semicolon inside a quoted value, and a
+  split-on-`;` redaction cut such a value in half: the first half matched the keyword
+  table and was redacted, the second was printed.
+- **Source:** [05-database.md § Database roles](05-database.md).
+- **Type:** xUnit executing the recipe. **Kind:** behavioural.
+- **Status:** **Implemented** (`PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
+
+#### `Migrate_Target_Reads_The_Role_Through_A_Quoted_Value`
+
+- **Asserts:** the field after a quoted password is still parsed as its own field, so
+  the role check reads the role and not a fragment of the password.
+- **Why it matters:** the complement of the redaction rule — a parser that cuts the value
+  in the wrong place shifts every field after it, and the role check reads a fragment of
+  the password as the role.
+- **Source:** [05-database.md § Database roles](05-database.md).
+- **Type:** xUnit executing the recipe. **Kind:** behavioural.
+- **Status:** **Implemented** (`PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
+
+#### `Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo`
+
+- **Asserts:** a URI-form credential (`postgres://user:secret@host/db`, the form
+  `DATABASE_URL` carries on several hosts) is refused without printing its userinfo, and
+  the message names the key/value form that works.
+- **Why it matters:** the URI form has no `password=` for a keyword redaction to find, so
+  a recipe that only redacted keywords printed it whole.
+- **Source:** [05-database.md § Database roles](05-database.md).
+- **Type:** xUnit executing the recipe. **Kind:** behavioural.
+- **Status:** **Implemented** (`PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
 
 #### `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits`
 
@@ -1012,6 +1397,7 @@ rules that need a second `DbContext` are owed by Phase 03.
   Packet 9 step 8 audit rules replaced this case instead of adding beside it, and the row
   here went on saying Implemented while no test read a `ck_audit_log_*` constraint; it was
   restored in the packet's external-review round and re-measured.
+- **Phase:** 02a (Packet 9).
 
 #### `Every_Foreign_Key_Has_A_Supporting_Index`
 
@@ -1029,6 +1415,7 @@ rules that need a second `DbContext` are owed by Phase 03.
   its first run — `fk_organizations_reporting_parent` and
   `fk_platform_host_to_tenant_organization` — which is the evidence that it is not
   vacuous.
+- **Phase:** 02a (Packet 6).
 
 #### `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`
 
@@ -1057,6 +1444,24 @@ rules that need a second `DbContext` are owed by Phase 03.
   Mutation-checked: dropping the `audit_config` filter fails the rule on that index.
 - **Phase:** 02a (Packet 9).
 
+#### `Every_Database_Test_Carries_The_Docker_Trait`
+
+- **Asserts:** every test file in `LearnStack.Tests.Integration` that declares a test and
+  needs a container — one under `Database/`, or one anywhere that names `SchemaFixture`,
+  `PostgresFixture` or the `SharedSchema` collection — carries
+  `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`.
+- **Why it matters:** CI splits the integration assembly by that trait, and the two jobs'
+  filters are exact complements, so a class that forgets it does not fail — it runs in the
+  `backend` job, whose runner also has a Docker socket, starts its container and passes.
+  Nothing goes red, and the Docker suite quietly stops being where the Docker tests live.
+- **Source:** [06-testing.md](06-testing.md).
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** (`PersistenceConventionTests`), widened from `Database/` to
+  the whole project in Packet 9's fifth review. Its companion,
+  `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and
+  must not flag.
+- **Phase:** 02a (Packet 6; widened in Packet 9).
+
 #### `SoftDelete_Advances_The_Row_Version`
 
 - **Asserts:** `AuditableEntity.SoftDelete` leaves `Version` strictly greater than it
@@ -1070,6 +1475,7 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Status:** **Implemented** (Packet 6 step 2). Mutation-checked: routing
   `SoftDelete` back to stamping the fields itself fails this case and only this
   case.
+- **Phase:** 02a (Packet 6).
 
 #### `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`
 
@@ -1095,8 +1501,25 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
-  keyed by directory in Packet 7 step 10, and to six in Packet 8 step 3,
-  `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  keyed by directory in Packet 7 step 10, to six in Packet 8 step 3 and to seven in
+  Packet 9 step 3, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
+
+#### `The_registration_marker_does_not_vouch_across_containers`
+
+- **Asserts:** the marker `AddModuleDbContext` leaves is read per service collection: a
+  collection it registered reports the context, and a second collection in the same
+  process that registered the same context by hand — a scoped factory building it on its
+  own options — reports none.
+- **Why it matters:** `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork`'s other leg,
+  scoped from an implementation factory, cannot tell the helper's registration from a
+  hand-rolled factory that gives the context its own connection — the ADR-0040 failure.
+  For that one shape the marker is the whole guard, and a process-wide marker answered for
+  whichever container registered first.
+- **Source:** [ADR-0040](../decisions/0040-ambient-unit-of-work.md).
+- **Type:** xUnit + DI registration inspection. **Kind:** structural.
+- **Status:** **Implemented** (`PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
@@ -1110,17 +1533,60 @@ rules that need a second `DbContext` are owed by Phase 03.
 - **Type:** xUnit + assembly-reference and constructor inspection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6,
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+- **Phase:** 02a (Packet 6).
+
+#### `A_Cross_Module_Read_Inside_The_Ambient_Transaction_Returns_Rows`
+
+- **Asserts:** inside one unit of work, a row one module's `DbContext` writes is visible to
+  a second module's `DbContext` before `COMMIT`, under the same tenant announcement —
+  both are enlisted on the one connection and transaction.
+- **Why it matters:** it is the first of the two properties
+  [ADR-0040](../decisions/0040-ambient-unit-of-work.md) exists for. A context that opened
+  its own connection would read committed data only, and every single-module test would
+  still pass.
+- **Source:** ADR-0040 § Context and § Implementation Notes.
+- **Type:** **integration** test (Testcontainers + PostgreSQL), as `learnstack_app`.
+  **Kind:** behavioural.
+- **Status:** **Implemented** — `AmbientUnitOfWorkTests` (integration), Packet 10.
+  Customization writes, Tenancy reads it before `COMMIT`, and a second connection sees
+  nothing — the control that stops the case agreeing with itself, since a context that
+  committed on `SaveChanges` would satisfy the first half alone. Mutation-checked: giving each
+  context its own connection fails both cases in this file.
+- **Phase:** 02a (Packet 10) — ADR-0040 staged it for Phase 03, and the second module
+  `DbContext` arrived in Packet 8.
+
+#### `An_Outer_Failure_After_An_Inner_Write_Leaves_Zero_Rows_In_Both_Modules`
+
+- **Asserts:** when a unit of work writes through two modules' `DbContext`s and the outer
+  frame then fails, neither module's row survives.
+- **Why it matters:** the second property ADR-0040 exists for — one transaction, so one
+  outcome. Two connections would commit the inner write and roll back the outer, which is
+  the partial state the ambient unit of work is there to make impossible.
+- **Source:** ADR-0040 § Context and § Implementation Notes.
+- **Type:** **integration** test (Testcontainers + PostgreSQL), as `learnstack_app`.
+  **Kind:** behavioural.
+- **Status:** **Implemented** — `AmbientUnitOfWorkTests` (integration), Packet 10: two
+  modules write, the outer frame throws before the commit, and both tables are empty read from
+  a connection of its own.
+- **Phase:** 02a (Packet 10), for the same reason as the rule above.
 
 #### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
 
-- **Asserts:** no module code passes two `DbContext`-bound operations to
-  `Task.WhenAll` / `Task.WhenAny`. One connection means one command at a time; a
-  handler that fans out corrupts the protocol.
+- **Asserts:** no module code fans out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
+  without an explicit type argument; no `Parallel.For`, `ForAsync`, `ForEach`, `ForEachAsync`
+  or `Invoke`; no PLINQ `AsParallel()`; and no task started and stored instead of awaited, which
+  is `Task.WhenAll` written out longhand — outside an exact-path list, empty today, whose entries
+  each say why their concurrent work touches no connection. One connection means one command at a
+  time; a handler that fans out corrupts the protocol. Stricter than ADR-0040's sentence,
+  which bans two `DbContext`-bound operations: which operations are bound to the ambient
+  connection cannot be read from source, and the honest rule is the one that can.
 - **Source:** ADR-0040 § Nesting.
-- **Type:** Roslyn/NetArchTest. **Kind:** structural.
-- **Status:** **Awaiting backfill** — the rule is decided; no module code exists to
-  violate it yet. **Phase:** 02a Packet 6 registers it; Phase 03 implements it with
-  the first module that could.
+- **Type:** xUnit + source scan. **Kind:** structural.
+- **Status:** **Implemented** — `PersistenceConventionTests.cs`, Packet 10, after waiting
+  for module code to scan: three modules have shipped handlers since Packets 7 and 8, and
+  the rule asserts it read them. Its companion, `The_Parallelism_Scan_Can_Actually_Fail`,
+  feeds it each fan-out shape — a `using static` import included — and two that are not.
+- **Phase:** 02a (Packet 6 registers it; Packet 10 implements it).
 
 ### Tenancy and isolation
 
@@ -1128,8 +1594,12 @@ Source: [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amen
 1 and 3), [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md). Introduced by
 [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), closed by Packet 10.
 
-Read § What a structural test proves before relying on any row in this section. The
-first two rows are coverage checks; the last three are the proof.
+Read § What a structural test proves before relying on any row in this section. Its
+structural rows are coverage checks. The proof is `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA`
+and `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck`, with the isolation cases named
+after them below — integration tests, all connected as `learnstack_app`.
+`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction` runs the same way but is a
+diagnostic above row security, not the boundary, as its own note says.
 
 #### `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor`
 
@@ -1140,12 +1610,13 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** [05-database.md § GRANT matrix](05-database.md); ADR-0003 Amendment 3.
 - **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
 - **Status:** **Awaiting backfill** — cited by the standard, no dispatcher yet.
-  **Phase:** 02b.
+- **Phase:** 02b.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
 
-- **Asserts:** the core `LearnStack.Infrastructure` assembly references no
-  `LearnStack.Modules.*` type. The reverse edge — a module's `Infrastructure`
+- **Asserts:** no core `LearnStack.Infrastructure*` assembly — the persistence one, Audit,
+  Observability, ErrorTracking, Resilience and Validation — references a `LearnStack.Modules.*`
+  assembly, in its IL or in its declared references. The reverse edge — a module's `Infrastructure`
   referencing core Infrastructure — is permitted and required, because
   `TenantScopedDbContext` and the query-filter seam live there
   ([Architecture Standards § Dependency Direction](01-architecture-standards.md)).
@@ -1155,9 +1626,11 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** [ADR-0002](../decisions/0002-initial-architecture.md);
   [ADR-0010](../decisions/0010-cross-module-communication.md);
   [Architecture Standards § Dependency Direction](01-architecture-standards.md).
-- **Type:** NetArchTest. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 step 3, `ModuleDependencyTests`).
-- **Phase:** 02a Packet 7.
+- **Type:** xUnit over referenced assemblies and the restore graph. **Kind:** structural.
+- **Status:** **Implemented** (Packet 7 step 3, `ModuleDependencyTests`). Packet 10's review
+  round widened it from the persistence assembly to all six: the other five are referenced by
+  the same composition root and close the same loop, and none was under any rule.
+- **Phase:** 02a (Packet 7; widened in Packet 10).
 
 #### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
 
@@ -1167,7 +1640,8 @@ first two rows are coverage checks; the last three are the proof.
 - **Source:** [05-database.md § How `EnterPlatformAdminScope(reason)` reaches
   `learnstack_platform`](05-database.md).
 - **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
-- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7). **Phase:** 02a Packet 7.
+- **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7).
+- **Phase:** 02a (Packet 7).
 - **Note:** three legs, all live. The keyed-resolution scan, a scan that connection
   strings are read in exactly one file, and a self-check that the scan matched something
   at all — a two-path allow-list matching nothing would pass vacuously. This is the
@@ -1194,6 +1668,13 @@ first two rows are coverage checks; the last three are the proof.
 - **Status:** **Implemented** (Packet 7 step 3, `TenantScopingTests`; widened in Packet 8
   step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
   `Every_Module_With_A_Schema_Is_Swept` holds current).
+  The policy count is read case-insensitively, because SQL keywords are: a second policy written
+  `create policy … as restrictive` would be neither counted nor excluded, and the count is the
+  whole of what that leg proves. Since Packet 10 the policy leg also reads the clauses, not only
+  their presence: each of
+  `USING` and `WITH CHECK` compares the key column — `tenant_id`, or `id` on the self-keyed
+  table — to `NULLIF(current_setting('app.tenant_id', true), '')::uuid`, and its companion,
+  `The_Tenant_Term_Check_Can_Actually_Fail`, breaks each clause in turn.
 - **Phase:** 02a (Packet 7 introduces, Packet 8 widens).
 - **Note:** a marker-gated rule cannot catch a **missing** marker — it iterates what it
   finds. The companion case `The_Host_Map_Carries_No_Tenant_Marker` states the negative
@@ -1279,12 +1760,12 @@ first two rows are coverage checks; the last three are the proof.
 - **Type:** xUnit + reflection over `IRequest<>` implementations. **Kind:** structural.
 - **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
 - **Phase:** 02a (Packet 7).
-- **Note:** the set leg is **vacuous today** and the shape leg is not. There is not one
-  production request type in the solution, so the permitted set is literally empty;
-  `ProvisionTenantCommand` is the first to carry the marker, in Packet 7 step 9. What runs now
-  is the guard on the attribute's own `AttributeUsage`: the behavior reads it with
-  `inherit: false`, and flipping the attribute to `Inherited = true` is not an error and not a
-  widening — it is a marker the pipeline silently stops following.
+- **Note:** two legs, both live. The set leg holds the permitted set at exactly
+  `ProvisionTenantCommand`, the one of the seven shipped request types that carries the
+  marker (Packet 7 step 9). The shape leg guards the attribute's own `AttributeUsage`: the
+  behavior reads it with `inherit: false`, and flipping the attribute to
+  `Inherited = true` is not an error and not a widening — it is a marker the pipeline
+  silently stops following.
 - **Note:** the permitted set is a **literal list of type names**, not a naming pattern. A rule
   satisfied by what an author calls a class is a rule nobody reviewed.
 
@@ -1298,7 +1779,7 @@ first two rows are coverage checks; the last three are the proof.
   owner or as a `BYPASSRLS` role makes this test pass against an inert policy set.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
-  test. **Kind:** runtime.
+  test. **Kind:** behavioural.
 - **Status:** **Implemented, twice.** The schema-level case is Packet 6 step 4
   (`TenancySchemaTests`); the request-level one is Packet 7 step 11
   (`Database/TenantIsolationHttpTests`), which drives it through
@@ -1322,10 +1803,11 @@ first two rows are coverage checks; the last three are the proof.
 - **Runs as `learnstack_app`.**
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Implemented, twice.** Packet 6 step 4 (`TenancySchemaTests`) as a
-  `[Theory]` over both halves, because `WITH CHECK` guards `INSERT` and `UPDATE` and a
-  rule covering one leaves the other open. Packet 7 step 11
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
+- **Status:** **Implemented, twice.** Packet 6 step 4 (`TenancySchemaTests`): a
+  `[Theory]` over every table carrying a `WITH CHECK` for the `INSERT` half, and
+  `Reassigning_An_Owned_Row_To_Another_Tenant_Is_Rejected` for the `UPDATE` half, because
+  `WITH CHECK` guards both and a rule covering one leaves the other open. Packet 7 step 11
   (`Database/TenantIsolationHttpTests`) issues the write through a request: raw SQL on
   the ambient connection, so no query filter is in front of it and only `WITH CHECK` can
   refuse. The first version of that case asserted merely that an anonymous POST failed,
@@ -1338,7 +1820,14 @@ first two rows are coverage checks; the last three are the proof.
 `Unsetting_tenant_context_returns_zero_rows_through_RLS` are ordinary integration tests
 named in the phase document rather than catalogue-governed rules. All three shipped
 alongside the two rules above in Packet 6 step 4, and Packet 7 step 11 re-runs them
-through the request path in `Database/TenantIsolationHttpTests`.
+through the request path in `Database/TenantIsolationHttpTests`. The phase's completion
+criteria name three more of the same kind, which Packet 10 shipped in `TenancySchemaTests`:
+`App_Role_Cannot_Enumerate_Host_Map`, `App_Role_Cannot_Enumerate_Tenants` and
+`Tenant_A_Cannot_Repoint_Tenant_B_Host` — the last in both halves, the `INSERT` that
+`WITH CHECK` refuses with `42501` and the `UPDATE` that the policy refuses as a silent zero.
+The `UPDATE` half announces the victim's own host first and reads the row it is about to
+fail to change, so what refuses the write is the policy rather than a row that was never
+visible.
 
 Three things are worth recording about that second run, because each was a defect in its
 first version. `Org_X_…` must read an **organization-scoped** table — `tenant_settings`,
@@ -1366,9 +1855,9 @@ because the filters hold, and removing both turns all five red.
   system and unscoped everywhere it matters.
 - **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`; widened to
-  every module in Packet 8 step 3).
-- **Phase:** 02a Packet 7.
+- **Status:** **Implemented** (Packet 7, `TenantScopingTests`; widened to every module in
+  Packet 8 step 3).
+- **Phase:** 02a (Packet 7).
 
 #### `The_Request_Filter_Sees_Every_Shape_MediatR_Dispatches`
 
@@ -1379,8 +1868,8 @@ because the filters hold, and removing both turns all five red.
   obvious way misses streamed requests entirely.
 - **Source:** [04-api-design.md](04-api-design.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
-- **Phase:** 02a Packet 7.
+- **Status:** **Implemented** (Packet 7, `RequestSurfaceTests`).
+- **Phase:** 02a (Packet 7).
 
 #### `The_Sweep_Covers_Every_Production_Assembly`
 
@@ -1393,8 +1882,8 @@ because the filters hold, and removing both turns all five red.
   remedy in its own failure message.
 - **Source:** [21-architecture-tests-catalogue.md § What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7, `LearnStack.Tests.Architecture`).
-- **Phase:** 02a Packet 7.
+- **Status:** **Implemented** (Packet 7, `RequestSurfaceTests`).
+- **Phase:** 02a (Packet 7).
 
 #### `Every_Write_Port_Is_Countable_Or_Enumerated`
 
@@ -1419,21 +1908,44 @@ because the filters hold, and removing both turns all five red.
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
   `AggregateWriteTests`).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `Out_Of_Band_Setters_Open_Read_Only_Transactions`
 
-- **Asserts:** the two components that announce a session variable outside the ambient
-  unit of work — `CachedHostToTenantResolver` and `OrganizationScopeValidator` — each
-  contain `SET TRANSACTION READ ONLY`, and contain it **at a lower source offset than
-  their first `set_config(`**.
-- **What the offset comparison does and does not prove.** PostgreSQL refuses
-  `SET TRANSACTION` after the transaction's *first statement of any kind*, and this scan
-  only orders it against the announcement. A setter that ran some other statement — a
-  `SELECT`, a second `SET` — between `BEGIN` and `SET TRANSACTION READ ONLY` would satisfy
-  the rule and fail at runtime. That failure is loud and immediate rather than silent,
-  which is why the cheap ordering check is the one that ships; the expensive alternative
-  is parsing the method for every command execution, and
+- **Asserts:** every file under `backend/src` that announces a session variable — `set_config(`
+  in any casing, or a `SET [LOCAL|SESSION] app.<name>` carrying a value — is one of the closed
+  set [Security Standards § The out-of-band setters](11-security.md) enumerates: the ambient
+  unit of work, the audit store's writers, or a reader. Each reader
+  (`CachedHostToTenantResolver`, `OrganizationScopeValidator`, `AuditConfigService`,
+  `FeatureFlags`) issues `SET TRANSACTION READ ONLY` **first, in each announcing method** — read
+  from the IL, in instruction order, so a statement in one method cannot cover an announcement in
+  another, and a log line that names the statement does not count as issuing it. A setter the scan
+  finds and no kind names is a new member of a closed set, and fails until the standard and
+  ADR-0040 say which kind it is.
+- **The reader set is wider than Security Standards' table**, deliberately.
+  [Security Standards § The out-of-band setters](11-security.md) enumerates the setters of
+  `app.tenant_id`, and says in as many words that `CachedHostToTenantResolver` is not among them
+  — it announces `app.resolving_host`. This rule's subject is any session variable, so the
+  resolver is a reader here and the two documents agree rather than differ.
+- **Not scanned:** `Migrations/`, narrowly. A migration runs as `learnstack_migration`, outside
+  any request, and what it carries is the policy DDL that *reads* these variables. A setter
+  moved into one would be a setter this rule does not see, which is why the exemption is a
+  directory rather than a pattern.
+- **Why the order, exactly:** because the statement binds only what follows it. A guard that
+  trusted the server to complain would not be a guard — see the next bullet for what the
+  server actually does.
+- **What the scan does and does not prove.** It proves the statement is **executed** before
+  the announcement in the same method: the literal arms the check and a call to an
+  `Execute…` member confirms it, so deleting the execution and leaving the command fails the
+  rule. Measured — an earlier version set its flag on the string alone, and removing
+  `await readOnly.ExecuteNonQueryAsync(…)` left it green while the server reported
+  `transaction_read_only=off`.
+  What it does **not** prove is that no other statement ran first. A setter that issued a
+  `SELECT` between `BEGIN` and `SET TRANSACTION READ ONLY` still satisfies this rule — and,
+  measured on PostgreSQL 18, the server accepts that: neither an earlier `SELECT` nor an
+  earlier `INSERT` refuses the statement, and the earlier insert still commits. So the
+  ordering against the announcement is this rule's doing rather than the server's, and
+  nothing here observes the session's actual `transaction_read_only` setting;
   [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
   states the general limit.
 - **Why the property matters at all.** Read-only is what makes an out-of-band setter of a
@@ -1448,9 +1960,19 @@ because the filters hold, and removing both turns all five red.
 - **Source:** [ADR-0040](../decisions/0040-ambient-unit-of-work.md);
   [05-database.md](05-database.md); [11-security.md](11-security.md).
 - **Type:** xUnit + source scan. **Kind:** structural.
-- **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
-  `TenancyConventionTests`).
-- **Phase:** 02a Packet 7.
+- **Status:** **Implemented** (`TenancyConventionTests`). The Packet 7 version named two
+  files, and the two setters Packet 9 added — `AuditConfigService` and `FeatureFlags` —
+  announced `app.tenant_id` in a transaction that was not read-only while it stayed green,
+  because nothing told it they existed. Packet 10 made it find the setters, and both
+  loaders now open their transaction read-only. Its companion,
+  `The_Setter_Scan_Can_Actually_Fail`, refuses a reader with no statement, one that issues it
+  too late, one whose second announcement has none of its own, one that only names the
+  statement in a message, and one that **builds the command and never runs it** — each written
+  `async`, because a real reader is and an async method's statements live in a state machine. It
+  also feeds the discovery pattern each spelling. Mutation-checked twice: dropping the statement
+  from `FeatureFlags` fails it, and so does replacing `AuditConfigService`'s execution with a
+  read of the command's text.
+- **Phase:** 02a (Packet 7; discovery-based from Packet 10).
 
 #### `Registering_The_Pipeline_Twice_Registers_It_Once`
 
@@ -1469,7 +1991,7 @@ because the filters hold, and removing both turns all five red.
 - **Type:** xUnit + DI registration inspection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
   `CrossCuttingFoundationTests`).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`
 
@@ -1478,9 +2000,9 @@ because the filters hold, and removing both turns all five red.
 - **Runs as `learnstack_app`.**
 - **Source:** [11-security.md § The out-of-band setters](11-security.md);
   [05-database.md § Connection Management](05-database.md).
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
 - **Status:** **Implemented** (`TenantContextGuardTests`, Packet 7 step 8).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 - **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
   ADR-0040 Amendment 5 adds. **Only one of the eight sanctioned setters stamps it**, and
   that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the
@@ -1546,7 +2068,7 @@ because the filters hold, and removing both turns all five red.
 - **Runs as `learnstack_app`.**
 - **Source:** [Phase 03 § Attribute ownership](../roadmap/phase-03-identity-admin.md);
   ADR-0003 Amendment 3 § Test requirement.
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 03.
 
@@ -1607,7 +2129,7 @@ which decides identity, multiplicity, capture and classification;
   would pass against inert policies and prove nothing about the RLS half of the claim.
 - **Source:** ADR-0033 § Decision + Implementation Notes, Amendments 1 and 2;
   [ADR-0044 § 3, § 4, § 11](../decisions/0044-audit-write-path.md).
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
 - **Status:** **Implemented** — `AuditPipelineTests.cs`, Packet 9. The second clause is
   `A_MUST_row_that_cannot_be_written_takes_its_business_write_down_with_it`: a trigger
   refuses the audit insert for one host, and the mapping that host names does not commit,
@@ -1644,10 +2166,12 @@ which decides identity, multiplicity, capture and classification;
 - **Runs as `learnstack_app`.**
 - **Source:** ADR-0033 § Decision and Amendment 2;
   [ADR-0044 § 5](../decisions/0044-audit-write-path.md).
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Implemented** — `AuditPipelineTests.cs`, Packet 9: the seed's second run
-  is refused, and the refusal is on the record beside the first run's untouched rows. The
-  fresh-instant half is asserted against the real table by
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
+- **Status:** **Implemented** in part — `AuditPipelineTests.cs`, Packet 9: the seed's
+  second run is refused, and the refusal is on the record beside the first run's untouched
+  rows. That is not the rollback clause: nothing yet rolls back a command that declared
+  two intents and counts zero business rows and one `failed` row per intent. Packet 10
+  adds that case. The fresh-instant half is asserted against the real table by
   `AuditStoreTests.The_indeterminate_pair_is_two_rows_under_one_id` and
   `A_duplicate_on_the_standalone_re_write_is_positive_evidence_and_is_swallowed`, which
   also holds the `23505`-is-evidence rule and its counter.
@@ -1668,16 +2192,22 @@ which decides identity, multiplicity, capture and classification;
   back.
 - **Source:** ADR-0033 § Decision;
   [31-audit-subsystem.md § 5](../architecture/31-audit-subsystem.md).
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
-- **Status:** **Registered** — and the name still has no code, but it is no longer "no
-  code yet" in the ordinary sense, which is worth saying so a reader does not conclude the
-  rule is unenforced. Both halves are held apart today:
-  `AuditConfigServiceTests.A_read_failure_falls_back_to_the_declared_tier` drives the
-  service against a dead data source and gets the declared tier back, and
-  `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
-  holds the rejection. What is missing is the end-to-end case this row names: a real MUST
-  command through the real pipeline with `audit_config` made unreadable. Packet 9 closed
-  without it; it lands in Packet 10, which gates phase exit on it.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
+- **Status:** **Implemented** — `AuditPipelineTests` (integration), Packet 10. With
+  `SELECT` on `audit_config` **revoked** from `learnstack_app`, the seed's MUST commands still
+  complete and still write their rows. Then the property itself, which is **not** about the
+  answer: a failed read and a read that never happened return the same tier, because
+  `ClassifyAsync` falls back to the declared class on either — so the case observes whether the
+  data source was **asked for**, through a `Lazy` whose factory records the request. A MUST
+  never asks; a SHOULD, the overridable tier, does ask, fails under the revoke, and still
+  answers `Should`. The revoke is what makes the read observable at all: under Row Level
+  Security it would return zero rows **silently**, and silence is indistinguishable from "this
+  tenant has no overrides". Mutation-checked twice: removing the loader's fallback fails it, and
+  so does moving the MUST short-circuit after the read — which left every other suite in the
+  repository green. `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
+  holds the other half — the `audit_unclassified_operation` rejection — where a handler can be
+  registered for a request the catalogue does not know; the seeder's composition root ships one
+  request type per shipped command and has no unregistered one to send.
 - **Phase:** 02a (Packet 9 introduces; Packet 10 closes).
 
 #### `AuditLog_Update_Is_Column_Restricted`
@@ -1704,7 +2234,7 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033; [ADR-0044 § 9](../decisions/0044-audit-write-path.md);
   [18-audit-coverage.md § Storage](18-audit-coverage.md);
   [31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md).
-- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** runtime.
+- **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
 - **Status:** **Implemented** (Packet 9 step 3, `LearnStack.Tests.Integration`,
   `AuditSchemaTests`). Six cases carry it, one per clause rather than one per rule,
   because the three layers fail with three different errors and a single case asserting
@@ -1928,7 +2458,11 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** [18-audit-coverage.md](18-audit-coverage.md);
   [13-documentation.md § Per-Module Specifications](13-documentation.md).
 - **Type:** xUnit + file scan. **Kind:** structural.
-- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), with a companion that exercises the predicate against a directory genuinely lacking the file. Every module has one today, so the rule alone passes whether its check works or is defeated — measured, a tautology left it green.
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8). It also pins the
+  set of spec directories to exactly `tenancy`, `customization` and `audit`, so a fourth
+  module spec fails it until the list names it — with or without an `audit.md`. Its
+  companion, `The_Matrix_Sweep_Can_Actually_Fail`, exercises the predicate against a
+  directory genuinely lacking the file: every module has one today, so the rule alone passes whether its check works or is defeated — measured, a tautology left it green.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
@@ -2017,7 +2551,22 @@ which decides identity, multiplicity, capture and classification;
   [ADR-0044 § 11](../decisions/0044-audit-write-path.md);
   [20-infrastructure-stack.md § Audit Plumbing](20-infrastructure-stack.md).
 - **Type:** xUnit + NetArchTest + SQL scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `AuditConventionTests.cs`, Packet 10, in three legs. The
+  entity: across every production assembly, the types that name `AuditEntry` are a closed
+  list — the entity, its EF configuration and `AuditDbContext` — so a change-tracker write
+  or delete outside it fails, and the Phase 03 read API joins the list by an edit. The
+  context's exemption is for the **mapping**: the only member of it that may name the entity is
+  its `DbSet`'s getter, or a write placed inside the context would be invisible to a leg whose
+  callers name only the context; the member scan reads an `async` member's state machine as part
+  of the method that declares it, because that is where its body is. The SQL:
+  exactly one file inserts into `audit_log` (`INSERT`, `MERGE` or `COPY`, quoted or
+  schema-qualified), and it is `PostgresAuditStore` — the premise and the rule in one
+  assertion. The name: no module but Audit names the table — and no statement anywhere in
+  `backend/src` composes its table name by interpolation or concatenation, because a name the
+  scan cannot read is a name no scan can govern, this rule's and the entitlement cache's alike.
+  Its companion, `The_AuditLog_Write_Scan_Can_Actually_Fail`, feeds every pattern its shapes —
+  including the lower-case prose a composed-name check must not mistake for SQL — and plants an
+  entity writer the list must report.
 - **Phase:** 02a (Packet 10).
 
 #### `AuditEntry_Is_AppendOnly`
@@ -2040,7 +2589,7 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 (carried from ADR-0016);
   [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
-- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read nothing passed as well.
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion, `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check, `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read nothing passed as well.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
@@ -2100,11 +2649,53 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
 
 #### `LearnStack_Modules_DoNotReference_Hub`
 
-- **Asserts:** no module assembly references a Hub client type or the Hub URL.
+- **Asserts:** no module assembly depends on `LearnStack.Infrastructure.Hub` — where
+  Phase 02c's adapter lives — or on the Hub's own `LearnStack.Hub` namespaces, and no
+  module source names a Hub client, `HubOptions`, a `"Hub:"` configuration path or the bare
+  `"Hub"` section literal — the house idiom declares a section name as a `const string` and
+  binds through the constant, so the literal is a spelling actually in use. Two
+  legs because no Hub client exists before Phase 02c: the namespaces it will arrive in, and
+  the names a module would have to write to reach it any other way.
 - **Source:** ADR-0019; ADR-0034 invariant 2.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
+- **Type:** xUnit + NetArchTest + source scan. **Kind:** structural.
+- **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`, Packet 10, with
+  `The_Direct_Client_Bans_Can_Actually_Fail` planting a type from a `LearnStack.Hub`
+  namespace and feeding the source leg the spellings it must catch — and the entitlement
+  cache family, named `hub`, which it must not.
 - **Phase:** 02a (Packet 10).
+
+#### `Host_Resolution_Makes_No_Outbound_Calls`
+
+- **Asserts:** host resolution succeeds with the Hub client registered as a throwing stub
+  ([27-custom-domain-tls.md § 10](../architecture/27-custom-domain-tls.md)). Until a Hub
+  client exists to register, the structural half stands in for it: the one
+  `IHostToTenantResolver`, `CachedHostToTenantResolver`, takes and holds no `HttpClient`,
+  `IHttpClientFactory`, gRPC channel or Hub client — only its caches, its options and the
+  application data source.
+- **Why it matters:** host resolution runs on every anonymous page load before a tenant is
+  known, and [ADR-0034](../decisions/0034-hub-contract-surface-invariant.md) forbids it to
+  call the Hub so that a Hub outage cannot take tenant sites down. Resolution with no
+  network and no tenant context is `Host_Resolves_With_No_Tenant_Context_Under_Rls`; this
+  is the half a new constructor parameter would break without any test noticing.
+- **Source:** ADR-0034; [20-infrastructure-stack.md](20-infrastructure-stack.md).
+- **Type:** xUnit + reflection over the resolver; an integration test for the stub leg.
+  **Kind:** structural (the resolver's dependencies) + behavioural (the stub).
+- **Status:** **Implemented** for the structural half — `TenancyConventionTests.cs`,
+  Packet 10. It asserts its premise, that `CachedHostToTenantResolver` is the only
+  `IHostToTenantResolver`, then walks the resolver's constructor parameters and its fields —
+  instance and static, declared and inherited — and those of every LearnStack class it depends
+  on, for anything in `System.Net.Http`, `System.Net.Sockets`, `System.Net.WebSockets` or
+  `Grpc`, a Hub client, or an `IServiceProvider`, which answers for every registered type and
+  would otherwise hide one. Ports are not followed: a port is governed where it is declared.
+  A second leg reads the resolver's IL — signatures, method bodies, and the state machines its
+  async methods compile into — because `new HttpClient()` inside a method is a call out no walk
+  over declarations can see. Its companion,
+  `The_Outbound_Dependency_Scan_Can_Actually_Fail`, requires each hiding place to be found: a
+  constructor parameter, a handler one LearnStack type down, a
+  `private static readonly HttpClient`, an inherited field, a service provider, and a client
+  built inside a method body. The stub leg is Registered.
+- **Phase:** 02a (Packet 10) for the structural half; the stub leg with the first Hub
+  client, in [Phase 02c](../roadmap/phase-02c-hub-foundation.md).
 
 #### `Hub_Client_Referenced_Only_By_Named_Adapters`
 
@@ -2146,7 +2737,8 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
   `SignedLicenseKeyEntitlementProvider` — and the composition root selects one by
   `DeploymentMode`.
 - **It bounds the ceiling; it does not require the count.** One implementation exists
-  today and the rule is not vacuous: a **fourth** implementation fails it now. The second
+  today, and once written the rule is not vacuous: a **fourth** implementation fails it
+  the day it lands, before the other two exist. The second
   lands in Phase 02c and the third in
   [Phase 11](../roadmap/phase-11-production-hardening.md), and the composition-root
   clause describes the end state — until
@@ -2233,7 +2825,7 @@ Source: [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract
 - **Source:** [24-learnstack-hub.md § 10](../architecture/24-learnstack-hub.md);
   ADR-0004; ADR-0019.
 - **Type:** **integration** test, run from the Hub side against a LearnStack instance.
-  **Kind:** runtime.
+  **Kind:** behavioural.
 - **Status:** **Registered** — owned and run by the `learnstack-hub` repository; listed
   here because the boundary it defends is LearnStack's.
 - **Phase:** 02c (Hub-side).
@@ -2249,7 +2841,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   through `IOutbox.EnqueueAsync` and inspects the row.
 - **Source:** ADR-0032 § Sub-decision 12;
   [ADR-0006](../decisions/0006-events-and-outbox.md) Amendment 1.
-- **Type:** integration test (Testcontainers). **Kind:** runtime.
+- **Type:** integration test (Testcontainers). **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
@@ -2259,7 +2851,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   or `correlation_id`. Per the `JobActivator` contract the enqueue path
   fails at submission, not at activation, so the failure mode is loud.
 - **Source:** ADR-0032 § Sub-decision 12; Phase 02b deliverable.
-- **Type:** xUnit + Hangfire enqueue interceptor test. **Kind:** structural.
+- **Type:** xUnit + Hangfire enqueue interceptor test. **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
@@ -2273,7 +2865,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   `InProcessEventBus` — which is a first-class transport with the same handler
   interface, inbox guard and context restoration as the durable path
   ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), so the assertion does
-  not wait on the Dapr adapter. **Kind:** runtime.
+  not wait on the Dapr adapter. **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
@@ -2321,7 +2913,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   dispatched.
 - **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
   Phase 02b deliverable.
-- **Type:** **integration** test (Testcontainers). **Kind:** runtime.
+- **Type:** **integration** test (Testcontainers). **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
@@ -2333,7 +2925,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   single-processor test passes against the broken protocol.
 - **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
-- **Type:** **integration** test (Testcontainers, two processes). **Kind:** runtime.
+- **Type:** **integration** test (Testcontainers, two processes). **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
@@ -2375,10 +2967,11 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
   like it works in every development test because the in-process transport delivers
   inline. A namespace ban cannot express it: modules legitimately depend on
   `LearnStack.SharedKernel.Messaging` for `IIntegrationEvent` and
-  `IIntegrationEventHandler<T>`. The module sweep is vacuous until a module ships code,
-  so the checker is pointed at direct-injection, method-injection and service-locator
-  deliberate offenders in the test assembly first.
-- **Phase:** 02a Packet 5.
+  `IIntegrationEventHandler<T>`. The module sweep has had a subject since Packet 7 —
+  three modules ship code — and the checker is also pointed at direct-injection,
+  method-injection and service-locator deliberate offenders in the test assembly, so a
+  clean sweep is evidence rather than an absence.
+- **Phase:** 02a (Packet 5).
 
 #### `Integration_Event_TopicNames_FollowConvention`
 
@@ -2409,8 +3002,8 @@ declare.
 
 `Modules_Do_Not_Inject_Valkey_Directly` is **not** in this table. It constrains module
 code rather than adapter code, holds regardless of which cache implementation is
-registered, and is listed under § Repository layout and module boundaries as a
-Packet 10 deliverable.
+registered, and is listed under § Repository layout and module boundaries, where
+Packet 10 implemented it.
 
 ### Awaiting backfill
 
@@ -2420,7 +3013,64 @@ here with **Status: Registered** by the next PR that touches its source document
 registering costs one row, and an unregistered rule is how the six-spelling drift
 started.
 
+Phase 02a Packet 10 swept the corpus for architecture-test names that no row carried. The
+ones Phase 02a owns have entries above; the rest are listed here, each **Awaiting
+backfill** — waiting for the subject its Owning phase column names. The entry a row
+becomes, with the full Asserts / Source / Type lines, is written by the PR that
+implements it.
+
+| Test | Rule | Kind | Owning phase | Named in |
+|---|---|---|---|---|
+| `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | `LearnStackJob.RunAsync` is non-virtual, and its write to `ITenantContextAccessor.Current` — the Hangfire writer among the four `SetTenant_Callers_Are_The_Enumerated_Four` enumerates — precedes `ExecuteAsync` | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with `LearnStackJob` | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
+| `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with the first provider adapter; it then binds per provider as each adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
+| `Backend_RequiresJwt_OnAllAuthenticatedRoutes` | Every endpoint outside the public allow-list answers `401` without a bearer token — the guard that holds while the gateway's OIDC block is commented out | behavioural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with authentication | [API Gateway](../architecture/30-api-gateway.md) |
+| `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
+| `Entitlement_Read_Path_Falls_Through_To_Durable_Row` | With L1 and L2 flushed and the Hub unreachable, the tenant resolves from `platform_entitlement_cache` and no exception escapes the flag read | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with `HubEntitlementProvider` | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
+| `CustomDomain_TenantId_NeverReadFrom_RequestBody` | Custom-domain submission derives the tenant from the authenticated session, never from the body or the query | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side, per [ADR-0022](../decisions/0022-custom-domain-tls.md) | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
+| `Cert_PrivateKey_NeverLeavesVault_To_Logs` | The log redaction filter strips a PEM private-key block before a line is emitted, in every deployment mode | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) on the Hub side, per ADR-0022, which applies it in every mode; on the LearnStack side [Phase 11](../roadmap/phase-11-production-hardening.md), with the TLS automation — the first LearnStack code that handles certificate material, and a Self-Hosted air-gapped deployment has no Hub | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
+| `Frontend_Has_Only_The_OperatorPortal_App` | The Hub repository ships exactly one frontend application, the operator portal | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), owned and run by the `learnstack-hub` repository | [ADR-0019](../decisions/0019-learnstack-hub.md) |
+| `Customization_Reference_Resolution_Is_Batched` | Resolving an entry's references costs a small constant number of queries, not one per reference | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the batched reference walk — Phase 02d's lesson body carries its fields inline and resolves no reference | [Tenant Customization Model](../architecture/32-tenant-customization-model.md); [Phase 05](../roadmap/phase-05-education-learning-content.md) |
+| `Permission_Definitions_DeclareScope` | Every registered permission declares its `PermissionScope` — Platform, Tenant or Organization | structural | [Phase 03](../roadmap/phase-03-identity-admin.md), with the permission registry | [ADR-0017](../decisions/0017-tenant-organization-hierarchy.md) |
+| `Permission_Scope_Matches_Resource_Scope` | An `Organization`-scope permission is checked only against an `[OrganizationScoped]` resource, and a `Tenant`-scope permission never gains organization filtering | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
+| `Permission_Keys_Match_Convention` | Every registered key parses as `{module}.{resource}.{action}` with an action from the closed set | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
+| `Permission_Registry_Has_DeniedTest` | Every registered key has at least one test that is denied it | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
+| `Search_Kinds_AreNot_Domain_Prefixed_In_Code` | No module registers a domain-prefixed search kind; every domain-shaped index arrives through a `TenantContentType` | structural | [Phase 04](../roadmap/phase-04-cms-media-pages.md), with `ITenantSearch` | [Search](../architecture/20-search.md) |
+| `Block_Schemas_Are_Immutable_After_Publish` | A published page-block schema version is never edited in place; a breaking change ships a new version | behavioural | [Phase 04](../roadmap/phase-04-cms-media-pages.md), with `TenantPageBlock` | [ADR-0013](../decisions/0013-page-block-schema-versioning.md); `add-page-block` |
+| `Scoring_Rules_Compile_Against_Sandbox` | Every `TenantScoringRule` expression compiles inside the DSL sandbox and nowhere else | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the evaluator | [Phase 05](../roadmap/phase-05-education-learning-content.md); `add-tenant-scoring-rule` |
+| `Completion_Rules_Are_Boolean_Pure` | A `TenantCompletionRule` expression returns a boolean and reads nothing outside its own inputs | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the evaluator — Phase 07 consumes it and writes no rule code | [Phase 05](../roadmap/phase-05-education-learning-content.md); `add-tenant-completion-rule` |
+| `LicenseKey_Validation_ChecksRevocationList` | A licence id in the revocation set is rejected | behavioural | [Phase 11](../roadmap/phase-11-production-hardening.md), with signed licence keys | [Hybrid License Model](../architecture/26-hybrid-license-model.md) |
+| `CustomDomain_PublicSuffixList_Enforced` | The custom-domain validator rejects a public-suffix TLD | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), Hub side — the check is in `CustomDomain.Create`, which the Hub's submission path owns | [ADR-0022](../decisions/0022-custom-domain-tls.md); [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
+| `CustomDomain_Revocation_RemovesTenantResolverMapping` | A revoked domain resolves to nothing | behavioural | [Phase 11](../roadmap/phase-11-production-hardening.md), with custom-domain TLS automation | [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
+| `Apisix_RouteYaml_IsValid` | `apisix test` accepts the route file | behavioural | [Phase 11](../roadmap/phase-11-production-hardening.md), with the APISIX adapter | [API Gateway](../architecture/30-api-gateway.md) |
+| `Apisix_Routes_Declare_Explicit_Priority` | Every route sets `priority` | structural | [Phase 11](../roadmap/phase-11-production-hardening.md) | [API Gateway](../architecture/30-api-gateway.md) |
+| `Apisix_Public_Routes_Outrank_Authenticated_Catchall` | No route without `openid-connect` shares a prefix with a higher- or equal-priority route that has it | structural | [Phase 11](../roadmap/phase-11-production-hardening.md) | [API Gateway](../architecture/30-api-gateway.md) |
+| `Apisix_Uri_Patterns_Are_RadixtreeValid` | A route pattern has at most one `*`, and only as its final segment | structural | [Phase 11](../roadmap/phase-11-production-hardening.md) | [API Gateway](../architecture/30-api-gateway.md) |
+| `Apisix_NeverFronts_InternalApi` | `/api/internal/*` answers `404` from the gateway — no route is defined for it | behavioural | [Phase 11](../roadmap/phase-11-production-hardening.md) | [API Gateway](../architecture/30-api-gateway.md) |
+| `Partition_Manager_Job_Is_Registered_AtStartup` | The `audit_log` partition-management job is registered at startup | structural | [Phase 11](../roadmap/phase-11-production-hardening.md), with the job it guards | [ADR-0028](../decisions/0028-audit-log-partition-management.md); [ADR-0044](../decisions/0044-audit-write-path.md); [Phase 11](../roadmap/phase-11-production-hardening.md) |
+
 ### Retired
+
+#### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
+
+- **Retired** before it was implemented.
+- **Why:** an early draft of ADR-0036 carried a `DeploymentMode.Development` flag that
+  let `X-Tenant-Id` act as the resolution source, and this test would have guarded it.
+  The flag was retired before it shipped: the trusted hop lets a `curl` supply an
+  effective host that goes through the real resolver, the real policy and the real
+  matrix, so there is no code path anywhere that writes a tenant id from a header. The
+  name is recorded here so it does not reappear as a second spelling for something else.
+- **Source:** ADR-0036 § There is no Development override.
+
+#### `Audit_Config_Failure_Rejects_Operation`
+
+- **Withdrawn** before implementation — an earlier draft of the audit subsystem named it,
+  and it was withdrawn rather than renamed. Under [ADR-0033](../decisions/0033-audit-durability-model.md) as settled, a
+  tenant-override read failure falls back to the in-process catalogue, which carries the
+  same MUST floor, so the assertion would have locked in a platform-wide denial of
+  service triggered by a cache outage.
+- **Replaced by** [`Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`](#audit_classification_does_not_read_the_database_on_the_request_path),
+  which asserts the property that matters
+  ([31-audit-subsystem.md § 13](../architecture/31-audit-subsystem.md)).
 
 #### `AuditLogBehavior_NeverBlocks_BusinessWrites`
 
@@ -2430,7 +3080,8 @@ started.
   part of the operation's contract and shares its transaction.
 - **Replaced by** [`MustClass_Audit_Writes_Share_The_Business_Transaction`](#mustclass_audit_writes_share_the_business_transaction).
   The surviving half of the old rule — SHOULD/MAY-class audit never blocks — is asserted
-  inside that test's SHOULD/MAY cases.
+  by `AuditLogBehaviorTests` (the best-effort cases) and `AuditStoreTests`
+  (`A_best_effort_failure_is_logged_and_dropped`), not by that integration test.
 - Never implemented, so nothing was deleted from CI.
 
 ### API conventions (ADR-0024)
@@ -2446,10 +3097,11 @@ started.
   nothing or by inspecting the wrong host.
 - **Source:** ADR-0024 § Implementation Notes.
 - **Type:** xUnit + `EndpointDataSource` inspection over a
-  `WebApplicationFactory<Program>` host. **Kind:** behavioural.
+  `WebApplicationFactory<Program>` host. **Kind:** structural — it reads the started
+  host's endpoint list rather than sending a request.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`, in
   `LearnStack.Tests.Integration`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 - **Note:** with no production controller yet, this assertion runs over the
   host's infrastructure routes only — mutating `VersionedRouteConvention` or
   removing `app.MapControllers()` leaves it green, which was measured. What
@@ -2477,9 +3129,9 @@ started.
   `VersionedRouteConvention` that no route-shape assertion can see, because the
   offending route simply is not where the test looks.
 - **Source:** ADR-0024 § Implementation Notes.
-- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Type:** xUnit + host startup. **Kind:** startup.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Major_Outside_LiveMajors_Fails_At_Startup`
 
@@ -2488,9 +3140,9 @@ started.
   never be served under a major no OpenAPI document publishes and no generated
   SDK can call.
 - **Source:** ADR-0024 § The version axis.
-- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Type:** xUnit + host startup. **Kind:** startup.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Bare_ControllerBase_Fails_At_Startup`
 
@@ -2505,9 +3157,9 @@ started.
   400 `validation_failed` Problem Details Standards 09 § API Surface fixes as
   the single error shape.
 - **Source:** ADR-0024 § Implementation Notes; Standards 09 § API Surface.
-- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Type:** xUnit + host startup. **Kind:** startup.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `An_Absolute_Internal_Route_Is_Exempt_At_Both_Levels`
 
@@ -2519,7 +3171,7 @@ started.
 - **Source:** ADR-0019; ADR-0024 § The version axis.
 - **Type:** xUnit + host startup. **Kind:** behavioural.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Hand_Written_Prefix_That_Disagrees_With_The_Attribute_Fails_At_Startup`
 
@@ -2529,9 +3181,9 @@ started.
   hatch, with the route saying one major and the `x-version-introduced`
   extension — read off the attribute — saying another.
 - **Source:** ADR-0024 § The version axis.
-- **Type:** xUnit + host startup. **Kind:** behavioural.
+- **Type:** xUnit + host startup. **Kind:** startup.
 - **Status:** **Implemented** (`VersionedRouteEnforcementTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Live_Majors_Are_At_Most_Two_Adjacent`
 
@@ -2541,7 +3193,7 @@ started.
   "No `/api/v0/*` endpoints exist or will exist").
 - **Type:** xUnit. **Kind:** structural.
 - **Status:** **Implemented** (`ApiConventionTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Unversioned_Route_Prefixes_Are_Declared_Once`
 
@@ -2551,7 +3203,7 @@ started.
 - **Source:** ADR-0024 § The version axis; ADR-0019.
 - **Type:** xUnit. **Kind:** structural.
 - **Status:** **Implemented** (`ApiConventionTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Every_Deprecated_Endpoint_Has_Sunset_And_Successor`
 
@@ -2561,10 +3213,12 @@ started.
 - **Source:** ADR-0024 § Lifecycle of a deprecated endpoint.
 - **Type:** xUnit + OpenAPI document inspection. **Kind:** structural.
 - **Status:** **Registered.**
-- **Phase:** the packet that adds the first `/api/v2` endpoint. ADR-0024 states
-  it lands "when the first `/v2` endpoint is added"; there is no deprecated
-  operation before one exists, so registering it now records the name without
-  claiming coverage.
+- **Phase:** unscheduled — no phase in the roadmap adds a `/api/v2` endpoint. ADR-0024
+  states it lands "when the first `/v2` endpoint is added"; there is no deprecated
+  operation before one exists, so registering it now records the name without claiming
+  coverage. It cannot be forgotten: a `/v2` endpoint fails
+  `A_Major_Outside_LiveMajors_Fails_At_Startup` until `LiveMajors` gains `2`, and that
+  edit is where this rule is implemented.
 
 ### Error shape (Standards 04 § Error Responses, Standards 09 § API Surface)
 
@@ -2578,7 +3232,7 @@ started.
   fix.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 - **Note:** the roadmap described this defect as an **unhandled
   `ArgumentOutOfRangeException` producing a 500**. Measured at the start of
   Packet 4 step 2, it was already a 400 — the `InvalidModelStateResponseFactory`
@@ -2595,7 +3249,7 @@ started.
 - **Source:** Standards 04 § Pagination.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Malformed_Sort_Names_The_Parameter_The_Client_Sent`
 
@@ -2613,7 +3267,7 @@ started.
 - **Type:** xUnit + HTTP, over `SortSpecificationTests` for the grammar itself.
   **Kind:** behavioural.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`, `SortSpecificationTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Field_The_Endpoint_Does_Not_Allow_Is_Refused_By_Name`
 
@@ -2624,7 +3278,7 @@ started.
 - **Source:** Standards 04 § Filtering and Sorting.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `List_Query_Parameters_Are_Published_Individually`
 
@@ -2634,9 +3288,9 @@ started.
   collapses a `[FromQuery]` complex type leaves the generated SDK unable to
   offer any of them as arguments.
 - **Source:** Standards 04 § Filtering and Sorting, § OpenAPI.
-- **Type:** xUnit + OpenAPI document inspection. **Kind:** behavioural.
+- **Type:** xUnit + OpenAPI document inspection. **Kind:** structural.
 - **Status:** **Implemented** (`ApiVersioningHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `An_Unmatched_Route_Returns_Problem_Details` / `A_Wrong_Method_Returns_Problem_Details` / `An_Unsupported_Media_Type_Returns_Problem_Details`
 
@@ -2650,7 +3304,7 @@ started.
 - **Source:** Standards 04 § Error Responses; Standards 09 § API Surface.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`ErrorShapeHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 - **Note:** the three come from two different places and needed two hooks. 404
   and 405 are produced by **routing**, before MVC, so no MVC hook sees them —
   `UseStatusCodePages` does. 415 is produced by **MVC**, which already converted
@@ -2669,7 +3323,7 @@ started.
 - **Type:** xUnit + HTTP over a probe that counts its own invocations.
   **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Two_Tenants_Using_The_Same_Key_Do_Not_Share_A_Response`
 
@@ -2683,7 +3337,7 @@ started.
 - **Source:** Standards 04 § Idempotency; ADR-0003.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Thrown_Attempt_Does_Not_Pin_The_Key`
 
@@ -2695,7 +3349,7 @@ started.
 - **Source:** Standards 04 § Idempotency.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Malformed_Header_Fails_Rather_Than_Counting_As_Absent`
 
@@ -2708,7 +3362,7 @@ started.
 - **Source:** Standards 04 § Optimistic Concurrency.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Implemented** (`EntityTagTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Idempotent_Endpoints_Are_Unsafe_Methods`
 
@@ -2725,7 +3379,7 @@ started.
   rule would pass vacuously; a companion test drives the same predicate over a
   probe host that *does* violate it, which is what distinguishes the guard from
   an empty assertion.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Sweep_Never_Destroys_A_Claim_Another_Thread_Just_Won`
 
@@ -2742,7 +3396,7 @@ started.
   while twelve dedicated threads take them over from staggered offsets. Verified
   by mutation: the key-only removal is killed 5/5, and the correct code passes
   10/10.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `The_Same_Key_On_A_Different_Endpoint_Is_Refused_Not_Replayed`
 
@@ -2755,7 +3409,7 @@ started.
   Identity.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Response_Too_Large_To_Store_Refuses_The_Retry_Rather_Than_Rerunning_It`
 
@@ -2767,7 +3421,7 @@ started.
   recorded.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `A_Result_That_Throws_After_Writing_Part_Of_The_Body_Still_Answers_A_Problem_Details_500`
 
@@ -2783,7 +3437,7 @@ started.
   [ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md).
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`IdempotencyHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `An_Idempotent_Operation_Publishes_Its_Header_In_The_Contract`
 
@@ -2793,13 +3447,13 @@ started.
   answered 400, and "the first consumer is a one-attribute change" is not true.
 - **Source:** [ADR-0037](../decisions/0037-idempotency-key-contract.md);
   Standards 04 § OpenAPI.
-- **Type:** xUnit + HTTP against the emitted document. **Kind:** behavioural.
+- **Type:** xUnit + HTTP against the emitted document. **Kind:** structural — the published document's shape.
 - **Status:** **Implemented** (`IdempotentEndpointConventionTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 ### Tenant and organization resolution (ADR-0036)
 
-The binding evidence for this group is the **runtime** matrix in
+The binding evidence for this group is the **behavioural** matrix in
 [ADR-0036 § Architecture tests](../decisions/0036-tenant-resolution-trusted-inputs.md),
 executed against a live PostgreSQL connected as `learnstack_app`. Data flow from a
 header into a tenant context is not reliably provable by a type-reference scan — a
@@ -2813,7 +3467,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § Normalization, Amendment 1, Amendment 4.
 - **Type:** xUnit. **Kind:** behavioural.
 - **Status:** **Implemented** (`EffectiveHostTests`).
-- **Phase:** 02a Packet 4; the Amendment 4 correction and the pairing property, Packet 7 step 4.
+- **Phase:** 02a (Packet 4; the Amendment 4 correction and the pairing property, Packet 7 step 4).
 
 #### `Tenant_Assertions_Are_Compared_Not_Resolved`
 
@@ -2821,7 +3475,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`TenantAssertionHttpTests`).
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
 
@@ -2835,7 +3489,7 @@ structural test proves — and what it does not.
   `ASPNETCORE_FORWARDEDHEADERS_ENABLED` set, seventy requests rotating that
   header produced **zero** rejections against eleven without it, and the
   composition root refuses to start in that configuration now.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
@@ -2843,16 +3497,16 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § What the assertions do.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`). A scan rather than a dependency check, because the resolver that could misuse these values lands in Packet 7 — a scan holds the line from the day the symbol exists.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Effective_Host_Computed_In_One_Place`
 
 - **Asserts:** only `EffectiveHostAccessor` reads a request host. Bans `HttpRequest.Host`, `RequestHeaders.Host`, `HeaderDictionary` indexers carrying a `Host` / `X-Forwarded-Host` / `X-LearnStack-Host` / `Forwarded` literal, and `UriHelper.GetDisplayUrl` / `GetEncodedUrl` everywhere else.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
-- **Status:** **Implemented** (`TenancyConventionTests`). Bans `Request.Host`, `GetDisplayUrl`, `GetEncodedUrl` and `X-Forwarded-Host` outside `EffectiveHostAccessor`.
-- **Phase:** 02a Packet 4.
-- **Note:** Analyzer rather than NetArchTest: three of the four banned inputs appear only as string literals inside header lookups, which a type-reference scan cannot see.
+- **Status:** **Implemented** (`TenancyConventionTests`). Outside `EffectiveHostAccessor` it bans a host read on any receiver — `request.Host` as well as `context.Request.Host` — plus `Headers.Host`, `Headers["Host"]`, `Headers.TryGetValue("Host"`, `HeaderNames.Host`, `GetTypedHeaders`, `GetDisplayUrl`, `GetEncodedUrl`, `X-Forwarded-Host`, `HeaderNames.XForwardedHost`, the `"Forwarded"` literal, `HeaderNames.Forwarded`, `X-LearnStack-Host` and `TrustedHopOptions.HostHeaderName` — the last two declared, and so exempt, in `TrustedHopOptions`. Packet 10 added the header collection's routes to `Host` and the `Forwarded` header, which this entry named and the scan did not read; its review round added the receiver's own spelling and the `TryGetValue` form, and made the rule run the matcher its companion feeds rather than a copy of it. `The_Host_Read_Scan_Can_Actually_Fail` is that companion, and it also feeds `builder.Host.UseSerilog`, which is not a request host. The second round made the header spellings case-blind, as a header name is — `Headers["host"]` reads the same header — and made `GetTypedHeaders` a ban on what is read *from* it: the helper also carries `IfMatch` and `Range`, and refusing the call would refuse an ETag read with a message about trusted hops. Mutation-checked: a `request.Host.Value` read in `TenantResolverMiddleware` fails it, and so does `Headers["host"]`.
+- **Phase:** 02a (Packet 4).
+- **Note:** a source scan rather than NetArchTest: most of the banned inputs are header names that appear only as string literals inside header lookups, which a type-reference scan cannot see.
 
 #### `Forwarded_Headers_Are_Not_Wired`
 
@@ -2870,7 +3524,7 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** (`ApiConventionTests`). Supersedes the reserved
   spelling `Forwarded_Host_Header_Is_Never_Read_Directly`, which named a narrower
   rule than the one that holds.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Trusted_Hop_Requires_Network_And_Secret`
 
@@ -2878,7 +3532,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** xUnit behavioural matrix. **Kind:** behavioural.
 - **Status:** **Implemented** (`EffectiveHostAccessorTests`). Verified by mutation: dropping the network half leaves eleven of thirteen cases green, and the two that fail are the two that exist for it.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Trusted_Hop_Reads_The_Socket_Peer`
 
@@ -2886,15 +3540,17 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § Effective host and the trusted hop.
 - **Type:** Roslyn analyzer + xUnit. **Kind:** structural.
 - **Status:** **Registered** — and the ADR's stated reason for it does not survive measurement. The two are the **same storage**, and `UseForwardedHeaders` mutates it, so reading the feature rather than the property buys nothing once that middleware runs. What makes the read correct today is `Forwarded_Headers_Are_Not_Wired` above. This rule keeps its place as the thing to implement when forwarded headers land, with the peer captured *before* them.
-- **Phase:** the packet that wires forwarded headers.
+- **Phase:** unscheduled — no phase in the roadmap wires forwarded headers.
+  `Forwarded_Headers_Are_Not_Wired` fails the build on the commit that does, and that
+  commit implements this rule.
 
 #### `Deployment_Mode_Is_Required_Configuration`
 
 - **Asserts:** the composition root throws when `Deployment:Mode` is absent, unknown, or given as an ordinal, and the key is **not** present in `appsettings.json`. It shipped there as `Development` — the file that goes to every environment — with the same value as the code default, so every Development-guarded mechanism was on by default in a deployment that never set it. No guard on the *value* could have caught that; only a guard on the file.
 - **Source:** ADR-0036 § There is no Development override.
-- **Type:** xUnit + configuration-file inspection. **Kind:** behavioural (value) + structural (file).
+- **Type:** xUnit + configuration-file inspection. **Kind:** startup (value) + structural (file).
 - **Status:** **Implemented** in two halves — `DeploymentModeConfigurationTests` for the value, `ApiConventionTests` for the file. Verified by mutation: putting the key back into `appsettings.json` turns the file half red.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Assertion_Recorder_Is_The_Only_Mismatch_Writer`
 
@@ -2902,8 +3558,8 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § Recording a rejected assertion.
 - **Type:** xUnit source scan over `LearnStack.Api`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`), in two halves. `Assertion_Recorder_Is_The_Only_Mismatch_Writer` is keyed on the two counter names and scans `LearnStack.Api`; `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs`, added in Packet 9, is keyed on the two audit slugs and covers the `IAuditStore` clause this row always claimed — the counter names cannot catch a second writer that goes straight to the store, which is the dangerous one, because the row's tenant is what keeps an anonymous caller from choosing whose audit log grows.
-- **The second half scans all of `backend/src`, not just the API project**, and that is the correction its own first draft needed: a module is precisely where `IAuditStore` is reachable from a handler, and a narrow scan exempts the dangerous half. Measured — planting the burst slug in `LearnStack.Modules.Tenancy.Application` passed the narrow version and fails the wide one. `TenancyAuditCatalogSource` is exempt because declaring a slug is not writing a row; removing that exemption turns the rule red, which is what makes it a real exemption rather than a decorative one.
-- **Phase:** 02a Packet 4; the second half 02a Packet 9.
+- **The second half scans all of `backend/src`, not just the API project**, and that is the correction its own first draft needed: a module is precisely where `IAuditStore` is reachable from a handler, and a narrow scan exempts the dangerous half. Measured — planting the burst slug in `LearnStack.Modules.Tenancy.Application` passed the narrow version and fails the wide one. `TenancyAuditCatalogSource` is exempt because declaring a slug is not writing a row; removing that exemption turns the rule red, which is what makes it a real exemption rather than a decorative one. Its companion, `The_Slug_Scan_Finds_The_Files_It_Exempts`, runs the same scan with no exemptions and requires it to find exactly those two files — with nothing offending, a scan whose exemption logic had broken open would pass as well.
+- **Phase:** 02a (Packet 4; the second half, Packet 9).
 
 #### `Assertion_Budget_Does_Not_Depend_On_ICacheService`
 
@@ -2911,7 +3567,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § Recording a rejected assertion.
 - **Type:** xUnit reflection check over the `LearnStack.Api.Tenancy` namespace **and** a source scan over `LearnStack.Api/Tenancy`. **Kind:** structural.
 - **Status:** **Implemented** (`TenancyConventionTests`). It shipped in Packet 4 as a **tripwire**, because `ICacheService` did not exist yet; Packet 5 ships the port, so the rule now carries the dependency check it was always meant to be. Both forms are kept: reflection catches an injected dependency, the scan catches a service-locator resolve, and neither sees the other's case.
-- **Phase:** 02a Packet 4.
+- **Phase:** 02a (Packet 4).
 
 #### `Api_Registers_Only_The_Tenant_Realm_Authority`
 
@@ -2936,15 +3592,15 @@ structural test proves — and what it does not.
   [05-database.md § Table classes](05-database.md); ADR-0036.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 step 4, `TenancyConventionTests`).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `Host_Classification_Applies_To_Tenant_Facing_Routes_Only`
 
 - **Asserts:** host classification runs for `/api/v1/*` and for no other prefix. `/healthz`, `/readyz`, `/openapi/*`, `/admin/hangfire*` and `/api/internal/*` are asserted as a **prefix list**, not as endpoint literals — a closed allow-list written as literals 404s the entire Hub contract surface. The list's **contents** are pinned as well as its shape: an emptied or shortened list would otherwise start classifying the Hub surface with every case still green.
 - **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + route-table inspection. **Kind:** structural.
+- **Type:** xUnit over `HostClassificationMiddleware.ClassifiesPath`. **Kind:** behavioural.
 - **Status:** **Implemented** (Packet 7 step 4, `HostClassificationScopeTests`).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 - **Note:** driven against `HostClassificationMiddleware.ClassifiesPath` rather than
   through the middleware. The rule is about paths, and routing a request to observe it
   would need a resolver and a database the decision never touches. The prefix-versus-
@@ -2958,7 +3614,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `TenantContext_Is_Instantiated_In_One_File`
 
@@ -2967,7 +3623,7 @@ structural test proves — and what it does not.
 - **Source:** [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md).
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
 
@@ -2976,7 +3632,7 @@ structural test proves — and what it does not.
   [Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md).
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 - **Note:** the name predates the correction and is kept. `ITenantContextAccessor`
   declares one member, `ITenantContext? Current { get; set; }`, and the `SetTenant`
   this row used to name has never existed; ADR-0036 Amendment 2 fixes the ADR and
@@ -3003,7 +3659,7 @@ structural test proves — and what it does not.
 - **Source:** ADR-0032 § Sub-decision 2; [02-backend-coding.md § MediatR Use Cases](02-backend-coding.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Implemented** (`RequestSurfaceTests` and `CrossCuttingFoundationTests`, Packet 7 step 6).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 - **Note:** vacuous today — nothing streams — and that is the point of landing it now. The shapes are invisible to the ordinary `IRequest<>` filter, so without this rule the first one to arrive would be counted as absent rather than caught.
 
 #### `PublicSurface_Marker_Set_Is_Enumerated`
@@ -3013,7 +3669,7 @@ structural test proves — and what it does not.
   [Standards 04 § Public surface](04-api-design.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 - **Note:** the two directions are not equally vacuous, and the existing note above covers
   only one of them. **Marked set → table** is vacuous while no type carries the marker.
   **Table → marked set** is live from the day it ships: the table may not name a type that
@@ -3039,7 +3695,7 @@ structural test proves — and what it does not.
   [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), so the companion
   `The_PublicSurface_Cross_Check_Can_Actually_Fail` runs the predicate over a marked probe
   registered that way; inverting the predicate fails it.
-- **Phase:** 02a Packet 7; the cross-check leg, Packet 9.
+- **Phase:** 02a (Packet 7; the cross-check leg, Packet 9).
 - **Note:** the leg was catalogued at Packet 7 against a catalogue that did not yet exist,
   and shipped as set-emptiness so that a marked type arriving first would force the
   question. Packet 9 shipped the catalogue and, until its review round, not the leg — the
@@ -3047,19 +3703,23 @@ structural test proves — and what it does not.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 
-- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone. `pk_organizations` is the surrogate id, so a lookup by it is a well-formed, index-served query that returns another tenant's row — for the policy to hide if the announcement was made, and to hand back if it was not. Two legs: the raw-SQL leg pins the validator's `WHERE` clause and its `set_config` announcement (scanned, because a command's text is a string literal no type-reference test can see), and the EF leg bans `Organizations.Find`/`FindAsync`, which take the primary key and therefore cannot express the composite one. **The EF leg is vacuous today** and deliberately kept: nothing reads `organizations` through a `DbContext` until Packet 7 step 9 writes the first command, and a scan added only once there is something to catch is a scan nobody adds. The runtime suite cannot substitute for either leg — with the announcement made, the policy makes both spellings behave identically, which is defence in depth working and is exactly why the rule has to be structural.
+- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone. `pk_organizations` is the surrogate id, so a lookup by it is a well-formed, index-served query that returns another tenant's row — for the policy to hide if the announcement was made, and to hand back if it was not. Two legs: the raw-SQL leg pins the validator's `WHERE` clause and its `set_config` announcement (scanned, because a command's text is a string literal no type-reference test can see), and the EF leg bans `Organizations.Find`/`FindAsync`, which take the primary key and therefore cannot express the composite one. **The EF leg is vacuous today** and deliberately kept: Packet 7 step 9 shipped the first command, and nothing calls `Organizations.Find` or `FindAsync`: the one `DbContext` read of the table, the seeder's ownership check, filters by slug under the tenant's announcement. A scan added only once there is something to catch is a scan nobody adds. The runtime suite cannot substitute for either leg — with the announcement made, the policy makes both spellings behave identically, which is defence in depth working and is exactly why the rule has to be structural.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
-- **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`.
+- **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`. Until Phase 03 derives it from a role, that holds as its strongest form: no production code sets the variable — no `set_config('app.scope'`, no `SET [LOCAL|SESSION] app.scope` — outside an exact-path list, empty until the Phase 03 setter adds its own path, and `ITenantContext` has no scope member for request input to reach.
 - **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + NetArchTest. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02a Packet 7.
+- **Type:** xUnit + source scan + reflection. **Kind:** structural.
+- **Status:** **Implemented** — `TenancyConventionTests.cs`, Packet 10. It asserts its
+  premise first — a row-security policy does read `app.scope`, so the variable guards
+  something — and its companion, `The_Scope_Setter_Scan_Can_Actually_Fail`, feeds the
+  pattern every setter spelling and a policy's read, which it must not flag.
+  Mutation-checked: a planted `set_config('app.scope', …)` in `FeatureFlags` fails it.
+- **Phase:** 02a (Packet 7 registers it; Packet 10 implements it).
 - **Note:** no `app.scope` carrier ships in Packet 7. `ITenantContext` exposes no scope
   member and the flag derives from the actor's **role**, which lands with `Membership` /
   `Role` in [Phase 03](../roadmap/phase-03-identity-admin.md) — after
@@ -3072,19 +3732,20 @@ structural test proves — and what it does not.
 #### `The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable`
 
 - **Asserts:** `PlatformAdminScope.cs` contains none of `set_config(`, `SetTenantContextAsync` or `IUnitOfWork`, with comments and whitespace stripped first.
-- **Why it matters:** it pins the complement of two closed sets, and getting either wrong reopens a set an ADR closed. `PlatformAdminScope` is **not** a fifth writer of `ITenantContextAccessor.Current` — [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md) names it as explicitly not one, and `SetTenant_Callers_Are_The_Enumerated_Four` covers that globally. It is **not** an eighth out-of-band setter of `app.tenant_id` either: the role bypasses policies, so there is nothing to announce to, and [ADR-0040 Amendment 3](../decisions/0040-ambient-unit-of-work.md) closes that set at seven on the property that every one of them connects as `learnstack_app`. And it must not enlist on the ambient unit of work, which would put the bypass on the request's own connection and leave it there.
-- **Source:** ADR-0003; ADR-0036 § Rules; ADR-0040 Amendment 3.
+- **Why it matters:** it pins the complement of two closed sets, and getting either wrong reopens a set an ADR closed. `PlatformAdminScope` is **not** a fifth writer of `ITenantContextAccessor.Current` — [ADR-0036 § Rules](../decisions/0036-tenant-resolution-trusted-inputs.md) names it as explicitly not one, and `SetTenant_Callers_Are_The_Enumerated_Four` covers that globally. It is **not** a ninth out-of-band setter of `app.tenant_id` either: the role bypasses policies, so there is nothing to announce to, and [ADR-0040 Amendments 3 and 7](../decisions/0040-ambient-unit-of-work.md) close that set at eight on the property that every one of them connects as `learnstack_app`. And it must not enlist on the ambient unit of work, which would put the bypass on the request's own connection and leave it there.
+- **Source:** ADR-0003; ADR-0036 § Rules; ADR-0040 Amendments 3 and 7.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7).
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 
 #### `PlatformAdminScope_Entry_Requires_Platform_Permission`
 
 - **Asserts:** `EnterPlatformAdminScope(reason)` cannot open without an authenticated principal holding a Platform-scope permission, and no handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
 - **Source:** ADR-0036 § The platform-admin override is not a resolution source.
-- **Type:** xUnit. **Kind:** behavioural.
+- **Type:** xUnit — reflection, a source scan, and a call to the registered gate.
+  **Kind:** structural (the marker and the scan) + behavioural (the gate refuses).
 - **Status:** **Implemented** (`PlatformAdminScopeConventionTests`, Packet 7 step 7) — conjunct A only.
-- **Phase:** 02a Packet 7.
+- **Phase:** 02a (Packet 7).
 - **Note:** **the permission clause is live in its mechanism and vacuous in its subject;
   the marker clause is vacuous outright.** Two Notes previously stood here assigning
   "live" to opposite clauses — one written when the rule was Registered and one when it
@@ -3118,17 +3779,6 @@ structural test proves — and what it does not.
   handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
   `ProvisionTenantCommand` now carries the first, and nothing carries the second, so the
   conjunction is empty because one half of it is — not because both are.
-
-#### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
-
-- **Status:** **Reserved and retired.** Never implemented.
-- **Why:** an early draft of ADR-0036 carried a `DeploymentMode.Development` flag that
-  let `X-Tenant-Id` act as the resolution source, and this test would have guarded it.
-  The flag was retired before it shipped: the trusted hop lets a `curl` supply an
-  effective host that goes through the real resolver, the real policy and the real
-  matrix, so there is no code path anywhere that writes a tenant id from a header. The
-  name is recorded here so it does not reappear as a second spelling for something else.
-- **Source:** ADR-0036 § There is no Development override.
 
 ## References
 

@@ -51,9 +51,9 @@ a third-party DLL.
 
 | Customization surface | Where it lives | Examples |
 |-----------------------|----------------|----------|
-| Content types | `tenant_content_types` | VocabularyCard, AsanaPose, CodeChallenge, Score |
-| Page blocks | `tenant_page_blocks` | VocabularyGallery, AsanaSequenceBrowser, LeaderboardWidget |
-| Lesson item types | `tenant_lesson_item_types` | SpeakingPractice, GuidedSequence, CodeRunner, DrivingSimulation |
+| Content types | `tenant_content_types` | `vocabulary-card`, `asana-pose`, `code-challenge`, `score` |
+| Page blocks | `tenant_page_blocks` | `vocabulary-gallery`, `asana-sequence-browser`, `leaderboard-widget` |
+| Lesson item types | `tenant_lesson_item_types` | `speaking-practice`, `guided-sequence`, `code-runner`, `driving-simulation` |
 | Level taxonomies | `tenant_level_taxonomies` | CEFR (A1-C2), yoga difficulty (Beginner-Master), kyu/dan |
 | Scoring rules | `tenant_scoring_rules` | CEFR placement DSL, code challenge auto-grading rules |
 | Completion rules | `tenant_completion_rules` | "all items viewed AND quiz score >= passing_threshold" |
@@ -158,11 +158,13 @@ implementations:
 | `ISecretProvider` | `ConfigurationSecretProvider` (**registered today**, shipped in Packet 3), `DaprSecretProvider` (demand-gated to Phase 11) |
 | `IEntitlementProvider` | `NullEntitlementProvider` (Packet 9), `HubEntitlementProvider` (Phase 02c), `SignedLicenseKeyEntitlementProvider` (skeleton from Hub `P02c-6`, hardened in Phase 11) |
 
-The last three rows are the demand-gated set from
+The last four rows are the demand-gated set from
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md): the port and its default
 ship together, and the vendor adapter ships in the phase named against its written
-trigger. Only `ISecretProvider` has shipped so far — the other two ports and their
-defaults land in [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md). The
+trigger. All four ports and their defaults have shipped — `ISecretProvider` in Packet 3,
+`IEventBus` and `ICacheService` in Packet 5, `IEntitlementProvider` in Packet 9 of
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) — and only the vendor adapters wait on
+their triggers. The
 in-process implementations are not a development convenience: once registered they are
 the only implementations in **every** deployment mode until Phase 11.
 
@@ -174,7 +176,7 @@ Adding a new provider is a code change in core (new adapter implementation in
 A tenant's content types are rendered through a fixed pipeline:
 
 ```
-Tenant defines content type "VocabularyCard" with JSON Schema
+Tenant defines content type "vocabulary-card" with JSON Schema
                       ↓
 Module reads tenant_content_types where tenant_id = current
                       ↓

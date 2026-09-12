@@ -438,11 +438,13 @@ public async Task RefreshAsync_AppliesAnEqualGenerationPush()
 - `dotnet build` and `dotnet test` pass.
 - Architecture tests, canonical names from
   [21-architecture-tests-catalogue.md](../../../docs/standards/21-architecture-tests-catalogue.md):
-  - `FeatureKey_AllReferences_AreInRegistry` (Roslyn) — every `IFeatureFlags` call
-    references a registered key. There is no separate `LimitKey_*` spelling; this rule
-    covers both key types.
+  - `FeatureKey_AllReferences_AreInRegistry` (an IL scan) — every `FeatureKey`,
+    `LimitKey` and `KillswitchKey` a call site names is a member of its registry. There
+    is no separate `LimitKey_*` spelling; this one rule covers all three key types.
   - `PlanProjected_Keys_NotInTenantFlags` — plan-projected keys never appear in
-    `tenant_feature_flags`.
+    `tenant_feature_flags`. `Tenant.SetFeatureFlag` takes a `FeatureKey` and refuses every
+    key whose descriptor is not `FeatureSource.TenantFlag`, so a new plan key needs no
+    change here and a new tenant flag is admitted by its descriptor alone.
   - `Modules_Do_Not_Read_Entitlement_Cache_Directly` — the only sanctioned reader **and**
     writer of `platform_entitlement_cache` is an `IEntitlementProvider` implementation;
     no module, Tenancy included, may query it.

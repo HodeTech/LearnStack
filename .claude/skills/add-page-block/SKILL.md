@@ -157,7 +157,8 @@ In Admin Studio's customization editor:
 3. Provide a JSON Schema for the payload.
 4. Pick a composite renderer key from the dropdown (e.g. `content-list`).
 5. Map schema fields → composite's payload knobs (e.g.
-   `payload.contentTypeKey = "VocabularyCard"`).
+   `payload.contentTypeKey = "vocabulary-card"` — a customization key, so lowercase
+   with single interior hyphens, as the key guard requires).
 
 No code change.
 

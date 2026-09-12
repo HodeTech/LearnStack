@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using FluentAssertions;
 using LearnStack.Api.Composition;
@@ -28,7 +29,7 @@ namespace LearnStack.Tests.Architecture;
 /// catch is not a forbidden call site — it is EF metadata that looks right at the
 /// call site and is wrong in the model, which is exactly what a scan cannot see.
 /// </remarks>
-public sealed class PersistenceConventionTests
+public sealed partial class PersistenceConventionTests
 {
     [Fact]
     public void Aggregates_With_Optimistic_Concurrency_Map_RowVersion()
@@ -272,6 +273,115 @@ public sealed class PersistenceConventionTests
             .Should().Contain(typeof(IUnitOfWork))
             .And.NotContain(parameter => typeof(DbContext).IsAssignableFrom(parameter));
     }
+
+    [Fact]
+    public void Modules_Do_Not_Parallelize_Over_The_Ambient_Connection()
+    {
+        // ADR-0040: one connection per scope, and every module DbContext enlisted on it — so
+        // one command at a time. Two operations handed to Task.WhenAll run on that one
+        // connection concurrently and corrupt the protocol, and a DbContext refuses a second
+        // operation while one is in flight. No module needs to fan out today, so the rule is
+        // stricter than its ADR sentence: which operations are DbContext-bound cannot be seen
+        // from source, and the honest rule is that module code does not fan out at all. A
+        // fan-out that touches no connection is added to ParallelSites with its reason.
+        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
+        var files = Directory.EnumerateFiles(modules, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        files.Should().Contain(file => file.EndsWith("CommandHandler.cs", StringComparison.Ordinal),
+            "the premise: the scan reads the module handlers that open the unit of work's work");
+
+        files.Where(file => FansOut(StripComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(modules, file).Replace('\\', '/'))
+            .Where(file => !ParallelSites.Contains(file))
+            .Should().BeEmpty(
+                "module code runs one operation at a time on the ambient connection "
+                + "(ADR-0040 § Nesting)");
+    }
+
+    [Fact]
+    public void The_Parallelism_Scan_Can_Actually_Fail()
+    {
+        // No module fans out, so the rule above passes whether its pattern works or not.
+        FansOut("await Task.WhenAll(first, second);").Should().BeTrue();
+        FansOut("await WhenAny(tasks);").Should().BeTrue("a `using static` import reaches it unqualified");
+        FansOut("await foreach (var task in Task.WhenEach(tasks)) { }").Should().BeTrue();
+        FansOut("await Parallel.ForEachAsync(items, work);").Should().BeTrue();
+        FansOut("await Parallel.ForAsync(0, count, work);").Should().BeTrue();
+        FansOut("Parallel . Invoke(one, two);").Should().BeTrue();
+        FansOut("var rows = items.AsParallel().Select(Map).ToList();").Should().BeTrue();
+        FansOut("var work = Task.Run(() => context.Items.ToListAsync(ct));").Should().BeTrue(
+            "a task started on the pool runs on the ambient connection from another thread");
+        FansOut("var work = Task.Factory.StartNew(Read);").Should().BeTrue();
+        FansOut("var work = Task.Run<int>(Count);").Should().BeTrue(
+            "an explicit type argument sits between the name and the parenthesis");
+        FansOut("await Task.WhenAll<int>(first, second);").Should().BeTrue(
+            "an explicit type argument sits between the name and the parenthesis");
+        FansOut("var whenAllowed = policy.WhenAllowed;").Should().BeFalse();
+        FansOut("await context.SaveChangesAsync(ct);").Should().BeFalse();
+        FansOut("var rows = store.ReadAsync(ct); var more = other.ReadAsync(ct); await rows; await more;")
+            .Should().BeTrue("two started tasks are Task.WhenAll written out longhand");
+        FansOut("var one = context.Items.Where(x => x.Live).ToListAsync(ct);").Should().BeTrue(
+            "a composed EF query is the shape this rule exists for, and a parenthesis in the "
+            + "receiver used to end the name the pattern was looking for");
+        FansOut("var rows = store.ReadAsync<int>(ct);").Should().BeTrue(
+            "an explicit type argument ended it too");
+        FansOut("var rows = await context.Items.Where(x => x.Live).ToListAsync(ct);").Should().BeFalse(
+            "awaited where it is started, so nothing runs beside anything else");
+        FansOut("var rows = await store.ReadAsync(ct);").Should().BeFalse(
+            "awaiting at the call site is the shape the rule asks for");
+    }
+
+    /// <summary>
+    /// Module files allowed to fan out, by path under <c>backend/src/Modules</c>, each with why
+    /// none of its concurrent work touches the ambient connection. Empty.
+    /// </summary>
+    private static readonly HashSet<string> ParallelSites = new(StringComparer.Ordinal);
+
+    /// <remarks>
+    /// Two shapes. The named APIs, and the hand-rolled one: a call to an <c>…Async</c> method
+    /// whose result is stored rather than awaited is a task already running, and two of those
+    /// are `Task.WhenAll` written out longhand. Nothing in <c>backend/src</c> does it today —
+    /// measured — so module code awaits at the call site, which is the rule.
+    /// </remarks>
+    private static bool FansOut(string code) =>
+        FanOut().IsMatch(code) || StartedWithoutAwaiting().IsMatch(code);
+
+    /// <summary>
+    /// Concurrent execution: <c>Task.When*</c>, the <c>Parallel</c> loops, and PLINQ.
+    /// </summary>
+    /// <remarks>
+    /// <c>Parallel.ForAsync</c> is named explicitly rather than left to a <c>For</c> prefix,
+    /// and so is <c>AsParallel</c>: the first is the loop async module code reaches for, and
+    /// the second runs a query on the thread pool without the word <c>Parallel</c> appearing
+    /// where a reader expects it. An explicit type argument — <c>Task.WhenAll&lt;int&gt;(…)</c>
+    /// — sits between the name and the parenthesis, so the pattern allows one.
+    /// </remarks>
+    [GeneratedRegex(
+        @"\b(?:WhenAll|WhenAny|WhenEach)\s*(?:<[^;()<>]*>)?\s*\("
+        + @"|\bParallel\s*\.\s*(?:ForAsync|ForEachAsync|ForEach|For|Invoke)\b"
+        + @"|\bTask\s*\.\s*Run\s*(?:<[^;()<>]*>)?\s*\("
+        + @"|\bTask\s*\.\s*Factory\s*\.\s*StartNew\s*(?:<[^;()<>]*>)?\s*\("
+        + @"|\.\s*AsParallel\s*\(")]
+    private static partial Regex FanOut();
+
+    /// <summary>
+    /// A task started and stored instead of awaited: <c>var rows = ReadAsync(...);</c>.
+    /// </summary>
+    /// <remarks>
+    /// The initializer is any expression that reaches an <c>…Async(</c> call without an
+    /// <c>await</c> before it, not a dotted name. Requiring <c>[\w.]*Async(</c> meant the
+    /// ordinary shape this rule exists for — <c>context.Items.Where(x =&gt; x.Live)
+    /// .ToListAsync(ct)</c> — did not match, because a parenthesis in the receiver ended the
+    /// name; an explicit type argument ended it too. Both start an operation on the ambient
+    /// connection before anything is awaited, which is the whole subject.
+    /// </remarks>
+    [GeneratedRegex(
+        @"(?:^|[;{}])\s*(?:var|Task\b[^=;]*|ValueTask\b[^=;]*)\s+\w+\s*=\s*"
+        + @"(?:(?!\bawait\b)[^;])*?\b\w*Async\s*(?:<[^;()<>]*>)?\s*\(",
+        RegexOptions.Multiline)]
+    private static partial Regex StartedWithoutAwaiting();
 
     /// <summary>
     /// Source with its comments removed.
@@ -734,7 +844,12 @@ public sealed class PersistenceConventionTests
             "postgres://learnstack_app:hunter2@localhost:5432/learnstack"); // leakwatch:ignore
 
         exitCode.Should().NotBe(0, "{0}", output);
+
+        // The whole userinfo, not only its password half: the user is the role this
+        // recipe exists to keep out of a log, and an entry that says "without echoing its
+        // userinfo" is a claim about both.
         output.Should().NotContain("hunter2");
+        output.Should().NotContain("learnstack_app", "the userinfo is redacted whole");
         output.Should().Contain("key/value", "the message names the form that would work");
     }
 

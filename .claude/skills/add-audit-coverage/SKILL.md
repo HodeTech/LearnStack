@@ -492,10 +492,11 @@ passes even when every policy is inert. See
     Implemented (`AuditConventionTests`), and `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
     — Implemented (`AuditCoverageTests`) — fails a module that ships an aggregate or a
     request with none.
-  - `Modules_Do_Not_Write_AuditLog_Directly` (no module assembly outside
-    `LearnStack.Modules.Audit.*` names `audit_log` or `AuditEntry`; the
-    `LearnStack.SharedKernel.Audit` ports are explicitly out of scope) — Registered,
-    Packet 10.
+  - `Modules_Do_Not_Write_AuditLog_Directly` (the types that name `AuditEntry` are the
+    entity, its configuration and `AuditDbContext`; the only SQL inserting into
+    `audit_log` is `PostgresAuditStore`'s; no module but Audit names the table; the
+    `LearnStack.SharedKernel.Audit` ports are explicitly out of scope) — Implemented
+    (`AuditConventionTests`).
   - `No_Set_Based_Write_Bypasses_The_Audit_Capture` (no `ExecuteUpdate`,
     `ExecuteDelete` or `ExecuteSql*` in backend source — the capture sees only the change
     tracker, so the operation you are classifying must write through its aggregate and

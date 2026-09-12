@@ -74,7 +74,7 @@ public static class HttpStatusMap
     /// This is <b>not</b> the inverse of <see cref="For(string)"/> and does not
     /// claim to be: several codes share a status, so the mapping is many-to-one
     /// in that direction and a canonical pick in this one. What must hold — and
-    /// what <c>CanonicalCodeFor_RoundTrips_To_Its_Own_Status</c> asserts — is
+    /// what <c>Every_Canonical_Code_Round_Trips_To_Its_Own_Status</c> asserts — is
     /// that feeding any code this method returns back through
     /// <see cref="For(string)"/> yields the status it was derived from.
     /// </para>

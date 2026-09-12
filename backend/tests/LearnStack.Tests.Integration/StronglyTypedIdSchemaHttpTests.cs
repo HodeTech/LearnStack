@@ -9,9 +9,9 @@ using Xunit;
 namespace LearnStack.Tests.Integration;
 
 /// <summary>
-/// <c>Strongly_Typed_Ids_Publish_As_Their_Primitive</c>, per
-/// <see href="../../../docs/decisions/0023-strongly-typed-id-source-generator.md">ADR-0023
-/// § Implementation Notes</see>, which assigns the OpenAPI mapping to Packet 4.
+/// A strongly-typed id is published in the OpenAPI document as its primitive — the
+/// mapping <see href="../../../docs/decisions/0023-strongly-typed-id-source-generator.md">ADR-0023
+/// § Implementation Notes</see> assigns to Packet 4.
 /// </summary>
 /// <remarks>
 /// The failure this guards against is a document that describes a shape the API

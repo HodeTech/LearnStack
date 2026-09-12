@@ -376,8 +376,9 @@ The session-variable names are **canonical**: `app.tenant_id`, `app.organization
 ([05-database.md](../../../docs/standards/05-database.md)). Other names break RLS
 silently. Note that **nothing sets `app.scope`** — `ITenantContext` exposes no scope
 member, the flag derives from the actor's role, and roles arrive in
-[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which is the earliest
-phase that can own the carrier. The cross-organization read hatch is therefore
+[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md), which is the earliest
+phase that can own the carrier — [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md)
+brings authentication, not the permission model. The cross-organization read hatch is therefore
 unreachable at runtime, which is the correct default; write the term into the policy
 anyway, because a test can set the variable and the two `AS RESTRICTIVE` guards need
 it to mean anything.
@@ -387,7 +388,7 @@ migrations run as `learnstack_migration`, which owns the table. Integration test
 this entity must connect as `learnstack_app` — a test that connects as the owner passes
 against an inert policy and proves nothing.
 
-### Step 4: Architecture test (implemented for Tenancy; Packet 10 closes it)
+### Step 4: Architecture test (implemented for every module with a schema)
 
 `Every_TenantOwned_Entity_HasFilterAndRlsPolicy` and
 `Every_OrgScoped_Entity_HasOrgIdAndFilter` are **implemented** as of Phase 02a
@@ -500,7 +501,7 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   adding a filter for you either, in either direction.
 - **No isolation test.** The schema sweeps catch a missing or mis-shaped *policy*;
   they cannot catch a policy that is well-formed and wrong. An explicit
-  `TenantA_cannot_read_TenantB` test — connecting as `learnstack_app`, against a
+  `Tenant_A_cannot_read_Tenant_B_data` test — connecting as `learnstack_app`, against a
   fixture that seeds **both** tenants — is the only safety net for that. A count
   assertion against a table the fixture never populated passes whatever the policy
   says; that shipped once in Packet 6 and is the reason `SchemaFixture` fills

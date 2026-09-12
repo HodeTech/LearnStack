@@ -3,6 +3,12 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.Tools.Seeder;
 using MediatR;
+using LearnStack.Infrastructure.Caching;
+using LearnStack.SharedKernel.Caching;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Time;
+using System.Diagnostics.Metrics;
+using LearnStack.Infrastructure.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -157,6 +163,75 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path()
+    {
+        // AuditLogBehavior classifies at step 3, before TransactionBehavior announces the tenant
+        // at step 6 — and audit_config carries ENABLE + FORCE row level security. A
+        // classification query there would return ZERO ROWS SILENTLY, which is
+        // indistinguishable from "this tenant has no overrides", so no catch could ever fire
+        // (ADR-0033 § Decision). The in-process catalogue is what answers, and this is the case
+        // that can tell the difference: with SELECT revoked the read would THROW rather than
+        // filter, so a request that still completes and still writes its rows is a request that
+        // never made it.
+        await ExecuteAsOwnerAsync("REVOKE SELECT ON audit_config FROM learnstack_app;");
+
+        try
+        {
+            await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+
+            var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English]);
+
+            exitCode.Should().Be(0,
+                "classification reads the in-process catalogue, and the tenant override read is "
+                + "the one failure ADR-0033 does not reject the operation for");
+
+            var rows = await RowsAsync(SeedData.English.TenantId.Value);
+
+            rows.Where(row => MustOperations.Contains(row.Operation))
+                .Should().NotBeEmpty("the MUST rows are written at the classification the catalogue carries")
+                .And.OnlyContain(row => row.Outcome == "success",
+                    "an unreadable audit_config changes nothing about the operations themselves");
+
+            // The half the command cannot show, and it is not about the ANSWER. A read that
+            // fails and a read that never happened return the same tier — the catch in
+            // ClassifyAsync falls back to `declared` — so a case that only inspected the answer
+            // would pass with the short-circuit deleted and every request reading the table.
+            // Measured: moving the MUST short-circuit after the read left this file, and every
+            // other suite, green. What separates the two is whether the DATA SOURCE was ever
+            // asked for, and a Lazy whose factory records that is how this asks.
+            var askedForMust = false;
+            var mustTier = await Classifier(dataSource, () => askedForMust = true).ClassifyAsync(
+                TenantId.From(SchemaFixture.TenantA),
+                Operation("tenancy.tenant.create", OperationClass.Must),
+                CancellationToken.None);
+
+            mustTier.Should().Be(AuditClassification.Must);
+            askedForMust.Should().BeFalse(
+                "a MUST is not overridable, so classification answers it in process and never "
+                + "opens a connection — the property this case is named for");
+
+            // And the SHOULD, which is the tier that does reach the loader: the data source IS
+            // asked for, the read fails under the REVOKE, and the declared tier still comes back
+            // — ADR-0033's one non-rejecting failure.
+            var askedForShould = false;
+            var shouldTier = await Classifier(dataSource, () => askedForShould = true).ClassifyAsync(
+                TenantId.From(SchemaFixture.TenantA),
+                Operation("tenancy.tenant.create", OperationClass.Should),
+                CancellationToken.None);
+
+            shouldTier.Should().Be(AuditClassification.Should,
+                "a tenant-override read failure falls back to the declared tier rather than "
+                + "rejecting the operation (ADR-0033 § Decision)");
+            askedForShould.Should().BeTrue(
+                "the overridable tier is the one that reads, or the REVOKE above proves nothing");
+        }
+        finally
+        {
+            await ExecuteAsOwnerAsync("GRANT SELECT ON audit_config TO learnstack_app;");
+        }
+    }
+
+    [Fact]
     public async Task The_row_carries_the_tenant_the_transaction_announced()
     {
         // The one value the row's own WITH CHECK accepts. A provisioning command runs
@@ -208,6 +283,35 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         tenantRow.AfterState.Should().NotContain("\"DefaultOrganizationId\":null");
     }
 
+    [Fact]
+    public async Task The_host_mapping_row_carries_the_state_it_changed()
+    {
+        // The entity the first capture predicate would have missed. PlatformHostMapping is a
+        // keyless projection row rather than an aggregate root, and a capture that only walked
+        // roots wrote `tenancy.hostmapping.write` with no before, no after and no changes — a
+        // row that records that something happened and not what.
+        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+
+        var mapping = (await RowsAsync(SeedData.English.TenantId.Value))
+            .Single(row => row.Operation == "tenancy.hostmapping.write");
+
+        mapping.EntityType.Should().Be("PlatformHostMapping");
+        mapping.EntityId.Should().Be(SeedData.English.Host);
+
+        mapping.BeforeState.Should().BeNull("the host is mapped for the first time here");
+        mapping.AfterState.Should().NotBeNull().And.Contain(SeedData.English.Host,
+            "the row says which host now points where");
+        mapping.AfterState.Should().Contain("IsPubliclyLive",
+            "and the flags that decide whether the host serves anything");
+
+        // The tenant is the row's own column rather than a snapshot field: every row in
+        // audit_log carries one, and repeating it inside the state would be a second place for
+        // it to be wrong.
+        mapping.TenantId.Should().Be(SeedData.English.TenantId.Value);
+    }
+
     /// <summary>
     /// A refused second run leaves the first run's rows alone and puts its own refusal on
     /// the record, written standalone after the transaction went away.
@@ -242,6 +346,56 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
         rows.Where(row => row.Outcome != "success")
             .Should().OnlyContain(row => row.Outcome == "failed" || row.Outcome == "denied");
+
+        // INTENTS ARE PLURAL, and a refusal is where that is easiest to get wrong: the refused
+        // provisioning declares two — the tenant and its default organization — and both are
+        // reconciled, so the refusal is two rows rather than one (ADR-0033 Amendment 2 § 1).
+        // By ENTITY, not by operation: the seed also runs CreateOrganizationCommand, whose own
+        // refusal writes a `tenancy.organization.create` row — so an assertion on the slug alone
+        // is satisfied by the wrong command and the singular reading it exists to refuse passes.
+        // The provisioning's second intent is the row naming the DEFAULT organization.
+        var refused = rows.Where(row => row.Outcome != "success").ToList();
+
+        refused.Should().Contain(
+            row => row.Operation == "tenancy.tenant.create"
+                && row.EntityId == SeedData.English.TenantId.Value.ToString(),
+            "the refused provisioning records its first intent");
+        // The seed refuses two organization creations, and they are not the same one. The
+        // standalone CreateOrganizationCommand names the organization it was asked for; the
+        // provisioning's SECOND INTENT names none, because it was refused before the aggregate
+        // existed to be designated. Distinguishing them is the point: an assertion on the slug
+        // alone is satisfied by the standalone command, and the singular reading this case
+        // exists to refuse — one row per request — would still pass.
+        var organizations = refused
+            .Where(row => row.Operation == "tenancy.organization.create")
+            .ToList();
+
+        organizations.Should().Contain(
+            row => row.EntityId == SeedData.English.SecondOrganization.OrganizationId.Value.ToString(),
+            "the standalone command's refusal names the organization it was asked for");
+        organizations.Should().Contain(
+            row => row.EntityId == null,
+            "and the provisioning's second intent is on the record too, with no instance to name "
+            + "— ProvisionTenantCommand declares two intents and the refusal reconciles both");
+
+        // And the refused run wrote no business row: the counts are the first run's, exactly.
+        (await ScalarAsync("SELECT count(*) FROM tenants WHERE id = @tenant",
+            SeedData.English.TenantId.Value)).Should().Be(1L,
+            "a refused run leaves the row the first run committed and adds none");
+        (await ScalarAsync("SELECT count(*) FROM organizations WHERE tenant_id = @tenant",
+            SeedData.English.TenantId.Value)).Should().Be(2L,
+            "the seed's two organizations, and the refused run added neither");
+    }
+
+    /// <summary>Reads one number as <c>learnstack_platform</c>, which the rows outlive a context.</summary>
+    private async Task<long> ScalarAsync(string sql, Guid tenant)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(
+            _schema.Postgres.PlatformConnectionString);
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
+        command.Parameters.AddWithValue("tenant", tenant);
+
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     private sealed record Row(
@@ -309,6 +463,45 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     }
 
     /// <summary>DDL on the shared schema, as its owner — the only role that may alter it.</summary>
+    /// <summary>The MUST operations the seed writes, by slug.</summary>
+    private static readonly string[] MustOperations =
+    [
+        "tenancy.tenant.create",
+        "tenancy.organization.create",
+        "tenancy.hostmapping.write",
+        "customization.content_type.register",
+        "customization.content_type.publish",
+        "customization.level_taxonomy.register",
+        "customization.level_taxonomy.publish",
+    ];
+
+    /// <summary>
+    /// The real classifier, with the cache implementation the composition roots pick and a
+    /// <paramref name="asked"/> callback that fires the first time it reaches for the data source.
+    /// </summary>
+    /// <remarks>
+    /// The callback is the whole point of the seam: the loader takes a <c>Lazy</c>, so the factory
+    /// runs on the first read and never if there is none. A cache instance per call, so one
+    /// classification's answer cannot satisfy the next one's read.
+    /// </remarks>
+    private static AuditConfigService Classifier(NpgsqlDataSource dataSource, Action? asked = null)
+    {
+        var meterFactory = new ServiceCollection().AddMetrics()
+            .BuildServiceProvider().GetRequiredService<IMeterFactory>();
+
+        return new AuditConfigService(
+            new InMemoryCacheService(new SystemClock(), meterFactory),
+            new Lazy<NpgsqlDataSource>(() =>
+            {
+                asked?.Invoke();
+                return dataSource;
+            }),
+            NullLogger<AuditConfigService>.Instance);
+    }
+
+    private static AuditCatalogEntry Operation(string operation, OperationClass operationClass) =>
+        new("tenancy", operation, OperationType.Create, operationClass, typeof(object));
+
     private async Task ExecuteAsOwnerAsync(string sql)
     {
         await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);

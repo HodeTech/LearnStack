@@ -20,12 +20,7 @@ public sealed class PlatformAdminScopeConventionTests
     /// cannot afford to. An assembly that fails to load is a missing project reference,
     /// and the right outcome is a red build naming it rather than a smaller scan.
     /// </remarks>
-    private static IEnumerable<Assembly> ProductionAssemblies() =>
-        Directory.EnumerateFiles(
-                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
-            .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => !string.IsNullOrEmpty(name))
-            .Select(name => Assembly.Load(name!));
+    private static IEnumerable<Assembly> ProductionAssemblies() => Architecture.ProductionAssemblies.All();
 
     private const string ScopeFile = "LearnStack.Infrastructure/MultiTenancy/PlatformAdminScope.cs";
 
@@ -158,8 +153,8 @@ public sealed class PlatformAdminScopeConventionTests
     {
         // Two closed sets it must stay outside of, both stated in Accepted ADRs. It is
         // not one of the four writers of ITenantContextAccessor.Current — ADR-0036 names
-        // it as explicitly not one — and it is not an eighth out-of-band setter of
-        // app.tenant_id, because the role bypasses policies and there is nothing to
+        // it as explicitly not one — and it is not a ninth setter of app.tenant_id beside
+        // ADR-0040's eight, because the role bypasses policies and there is nothing to
         // announce to. SetTenant_Callers_Are_The_Enumerated_Four covers the first
         // globally; this pins the second, which no rule covered.
         var scope = Path.Combine(SourceScan.SourceRoot, ScopeFile.Replace('/', Path.DirectorySeparatorChar));

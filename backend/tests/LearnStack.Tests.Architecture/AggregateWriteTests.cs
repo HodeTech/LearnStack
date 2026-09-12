@@ -158,12 +158,7 @@ public sealed class AggregateWriteTests
     /// <c>RequestSurfaceTests</c> does the same: a list is a thing an author forgets to
     /// grow, and a module added without its entry is a module the rule never scanned.
     /// </remarks>
-    private static IEnumerable<string> ProductionAssemblies() =>
-        Directory.EnumerateFiles(
-                RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
-            .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => !string.IsNullOrEmpty(name))
-            .Select(name => name!);
+    private static IEnumerable<string> ProductionAssemblies() => Architecture.ProductionAssemblies.Names();
 
     /// <summary>A declared type and every type reachable through it.</summary>
     /// <remarks>

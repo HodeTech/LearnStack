@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
@@ -189,14 +190,7 @@ public sealed class CrossCuttingFoundationTests
         // root and must not be imported from module assemblies.
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null)
-            {
-                // Phase 02a packets do not necessarily fill every module
-                // assembly with code yet; an empty assembly is a vacuous
-                // pass.
-                continue;
-            }
+            var assembly = LoadAssembly(name);
 
             var result = Types.InAssembly(assembly)
                 .Should()
@@ -218,8 +212,7 @@ public sealed class CrossCuttingFoundationTests
         // SDK. Modules call IErrorTrackingProvider instead.
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             var result = Types.InAssembly(assembly)
                 .Should()
@@ -258,8 +251,7 @@ public sealed class CrossCuttingFoundationTests
             .Append("LearnStack.Application.Contracts")
             .Append("LearnStack.Api")
             .Append("LearnStack.Tools.Seeder")
-            .Select(TryLoadAssembly)
-            .Where(assembly => assembly is not null)
+            .Select(LoadAssembly)
             .ToArray();
 
         confined.Should().NotBeEmpty("a sweep with nothing to sweep passes vacuously");
@@ -299,8 +291,7 @@ public sealed class CrossCuttingFoundationTests
             .Append("LearnStack.Application")
             .Append("LearnStack.Application.Contracts")
             .Append("LearnStack.Api")
-            .Select(TryLoadAssembly)
-            .Where(a => a is not null)
+            .Select(LoadAssembly)
             .ToArray();
 
         string[] forbiddenSdkNamespaces =
@@ -325,6 +316,176 @@ public sealed class CrossCuttingFoundationTests
                     + "must stay inside LearnStack.Infrastructure.<Adapter>.");
             }
         }
+    }
+
+    [Fact]
+    public async Task Domain_Methods_Do_Not_Throw_For_Expected_Cases()
+    {
+        // ADR-0032 § Sub-decision 4: an expected business-rule violation is an OUTCOME —
+        // Result.Fail(business_rule_violation, …) — and DomainException is for programmer
+        // errors. The LS0001 analyzer flags every `throw new DomainException(...)` in the
+        // projects it is wired into, and a genuine aggregate-invariant throw is the rare site
+        // that suppresses it with justification. What the build cannot do is fail on the rest:
+        // LS0001 sits in WarningsNotAsErrors until the Phase 03 escalation, so this test is
+        // the gate, and it reads suppressed reports too — a pragma inside a Result-returning
+        // method silences the question rather than answering it.
+        var runs = new List<AnalyzerReport.Run>();
+
+        foreach (var project in AnalyzerReport.Projects())
+        {
+            WiresTheAnalyzer(File.ReadAllText(project)).Should().BeTrue(
+                $"{Path.GetFileName(project)} runs the LS0001 analyzer in its own build "
+                + "(ADR-0032 Amendment 1), or the discipline holds only in this test");
+
+            runs.Add(await AnalyzerReport.RunAsync(project));
+        }
+
+        runs.Sum(run => run.ResultMembers).Should().BePositive(
+            "the premise: there are Result-returning methods to walk — a scan over sources "
+            + "with none would report nothing whatever they contained");
+
+        runs.SelectMany(run => run.Findings
+                .Where(AnalyzerReport.Violates)
+                .Select(finding => $"{run.Project}: {finding}"))
+            .Should().BeEmpty(
+                "a method with a Result channel returns the expected case instead of throwing "
+                + "it, and an unsuppressed LS0001 is a Warning nobody has justified");
+    }
+
+    /// <summary>
+    /// Whether a project references the analyzer <b>as an analyzer</b>, unconditionally.
+    /// </summary>
+    /// <remarks>
+    /// Read as an element rather than as a line: the attributes may be written in either order,
+    /// comments are not references, and a <c>Condition</c> is refused outright — a conditionally
+    /// referenced analyzer is one that does not run in the configuration the condition excludes,
+    /// and this rule cannot tell which that is. The condition may sit on the reference or on
+    /// the <c>ItemGroup</c> around it, and both hide the analyzer equally well, so a
+    /// conditional group is removed before the references are read — and so is a
+    /// <c>Choose</c> block, whose <c>When</c> carries the condition and whose <c>Otherwise</c>
+    /// runs only when none matched. Both are conditions spelled differently.
+    /// </remarks>
+    internal static bool WiresTheAnalyzer(string projectXml)
+    {
+        var project = Regex.Replace(projectXml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+        project = Regex.Replace(
+            project,
+            @"<ItemGroup\b[^>]*\bCondition\s*=.*?</ItemGroup>|<Choose\b.*?</Choose>",
+            string.Empty,
+            RegexOptions.Singleline);
+
+        return Regex.Matches(project, @"<ProjectReference\b(?<attributes>[^>]*)/?>", RegexOptions.Singleline)
+            .Select(match => match.Groups["attributes"].Value)
+            .Where(attributes => attributes.Contains("LearnStack.Analyzers.csproj", StringComparison.Ordinal))
+            .Any(attributes =>
+                // Either quote: XML admits both, MSBuild reads both, and requiring double
+                // ones reported a correctly wired project as unwired.
+                Regex.IsMatch(attributes, @"OutputItemType\s*=\s*(?:""|')Analyzer(?:""|')")
+                && !Regex.IsMatch(attributes, @"\bCondition\s*="));
+    }
+
+    [Fact]
+    public async Task The_Domain_Exception_Report_Can_Actually_Fail()
+    {
+        // No module throws DomainException at all, so the rule above passes whether the
+        // analyzer ran, the pragma was read, or the Result-returning walk worked. Four planted
+        // methods, one per case — and the invariant guard must NOT be reported, or the rule
+        // would refuse the one use ADR-0032 sanctions.
+        const string Planted = """
+            namespace LearnStack.Modules.Tenancy.Application.Planted;
+
+            internal static class Expected
+            {
+                public static LearnStack.SharedKernel.Results.Result<int> Returned() =>
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an expected case");
+
+                public static LearnStack.SharedKernel.Results.Result<int> Silenced()
+                {
+            #pragma warning disable LS0001
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an expected case, quietly");
+            #pragma warning restore LS0001
+                }
+
+                public static void Guard()
+                {
+            #pragma warning disable LS0001
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an aggregate invariant");
+            #pragma warning restore LS0001
+                }
+
+                public static void Loud() =>
+                    throw new LearnStack.SharedKernel.Errors.DomainException("nobody justified this one");
+
+                // Inside a region the SDK compiles. Reconstructed symbol lists omitted
+                // NETCOREAPP, so the parser dropped this and the scan reported nothing.
+            #if NETCOREAPP
+                public static LearnStack.SharedKernel.Results.Result<int> Conditional() =>
+                    throw new LearnStack.SharedKernel.Errors.DomainException("compiled, and it was invisible");
+            #endif
+            }
+
+            internal static class Aliased
+            {
+                // An alias changes the name, not the channel. Classified from the syntax alone
+                // this read as "not a Result", so the suppression was accepted.
+                public static Outcome Value()
+                {
+            #pragma warning disable LS0001
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an expected case, renamed");
+            #pragma warning restore LS0001
+                }
+            }
+            """;
+
+        const string Alias = """
+            using Outcome = LearnStack.SharedKernel.Results.Result<int>;
+            """;
+
+        var run = await AnalyzerReport.RunAsync(
+            AnalyzerReport.Projects().Single(project =>
+                project.EndsWith("LearnStack.Modules.Tenancy.Application.csproj", StringComparison.Ordinal)),
+            Alias + Planted);
+
+        // Only the planted file: the rest of the project is the rule's subject, not this
+        // companion's, and a justified invariant throw landing there later must not break it.
+        var planted = run.Findings
+            .Where(finding => Path.GetFileName(finding.File).StartsWith("Planted", StringComparison.Ordinal))
+            .ToList();
+
+        planted.Select(finding => finding.Member).Should().BeEquivalentTo(
+            ["Returned", "Silenced", "Guard", "Loud", "Conditional", "Value"],
+            "the analyzer sees every one of them, suppressed or not — including the member "
+            + "inside `#if NETCOREAPP`, which the build compiles");
+
+        planted.Where(AnalyzerReport.Violates).Select(finding => finding.Member)
+            .Should().BeEquivalentTo(
+                ["Returned", "Silenced", "Loud", "Conditional", "Value"],
+                "the invariant guard is the sanctioned suppression, and it is the only one — an "
+                + "aliased Result returns through the same channel as one spelled out");
+
+        // And the wiring check reads an element rather than a line: either attribute order, no
+        // comment, and no condition.
+        const string Reference = """<ProjectReference Include="..\LearnStack.Analyzers.csproj" """;
+
+        WiresTheAnalyzer(Reference + """OutputItemType="Analyzer" />""").Should().BeTrue();
+        WiresTheAnalyzer("""<ProjectReference OutputItemType="Analyzer" Include="..\LearnStack.Analyzers.csproj" />""")
+            .Should().BeTrue("the attributes may be written in either order");
+        WiresTheAnalyzer("""<ProjectReference Include="..\LearnStack.Analyzers.csproj" OutputItemType='Analyzer' />""")
+            .Should().BeTrue("and in either quote, which is XML's rule and not ours");
+        WiresTheAnalyzer(Reference + """/>""").Should().BeFalse("a plain reference is not an analyzer");
+        WiresTheAnalyzer("""<ProjectReference Condition="'$(CI)' == 'true'" Include="..\LearnStack.Analyzers.csproj" OutputItemType="Analyzer" />""")
+            .Should().BeFalse("a conditional analyzer does not run in the configuration the condition excludes");
+        WiresTheAnalyzer("<!-- " + Reference + """OutputItemType="Analyzer" /> -->""")
+            .Should().BeFalse("a commented-out reference is not a reference");
+        WiresTheAnalyzer(
+            """<ItemGroup Condition="'$(CI)' == 'true'">""" + Reference
+            + """OutputItemType="Analyzer" /></ItemGroup>""")
+            .Should().BeFalse("a condition on the group hides the analyzer exactly as well");
+        WiresTheAnalyzer(
+            """<Choose><When Condition="'$(CI)' == 'true'"><ItemGroup>""" + Reference
+            + """OutputItemType="Analyzer" /></ItemGroup></When></Choose>""")
+            .Should().BeFalse("and so does a Choose/When, which is a condition spelled differently");
     }
 
     [Fact]
@@ -420,8 +581,7 @@ public sealed class CrossCuttingFoundationTests
         // until now (Phase 02a Packet 3 review finding).
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             var result = Types.InAssembly(assembly)
                 .Should()
@@ -433,6 +593,123 @@ public sealed class CrossCuttingFoundationTests
                 + "namespace). Composition-root branching is the only sanctioned read site "
                 + "(Standards 20 § Composition Root).");
         }
+    }
+
+    [Fact]
+    public void Modules_Do_Not_Inject_Valkey_Directly()
+    {
+        // All cache access goes through ICacheService, because CacheKey is the isolation
+        // boundary of a cache: there is no query filter and no row security in front of a
+        // dictionary, so a module holding a Redis connection, an IDistributedCache or an
+        // IMemoryCache keys its own entries and can collide one tenant's with another's
+        // (Standards 20 § ICacheService). The whole Microsoft.Extensions.Caching namespace
+        // is banned, not only the distributed half — an in-process cache has the same hole.
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var result = Types.InAssembly(LoadAssembly(name))
+                .Should()
+                .NotHaveDependencyOnAny(CacheClientNamespaces)
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{name} reaches a cache client directly: "
+                + string.Join(", ", result.FailingTypeNames ?? [])
+                + ". Use ICacheService with a CacheKey (Standards 20 § ICacheService).");
+        }
+    }
+
+    [Fact]
+    public void LearnStack_Modules_DoNotReference_Hub()
+    {
+        // ADR-0034's second invariant: every LearnStack↔Hub crossing goes through a named
+        // adapter — IEntitlementProvider, IUsageReporter, IHubTenantSync — and no module holds
+        // a Hub client or knows where the Hub is. No Hub client exists before Phase 02c, which
+        // is why the rule has two legs: the namespaces the adapter will live in, and the
+        // names a module would have to write to reach it by any other route.
+        foreach (var name in ModuleAssemblyShapes)
+        {
+            var result = Types.InAssembly(LoadAssembly(name))
+                .Should()
+                .NotHaveDependencyOnAny(HubNamespaces)
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"{name} references a Hub namespace: "
+                + string.Join(", ", result.FailingTypeNames ?? [])
+                + " (ADR-0034 invariant 2).");
+        }
+
+        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
+        var sources = Directory.EnumerateFiles(modules, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        sources.Should().NotBeEmpty("a scan over no module source passes vacuously");
+
+        sources.Where(file => NamesTheHub(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(modules, file))
+            .Should().BeEmpty(
+                "no module names a Hub client, its options or its configuration section "
+                + "(ADR-0034 invariant 2)");
+    }
+
+    [Fact]
+    public void The_Direct_Client_Bans_Can_Actually_Fail()
+    {
+        // Nothing in a module holds a cache client or a Hub type, so both rules above pass
+        // whether their mechanism works or not. The probes below plant one of each in this
+        // assembly, and the same checks must report them.
+        var probes = typeof(Probes.CacheClientHolder).Assembly;
+
+        Types.InAssembly(probes).That().HaveName(nameof(Probes.CacheClientHolder))
+            .Should().NotHaveDependencyOnAny(CacheClientNamespaces).GetResult()
+            .IsSuccessful.Should().BeFalse("an IDistributedCache field is a direct cache client");
+
+        Types.InAssembly(probes).That().HaveName(nameof(Probes.HubClientHolder))
+            .Should().NotHaveDependencyOnAny(HubNamespaces).GetResult()
+            .IsSuccessful.Should().BeFalse("a type from a Hub namespace is a Hub reference");
+
+        // One needle per probe, so a probe that stops covering its needle is visible.
+        NamesTheHub("public sealed class Sync(IHubClient client);").Should().BeTrue("a client type");
+        NamesTheHub("services.Configure<HubOptions>(section);").Should().BeTrue("an options type");
+        NamesTheHub("var url = configuration[\"Hub:BaseUrl\"];").Should().BeTrue("a configuration path");
+        NamesTheHub("configuration.GetSection ( \"Hub\" )").Should().BeTrue(
+            "a section read, whatever the spacing");
+        NamesTheHub("public const string SectionName = \"Hub\";").Should().BeTrue(
+            "the house idiom declares the section name as a const and binds through it");
+        NamesTheHub("CacheKey.ForTenant(tenant, \"hub\", \"entitlement\");").Should().BeFalse(
+            "the entitlement cache family is named hub and is not a Hub reference");
+        NamesTheHub("var url = configuration[\"GitHub:Token\"];").Should().BeFalse(
+            "a section whose name merely ends in Hub is not this one");
+    }
+
+    /// <summary>The cache clients a module reaches only through <c>ICacheService</c>.</summary>
+    private static readonly string[] CacheClientNamespaces = ["StackExchange.Redis", "Microsoft.Extensions.Caching"];
+
+    /// <summary>
+    /// Where a Hub client lives: the adapter project Phase 02c ships, and the Hub's own
+    /// assemblies.
+    /// </summary>
+    private static readonly string[] HubNamespaces = ["LearnStack.Infrastructure.Hub", "LearnStack.Hub"];
+
+    /// <summary>
+    /// Whether code names a Hub client, its options type or its configuration section.
+    /// </summary>
+    /// <remarks>
+    /// Matched over whitespace-free source, like every sibling scan, and the bare <c>"Hub"</c>
+    /// literal is a needle of its own: this repository names a section with a
+    /// <c>const string SectionName</c> and binds through the constant, so a leg that only knew
+    /// <c>GetSection("Hub")</c> read one of the two spellings actually in use. <c>"GitHub:…"</c>
+    /// is not one of them, which is why the quote before <c>Hub</c> is part of the needle.
+    /// </remarks>
+    private static bool NamesTheHub(string code)
+    {
+        var compact = SourceText.WithoutWhitespace(code);
+
+        return compact.Contains("HubClient", StringComparison.Ordinal)
+            || compact.Contains("HubOptions", StringComparison.Ordinal)
+            || compact.Contains("\"Hub:", StringComparison.Ordinal)
+            || compact.Contains("\"Hub\"", StringComparison.Ordinal);
     }
 
     [Fact]
@@ -466,8 +743,7 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             var events = assembly.GetTypes()
                 .Where(t => !t.IsAbstract
@@ -540,8 +816,7 @@ public sealed class CrossCuttingFoundationTests
 
         foreach (var name in ModuleAssemblyShapes)
         {
-            var assembly = TryLoadAssembly(name);
-            if (assembly is null) continue;
+            var assembly = LoadAssembly(name);
 
             // Compiler- and generator-emitted types are excluded, and the reason
             // is specific rather than hygienic: Vogen emits a nested TypeConverter
@@ -718,15 +993,24 @@ public sealed class CrossCuttingFoundationTests
         return builder.Build();
     }
 
-    private static Assembly? TryLoadAssembly(string assemblyName)
+    /// <summary>
+    /// Loads an assembly by name, loudly. These rules used to skip an assembly that would
+    /// not load — and a module this project cannot load is a module every ban here stops
+    /// covering while reporting green. Every module ships all four assemblies, the empty
+    /// ones included, so a load failure is a wiring fault to fix, never a case to skip.
+    /// </summary>
+    private static Assembly LoadAssembly(string assemblyName)
     {
         try
         {
             return Assembly.Load(assemblyName);
         }
-        catch (FileNotFoundException)
+        catch (FileNotFoundException exception)
         {
-            return null;
+            throw new InvalidOperationException(
+                $"Could not load assembly {assemblyName}. Confirm the project is referenced by "
+                + "LearnStack.Tests.Architecture.csproj.",
+                exception);
         }
     }
 

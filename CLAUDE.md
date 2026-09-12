@@ -34,9 +34,8 @@ repository holds only LearnStack's side of the boundary, in
 
 ## What state this is in
 
-**Phase 01 complete.
-[Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped; packets 3b–10 were re-scoped on 2026-08-08
+**Phase 01 and [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) complete —
+every packet 0–10 shipped; packets 3b–10 were re-scoped on 2026-08-08
 after a four-report audit of the corpus.
 [Packet 9](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-9) —
 audit infrastructure and the entitlement socket, decided by
@@ -48,7 +47,18 @@ mode, `IFeatureFlags` composing over it, the three typed key registries, and
 `platform_killswitches` **read-only** — every toggle runs inside
 `EnterPlatformAdminScope`, whose gate refuses everyone until
 [Phase 03](docs/roadmap/phase-03-identity-admin.md) brings the Platform-scope
-permission. Packet 10 is next.**
+permission.
+[Packet 10](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-10) closed
+the phase against its own exit decision: thirty catalogue entries name it as the packet
+that implemented them — module boundaries in all four legs, domain genericity across names,
+schema, slugs, keys and the frontend tree, the port and entitlement-key bans, ADR-0040's
+two behavioural properties, and three named isolation proofs as `learnstack_app`. The
+standards were re-stated against what enforces them today (nineteen `Active`, three
+`Adopted`), and four guards now hold the corpus to its own claims, so a status header, a
+catalogue entry, a published count or a planted `Skip` fails the build rather than a
+reader. The whole suite runs with **zero skips**, which the runner now refuses to let
+change.
+**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -244,14 +254,15 @@ For any task, read in this order:
 5. [docs/standards/00-principles.md](docs/standards/00-principles.md) — the beliefs every other standard descends from.
 6. [docs/glossary.md](docs/glossary.md) — terminology; the single source of truth for project-specific terms.
 
-Then read the two phases that are live:
+Then read the phase that is live and the one it stands on:
 
-- [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md)
-  — the current phase, with a dated Status block listing every packet.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
-  — what Phase 02a is building toward. `02d` sorts after `02b`/`02c` but
-  runs **before** them; the roadmap dependency map is authoritative for
-  order, filename order is not.
+  — **the current phase**, and where new work belongs. `02d` sorts after
+  `02b`/`02c` but runs **before** them; the roadmap dependency map is
+  authoritative for order, filename order is not.
+- [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md)
+  — complete, with a dated Status block and a delivery record per packet. It is
+  the authority on what the kernel already guarantees, not on what to build next.
 
 Once the high-level reading is done, pick **exactly one** skill entry point based
 on the user's intent. The entry point dispatches the rest internally; do not
@@ -296,11 +307,11 @@ let the entry point pick it.
 - **Modular monolith with four cross-module mechanisms** ([ADR-0010](docs/decisions/0010-cross-module-communication.md)): application contract, intra-module domain event, integration event via outbox (dispatched through `IEventBus` — `InProcessEventBus` today, the Dapr/Kafka adapter on its trigger), read-model projection. No fifth.
 - **Tenant + organization isolation is defense-in-depth from day one** ([ADR-0003 Amendment 1](docs/decisions/0003-tenant-isolation-defense-in-depth.md), [ADR-0017](docs/decisions/0017-tenant-organization-hierarchy.md)): tenant + organization context + EF query filters + PostgreSQL RLS + architecture tests.
 - **One canonical RLS template, in one file.** The corrected policy shape — one `AND`-ed policy per table, `ENABLE` **and** `FORCE ROW LEVEL SECURITY`, an explicit `WITH CHECK`, and the four-role model (`learnstack_migration` owns, `learnstack_app` connects with `NOBYPASSRLS`, `learnstack_platform` and `learnstack_outbox_admin` hold audited bypasses) — is decided in [ADR-0003 Amendment 3](docs/decisions/0003-tenant-isolation-defense-in-depth.md) and written as SQL in exactly one document: [Database Standards](docs/standards/05-database.md). Every other document links there. The superseded template lived in four documents and was wrong in all four — two *permissive* policies, which PostgreSQL combines with `OR`, so every tenant-wide row was visible across tenants.
-- **Self-hosted infrastructure preferred** for Keycloak (auth, with two realms — `learnstack` + `learnstack-hub`), LiveKit OSS (live classroom), SeaweedFS (object storage), Meilisearch (search), Kafka (pub/sub backend), Vault (secrets). See ADRs 0004, 0005, 0014. **What** LearnStack uses is settled; **when** each arrives is [ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)'s trigger table.
+- **Self-hosted infrastructure preferred** for Keycloak (auth, with two realms — `learnstack` + `learnstack-hub`), LiveKit OSS (live classroom), SeaweedFS (object storage), Meilisearch (search), Kafka (pub/sub backend), Vault (secrets). See ADRs 0004, 0005 and 0038 (which superseded 0014). **What** LearnStack uses is settled; **when** each arrives is [ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)'s trigger table.
 - **The core platform stays domain-generic.** Domain-specific shapes (CEFR levels, English placement-test scoring, kyu/dan ranks, yoga asana catalogs, …) live as **tenant customization data** ([ADR-0018](docs/decisions/0018-tenant-driven-customization-model.md)), never as code in any module. There is no `Verticals/` folder. ADR-0011 is superseded. The boundary of that claim is in [Platform Vision § Genericity boundary](docs/architecture/01-platform-vision.md).
 - **Irreversible now, additive on demand — the one-way-door test** ([ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md)): *if I add this six months from now, will I have to touch code that is already written?*
   - **Yes → ship it now.** Tenant + organization isolation, the corrected RLS policies, the `outbox_messages` table and its ownership, strongly-typed identifiers, the localization schema, MUST-class audit durability, module boundaries and their architecture tests. These touch every query, every migration, and every job payload.
-  - **No → ship the port now, the adapter on a named trigger.** Dapr pub/sub, Kafka, Valkey-backed cache, Vault, APISIX, the Hub entitlement source, signed licence keys, custom-domain TLS automation, `audit_log` partitioning. Each has a port in `LearnStack.SharedKernel` (shipped, or landing in Phase 02a Packet 5), a working default implementation (`InProcessEventBus`, `InMemoryCacheService`, `ConfigurationSecretProvider`, `NullEntitlementProvider`), an owning phase, and a written trigger condition. A building block missing any of those four is not demand-gated — it is missing.
+  - **No → ship the port now, the adapter on a named trigger.** Dapr pub/sub, Kafka, Valkey-backed cache, Vault, APISIX, the Hub entitlement source, signed licence keys, custom-domain TLS automation, `audit_log` partitioning. Each has a port in `LearnStack.SharedKernel` (shipped), a working default implementation (`InProcessEventBus`, `InMemoryCacheService`, `ConfigurationSecretProvider`, `NullEntitlementProvider`), an owning phase, and a written trigger condition. A building block missing any of those four is not demand-gated — it is missing.
 - **Provider adapters everywhere.** Payments, auth, storage, search, live classroom, notifications, **event bus, cache, secrets, Hub contract, entitlement source, host resolver** — all sit behind interfaces. No SaaS lock-in in `Domain` or `Application`. See [20-infrastructure-stack.md](docs/standards/20-infrastructure-stack.md).
 - **The Hub contract is governed by two invariants, not by a count** ([ADR-0034](docs/decisions/0034-hub-contract-surface-invariant.md)): (1) the Hub stores **no tenant content** — courses, lessons, learners, enrollments, sessions and media live only in LearnStack, and the Hub holds tenant *metadata* only; (2) **every LearnStack↔Hub crossing goes through a named adapter** — `IEntitlementProvider`, `IUsageReporter`, `IHubTenantSync`, and nothing else may hold a Hub client. Adding an endpoint still requires an ADR, because the surface is a cross-repository contract both repositories have to agree on.
 - **One binary, five `DeploymentMode` values, two of them wired.** Selection happens at the composition root; module code never branches on the mode ([ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md), enforced by `Modules_Do_Not_Reference_DeploymentMode`). `Development` and `SaaS` are wired end to end; `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until [Phase 11](docs/roadmap/phase-11-production-hardening.md) builds their adapters and integration suites.

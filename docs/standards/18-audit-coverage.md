@@ -543,7 +543,7 @@ observes neither a rollback nor a `42501`.
   [`Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`](21-architecture-tests-catalogue.md#every_module_with_an_aggregate_or_a_request_has_a_matrix)
   — every module that ships an aggregate root or a request type has one.
 - [`Modules_Do_Not_Write_AuditLog_Directly`](21-architecture-tests-catalogue.md#modules_do_not_write_auditlog_directly)
-  — `IAuditStore` is the only sanctioned write path. Registered; lands in Packet 10.
+  — `IAuditStore` is the only sanctioned write path.
 - [`No_Set_Based_Write_Bypasses_The_Audit_Capture`](21-architecture-tests-catalogue.md#no_set_based_write_bypasses_the_audit_capture)
   — no backend source writes through `ExecuteUpdate`, `ExecuteDelete` or `ExecuteSql*`,
   which leave the change tracker, and so the capture, without an entry.
@@ -556,8 +556,9 @@ observes neither a rollback nor a `42501`.
   — a rolled-back MUST-class command leaves zero business rows and exactly one row with
   outcome `failed`.
 - [`Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`](21-architecture-tests-catalogue.md#audit_classification_does_not_read_the_database_on_the_request_path)
-  — an unreadable `audit_config` does not stop a MUST-class command, and an uncatalogued
-  operation is rejected. Registered; lands in Packet 10.
+  — an unreadable `audit_config` does not stop a MUST-class command, and classification
+  never asks for a connection to answer one. Packet 10; the uncatalogued-operation half is
+  `AuditLogBehaviorTests`, where a request the catalogue does not know can be registered.
 - [`AuditLog_Update_Is_Column_Restricted`](21-architecture-tests-catalogue.md#auditlog_update_is_column_restricted)
   — `learnstack_app` gets `42501`; `learnstack_platform` gets the column-restricted
   redaction `UPDATE` and the purge `DELETE`, and nothing else; the table owner is stopped

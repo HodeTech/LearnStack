@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Domain;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -265,13 +266,22 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     }
 
     /// <summary>Sets a feature-flag override, adding it when it is new.</summary>
-    public void SetFeatureFlag(string key, string value, IClock clock, UserId updatedBy)
+    /// <remarks>
+    /// <b>Only a tenant-flag key.</b> The key must be one <see cref="FeatureKeys"/>
+    /// declares with <see cref="FeatureSource.TenantFlag"/>: a plan-projected key written
+    /// here would be a tenant granting itself what a plan sells, which is the one thing the
+    /// projection exists to prevent
+    /// (<see href="../../../../../docs/decisions/0045-entitlement-and-feature-flag-socket.md">ADR-0045
+    /// § 2</see>). This method is the only way a row reaches <c>tenant_feature_flags</c>,
+    /// and <c>PlanProjected_Keys_NotInTenantFlags</c> holds it to that.
+    /// </remarks>
+    public void SetFeatureFlag(FeatureKey key, string value, IClock clock, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        EnsureTenantFlag(key);
 
         var existing = _featureFlags.FirstOrDefault(
-            flag => string.Equals(flag.Key, key, StringComparison.Ordinal));
+            flag => string.Equals(flag.Key, key.Value, StringComparison.Ordinal));
 
         // Every guard the child would run, run here first — key width and JSON
         // well-formedness for both paths, and the audit pair for the new-flag path via
@@ -280,11 +290,11 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         // MarkUpdated is the only statement in it that can throw. That is not true here —
         // the child validates too — so a rejected value left the tenant's UpdatedAt,
         // UpdatedBy and row_version moved for a change that never happened.
-        MappedLength.EnsureAtMost(key, 200, nameof(key));
+        MappedLength.EnsureAtMost(key.Value, 200, nameof(key));
         JsonValue.EnsureWellFormed(value, nameof(value));
 
         var created = existing is null
-            ? TenantFeatureFlag.Create(Id, key, value, clock.UtcNow, updatedBy)
+            ? TenantFeatureFlag.Create(Id, key.Value, value, clock.UtcNow, updatedBy)
             : null;
 
         MarkUpdated(clock.UtcNow, updatedBy);
@@ -296,6 +306,26 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         }
 
         existing!.SetValue(value, clock.UtcNow, updatedBy);
+    }
+
+    /// <summary>Refuses a key that is not a declared tenant flag.</summary>
+    private static void EnsureTenantFlag(FeatureKey key)
+    {
+        if (!FeatureKeys.All.TryGetValue(key, out var descriptor))
+        {
+            throw new ArgumentException(
+                $"'{key}' is not a declared feature key: a key exists in FeatureKeys before "
+                + "anything stores it.",
+                nameof(key));
+        }
+
+        if (descriptor.Source != FeatureSource.TenantFlag)
+        {
+            throw new ArgumentException(
+                $"'{key}' is plan-projected and is answered by the entitlement provider: a "
+                + "tenant flag cannot grant what a plan sells.",
+                nameof(key));
+        }
     }
 
     /// <summary>Removes a feature-flag override.</summary>

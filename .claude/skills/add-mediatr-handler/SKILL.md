@@ -57,24 +57,29 @@ In `<Module>.Application.Contracts/<Aggregate>/<Verb><Aggregate>Command.cs`:
 
 ```csharp
 public sealed record CreateEnrollmentCommand(
-    UserId LearnerId,
-    CourseVersionId CourseVersionId,
-    CohortId? CohortId,
-    EnrollmentSource Source)
+    UserId LearnerId,        // SharedKernel id: typed everywhere
+    Guid CourseVersionId,    // module-local id: crosses the contract as Guid
+    Guid? CohortId,
+    EnrollmentSource Source) // declared in this Contracts assembly
     : IRequest<Result<EnrollmentDto>>;
 ```
 
 Rules:
 
 - Records, not classes.
-- Strongly-typed ids; no raw `Guid` in the command surface.
+- A `SharedKernel` id — `TenantId`, `OrganizationId`, `UserId` — stays typed. A
+  **module-local** id crosses the contract as `Guid`, and the handler builds the typed id
+  one layer in ([ADR-0023 Amendment 8](../../../docs/decisions/0023-strongly-typed-id-source-generator.md)):
+  naming `CourseVersionId` here would put the module's `Domain` into every sender's IL,
+  and `ModuleContracts_DoNotDependOn_AnyModuleDomain` fails the build. Everything the
+  record names lives in `Application.Contracts` or `SharedKernel`.
 - `: IRequest<Result<T>>` for both writes and reads — MediatR's own marker.
   There is no `ICommand<T>` / `IQuery<T>` layer in LearnStack: nothing declares one,
   and [Standards 02 § MediatR Use Cases](../../../docs/standards/02-backend-coding.md)
   shows `IRequest` / `IRequestHandler` directly. Name the type for the intent instead
   (`…Command` / `…Query`).
-- Live in `Application.Contracts` so other modules can subscribe to the typed contract
-  (rare; usually they consume integration events instead).
+- Live in `Application.Contracts`, the module's cross-module surface — another module
+  sends one through `ISender` (rare; usually it consumes an integration event instead).
 
 ### Step 2: FluentValidation validator
 
@@ -130,9 +135,15 @@ public sealed class CreateEnrollmentCommandHandler(
     public async Task<Result<EnrollmentDto>> Handle(
         CreateEnrollmentCommand request, CancellationToken cancellationToken)
     {
+        // The typed id is built here, one layer in, because the contract carries a
+        // module-local id as a Guid (Step 1). Everything below compares and stores the
+        // typed value; `request.CourseVersionId` is a Guid and has no `.Value`.
+        var courseVersionId = CourseVersionId.From(request.CourseVersionId);
+        var cohortId = request.CohortId is { } cohort ? CohortId.From(cohort) : (CohortId?)null;
+
         // Domain check
         var existing = await db.Enrollments.AnyAsync(
-            x => x.LearnerId == request.LearnerId && x.CourseVersionId == request.CourseVersionId,
+            x => x.LearnerId == request.LearnerId && x.CourseVersionId == courseVersionId,
             cancellationToken);
 
         if (existing)
@@ -143,8 +154,8 @@ public sealed class CreateEnrollmentCommandHandler(
             tenantContext.TenantId,
             tenantContext.OrganizationId,
             request.LearnerId,
-            request.CourseVersionId,
-            request.CohortId,
+            courseVersionId,
+            cohortId,
             request.Source);
 
         db.Enrollments.Add(enrollment);
@@ -162,11 +173,13 @@ public sealed class CreateEnrollmentCommandHandler(
             TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
             EnrollmentId = enrollment.Id.Value,
             LearnerId = request.LearnerId.Value,
-            CourseVersionId = request.CourseVersionId.Value,
-            CohortId = request.CohortId?.Value,
+            CourseVersionId = courseVersionId.Value,
+            CohortId = cohortId?.Value,
         }, cancellationToken);
 
-        await db.SaveChangesAsync(cancellationToken);   // atomic: aggregate + outbox row
+        // Flushes this context. The commit is TransactionBehavior's, on the ambient
+        // transaction both writes share — which is what makes them atomic (ADR-0040).
+        await db.SaveChangesAsync(cancellationToken);
 
         return Result.Ok(
             MapToDto(enrollment),
@@ -181,8 +194,10 @@ Rules:
 - `LocalizedMessage` keys carry the `lockey_` prefix, enforced by the **constructor**
   — not by serialization and not by a mapper. A mis-prefixed key throws where it is
   written, which is the point.
-- Outbox row written **inside** the same `DbContext` transaction. Never open a
-  second transaction for the event publish.
+- Outbox row written on the **same ambient transaction** as the aggregate change — the one
+  `IUnitOfWork` owns ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)).
+  `SaveChangesAsync` flushes the context; `TransactionBehavior` commits. Never open a second
+  transaction for the event publish.
 - Read `ITenantContext.TenantId` / `.OrganizationId` for tenant + org; don't accept them
   from the command body. There is no `.Current` on `ITenantContext` —
   `Current` belongs to `ITenantContextAccessor`, which is cross-cutting
@@ -279,8 +294,9 @@ Endpoint controllers are thin:
 
 ```csharp
 [ApiController]
-[Route("v1/enrollments")]
-public sealed class EnrollmentsController(ISender mediator) : ControllerBase
+[Route("enrollments")]   // VersionedRouteConvention prefixes `api/v{N}`; writing `v1/` here
+                         // serves the endpoint at /api/v1/v1/enrollments
+public sealed class EnrollmentsController(ISender mediator) : ApiControllerBase
 {
     [HttpPost]
     [Authorize(Policy = "enrollment.enrollment.write")]
@@ -328,8 +344,9 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
   never raises a validation exception.
 - **Calling `IAuditStore` directly.** The `AuditLogBehavior` does this for you. A
   direct call writes a duplicate row. No architecture test catches it —
-  `Modules_Do_Not_Write_AuditLog_Directly` bans naming `audit_log` or `AuditEntry`
-  outside `LearnStack.Modules.Audit.*` and puts the SharedKernel ports out of scope —
+  `Modules_Do_Not_Write_AuditLog_Directly` bans naming `AuditEntry` outside its own three
+  types and `audit_log` outside the Audit module, and puts the SharedKernel ports out of
+  scope —
   so this one is on review.
 - **Leaving a new request type out of the catalogue.** It does not silently go
   unaudited — it is rejected with `audit_unclassified_operation` (500) at step 3.
@@ -337,16 +354,21 @@ public sealed class EnrollmentsController(ISender mediator) : ControllerBase
 - **Dispatching a nested `ISender` request and expecting it to audit its own boundary.**
   A nested frame joins the ambient unit of work; only the owning frame flushes intents
   and reports the commit outcome ([ADR-0044 § 4](../../../docs/decisions/0044-audit-write-path.md)).
-- **Two transactions for write + outbox.** The outbox row must be in the **same**
-  `SaveChangesAsync` as the aggregate. Otherwise the system can publish without
-  committing (or commit without publishing).
+- **Two transactions for write + outbox.** The outbox row must be written on the
+  **same transaction** as the aggregate change — the ambient one `IUnitOfWork` owns
+  ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)), not a shared
+  `SaveChangesAsync`, a formulation [ADR-0033](../../../docs/decisions/0033-audit-durability-model.md)
+  withdrew. Otherwise the system can publish without committing (or commit without
+  publishing).
 - **Trusting `TenantId` from the request body.** Always read from
   `ITenantContext`. The API edge sets it from the JWT + host; body input is not
   authoritative.
 - **Missing permission registration.** The endpoint compiles but every request is
   rejected at runtime because the policy is unknown.
-- **Using raw `Guid` in the command.** Loses type safety; the architecture test
-  `Commands_Use_StronglyTypedIds` rejects it.
+- **Typing a module-local id in a contract.** Carry it as `Guid` and build the typed id
+  in the handler (Step 1); a `SharedKernel` id stays typed. Inside the module — the
+  aggregate, its ports, its stores — the typed id is the rule, and a raw `Guid` there is
+  the mistake.
 - **Logging `ILogger.LogError(ex, ...)` then rethrowing.** The L1
   `IExceptionHandler` already logs + records the OTel span error + captures
   to `IErrorTrackingProvider` per

@@ -28,13 +28,36 @@ We follow a relaxed Conventional Commits style:
 |------|-----|
 | `feat` | New behavior |
 | `fix` | Bug fix |
-| `refactor` | Code change without behavior change |
 | `docs` | Documentation only |
-| `test` | Test only |
-| `chore` | Tooling, deps, scaffolding |
+| `style` | Formatting only — no change in behavior or meaning |
+| `refactor` | Code change without behavior change |
 | `perf` | Performance improvement |
-| `build` | Build system / CI |
-| `revert` | Revert an earlier commit |
+| `test` | Test only |
+| `build` | Build system, SDK pin and package versions |
+| `ci` | CI workflows and the git hooks |
+| `chore` | Other tooling — scripts, the `Makefile`, editor and repository configuration |
+| `revert` | Revert an earlier commit — `revert: <original subject>` |
+
+The rest of the grammar:
+
+- The scope is optional and, when present, not empty: ASCII lowercase letters, digits,
+  `.`, `,`, `/`, `-` and spaces, in parentheses.
+- A `!` immediately before the colon marks a breaking change, with or without a scope —
+  `feat!: …`, `feat(api)!: …`.
+- The separator is exactly `: `, and a summary follows it.
+- The subject is what `git log --format=%s` prints — the first paragraph, its lines
+  joined by spaces — and it is at most 72 characters, counted as characters rather than
+  bytes. End the subject with a blank line, or a second line joins it.
+
+One script enforces all of it. The `commit-msg` hook runs on every local commit, and
+CI's commit-hygiene step runs the **same hook** on every commit of a pull request, so the
+two cannot reach different verdicts; [`Commit_Subject_Grammar_Is_Stated_Once`](21-architecture-tests-catalogue.md#commit_subject_grammar_is_stated_once)
+fails the build if CI stops running it or if this table and the hook's types differ.
+The hook admits git's autosquash markers — `fixup!`, `squash!`, `amend!` — so a local
+fixup workflow works; CI refuses them, so squash before the pull request is reviewed. A
+`--cleanup=` flag given on the command line is invisible to the hook, which judges the
+subject git's default cleanup would store; set `commit.cleanup` in configuration instead,
+which it reads. CI judges the stored message, so it catches whatever the flag changed.
 
 Examples:
 - `feat(education): add CourseVersion publish flow`
@@ -154,6 +177,10 @@ See [17-code-review.md](17-code-review.md) for full review standards. Highlights
 ## Reverts
 
 - A revert is its own PR. Don't force-push a revert onto a public branch.
+- Its subject is `revert: <original subject>`, and its body keeps git's
+  `This reverts commit <sha>.` line. Git's default `Revert "…"` subject fails § Commits,
+  and `git revert` does not run the `commit-msg` hook, so reword it before pushing —
+  `git revert --no-commit <sha>` and then `git commit`, which does run it.
 - The revert PR description references the original PR and the reason.
 
 ## Tagging and Releases
@@ -165,7 +192,7 @@ See [17-code-review.md](17-code-review.md) for full review standards. Highlights
 ## Forbidden
 
 - Force push to `main` or to a shared feature branch.
-- Skipping `--no-verify` on commits (pre-commit hooks must pass).
+- Using `--no-verify` on commits (pre-commit hooks must pass).
 - Bypassing CI to merge.
 - Committing secrets, lock files for the wrong package manager, or large binaries.
 - "WIP" or unrelated commits squashed into a feature PR.

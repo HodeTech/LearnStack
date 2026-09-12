@@ -119,6 +119,11 @@ build-frontend: ## `pnpm -r build` the frontend monorepo.
 
 .PHONY: migrate
 migrate: ## Apply every EF migration chain (platform + each module) as `learnstack_migration` (the ONLY sanctioned carrier of that credential).
+	@# Every dotnet command in this recipe runs from `backend/`, because that is where
+	@# the SDK pin lives (`backend/global.json`). Run from the repository root there is
+	@# no global.json above them, so whichever SDK is newest on the machine answers —
+	@# and the pin exists precisely so this target and CI apply the same EF version.
+	@#
 	@# Standards 05 § Database roles: ConnectionStrings:Migration must never appear
 	@# in API or worker runtime configuration. The role OWNS every table it creates,
 	@# and a runtime that is the owner is precisely the arrangement FORCE ROW LEVEL
@@ -195,7 +200,7 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		exit 1; \
 	fi; \
 	export ConnectionStrings__Migration="$$migration_cs"; \
-	dotnet tool restore >/dev/null; \
+	(cd backend && dotnet tool restore >/dev/null); \
 	found=0; \
 	failed=0; \
 	applied=" "; \
@@ -207,10 +212,10 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 		applied="$$applied$$proj "; \
 		found=1; \
 		echo "==> $$(basename $$proj)"; \
-		dotnet ef database update \
-			--project "$$proj" \
-			--startup-project backend/src/LearnStack.Api \
-			--connection "$$migration_cs" || failed=1; \
+		(cd backend && dotnet ef database update \
+			--project "../$$proj" \
+			--startup-project src/LearnStack.Api \
+			--connection "$$migration_cs") || failed=1; \
 	done; \
 	if [ "$$found" = "0" ]; then \
 		echo "No project carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
@@ -226,7 +231,17 @@ sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
 
 # ─── Tests ────────────────────────────────────────────────────────────────
 .PHONY: test
-test: test-backend test-frontend ## Run all test suites (backend + frontend).
+.NOTPARALLEL:   # `test` installs before it tests, `seed` migrates before it seeds, and
+                # several recipes drive the same compose project. Under `make -j` those
+                # prerequisites would start together, and the first thing to fail would be
+                # a restore racing the build that needs it.
+
+test: install test-backend test-frontend ## Run all test suites (backend + frontend).
+	@# `install` first, and it is not belt and braces: on a clean checkout
+	@# `test-frontend` runs vitest out of `frontend/apps/web/node_modules`, which does
+	@# not exist until `pnpm install` has run — the failure is a missing binary rather
+	@# than a red test, which reads as "the repository is broken". Both halves of
+	@# `install` are idempotent and fast once warm.
 
 .PHONY: test-backend
 test-backend: ## `dotnet test` — every suite, INCLUDING the Docker-bound ones CI splits across two jobs.

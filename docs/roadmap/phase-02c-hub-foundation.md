@@ -343,6 +343,8 @@ load-bearing here:
 ### Architecture tests
 
 - `LearnStack_Modules_DoNotReference_Hub` — no module assembly holds a Hub client or URL.
+  In force since [Phase 02a Packet 10](phase-02a-kernel-tenancy.md), over the namespaces
+  this phase's adapter arrives in; the adapter is its first real subject.
 - `Hub_Client_Referenced_Only_By_Named_Adapters` — only `IEntitlementProvider`,
   `IUsageReporter` and `IHubTenantSync` implementations may.
 - `Internal_API_Endpoints_AreNot_Public` — `/api/internal/*` is not reachable from the
@@ -356,7 +358,13 @@ load-bearing here:
 - `Modules_Do_Not_Read_Entitlement_Cache_Directly` — `platform_entitlement_cache` is
   read **and** written by an `IEntitlementProvider` implementation and by nothing else;
   no module, Tenancy included, touches it, and module code reaches the plan half through
-  `IFeatureFlags`.
+  `IFeatureFlags`. In force since Phase 02a Packet 10: `HubEntitlementProvider` adds its
+  own file to the rule's list of provider SQL sites, empty until then, and the review of
+  that edit is the review of the only code that touches the table.
+- `Host_Resolution_Makes_No_Outbound_Calls` — its behavioural leg: a host resolves with
+  this phase's Hub client registered as a throwing stub. The structural half — the
+  resolver, and every LearnStack type it depends on, holds no HTTP, socket, gRPC or Hub
+  client — has run since Phase 02a Packet 10.
 
 `Hub_NeverStores_TenantData` is the Hub-side invariant and is asserted in the Hub
 repository, against the Hub schema. Its LearnStack-side counterpart is this list.
@@ -405,7 +413,7 @@ repository, against the Hub schema. Its LearnStack-side counterpart is this list
   `platform_host_to_tenant` mirroring, with certificate material referenced by
   secret-store path rather than carried by value.
 - Audit coverage for every internal-API handler, MUST-class and durable.
-- The six architecture tests above, green in CI.
+- The seven architecture tests above, green in CI.
 - A `Development`-mode integration suite that runs the whole path against a Hub test
   double, so the LearnStack side is testable without a Hub deployment.
 

@@ -88,12 +88,26 @@ Forbidden edges:
 - Domain → Infrastructure
 - Application → Infrastructure (composition root wires the implementation in)
 - Module A → Module B.Domain
+- Module A → Module B.Application — another module's `Application.Contracts` is the only
+  cross-module reference, and only from `Application`
 - Module A → Module B.Infrastructure
+- `Application.Contracts` → anything but `SharedKernel`
+- Core `Application` → any `Infrastructure` or any module; core `Infrastructure` → any
+  module
+
+The catalogue holds each edge as a rule, one per layer — the `ModuleDomain_*`,
+`ModuleApplication_*`, `ModuleInfrastructure_*` and `ModuleContracts_*` rules and the two
+`Core*` ones in
+[the architecture-test catalogue](21-architecture-tests-catalogue.md#repository-layout-and-module-boundaries).
 
 ### Build-time-only exceptions
 
-`SharedKernel` and every `Modules.<X>.Domain` project carries two sanctioned
-external NuGet references that the rules above would otherwise forbid:
+`SharedKernel` carries two sanctioned external NuGet references that the rules above
+would otherwise forbid, and every `Modules.<X>.Domain` project has both. MediatR flows in
+through its reference to `SharedKernel`; EF Core is added directly, with Vogen, by
+`backend/src/Modules/Directory.Build.props` to every project whose name ends in
+`.Domain` — a source generator runs only in a project that references it itself, and the
+converters Vogen emits there need EF Core beside them:
 
 | Reference | Why | Used at | Sanctioning ADR |
 |-----------|-----|---------|-----------------|
@@ -102,13 +116,17 @@ external NuGet references that the rules above would otherwise forbid:
 
 Both references are scoped to **build-time / IL-level dependencies for
 generated or marker shapes**, not to hand-written Domain code calling EF
-Core or MediatR APIs. The follow-up architecture test
-`Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`
-catalogued under
-[21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)
-encodes the exception (lands with the first Module.Domain aggregate in
-[Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md)). Adding a
-third build-time reference to Domain or SharedKernel requires an ADR.
+Core or MediatR APIs.
+[`Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`](21-architecture-tests-catalogue.md#domain_does_not_depend_on_microsoft_entityframeworkcore_except_vogen_emitted_converters)
+encodes the exception, in force since
+[Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) — it was meant to land with
+the first module aggregate in Packet 6 and did not. It admits the converter and comparer
+Vogen nests in each value object and the `__<Id>EfCoreExtensions` class beside it, and
+nothing hand-written. Adding a third such
+reference to Domain or SharedKernel requires an ADR. `SharedKernel`'s other three
+packages are not in that category: Vogen is the source generator itself, and Polly and
+`Microsoft.Extensions.Configuration.Abstractions` back the resilience and secret ports
+`SharedKernel` declares, which no `Domain` type uses.
 
 ## Aggregate Ownership
 
@@ -192,19 +210,12 @@ A single composition project wires modules together:
 
 ## Architecture Tests
 
-Architecture tests live in `LearnStack.Tests.Architecture`. They enforce:
-
-| Rule | Check |
-|------|-------|
-| Module dependency direction | NetArchTest / ArchUnitNET ruleset. |
-| No cross-module Domain references | Project graph inspection. |
-| Every `[TenantOwned]` has filter and policy | Reflection + migration scan. |
-| No `IgnoreQueryFilters()` in non-platform code | Roslyn analyzer. |
-| Public read models follow `public_<module>_<concept>` naming | Migration scan. |
-| Provider SDK types not imported in Domain/Application | Reflection. |
-| Hangfire job payloads include `TenantId` | Reflection. |
-
-Tests run on every CI build and are not skippable.
+Architecture tests live in `LearnStack.Tests.Architecture`, and the rules they hold —
+dependency direction, tenant and organization scoping, the port bans, the audit and
+entitlement rules — are [the architecture-test catalogue](21-architecture-tests-catalogue.md),
+which names each one, says what it asserts, and says whether it runs yet. This section
+keeps no second list; the table that stood here named checks under mechanisms nobody
+built. Tests run on every CI build and are not skippable.
 
 ## Tenant Customization (no Vertical Modules)
 

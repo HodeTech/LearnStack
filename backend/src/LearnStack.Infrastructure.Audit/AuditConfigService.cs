@@ -140,11 +140,15 @@ public sealed class AuditConfigService(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>BEGIN; SET LOCAL app.tenant_id; SELECT; COMMIT</c> — the announcement is the
-    /// point, and it is why this cannot ride the request's connection, which has none at
-    /// step 3. Read-only, so the transaction exists for the <c>SET LOCAL</c> rather than
-    /// for atomicity: a <c>SET LOCAL</c> outside a transaction lasts for the statement
-    /// and would leave the pooled connection announcing a tenant afterwards.
+    /// <c>BEGIN; SET TRANSACTION READ ONLY; SET LOCAL app.tenant_id; SELECT; COMMIT</c> —
+    /// the announcement is the point, and it is why this cannot ride the request's
+    /// connection, which has none at step 3. The transaction exists so the announcement is
+    /// still in effect for the <c>SELECT</c> that follows it, not for atomicity:
+    /// <c>set_config(…, true)</c> is transaction-local, so outside an explicit transaction it
+    /// belongs to its own single-statement one and is gone before the read runs. The
+    /// alternative — announcing at session level — would survive the read and then ride the
+    /// pooled connection to whoever got it next. Read-only, because neither this nor any
+    /// reader like it writes.
     /// </para>
     /// <para>
     /// The <c>SELECT</c> names its tenant too, bound from the trusted argument. Row
@@ -163,6 +167,22 @@ public sealed class AuditConfigService(
         await using var transaction = await connection
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // Read-only is the property that makes an out-of-band announcement of app.tenant_id
+        // acceptable. This connection is learnstack_app, which holds write grants across the
+        // schema — audit_config itself is SELECT-only for it, but the announcement is what
+        // every tenant-owned table's policy reads, so nothing but this statement stops a later
+        // edit here from writing under a tenant no request asked for.
+        //
+        // It precedes the announcement because the statement binds only what FOLLOWS it.
+        // PostgreSQL accepts it after other statements — measured, including after an INSERT,
+        // which still commits — so "first" is the rule's doing, not the server's
+        // (Out_Of_Band_Setters_Open_Read_Only_Transactions).
+        await using (var readOnly = new NpgsqlCommand(
+            "SET TRANSACTION READ ONLY", connection, transaction))
+        {
+            await readOnly.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         await using (var announce = new NpgsqlCommand(
             "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction))

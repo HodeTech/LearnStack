@@ -176,10 +176,10 @@ at startup, materialises a search kind per declared content type, and applies th
 **same isolation rules** as built-in kinds — `tenant_id` is the mandatory first
 filter, locale is index-split, and facets resolve through the type's JSON Schema.
 
-Example (data, in `tenant_content_types`): an English-tenant `VocabularyCard`
+Example (data, in `tenant_content_types`): an English-tenant `vocabulary-card`
 content type with `searchable: true` produces a `<env>-vocabulary-card-<locale>`
 index per enabled locale; the type's `level` field is declared filterable and
-resolves against the tenant's `TenantLevelTaxonomy`. A yoga-tenant `AsanaPose`
+resolves against the tenant's `TenantLevelTaxonomy`. A yoga-tenant `asana-pose`
 content type with `searchable: true` produces a parallel set of indexes with its
 own `difficulty` facet — same code path, different tenant data.
 

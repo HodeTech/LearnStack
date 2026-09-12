@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using NetArchTest.Rules;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -266,6 +267,183 @@ public sealed partial class AuditConventionTests
             .Order(StringComparer.Ordinal)];
 
     private static readonly string[] SetBasedWriteApis = ["ExecuteUpdate", "ExecuteDelete", "ExecuteSql"];
+
+    [Fact]
+    public void Modules_Do_Not_Write_AuditLog_Directly()
+    {
+        // IAuditStore is the one path an audit row is written by, and PostgresAuditStore the
+        // one implementation (ADR-0044 § 11). Three legs, because a row can be written three
+        // ways: through the entity, through SQL, and — for a module — by naming the table at
+        // all, which no module but Audit has a reason to.
+        //
+        // The entity. AuditEntry has no public constructor, so the change tracker only ever
+        // holds one EF Core materialized — and a tracked entity can still be removed or
+        // re-added. Which types may name it is a closed list; a Phase 03 read API joins it by
+        // an edit here, which is the point.
+        var naming = ProductionAssemblies.All()
+            .SelectMany(assembly => Types.InAssembly(assembly)
+                .That().HaveDependencyOn(typeof(AuditEntry).FullName!)
+                .GetTypes())
+            .ToList();
+
+        naming.Should().Contain(typeof(AuditDbContext),
+            "the premise: the scan sees the DbSet that maps the log, or it sees nothing");
+
+        naming
+            .Where(type => !MayNameTheAuditEntry(type))
+            .Select(type => type.FullName)
+            .Should().BeEmpty(
+                "only AuditEntry itself, its EF configuration and AuditDbContext name the "
+                + "entity — an audit row is written through IAuditStore (ADR-0044 § 11)");
+
+        // SQL. Exactly one statement inserts into audit_log, and it is the store's — the
+        // premise and the rule in one assertion: a scan that read nothing finds nothing.
+        var inserting = SourceFiles()
+            .Where(file => AuditLogInsert().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file).Replace('\\', '/'))
+            .ToList();
+
+        inserting.Should().Equal(
+            ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"],
+            "PostgresAuditStore's four writes are the only SQL that adds an audit row");
+
+        // The context's exemption is for the MAPPING: a change-tracker write placed inside
+        // AuditDbContext would be invisible to the leg above, because its caller names only the
+        // context — which the Phase 03 read API will, legitimately.
+        EntitlementConventionTests.ContextMembersNaming(typeof(AuditDbContext), typeof(AuditEntry))
+            .Should().Equal(
+                [$"get_{nameof(AuditDbContext.AuditEntries)}"],
+                "the context maps the log and writes nothing to it (ADR-0044 § 11)");
+
+        // A table name the scan cannot read is a table name no scan can govern: an
+        // `INSERT INTO {Table}` names audit_log as easily as anything else, and every legible
+        // rule in this file — and the entitlement one next door — rests on the name being a
+        // literal. Nothing in backend/src composes one today, and this is what keeps it so.
+        SourceFiles()
+            .Where(file => ComposedTableName().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(RepositoryPaths.BackendSrc(), file).Replace('\\', '/'))
+            .Should().BeEmpty(
+                "a statement names its table as a literal — a composed one is a name the "
+                + "audit and entitlement scans, and the reader after them, cannot see");
+
+        // The table's name, in every module but Audit.
+        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
+        SourceFiles()
+            .Where(file => file.StartsWith(modules, StringComparison.Ordinal)
+                && !file.StartsWith(Path.Combine(modules, "Audit") + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            .Where(file => AuditLogTable().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(modules, file))
+            .Should().BeEmpty("no module but Audit names the audit_log table");
+    }
+
+    [Fact]
+    public void The_AuditLog_Write_Scan_Can_Actually_Fail()
+    {
+        // Nothing violates the rule above, so it passes whether its patterns work or not.
+        // Each leg is fed the shapes it must catch and the ones it must not.
+        AuditLogInsert().IsMatch("INSERT INTO audit_log (id) VALUES (@id)").Should().BeTrue();
+        AuditLogInsert().IsMatch("insert into \"public\".\"audit_log\" (id)").Should().BeTrue();
+        AuditLogInsert().IsMatch("MERGE INTO audit_log AS target").Should().BeTrue();
+        AuditLogInsert().IsMatch("COPY audit_log (id) FROM STDIN").Should().BeTrue();
+        AuditLogInsert().IsMatch("INSERT INTO audit_log_archive (id)").Should().BeFalse();
+        AuditLogInsert().IsMatch("SELECT count(*) FROM audit_log").Should().BeFalse();
+
+        ComposedTableName().IsMatch("$\"INSERT INTO {Table} (id) VALUES (@id)\"").Should().BeTrue();
+        ComposedTableName().IsMatch("\"scope entered (from {Member} at {File})\"").Should().BeFalse(
+            "lower-case prose is English, not SQL");
+        ComposedTableName().IsMatch("\"SELECT 1 FROM \" + table").Should().BeTrue();
+        ComposedTableName().IsMatch("$\"insert into {Table} (id) values (@id)\"").Should().BeTrue(
+            "a composed statement written in lower case names its table just as well");
+        ComposedTableName().IsMatch("$\"truncate table {Table}\"").Should().BeTrue();
+        ComposedTableName().IsMatch("$\"update {Table} SET tenant_id = @tenant\"").Should().BeTrue(
+            "a statement's target is its target in either case");
+        ComposedTableName().IsMatch("$\"copy {Table} FROM STDIN\"").Should().BeTrue();
+        ComposedTableName().IsMatch("$\"INSERT INTO public.{Table} (id) VALUES (@id)\"").Should().BeTrue(
+            "a literal schema in front of a composed name composes the same name");
+        ComposedTableName().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeFalse(
+            "a literal name is what every other leg here reads");
+        ComposedTableName().IsMatch("$\"SELECT * FROM audit_log WHERE tenant_id = {tenant}\"").Should().BeFalse(
+            "interpolating a VALUE is not composing a table name");
+
+        AuditLogTable().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeTrue();
+        AuditLogTable().IsMatch("\"ck_audit_log_outcome\"").Should().BeFalse();
+        AuditLogTable().IsMatch("audit_logger").Should().BeFalse();
+        AuditLogTable().IsMatch("SELECT * FROM AUDIT_LOG").Should().BeTrue(
+            "an unquoted identifier folds case, so this names the same table");
+
+        // And the entity leg reports a type that names AuditEntry and is not on the list.
+        Types.InAssembly(typeof(AuditConventionTests).Assembly)
+            .That().HaveName(nameof(AuditEntryWriterProbe))
+            .And().HaveDependencyOn(typeof(AuditEntry).FullName!)
+            .GetTypes()
+            .Should().ContainSingle()
+            .Which.Should().Match<Type>(type => !MayNameTheAuditEntry(type));
+    }
+
+    /// <summary>The types allowed to name <see cref="AuditEntry"/>.</summary>
+    /// <remarks>
+    /// Compiler-generated nested types — a lambda's closure, an async state machine — are
+    /// judged by the type that declares them.
+    /// </remarks>
+    private static bool MayNameTheAuditEntry(Type type)
+    {
+        var declaring = type;
+        while (declaring.DeclaringType is { } outer)
+        {
+            declaring = outer;
+        }
+
+        return declaring == typeof(AuditEntry)
+            || declaring == typeof(AuditDbContext)
+            || declaring.FullName == "LearnStack.Modules.Audit.Infrastructure.Persistence.AuditEntryConfiguration";
+    }
+
+    /// <summary>A statement that adds rows to <c>audit_log</c> itself.</summary>
+    [GeneratedRegex(
+        @"\b(?:INSERT\s+INTO|MERGE\s+INTO|COPY)\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?""?audit_log""?(?![A-Za-z0-9_])",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex AuditLogInsert();
+
+    /// <summary>The table's name as an identifier, not as part of a longer one.</summary>
+    /// <remarks>
+    /// Case-insensitive, because an unquoted identifier is: <c>SELECT * FROM AUDIT_LOG</c>
+    /// reads the same table, and a case-sensitive scan would have reported the module clean.
+    /// </remarks>
+    [GeneratedRegex(@"(?<![A-Za-z0-9_])audit_log(?![A-Za-z0-9_])", RegexOptions.IgnoreCase)]
+    private static partial Regex AuditLogTable();
+
+    /// <summary>
+    /// A statement whose table name is interpolated or concatenated rather than written.
+    /// </summary>
+    /// <remarks>
+    /// Two classes of keyword, because they carry different risks. Everything that names a
+    /// table as the <b>target</b> of a statement — <c>INSERT INTO</c>, <c>MERGE INTO</c>,
+    /// <c>DELETE FROM</c>, <c>TRUNCATE</c>, <c>COPY</c>, <c>UPDATE</c> — is matched in any
+    /// case, because SQL folds case and a lower-case statement composes a table name just as
+    /// well. <c>FROM</c> and <c>JOIN</c> are matched in upper case only: they are ordinary
+    /// English words in the position this pattern looks at, and a log line reading
+    /// "(from {Member} at {File})" is prose — a pattern that could not tell the two apart
+    /// failed on exactly that, measured.
+    /// </remarks>
+    /// <remarks>
+    /// The residual cost is a lower-case <c>update {…}</c> or <c>copy {…}</c> in a message,
+    /// which this now refuses. Nothing in <c>backend/src</c> writes one — measured — and the
+    /// repair is to reword the message or name the table in a constant, which is what the rule
+    /// asks for anyway.
+    /// </remarks>
+    [GeneratedRegex(
+        @"\b(?:(?i:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|COPY|UPDATE)"
+        + @"|FROM|JOIN)\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?(?:\{|""\s*\+)")]
+    private static partial Regex ComposedTableName();
+
+    /// <summary>
+    /// Writes an audit row through the entity, for <c>The_AuditLog_Write_Scan_Can_Actually_Fail</c>.
+    /// Never constructed.
+    /// </summary>
+    private sealed class AuditEntryWriterProbe(AuditDbContext context)
+    {
+        public void Write(AuditEntry entry) => context.AuditEntries.Add(entry);
+    }
 
     [Fact]
     public void AuditEntry_Is_AppendOnly()

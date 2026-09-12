@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@learnstack/config": "workspace:*",
+    "eslint": "^9.16.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "5.6.3"

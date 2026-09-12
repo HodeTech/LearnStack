@@ -1,5 +1,10 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FluentAssertions;
+using Mono.Cecil;
+using Mono.Cecil.Cil;
+using LearnStack.Infrastructure.MultiTenancy;
+using LearnStack.SharedKernel.Tenancy;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -28,84 +33,635 @@ namespace LearnStack.Tests.Architecture;
 /// documentation that explains the rule.
 /// </para>
 /// </remarks>
-public sealed class TenancyConventionTests
+public sealed partial class TenancyConventionTests
 {
     [Fact]
     public void Effective_Host_Computed_In_One_Place()
     {
         // EffectiveHostAccessor decides what host a request is for — trusted-hop
-        // predicate, header, normalization, all of it. A second reader of
-        // Request.Host is a second answer, and the one that skips the accessor
-        // is the one that skips the trust check.
-        // The banned list names the headers this code ACTUALLY uses, not only the
+        // predicate, header, normalization, all of it. A second reader of the host is a
+        // second answer, and the one that skips the accessor is the one that skips the
+        // trust check.
+        // The banned list names every spelling that reaches a host, not only the
         // conventional one. `X-Forwarded-Host` appears nowhere in the source — banning it
         // alone made the rule green over the real hole: `TrustedHopOptions.HostHeaderName`
         // is a public const carrying `X-LearnStack-Host`, and a second file reading it
         // reads the forwarded host WITHOUT `IsTrustedHop`'s CIDR check and constant-time
         // secret comparison. Both the literal and the const are banned, because either
-        // spelling reaches the same header.
-        Offenders(
-                except: Path.Combine("Tenancy", "EffectiveHostAccessor.cs"),
-                banned:
-                [
-                    "Request.Host",
-                    "GetDisplayUrl",
-                    "GetEncodedUrl",
-                    "X-Forwarded-Host",
-                    "X-LearnStack-Host",
-                    "TrustedHopOptions.HostHeaderName",
-                ],
-                alsoExcept: [Path.Combine("Tenancy", "TrustedHopOptions.cs")])
+        // spelling reaches the same header — and since Packet 10 so are the header
+        // collection's own routes to `Host` and the `Forwarded` header, which the entry
+        // named and the scan did not read.
+        var sources = ApiSources(
+            except: [
+                Path.Combine("Tenancy", "EffectiveHostAccessor.cs"),
+                Path.Combine("Tenancy", "TrustedHopOptions.cs"),
+            ]).ToList();
+
+        sources.Should().NotBeEmpty("the premise: the scan reads the API's sources");
+
+        sources.Where(source => ReadsAHost(source.Code)).Select(source => source.Relative)
             .Should().BeEmpty(
                 "only EffectiveHostAccessor reads a request host (ADR-0036 § Effective "
                 + "host and the trusted hop)");
     }
 
     [Fact]
+    public void The_Host_Read_Scan_Can_Actually_Fail()
+    {
+        // Every file but the accessor is clean, so the rule above passes whether its
+        // needles match anything or not. Each shape a handler could write is fed through
+        // the same whitespace-blind match, and one that merely resembles them must pass.
+        string[] reads =
+        [
+            "var host = context.Request.Host.Value;",
+            "var host = context.Request.Headers.Host;",
+            "var host = context.Request.Headers [ \"Host\" ];",
+            "var host = context.Request.Headers[HeaderNames.Host];",
+            "var host = context.Request.GetTypedHeaders().Host;",
+            "var typed = context.Request.GetTypedHeaders(); var host = typed.Host;",
+            "var host = context.Request.Headers[\"host\"];",
+            "var forwarded = context.Request.Headers[\"Forwarded\"];",
+            "var forwarded = context.Request.Headers[HeaderNames.Forwarded];",
+            "var url = context.Request.GetDisplayUrl();",
+        ];
+
+        reads.Should().OnlyContain(code => ReadsAHost(code));
+        ReadsAHost("var peer = context.Request.Headers[\"X-Forwarded-For\"];").Should().BeFalse(
+            "the client-address header is not a host, and the rate limiter reads the peer");
+        ReadsAHost("builder.Host.UseSerilog((context, services, configuration) => { });").Should().BeFalse(
+            "the host builder is not a request host, and the composition root configures it");
+        ReadsAHost("var tag = context.Request.GetTypedHeaders().IfMatch;").Should().BeFalse(
+            "the typed-header helper carries every header; only a host read through it is banned");
+    }
+
+    /// <summary>
+    /// Every spelling that reads a request's host, as patterns over whitespace-free source.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Patterns rather than literals, because the receiver is a local name as often as a
+    /// property path: <c>request.Host</c> is the same read as <c>context.Request.Host</c> and
+    /// a literal needle for the second missed the first. <c>Headers.TryGetValue("Host"</c> is
+    /// here for the same reason — the indexer is one of two ways the collection is read.
+    /// </para>
+    /// <para>
+    /// Matched case-insensitively, because a header name is: <c>Headers["host"]</c> reads the
+    /// same header as <c>Headers["Host"]</c> and the dictionary is case-blind.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] HostReads =
+    [
+        @"[A-Za-z_0-9]*[Rr]equest\.Host\b",
+        @"Headers\.Host\b",
+        @"Headers\[""Host""\]",
+        @"TryGetValue\(""Host""",
+        @"HeaderNames\.Host\b",
+        "GetDisplayUrl",
+        "GetEncodedUrl",
+        "X-Forwarded-Host",
+        @"HeaderNames\.XForwardedHost\b",
+        @"""Forwarded""",
+        @"HeaderNames\.Forwarded\b",
+        "X-LearnStack-Host",
+        @"TrustedHopOptions\.HostHeaderName\b",
+    ];
+
+    private static bool ReadsAHost(string code)
+    {
+        var compact = SourceText.WithoutWhitespace(code);
+
+        if (HostReads.Any(read =>
+            Regex.IsMatch(compact, read, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5))))
+        {
+            return true;
+        }
+
+        // The typed-header helper is banned for what is read FROM it, not for itself:
+        // `GetTypedHeaders()` also carries `IfMatch`, `Range` and `AcceptLanguage`, and a rule
+        // that refused the call would refuse an ETag read with a message about trusted hops.
+        return compact.Contains("GetTypedHeaders", StringComparison.Ordinal)
+            && Regex.IsMatch(compact, @"\.Host\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Out_Of_Band_Setters_Open_Read_Only_Transactions()
     {
-        // The two components that announce a session variable outside the ambient unit of
-        // work — the host resolver and the organization-scope validator. Four carriers
-        // describe both as a "short READ-ONLY transaction": Database Standards, Security
-        // Standards, the glossary and ADR-0040. Read-only is not decoration there; it is
-        // the property that makes an out-of-band setter of app.tenant_id / app.resolving_host
-        // acceptable at all, because `learnstack_app` holds write grants on the tables
-        // these connections reach.
+        // Found, not listed. The rule used to name two files, and Packet 9 added two more
+        // setters — AuditConfigService and FeatureFlags — that announced app.tenant_id in a
+        // transaction that was not read-only while the rule stayed green, because nothing
+        // told it they existed. Read-only is what makes an out-of-band announcement
+        // acceptable at all: learnstack_app holds write grants on the tables these
+        // connections reach, so nothing but the statement stops a later edit from writing
+        // under an announcement no request made.
         //
-        // Measured: the resolver shipped without the statement while every carrier said it
-        // had one, and the validator two files away had carried it since Packet 6. A
-        // behavioural test cannot catch that — the transaction is opened, used and
-        // disposed inside one method, so nothing outside can observe its settings — which
-        // is why this is a scan.
-        //
-        // The ORDER matters as much as the presence: SET TRANSACTION must precede the
-        // first statement of the transaction or PostgreSQL refuses it outright, so a
-        // setter that issued it after its announcement would fail at runtime rather than
-        // quietly. Both positions are checked.
-        foreach (var file in new[]
-        {
-            Path.Combine("MultiTenancy", "CachedHostToTenantResolver.cs"),
-            Path.Combine("MultiTenancy", "OrganizationScopeValidator.cs"),
-        })
-        {
-            // Comments stripped first, or the doc-comment that EXPLAINS set_config counts
-            // as its first use and the order check compares against prose.
-            var source = SourceText.WithoutComments(File.ReadAllText(
-                Directory.EnumerateFiles(
-                        RepositoryPaths.BackendSrc(), "*.cs", SearchOption.AllDirectories)
-                    .Single(candidate => candidate.EndsWith(file, StringComparison.Ordinal))));
+        // Every file that calls set_config( is one of three kinds, and the kinds are the
+        // closed set Security Standards § The out-of-band setters enumerates: the ambient
+        // unit of work, the audit store's two writers — which must write — and the readers,
+        // each of which issues SET TRANSACTION READ ONLY before anything else. A setter this
+        // finds and no kind names is a new member of a closed set, and fails until the
+        // standard, and ADR-0040, say which kind it is.
+        var announcing = Directory
+            .EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            // Migrations are excluded, and the exclusion is narrow: a migration runs as
+            // learnstack_migration, outside any request, and announces nothing — what it
+            // carries is the policy DDL that READS these variables. A setter moved into one
+            // would be a setter this rule does not see, which is why the exclusion is by
+            // directory rather than by pattern.
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(file => Announces(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
+            .ToHashSet(StringComparer.Ordinal);
 
-            var readOnly = source.IndexOf("SET TRANSACTION READ ONLY", StringComparison.Ordinal);
-            var announce = source.IndexOf("set_config(", StringComparison.Ordinal);
+        announcing.Should().BeEquivalentTo(
+            AmbientSetters.Concat(WritingSetters).Concat(ReadingSetters),
+            "every session-variable setter is one the standard names (Security Standards "
+            + "§ The out-of-band setters; ADR-0040 Amendments 3 and 7)");
 
-            readOnly.Should().BeGreaterThan(-1,
-                $"{file} announces a session variable on its own connection, and every "
-                + "carrier in the corpus calls that transaction READ ONLY");
-            announce.Should().BeGreaterThan(-1, $"{file} is expected to announce something");
-            readOnly.Should().BeLessThan(announce,
-                $"{file} must issue SET TRANSACTION before its first statement — after it, "
-                + "PostgreSQL refuses the statement outright");
+        // Then the readers, method by method, from the IL. A text scan answers this one badly:
+        // it cannot tell which method a statement belongs to, so a `SET TRANSACTION READ ONLY`
+        // anywhere earlier in the file lends cover to an announcement in another method — and
+        // it cannot tell a statement from a sentence, so a log message naming the statement
+        // satisfies it. Both were measured. The IL carries neither ambiguity: the strings are
+        // the ones the method actually loads, in the order it loads them.
+        var unguarded = ReadingSetters
+            .SelectMany(reader => UnguardedAnnouncements(ReaderAssembly(reader), ReaderType(reader)))
+            .ToList();
+
+        unguarded.Should().BeEmpty(
+            "a reader announces a session variable on a connection of its own, so each "
+            + "announcing method issues SET TRANSACTION READ ONLY first — the statement binds "
+            + "only what follows it");
+    }
+
+    /// <summary>The probe type's metadata name, for the companion's expectations.</summary>
+    private static readonly string Probe = typeof(Probes.SetterProbes).FullName!;
+
+    [Fact]
+    public void The_Setter_Scan_Can_Actually_Fail()
+    {
+        // Every reader is correct today, so both halves pass whether they work or not.
+        const string ReadOnly = "run(\"SET TRANSACTION READ ONLY\");";
+        const string Announce = "run(\"SELECT set_config('app.tenant_id', @t, true)\");";
+
+        // The per-method check, run over probes compiled into this assembly: a reader that
+        // issues the statement, one that does not, one that issues it too late, one whose
+        // second announcement has none of its own, and one that only NAMES the statement in a
+        // message. Each is an async method, which is where a text scan and a naive IL walk
+        // both lose the body.
+        var probes = UnguardedAnnouncements(
+            typeof(TenancyConventionTests).Assembly.Location,
+            Probe);
+
+        probes.Should().BeEquivalentTo(
+            [
+                $"{Probe}.{nameof(Probes.SetterProbes.AnnouncesWithNoStatementAsync)}",
+                $"{Probe}.{nameof(Probes.SetterProbes.AnnouncesBeforeTheStatementAsync)}",
+                $"{Probe}.{nameof(Probes.SetterProbes.AnnouncesTwiceUnderOneStatementAsync)}",
+                $"{Probe}.{nameof(Probes.SetterProbes.NamesTheStatementInAMessageAsync)}",
+                $"{Probe}.{nameof(Probes.SetterProbes.ConstructsWithoutExecutingAsync)}",
+            ],
+            "every announcing method issues the statement itself, first; a message that merely "
+            + "names it issues nothing, and neither does a command that is built and never run");
+
+        // Discovery: the spellings that announce a session variable, and the ones that read it.
+        _ = ReadOnly;
+        _ = Announce;
+        Announces("SELECT set_config('app.tenant_id', @t, true)").Should().BeTrue();
+        Announces("SELECT SET_CONFIG('app.tenant_id', @t, true)").Should().BeTrue("SQL is not case-sensitive");
+        Announces("SET LOCAL app.tenant_id = '...'").Should().BeTrue();
+        Announces("cmd.CommandText = \"SET LOCAL app.tenant_id = @tenant\";").Should().BeTrue();
+        Announces("set session app.scope to 'tenant'").Should().BeTrue();
+        Announces("throw new InvalidOperationException(\"This connection never saw \" + \"SET LOCAL app.tenant_id.\");")
+            .Should().BeFalse("a message that names the statement does not issue it — it sets no value");
+        Announces("SELECT current_setting('app.tenant_id', true)").Should().BeFalse("a read is not a setter");
+        Announces("USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)")
+            .Should().BeFalse("a policy reads the variable it guards with");
+    }
+
+    /// <summary>Whether code announces a session variable, however the statement is spelled.</summary>
+    /// <remarks>
+    /// The <c>SET</c> form must carry a value — <c>=</c> or <c>TO</c> — because the same words
+    /// appear in prose a message hands a developer: <c>ModuleDbContextRegistration</c> throws
+    /// "…it never saw SET LOCAL app.tenant_id", which announces nothing. Comments are stripped
+    /// before the scan; strings are not, because a setter IS a string.
+    /// </remarks>
+    [GeneratedRegex(
+        @"set_config\s*\(|\bSET\s+(?:LOCAL\s+|SESSION\s+)?app\.[A-Za-z_][A-Za-z0-9_]*\s*(?:=|\bTO\b)",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex SessionSetter();
+
+    private static bool Announces(string code) => SessionSetter().IsMatch(code);
+
+    /// <summary>The ambient unit of work, which sets the variables on the request's transaction.</summary>
+    private static readonly string[] AmbientSetters =
+        ["LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"];
+
+    /// <summary>
+    /// The audit store: its standalone and best-effort writes own a short transaction that
+    /// must write.
+    /// </summary>
+    private static readonly string[] WritingSetters =
+        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"];
+
+    /// <summary>
+    /// The readers, each in a short read-only transaction of its own: the host resolver, the
+    /// organization-scope validator, and the two cached-projection loaders.
+    /// </summary>
+    private static readonly string[] ReadingSetters =
+    [
+        "LearnStack.Infrastructure/MultiTenancy/CachedHostToTenantResolver.cs",
+        "LearnStack.Infrastructure/MultiTenancy/OrganizationScopeValidator.cs",
+        "LearnStack.Infrastructure.Audit/AuditConfigService.cs",
+        "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs",
+    ];
+
+    /// <summary>
+    /// The methods of a reader that announce a session variable without first issuing
+    /// <c>SET TRANSACTION READ ONLY</c>.
+    /// </summary>
+    /// <remarks>
+    /// Read from the IL, per method, in instruction order. The read-only statement must be the
+    /// <b>whole</b> string a method loads, not a phrase inside one: a message that names the
+    /// statement issues nothing. The order is what carries the guarantee — PostgreSQL accepts
+    /// the statement after other statements, measured, and binds only what follows it, so
+    /// anything issued before it ran read-write.
+    /// </remarks>
+    private static List<string> UnguardedAnnouncements(string assemblyPath, string typeFullName)
+    {
+        using var module = ModuleDefinition.ReadModule(assemblyPath);
+
+        var type = module.GetType(typeFullName)
+            ?? throw new InvalidOperationException($"{typeFullName} is a reader this rule inspects.");
+
+        var unguarded = new List<string>();
+
+        foreach (var (method, declaredAs) in AnnouncingMethods(type))
+        {
+            var loaded = false;
+            var guarded = false;
+            var announced = false;
+
+            foreach (var instruction in method.Body.Instructions)
+            {
+                // The statement is not the string; it is the string having been RUN. Setting the
+                // flag on the literal alone meant deleting `await readOnly.ExecuteNonQueryAsync()`
+                // left the guard green while the server reported `transaction_read_only=off` —
+                // measured. So the literal arms it and an execution call confirms it.
+                if (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
+                {
+                    if (loaded && instruction.Operand is MethodReference call
+                        && call.Name.StartsWith("Execute", StringComparison.Ordinal))
+                    {
+                        loaded = false;
+                        guarded = true;
+                    }
+
+                    continue;
+                }
+
+                if (instruction.OpCode != OpCodes.Ldstr)
+                {
+                    continue;
+                }
+
+                var literal = (string)instruction.Operand;
+
+                if (literal.Trim() == ReadOnlyStatement)
+                {
+                    loaded = true;
+                    continue;
+                }
+
+                if (!Announces(literal))
+                {
+                    continue;
+                }
+
+                announced = true;
+
+                if (!guarded)
+                {
+                    unguarded.Add($"{typeFullName}.{declaredAs}");
+                    break;
+                }
+
+                // One statement per announcement: the next one opens its own transaction.
+                guarded = false;
+                loaded = false;
+            }
+
+            if (!announced)
+            {
+                unguarded.Add($"{typeFullName}.{declaredAs} announces nothing the IL can see");
+            }
         }
+
+        return unguarded;
+    }
+
+    /// <summary>
+    /// The methods of a type that load an announcing statement — state machines included,
+    /// since an async reader's body is emitted into one.
+    /// </summary>
+    private static IEnumerable<(MethodDefinition Method, string DeclaredAs)> AnnouncingMethods(TypeDefinition type) =>
+        Il.Methods(type)
+            .Where(method => method.Definition.HasBody)
+            .Where(method => method.Definition.Body.Instructions.Any(instruction =>
+                instruction.OpCode == OpCodes.Ldstr && Announces((string)instruction.Operand)))
+            .Select(method => (method.Definition, method.DeclaredAs));
+
+    private const string ReadOnlyStatement = "SET TRANSACTION READ ONLY";
+
+    /// <summary>The assembly a reader's file belongs to.</summary>
+    private static string ReaderAssembly(string reader)
+    {
+        var project = reader.Split('/') is ["Modules", _, var module, ..]
+            ? module
+            : reader.Split('/')[0];
+
+        return Path.Combine(AppContext.BaseDirectory, $"{project}.dll");
+    }
+
+    /// <summary>The type a reader's file declares, by convention: one public type per file.</summary>
+    private static string ReaderType(string reader) => reader switch
+    {
+        "LearnStack.Infrastructure/MultiTenancy/CachedHostToTenantResolver.cs" =>
+            "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver",
+        "LearnStack.Infrastructure/MultiTenancy/OrganizationScopeValidator.cs" =>
+            "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
+        "LearnStack.Infrastructure.Audit/AuditConfigService.cs" =>
+            "LearnStack.Infrastructure.Audit.AuditConfigService",
+        "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs" =>
+            "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags",
+        _ => throw new InvalidOperationException($"{reader} has no type mapped for the IL leg."),
+    };
+
+    [Fact]
+    public void Tenant_Scope_Widening_Is_Never_Set_From_Request_Input()
+    {
+        // app.scope = 'tenant' widens an organization-scoped read to the whole tenant, and
+        // ADR-0036 § The reconciliation matrix derives it from the actor's role plus a
+        // declared tenant-wide operation — never from a header, a query parameter, a cookie
+        // or a body. The role arrives in Phase 03; until then nothing sets the variable at
+        // all, and "nothing sets it" is the strongest form of "nothing sets it from request
+        // input". The setter Phase 03 writes adds its own path to ScopeSetterSites, which is
+        // where the role derivation gets reviewed.
+        //
+        // The premise first, or the rule guards a variable nothing reads: the policies do
+        // read it.
+        SourceScan.FilesContaining(SourceScan.SourceRoot, "current_setting('app.scope'", except: null)
+            .Should().NotBeEmpty("the premise: a row-security policy reads app.scope");
+
+        typeof(ITenantContext).GetMembers()
+            .Where(member => member.Name.Contains("Scope", StringComparison.OrdinalIgnoreCase))
+            .Should().BeEmpty(
+                "the tenant context carries no scope, so no request input can reach one through it");
+
+        Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
+            .Where(file => ScopeSetter().IsMatch(SourceText.WithoutComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
+            .Where(file => !ScopeSetterSites.Contains(file))
+            .Should().BeEmpty(
+                "nothing sets app.scope until Phase 03 derives it from a role "
+                + "(ADR-0036 § The reconciliation matrix)");
+    }
+
+    [Fact]
+    public void The_Scope_Setter_Scan_Can_Actually_Fail()
+    {
+        ScopeSetter().IsMatch("SELECT set_config('app.scope', 'tenant', true)").Should().BeTrue();
+        ScopeSetter().IsMatch("SELECT set_config ( 'app.scope' , @scope , true )").Should().BeTrue();
+        ScopeSetter().IsMatch("SET LOCAL app.scope = 'tenant'").Should().BeTrue();
+        ScopeSetter().IsMatch("set session app.scope to 'tenant'").Should().BeTrue();
+        ScopeSetter().IsMatch("OR current_setting('app.scope', true) = 'tenant'").Should().BeFalse(
+            "a policy reading the variable is its subject, not a setter");
+    }
+
+    /// <summary>Files allowed to set <c>app.scope</c>, by path under <c>backend/src</c>. Empty until Phase 03.</summary>
+    private static readonly HashSet<string> ScopeSetterSites = new(StringComparer.Ordinal);
+
+    [GeneratedRegex(
+        @"set_config\s*\(\s*'app\.scope'|\bSET\s+(?:LOCAL\s+|SESSION\s+)?app\.scope\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex ScopeSetter();
+
+    [Fact]
+    public void Host_Resolution_Makes_No_Outbound_Calls()
+    {
+        // The structural half of the rule, until Phase 02c gives a Hub client to register as a
+        // throwing stub. Host resolution runs on every anonymous page load before a tenant is
+        // known, and ADR-0034 forbids it to call the Hub, so that a Hub outage cannot take
+        // tenant sites down. The resolver takes ports — a cache, a data source — and a port
+        // is governed where it is declared; what it must not take is an HTTP client, a gRPC
+        // channel or a Hub client, directly or through a LearnStack type it depends on.
+        var resolvers = ProductionAssemblies.All()
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                && typeof(IHostToTenantResolver).IsAssignableFrom(type))
+            .ToList();
+
+        resolvers.Should().Equal(
+            [typeof(CachedHostToTenantResolver)],
+            "the premise: one resolver, and it is the one this rule inspects");
+
+        OutboundDependencies(typeof(CachedHostToTenantResolver)).Should().BeEmpty(
+            "host resolution reads platform_host_to_tenant and nothing else (ADR-0034)");
+
+        // And the bodies, not only the declarations: `new HttpClient()` inside a method is a
+        // call out that no walk over constructor parameters and fields can see.
+        CallsOutInIl(typeof(CachedHostToTenantResolver)).Should().BeEmpty(
+            "the resolver's own code names no network type either");
+    }
+
+    [Fact]
+    public void The_Outbound_Dependency_Scan_Can_Actually_Fail()
+    {
+        // The resolver is clean, so the rule above passes whether its walk works or not. One
+        // probe takes an HTTP client directly; the other hides a client factory one
+        // LearnStack type down, which is where a real one would arrive.
+        OutboundDependencies(typeof(HttpResolverProbe)).Should().Contain(typeof(HttpClient).FullName);
+        OutboundDependencies(typeof(IndirectResolverProbe)).Should().Contain(typeof(HttpMessageHandler).FullName);
+        OutboundDependencies(typeof(StaticResolverProbe)).Should().Contain(typeof(HttpClient).FullName,
+            "a static field is where an HttpClient is canonically held");
+        OutboundDependencies(typeof(InheritingResolverProbe)).Should().Contain(typeof(HttpClient).FullName,
+            "and a base class is where a second resolver would put what it shares");
+        OutboundDependencies(typeof(LocatingResolverProbe)).Should().Contain("System.IServiceProvider",
+            "a service provider answers for every registered type, this rule's subjects included");
+        CallsOutInIl(typeof(BodyResolverProbe)).Should().NotBeEmpty(
+            "a client constructed inside a method is a call out the declarations do not show");
+        CallsOutInIl(typeof(LocatingResolverProbe)).Should().BeEmpty(
+            "and the IL leg answers about network types, not about the service provider the "
+            + "declaration leg refuses");
+    }
+
+    /// <summary>
+    /// Every type that can call out of the process reachable from a type's constructor
+    /// parameters and fields, following LearnStack-owned classes transitively.
+    /// </summary>
+    private static List<string> OutboundDependencies(Type root)
+    {
+        var found = new SortedSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<Type>();
+        var pending = new Queue<Type>([root]);
+
+        while (pending.TryDequeue(out var type))
+        {
+            if (!visited.Add(type))
+            {
+                continue;
+            }
+
+            // Constructor parameters and FIELDS — instance and static, declared here and
+            // inherited. A `private static readonly HttpClient` is the canonical way to hold
+            // one, and a base class is where a second resolver would put what it shares; a
+            // walk over instance fields alone passed both, measured.
+            var declared = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .SelectMany(constructor => constructor.GetParameters().Select(parameter => parameter.ParameterType))
+                .Concat(Fields(type).Select(field => field.FieldType));
+
+            foreach (var dependency in declared.SelectMany(Unwrap))
+            {
+                if (CallsOut(dependency))
+                {
+                    found.Add(dependency.FullName ?? dependency.Name);
+                }
+                else if (dependency is { IsClass: true } && dependency.Namespace?.StartsWith("LearnStack.", StringComparison.Ordinal) == true)
+                {
+                    pending.Enqueue(dependency);
+                }
+            }
+        }
+
+        return [.. found];
+    }
+
+    private static IEnumerable<Type> Unwrap(Type type)
+    {
+        yield return type;
+
+        if (type.HasElementType)
+        {
+            foreach (var inner in Unwrap(type.GetElementType()!))
+            {
+                yield return inner;
+            }
+        }
+
+        foreach (var argument in type.IsGenericType ? type.GetGenericArguments() : [])
+        {
+            foreach (var inner in Unwrap(argument))
+            {
+                yield return inner;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The network namespaces a type names anywhere in its IL — signatures, bodies, and the
+    /// state machines its async methods compile into.
+    /// </summary>
+    private static List<string> CallsOutInIl(Type type)
+    {
+        using var module = ModuleDefinition.ReadModule(type.Assembly.Location);
+
+        // Cecil spells a nested type with `/` where reflection uses `+`.
+        var definition = module.GetType(type.FullName!.Replace('+', '/'))
+            ?? throw new InvalidOperationException($"{type.FullName} is the type this rule inspects.");
+
+        return [.. OutboundNamespaces
+            .Where(space => Il.NamesNamespace(definition, space))
+            .Select(space => $"{type.FullName} names {space}")];
+    }
+
+    /// <summary>The namespaces a type that talks to the network draws from.</summary>
+    private static readonly string[] OutboundNamespaces =
+        ["System.Net.Http", "System.Net.Sockets", "System.Net.WebSockets", "Grpc", "LearnStack.Infrastructure.Hub"];
+
+    /// <summary>Every field a type holds, inherited and static ones included.</summary>
+    private static IEnumerable<FieldInfo> Fields(Type type)
+    {
+        for (var current = type; current is not null && current != typeof(object); current = current.BaseType)
+        {
+            foreach (var field in current.GetFields(
+                BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Static
+                | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                yield return field;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A type that can reach the network — or resolve something that can.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IServiceProvider"/> is on the list because it answers for every registered
+    /// type: a resolver holding one can obtain a Hub client at the call site, and no walk over
+    /// its declared dependencies would see it.
+    /// </remarks>
+    private static bool CallsOut(Type type) =>
+        type.Namespace is { } space
+            && (space.StartsWith("System.Net.Http", StringComparison.Ordinal)
+                || space.StartsWith("System.Net.Sockets", StringComparison.Ordinal)
+                || space.StartsWith("System.Net.WebSockets", StringComparison.Ordinal)
+                || space.StartsWith("Grpc", StringComparison.Ordinal))
+        || type.Name.Contains("HubClient", StringComparison.Ordinal)
+        || type == typeof(IServiceProvider)
+        || type.Name is "IServiceScopeFactory" or "IServiceScope";
+
+    /// <summary>Takes an HTTP client directly. Never constructed.</summary>
+    private sealed class HttpResolverProbe(HttpClient client)
+    {
+        public HttpClient Client { get; } = client;
+    }
+
+    /// <summary>Takes a LearnStack type that takes a handler. Never constructed.</summary>
+    private sealed class IndirectResolverProbe(IndirectResolverProbe.Transport transport)
+    {
+        public Transport Via { get; } = transport;
+
+        public sealed class Transport(HttpMessageHandler handler)
+        {
+            public HttpMessageHandler Handler { get; } = handler;
+        }
+    }
+
+    /// <summary>Holds an HTTP client in a static field. Never constructed.</summary>
+    private sealed class StaticResolverProbe
+    {
+        private static readonly HttpClient Shared = new();
+
+        public static HttpClient Client => Shared;
+    }
+
+    /// <summary>Holds one in a field a derived type inherits. Never constructed.</summary>
+    private class InheritingResolverProbeBase(HttpClient client)
+    {
+        private readonly HttpClient _client = client;
+
+        protected HttpClient Client => _client;
+    }
+
+    /// <summary>Inherits the client above, and declares nothing itself. Never constructed.</summary>
+    private sealed class InheritingResolverProbe() : InheritingResolverProbeBase(new HttpClient());
+
+    /// <summary>Builds a client inside a method rather than taking one. Never constructed.</summary>
+    private sealed class BodyResolverProbe
+    {
+        public static async Task<string> ResolveAsync(string host)
+        {
+            using var client = new HttpClient();
+
+            return await client.GetStringAsync(new Uri($"https://hub.example/{host}")).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Takes a service provider, which answers for anything. Never constructed.</summary>
+    private sealed class LocatingResolverProbe(IServiceProvider services)
+    {
+        public IServiceProvider Services { get; } = services;
     }
 
     [Fact]
@@ -354,13 +910,48 @@ public sealed class TenancyConventionTests
         string? folder = null,
         IReadOnlyList<string>? alsoExcept = null)
     {
+        var exempt = new List<string>();
+        if (except is not null)
+        {
+            exempt.Add(except);
+        }
+
+        if (alsoExcept is not null)
+        {
+            // The second exemption list is for the file that DECLARES a banned spelling as
+            // opposed to reading it. `TrustedHopOptions` owns the header names; banning the
+            // name without exempting its own declaration would make the rule unsatisfiable
+            // rather than strict.
+            exempt.AddRange(alsoExcept);
+        }
+
+        return
+        [
+            .. from source in ApiSources(folder, exempt)
+               from literal in banned
+               where source.Code.Contains(SourceText.WithoutWhitespace(literal), StringComparison.Ordinal)
+               select $"{source.Relative} contains '{literal}'",
+        ];
+    }
+
+    /// <summary>
+    /// Every source file under <c>LearnStack.Api</c> — or one folder of it — with its
+    /// comments stripped and its whitespace removed.
+    /// </summary>
+    /// <remarks>
+    /// Exemptions are compared as paths, not as bare names: two files may share a name in
+    /// different folders, and excluding both because one is exempt is how a rule quietly
+    /// stops covering half of what it names.
+    /// </remarks>
+    private static IEnumerable<(string Relative, string Code)> ApiSources(
+        string? folder = null, IReadOnlyList<string>? except = null)
+    {
         var root = Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api");
+
         if (folder is not null)
         {
             root = Path.Combine(root, folder);
         }
-
-        var offenders = new List<string>();
 
         foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
         {
@@ -372,38 +963,16 @@ public sealed class TenancyConventionTests
                 continue;
             }
 
-            // Compared as a path, not a bare name: two files may share a name in
-            // different folders, and excluding both because one is exempt is how
-            // a rule quietly stops covering half of what it names.
             if (except is not null
-                && relative.Equals(except, StringComparison.Ordinal))
+                && except.Any(allowed => relative.Equals(allowed, StringComparison.Ordinal)))
             {
                 continue;
             }
 
-            // A second exemption list, for the file that DECLARES a banned spelling as
-            // opposed to reading it. `TrustedHopOptions` owns the header names; banning
-            // the name without exempting its own declaration would make the rule
-            // unsatisfiable rather than strict.
-            if (alsoExcept is not null
-                && alsoExcept.Any(allowed => relative.Equals(allowed, StringComparison.Ordinal)))
-            {
-                continue;
-            }
-
-            var code = SourceText.WithoutWhitespace(
-                SourceText.WithoutComments(File.ReadAllText(file)));
-
-            foreach (var literal in banned)
-            {
-                if (code.Contains(SourceText.WithoutWhitespace(literal), StringComparison.Ordinal))
-                {
-                    offenders.Add($"{relative} contains '{literal}'");
-                }
-            }
+            yield return (
+                relative,
+                SourceText.WithoutWhitespace(SourceText.WithoutComments(File.ReadAllText(file))));
         }
-
-        return offenders;
     }
     [Fact]
     public void Resolving_Host_Is_Set_In_One_Place()

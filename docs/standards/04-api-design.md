@@ -198,7 +198,7 @@ The set is this table and nothing else:
 | Request type | Permitted methods | Why | Owning phase |
 |--------------|-------------------|-----|--------------|
 
-Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s two
+Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s
 anonymous read endpoints. Until then `PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
 ([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) pass over an
@@ -242,8 +242,9 @@ Rules:
   re-decided at the edge. A `limit` of zero or less **is** rejected, with
   `errors.limit` naming the parameter the client sent.
 - Cursor is opaque; clients must never parse it. Nothing validates its *shape*
-  yet: the payload belongs to whoever mints it, and the first minting query
-  lands with the tenancy read paths.
+  yet: the payload belongs to whoever mints it, and the first minting query is
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s course catalog, which
+  also decides the 400 for a cursor it cannot read.
 - Offset pagination is allowed only for admin-bounded lists (≤ 10k total rows).
 
 ## Filtering and Sorting

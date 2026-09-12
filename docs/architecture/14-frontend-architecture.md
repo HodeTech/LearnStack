@@ -274,7 +274,7 @@ resolver.register('card-grid', CardGridBlock);
 ```
 
 There is **no `english.vocabulary-list` block in code**. A tenant that wants vocabulary
-cards declares a `TenantContentType` (`VocabularyCard`) plus a `TenantPageBlock`
+cards declares a `TenantContentType` (`vocabulary-card`) plus a `TenantPageBlock`
 (`vocabulary-list` → renderer-key `content-list`); the renderer reads the schema, queries
 the content entries, and renders the list with the chosen `content-list` composite.
 Different tenants get different blocks **without code changes** — this is the runtime

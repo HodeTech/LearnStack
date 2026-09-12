@@ -62,7 +62,7 @@ public sealed class AllowsUnresolvedTenantContextAttribute : Attribute;
 /// a mutating entry states why, no marked type performs a tenant-owned write, and
 /// none may be classified MUST-class <c>read-sensitive</c>, which would turn an
 /// anonymous <c>GET</c> into a durable standalone audit write. The first rows arrive
-/// with Phase 02d's two anonymous read endpoints.
+/// with Phase 02d's anonymous read endpoints.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]

@@ -219,7 +219,7 @@ Rules:
 
 - Aggregates are the only entry points for state changes.
 - Aggregate methods enforce invariants; setters are private.
-- Domain events raised from aggregate methods; collected by the unit-of-work and dispatched on commit.
+- Domain events raised from aggregate methods; collected by the unit of work and dispatched in-process inside the ambient transaction, before it commits ([ADR-0010](../decisions/0010-cross-module-communication.md) puts a domain event in the same transaction as the change that raised it). The collection and dispatch land in [Phase 02b](../roadmap/phase-02b-events-auth.md); until then an aggregate can raise and nothing hears it.
 - Avoid anemic models (data + getters/setters with logic outside).
 - Avoid primitive obsession; use value objects.
 - **Entity equality is identity equality, and it is defined once.** `Entity<TId>`
@@ -242,7 +242,7 @@ Rules:
 - **`Equals(object?)` and `GetHashCode()` on `Entity<TId>` are `sealed override`.**
   A derived aggregate that overrode them could also declare its own `operator ==`;
   sealed, it cannot silence CS0660 / CS0661 and the build fails instead. Aggregates
-  never redefine equality — enforced from Packet 10 by
+  never redefine equality — enforced since Packet 10 by
   [`Aggregates_Do_Not_Redeclare_Entity_Equality`](21-architecture-tests-catalogue.md#aggregates_do_not_redeclare_entity_equality),
   which catches the one case the compiler cannot: a derived `Equals(TSelf?)`
   **overload**, which is a new method rather than an override.

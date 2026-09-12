@@ -44,7 +44,7 @@ and must be Accepted before this skill is used in production.
 | Input | Required | Description |
 |-------|----------|-------------|
 | Tenant id | Yes | Owner of the rule. |
-| Key | Yes | PascalCase, unique per tenant: `EnglishPlacementToCefr`. |
+| Key | Yes | Lowercase letters and digits with single interior hyphens, unique per tenant: `cefr-placement`. The concept-key shape every customization key takes — it reaches a URL segment, a cache key and a schema reference ([Tenant Customization Model](../../../docs/architecture/32-tenant-customization-model.md)). |
 | Schema version | Yes | Starts at 1. |
 | Input shape | Yes | JSON Schema for the answer map the rule expects. |
 | Output shape | Yes | JSON Schema for the result (e.g. `{ levelKey: string, score: number }`). |
@@ -166,7 +166,7 @@ the work belongs in a regular handler.
 ```csharp
 await mediator.Send(new RegisterTenantScoringRuleCommand(
     TenantId: tenantId,
-    Key: "EnglishPlacementToCefr",
+    Key: "cefr-placement",
     SchemaVersion: 1,
     InputSchemaJson: File.ReadAllText("input-v1.json"),
     OutputSchemaJson: File.ReadAllText("output-v1.json"),
@@ -187,7 +187,7 @@ The seed:
 The Assessment module's grading handler reads the rule by `(tenantId, key)`:
 
 ```csharp
-var rule = await scoringRules.GetAsync(tenantId, "EnglishPlacementToCefr", null /* latest */, ct);
+var rule = await scoringRules.GetAsync(tenantId, "cefr-placement", null /* latest */, ct);
 var result = await dslEngine.EvaluateAsync(rule, answerMap, ct);
 attempt.RecordResult(result);
 ```

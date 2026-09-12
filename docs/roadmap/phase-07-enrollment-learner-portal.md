@@ -20,7 +20,7 @@ from Phase 03, and the outbox and background-job infrastructure from
 Worth stating plainly, because a walking skeleton is easy to over-read:
 
 [Phase 02d](phase-02d-walking-skeleton.md) is **anonymous and read-only**. It renders a
-catalog page and a lesson page for two tenants through two anonymous `GET` endpoints.
+catalog page and a lesson page for two tenants through anonymous `GET` endpoints.
 There is no user, no enrollment, no course access, no progress row, and no learner-side
 write path anywhere behind it. The lesson page it produced has no "mark complete"
 control and nothing to store if it had one.

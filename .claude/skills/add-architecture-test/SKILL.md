@@ -14,8 +14,8 @@ description: >
 
 ## Purpose
 
-Move a rule from documentation prose into a CI-enforced check using NetArchTest /
-ArchUnitNET / Roslyn analyzers / migration scans
+Move a rule from documentation prose into a CI-enforced check — NetArchTest, reflection,
+an IL scan, a source or migration scan, or a Roslyn analyzer
 ([01-architecture-standards.md § Architecture Tests](../../../docs/standards/01-architecture-standards.md)).
 
 ## When to use
@@ -40,7 +40,7 @@ ArchUnitNET / Roslyn analyzers / migration scans
 |-------|----------|-------------|
 | Rule | Yes | Plain-English statement of the invariant. |
 | Source | Yes | ADR / standard that defines the rule. |
-| Detection mechanism | Yes | NetArchTest / ArchUnitNET (project graph) / Roslyn (syntactic) / migration scan (SQL pattern). |
+| Detection mechanism | Yes | NetArchTest (type references) / reflection / Mono.Cecil (IL) / Roslyn (syntactic) / source or migration scan (text). |
 | Failure message | Yes | Actionable: tell the author what to do, not just what is wrong. |
 
 ## Workflow
@@ -57,21 +57,26 @@ them.
 | Mechanism | Use when |
 |-----------|----------|
 | **NetArchTest** | Project-graph reference bans, naming conventions on types / namespaces. |
-| **ArchUnitNET** | Slightly richer rules (constraints across assemblies). Pick when NetArchTest can't express it. |
-| **Roslyn analyzer** | Syntactic patterns inside code (`IgnoreQueryFilters` call, raw `Guid` in command, …). |
+| **Mono.Cecil (IL scan)** | What a method body does — a constructor called, a member read — which NetArchTest's type-level rules cannot express. It ships with NetArchTest; there is no ArchUnitNET in this repository. |
+| **Roslyn analyzer** | A syntactic pattern the build itself should fail on — `throw new DomainException(...)` outside an invariant guard is `LS0001`. |
 | **Migration scan** | SQL patterns in `.cs` migration files (RLS-enable, policy presence, partition declaration). |
 | **Reflection over conventions** | Marker-attribute presence + matching property / migration shape. |
 | **String / regex scan** | When all else fails — explicit "no file under `Verticals/`", "no `english.*` permission key". |
 
 ### Step 3: Author the test
 
-In `backend/tests/LearnStack.Tests.Architecture/`:
+In `backend/tests/LearnStack.Tests.Architecture/`. The block below illustrates the
+shape and is **not** a rule to add: its subject ships as
+`ModuleDomain_DoesNotDependOn_OtherModuleDomain` in `ModuleDependencyTests.cs`, and a
+rule's name comes from
+[the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md), never from
+an example.
 
 ```csharp
-public sealed class ModuleDependencyTests
+public sealed class ExampleBoundaryTests
 {
     [Fact]
-    public void Modules_DoNot_Reference_OtherModule_Domain()
+    public void Example_Module_Does_Not_Reference_Another_Modules_Domain()
     {
         // pseudo-code; replace `GetOwningModuleNamespace(...)` with the real
         // owning-namespace resolver helper that lives next to the test. The
@@ -110,32 +115,36 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-**The shipped set is fourteen files, not a family per topic.** Add yours to the one whose
+**The shipped set is eighteen files, not a family per topic.** Add yours to the one whose
 subject it shares:
 
 | File | What it covers |
 |------|----------------|
-| `ModuleDependencyTests.cs` | Dependency direction between module packages, plus a planted-violation meta test that proves the scanner still detects one. |
-| `PersistenceConventionTests.cs` | `row_version` mapping, ambient-unit-of-work enlistment, the Docker trait, and the `migrate` recipe's chain coverage and credential redaction. |
-| `TenancyConventionTests.cs` | The ADR-0036 **request-edge** rules — what may read a host, where the effective host and `app.resolving_host` are computed, and the assertion budget's independence from `ICacheService`. Source scans, because three of the four banned inputs appear only as string literals. |
-| `TenantScopingTests.cs` | The correspondence between the `[TenantOwned]` / `[OrganizationScoped]` markers, the EF global query filters, and the Row Level Security policies. |
+| `ModuleDependencyTests.cs` | The dependency matrix — each module layer, and the core `Application`, an allow-list over its IL and its project references — the Domain's one EF Core exception for Vogen's emitted converters, plus a planted-violation meta test that proves the scanner still detects one. |
+| `PersistenceConventionTests.cs` | `row_version` mapping, ambient-unit-of-work enlistment and the ban on fanning out over its connection, the Docker trait, and the `migrate` recipe's chain coverage and credential redaction. |
+| `TenancyConventionTests.cs` | The ADR-0036 **request-edge** rules — what may read a host, where the effective host and `app.resolving_host` are computed, the assertion budget's independence from `ICacheService`, and the host resolver's lack of outbound dependencies — and who may set a session variable: the out-of-band setters' read-only transactions and the ban on setting `app.scope`. Mostly source scans, because most of the banned inputs are header names and SQL that appear only as string literals. |
+| `TenantScopingTests.cs` | The correspondence between the `[TenantOwned]` / `[OrganizationScoped]` markers, the EF global query filters, and the Row Level Security policies, down to the tenant term in both of a policy's clauses. |
 | `TenantContextConstructionTests.cs` | How a tenant context comes into existence and who may write it: the factory's single entry point, the constructor's one call site, the enumerated accessor writers, and the composite-key organization read. |
 | `ApiConventionTests.cs` | Live majors, forwarded headers, required `Deployment:Mode`, unversioned route prefixes. |
-| `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, provider SDK exceptions). |
+| `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, the cache clients, the Hub, provider SDK exceptions). |
 | `RequestSurfaceTests.cs` | What the step-4 authority ceiling admits: the two request markers, their permitted sets, the shape of the attributes themselves, and the ban on request shapes MediatR runs with no pipeline. |
 | `PlatformAdminScopeConventionTests.cs` | The single sanctioned `BYPASSRLS` path: who may resolve the keyed platform data source, where connection strings are read, the entry gate, and what the scope must not touch. |
-| `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals` and the single-frontend-app rule. |
+| `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals`, the single-frontend-app rule, and the commit-subject grammar — checked by running the `commit-msg` hook. |
 | `AggregateWriteTests.cs` | The one sanctioned cross-aggregate write, and the count of aggregate roots a handler's ports can write that keeps it at one. |
 | `CustomizationRegistryTests.cs` | The closed renderer registries that exist twice — in C# and in TypeScript — and stop the two drifting. |
-| `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, and the `OperationType` table. |
+| `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, the closed set of `audit_log` writers, and the `OperationType` table. |
+| `EntitlementConventionTests.cs` | The entitlement socket: which types may name `platform_entitlement_cache`'s entity, and whose SQL may touch its rows. |
+| `EntitlementKeyTests.cs` | The entitlement vocabulary: where a feature, limit or killswitch key may be spelled, and which keys the tenant's own flag table admits. |
+| `DomainModelTests.cs` | The shape every aggregate carries: identity equality declared once, and an aggregate root's id generated rather than hand-written. |
+| `DomainGenericityTests.cs` | The genericity guarantee: no name the platform ships — backend, database, audit slug, key, renderer or frontend — carries a domain term. |
 | `AuditCoverageTests.cs` | The catalogue ↔ matrix join, keyed on request types discovered from every backend assembly, in both directions — plus the module-has-a-matrix rule. |
 
-Rules for surfaces no file covers yet — permissions, entitlement, event bus, Hub
-contract — are **Registered** in
+Rules for surfaces no file covers yet — permissions, the Hub adapters and endpoints — are
+**Registered** in
 [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
 the phase that ships the code they inspect. Check its Status line before assuming a
 net is under you, and create a new file only when your rule's subject is not one of
-the fourteen above.
+the eighteen above.
 
 > **The tenancy rules live in three files, and the split is by subject, not by ADR.**
 > All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable

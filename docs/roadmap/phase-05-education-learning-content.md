@@ -49,7 +49,7 @@ in [Database Standards](../standards/05-database.md).
 |---|---|
 | `Course` — slug, title, summary, published / draft | Program membership, versioning, categories, tags, SEO, catalog visibility |
 | `Lesson` — ordered within a course, single-primitive body | Module membership, lesson items, required / optional, duration, prerequisites |
-| Two anonymous read endpoints | The authenticated authoring surface and the versioned read path |
+| Three anonymous read endpoints — the catalog list and two detail reads | The authenticated authoring surface and the versioned read path |
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
 
 ### ADR-0025 — the scoring and completion DSL engine
@@ -326,7 +326,7 @@ cross-phase screen ownership table lives in **one** place —
 - Education catalog API — programs, courses, versions, categories, levels, tags, SEO.
 - Versioned course structure with draft / publish / clone.
 - Lesson content management with lesson items across both registry tiers.
-- Public catalog rendering data, extending the two read endpoints
+- Public catalog rendering data, extending the read endpoints
   [Phase 02d](phase-02d-walking-skeleton.md) shipped.
 - The customization runtime cost model implemented and **measured**: validation on the
   write path, the two-tier cache with generation-key invalidation, the batched

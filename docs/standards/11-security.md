@@ -225,7 +225,8 @@ for the full strategy. Standards-side:
   ([09-tenant-isolation.md § Platform admin access](../architecture/09-tenant-isolation.md),
   [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)).
 - Background jobs **must** receive `TenantId` (and `OrganizationId?`) in their
-  payload; jobs without it fail at registration.
+  payload. From [Phase 02b](../roadmap/phase-02b-events-auth.md), which ships Hangfire, a
+  job enqueued without it fails at enqueue time (`Hangfire_Job_Payloads_Include_TenantId`).
 - The `app.tenant_id` and `app.organization_id` session variables are set with
   `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
   which is the single authority for that placement.
@@ -302,8 +303,8 @@ yet:
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
-| The `AuditConfig` override loader | its own short read | An out-of-band cached projection, never a request-path query |
-| The tenant-flag loader (`FeatureFlags`) | its own short read | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
+| The `AuditConfig` override loader | its own short read-only one | An out-of-band cached projection, never a request-path query |
+| The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 
 > **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
 > only non-vacuous caller is the reconciliation matrix's row 7, which needs a validated
@@ -590,9 +591,10 @@ Security-relevant durability rules:
   ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)). A tenant override
   may narrow SHOULD/MAY coverage; it may never remove baseline MUST coverage
   ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md);
-  registered as `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
-  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md) for Packet 10;
-  today `AuditConfigServiceTests` and `AuditLogBehaviorTests` hold its two halves).
+  asserted by `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md), which observes
+  that a MUST is answered without the loader ever being asked for a connection, alongside
+  `AuditConfigServiceTests` and `AuditLogBehaviorTests`).
 - **Snapshots are redacted at capture and bounded there.**
   `AuditChangeTrackerInterceptor` captures every `Added` / `Modified` / `Deleted`
   entry minus a named exclusion list, and two gates run before anything is parked: a

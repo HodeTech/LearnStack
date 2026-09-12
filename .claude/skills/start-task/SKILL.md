@@ -102,7 +102,8 @@ Run the change through the **hard rules** in [CLAUDE.md § Hard rules](../../../
 - Does it introduce a domain-specific name (CEFR, asana, kyu/dan, code-challenge, …)
   in core code? → forbidden by ADR-0018; use tenant customization data instead.
 - Does it add a 5th cross-module communication mechanism? → forbidden by ADR-0010.
-- Does it add a 5th Hub HTTPS endpoint? → requires a new ADR (ADR-0019).
+- Does it add an endpoint to the Hub contract surface? → requires an ADR, in both
+  repositories: the surface is governed by ADR-0034's two invariants, not by a count.
 - Does it inject `IConnectionMultiplexer` / `IDistributedCache` / `KafkaProducer` /
   `VaultClient` directly? → forbidden; use `ICacheService` / `IEventBus` /
   `ISecretProvider` (ADR-0038, standards/20).

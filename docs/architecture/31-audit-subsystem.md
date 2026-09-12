@@ -1952,9 +1952,11 @@ happened to tenant X on date Y" pulls from both streams and joins by correlation
 Blocker-level rules, registered by
 [Phase 02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) in
 [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md), which is
-authoritative for each rule's canonical name, **assembly and kind**. Four of them are not
-architecture tests at all: they need a live PostgreSQL and run as `learnstack_app` under
+authoritative for each rule's canonical name, **assembly, kind and status**. Four of them
+are not architecture tests at all: they need a live PostgreSQL under
 `[Trait(RequiresDocker…)]`, because an architecture test cannot observe a transaction.
+Three connect as `learnstack_app`; the fourth, rule 11, connects as each role whose
+update it constrains.
 
 **Structural** — `LearnStack.Tests.Architecture`:
 
@@ -1992,9 +1994,10 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
 3. `AuditEntry_Is_AppendOnly` — no `UPDATE` or `DELETE` against `audit_log` outside the
    closed exception list in `LearnStack.Modules.Audit.Infrastructure`, and `IAuditStore`
    exposes no update method.
-4. `Modules_Do_Not_Write_AuditLog_Directly` — no module assembly outside
-   `LearnStack.Modules.Audit.*` names `audit_log` or `AuditEntry`; `IAuditStore` is every
-   other module's only write path.
+4. `Modules_Do_Not_Write_AuditLog_Directly` — the types that name `AuditEntry` are the
+   entity, its configuration and `AuditDbContext`; the only SQL that inserts into
+   `audit_log` is `PostgresAuditStore`'s; and no module but Audit names the table.
+   `IAuditStore` is every other module's only write path.
 5. `OperationType_Enum_Matches_Catalog` — the `OperationType` enum and § Operation Types
    in [Audit Coverage Standards](../standards/18-audit-coverage.md) carry the same seven
    members.
@@ -2004,8 +2007,8 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
 7. `Every_Module_Has_An_AuditCoverage_Matrix` — a module without a matrix cannot classify
    its operations, and under ADR-0033 classification is functional, not documentary.
 
-**Runtime** — `LearnStack.Tests.Integration/Database`, Testcontainers, connected as
-`learnstack_app` (`NOBYPASSRLS`):
+**Behavioural** — `LearnStack.Tests.Integration/Database`, Testcontainers, connected as
+`learnstack_app` (`NOBYPASSRLS`) except where rule 11 says otherwise:
 
 8. `MustClass_Audit_Writes_Share_The_Business_Transaction` — the binding test for
    [ADR-0033](../decisions/0033-audit-durability-model.md). A MUST-class command produces
@@ -2030,9 +2033,14 @@ architecture tests at all: they need a live PostgreSQL and run as `learnstack_ap
    commit landed rather than an audit failure.
 10. `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` — with the
    `audit_config` table made unreadable, a MUST-class command still completes and still
-   writes its row at the catalogue classification; an operation absent from the catalogue
-   is rejected with `audit_unclassified_operation`. Without this, a silent RLS-filtered
-   empty read is indistinguishable from "this tenant has no overrides".
+   writes its row at the catalogue classification, and classification is never even handed
+   a connection to answer a MUST with. Without this, a silent RLS-filtered empty read is
+   indistinguishable from "this tenant has no overrides". The rule's other half — an
+   operation absent from the catalogue rejected with `audit_unclassified_operation` — is
+   **not** behavioural and is not in this list's suite: it is
+   `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
+   in `LearnStack.Tests.Unit`, because a handler can be registered there for a request the
+   catalogue does not know, and the seeder's composition root has no such request to send.
 11. `AuditLog_Update_Is_Column_Restricted` — as `learnstack_app`, any `UPDATE` or
     `DELETE` on `audit_log` raises `42501`. As `learnstack_platform`, an `UPDATE`
     touching only the six redactable columns succeeds, one touching any other column is

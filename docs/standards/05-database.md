@@ -1437,8 +1437,10 @@ likely accident, and they bypass the capture the same way
 - **PgBouncer in transaction-pooling mode** for production — this is a hard
   prerequisite for RLS: `SET LOCAL app.tenant_id = ...` is transaction-scoped, so
   statement-mode pooling would reset the value between statements and silently break
-  isolation. The architecture test `Db_Connection_String_Is_TransactionPooled`
-  enforces this in the deployment config; deviation requires an ADR.
+  isolation. The architecture test `Db_Connection_String_Is_TransactionPooled`,
+  registered for [Phase 11](../roadmap/phase-11-production-hardening.md), holds the
+  deployment configuration to it once a non-development one exists to inspect;
+  deviation requires an ADR.
 - `app.tenant_id` (and `app.organization_id` when relevant) set **within the same
   transaction** as the work (`SET LOCAL ...`).
 - A `DbCommandInterceptor` — **not** a connection-checkout interceptor — guards

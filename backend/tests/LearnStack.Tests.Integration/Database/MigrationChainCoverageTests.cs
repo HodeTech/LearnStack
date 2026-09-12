@@ -10,10 +10,10 @@ namespace LearnStack.Tests.Integration.Database;
 /// <remarks>
 /// <para>
 /// <b>The leg the schema sweep cannot supply.</b>
-/// <c>Every_Migration_Chain_Has_A_History_Table</c> compares what the database
+/// <c>PlatformSchemaTests.EachChainHasItsOwnHistoryTable</c> compares what the database
 /// carries against <see cref="MigrationChains.HistoryTables"/> — both sides of one
-/// list. A fourth chain that ships without being added there produces three
-/// history tables and a three-entry list, and the comparison stays green while the
+/// list. A fifth chain that ships without being added there produces four
+/// history tables and a four-entry list, and the comparison stays green while the
 /// fixture applies a schema smaller than the one that deploys.
 /// </para>
 /// <para>

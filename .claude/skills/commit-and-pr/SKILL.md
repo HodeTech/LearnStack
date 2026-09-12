@@ -31,7 +31,8 @@ move fast and `git log --grep` stays useful.
 
 - Squash-rebasing months-old branches — read 14-git-workflow first; the rules below
   assume a single coherent change.
-- Reverting (use `git revert` and let the auto-message stand).
+- Reverting — [Git Workflow § Reverts](../../../docs/standards/14-git-workflow.md#reverts)
+  owns the subject a revert takes; git's own `Revert "…"` fails CI.
 - Force-pushing to `main` — never, regardless of skill.
 
 ## Inputs
@@ -46,18 +47,11 @@ move fast and `git log --grep` stays useful.
 
 ### Step 1: Pick `type(scope): subject`
 
-Conventional Commits style. Allowed types:
-
-| Type | When |
-|------|------|
-| `feat` | New behavior the user can observe. |
-| `fix` | Bug fix. |
-| `refactor` | Internal restructure with no user-visible change. |
-| `perf` | Performance improvement. |
-| `test` | Adding or fixing tests only. |
-| `chore` | Build / CI / tooling. |
-| `docs` | Documentation-only change. |
-| `build` | Project / SDK / package version bumps. |
+Conventional Commits style. The allowed types are the table in
+[Git Workflow § Commits](../../../docs/standards/14-git-workflow.md#commits), and the
+scope characters, the breaking-change `!` and the length rule are the list under it. The
+`commit-msg` hook enforces them, and CI runs that same hook on every commit of the pull
+request, so a subject the hook refuses locally is refused again there.
 
 Scope:
 
