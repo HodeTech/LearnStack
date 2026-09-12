@@ -116,15 +116,16 @@ the day it was deleted it named ninety-four methods and the suite declared a hun
 thirty-one.
 `Every_Implemented_Rule_Names_A_Test_That_Exists` replaces it: every entry below whose
 **Status** reports *Implemented* in a file of that assembly must be a test method of exactly
-that name, or the build fails. It reads both spellings the entries
-actually use — the file, with its extension, and the bare class name — because matching only
-the first was measured at **38** of the 95 entries on the day it was written, and a guard that
-silently checks two fifths of its subject is the defect this section is about. It also refuses an entry naming a
+that name, or the build fails. It reads all three spellings the entries
+actually use — the bare class, the file with its extension, and `Class.Method`, which is how
+the entries outside this assembly name their test — because matching only the file spelling was
+measured at **38** of the 95 entries on the day it was written, and a guard that silently checks
+two fifths of its subject is the defect this section is about. It also refuses an entry naming a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**139 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
-The other 40 are no less binding, and most could not live there. The table says where and
+**140 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
+The other 41 are no less binding, and most could not live there. The table says where and
 why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
 and the first version of this table claimed "three rules" for a suite that holds ten.
 
@@ -644,11 +645,12 @@ otherwise).
 
 - **Asserts:** every entry in this catalogue whose **Status** reports *Implemented* in a
   file of the architecture assembly is a test method of exactly that name; and no entry
-  names a test class that exists nowhere in the repository. Both spellings the entries use
-  count — the file with its extension, and the bare class name — and the rule pins its own
-  reach to the count § Implemented today publishes, because a matcher that recognised only
-  the file spelling covered 38 of the ninety-five, and an entry whose class stops resolving
-  leaves the subject instead of failing.
+  names a test class that exists nowhere in the repository. All three spellings the entries
+  use count — the bare class, the file with its extension, and `Class.Method` — and the rule
+  pins its own reach to the count § Implemented today publishes, because a matcher that
+  recognised only the file spelling covered 38 of the ninety-five, one that could not read
+  `Class.Method` left three shipped rules with nothing to resolve, and an entry whose class
+  stops resolving leaves the subject instead of failing.
 - **Why it matters:** the **Status** line is the authority on whether a rule runs, and it
   is prose. A renamed method, a moved file or a rule quietly deleted leaves the entry
   claiming the opposite of the truth — worse than a rule that was never written, because a

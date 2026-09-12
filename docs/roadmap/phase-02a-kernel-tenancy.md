@@ -3475,9 +3475,12 @@ three cases the rule had been passing for exactly that reason.
 > **Measured at merge: 2039 tests green** — 1 contract, 175 architecture, 1373 unit,
 > 490 integration — with **zero skips**, which is now a rule rather than a habit, checked
 > both in the suite and at the runner. Counted from a run under `CI=true`, which makes
-> warnings errors. The architecture assembly grew from **93 `[Fact]` / `[Theory]`
-> declarations to 132**; **32** catalogue rules became **Implemented** during the packet —
-> 13 of them entries that already existed and were waiting, 19 entries the packet wrote.
+> warnings errors. The architecture assembly grew from **93** `[Fact]` / `[Theory]`
+> declarations at Packet 9's close to **132**, and **thirty** entries in the catalogue name
+> Packet 10 as the packet that implemented them. The catalogue's own totals — how many rules
+> it reports Implemented and how many run in that assembly — are published in
+> [§ Implemented today](../standards/21-architecture-tests-catalogue.md#implemented-today)
+> and recomputed there by a test, rather than copied here to go stale.
 
 ### What it put in force
 

@@ -49,14 +49,15 @@ mode, `IFeatureFlags` composing over it, the three typed key registries, and
 [Phase 03](docs/roadmap/phase-03-identity-admin.md) brings the Platform-scope
 permission.
 [Packet 10](docs/roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-10) closed
-the phase against its own exit decision: thirty-four catalogue rules moved from
-Registered to Implemented — module boundaries in all four legs, domain genericity across
-names, schema, slugs, keys and the frontend tree, the port and entitlement-key bans,
-ADR-0040's two behavioural properties, and three named isolation proofs as
-`learnstack_app` — the standards were re-stated against what enforces them today
-(nineteen `Active`, three `Adopted`), and three guards now hold the corpus to its own
-claims, so a status header, a catalogue entry or a planted `Skip` fails the build rather
-than a reader. 2038 cases, zero skips.
+the phase against its own exit decision: thirty catalogue entries name it as the packet
+that implemented them — module boundaries in all four legs, domain genericity across names,
+schema, slugs, keys and the frontend tree, the port and entitlement-key bans, ADR-0040's
+two behavioural properties, and three named isolation proofs as `learnstack_app`. The
+standards were re-stated against what enforces them today (nineteen `Active`, three
+`Adopted`), and four guards now hold the corpus to its own claims, so a status header, a
+catalogue entry, a published count or a planted `Skip` fails the build rather than a
+reader. The whole suite runs with **zero skips**, which the runner now refuses to let
+change.
 **[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is next.**
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

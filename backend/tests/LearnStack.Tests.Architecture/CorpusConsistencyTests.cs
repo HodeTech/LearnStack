@@ -187,7 +187,16 @@ public sealed partial class CorpusConsistencyTests
             #### `A_Rule_Implemented_Somewhere_Else`
 
             - **Status:** **Implemented** (`LearnStack.Tests.Integration`, `OtherTests`).
-            """).Should().Equal(["A_Rule_That_Runs", "A_Rule_Whose_Entry_Names_The_Class"]);
+
+            #### `An-Analyzer-Rule`
+
+            - **Status:** **Implemented** — `SomeTests.cs`.
+            """).Should().Equal([
+                "A_Rule_That_Runs",
+                "A_Rule_Whose_Entry_Names_The_Class",
+                "An-Analyzer-Rule",
+            ], "a hyphen in a rule name is a rule name: excluding it dropped the `LS0001` "
+             + "analyzer's entry from every count here, prose and recount alike");
 
         // The class reader the orphan check rests on: a `…Tests` token in backticks, with or
         // without its extension, and nothing else.
@@ -195,6 +204,10 @@ public sealed partial class CorpusConsistencyTests
             .Should().Equal(["PersistenceConventionTests"]);
         NamedClasses("**Implemented** — `AuditPipelineTests.cs`, Packet 9.")
             .Should().Equal(["AuditPipelineTests"]);
+        NamedClasses("**Implemented** — both variants (`ValidationBehaviorTests.Never_Throws`).")
+            .Should().Equal(["ValidationBehaviorTests"],
+                "an entry outside this assembly names its test as Class.Method, and reading only "
+                + "the bare and file spellings left three shipped rules with nothing to resolve");
         NamedClasses("**Implemented** — analyzer + unit tests.")
             .Should().BeEmpty("an entry that names no class has nothing to resolve");
 
@@ -420,10 +433,18 @@ public sealed partial class CorpusConsistencyTests
     [GeneratedRegex(@"(?<active>[A-Za-z-]+)\s+`Active`,\s*(?<adopted>[A-Za-z-]+)\s+`Adopted`")]
     private static partial Regex StatusCount();
 
-    [GeneratedRegex(@"#### `(?<rule>[A-Za-z0-9_]+)`(?<status>.*?)(?=\n#{2,4} |\z)", RegexOptions.Singleline)]
+    // The rule name admits a hyphen because one entry has one — the `LS0001` analyzer, whose
+    // name is `LearnStackException-DomainExceptionThrow`. Excluding it dropped that entry from
+    // every count here, and because the prose and the recount read through this same pattern
+    // they agreed with each other while both were short by one.
+    [GeneratedRegex(@"#### `(?<rule>[A-Za-z0-9_\-]+)`(?<status>.*?)(?=\n#{2,4} |\z)", RegexOptions.Singleline)]
     private static partial Regex CatalogueEntry();
 
-    [GeneratedRegex(@"`(?<name>[A-Za-z0-9_]+Tests)(?:\.cs)?`")]
+    // Three spellings, because the catalogue writes all three: the bare class, the file with
+    // its extension, and `Class.Method` — which is how the entries outside this assembly name
+    // their test. Reading only the first two left three shipped rules with nothing to resolve,
+    // so deleting `ValidationBehaviorTests.cs` would not have failed anything.
+    [GeneratedRegex(@"`(?<name>[A-Za-z0-9_]+Tests)(?:\.[A-Za-z0-9_]+)?`")]
     private static partial Regex ClassReference();
 
     [GeneratedRegex(@"public\s+(?:async\s+Task|void)\s+(?<name>[A-Za-z0-9_]+)\s*\(")]

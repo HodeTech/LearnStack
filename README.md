@@ -55,7 +55,8 @@ a permission that does not exist yet.
 Packet 10 closed the phase: the rules the corpus states now run — module boundaries,
 domain genericity, the port and entitlement-key bans, the ambient unit of work's two
 behavioural properties, three named isolation proofs as `learnstack_app` — and the
-standards say what enforces them, held there by a test. 2038 cases, zero skips.
+standards say what enforces them, held there by a test. The whole suite runs with zero
+skips, which the runner now refuses to let change.
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is next: two hosts, two tenants,
 two education sites, one binary and one database.**
 
