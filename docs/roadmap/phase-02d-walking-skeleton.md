@@ -171,7 +171,14 @@ written and the transient `ITenantContext` resolves from it on every access, the
 transaction sets `app.tenant_id` / `app.organization_id` with `SET LOCAL`, and Row
 Level Security filters every read.
 
-Two hosts are registered in local development, one per seed tenant.
+Two hosts are registered in local development, one per seed tenant. How a browser
+reaches them is decided here, in the decision pass of the packet that wires them.
+[Phase 02b](phase-02b-events-auth.md)'s session cookie is `Secure`, which a browser does
+not send back over plain HTTP to the seed hosts' `*.learnstack.local` names, and that
+phase's gate **G12** chooses between local TLS for those hosts and hosts under
+`localhost`. Moving the hosts afterwards would rewrite the seed, the host mappings and
+this phase's tests, so that part of G12 closes with the hosts this phase wires, per
+[Roadmap § Decision Timing](README.md#decision-timing).
 
 ### Genericity proof
 

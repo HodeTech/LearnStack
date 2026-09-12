@@ -180,6 +180,40 @@ mergeable slice with its own pull request; see [Glossary](../glossary.md).
 The roadmap deliberately carries **no effort estimates, owners, or timeboxes**. It is a
 dependency and scope plan; sequencing decisions belong here, capacity decisions do not.
 
+## Decision Timing
+
+A phase document registers the questions its packets cannot be written without, and
+answers none of them ahead of the code they govern. An answer given early is written
+against code that does not exist yet, and is usually amended when that code arrives. In
+Phase 02a, [ADR-0033](../decisions/0033-audit-durability-model.md) was Accepted a month
+before Packet 9 implemented it and took six amendments while that packet was written,
+the first titled *The write path against the code that shipped after this ADR*.
+
+Each open question is a **gate**, answered at its last responsible moment:
+
+- **When.** A gate is Accepted before the first packet whose code would have to change
+  if it were answered differently — not earlier, and never after. It is the
+  [one-way-door test](#sequencing-principle) applied to a decision rather than to a
+  building block: *if this answer waited one more packet, would code written in between
+  have to change?*
+- **Coupled gates close together.** Gates that define one mechanism — one state
+  machine, one amendment — close in the same pass. A gate whose parts shape different
+  packets' code is split into parts, and each part blocks the first packet that writes
+  what it decides.
+- **Two layers.** The contract — ownership, invariants, the shape of a state machine —
+  is the decision record, an ADR or a dated amendment, and closes before its first
+  writer. The detail — DDL, slugs, metric names and labels, catalogue rows, glossary
+  headwords — lives in the standard or register that owns it and lands with the first
+  packet that uses it.
+- **Every packet opens with a decision pass.** Each premise its gates cite is
+  re-verified against `HEAD` — the code, the corpus, the Hub repository, pinned package
+  versions — its records are drafted and Accepted, and the decisions and their catalogue
+  rows are the packet's first commit. A contradiction the implementation finds is
+  amended inside the packet, before it merges.
+- **A register pre-assigns nothing that moves.** An amendment takes the next free number
+  on the day it is written. A phase that waits behind another re-verifies its register
+  when that phase exits, before its first decision pass.
+
 ## Success Criteria
 
 At the end of this roadmap, LearnStack can:
