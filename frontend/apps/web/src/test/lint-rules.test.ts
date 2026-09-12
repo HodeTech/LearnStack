@@ -83,6 +83,21 @@ describe('the lint rules the architecture-test catalogue names', () => {
     expect(rules).toContain(RESTRICTED_SYNTAX);
   });
 
+  it('refuses the key held in a variable, which no identifier selector can see', async () => {
+    // The shape a generic field renderer takes, and the one that defeated every selector
+    // keyed on an identifier: the property name never appears at the construction site.
+    // What catches it is the name itself, wherever it is written as a string.
+    const rules = await lint(
+      "const key = 'dangerouslySetInnerHTML';\n" +
+        'export const Block = (html: string) => {\n' +
+        '  const props: Record<string, unknown> = { [key]: { __html: html } };\n' +
+        '  return <div {...props} />;\n' +
+        '};\n',
+    );
+
+    expect(rules).toContain(RESTRICTED_SYNTAX);
+  });
+
   it('refuses the property assigned onto a props object before it is spread', async () => {
     // The spelling that reaches the element through neither an attribute nor a literal: build
     // the props, assign the key, spread. Both halves of it — the dotted assignment and the
@@ -109,9 +124,41 @@ describe('the lint rules the architecture-test catalogue names', () => {
   });
 
   it('leaves an ordinary component alone', async () => {
-    // The control: without it, a rule that flagged everything would pass the two above.
+    // The control: without it, a rule that flagged everything would pass every case above.
+    // It carries a REAL attribute, because the first version of this fixture was `<p>{text}</p>`
+    // — no JSX attribute at all — and a selector broadened from
+    // `JSXAttribute[name.name="…"]` to bare `JSXAttribute`, which flags every prop in the app,
+    // left the whole file green.
     const rules = await lint(
-      'export const Block = ({ text }: { text: string }) => <p>{text}</p>;\n',
+      'export const Block = ({ text }: { text: string }) => <p className="lede">{text}</p>;\n',
+    );
+
+    expect(rules).toEqual([]);
+  });
+
+  it('leaves a read of the prop alone, because a read reaches no element', async () => {
+    // The rule refuses the ways the prop REACHES an element. Asking whether it was supplied
+    // renders nothing, and an unqualified member selector refused it — which costs a
+    // suppression on code doing nothing wrong and teaches people to disable the rule.
+    const rules = await lint(
+      'export const supplied = (props: { dangerouslySetInnerHTML?: unknown }) =>\n' +
+        '  Boolean(props.dangerouslySetInnerHTML);\n',
+    );
+
+    expect(rules).toEqual([]);
+  });
+
+  it('leaves the strip-before-spread idiom alone, which is the safe one', async () => {
+    // `const { dangerouslySetInnerHTML, ...safe } = props` is how a component GUARANTEES the
+    // prop is not forwarded. ESTree gives a destructuring binding the same `Property` node as
+    // a constructed key, so the first selector refused the safe spelling along with the
+    // dangerous one — and `no-unused-vars` refused it a second time, since the binding is
+    // deliberately unused. A guard that does not compile is a guard nobody writes.
+    const rules = await lint(
+      'export const Block = (props: Record<string, unknown>) => {\n' +
+        '  const { dangerouslySetInnerHTML, ...safe } = props;\n' +
+        '  return <div {...safe} />;\n' +
+        '};\n',
     );
 
     expect(rules).toEqual([]);

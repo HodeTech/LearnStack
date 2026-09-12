@@ -746,10 +746,18 @@ otherwise).
 - **Source:** [32-tenant-customization-model.md § 8.5](../architecture/32-tenant-customization-model.md)
   and its § 11 hard invariants.
 - **Type:** ESLint rule in `frontend/`. **Kind:** structural.
-- **Status:** **Implemented** — three `no-restricted-syntax` selectors in
-  `frontend/packages/config/eslint/index.cjs`, Packet 10, one per spelling that reaches an
-  element: the JSX attribute a component writes, the object property a helper writes — quoted
-  or not — and the member assignment onto a props object that is spread afterwards. Packet 10
+- **Status:** **Implemented** — four `no-restricted-syntax` selectors in
+  `frontend/packages/config/eslint/index.cjs`, Packet 10, chosen so the rule refuses the ways
+  the prop **reaches an element** and leaves alone the ways code inspects or strips it: the JSX
+  attribute a component writes; a key in an object being *built*, scoped to `ObjectExpression`
+  because ESTree gives a destructuring binding the same node and the unscoped form refused
+  `const { dangerouslySetInnerHTML, ...safe } = props`, the idiom that guarantees the prop is
+  **not** forwarded; the assignment onto a props object, scoped to the left-hand side because
+  the unscoped form refused a read that renders nothing; and the name itself wherever it is
+  written as a string, because a selector keyed on an identifier cannot see through
+  `const k = 'dangerouslySetInnerHTML'` followed by `{ [k]: … }` — which is not an exotic
+  bypass but what a generic field renderer looks like. What is left uncovered is a name
+  assembled from fragments at runtime. Packet 10
   also gave `frontend/packages/ui` a configuration and a `lint` script, because `pnpm lint`
   walked only `apps/web` and the package [ADR-0009 § Decision](../decisions/0009-frontend-single-app-first.md)
   sends an extracted primitive to was linted by nothing. Its companion is
@@ -758,8 +766,9 @@ otherwise).
   and its **severity**, because a rule downgraded to `warn` still reports while `pnpm lint`
   exits 0. `pnpm lint` is green whether a rule is configured or not, and a rule nothing violates
   looks exactly like a rule that is not there. The primitive's own file carries the single
-  suppression when [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; nothing calls
-  the API today, which is why the rule lands before the first caller.
+  suppression when [Phase 05](../roadmap/phase-05-education-learning-content.md) ships the
+  `embed-html` sanitisation contract; nothing calls the API today, which is why the rule lands
+  before the first caller.
 - **Phase:** 02a (Packet 10).
 
 #### `ModuleDomain_DoesNotDependOn_OtherModuleDomain`

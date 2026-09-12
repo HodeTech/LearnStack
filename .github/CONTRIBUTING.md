@@ -120,6 +120,13 @@ make typecheck      # tsc --noEmit
 make test           # unit + arch + contract + integration + vitest
 ```
 
+`make test` depends on `install` since Phase 02a Packet 10, so it restores what it is
+about to run rather than reporting a failure that is really a missing package. The cost
+is that a workspace whose `frontend/pnpm-lock.yaml` disagrees with its `package.json` —
+or an offline clone missing a package from the local store — now stops at that
+prerequisite. For a backend-only change, `make test-backend` runs the .NET suites without
+it.
+
 `make test` starts Testcontainers since Phase 02a Packet 6, so it needs a Docker
 socket and takes noticeably longer than it did. The Docker-bound cases are split
 out by `[Trait("Requires","Docker")]`; to skip them, run

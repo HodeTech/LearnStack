@@ -7,6 +7,11 @@
 // ESLint 9's CLI looks for `eslint.config.js` first and stops when it finds none. Both go away
 // together in the flat-config migration apps/web/.eslintrc.cjs already carries a TODO for.
 //
+// It is a POSIX `VAR=value cmd` assignment, so `pnpm lint` for this package needs a POSIX
+// shell — as does every other entry point this repository documents (the `Makefile`,
+// `.githooks/`, `scripts/*.sh`). The flat-config migration removes the variable rather than
+// the assumption; nothing here is the place to start supporting `cmd.exe`.
+//
 // `require.resolve` for the same reason apps/web needs it: a subpath export of a workspace
 // package does not resolve through the legacy config resolver under pnpm's isolated layout.
 module.exports = {

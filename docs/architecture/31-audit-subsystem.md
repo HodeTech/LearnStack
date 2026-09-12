@@ -2034,9 +2034,13 @@ update it constrains.
 10. `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` — with the
    `audit_config` table made unreadable, a MUST-class command still completes and still
    writes its row at the catalogue classification, and classification is never even handed
-   a connection to answer a MUST with; an operation absent from the catalogue is rejected
-   with `audit_unclassified_operation`. Without this, a silent RLS-filtered empty read is
-   indistinguishable from "this tenant has no overrides".
+   a connection to answer a MUST with. Without this, a silent RLS-filtered empty read is
+   indistinguishable from "this tenant has no overrides". The rule's other half — an
+   operation absent from the catalogue rejected with `audit_unclassified_operation` — is
+   **not** behavioural and is not in this list's suite: it is
+   `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
+   in `LearnStack.Tests.Unit`, because a handler can be registered there for a request the
+   catalogue does not know, and the seeder's composition root has no such request to send.
 11. `AuditLog_Update_Is_Column_Restricted` — as `learnstack_app`, any `UPDATE` or
     `DELETE` on `audit_log` raises `42501`. As `learnstack_platform`, an `UPDATE`
     touching only the six redactable columns succeeds, one touching any other column is
