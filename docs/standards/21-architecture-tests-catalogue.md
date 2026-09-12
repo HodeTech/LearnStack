@@ -95,137 +95,53 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-Ninety-four test methods exist in
-[`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),
+**A hundred and thirty test methods — 174 cases once the theories expand — run in
+[`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
-[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4,
-Packet 6, Packet 7, Packet 8, Packet 9 and Packet 10 — 119 cases once the theories
-expand. Counted from `dotnet test --list-tests` after Packet 10's first step,
-de-duplicated by method name; Packet 10 recounts when it closes. Counting the literals
-`[Fact]` and `[Theory]` in the source gives 100 and is wrong both ways: seven are string
-literals in `Every_Database_Test_Carries_The_Docker_Trait` and its companion, which grep
-the suite for those very attributes, and the meta-test's `[Fact(DisplayName = …)]` is not
-the literal at all. The runner is the authority here, which
-is why this sentence now names the command rather than the packet.
-Methods are not rows: a `[Theory]`
-is one row and many cases, and several rows pair a rule with the companion
-assertion that stops it passing vacuously.
+[Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
+Packet 8, Packet 9 and Packet 10. Counted from `dotnet test --list-tests`, de-duplicated by
+method name. Counting the literals `[Fact]` and `[Theory]` in the source gives a different
+number and is wrong both ways: several are string literals in
+`Every_Database_Test_Carries_The_Docker_Trait` and its companion, which grep the suite for
+those very attributes, and the meta-test's `[Fact(DisplayName = …)]` is not the literal at all.
+The runner is the authority, which is why this sentence names the command.
 
-**Not every implemented rule lives in that assembly.** Packet 4 added eight
-rules there — four API-convention ones
-(`Live_Majors_Are_At_Most_Two_Adjacent`,
-`Unversioned_Route_Prefixes_Are_Declared_Once`,
-`Forwarded_Headers_Are_Not_Wired`, `Deployment_Mode_Is_Required_Configuration`)
-and the four ADR-0036 tenancy-edge scans in `TenancyConventionTests` — plus
-**six** behavioural rows in
-[`backend/tests/LearnStack.Tests.Integration`](../../backend/tests/LearnStack.Tests.Integration),
-all under § API conventions: `Every_Endpoint_Is_Under_Versioned_Route`, the four
-startup guards (`An_Absolute_Controller_Route_Fails_At_Startup` and
-`An_Absolute_Action_Route_Fails_At_Startup` share one row,
-`A_Major_Outside_LiveMajors_Fails_At_Startup`,
-`A_Bare_ControllerBase_Fails_At_Startup`, and
-`A_Hand_Written_Prefix_That_Disagrees_With_The_Attribute_Fails_At_Startup`), and
-`An_Absolute_Internal_Route_Is_Exempt_At_Both_Levels`, which is a guard's mirror
-rather than a guard — it asserts a host that *does* start. Rows are not test
-methods: `VersionedRouteEnforcementTests` carries ten, because several rows pair
-a rule with the companion assertion that stops it passing vacuously. Both assemblies run in the same required `backend` CI check,
-and a rule belongs where it can actually fail: the route-shape rule was
-originally written as a reflection scan in the architecture assembly and passed
-against a host serving unversioned endpoints.
+Methods are not rows: a `[Theory]` is one row and many cases, and most rows pair a rule with the
+companion assertion that stops it passing vacuously.
 
-Packet 9 added **three** more behavioural rows to that assembly, all under § Audit:
-`MustClass_Audit_Writes_Share_The_Business_Transaction` and
-`Audit_Survives_Transaction_Rollback` in `AuditPipelineTests`, and
-`AuditLog_Update_Is_Column_Restricted` in `AuditSchemaTests`. They are integration rows for the reason the
-route-shape rule is: a reflection scan cannot see whether a row committed with the
-business write, and a unit test against doubles passes whether or not Row Level Security
-would have accepted the insert. The first two connect as `learnstack_app`;
-`AuditLog_Update_Is_Column_Restricted` uses three roles by design, because its subject is
-what each of them may and may not update.
+**The rows and the code are held together by a test, not by a table.** This section used to
+carry a hand-written list of rule → file, and it went stale the way any second copy does — it
+named ninety-four methods on the day the suite ran a hundred and thirty.
+`Every_Implemented_Rule_Names_A_Test_That_Exists` replaces it: every entry below whose
+**Status** reports *Implemented* in a file of that assembly must be a test method of exactly
+that name, or the build fails. It reads both spellings the entries actually use — the file
+`ManyTests.cs` and the bare class `ManyTests` — because matching only the first covered
+**38** of the ninety-five, and a guard that silently checks two fifths of its subject is the
+defect this section is about. A renamed method, a moved file or a quietly deleted rule now
+shows up as a red build rather than as a catalogue that reads well and describes nothing.
 
-| Test | File |
+**A hundred and thirty-six rules in this catalogue are Implemented, and ninety-five of them are
+in that assembly.** The other forty-one are no less binding, and most could not live there:
+
+| Where | Why not the architecture assembly |
 |---|---|
-| `MediatR_Pipeline_Order_Matches_Canonical_Sequence` | `CrossCuttingFoundationTests.cs` |
-| `IExceptionHandler_Registered_AtStartup` | `CrossCuttingFoundationTests.cs` |
-| `OTel_Pipeline_Includes_TenantContextSpanProcessor` | `CrossCuttingFoundationTests.cs` |
-| `Logging_Goes_Through_Microsoft_Extensions_Logging` | `CrossCuttingFoundationTests.cs` |
-| `Modules_Do_Not_Reference_Sentry_SDK_Directly` | `CrossCuttingFoundationTests.cs` |
-| `Adapters_Wrap_Provider_Exceptions` | `CrossCuttingFoundationTests.cs` |
-| `Handlers_Return_Result` | `CrossCuttingFoundationTests.cs` |
-| `Modules_Do_Not_Reference_DeploymentMode` | `CrossCuttingFoundationTests.cs` |
-| `IErrorTrackingProvider_Is_Singleton` | `CrossCuttingFoundationTests.cs` |
-| `Modules_Do_Not_Inject_IEventBus_Directly` | `CrossCuttingFoundationTests.cs` |
-| `Integration_Event_TopicNames_FollowConvention` | `CrossCuttingFoundationTests.cs` |
-| `ModuleDomain_DoesNotDependOn_OtherModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
-| `ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure` (per-module theory) | `ModuleDependencyTests.cs` |
-| `ModuleContracts_DoNotDependOn_AnyModuleDomain` (per-module theory) | `ModuleDependencyTests.cs` |
-| `Meta_NetArchTest_DetectsAPlantedViolation` | `ModuleDependencyTests.cs` |
-| `Live_Majors_Are_At_Most_Two_Adjacent` | `ApiConventionTests.cs` |
-| `Unversioned_Route_Prefixes_Are_Declared_Once` | `ApiConventionTests.cs` |
-| `Forwarded_Headers_Are_Not_Wired` | `ApiConventionTests.cs` |
-| `Deployment_Mode_Is_Required_Configuration` | `ApiConventionTests.cs` |
-| `Effective_Host_Computed_In_One_Place` | `TenancyConventionTests.cs` |
-| `Tenant_Headers_Are_Never_A_Resolution_Source` | `TenancyConventionTests.cs` |
-| `Assertion_Recorder_Is_The_Only_Mismatch_Writer` | `TenancyConventionTests.cs` |
-| `Assertion_Recorder_Is_The_Only_Writer_Of_Its_Audit_Slugs` | `TenancyConventionTests.cs` |
-| `Assertion_Budget_Does_Not_Depend_On_ICacheService` | `TenancyConventionTests.cs` |
-| `Organization_Aggregate_Declared_In_Tenancy_Domain` (per-type theory) | `TenancyConventionTests.cs` |
-| `Aggregates_With_Optimistic_Concurrency_Map_RowVersion` | `PersistenceConventionTests.cs` |
-| `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | `PersistenceConventionTests.cs` |
-| `The_registration_marker_does_not_vouch_across_containers` | `PersistenceConventionTests.cs` |
-| `Every_Database_Test_Carries_The_Docker_Trait` (with its companion) | `PersistenceConventionTests.cs` |
-| `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows` (with its companion) | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Refuses_An_Aliased_Runtime_Credential` (per-alias theory) | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Redacts_A_Quoted_Value_Whole` (per-shape theory) | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Reads_The_Role_Through_A_Quoted_Value` | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo` | `PersistenceConventionTests.cs` |
-| `TransactionBehavior_Does_Not_Reference_A_Module_Assembly` | `PersistenceConventionTests.cs` |
-| `Migration_Startup_Project_References_EntityFrameworkCore_Design` | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Covers_Every_Migration_Chain` | `PersistenceConventionTests.cs` |
-| `Migrate_Target_Applies_The_Tenancy_Chain_First` | `PersistenceConventionTests.cs` |
-| `Audit_Closed_Set_Columns_Store_What_Their_Check_Admits` | `AuditConventionTests.cs` |
-| `AuditEntry_Inherits_Entity_Not_AuditableEntity` | `AuditConventionTests.cs` |
-| `AuditEntry_Is_AppendOnly` (with its companion) | `AuditConventionTests.cs` |
-| `OperationType_Enum_Matches_Catalog` | `AuditConventionTests.cs` |
-| `Every_Module_Has_An_AuditCoverage_Matrix` (with its companion) | `AuditConventionTests.cs` |
-| `Every_Shipped_Request_Is_Registered` (with its companion) | `AuditCoverageTests.cs` |
-| `Every_TenantOwned_Command_HasAuditCoverage` (catalogue → matrix, with its two companions) | `AuditCoverageTests.cs` |
-| `Every_Matrix_Row_Whose_Command_Exists_Is_Registered` (matrix → catalogue, with its three companions) | `AuditCoverageTests.cs` |
-| `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix` (with its companion) | `AuditCoverageTests.cs` |
-| `No_Set_Based_Write_Bypasses_The_Audit_Capture` (with its companion) | `AuditConventionTests.cs` |
-| `PublicSurface_Requests_Are_Never_ReadSensitive` (with its companion) | `RequestSurfaceTests.cs` |
-| `No_Source_Folder_Named_Verticals` | `RepositoryLayoutTests.cs` |
-| `Frontend_Has_Only_The_Web_App` | `RepositoryLayoutTests.cs` |
-| `Commit_Subject_Grammar_Is_Stated_Once` | `RepositoryLayoutTests.cs` |
+| `LearnStack.Tests.Integration`, against an applied schema | A policy that is well-formed and wrong, a foreign key with no index, a row that did or did not commit with the business write, and a request that reached a route are only visible against a real PostgreSQL and a real host. |
+| `LearnStack.Tests.Unit` | Three rules are about what one type does when exercised — `ValidationBehavior` returning rather than throwing, the span processor surviving a missing context, a soft delete advancing the row version — and a reflection scan cannot see any of them. |
+| `backend/analyzers/LearnStack.Analyzers` | `LearnStackException-DomainExceptionThrow` is the analyzer itself; the architecture assembly runs it over module source in `Domain_Methods_Do_Not_Throw_For_Expected_Cases`. |
+| `frontend/` | `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is an ESLint rule, with a Vitest case that lints fixtures through the app's own configuration so a preset that stops applying it fails rather than falls silent. |
 
-Eleven further rules in this catalogue are **implemented outside** that assembly and are
-no less binding. Seven of them could not live in it: a policy that is well-formed
-and wrong, a foreign key with no index, or a row that did or did not commit with the
-business write, is only visible against an applied schema.
-
-| Rule | Where |
-|---|---|
-| `ValidationBehavior_DoesNotThrow_ValidationException` | `LearnStack.Tests.Unit` + `LearnStack.Tests.Integration` |
-| `TenantContextSpanProcessor_DoesNotThrow_When_Context_Missing` | `LearnStack.Tests.Unit` |
-| `SoftDelete_Advances_The_Row_Version` | `LearnStack.Tests.Unit` (`AuditableEntityTests`) |
-| `TenantWide_Row_Of_TenantB_Is_Invisible_To_TenantA` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
-| `Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
-| `Every_Foreign_Key_Has_A_Supporting_Index` | `LearnStack.Tests.Integration` (`TenancySchemaTests`) |
-| `LearnStackException-DomainExceptionThrow` (`LS0001`) | `backend/analyzers/LearnStack.Analyzers` + `DomainExceptionThrowAnalyzerTests` |
-| `MustClass_Audit_Writes_Share_The_Business_Transaction` | `LearnStack.Tests.Integration` (`AuditPipelineTests`) |
-| `Audit_Survives_Transaction_Rollback` | `LearnStack.Tests.Integration` (`AuditPipelineTests`) |
-| `AuditLog_Update_Is_Column_Restricted` | `LearnStack.Tests.Integration` (`AuditSchemaTests`) |
-| `AuditStateCapture_ClearedPerRequest` | `LearnStack.Tests.Unit` (`AuditLogBehaviorTests`) |
+Both backend assemblies run in the same required `backend` CI check, split only by the
+`Requires=Docker` trait, and a rule belongs where it can actually fail: the route-shape rule was
+originally written as a reflection scan in the architecture assembly and passed against a host
+serving unversioned endpoints.
 
 `Meta_NetArchTest_DetectsAPlantedViolation` deserves its own note: it plants a forbidden
-dependency and asserts NetArchTest **finds** it. If that meta-test ever passes in the
-inverted sense — NetArchTest reporting the planted dependency as absent — every other
-NetArchTest-based row in this catalogue is vacuously green. Keep it in perpetuity.
+dependency and asserts NetArchTest **finds** it, and it asserts that every type a production
+assembly declares reaches NetArchTest's list at all. If either half ever passes in the inverted
+sense, every other NetArchTest-based row in this catalogue is vacuously green. Keep it in
+perpetuity.
 
-Every other rule in this document carries its own **Status** line, and that line —
-not this section — is the authority. This index is a reader's orientation and goes
-stale the moment a packet closes a row without updating it; the Status column is
-what a reviewer checks.
+Every rule in this document carries its own **Status** line, and that line is the authority.
 
 ## Canonical names and superseded spellings
 
@@ -697,6 +613,61 @@ otherwise).
 - **Type:** xUnit + file scan + running the hook and the CI step. **Kind:** behavioural
   (the hook's verdicts and the step's) + structural (the type table; no grammar in CI).
 - **Status:** **Implemented** — `RepositoryLayoutTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
+#### `Standard_Status_Headers_Match_The_Index`
+
+- **Asserts:** each of the twenty-two standards declares the same status in its own
+  header as [the index](README.md) assigns it in the table, and the sentence that counts
+  the split — "Nineteen `Active`, three `Adopted`" — matches the table it summarises.
+- **Why it matters:** these are two views of one claim, *what is actually enforced*, and
+  they disagreed for a month: every document declared `Active` while the index classified
+  eight of them `Adopted`, with the index carrying a paragraph saying so and asking the
+  reader to prefer it. The header is what an author sees, the table what a reviewer reads,
+  and a promotion that lands in one and not the other leaves the corpus asserting both.
+  Counting them in words is a third copy, so it is checked too.
+- **Source:** [README.md § Honest status today](README.md),
+  [13-documentation.md](13-documentation.md).
+- **Type:** xUnit + a parse of the headers, the table and the summary sentence.
+  **Kind:** structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10. Its companion,
+  `The_Corpus_Guards_Can_Actually_Fail`, feeds each parser the shapes it must read and the
+  ones it must not.
+- **Phase:** 02a (Packet 10).
+
+#### `Every_Implemented_Rule_Names_A_Test_That_Exists`
+
+- **Asserts:** every entry in this catalogue whose **Status** reports *Implemented* in a
+  file of the architecture assembly is a test method of exactly that name. Both spellings
+  the entries use count — `ManyTests.cs` and the bare `ManyTests` — and the rule asserts
+  its own reach first, because a matcher that recognised only the file spelling covered 38
+  of the ninety-five.
+- **Why it matters:** the **Status** line is the authority on whether a rule runs, and it
+  is prose. A renamed method, a moved file or a rule quietly deleted leaves the entry
+  claiming the opposite of the truth — worse than a rule that was never written, because a
+  reader stops looking. This replaces the hand-written rule → file table that used to live
+  in § Implemented today, which named ninety-four methods on the day the suite ran a
+  hundred and thirty.
+- **Source:** [§ Naming convention](#naming-convention), this document's own Status lines.
+- **Type:** xUnit + a parse of this file against the suite's method names. **Kind:**
+  structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Phase:** 02a (Packet 10).
+
+#### `No_Architecture_Test_Is_Skippable`
+
+- **Asserts:** no test in the architecture assembly carries a `Skip` on its `[Fact]` or
+  `[Theory]`.
+- **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
+  in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
+  green, and it reports the same number of passing files as before — which is precisely
+  the situation the policy exists to prevent, since a rule that can be turned off for a
+  release is a rule nobody has to satisfy. `CorpusConsistencyTests.cs` is the one file the
+  scan skips, and it is not a loophole: the shapes the pattern must catch live there as
+  string literals, fed to it by the companion.
+- **Source:** [06-testing.md § Architecture tests](06-testing.md).
+- **Type:** xUnit + a source scan with comments stripped. **Kind:** structural.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
 - **Phase:** 02a (Packet 10).
 
 #### `Generic_Primitives_Only_In_Renderer`

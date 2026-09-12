@@ -1,6 +1,6 @@
 # 16 — Accessibility Standards
 
-**Status:** Active
+**Status:** Adopted
 **Derives from:** WCAG 2.2 AA (external authoritative standard), [00-principles.md](00-principles.md) § 6 (Foundation First).
 
 LearnStack targets **WCAG 2.2 AA** across all user-facing surfaces.
