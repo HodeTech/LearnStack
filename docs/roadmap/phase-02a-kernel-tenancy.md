@@ -1,7 +1,8 @@
 # Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets
 
-> **Status (2026-09-11).** Phase 02a in progress. Packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped;
-> Packet 10 is next;
+> **Status (2026-09-12).** Phase 02a **complete**. Every packet — 0–3, 3b, 4, 5, 6, 7, 8, 9
+> and 10 — shipped, and the phase closed against its own
+> [exit decision](#phase-exit-decision);
 > the 2026-08-08 restructure re-scoped packets 4–10 and added packet 3b. Each packet
 > is independently reviewable in its own commit, matching the
 > [Phase 01 cadence](phase-01-repository-tooling.md). The order is dependency-driven: a
@@ -20,7 +21,7 @@
 > | 7 | Tenant and organization resolution, isolation, two tenants | ✅ [record](#delivery-record-packet-7) |
 > | 8 | Tenant Customization foundation | ✅ [record](#delivery-record-packet-8) |
 > | 9 | Audit infrastructure and the entitlement socket | ✅ [record](#delivery-record-packet-9) |
-> | 10 | Architecture tests green and phase exit | ⏳ [scope](#packet-sequence) |
+> | 10 | Architecture tests green and phase exit | ✅ [record](#delivery-record-packet-10) |
 >
 > **[`## Packet Sequence`](#packet-sequence) says which packet lands which part, in what
 > order, and what gates it. [`## Scope`](#scope) says the same work grouped by subsystem —
@@ -34,8 +35,13 @@
 > [`## Delivery Record (Packet 6)`](#delivery-record-packet-6) and Packet 7 in
 > [`## Delivery Record (Packet 7)`](#delivery-record-packet-7), Packet 8 in
 > [`## Delivery Record (Packet 8)`](#delivery-record-packet-8) and Packet 9 in
-> [`## Delivery Record (Packet 9)`](#delivery-record-packet-9) — each kept separate
+> [`## Delivery Record (Packet 9)`](#delivery-record-packet-9) and Packet 10 in
+> [`## Delivery Record (Packet 10)`](#delivery-record-packet-10) — each kept separate
 > because the frozen one is scoped to packets 0–3.**
+>
+> **[Phase 02d](phase-02d-walking-skeleton.md) is next.** It is the first phase whose
+> output someone who does not read C# can evaluate: two hosts, two tenants, two education
+> sites, one binary and one database.
 
 ## Goal
 
@@ -883,7 +889,8 @@ in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md); limit **enforce
 lands with `IUsageReporter` in Phase 02c, which is the first phase in which a soft limit
 has anywhere to report to.
 
-**Packet 10 — Architecture tests green and phase exit ⏳**
+**Packet 10 — Architecture tests green and phase exit ✅**
+[record](#delivery-record-packet-10)
 Every Phase 02a rule in
 [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md) green in
 CI, and the phase closed against its own [exit decision](#phase-exit-decision).
@@ -3453,3 +3460,114 @@ rather than handed on, and one of them turned out larger than it was named.
   [Observability Standards § Metrics](../standards/10-observability.md#metrics). Both are
   now, with `HubEntitlementProvider` in Phase 02c as their owner, and the unresolved one
   carries no label — the tenant goes in the log line and the span.
+
+## Delivery Record (Packet 10)
+
+Kept separate from the records above. Five steps, each reviewed twice, and the packet that
+was scheduled to *reconcile names* turned out to be the packet that measured whether the
+rules do anything. Packet 9's lesson — a rule that cannot tell **clean** from **blind** —
+recurs here in a sharper form: not a rule with nothing to catch, but a rule whose subject
+was smaller than its sentence. Four of them were found by their own review rounds, and in
+three cases the rule had been passing for exactly that reason.
+
+> **Packet 10 — Architecture tests green and phase exit ✅**
+>
+> **Measured at merge: 2038 tests green** — 1 contract, 174 architecture, 1373 unit,
+> 490 integration — with **zero skips**, which is now a rule rather than a habit. Counted
+> from a run under `CI=true`, which makes warnings errors. The architecture assembly grew
+> from 118 methods to 130; thirty-four catalogue rules moved from **Registered** to
+> **Implemented**.
+
+### What it put in force
+
+- **The genericity claim, mechanically.** `Core_Modules_HaveNo_DomainSpecific_Names` walks
+  backend type and file names, EF model tables and columns, migration `CREATE TABLE`
+  statements, audit slugs, entitlement and renderer keys, and every frontend file and
+  export, against a forbidden-term list parsed from the catalogue itself. Its far weaker
+  sibling `No_Source_Folder_Named_Verticals` has been green since Phase 01 and would not
+  have caught a single one of those subjects.
+- **The dependency matrix, completed.** The Application and Infrastructure legs
+  `ModuleDependencyTests` carried as a TODO since Phase 01, plus
+  `ModuleContracts_Reference_Only_SharedKernel` and
+  `CoreApplication_DoesNotDependOn_Any_Infrastructure_Or_Module`. They read
+  `obj/project.assets.json` for the declared set and IL for the used set, because a
+  reference a project declares and never calls is still a coupling a later change acts on.
+- **The domain rules ADR-0023 and Standards 01 state.**
+  `Aggregates_Do_Not_Redeclare_Entity_Equality`, `Aggregate_Roots_Use_StronglyTypedId` read
+  against `LearnStackVogenDefaults.IdMask` rather than against the shape of a name, and
+  `Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters`,
+  whose exemption is pinned to a type the generator emits for a `[ValueObject]` and to
+  nothing else.
+- **The port and key bans.** `Modules_Do_Not_Inject_Valkey_Directly`,
+  `LearnStack_Modules_DoNotReference_Hub`, `Modules_Do_Not_Write_AuditLog_Directly`,
+  `Modules_Do_Not_Read_Entitlement_Cache_Directly`, `FeatureKey_AllReferences_AreInRegistry`
+  — which follows a key constructed by reflection, not only by `new` — and
+  `PlanProjected_Keys_NotInTenantFlags`, which exercises the aggregate with every declared
+  key and one undeclared key rather than reading the registry twice.
+- **The behavioural proofs only a database can answer.** ADR-0040's pair, staged for Phase 03
+  and overdue since Packet 8 shipped the second module `DbContext`; the three named RLS
+  proofs the Completion Criteria cite, as `learnstack_app`, including the `UPDATE` half of a
+  cross-tenant repoint that nothing had tested; and
+  `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`.
+- **The frontend rule the corpus has named since ADR-0018.**
+  `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml`, in four selectors with a
+  companion that lints each of them through the real configuration — and `packages/ui`, the
+  package an extracted primitive is destined for, given a configuration at all.
+- **The corpus held to its own claims.** `Standard_Status_Headers_Match_The_Index`,
+  `Every_Implemented_Rule_Names_A_Test_That_Exists` and `No_Architecture_Test_Is_Skippable`.
+  The standards' status lines are re-stated against reality — nineteen `Active`, three
+  `Adopted` — and the catalogue's hand-written rule-to-file table is **deleted** rather than
+  corrected, because a second copy goes stale again and a test does not.
+
+### The four rules whose subject was smaller than their sentence
+
+Each passed. Each was measured, and the measurement is the reason the entry now says what
+the rule observes rather than what it returns.
+
+1. **Classification observed the answer, not the attempt.** `ClassifyAsync` returns the
+   declared tier both when it short-circuits a MUST before reading and when it reads and
+   the read fails — the `catch` falls back. So the case asserting "does not read the
+   database" passed with the short-circuit moved *after* the read, and so did every other
+   suite in the repository. It now observes whether the data source was ever asked for,
+   through a `Lazy` whose factory records the request.
+2. **`Every_Implemented_Rule_Names_A_Test_That_Exists` checked two fifths of its subject.**
+   It matched the spelling `ManyTests.cs`; most catalogue entries name the bare class. 38
+   of 95.
+3. **The sanitised-HTML rule was wrong in both directions at once.** It missed the shape a
+   generic field renderer takes — a key held in a variable, which no identifier selector can
+   see — and it refused a read of the prop and
+   `const { dangerouslySetInnerHTML, ...safe } = props`, the idiom that guarantees the prop
+   is *not* forwarded. A rule that refuses the safe spelling teaches people to delete the
+   guard.
+4. **The rollback pair proved a rollback of nothing.** `An_Outer_Failure_After_An_Inner_Write…`
+   asserted zero rows afterwards, which is the same observation whether the writes happened
+   or not. It now reads both rows inside the frame, before the throw.
+
+### The decisions this packet took
+
+**Standards status is a written definition, not a feeling.** `Active` means code, a test, a
+hook or a CI job fails when the rule is broken; `Adopted` means the document is binding on
+review and nothing mechanical enforces it. Applying it moved five standards up — 03, 07, 08,
+11 and 20 — and left three: **15 Performance** (no budget is measured), **16 Accessibility**
+(no a11y check runs; the Lighthouse job is Phase 02d's) and **19 Permissions** (no key,
+policy or role exists; Phase 03's). Each names the phase that will promote it.
+
+**Every rule ships with a companion, including the rules about the corpus.**
+`The_Corpus_Guards_Can_Actually_Fail` feeds each parser the shapes it must read and the ones
+it must not, which is why `CorpusConsistencyTests.cs` is the one file the no-skip scan
+exempts: the `Skip` shapes live there as string literals.
+
+**Rules with no subject today are written now.** Several — the Valkey ban, the Hub ban, the
+killswitch and entitlement-cache bans — have nothing in the repository to catch. Each ships
+with a planted violation proving it would. The first real one arrives as a red build rather
+than as a review someone has to catch.
+
+### The clean-checkout loop
+
+`make test` depends on `install`, so it restores what it is about to run rather than
+reporting a failure that is really a missing package; `make migrate` and `make seed` run
+from `backend/`, where `global.json` pins the SDK, because from the repository root
+whichever SDK is newest answers and it is not the one CI uses; and `scripts/seed.sh` checks
+for every tool it calls, including the Docker Compose **V2 plugin** — `command -v docker`
+is satisfied by a box that has only the V1 binary, which then fails at the first
+`docker compose` call with a message naming the subcommand rather than the missing plugin.

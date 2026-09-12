@@ -40,8 +40,8 @@ for LearnStack's side of the boundary.
 
 ## Status
 
-**Phase 01 complete. [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) in progress —
-packets 0–3, 3b, 4, 5, 6, 7, 8 and 9 shipped; packets 4–10 re-scoped on 2026-08-08.
+**Phase 01 and [Phase 02a](docs/roadmap/phase-02a-kernel-tenancy.md) complete —
+every packet 0–10 shipped; packets 4–10 re-scoped on 2026-08-08.
 Packet 7 landed host and tenant resolution, the query filters, tenant provisioning
 and the two seed tenants — `demo-english` and `demo-yoga`, which `make seed` writes
 through the same commands a request uses. Packet 8 landed the Customization module:
@@ -52,7 +52,12 @@ in-transaction write and its standalone reconcile, the `audit` health check — 
 entitlement socket: one port whose registered implementation decides every feature and
 limit answer, and a killswitch table shipped with no writer, because every toggle needs
 a permission that does not exist yet.
-[Packet 10](docs/roadmap/phase-02a-kernel-tenancy.md#packet-sequence) is next.**
+Packet 10 closed the phase: the rules the corpus states now run — module boundaries,
+domain genericity, the port and entitlement-key bans, the ambient unit of work's two
+behavioural properties, three named isolation proofs as `learnstack_app` — and the
+standards say what enforces them, held there by a test. 2038 cases, zero skips.
+[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is next: two hosts, two tenants,
+two education sites, one binary and one database.**
 
 Phase 01 shipped the .NET 10 solution scaffold, the `pnpm` frontend monorepo
 (`apps/web` + `packages/{config,ui,sdk}`), the local-dev `docker-compose` stack, and the

@@ -1785,9 +1785,13 @@ diagnostic above row security, not the boundary, as its own note says.
 named in the phase document rather than catalogue-governed rules. All three shipped
 alongside the two rules above in Packet 6 step 4, and Packet 7 step 11 re-runs them
 through the request path in `Database/TenantIsolationHttpTests`. The phase's completion
-criteria name three more of the same kind, which Packet 10 adds:
+criteria name three more of the same kind, which Packet 10 shipped in `TenancySchemaTests`:
 `App_Role_Cannot_Enumerate_Host_Map`, `App_Role_Cannot_Enumerate_Tenants` and
-`Tenant_A_Cannot_Repoint_Tenant_B_Host`.
+`Tenant_A_Cannot_Repoint_Tenant_B_Host` — the last in both halves, the `INSERT` that
+`WITH CHECK` refuses with `42501` and the `UPDATE` that the policy refuses as a silent zero.
+The `UPDATE` half announces the victim's own host first and reads the row it is about to
+fail to change, so what refuses the write is the policy rather than a row that was never
+visible.
 
 Three things are worth recording about that second run, because each was a defect in its
 first version. `Org_X_…` must read an **organization-scoped** table — `tenant_settings`,
