@@ -315,8 +315,9 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   dead-letter contract — producer-side, subscriber-side and job-side — is
   [Phase 02b](phase-02b-events-auth.md)'s; this phase verifies it holds across pods and
   adds the fair-share and alerting surround, and does not rebuild it.
-- Dead-letter operability: the alerting thresholds on each of the two dead-letter
-  counters, the operator runbook, and the multi-pod behaviour of the replay path. The
+- Dead-letter operability: the alerting thresholds on each of the two **event**
+  dead-letter counters and on the **job** terminal counter, the operator runbook, and
+  the multi-pod behaviour of the replay path. The
   dead-letter mechanism itself — the terminal state, the counter and the MUST-class
   audit row — ships in [Phase 02b](phase-02b-events-auth.md).
 - Outbox dispatcher reliability under multi-pod load. The claim protocol is already
@@ -444,9 +445,9 @@ same `ILiveClassProvider`.
   filling in [Phase 02b](phase-02b-events-auth.md), which records the constraint rather
   than solving it: the `DELETE` grant belongs to `learnstack_platform`, whose only entry
   takes a reason and no actor, so a recurring job has no principal to present — and an
-  inbox purge shorter than the maximum redelivery window silently breaks deduplication.
-  This
-  phase decides the principal and states that floor.
+  inbox purge shorter than the redelivery window silently breaks deduplication. Phase
+  02b states how long a pair stays replayable; this phase picks the principal and the
+  interval that honours it.
 - Recording retention and purge jobs.
 - `audit_log` retention and partition lifecycle — see **Demand-gated building blocks**
   above; the jobs and their cadence are specified by
@@ -544,10 +545,9 @@ same `ILiveClassProvider`.
 - An integration event crosses a process boundary through Dapr and is delivered
   **at-least-once** to a subscriber in another process, with tenant context restored on
   the consumer side — and a forced redelivery of the same envelope produces exactly one
-  effective business side effect, absorbed by `IInboxGuard`. The delivery contract is
-  the
-  one [Events and Outbox](../architecture/15-event-and-outbox.md#what-the-processor-guarantees)
-  and the glossary state; a cross-process transport does not change it. The retry and
+  effective business side effect, absorbed by `IInboxGuard`. That contract is stated by
+  [Events and Outbox](../architecture/15-event-and-outbox.md#what-the-processor-guarantees)
+  and by the glossary, and a cross-process transport does not change it. The retry and
   dead-letter contract being exercised here is
   [Phase 02b](phase-02b-events-auth.md)'s, unchanged.
 - Two dispatcher processes in separate pods drain one pending batch with no duplicate
@@ -555,22 +555,23 @@ same `ILiveClassProvider`.
   writes are no-ops under the ownership fence, and `learnstack_outbox_lease_lost_total`
   both increments and pages. The lease duration is set against measured tail latency
   rather than left at its single-instance default.
-- Each dead-letter counter has an alert threshold that fires on a seeded terminal row
-  and does not fire on ordinary retry, the two counters alert separately, and a replay
-  issued while a second pod holds the lease produces one effective business effect and
-  no duplicate. The runbook entry for each is in `docs/runbooks/`.
+- Each dead-letter counter has an alert threshold that fires when a **real** terminal
+  transition is driven — exhausting the attempt budget, not inserting a terminal row
+  directly, which increments nothing — and does not fire on ordinary retry. The two
+  event counters and the job counter alert separately, and a replay issued while a
+  second pod holds the lease produces one effective business effect and no duplicate.
+  The runbook entry for each is in `docs/runbooks/`.
 - The outbox and inbox purge jobs run under a principal the platform-admin gate admits —
   named, not borrowed from the dispatcher's credential — and the inbox retention floor
   is at least the maximum redelivery window, asserted by a case that advances retention
-  and
-  shows a still-replayable event performing its effect once rather than twice.
+  and shows a still-replayable event performing its effect once rather than twice.
 - No module references a Dapr, Kafka, Valkey or Vault client type.
   `Modules_Do_Not_Reference_DeploymentMode` is green.
 - Production deployment is repeatable and documented.
 - `GET /readyz` reports unhealthy while a registered check is unhealthy and the
   orchestrator stops routing to that instance, while `GET /healthz` still answers 200 —
-  the
-  liveness-versus-readiness split [Observability Standards § Health checks](../standards/10-observability.md#health-checks)
+  the liveness-versus-readiness split
+  [Observability Standards § Health checks](../standards/10-observability.md#health-checks)
   sets.
 - Backup restore test passes on a fresh instance.
 - Tenant + organization isolation regression tests exist, are not skippable, and run as

@@ -105,7 +105,7 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
   [ADR-0045 Amendment 1](../decisions/0045-entitlement-and-feature-flag-socket.md)
   precedent — `EnterPlatformAdminScope`'s registered gate is `DenyAllPlatformAdminGate`,
   which refuses everyone until then. Whether a platform URL space exists at all is a
-  question
+  question that
   [ADR-0036 § The platform-admin override is not a resolution source](../decisions/0036-tenant-resolution-trusted-inputs.md#the-platform-admin-override-is-not-a-resolution-source)
   says needs its own decision record.
 - **The Hangfire dashboard.** No route is mapped in any deployment mode here.
@@ -117,9 +117,9 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
   guard, and registers no job of its own. The first tenant-scoped jobs arrive in
   [Phase 04](phase-04-cms-media-pages.md) and
   [Phase 08a](phase-08a-assessment-notifications.md). The first **tenantless** ones are
-  [ADR-0028](../decisions/0028-audit-log-partition-management.md)'s two audit jobs, whose
-  implementation [Phase 11](phase-11-production-hardening.md) owns — and they are why
-  **G9** has to settle a platform-job class: they run with no tenant to announce,
+  [ADR-0028](../decisions/0028-audit-log-partition-management.md)'s two audit jobs,
+  whose implementation [Phase 11](phase-11-production-hardening.md) owns — and they are
+  why **G9** has to settle a platform-job class: they run with no tenant to announce,
   against an enqueue guard that refuses a payload without one.
 - **The Keycloak-mirrored identity-event feed.** `user.created` and
   `password.reset.requested` need a producer, an authenticated ingress and an Identity
@@ -233,25 +233,25 @@ governs is written, not alongside it.
 
 | # | Question | Leaning | Vehicle | Blocks |
 |---|---|---|---|---|
-| G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages`, transport-claimed; the terminal state in its own store so "the inbox row is not marked processed" stays true | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-3 |
+| G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages`, transport-claimed; the terminal state in its own store so "the inbox row is not marked processed" stays true | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + a dated **ADR-0010 Amendment**, because its § Idempotency makes two things mandatory that the shared-table leaning changes — the inbox is "the module's **own** inbox table", and the guard is called by the consumer — + the `Integration_Event_Handlers_Use_InboxGuard` assertion re-written in the same record to name whoever ends up owning the call, since a transport-claimed delivery fails a structural rule that looks for the call inside the handler + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-3 |
 | G2 | Does `IOutbox.EnqueueAsync` write the row immediately on the ambient transaction, or buffer for `OutboxFlushBehavior` at step 7 — and what is the flush point for the two paths that have no step 7? | Immediate write, with the behavior asserting no buffered message survives the handler | Phase-doc statement + [Events and Outbox § Producer pattern](../architecture/15-event-and-outbox.md#producer-pattern); a dated ADR-0032 Amendment if step 7 stops being a flush point | P02b-1 |
 | G3 | What replaces the unconditional same-key publish-order promise — a scoped bound, or strict per-key head-of-line blocking — and is the key's derivation checkable structurally, given that [§ Ordering](../architecture/15-event-and-outbox.md#ordering) admits an aggregate id or a deliberately declared tenant-wide key and nothing else? | Scope it: no column in `outbox_messages` carries an unconditional per-key guarantee, so the honest bound is one processor, no failure, enqueue order | Scoping is a phase-doc plus [§ Ordering](../architecture/15-event-and-outbox.md#ordering) edit; blocking is a dated ADR-0006 Amendment plus an index | P02b-2 |
 | G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Dated ADR-0006 Amendment + the Database Standards § Outbox DDL, index and grant edits riding it | P02b-2 |
 | G5 | Does the stored event identity stay the assembly-qualified type name with declared compatibility mappings, and what happens to an unresolvable type, a retired type and an event with no subscriber? And what is the **row's** identity — a surrogate `id` plus an `event_id` column, or `EventId` as the key — given that two documents list an `event_id` the canonical DDL does not have? | Keep the type identity, add a bounded resolver reading through `PayloadJsonOptions` and declared mappings; dead-letter a retired type at once rather than spending its attempt budget; reconcile the row's column list in one direction | Phase-doc + Database Standards § Outbox if kept; a dated ADR-0006 Amendment if the type identity is replaced, and a dated ADR-0032 Amendment if the `event_id` column is withdrawn from its § Sub-decision 12 list | P02b-2 |
 | G6 | When the unit-of-work owner is not an `AuditLogBehavior`, who performs the four owner-side audit acts and enters the outermost audit frame — and does a state-mutating delivery declare its own intents, keyed by handler type? | The transport opens the outermost frame beside its transaction; a delivery declares its own intents and an unregistered handler is refused as an unregistered request is | One dated diff: **ADR-0044 Amendment 8**, carried into **ADR-0033 Amendment 8** and **ADR-0040 Amendment 8** | P02b-1, P02b-3 |
-| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | class MUST, `OperationType` `security-event`, the slug open under the § The join grammar `{module}.{resource}.{verb}`; the row written before the transition, so a failed write leaves the transition unmade and the next poll retries | Dated ADR-0033 Amendment + `DeclareOffPath` registrations + the Baseline row in [Audit Coverage Standards](../standards/18-audit-coverage.md#baseline-coverage-learnstack-core-modules) | P02b-3 |
+| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | class MUST, `OperationType` `security-event`, the slug open under the § The join grammar `{module}.{resource}.{verb}`; the row written before the transition, so a failed write leaves the transition unmade and the next poll retries | Dated ADR-0033 Amendment + `DeclareOffPath` registrations + the Baseline row in [Audit Coverage Standards](../standards/18-audit-coverage.md#baseline-coverage-learnstack-core-modules). If the chosen ordering persists the terminal transition and its MUST row on **separate** transactions, that changes what ADR-0033's Decision guarantees rather than clarifying it, and the vehicle is a superseding record, not an amendment | P02b-3 |
 | G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Dated ADR-0006 or ADR-0003 Amendment; an architecture document cannot grant it | P02b-2 |
 | G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; a job reaches the database only through `ISender`, which leaves ADR-0040's closed setter set at eight | **ADR-0047** + a dated ADR-0003 Amendment for the storage + a dated **ADR-0036 Amendment** (or an erratum) if the job-path writer is not the `JobActivator` its § Rules names in the closed four-caller set, then Standards 05 and Standards 20 | P02b-4 |
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Either mint `organization_id` scoped to the host's organization, which makes row 10 need no membership read, or declare the organization host's authenticated 404 and test it as the expected outcome | Dated **ADR-0036 Amendment 8** plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 |
-| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? | A confidential BFF client with one redirect URI per seed host, and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-6 |
+| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, **over what transport** — the seed hosts are `*.learnstack.local` and the frontend's dev script serves plain HTTP, which no browser will return a `Secure` cookie over — and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? | A confidential BFF client with one redirect URI per seed host; local TLS for those hosts with a trust step, or hosts under `localhost`, which browsers exempt; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-6 |
 | G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); a **new ADR** only for a server-side session store | P02b-7 |
-| G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 |
+| G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject — which on its own changes nothing, because the shipped global limiter already partitions every request on the socket peer at the anonymous budget and runs before authentication, so two users behind one BFF share that quota and a request it rejects never reaches a token stage. The record says what the early stage does once a caller is validated, and keeps the pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 |
 | G15 | What initiates a replay in this phase? | A dispatcher-level operation on the dispatcher's own connection, with the operator surface deferred | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) |
 | G16 | What is `LS0002`'s rule name, which project trees does it run over, what does it inspect, and what escalates it to Error? | The name and scope recorded the way Amendment 1 recorded `LS0001`, with the scope reaching the assemblies that actually handle tokens | Dated **ADR-0032 Amendment 4** + a catalogue entry + an `AnalyzerReleases` row | P02b-8 |
 | G17 | What are the label sets for the event and job metrics, is the tenant axis permitted, and is it spelled `tenant` or `tenant_id`? | One note in the document that owns metric names, no raw tenant label on a per-event series, and an oldest-eligible-row age metric separate from the pending count | [Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics) edit | P02b-8 (names may land with P02b-2; labels may not) |
 | G18 | May an integration-event payload or a job argument carry personal data, what may `last_error` contain, and do the four new durable stores enter the erasure scope? | Identifiers only, a sanitized and length-bounded failure descriptor, and the stores named in the erasure inventory | Dated **ADR-0038 Amendment 2** for the payload rule; [Data Protection § Right to Erasure](../architecture/23-data-protection.md#right-to-erasure-right-to-be-forgotten) and Phase 11 for the rest | P02b-2 (the `last_error` rule and its DDL bound), P02b-8 (the payload rule and the erasure inventory) |
-| G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two of the three modules that hold domain code, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | Phase-doc + the Tenancy module spec, which books three `learnstack.tenancy.*` rows to this phase and names Audit as a consumer of one, and the Audit module spec, which says it consumes nothing and has no inbox — a disagreement whichever pair G19 picks has to resolve | P02b-1 |
+| G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two of the three modules that hold domain code, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | Phase-doc + the Tenancy module spec, which books three `learnstack.tenancy.*` rows to this phase and names Audit as a consumer of one, and the Audit module spec, which says it consumes nothing and has no inbox — a disagreement whichever pair G19 picks has to resolve. If the pick is a provisioning event, the flow needs its own proof: provisioning leaves `ITenantContext` unresolved and announces its tenant on the transaction instead, so an enqueue check that reads the ambient context would refuse the seed's own first event | P02b-1 |
 | G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | The matrix wins on a tenant host — [row 2](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) answers 404, byte-identical to an unknown host's, and the 401 rule narrows to the surface where a 401 discloses nothing | Dated **ADR-0036 Amendment 8** (the same one G11 needs) + a catalogue edit to that rule's Asserts line | P02b-5 |
 
 ### Durable outbox dispatch
@@ -662,9 +662,14 @@ settles it; what the phase ships either way:
   today.
 - **Login topology**, under **G12**: login is served on the tenant host the visitor is
   already on, which needs one registered redirect URI per seed host — the realm
-  registers only `localhost` today, and the product is reached on two tenant hosts. The
-  login transaction's `state`, `nonce` and `code_verifier` live in a host-only
-  transaction cookie, and return URLs are validated.
+  registers only `localhost` today, and the product is reached on two tenant hosts. It
+  also needs a transport the session cookie can survive: `Secure` is a secure-channel
+  attribute, the seed hosts are `*.learnstack.local`, and the frontend's dev script
+  serves plain HTTP, so the cookie this phase sets would be accepted and never sent
+  back. The gate settles local TLS with its trust step and the matching callback and
+  post-logout URLs, or moves the dev hosts under `localhost`; what it may not do is drop
+  `Secure`. The login transaction's `state`, `nonce` and `code_verifier` live in a
+  host-only transaction cookie, and return URLs are validated.
 - **Logout**, which
   [Identity and Auth § Logout](../architecture/13-identity-and-auth.md#logout) describes
   and Phase 03 expects: the session cleared, the end-session endpoint called, and
@@ -868,8 +873,10 @@ skipped*, per assembly.
   posture (G8), ADR-0006 for the retry contract (G4), ADR-0036 for the matrix staging
   (G11), ADR-0032 for `LS0002` (G16), ADR-0038 for the payload-content rule (G18).
 - **Database Standards § Inbox** — the canonical inbox DDL beside § Outbox, with its
-  table class, its policy taken by link, its grants and its retention floor; plus the
-  erratum ADR-0023's DB-side minting list owes.
+  table class, its policy taken by link and its grants; plus the erratum ADR-0023's
+  DB-side minting list owes. This phase states the **contract** — how long a
+  `(event, consumer)` pair stays replayable — and
+  [Phase 11](phase-11-production-hardening.md) picks the purge interval that honours it.
 - `IOutbox` and the `OutboxFlushBehavior` body, with the producer write model G2
   settles.
 - A durable `OutboxProcessor` implementing the specified lease: a fenced claim, a
@@ -912,7 +919,9 @@ skipped*, per assembly.
   signal populated at the resolver's reserved site, one JWT authority for `/api/v1/*`
   with its full validation contract written into
   [Security Standards § Authentication](../standards/11-security.md#authentication), and
-  token-keyed rate-limit partitions going live with authentication.
+  token-keyed rate-limit partitions going live with authentication — including the
+  change **G14** settles to the existing pre-auth peer stage, which today caps every
+  caller behind one BFF at the anonymous budget before any token is read.
 - The rejection record carrying a source, an actor and a correlation id; the recorder
   writing `metadata.assertionSource` and populating `actor_user_id` on the authenticated
   tier; and the resolver's refusal path calling the recorder rather than only logging.
@@ -968,8 +977,8 @@ skipped*, per assembly.
   `OutboxFlushBehavior` to Phase 02a and books the queue two ways; and
   `infra/apisix/README.md`, which dates the dashboard's gateway gating to Phase 08a. Two
   more sentences go stale on landing: the post-commit-seam comment that names this
-  phase's outbox dispatch as its obligation — a polling dispatcher needs no such seam —
-  and
+  phase's outbox dispatch as its obligation, since a polling dispatcher needs no such
+  seam; and
   [Security Standards § The out-of-band setters](../standards/11-security.md#the-out-of-band-setters),
   whose transport row and reproduced count both change when the transport opens a
   transaction.
@@ -997,6 +1006,11 @@ shape depends on an open gate say so, and are written when that gate is Accepted
 - A lease that expires mid-dispatch is reclaimed, the first processor's success **and**
   failure writes are both no-ops under the ownership fence, the lost-lease counter
   increments, and the consumer sees one business effect.
+- A producer dead-letter writes exactly one MUST-class row under the slug **G7** names,
+  and a forced failure of that write produces the behaviour G7 chose — the transition
+  unmade and retried, or the duplicate that ordering accepts. The subscriber side
+  already has both halves; the producer side needs them more, because its transition and
+  its audit row are made by two roles.
 - A failed dispatch retries on the published backoff with its lease cleared — so the
   first retry runs at its stated delay rather than at the lease duration — reaches the
   terminal state G4 names at the stated attempt, increments the producer dead-letter
@@ -1073,6 +1087,13 @@ shape depends on an open gate say so, and are written when that gate is Accepted
   same transaction; the handler's write appears in the request's MUST-class row's
   `changes`, proving dispatch ran before the flush; and an outbox row that handler
   enqueues is dispatched — asserted on the dispatched message, not on the enqueue call.
+- A domain-event handler that throws, and a drain that exceeds its bounded depth, each
+  leave the raising aggregate and every outbox row uncommitted. The success path alone
+  cannot show this, and the rule that such a handler is infallible by construction is
+  what makes the throw a rollback rather than a swallowed failure.
+- A handler that ignores its cancellation token does not stall the rest: the
+  per-delivery deadline elapses, other keys keep dispatching, and the abandoned delivery
+  commits nothing afterwards.
 - A frame whose captures name an aggregate root that no intent in the frame declares
   produces the behaviour G6 records.
 - A consumer handling an event caused by user U writes a row whose metadata names U and
@@ -1134,10 +1155,12 @@ shape depends on an open gate say so, and are written when that gate is Accepted
   with admin-only view and edit; a variant export marking either attribute user-editable
   fails the case; and a seed user's own token cannot write either through Keycloak's
   account REST surface.
-- Two principals behind one BFF do not share a quota: one exhausts the authenticated
-  budget and the other's next request is not 429. The 429 carries the one Problem
-  Details shape and `Retry-After`, and repeated mismatches from one token reach 429 and
-  stop producing audit rows.
+- Two principals behind one BFF do not share a quota: through the **whole** middleware
+  chain, from one peer address, one exhausts the authenticated budget and the other's
+  next request is not 429 — a case that fails today, because the pre-auth peer stage
+  rejects at the anonymous budget first. Anonymous abuse from an unknown host stays
+  bounded. The 429 carries the one Problem Details shape and `Retry-After`, and repeated
+  mismatches from one token reach 429 and stop producing audit rows.
 - A second `make seed` against a Keycloak database created from the pre-mapper realm
   JSON leaves every existing account and the `learnstack-hub` realm intact, applies the
   client scope and the mappers, and yields a token carrying a UUID-valued `tenant_id`. A
@@ -1147,11 +1170,16 @@ shape depends on an open gate say so, and are written when that gate is Accepted
 - The callback route rejects a response whose `state` does not match the transaction
   cookie and one with no `code_verifier`; the session cookie is `HttpOnly`, `Secure`,
   `SameSite=Lax`, `Path=/` with no `Domain`; and no response body or script-readable
-  cookie carries the refresh token.
-- Two concurrent requests with a near-expiry token produce exactly one token request and
-  one `Set-Cookie`; a terminal `invalid_grant` clears the session and serves the public
-  page anonymously with a 200; logout ends the session at Keycloak and back-navigation
-  does not restore an authenticated view.
+  cookie carries the refresh token. Asserting the header is not enough: on each real
+  seed host a browser-level case shows the cookie **stored and sent back** on the next
+  request, which is what fails if the dev transport G12 settles is not in place.
+- Two concurrent requests with a near-expiry token produce exactly one token request at
+  the issuer and one logical session version — counted as versions, not as `Set-Cookie`
+  headers, because a session adapter may split one cookie across several and a correct
+  single update can then emit more than one. Whatever the split, the chunks grow, shrink
+  and are all cleared on logout. A terminal `invalid_grant` clears the session and
+  serves the public page anonymously with a 200; logout ends the session at Keycloak and
+  back-navigation does not restore an authenticated view.
 - A cross-origin POST between the two demo hosts is refused, and so is a POST with a
   correct `Origin` and no session-bound token.
 - An unauthenticated request to `(studio)` is redirected to sign-in and `(public)` is
