@@ -311,12 +311,23 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   sized for one connection per request exhausts under a burst of those at half the load it
   was sized for, so the pool size and its saturation alert are set here, against that
   count.
-- Background job retry policy.
-- Dead-letter handling (outbox DLQ + Hangfire DLQ), including the subscriber-side
-  dead-letter destination for events that exhaust their retries.
-- Outbox dispatcher reliability under multi-pod load — the claim mechanism must hold
-  across the whole batch or use a lease column, so two dispatchers cannot both claim the
-  same rows.
+- Background job retry policy under multi-pod load. The single-process retry and
+  dead-letter contract — producer-side, subscriber-side and job-side — is
+  [Phase 02b](phase-02b-events-auth.md)'s; this phase verifies it holds across pods and
+  adds the fair-share and alerting surround, and does not rebuild it.
+- Dead-letter operability: the alerting thresholds on each of the two dead-letter
+  counters, the operator runbook, and the multi-pod behaviour of the replay path. The
+  dead-letter mechanism itself — the terminal state, the counter and the MUST-class audit
+  row — ships in [Phase 02b](phase-02b-events-auth.md).
+- Outbox dispatcher reliability under multi-pod load. The claim protocol is already
+  specified — [Events and Outbox § The claim protocol](../architecture/15-event-and-outbox.md#the-claim-protocol)
+  writes the lease, [ADR-0006 Amendment 2](../decisions/0006-events-and-outbox.md)
+  assigns its columns and grant to Phase 02b's migration, and
+  [§ The simpler alternative, and its cost](../architecture/15-event-and-outbox.md#the-simpler-alternative-and-its-cost)
+  demotes the batch-held transaction to a fallback. What this phase adds is the
+  multi-instance evidence the single-instance phase cannot produce: two real dispatcher
+  processes across pods, lease-duration tuning against measured tail latency, and the
+  lost-lease alert.
 - Idempotent webhook handling.
 - Graceful shutdown.
 - Live classroom provider failure handling.
@@ -429,6 +440,12 @@ same `ILiveClassProvider`.
 - Seed data strategy.
 - Data retention policy.
 - Soft delete and purge jobs.
+- Processed `outbox_messages` and aged `inbox_messages` purging. Both tables start filling
+  in [Phase 02b](phase-02b-events-auth.md), which records the constraint rather than
+  solving it: the `DELETE` grant belongs to `learnstack_platform`, whose only entry takes
+  a reason and no actor, so a recurring job has no principal to present — and an inbox
+  purge shorter than the maximum redelivery window silently breaks deduplication. This
+  phase decides the principal and states that floor.
 - Recording retention and purge jobs.
 - `audit_log` retention and partition lifecycle — see **Demand-gated building blocks**
   above; the jobs and their cadence are specified by
@@ -495,6 +512,11 @@ same `ILiveClassProvider`.
 - Managed-transcoder adapter behind `IVideoTranscoder`, or a recorded decision that its
   trigger has not fired.
 - Air-gapped telemetry file target with its operational controls and its no-egress test.
+- `GET /readyz` mapped and reading the registered health checks — the `audit` check from
+  [Packet 9](phase-02a-kernel-tenancy.md) and the `outbox` check from
+  [Phase 02b](phase-02b-events-auth.md) — plus the deployment-level backstop that stops
+  serving past a configured unhealthy window. `/healthz` stays a liveness probe. The route
+  is already in the host-classification bypass set and is mapped by no earlier phase.
 - Resource-fairness controls: role-scoped `statement_timeout`, per-tenant pool
   partitioning, query cost ceiling, Hangfire fair-share dispatch with per-tenant
   concurrency caps, and bounded `data_source` queries.
@@ -523,6 +545,10 @@ same `ILiveClassProvider`.
 - No module references a Dapr, Kafka, Valkey or Vault client type.
   `Modules_Do_Not_Reference_DeploymentMode` is green.
 - Production deployment is repeatable and documented.
+- `GET /readyz` reports unhealthy while a registered check is unhealthy and the orchestrator
+  stops routing to that instance, while `GET /healthz` still answers 200 — the
+  liveness-versus-readiness split [Observability Standards § Health checks](../standards/10-observability.md#health-checks)
+  sets.
 - Backup restore test passes on a fresh instance.
 - Tenant + organization isolation regression tests exist, are not skippable, and run as
   `learnstack_app`.
