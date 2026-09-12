@@ -233,6 +233,14 @@ public sealed class TenancySchemaTests
         {
             await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
 
+            // B's host is announced as the one being resolved, which is the state a real request
+            // is in: the resolver sets app.resolving_host before any tenant is known, and the two
+            // variables coexist for the rest of that request. Without it the READ policy hides
+            // B's row and the UPDATE policy is never asked to decide — the zero would come from
+            // the wrong clause, and a widened UPDATE policy would pass this case. Measured.
+            await SchemaQueries.SetSettingAsync(
+                connection, transaction, "app.resolving_host", SchemaFixture.HostB);
+
             await using var repoint = new NpgsqlCommand(
                 "UPDATE platform_host_to_tenant SET tenant_id = @tenant WHERE host = @host",
                 (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
@@ -240,8 +248,17 @@ public sealed class TenancySchemaTests
             repoint.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
             repoint.Parameters.AddWithValue("host", SchemaFixture.HostB);
 
+            // The row IS visible now — the resolver's policy admits the announced host — so the
+            // zero below is the UPDATE policy refusing rather than the SELECT policy hiding.
+            (await ScalarAsync(connection,
+                    $"SELECT count(*) FROM platform_host_to_tenant WHERE host = '{SchemaFixture.HostB}'",
+                    transaction))
+                .Should().Be(1L, "the announced host is readable, or the update below matches nothing "
+                    + "for the wrong reason");
+
             (await repoint.ExecuteNonQueryAsync()).Should().Be(0,
-                "B's row is invisible to A, so the statement matches nothing rather than raising");
+                "the row is in front of the statement and the update policy refuses it, silently: "
+                + "a repoint that raised would be easier to notice than one that changes nothing");
 
             await transaction.RollbackAsync();
         }

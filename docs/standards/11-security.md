@@ -591,9 +591,10 @@ Security-relevant durability rules:
   ([ADR-0033 Amendment 6](../decisions/0033-audit-durability-model.md)). A tenant override
   may narrow SHOULD/MAY coverage; it may never remove baseline MUST coverage
   ([ADR-0033 § Fail-closed, stated precisely](../decisions/0033-audit-durability-model.md);
-  registered as `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
-  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md) for Packet 10;
-  today `AuditConfigServiceTests` and `AuditLogBehaviorTests` hold its two halves).
+  asserted by `Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path` in
+  [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md), which observes
+  that a MUST is answered without the loader ever being asked for a connection, alongside
+  `AuditConfigServiceTests` and `AuditLogBehaviorTests`).
 - **Snapshots are redacted at capture and bounded there.**
   `AuditChangeTrackerInterceptor` captures every `Added` / `Modified` / `Deleted`
   entry minus a named exclusion list, and two gates run before anything is parked: a

@@ -17,10 +17,11 @@ import { describe, expect, it } from 'vitest';
  */
 describe('the lint rules the architecture-test catalogue names', () => {
   const app = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const ui = resolve(app, '..', '..', 'packages', 'ui');
 
-  const lint = async (code: string) => {
+  const lint = async (code: string, pkg: string = app) => {
     const eslint = new LegacyESLint({
-      cwd: app,
+      cwd: pkg,
       // pnpm's isolated layout puts the plugins beside the preset that declares them,
       // which is the package `.eslintrc.cjs` extends. `next lint` resolves them the same
       // way; without this the preset fails to load and nothing is checked at all.
@@ -31,14 +32,22 @@ describe('the lint rules the architecture-test catalogue names', () => {
       overrideConfig: { parserOptions: { project: null } },
     });
 
-    const results = await eslint.lintText(code, { filePath: join(app, 'src', 'probe.tsx') });
+    const results = await eslint.lintText(code, { filePath: join(pkg, 'src', 'probe.tsx') });
 
     // One result per linted text, and an empty array means the file was ignored rather than
     // clean — which is how this companion could pass while checking nothing.
     expect(results).toHaveLength(1);
 
-    return results[0]!.messages.map((message) => message.ruleId ?? `parse: ${message.message}`);
+    // Severity travels with the rule id. A rule downgraded to `'warn'` still reports, so a
+    // companion that only collected ids would stay green while `pnpm lint` exited 0 and the
+    // build shipped the call it is supposed to refuse.
+    return results[0]!.messages.map((message) =>
+      message.ruleId ? `${message.ruleId}:${message.severity}` : `parse: ${message.message}`,
+    );
   };
+
+  // What a blocking violation of each rule looks like: reported, at error severity.
+  const RESTRICTED_SYNTAX = 'no-restricted-syntax:2';
 
   it('Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml refuses the JSX attribute', async () => {
     // architecture/32 § 8.5: the sanitised-HTML primitive is the only component allowed to
@@ -48,7 +57,7 @@ describe('the lint rules the architecture-test catalogue names', () => {
       'export const Block = ({ html }: { html: string }) => <div dangerouslySetInnerHTML={{ __html: html }} />;\n',
     );
 
-    expect(rules).toContain('no-restricted-syntax');
+    expect(rules).toContain(RESTRICTED_SYNTAX);
   });
 
   it('refuses it in an object passed to createElement too', async () => {
@@ -59,7 +68,44 @@ describe('the lint rules the architecture-test catalogue names', () => {
         '  createElement("div", { dangerouslySetInnerHTML: { __html: html } });\n',
     );
 
-    expect(rules).toContain('no-restricted-syntax');
+    expect(rules).toContain(RESTRICTED_SYNTAX);
+  });
+
+  it('refuses the quoted key, which is the same object written differently', async () => {
+    // `{ 'dangerouslySetInnerHTML': … }` parses to a Literal key, not an Identifier one, so a
+    // selector written only for `key.name` reads this object as clean.
+    const rules = await lint(
+      'import { createElement } from "react";\n' +
+        'export const Block = (html: string) =>\n' +
+        '  createElement("div", { "dangerouslySetInnerHTML": { __html: html } });\n',
+    );
+
+    expect(rules).toContain(RESTRICTED_SYNTAX);
+  });
+
+  it('refuses the property assigned onto a props object before it is spread', async () => {
+    // The spelling that reaches the element through neither an attribute nor a literal: build
+    // the props, assign the key, spread. Both halves of it — the dotted assignment and the
+    // computed one — are the same call with the same consequence.
+    const dotted = await lint(
+      'export const Block = (html: string) => {\n' +
+        '  const props: Record<string, unknown> = {};\n' +
+        '  props.dangerouslySetInnerHTML = { __html: html };\n' +
+        '  return <div {...props} />;\n' +
+        '};\n',
+    );
+
+    expect(dotted).toContain(RESTRICTED_SYNTAX);
+
+    const computed = await lint(
+      'export const Block = (html: string) => {\n' +
+        '  const props: Record<string, unknown> = {};\n' +
+        '  props["dangerouslySetInnerHTML"] = { __html: html };\n' +
+        '  return <div {...props} />;\n' +
+        '};\n',
+    );
+
+    expect(computed).toContain(RESTRICTED_SYNTAX);
   });
 
   it('leaves an ordinary component alone', async () => {
@@ -71,11 +117,23 @@ describe('the lint rules the architecture-test catalogue names', () => {
     expect(rules).toEqual([]);
   });
 
+  it('answers in packages/ui too, where the primitive will live', async () => {
+    // `pnpm lint` walks every package that declares the script, and until Packet 10 only
+    // apps/web did — so the package ADR-0009 § Decision sends an extracted primitive to was linted by
+    // nothing at all. The rule is worth least in the app and most here.
+    const rules = await lint(
+      'export const Block = ({ html }: { html: string }) => <div dangerouslySetInnerHTML={{ __html: html }} />;\n',
+      ui,
+    );
+
+    expect(rules).toContain(RESTRICTED_SYNTAX);
+  });
+
   it('bars a direct fetch, which Standards 03 § Forbidden names', async () => {
     // The other rule in the same preset, checked for the same reason: green proves nothing
     // unless something has been shown to fail.
     const rules = await lint('export const load = async () => fetch("/api/v1/health");\n');
 
-    expect(rules).toContain('no-restricted-globals');
+    expect(rules).toContain('no-restricted-globals:2');
   });
 });

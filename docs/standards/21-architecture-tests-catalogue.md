@@ -739,22 +739,27 @@ otherwise).
 
 #### `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml`
 
-- **Asserts:** the sanitised-HTML primitive is the only component in `apps/web` that
+- **Asserts:** the sanitised-HTML primitive is the only component in the frontend that
   calls `dangerouslySetInnerHTML`, and it does so exclusively on the sanitiser's output.
   This is the rule that stops the `embed-html` sanitisation contract being bypassed by a
   convenient one-off.
 - **Source:** [32-tenant-customization-model.md § 8.5](../architecture/32-tenant-customization-model.md)
   and its § 11 hard invariants.
 - **Type:** ESLint rule in `frontend/`. **Kind:** structural.
-- **Status:** **Implemented** — a `no-restricted-syntax` pair in
-  `frontend/packages/config/eslint/index.cjs`, Packet 10: the JSX attribute and the object
-  property, because a helper writes the second where a component writes the first. Its companion
-  is `frontend/apps/web/src/test/lint-rules.test.ts`, which lints three fixtures through the
-  app's own configuration and asserts which rule answers — `pnpm lint` is green whether a rule
-  is configured or not, and a rule nothing violates looks exactly like a rule that is not there.
-  The primitive's own file carries the single suppression when
-  [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; nothing calls the API today,
-  which is why the rule lands before the first caller.
+- **Status:** **Implemented** — three `no-restricted-syntax` selectors in
+  `frontend/packages/config/eslint/index.cjs`, Packet 10, one per spelling that reaches an
+  element: the JSX attribute a component writes, the object property a helper writes — quoted
+  or not — and the member assignment onto a props object that is spread afterwards. Packet 10
+  also gave `frontend/packages/ui` a configuration and a `lint` script, because `pnpm lint`
+  walked only `apps/web` and the package [ADR-0009 § Decision](../decisions/0009-frontend-single-app-first.md)
+  sends an extracted primitive to was linted by nothing. Its companion is
+  `frontend/apps/web/src/test/lint-rules.test.ts`, which lints each of those spellings through
+  the real configuration — the app's and the package's — and asserts both the rule that answers
+  and its **severity**, because a rule downgraded to `warn` still reports while `pnpm lint`
+  exits 0. `pnpm lint` is green whether a rule is configured or not, and a rule nothing violates
+  looks exactly like a rule that is not there. The primitive's own file carries the single
+  suppression when [Phase 04](../roadmap/phase-04-cms-media-pages.md) ships it; nothing calls
+  the API today, which is why the rule lands before the first caller.
 - **Phase:** 02a (Packet 10).
 
 #### `ModuleDomain_DoesNotDependOn_OtherModuleDomain`
@@ -2163,13 +2168,16 @@ which decides identity, multiplicity, capture and classification;
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
 - **Status:** **Implemented** — `AuditPipelineTests` (integration), Packet 10. With
   `SELECT` on `audit_config` **revoked** from `learnstack_app`, the seed's MUST commands still
-  complete and still write their rows; a SHOULD classification, which is the tier that does
-  reach the loader, still answers `Should` because the read failure falls back rather than
-  rejecting; and a MUST answers against a data source that cannot connect at all, which is what
-  "the floor is decided in process" means. The revoke is what makes the case able to tell a read
-  from no read: under Row Level Security the read would return zero rows **silently**, and
-  silence is indistinguishable from "this tenant has no overrides". Mutation-checked: removing
-  the loader's fallback fails it. `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
+  complete and still write their rows. Then the property itself, which is **not** about the
+  answer: a failed read and a read that never happened return the same tier, because
+  `ClassifyAsync` falls back to the declared class on either — so the case observes whether the
+  data source was **asked for**, through a `Lazy` whose factory records the request. A MUST
+  never asks; a SHOULD, the overridable tier, does ask, fails under the revoke, and still
+  answers `Should`. The revoke is what makes the read observable at all: under Row Level
+  Security it would return zero rows **silently**, and silence is indistinguishable from "this
+  tenant has no overrides". Mutation-checked twice: removing the loader's fallback fails it, and
+  so does moving the MUST short-circuit after the read — which left every other suite in the
+  repository green. `AuditLogBehaviorTests.An_unregistered_request_is_refused_and_the_handler_never_runs`
   holds the other half — the `audit_unclassified_operation` rejection — where a handler can be
   registered for a request the catalogue does not know; the seeder's composition root ships one
   request type per shipped command and has no unregistered one to send.

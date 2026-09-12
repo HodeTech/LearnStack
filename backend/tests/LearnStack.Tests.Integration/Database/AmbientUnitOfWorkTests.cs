@@ -113,6 +113,13 @@ public sealed class AmbientUnitOfWorkTests
             tenancy.Add(TenantDomain.CreateSubdomain(domainId, TenantA.TenantId, host, Clock, Actor));
             await tenancy.SaveChangesAsync(CancellationToken.None);
 
+            // Both rows exist BEFORE the failure, read on the transaction that holds them. Without
+            // this the case passes when a write never happened at all — zero rows afterwards is
+            // the same observation either way, and a rollback that rolls nothing back is not the
+            // property ADR-0040 claims.
+            (await CountAsync(customization, contentTypeId)).Should().Be(1);
+            (await CountAsync(tenancy, host)).Should().Be(1);
+
             // The outer frame fails after both writes and before the commit: no CommitAsync, and
             // the scope's disposal rolls the transaction back.
             throw new InvalidOperationException("the outer frame failed");
@@ -155,16 +162,23 @@ public sealed class AmbientUnitOfWorkTests
             Clock,
             Actor);
 
-    /// <summary>Counts the row through a context's own connection.</summary>
-    private static async Task<long> CountAsync(DbContext context, TenantContentTypeId id)
+    /// <summary>Counts a content type through a context's own connection.</summary>
+    private static Task<long> CountAsync(DbContext context, TenantContentTypeId id) =>
+        CountAsync(context, "SELECT count(*) FROM tenant_content_types WHERE id = @value", id.Value);
+
+    /// <summary>Counts a tenant domain through a context's own connection.</summary>
+    private static Task<long> CountAsync(DbContext context, string host) =>
+        CountAsync(context, "SELECT count(*) FROM tenant_domains WHERE host = @value", host);
+
+    private static async Task<long> CountAsync(DbContext context, string sql, object value)
     {
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
-        command.CommandText = "SELECT count(*) FROM tenant_content_types WHERE id = @id";
+        command.CommandText = sql;
 
         var parameter = command.CreateParameter();
-        parameter.ParameterName = "id";
-        parameter.Value = id.Value;
+        parameter.ParameterName = "value";
+        parameter.Value = value;
         command.Parameters.Add(parameter);
 
         return (long)(await command.ExecuteScalarAsync(CancellationToken.None))!;

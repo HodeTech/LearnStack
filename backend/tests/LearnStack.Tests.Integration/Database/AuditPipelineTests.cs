@@ -187,35 +187,43 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
             var rows = await RowsAsync(SeedData.English.TenantId.Value);
 
-            rows.Select(row => row.Operation).Should().Contain("tenancy.tenant.create",
-                "the MUST rows are written at the classification the catalogue carries");
-            rows.Should().OnlyContain(row => row.Outcome == "success");
+            rows.Where(row => MustOperations.Contains(row.Operation))
+                .Should().NotBeEmpty("the MUST rows are written at the classification the catalogue carries")
+                .And.OnlyContain(row => row.Outcome == "success",
+                    "an unreadable audit_config changes nothing about the operations themselves");
 
-            // The half the command alone cannot show. A MUST short-circuits before any read, so
-            // a seed of MUST operations passes whether the classifier reads or not; a SHOULD is
-            // the operation that reaches the loader. Under the same REVOKE its read FAILS — and
-            // the declared tier still comes back, which is ADR-0033's one non-rejecting failure.
-            var classifier = Classifier(dataSource);
+            // The half the command cannot show, and it is not about the ANSWER. A read that
+            // fails and a read that never happened return the same tier — the catch in
+            // ClassifyAsync falls back to `declared` — so a case that only inspected the answer
+            // would pass with the short-circuit deleted and every request reading the table.
+            // Measured: moving the MUST short-circuit after the read left this file, and every
+            // other suite, green. What separates the two is whether the DATA SOURCE was ever
+            // asked for, and a Lazy whose factory records that is how this asks.
+            var askedForMust = false;
+            var mustTier = await Classifier(dataSource, () => askedForMust = true).ClassifyAsync(
+                TenantId.From(SchemaFixture.TenantA),
+                Operation("tenancy.tenant.create", OperationClass.Must),
+                CancellationToken.None);
 
-            (await classifier.ClassifyAsync(
-                    TenantId.From(SchemaFixture.TenantA),
-                    Operation("tenancy.tenant.create", OperationClass.Should),
-                    CancellationToken.None))
-                .Should().Be(AuditClassification.Should,
-                    "a tenant-override read failure falls back to the declared tier rather than "
-                    + "rejecting the operation (ADR-0033 § Decision)");
+            mustTier.Should().Be(AuditClassification.Must);
+            askedForMust.Should().BeFalse(
+                "a MUST is not overridable, so classification answers it in process and never "
+                + "opens a connection — the property this case is named for");
 
-            // And a MUST answers without asking at all: a data source that cannot connect is
-            // proof the floor is decided in process.
-            await using var unreachable = NpgsqlDataSource.Create(
-                "Host=127.0.0.1;Port=1;Username=nobody;Database=nothing;Timeout=1");
+            // And the SHOULD, which is the tier that does reach the loader: the data source IS
+            // asked for, the read fails under the REVOKE, and the declared tier still comes back
+            // — ADR-0033's one non-rejecting failure.
+            var askedForShould = false;
+            var shouldTier = await Classifier(dataSource, () => askedForShould = true).ClassifyAsync(
+                TenantId.From(SchemaFixture.TenantA),
+                Operation("tenancy.tenant.create", OperationClass.Should),
+                CancellationToken.None);
 
-            (await Classifier(unreachable).ClassifyAsync(
-                    TenantId.From(SchemaFixture.TenantA),
-                    Operation("tenancy.tenant.create", OperationClass.Must),
-                    CancellationToken.None))
-                .Should().Be(AuditClassification.Must,
-                    "the floor is not overridable, so there is nothing to read for one");
+            shouldTier.Should().Be(AuditClassification.Should,
+                "a tenant-override read failure falls back to the declared tier rather than "
+                + "rejecting the operation (ADR-0033 § Decision)");
+            askedForShould.Should().BeTrue(
+                "the overridable tier is the one that reads, or the REVOKE above proves nothing");
         }
         finally
         {
@@ -342,11 +350,33 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // INTENTS ARE PLURAL, and a refusal is where that is easiest to get wrong: the refused
         // provisioning declares two — the tenant and its default organization — and both are
         // reconciled, so the refusal is two rows rather than one (ADR-0033 Amendment 2 § 1).
-        rows.Where(row => row.Outcome != "success").Select(row => row.Operation)
-            .Should().Contain("tenancy.tenant.create")
-            .And.Contain("tenancy.organization.create",
-                "ProvisionTenantCommand declares two intents and the refusal reconciles both — a "
-                + "singular reading would record the tenant's half and drop the organization's");
+        // By ENTITY, not by operation: the seed also runs CreateOrganizationCommand, whose own
+        // refusal writes a `tenancy.organization.create` row — so an assertion on the slug alone
+        // is satisfied by the wrong command and the singular reading it exists to refuse passes.
+        // The provisioning's second intent is the row naming the DEFAULT organization.
+        var refused = rows.Where(row => row.Outcome != "success").ToList();
+
+        refused.Should().Contain(
+            row => row.Operation == "tenancy.tenant.create"
+                && row.EntityId == SeedData.English.TenantId.Value.ToString(),
+            "the refused provisioning records its first intent");
+        // The seed refuses two organization creations, and they are not the same one. The
+        // standalone CreateOrganizationCommand names the organization it was asked for; the
+        // provisioning's SECOND INTENT names none, because it was refused before the aggregate
+        // existed to be designated. Distinguishing them is the point: an assertion on the slug
+        // alone is satisfied by the standalone command, and the singular reading this case
+        // exists to refuse — one row per request — would still pass.
+        var organizations = refused
+            .Where(row => row.Operation == "tenancy.organization.create")
+            .ToList();
+
+        organizations.Should().Contain(
+            row => row.EntityId == SeedData.English.SecondOrganization.OrganizationId.Value.ToString(),
+            "the standalone command's refusal names the organization it was asked for");
+        organizations.Should().Contain(
+            row => row.EntityId == null,
+            "and the provisioning's second intent is on the record too, with no instance to name "
+            + "— ProvisionTenantCommand declares two intents and the refusal reconciles both");
 
         // And the refused run wrote no business row: the counts are the first run's, exactly.
         (await ScalarAsync("SELECT count(*) FROM tenants WHERE id = @tenant",
@@ -433,15 +463,39 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     }
 
     /// <summary>DDL on the shared schema, as its owner — the only role that may alter it.</summary>
-    /// <summary>The real classifier, with the cache implementation the composition roots pick.</summary>
-    private static AuditConfigService Classifier(NpgsqlDataSource dataSource)
+    /// <summary>The MUST operations the seed writes, by slug.</summary>
+    private static readonly string[] MustOperations =
+    [
+        "tenancy.tenant.create",
+        "tenancy.organization.create",
+        "tenancy.hostmapping.write",
+        "customization.content_type.register",
+        "customization.content_type.publish",
+        "customization.level_taxonomy.register",
+        "customization.level_taxonomy.publish",
+    ];
+
+    /// <summary>
+    /// The real classifier, with the cache implementation the composition roots pick and a
+    /// <paramref name="asked"/> callback that fires the first time it reaches for the data source.
+    /// </summary>
+    /// <remarks>
+    /// The callback is the whole point of the seam: the loader takes a <c>Lazy</c>, so the factory
+    /// runs on the first read and never if there is none. A cache instance per call, so one
+    /// classification's answer cannot satisfy the next one's read.
+    /// </remarks>
+    private static AuditConfigService Classifier(NpgsqlDataSource dataSource, Action? asked = null)
     {
         var meterFactory = new ServiceCollection().AddMetrics()
             .BuildServiceProvider().GetRequiredService<IMeterFactory>();
 
         return new AuditConfigService(
             new InMemoryCacheService(new SystemClock(), meterFactory),
-            new Lazy<NpgsqlDataSource>(() => dataSource),
+            new Lazy<NpgsqlDataSource>(() =>
+            {
+                asked?.Invoke();
+                return dataSource;
+            }),
             NullLogger<AuditConfigService>.Instance);
     }
 

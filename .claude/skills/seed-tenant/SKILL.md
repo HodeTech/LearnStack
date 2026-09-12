@@ -88,9 +88,13 @@ The target brings the stack up and runs `scripts/seed.sh`, which verifies compos
 health and the two Keycloak realms, then invokes the seeder:
 
 ```bash
-ConnectionStrings__Default="<the learnstack_app string>" \
-    dotnet run --project backend/src/LearnStack.Tools.Seeder --nologo
+(cd backend && ConnectionStrings__Default="<the learnstack_app string>" \
+    dotnet run --project src/LearnStack.Tools.Seeder --nologo)
 ```
+
+It runs **from `backend/`** rather than from the repository root, because that is where the
+SDK pin lives (`backend/global.json`). From the root no `global.json` applies and whichever
+SDK is newest answers — which is not the one CI and `make migrate` use.
 
 **What the tenants are is data, not arguments.** The two live in `SeedData.cs`,
 so there is no `--tenants` flag and nothing to keep in step between a script and

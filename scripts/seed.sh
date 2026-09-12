@@ -43,6 +43,15 @@ for _dep in docker python3 curl dotnet; do
     fi
 done
 
+# And `docker` on PATH is not `docker compose`: the V1 `docker-compose` binary satisfies the
+# loop above and then every call below fails with "'compose' is not a docker command" — a
+# message that names the subcommand rather than the missing plugin. Checked once, here.
+if ! docker compose version >/dev/null 2>&1; then
+    echo "seed: the Docker Compose V2 plugin is required ('docker compose'), and was not found." >&2
+    echo "      The standalone 'docker-compose' binary is V1 and is not a substitute." >&2
+    exit 1
+fi
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 

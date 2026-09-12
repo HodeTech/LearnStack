@@ -58,7 +58,19 @@ module.exports = {
           'on the sanitiser output (architecture/32 § 8.5). Render through a primitive.',
       },
       {
-        selector: 'Property[key.name="dangerouslySetInnerHTML"]',
+        // An identifier key — `{ dangerouslySetInnerHTML: … }` — and a quoted one, which is
+        // the same object written differently.
+        selector:
+          'Property[key.name="dangerouslySetInnerHTML"], Property[key.value="dangerouslySetInnerHTML"]',
+        message:
+          'Only the sanitised-HTML primitive may call dangerouslySetInnerHTML, and only ' +
+          'on the sanitiser output (architecture/32 § 8.5). Render through a primitive.',
+      },
+      {
+        // And the assignment: `props.dangerouslySetInnerHTML = …` before a spread reaches the
+        // element through neither an attribute nor a property literal.
+        selector:
+          'MemberExpression[property.name="dangerouslySetInnerHTML"], MemberExpression[property.value="dangerouslySetInnerHTML"]',
         message:
           'Only the sanitised-HTML primitive may call dangerouslySetInnerHTML, and only ' +
           'on the sanitiser output (architecture/32 § 8.5). Render through a primitive.',

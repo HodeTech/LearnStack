@@ -556,8 +556,9 @@ observes neither a rollback nor a `42501`.
   — a rolled-back MUST-class command leaves zero business rows and exactly one row with
   outcome `failed`.
 - [`Audit_Classification_Does_Not_Read_The_Database_On_The_Request_Path`](21-architecture-tests-catalogue.md#audit_classification_does_not_read_the_database_on_the_request_path)
-  — an unreadable `audit_config` does not stop a MUST-class command, and an uncatalogued
-  operation is rejected. Registered; lands in Packet 10.
+  — an unreadable `audit_config` does not stop a MUST-class command, and classification
+  never asks for a connection to answer one. Packet 10; the uncatalogued-operation half is
+  `AuditLogBehaviorTests`, where a request the catalogue does not know can be registered.
 - [`AuditLog_Update_Is_Column_Restricted`](21-architecture-tests-catalogue.md#auditlog_update_is_column_restricted)
   — `learnstack_app` gets `42501`; `learnstack_platform` gets the column-restricted
   redaction `UPDATE` and the purge `DELETE`, and nothing else; the table owner is stopped
