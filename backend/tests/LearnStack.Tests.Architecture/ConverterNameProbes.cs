@@ -27,3 +27,16 @@ internal readonly partial struct BorrowedNameProbeId
 {
     internal sealed class EfCoreValueReader;
 }
+
+/// <summary>
+/// Names a namespace through a <c>typeof(…)</c> in an attribute argument and nowhere else.
+/// </summary>
+/// <remarks>
+/// The shape <c>Il.Attributes</c> could not see: it read each attribute's own type and
+/// dropped the arguments, so a reference written this way was invisible to every namespace
+/// sweep built on it. Never instantiated.
+/// </remarks>
+[System.ComponentModel.DefaultValue(typeof(Microsoft.EntityFrameworkCore.DbContext))]
+internal sealed class NamesInAnAttributeArgument
+{
+}

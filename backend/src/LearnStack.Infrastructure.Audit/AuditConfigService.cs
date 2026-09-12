@@ -142,10 +142,13 @@ public sealed class AuditConfigService(
     /// <para>
     /// <c>BEGIN; SET TRANSACTION READ ONLY; SET LOCAL app.tenant_id; SELECT; COMMIT</c> —
     /// the announcement is the point, and it is why this cannot ride the request's
-    /// connection, which has none at step 3. Read-only, so the transaction exists for the
-    /// <c>SET LOCAL</c> rather than for atomicity: a <c>SET LOCAL</c> outside a transaction
-    /// lasts for the statement and would leave the pooled connection announcing a tenant
-    /// afterwards.
+    /// connection, which has none at step 3. The transaction exists so the announcement is
+    /// still in effect for the <c>SELECT</c> that follows it, not for atomicity:
+    /// <c>set_config(…, true)</c> is transaction-local, so outside an explicit transaction it
+    /// belongs to its own single-statement one and is gone before the read runs. The
+    /// alternative — announcing at session level — would survive the read and then ride the
+    /// pooled connection to whoever got it next. Read-only, because neither this nor any
+    /// reader like it writes.
     /// </para>
     /// <para>
     /// The <c>SELECT</c> names its tenant too, bound from the trusted argument. Row

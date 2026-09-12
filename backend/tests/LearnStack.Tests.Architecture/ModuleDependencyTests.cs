@@ -296,6 +296,14 @@ public sealed class ModuleDependencyTests
         IsVogenEmittedConverter(Probe(module, "LearnStack.Tests.Architecture.Probes.BorrowedNameProbeId/EfCoreValueReader"))
             .Should().BeFalse("Vogen emits two names, and a third one inside a value object is written by hand");
 
+        // A reference written only as a `typeof(…)` in an attribute argument is a reference.
+        // Reading the attribute's own type and dropping its arguments left this type looking
+        // as though it named nothing.
+        Il.NamesNamespace(
+            Probe(module, "LearnStack.Tests.Architecture.Probes.NamesInAnAttributeArgument"),
+            "Microsoft.EntityFrameworkCore")
+            .Should().BeTrue("an attribute argument names the type it carries");
+
         // And the exception recognises what Vogen actually emits, in every Domain assembly.
         DomainAssemblies().Select(assembly => EfCoreDependents(assembly.Location))
             .Sum(assembly => assembly.Emitted)

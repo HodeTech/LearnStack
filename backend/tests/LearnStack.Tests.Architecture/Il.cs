@@ -247,12 +247,50 @@ internal static class Il
         }
     }
 
+    /// <summary>Every attribute a type carries, and every type those attributes name.</summary>
+    /// <remarks>
+    /// The arguments too, not only the attribute's own type. A <c>typeof(…)</c> in an attribute
+    /// argument — <c>[JsonConverter(typeof(SomeConverter))]</c> — is a reference like any other,
+    /// and reading the attribute type alone left it out of every namespace sweep built on this.
+    /// Arrays are walked, because an attribute argument can be one.
+    /// </remarks>
     private static IEnumerable<TypeReference> Attributes(TypeDefinition type) =>
-        type.CustomAttributes.Select(attribute => attribute.AttributeType)
-            .Concat(type.Fields.SelectMany(field => field.CustomAttributes)
-                .Concat(type.Properties.SelectMany(property => property.CustomAttributes))
-                .Concat(type.Methods.SelectMany(method => method.CustomAttributes))
-                .Select(attribute => attribute.AttributeType));
+        type.CustomAttributes
+            .Concat(type.Fields.SelectMany(field => field.CustomAttributes))
+            .Concat(type.Properties.SelectMany(property => property.CustomAttributes))
+            .Concat(type.Methods.SelectMany(method => method.CustomAttributes))
+            .SelectMany(attribute => new[] { attribute.AttributeType }.Concat(Named(attribute)));
+
+    /// <summary>The types one attribute's arguments name.</summary>
+    private static IEnumerable<TypeReference> Named(CustomAttribute attribute) =>
+        attribute.ConstructorArguments
+            .Concat(attribute.Fields.Select(field => field.Argument))
+            .Concat(attribute.Properties.Select(property => property.Argument))
+            .SelectMany(NamedBy);
+
+    private static IEnumerable<TypeReference> NamedBy(CustomAttributeArgument argument)
+    {
+        switch (argument.Value)
+        {
+            case TypeReference named:
+                yield return named;
+                break;
+            case CustomAttributeArgument nested:
+                foreach (var reference in NamedBy(nested))
+                {
+                    yield return reference;
+                }
+
+                break;
+            case CustomAttributeArgument[] array:
+                foreach (var reference in array.SelectMany(NamedBy))
+                {
+                    yield return reference;
+                }
+
+                break;
+        }
+    }
 
     /// <summary>
     /// Whether a reference, or any type argument inside it, lives under a namespace.

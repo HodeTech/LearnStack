@@ -88,13 +88,24 @@ public sealed partial class CorpusConsistencyTests
             "the subject of this rule is every rule the catalogue reports Implemented in this "
             + "assembly, and § Implemented today publishes that number");
 
-        var missing = implemented
-            .Where(rule => !methods.Contains(rule))
+        // The pair, not the name. A flat set of every method in the assembly let an entry
+        // saying "Implemented — `FooTests`" be satisfied by a method of that name in
+        // `BarTests`, which is the entry being wrong in the one way it is most likely to be
+        // wrong: the rule moved and the Status line did not.
+        var declared = DeclaredMethods();
+
+        var missing = ImplementedEntries()
+            .Where(entry => NamedClasses(entry.Status).Any(SuiteClasses().Contains))
+            .Where(entry => !NamedClasses(entry.Status).Any(name =>
+                declared.TryGetValue(name, out var names) && names.Contains(entry.Rule)))
+            .Select(entry => entry.Rule)
             .ToList();
 
         missing.Should().BeEmpty(
             "every rule the catalogue reports Implemented in this assembly is a test method of "
-            + "that exact name (Standards 21 § Canonical names and superseded spellings)");
+            + "that exact name, in a class its Status line names (Standards 21 § Canonical "
+            + "names and superseded spellings)");
+
 
         // And the other direction of the same failure: an entry naming a test class that exists
         // in no suite at all. Without this a renamed or deleted file drops its entries out of
@@ -362,6 +373,16 @@ public sealed partial class CorpusConsistencyTests
     /// <summary>Every test method this assembly declares, by name.</summary>
     private static HashSet<string> TestMethods() =>
         [.. TestMethodInfos().Select(method => method.Name)];
+
+    /// <summary>The test method names this assembly declares, per declaring class.</summary>
+    private static Dictionary<string, HashSet<string>> DeclaredMethods() =>
+        TestMethodInfos()
+            .Where(method => method.DeclaringType is not null)
+            .GroupBy(method => method.DeclaringType!.Name, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(method => method.Name).ToHashSet(StringComparer.Ordinal),
+                StringComparer.Ordinal);
 
     /// <summary>The number words the index's summary sentence uses.</summary>
     private static readonly Dictionary<string, int> Words = new(StringComparer.OrdinalIgnoreCase)

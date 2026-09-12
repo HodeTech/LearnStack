@@ -97,6 +97,20 @@ public sealed partial class DomainGenericityTests
         MigratedNames().Should().Contain("outbox_messages")
             .And.Contain("idempotency_keys", "a table created in raw SQL belongs to no DbContext");
 
+        // A schema qualifier used to take the table AND its columns out of the scan: the name
+        // group captured the schema, and the pattern then failed at the dot.
+        var qualified = CreateTable().Match("""
+            CREATE TABLE public.yoga_levels (
+                id uuid NOT NULL,
+                asana_name text NOT NULL
+            );
+            """);
+        qualified.Success.Should().BeTrue();
+        qualified.Groups["table"].Value.Should().Be("yoga_levels");
+        ColumnName().Matches(qualified.Groups["columns"].Value)
+            .Select(match => match.Groups["column"].Value)
+            .Should().BeEquivalentTo(["id", "asana_name"]);
+
         var created = CreateTable().Match("""
             CREATE TABLE kata_sequences (
                 id uuid NOT NULL,
@@ -493,7 +507,8 @@ public sealed partial class DomainGenericityTests
 
     /// <summary>A <c>CREATE TABLE</c> statement and the body that declares its columns.</summary>
     [GeneratedRegex(
-        @"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?""?(?<table>[A-Za-z_][A-Za-z0-9_]*)""?\s*\((?<columns>.*?)\n\s*\)\s*;",
+        @"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?"
+        + @"""?(?<table>[A-Za-z_][A-Za-z0-9_]*)""?\s*\((?<columns>.*?)\n\s*\)\s*;",
         RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex CreateTable();
 

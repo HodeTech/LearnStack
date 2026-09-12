@@ -358,6 +358,8 @@ public sealed partial class AuditConventionTests
         ComposedTableName().IsMatch("$\"update {Table} SET tenant_id = @tenant\"").Should().BeTrue(
             "a statement's target is its target in either case");
         ComposedTableName().IsMatch("$\"copy {Table} FROM STDIN\"").Should().BeTrue();
+        ComposedTableName().IsMatch("$\"INSERT INTO public.{Table} (id) VALUES (@id)\"").Should().BeTrue(
+            "a literal schema in front of a composed name composes the same name");
         ComposedTableName().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeFalse(
             "a literal name is what every other leg here reads");
         ComposedTableName().IsMatch("$\"SELECT * FROM audit_log WHERE tenant_id = {tenant}\"").Should().BeFalse(
@@ -431,7 +433,7 @@ public sealed partial class AuditConventionTests
     /// </remarks>
     [GeneratedRegex(
         @"\b(?:(?i:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|COPY|UPDATE)"
-        + @"|FROM|JOIN)\s+(?:\{|""\s*\+)")]
+        + @"|FROM|JOIN)\s+(?:""?[A-Za-z_][A-Za-z0-9_]*""?\s*\.\s*)?(?:\{|""\s*\+)")]
     private static partial Regex ComposedTableName();
 
     /// <summary>

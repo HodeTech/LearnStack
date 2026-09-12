@@ -379,7 +379,9 @@ public sealed class CrossCuttingFoundationTests
             .Select(match => match.Groups["attributes"].Value)
             .Where(attributes => attributes.Contains("LearnStack.Analyzers.csproj", StringComparison.Ordinal))
             .Any(attributes =>
-                Regex.IsMatch(attributes, @"OutputItemType\s*=\s*""Analyzer""")
+                // Either quote: XML admits both, MSBuild reads both, and requiring double
+                // ones reported a correctly wired project as unwired.
+                Regex.IsMatch(attributes, @"OutputItemType\s*=\s*(?:""|')Analyzer(?:""|')")
                 && !Regex.IsMatch(attributes, @"\bCondition\s*="));
     }
 
@@ -469,6 +471,8 @@ public sealed class CrossCuttingFoundationTests
         WiresTheAnalyzer(Reference + """OutputItemType="Analyzer" />""").Should().BeTrue();
         WiresTheAnalyzer("""<ProjectReference OutputItemType="Analyzer" Include="..\LearnStack.Analyzers.csproj" />""")
             .Should().BeTrue("the attributes may be written in either order");
+        WiresTheAnalyzer("""<ProjectReference Include="..\LearnStack.Analyzers.csproj" OutputItemType='Analyzer' />""")
+            .Should().BeTrue("and in either quote, which is XML's rule and not ours");
         WiresTheAnalyzer(Reference + """/>""").Should().BeFalse("a plain reference is not an analyzer");
         WiresTheAnalyzer("""<ProjectReference Condition="'$(CI)' == 'true'" Include="..\LearnStack.Analyzers.csproj" OutputItemType="Analyzer" />""")
             .Should().BeFalse("a conditional analyzer does not run in the configuration the condition excludes");

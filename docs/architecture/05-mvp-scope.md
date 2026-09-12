@@ -219,7 +219,7 @@ contracts and the option to point at a Hub instance are MVP-complete:
 Delivered as **tenant customization data** loaded at provisioning, **not** as code:
 - `TenantLevelTaxonomy` with CEFR levels (A1, A2, B1, B2, C1, C2).
 - `TenantContentType` for `vocabulary-card`, `speaking-prompt`, `lesson-package`.
-- `TenantLessonItemType` for `SpeakingPracticeItem` (with live-session reference).
+- `TenantLessonItemType` for `speaking-practice` (with live-session reference).
 - `TenantScoringRule` for placement-test → CEFR-level recommendation.
 - `TenantCompletionRule` for English-specific lesson-package completion semantics.
 - `TenantCustomFieldDef` for `User.preferredAccent`, `InstructorProfile.dialectsTaught`,

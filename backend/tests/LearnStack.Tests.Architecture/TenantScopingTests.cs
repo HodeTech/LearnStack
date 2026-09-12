@@ -378,6 +378,17 @@ public sealed class TenantScopingTests
             .Should().BeFalse("a USING that ignores the tenant reads every tenant's rows");
         PolicyReadsTheTenant($"CREATE POLICY p ON t USING ({Term}) WITH CHECK ({Term});", "id")
             .Should().BeFalse("the self-keyed table compares its own id, not a tenant_id it lacks");
+
+        // And the same policy in lower case, which is the same policy. SQL folds case and
+        // `pg_policies` prints what was written, so a clause-finder keyed on the upper-case
+        // spelling answers "no tenant term" for a policy that carries one — a structural rule
+        // reporting a leak that is not there, or missing one that is.
+        const string Lower = "tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid";
+
+        PolicyReadsTheTenant($"create policy p on t using ({Lower}) with check ({Lower});", "tenant_id")
+            .Should().BeTrue("a policy written in lower case reads the tenant just as well");
+        PolicyReadsTheTenant($"create policy p on t using ({Lower}) with check (true);", "tenant_id")
+            .Should().BeFalse("and it is still refused when one clause ignores the tenant");
     }
 
     /// <summary>
@@ -385,8 +396,12 @@ public sealed class TenantScopingTests
     /// </summary>
     private static bool PolicyReadsTheTenant(string policy, string keyColumn)
     {
-        var usingAt = policy.IndexOf("USING", StringComparison.Ordinal);
-        var checkAt = policy.IndexOf("WITH CHECK", StringComparison.Ordinal);
+        // Case-insensitively, as `PermissivePolicyFor` already reads its own keywords: SQL
+        // folds case, `pg_policies` prints what was written, and a policy spelled `using (…)`
+        // or naming `current_setting` in another case would otherwise read as absent — a
+        // structural rule answering "no tenant term" for a policy that has one.
+        var usingAt = policy.IndexOf("USING", StringComparison.OrdinalIgnoreCase);
+        var checkAt = policy.IndexOf("WITH CHECK", StringComparison.OrdinalIgnoreCase);
 
         if (usingAt < 0 || checkAt < usingAt)
         {
@@ -394,7 +409,8 @@ public sealed class TenantScopingTests
         }
 
         var term = new Regex(
-            $@"(?<![A-Za-z0-9_]){Regex.Escape(keyColumn)}\s*=\s*NULLIF\(\s*current_setting\(\s*'app\.tenant_id'\s*,\s*true\s*\)\s*,\s*''\s*\)::uuid");
+            $@"(?<![A-Za-z0-9_]){Regex.Escape(keyColumn)}\s*=\s*NULLIF\(\s*current_setting\(\s*'app\.tenant_id'\s*,\s*true\s*\)\s*,\s*''\s*\)::uuid",
+            RegexOptions.IgnoreCase);
 
         return term.IsMatch(policy[usingAt..checkAt]) && term.IsMatch(policy[checkAt..]);
     }
