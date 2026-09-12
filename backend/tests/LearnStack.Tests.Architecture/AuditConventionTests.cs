@@ -352,6 +352,9 @@ public sealed partial class AuditConventionTests
         ComposedTableName().IsMatch("\"scope entered (from {Member} at {File})\"").Should().BeFalse(
             "lower-case prose is English, not SQL");
         ComposedTableName().IsMatch("\"SELECT 1 FROM \" + table").Should().BeTrue();
+        ComposedTableName().IsMatch("$\"insert into {Table} (id) values (@id)\"").Should().BeTrue(
+            "a composed statement written in lower case names its table just as well");
+        ComposedTableName().IsMatch("$\"truncate table {Table}\"").Should().BeTrue();
         ComposedTableName().IsMatch("SELECT * FROM audit_log WHERE id = @id").Should().BeFalse(
             "a literal name is what every other leg here reads");
         ComposedTableName().IsMatch("$\"SELECT * FROM audit_log WHERE tenant_id = {tenant}\"").Should().BeFalse(
@@ -408,12 +411,16 @@ public sealed partial class AuditConventionTests
     /// A statement whose table name is interpolated or concatenated rather than written.
     /// </summary>
     /// <remarks>
-    /// Upper-case keywords only, and deliberately: SQL in this repository is written in upper
-    /// case, and the lower-case words are English. A log line reading
-    /// "(from {Member} at {File})" is prose, and a pattern that could not tell the two apart
-    /// failed on it — measured.
+    /// Two classes of keyword, because they carry different risks. <c>INSERT INTO</c>,
+    /// <c>MERGE INTO</c>, <c>DELETE FROM</c> and <c>TRUNCATE</c> are two-word or distinctive, so
+    /// they are matched in any case and a lower-case composed statement is caught. <c>FROM</c>,
+    /// <c>JOIN</c>, <c>COPY</c> and <c>UPDATE</c> are ordinary English words and are matched in
+    /// upper case only: a log line reading "(from {Member} at {File})" is prose, and a pattern
+    /// that could not tell the two apart failed on exactly that — measured.
     /// </remarks>
-    [GeneratedRegex(@"\b(?:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|COPY|UPDATE|FROM|JOIN)\s+(?:\{|""\s*\+)")]
+    [GeneratedRegex(
+        @"\b(?:(?i:INSERT\s+INTO|MERGE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)"
+        + @"|COPY|UPDATE|FROM|JOIN)\s+(?:\{|""\s*\+)")]
     private static partial Regex ComposedTableName();
 
     /// <summary>

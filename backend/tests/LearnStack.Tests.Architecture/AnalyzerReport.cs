@@ -81,45 +81,68 @@ internal static class AnalyzerReport
         ];
     }
 
-    /// <summary>
-    /// The preprocessor symbols this build defines: the configuration the test assembly was
-    /// compiled in, and the target framework's own.
-    /// </summary>
-    private static readonly string[] BuildSymbols = [.. FrameworkSymbols()];
-
-    /// <summary>The symbols the SDK defines for this assembly's own target framework.</summary>
+    /// <summary>The preprocessor symbols the real build gives this project, asked of MSBuild.</summary>
     /// <remarks>
-    /// Read from <see cref="TargetFrameworkAttribute"/> rather than written down. The literal
-    /// list said <c>NET10_0</c>, so the first target-framework bump would have compiled the
-    /// module sources with the wrong symbols — quietly, since a source excluded by an
-    /// <c>#if</c> the compiler never enters raises no diagnostic for the analyzer to find.
+    /// <para>
+    /// Not reconstructed. Two earlier versions wrote the list down and then derived it from the
+    /// test assembly's own target framework, and both were short: neither emitted
+    /// <c>NETCOREAPP</c> or <c>TRACE</c>, which the SDK defines for every project here. A throw
+    /// inside <c>#if NETCOREAPP</c> is code the build compiles and this scan could not see — and
+    /// the miss is silent, because a region the parser drops produces no diagnostic to count.
+    /// </para>
+    /// <para>
+    /// <c>DefineConstants</c> at evaluation time is only <c>TRACE;DEBUG</c>; the framework
+    /// symbols are appended by the SDK's <c>AddImplicitDefineConstants</c> target, so the target
+    /// is run and the property read afterwards. Measured at ~270 ms per project. A failure
+    /// throws rather than falling back to a guess: a gate that quietly analyses the wrong text
+    /// is the defect this replaces.
+    /// </para>
     /// </remarks>
-    private static IEnumerable<string> FrameworkSymbols()
+    private static string[] EvaluatedSymbols(string projectPath)
     {
-        yield return typeof(AnalyzerReport).Assembly
-            .GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration?.ToUpperInvariant()
-            ?? "DEBUG";
-
-        yield return "NET";
-
-        var framework = typeof(AnalyzerReport).Assembly
-            .GetCustomAttribute<TargetFrameworkAttribute>()?.FrameworkName;
-        var version = framework is null
-            ? Environment.Version
-            : new FrameworkName(framework).Version;
-
-        yield return $"NET{version.Major}_{version.Minor}";
-
-        // The `_OR_GREATER` chain the SDK emits, down to the first version that carried it.
-        for (var major = 5; major <= version.Major; major++)
+        using var msbuild = new System.Diagnostics.Process
         {
-            var last = major == version.Major ? version.Minor : 0;
-
-            for (var minor = 0; minor <= last; minor++)
+            StartInfo = new System.Diagnostics.ProcessStartInfo("dotnet")
             {
-                yield return $"NET{major}_{minor}_OR_GREATER";
-            }
+                ArgumentList =
+                {
+                    "msbuild", projectPath,
+                    "-t:AddImplicitDefineConstants",
+                    "-getProperty:DefineConstants",
+                    "-nologo",
+                },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = Path.GetDirectoryName(projectPath)!,
+            },
+        };
+
+        msbuild.Start();
+
+        var output = msbuild.StandardOutput.ReadToEndAsync();
+        var error = msbuild.StandardError.ReadToEndAsync();
+
+        if (!msbuild.WaitForExit(milliseconds: 120_000))
+        {
+            msbuild.Kill(entireProcessTree: true);
+            msbuild.WaitForExit();
+            throw new InvalidOperationException(
+                $"Reading DefineConstants for {Path.GetFileName(projectPath)} did not finish.");
         }
+
+        Task.WaitAll(output, error);
+
+        var symbols = output.Result
+            .Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (msbuild.ExitCode != 0 || symbols.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Could not read the build's preprocessor symbols for "
+                + $"{Path.GetFileName(projectPath)}: {output.Result}{error.Result}");
+        }
+
+        return symbols;
     }
 
     /// <summary>The two core projects the analyzer is wired into.</summary>
@@ -139,7 +162,7 @@ internal static class AnalyzerReport
         // The symbols the build defines, so an `#if` region is parsed rather than skipped: code
         // inside one the parser drops is code this rule cannot see, and the rule is the gate.
         var parse = new CSharpParseOptions(LanguageVersion.Latest, DocumentationMode.None)
-            .WithPreprocessorSymbols(BuildSymbols);
+            .WithPreprocessorSymbols(EvaluatedSymbols(projectPath));
 
         var trees = Sources(directory)
             .Select(file => CSharpSyntaxTree.ParseText(File.ReadAllText(file), parse, file))
@@ -208,12 +231,12 @@ internal static class AnalyzerReport
             name,
             [.. diagnostics
                 .Where(diagnostic => diagnostic.Id == DomainExceptionThrowAnalyzer.DiagnosticId)
-                .Select(Locate)],
-            trees.Sum(tree => ResultReturningMembers(tree).Count));
+                .Select(diagnostic => Locate(diagnostic, compilation))],
+            trees.Sum(tree => ResultReturningMembers(tree, compilation).Count));
     }
 
     /// <summary>The member a diagnostic sits in, and whether that member returns a result.</summary>
-    private static Finding Locate(Diagnostic diagnostic)
+    private static Finding Locate(Diagnostic diagnostic, Compilation compilation)
     {
         var position = diagnostic.Location.GetLineSpan();
         var tree = diagnostic.Location.SourceTree!;
@@ -240,16 +263,22 @@ internal static class AnalyzerReport
                 IndexerDeclarationSyntax => "this[]",
                 _ => "(no enclosing member)",
             },
-            members.Any(enclosing => ReturnsResult(ReturnTypeOf(enclosing))),
+            members.Any(enclosing => ReturnsResult(
+                ReturnTypeOf(enclosing), compilation.GetSemanticModel(tree))),
             diagnostic.IsSuppressed);
     }
 
     /// <summary>Every method and local function in a tree whose return type is a result.</summary>
-    public static IReadOnlyList<SyntaxNode> ResultReturningMembers(SyntaxTree tree) =>
-        [.. tree.GetRoot().DescendantNodes()
+    public static IReadOnlyList<SyntaxNode> ResultReturningMembers(
+        SyntaxTree tree, Compilation? compilation = null)
+    {
+        var model = compilation?.GetSemanticModel(tree);
+
+        return [.. tree.GetRoot().DescendantNodes()
             .Where(node => node is MethodDeclarationSyntax or LocalFunctionStatementSyntax
                 or PropertyDeclarationSyntax or IndexerDeclarationSyntax)
-            .Where(node => ReturnsResult(ReturnTypeOf(node)))];
+            .Where(node => ReturnsResult(ReturnTypeOf(node), model))];
+    }
 
     /// <remarks>
     /// A property counts as much as a method: <c>Result&lt;T&gt; Current =&gt; …</c> has the same
@@ -268,19 +297,36 @@ internal static class AnalyzerReport
     /// Whether a return type is <c>Result</c> or <c>Result&lt;T&gt;</c>, awaited or not.
     /// </summary>
     /// <remarks>
-    /// Read from the syntax rather than from a symbol: the compilation is missing every
-    /// generated member, so a semantic answer would be an error type for some of these and
-    /// the walk would quietly shrink.
+    /// <para>
+    /// The symbol first, the syntax only when the symbol will not resolve. Reading the syntax
+    /// alone made the answer depend on spelling: <c>using Outcome = Result&lt;int&gt;;</c> and
+    /// then <c>Outcome Value() =&gt; throw …;</c> was classified as not returning a result, so a
+    /// suppressed throw there passed the rule that exists to refuse it. An alias changes the
+    /// name and not the channel.
+    /// </para>
+    /// <para>
+    /// The fallback is kept and is not a formality: this compilation has no source generators,
+    /// so a signature naming a generated type resolves to an error symbol. Falling back there
+    /// is deliberate; silently treating an error type as "not a result" is what would sanction
+    /// the suppression.
+    /// </para>
     /// </remarks>
-    public static bool ReturnsResult(TypeSyntax? type)
+    public static bool ReturnsResult(TypeSyntax? type, SemanticModel? model = null)
     {
+        if (type is not null && model is not null
+            && model.GetTypeInfo(type).Type is INamedTypeSymbol resolved
+            && resolved.TypeKind != TypeKind.Error)
+        {
+            return IsResult(resolved);
+        }
+
         switch (type)
         {
             case QualifiedNameSyntax qualified:
-                return ReturnsResult(qualified.Right);
+                return ReturnsResult(qualified.Right, model);
             case GenericNameSyntax generic when generic.Identifier.ValueText is "Task" or "ValueTask":
                 return generic.TypeArgumentList.Arguments.Count == 1
-                    && ReturnsResult(generic.TypeArgumentList.Arguments[0]);
+                    && ReturnsResult(generic.TypeArgumentList.Arguments[0], model);
             case GenericNameSyntax generic:
                 return generic.Identifier.ValueText == "Result";
             case IdentifierNameSyntax identifier:
@@ -289,6 +335,13 @@ internal static class AnalyzerReport
                 return false;
         }
     }
+
+    /// <summary>Whether a resolved type is the kernel's result, awaited or not.</summary>
+    private static bool IsResult(INamedTypeSymbol type) =>
+        type.Name is "Task" or "ValueTask" && type.TypeArguments.Length == 1
+            ? type.TypeArguments[0] is INamedTypeSymbol awaited && IsResult(awaited)
+            : type.Name == "Result"
+                && type.ContainingNamespace?.ToDisplayString() == "LearnStack.SharedKernel.Results";
 
     private static IEnumerable<string> Sources(string projectDirectory) =>
         Directory.EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories)

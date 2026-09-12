@@ -69,12 +69,10 @@ internal static class SourceText
 
     /// <summary>Strips comments <b>and</b> the contents of every literal.</summary>
     /// <remarks>
-    /// The scans that look for code — an attribute argument, a declaration — want the text a
-    /// compiler sees, not the text a reader does. A rule that searches raw source finds its own
-    /// test fixtures: <c>No_Architecture_Test_Is_Skippable</c> reported the very
-    /// <c>[Fact(Skip = …)]</c> shapes its companion feeds it, which is why that rule used to
-    /// exempt its own file — an exemption that also let the corpus guards be switched off.
-    /// Dropping literal contents removes the need for the exemption and the hole with it.
+    /// For the scans that must read code and not prose. A TypeScript file that writes
+    /// <c>export const prose = "export const Yoga = 1;"</c> exports one binding, and a scan over
+    /// raw text reported two — the second taken out of a string. Dropping literal contents is
+    /// what makes the difference between a declaration and a sentence about one.
     /// </remarks>
     public static string WithoutCommentsOrLiterals(string source)
     {
@@ -89,8 +87,7 @@ internal static class SourceText
                 var literal = new System.Text.StringBuilder();
                 i = CopyLiteral(text, i, literal);
 
-                // A placeholder rather than nothing, so `x = "a" + "b"` does not become `x = +`
-                // and a scan for an empty argument list cannot be fooled by a deleted string.
+                // A placeholder rather than nothing, so `x = "a" + "b"` does not become `x = +`.
                 kept.Append("\"\"");
                 continue;
             }

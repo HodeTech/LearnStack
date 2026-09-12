@@ -110,8 +110,11 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     TenantId = tenantContext.TenantId.Value,   // the envelope carries a Guid
     EnrollmentId = enrollment.Id.Value,
     LearnerId = request.LearnerId.Value,
-    CourseVersionId = request.CourseVersionId.Value,
-    CohortId = request.CohortId?.Value,
+    // The contract carries a module-local id as a Guid (add-mediatr-handler § Step 1),
+    // so it travels as it arrives. `courseVersionId` is the handler's typed local; either
+    // spelling works, and `request.CourseVersionId.Value` does not compile.
+    CourseVersionId = request.CourseVersionId,
+    CohortId = request.CohortId,
     Source = request.Source.ToString().ToLowerInvariant(),
 }, cancellationToken);
 
@@ -120,9 +123,12 @@ await db.SaveChangesAsync(cancellationToken);   // atomic
 
 Rules:
 
-- `IOutbox.EnqueueAsync` enrolls in the **ambient** `DbContext`. Do not open a new
-  transaction.
-- `SaveChangesAsync` commits the aggregate change and the outbox row together.
+- `IOutbox.EnqueueAsync` enlists in the **ambient unit of work** — the one connection and
+  transaction `IUnitOfWork` owns ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)),
+  not a module's `DbContext`. Do not open a second transaction.
+- `SaveChangesAsync` **flushes** the context; it does not commit. `TransactionBehavior` owns
+  the commit boundary, so the aggregate change and the outbox row land together because they
+  share that transaction — not because one `SaveChanges` wrote both.
 
 ### Step 3: Topic declaration
 

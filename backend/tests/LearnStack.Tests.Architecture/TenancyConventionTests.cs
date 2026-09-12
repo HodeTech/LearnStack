@@ -219,9 +219,10 @@ public sealed partial class TenancyConventionTests
                 $"{Probe}.{nameof(Probes.SetterProbes.AnnouncesBeforeTheStatementAsync)}",
                 $"{Probe}.{nameof(Probes.SetterProbes.AnnouncesTwiceUnderOneStatementAsync)}",
                 $"{Probe}.{nameof(Probes.SetterProbes.NamesTheStatementInAMessageAsync)}",
+                $"{Probe}.{nameof(Probes.SetterProbes.ConstructsWithoutExecutingAsync)}",
             ],
-            "every announcing method issues the statement itself, first, and a message that "
-            + "merely names it issues nothing");
+            "every announcing method issues the statement itself, first; a message that merely "
+            + "names it issues nothing, and neither does a command that is built and never run");
 
         // Discovery: the spellings that announce a session variable, and the ones that read it.
         _ = ReadOnly;
@@ -297,16 +298,38 @@ public sealed partial class TenancyConventionTests
 
         foreach (var (method, declaredAs) in AnnouncingMethods(type))
         {
+            var loaded = false;
             var guarded = false;
             var announced = false;
 
-            foreach (var literal in method.Body.Instructions
-                .Where(instruction => instruction.OpCode == OpCodes.Ldstr)
-                .Select(instruction => (string)instruction.Operand))
+            foreach (var instruction in method.Body.Instructions)
             {
+                // The statement is not the string; it is the string having been RUN. Setting the
+                // flag on the literal alone meant deleting `await readOnly.ExecuteNonQueryAsync()`
+                // left the guard green while the server reported `transaction_read_only=off` —
+                // measured. So the literal arms it and an execution call confirms it.
+                if (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
+                {
+                    if (loaded && instruction.Operand is MethodReference call
+                        && call.Name.StartsWith("Execute", StringComparison.Ordinal))
+                    {
+                        loaded = false;
+                        guarded = true;
+                    }
+
+                    continue;
+                }
+
+                if (instruction.OpCode != OpCodes.Ldstr)
+                {
+                    continue;
+                }
+
+                var literal = (string)instruction.Operand;
+
                 if (literal.Trim() == ReadOnlyStatement)
                 {
-                    guarded = true;
+                    loaded = true;
                     continue;
                 }
 
@@ -325,6 +348,7 @@ public sealed partial class TenancyConventionTests
 
                 // One statement per announcement: the next one opens its own transaction.
                 guarded = false;
+                loaded = false;
             }
 
             if (!announced)

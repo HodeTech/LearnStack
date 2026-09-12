@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using Xunit;
@@ -18,11 +19,18 @@ namespace LearnStack.Tests.Architecture;
 /// spelled, and its headline counts were stale in the commit that wrote them.
 /// </para>
 /// <para>
-/// The rules in this file are not exempt from each other. An earlier version excused this file
-/// from the no-skip scan, because the companion feeds that scan the very shapes it must catch —
-/// and the exemption meant the four corpus guards were the only tests in the assembly that one
-/// edit could switch off. Stripping literal contents before scanning removes the reason for the
-/// exemption, so there is no longer one.
+/// These rules read the <b>compiled assembly</b>, not the source that produced it. A source scan
+/// answers a question nobody asked: it counted declarations inside an <c>#if false</c> block and
+/// reported a catalogued rule present after the compiler had removed the whole class. Measured —
+/// wrapping <c>DomainGenericityTests.cs</c> in <c>#if false</c> left every corpus rule green with
+/// zero skips, because the text was still there. Reflection cannot be told that story: a type the
+/// compiler dropped has no methods to find.
+/// </para>
+/// <para>
+/// They are also not exempt from each other. An earlier version excused this file from the no-skip
+/// scan, because a source scan read the companion's fixtures as code — which made the corpus
+/// guards the only tests in the assembly that one edit could switch off. Reading attributes
+/// instead of text removes the reason for the exemption, so there is no longer one.
 /// </para>
 /// </remarks>
 public sealed partial class CorpusConsistencyTests
@@ -109,9 +117,15 @@ public sealed partial class CorpusConsistencyTests
         // "Architecture tests are non-skippable" is a policy the corpus states in three places
         // and nothing enforced. A `Skip = "…"` is one edit, it goes green, and the suite reports
         // the same number of passing files as before.
-        var skips = SuiteFiles()
-            .Where(file => SkipsATest(File.ReadAllText(file)))
-            .Select(Path.GetFileName)
+        //
+        // Read off the compiled attribute rather than out of the file: `Skip` can be written in
+        // orders and spellings a pattern has to anticipate — one earlier version could not see
+        // a `Skip` that followed a display name containing parentheses — and the attribute the
+        // runner obeys is the one that decides.
+        var skips = TestMethodInfos()
+            .Select(method => (method, skip: method.GetCustomAttribute<FactAttribute>(inherit: true)?.Skip))
+            .Where(candidate => !string.IsNullOrEmpty(candidate.skip))
+            .Select(candidate => $"{candidate.method.DeclaringType?.Name}.{candidate.method.Name}")
             .ToList();
 
         skips.Should().BeEmpty(
@@ -153,20 +167,18 @@ public sealed partial class CorpusConsistencyTests
         StatusRows("| 21 | [Catalogue](21-architecture-tests-catalogue.md) | **Active** | it runs |\n")
             .Should().Equal([("21", "Active")]);
 
-        // The skip scan, in the shapes that have actually defeated it. The first pattern used
-        // `[^)]*` between the paren and `Skip`, which cannot cross a `)` — so a Skip written
-        // AFTER a display name containing parentheses was invisible, and the assembly ships
-        // exactly one such attribute, on the meta-test that certifies the rest is not vacuous.
-        SkipsATest("""[Fact(Skip = "flaky")] public void A() { }""").Should().BeTrue();
-        SkipsATest("""[Theory(Skip="later")] public void B() { }""").Should().BeTrue();
-        SkipsATest("""[Fact(DisplayName = "(meta) it detects a plant", Skip = "flaky")]""")
-            .Should().BeTrue("a Skip after a parenthesised display name is still a Skip");
-        SkipsATest("""[Fact(Skip = nameof(Reason), DisplayName = "x")]""")
-            .Should().BeTrue("and so is one whose value is a nameof");
-        SkipsATest("""[Theory(DisplayName = "a (b) c")] [MemberData(nameof(Cases))]""")
-            .Should().BeFalse("a display name is not a skip, and neither is a member-data source");
-        SkipsATest("""var attribute = "[Fact(Skip = \"x\")]";""")
-            .Should().BeFalse("a skip written inside a string literal is a fixture, not a skip");
+        // Discovery and the skip decision, which now read the compiled assembly. No planted
+        // `[Fact(Skip = …)]` here: one would be a real skipped test, which is the thing being
+        // forbidden. The attribute the runner obeys is fed to the same predicate instead.
+        TestMethods().Should().Contain(nameof(The_Corpus_Guards_Can_Actually_Fail),
+            "the premise: reflection finds this assembly's own tests");
+        SuiteClasses().Should().Contain(nameof(CorpusConsistencyTests));
+
+        Skipped(new FactAttribute { Skip = "flaky" }).Should().BeTrue();
+        Skipped(new TheoryAttribute { Skip = "later" }).Should().BeTrue();
+        Skipped(new FactAttribute { DisplayName = "(meta) it detects a plant" }).Should().BeFalse(
+            "a display name is not a skip");
+        Skipped(null).Should().BeFalse("a method with no Fact attribute is not a test");
 
         // And the catalogue reader: an Implemented entry naming this assembly is one this rule
         // must check, a Registered one is not, and the class spelling counts exactly as the file
@@ -223,10 +235,6 @@ public sealed partial class CorpusConsistencyTests
     /// <summary>The standards directory, which is the subject of two of the rules above.</summary>
     private static string StandardsRoot => Path.Combine(RepositoryPaths.RepoRoot(), "docs", "standards");
 
-    /// <summary>This test project's own directory.</summary>
-    private static string SuiteRoot => Path.Combine(
-        RepositoryPaths.BackendSrc(), "..", "tests", "LearnStack.Tests.Architecture");
-
     /// <summary>The repository's test projects, for resolving a class an entry names.</summary>
     private static string TestsRoot => Path.Combine(RepositoryPaths.BackendSrc(), "..", "tests");
 
@@ -238,11 +246,6 @@ public sealed partial class CorpusConsistencyTests
     private static IEnumerable<string> Standards() =>
         Directory.EnumerateFiles(StandardsRoot, "*.md")
             .Where(path => Path.GetFileName(path) != "README.md");
-
-    /// <summary>Every source file of this suite, excluding build output.</summary>
-    private static IEnumerable<string> SuiteFiles() =>
-        Directory.EnumerateFiles(SuiteRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"));
 
     /// <summary>The status each standard declares in its own header.</summary>
     private static string HeaderStatus(string path) => HeaderStatusIn(File.ReadAllText(path));
@@ -263,48 +266,8 @@ public sealed partial class CorpusConsistencyTests
         [.. StatusRow().Matches(readme)
             .Select(match => (match.Groups["number"].Value, match.Groups["status"].Value))];
 
-    /// <summary>Whether any <c>[Fact]</c> or <c>[Theory]</c> in this source carries a Skip.</summary>
-    /// <remarks>
-    /// Not a regex over the raw text, twice over. Comments and literal contents go first, so a
-    /// fixture written as a string is not read as code. Then each attribute's argument list is
-    /// walked with a depth counter rather than matched, because a pattern that stops at the
-    /// first <c>)</c> cannot see past <c>DisplayName = "(meta) …"</c> or <c>nameof(X)</c> —
-    /// measured: appending a Skip after the meta-test's own display name switched it off and
-    /// left this rule green.
-    /// </remarks>
-    private static bool SkipsATest(string source)
-    {
-        var text = SourceText.WithoutCommentsOrLiterals(source);
-
-        return TestAttribute().Matches(text)
-            .Select(match => ArgumentList(text, match.Index + match.Length - 1))
-            .Any(arguments => arguments is not null && SkipArgument().IsMatch(arguments));
-    }
-
-    /// <summary>The text between a <c>(</c> and its matching <c>)</c>, or null if unbalanced.</summary>
-    private static string? ArgumentList(string text, int open)
-    {
-        var depth = 0;
-
-        for (var i = open; i < text.Length; i++)
-        {
-            if (text[i] == '(')
-            {
-                depth++;
-            }
-            else if (text[i] == ')')
-            {
-                depth--;
-
-                if (depth == 0)
-                {
-                    return text[(open + 1)..i];
-                }
-            }
-        }
-
-        return null;
-    }
+    /// <summary>Whether a test attribute switches its test off.</summary>
+    private static bool Skipped(FactAttribute? attribute) => !string.IsNullOrEmpty(attribute?.Skip);
 
     /// <summary>Every rule the catalogue reports Implemented in this assembly.</summary>
     private static List<string> ImplementedRules() => ImplementedIn(Catalogue(), SuiteClasses());
@@ -315,17 +278,17 @@ public sealed partial class CorpusConsistencyTests
             .Where(entry => entry.Groups["status"].Value.Contains("**Implemented**", StringComparison.Ordinal))
             .Select(entry => (entry.Groups["rule"].Value, entry.Groups["status"].Value))];
 
-    /// <summary>The test classes of this project, by the name an entry would spell.</summary>
+    /// <summary>The test classes this assembly actually carries.</summary>
     /// <remarks>
-    /// All directories, not the top one. Globbing the top level only meant that moving a class
-    /// into a subfolder removed its entries from the checked set instead of failing — the guard
-    /// saw a rename only for files nobody had moved.
+    /// From the compiled types, not from the file names. A file glob answered the wrong question
+    /// twice over: the top-level-only version lost a class somebody moved into a subfolder, and
+    /// any version of it reports a class whose source is present but excluded from the build.
     /// </remarks>
     private static List<string> SuiteClasses() =>
-        [.. Directory.EnumerateFiles(SuiteRoot, "*Tests.cs", SearchOption.AllDirectories)
-            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
-            .Select(Path.GetFileNameWithoutExtension)
-            .OfType<string>()];
+        [.. TestMethodInfos()
+            .Select(method => method.DeclaringType?.Name)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)];
 
     /// <summary>Every test class in the repository, for the orphan check.</summary>
     private static HashSet<string> TestClassesEverywhere() =>
@@ -381,27 +344,24 @@ public sealed partial class CorpusConsistencyTests
         return int.Parse(match.Groups["count"].Value, CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Every <c>[Fact]</c> / <c>[Theory]</c> declaration in the suite.</summary>
+    /// <summary>Every test the compiler actually emitted into this assembly.</summary>
     /// <remarks>
-    /// One per line, over text with literals removed, because
-    /// <c>Every_Database_Test_Carries_The_Docker_Trait</c> and its companion carry those very
-    /// attributes as strings — counting them is the mistake § Implemented today warns about.
+    /// <c>TheoryAttribute</c> derives from <c>FactAttribute</c>, so one lookup finds both. This
+    /// is the set the runner runs; a declaration the compiler removed is not in it, which is the
+    /// whole reason these rules stopped reading source.
     /// </remarks>
-    private static int DeclaredTestMethods() =>
-        SuiteFiles().Sum(file =>
-            Declaration().Count(SourceText.WithoutCommentsOrLiterals(File.ReadAllText(file))));
+    private static List<MethodInfo> TestMethodInfos() =>
+        [.. typeof(CorpusConsistencyTests).Assembly.GetTypes()
+            .SelectMany(type => type.GetMethods(
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            .Where(method => method.GetCustomAttribute<FactAttribute>(inherit: true) is not null)];
 
-    /// <summary>Every test method this assembly declares.</summary>
-    /// <remarks>
-    /// Over stripped text, for the same reason the declaration count is: a method signature
-    /// quoted inside a fixture string is not a method, and one named in a comment is not
-    /// either — either would let a catalogue entry point at a method nobody wrote.
-    /// </remarks>
+    /// <summary>How many of them there are, which is what § Implemented today publishes.</summary>
+    private static int DeclaredTestMethods() => TestMethodInfos().Count;
+
+    /// <summary>Every test method this assembly declares, by name.</summary>
     private static HashSet<string> TestMethods() =>
-        [.. SuiteFiles()
-            .SelectMany(file => TestMethod().Matches(
-                SourceText.WithoutCommentsOrLiterals(File.ReadAllText(file))))
-            .Select(match => match.Groups["name"].Value)];
+        [.. TestMethodInfos().Select(method => method.Name)];
 
     /// <summary>The number words the index's summary sentence uses.</summary>
     private static readonly Dictionary<string, int> Words = new(StringComparer.OrdinalIgnoreCase)
@@ -452,18 +412,6 @@ public sealed partial class CorpusConsistencyTests
     // so deleting `ValidationBehaviorTests.cs` would not have failed anything.
     [GeneratedRegex(@"`(?<name>[A-Za-z0-9_]+Tests)(?:\.[A-Za-z0-9_]+)?`")]
     private static partial Regex ClassReference();
-
-    [GeneratedRegex(@"public\s+(?:async\s+Task|void)\s+(?<name>[A-Za-z0-9_]+)\s*\(")]
-    private static partial Regex TestMethod();
-
-    [GeneratedRegex(@"^\s*\[(?:Fact|Theory)\b", RegexOptions.Multiline)]
-    private static partial Regex Declaration();
-
-    [GeneratedRegex(@"\[(?:Fact|Theory)\s*\(")]
-    private static partial Regex TestAttribute();
-
-    [GeneratedRegex(@"\bSkip\s*=")]
-    private static partial Regex SkipArgument();
 
     [GeneratedRegex(@"\*\*(?<count>\d+) test methods run in")]
     private static partial Regex PublishedMethods();

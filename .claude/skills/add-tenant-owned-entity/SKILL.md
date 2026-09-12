@@ -376,8 +376,9 @@ The session-variable names are **canonical**: `app.tenant_id`, `app.organization
 ([05-database.md](../../../docs/standards/05-database.md)). Other names break RLS
 silently. Note that **nothing sets `app.scope`** — `ITenantContext` exposes no scope
 member, the flag derives from the actor's role, and roles arrive in
-[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which is the earliest
-phase that can own the carrier. The cross-organization read hatch is therefore
+[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md), which is the earliest
+phase that can own the carrier — [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md)
+brings authentication, not the permission model. The cross-organization read hatch is therefore
 unreachable at runtime, which is the correct default; write the term into the policy
 anyway, because a test can set the variable and the two `AS RESTRICTIVE` guards need
 it to mean anything.

@@ -100,14 +100,18 @@ public sealed partial class DomainGenericityTests
         var created = CreateTable().Match("""
             CREATE TABLE kata_sequences (
                 id uuid NOT NULL,
-                belt_rank text NOT NULL
+                belt_rank text NOT NULL,
+                "YogaLevel" TEXT NOT NULL,
+                sequence_no UUID NOT NULL
             );
             """);
         created.Success.Should().BeTrue();
         created.Groups["table"].Value.Should().Be("kata_sequences");
         ColumnName().Matches(created.Groups["columns"].Value)
             .Select(match => match.Groups["column"].Value)
-            .Should().BeEquivalentTo(["id", "belt_rank"]);
+            .Should().BeEquivalentTo(["id", "belt_rank", "YogaLevel", "sequence_no"],
+                "a quoted mixed-case column is a legal column and the likeliest shape of a "
+                + "domain-specific name, and an upper-case type is the same type");
 
         SourceText.WithoutComments("const url = `https://example/{id}`;\nexport const Belt = 1;")
             .Should().Contain("export const Belt",
@@ -121,6 +125,25 @@ public sealed partial class DomainGenericityTests
                 + "// export const CefrLevel = 1; — prose, not an export\n")
             .Should().BeEquivalentTo(["KATA_SEQUENCE", "BeltRank", "AsanaCard"],
                 "a default export of an identifier is an export, and a commented-out one is not");
+
+        // The shapes it used to miss, each an ordinary spelling rather than an evasion.
+        ExportedIdentifiers("export const Generic = 1, KataSequence = 2;\n")
+            .Should().Contain("KataSequence", "a second declarator binds a name too");
+        ExportedIdentifiers("export const { BeltRank } = data;\n")
+            .Should().Contain("BeltRank", "so does a destructured one");
+        ExportedIdentifiers("export const { rank: BeltRank } = data;\n")
+            .Should().Contain("BeltRank", "and a renamed destructured one binds the new name");
+        ExportedIdentifiers("export * as AsanaCatalog from './generic';\n")
+            .Should().Contain("AsanaCatalog", "a namespace re-export is a binding");
+        ExportedIdentifiers("export type { CefrLevel } from './models';\n")
+            .Should().Contain("CefrLevel", "a type re-export names the type it exports");
+        ExportedIdentifiers("const KataForm = 1;\nexport default KataForm\n")
+            .Should().Contain("KataForm", "TypeScript's semicolon is optional and so is this one");
+
+        // And the other direction: a declaration quoted inside a string exports nothing.
+        ExportedIdentifiers("export const prose = \"export const CefrLevel = 1;\";\n")
+            .Should().BeEquivalentTo(["prose"],
+                "a string is text, and reading it as code rejected files that were clean");
     }
 
     /// <summary>Every name the platform ships, by the subject it belongs to.</summary>
@@ -348,25 +371,57 @@ public sealed partial class DomainGenericityTests
 
     /// <summary>The identifiers a TypeScript module exports.</summary>
     /// <remarks>
-    /// Comments are stripped first — prose is not a subject of this rule, and a sentence that
-    /// happens to read "export default Yoga…" exports nothing. <c>export default Component;</c>
-    /// is read as well as <c>export default function Component()</c>: both are how a React
-    /// component leaves a file.
+    /// <para>
+    /// Comments <b>and literal contents</b> are stripped first — prose is not a subject of this
+    /// rule. A file writing <c>export const prose = "export const Yoga = 1;"</c> exports one
+    /// binding, and reading the raw text reported two.
+    /// </para>
+    /// <para>
+    /// Every shape TypeScript actually uses, because the ones it missed were ordinary rather
+    /// than exotic: a second declarator in <c>export const A = 1, B = 2;</c>, a destructured
+    /// <c>export const { B } = data;</c>, a namespace re-export <c>export * as B from …</c>, and
+    /// a default export written without its semicolon. Each was measured against this helper
+    /// before the pattern for it was added.
+    /// </para>
     /// </remarks>
     private static List<string> ExportedIdentifiers(string source)
     {
-        var code = SourceText.WithoutComments(source);
+        var code = SourceText.WithoutCommentsOrLiterals(source);
 
         return
         [
-            .. ExportedDeclaration().Matches(code).Select(match => match.Groups["name"].Value),
+            .. ExportedDeclaration().Matches(code).SelectMany(match =>
+                // `export const A = 1, B = 2;` binds both. The declaration pattern reads the
+                // first; the rest of the statement is split on its commas.
+                new[] { match.Groups["name"].Value }
+                    .Concat(Declarators(code, match))),
             .. ExportedDefault().Matches(code).Select(match => match.Groups["name"].Value),
+            .. ExportedNamespace().Matches(code).Select(match => match.Groups["name"].Value),
+            .. ExportedBinding().Matches(code)
+                .SelectMany(match => Names(match.Groups["names"].Value)),
             .. ExportedList().Matches(code)
-                .SelectMany(match => match.Groups["names"].Value.Split(','))
-                .Select(entry => entry.Trim().Split(" as ")[^1].Trim())
-                .Select(entry => entry.Replace("type ", string.Empty, StringComparison.Ordinal).Trim())
-                .Where(entry => entry.Length > 0),
+                .SelectMany(match => Names(match.Groups["names"].Value)),
         ];
+    }
+
+    /// <summary>The binding names in an export list or a destructuring pattern.</summary>
+    private static IEnumerable<string> Names(string names) =>
+        names.Split(',')
+            .Select(entry => entry.Split(':')[^1])
+            .Select(entry => entry.Trim().Split(" as ")[^1].Trim())
+            .Select(entry => entry.Replace("type ", string.Empty, StringComparison.Ordinal).Trim())
+            .Select(entry => entry.TrimStart('.', ' ').Trim())
+            .Where(entry => entry.Length > 0 && char.IsLetter(entry[0]) || entry.StartsWith('_'));
+
+    /// <summary>The further declarators of one <c>export const A = 1, B = 2;</c> statement.</summary>
+    private static IEnumerable<string> Declarators(string code, Match declaration)
+    {
+        var rest = code[(declaration.Index + declaration.Length)..];
+        var end = rest.IndexOf(';', StringComparison.Ordinal);
+
+        return end < 0
+            ? []
+            : FurtherDeclarator().Matches(rest[..end]).Select(match => match.Groups["name"].Value);
     }
 
     [GeneratedRegex(@"- \*\*Forbidden terms:\*\*(?<terms>.*?)(?=\n- \*\*)", RegexOptions.Singleline)]
@@ -383,11 +438,12 @@ public sealed partial class DomainGenericityTests
 
     /// <summary>A column declaration: an identifier at the start of a line inside the body.</summary>
     /// <remarks>
-    /// The type token may be written in either case — <c>text</c> and <c>TEXT</c> are the same
-    /// type — and requiring a lower-case one hid every column in a migration that spells its
-    /// types the way SQL keywords are spelled here.
+    /// Both tokens in either case. The type may be written <c>text</c> or <c>TEXT</c>, and the
+    /// column name may be quoted — <c>"YogaLevel" text</c> is a legal PostgreSQL column and
+    /// precisely the kind of name this rule exists to refuse, yet a lower-case-only pattern
+    /// read straight past it.
     /// </remarks>
-    [GeneratedRegex(@"^\s{2,}""?(?<column>[a-z_][a-z0-9_]*)""?\s+[A-Za-z]", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s{2,}""?(?<column>[A-Za-z_][A-Za-z0-9_]*)""?\s+[A-Za-z]", RegexOptions.Multiline)]
     private static partial Regex ColumnName();
 
     [GeneratedRegex(@"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])")]
@@ -399,12 +455,26 @@ public sealed partial class DomainGenericityTests
     [GeneratedRegex(@"export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:function\*?|class|const|let|var|type|interface|enum|namespace)\s+(?<name>[A-Za-z_$][A-Za-z0-9_$]*)")]
     private static partial Regex ExportedDeclaration();
 
-    [GeneratedRegex(@"export\s*\{(?<names>[^}]*)\}")]
+    /// <remarks><c>export type { A }</c> is a list like any other; only the names matter.</remarks>
+    [GeneratedRegex(@"export\s*(?:type\s+)?\{(?<names>[^}]*)\}")]
     private static partial Regex ExportedList();
 
     /// <summary>A default export of an identifier declared elsewhere in the file.</summary>
-    [GeneratedRegex(@"export\s+default\s+(?<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*;")]
+    /// <remarks>The semicolon is optional, because TypeScript's is.</remarks>
+    [GeneratedRegex(@"export\s+default\s+(?<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*(?:;|$)", RegexOptions.Multiline)]
     private static partial Regex ExportedDefault();
+
+    /// <summary><c>export * as Name from './module';</c> — a binding like any other.</summary>
+    [GeneratedRegex(@"export\s*\*\s*as\s+(?<name>[A-Za-z_$][A-Za-z0-9_$]*)")]
+    private static partial Regex ExportedNamespace();
+
+    /// <summary><c>export const { A, B: C } = data;</c> and its array form.</summary>
+    [GeneratedRegex(@"export\s+(?:declare\s+)?(?:const|let|var)\s*[{\[](?<names>[^}\]]*)[}\]]\s*=")]
+    private static partial Regex ExportedBinding();
+
+    /// <summary>A declarator after the first in one statement: <c>, B = 2</c>.</summary>
+    [GeneratedRegex(@",\s*(?<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*(?:[:=]|,|$)")]
+    private static partial Regex FurtherDeclarator();
 
     /// <summary>
     /// A model that maps a domain-specific table and column, for

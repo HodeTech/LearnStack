@@ -177,7 +177,9 @@ public sealed class CreateEnrollmentCommandHandler(
             CohortId = cohortId?.Value,
         }, cancellationToken);
 
-        await db.SaveChangesAsync(cancellationToken);   // atomic: aggregate + outbox row
+        // Flushes this context. The commit is TransactionBehavior's, on the ambient
+        // transaction both writes share — which is what makes them atomic (ADR-0040).
+        await db.SaveChangesAsync(cancellationToken);
 
         return Result.Ok(
             MapToDto(enrollment),
@@ -192,8 +194,10 @@ Rules:
 - `LocalizedMessage` keys carry the `lockey_` prefix, enforced by the **constructor**
   — not by serialization and not by a mapper. A mis-prefixed key throws where it is
   written, which is the point.
-- Outbox row written **inside** the same `DbContext` transaction. Never open a
-  second transaction for the event publish.
+- Outbox row written on the **same ambient transaction** as the aggregate change — the one
+  `IUnitOfWork` owns ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)).
+  `SaveChangesAsync` flushes the context; `TransactionBehavior` commits. Never open a second
+  transaction for the event publish.
 - Read `ITenantContext.TenantId` / `.OrganizationId` for tenant + org; don't accept them
   from the command body. There is no `.Current` on `ITenantContext` —
   `Current` belongs to `ITenantContextAccessor`, which is cross-cutting
@@ -290,8 +294,9 @@ Endpoint controllers are thin:
 
 ```csharp
 [ApiController]
-[Route("v1/enrollments")]
-public sealed class EnrollmentsController(ISender mediator) : ControllerBase
+[Route("enrollments")]   // VersionedRouteConvention prefixes `api/v{N}`; writing `v1/` here
+                         // serves the endpoint at /api/v1/v1/enrollments
+public sealed class EnrollmentsController(ISender mediator) : ApiControllerBase
 {
     [HttpPost]
     [Authorize(Policy = "enrollment.enrollment.write")]

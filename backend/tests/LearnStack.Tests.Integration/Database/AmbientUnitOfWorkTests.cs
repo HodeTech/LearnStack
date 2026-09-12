@@ -98,6 +98,13 @@ public sealed class AmbientUnitOfWorkTests
         var domainId = TenantDomainId.From(Guid.CreateVersion7());
         var host = $"rollback-{Guid.CreateVersion7():N}.example.com";
 
+        // The one instance this case is allowed to catch. Asserting the TYPE caught anything
+        // that threw it — a provider that refuses to resolve, an interceptor rejecting the
+        // first save — and then the two row controls inside the lambda never ran, the final
+        // zero-row assertions passed anyway, and the case reported a rollback of nothing.
+        // Measured: an ISaveChangesInterceptor throwing before the first write left it green.
+        var deliberate = new InvalidOperationException("the outer frame failed");
+
         var failed = async () =>
         {
             await using var scope = provider.CreateAsyncScope();
@@ -122,10 +129,13 @@ public sealed class AmbientUnitOfWorkTests
 
             // The outer frame fails after both writes and before the commit: no CommitAsync, and
             // the scope's disposal rolls the transaction back.
-            throw new InvalidOperationException("the outer frame failed");
+            throw deliberate;
         };
 
-        await failed.Should().ThrowAsync<InvalidOperationException>();
+        (await failed.Should().ThrowAsync<InvalidOperationException>())
+            .Which.Should().BeSameAs(deliberate,
+                "the only failure this case proves anything about is the one thrown after both "
+                + "writes; any earlier one means neither row was ever written");
 
         (await CountOnItsOwnConnectionAsync(contentTypeId)).Should().Be(0,
             "the Customization write rolled back with the transaction that carried it");

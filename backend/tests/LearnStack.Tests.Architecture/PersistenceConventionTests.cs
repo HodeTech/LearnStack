@@ -322,6 +322,13 @@ public sealed partial class PersistenceConventionTests
         FansOut("await context.SaveChangesAsync(ct);").Should().BeFalse();
         FansOut("var rows = store.ReadAsync(ct); var more = other.ReadAsync(ct); await rows; await more;")
             .Should().BeTrue("two started tasks are Task.WhenAll written out longhand");
+        FansOut("var one = context.Items.Where(x => x.Live).ToListAsync(ct);").Should().BeTrue(
+            "a composed EF query is the shape this rule exists for, and a parenthesis in the "
+            + "receiver used to end the name the pattern was looking for");
+        FansOut("var rows = store.ReadAsync<int>(ct);").Should().BeTrue(
+            "an explicit type argument ended it too");
+        FansOut("var rows = await context.Items.Where(x => x.Live).ToListAsync(ct);").Should().BeFalse(
+            "awaited where it is started, so nothing runs beside anything else");
         FansOut("var rows = await store.ReadAsync(ct);").Should().BeFalse(
             "awaiting at the call site is the shape the rule asks for");
     }
@@ -362,7 +369,17 @@ public sealed partial class PersistenceConventionTests
     /// <summary>
     /// A task started and stored instead of awaited: <c>var rows = ReadAsync(...);</c>.
     /// </summary>
-    [GeneratedRegex(@"(?:^|[;{}])\s*(?:var|Task\b[^=;]*|ValueTask\b[^=;]*)\s+\w+\s*=\s*(?!await\b)[\w\.]*Async\s*\(",
+    /// <remarks>
+    /// The initializer is any expression that reaches an <c>…Async(</c> call without an
+    /// <c>await</c> before it, not a dotted name. Requiring <c>[\w.]*Async(</c> meant the
+    /// ordinary shape this rule exists for — <c>context.Items.Where(x =&gt; x.Live)
+    /// .ToListAsync(ct)</c> — did not match, because a parenthesis in the receiver ended the
+    /// name; an explicit type argument ended it too. Both start an operation on the ambient
+    /// connection before anything is awaited, which is the whole subject.
+    /// </remarks>
+    [GeneratedRegex(
+        @"(?:^|[;{}])\s*(?:var|Task\b[^=;]*|ValueTask\b[^=;]*)\s+\w+\s*=\s*"
+        + @"(?:(?!\bawait\b)[^;])*?\b\w*Async\s*(?:<[^;()<>]*>)?\s*\(",
         RegexOptions.Multiline)]
     private static partial Regex StartedWithoutAwaiting();
 

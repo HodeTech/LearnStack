@@ -3093,12 +3093,19 @@ written down here rather than inferred from the diff.
 
 > **Packet 9 — Audit infrastructure and the entitlement socket ✅**
 >
-> **Measured at merge: 1975 tests green** — 1 contract, 118 architecture, 1373 unit,
+> **Measured at close: 1975 tests green** — 1 contract, 118 architecture, 1373 unit,
 > 483 integration — after the five external review rounds and the follow-ups closed with
 > them; 1954 after the fourth round, 1935 after the first, 1867 before any. Counted from a
-> run under `CI=true`, which makes warnings errors, and matched assembly by assembly by the
-> merge's own CI run, whose backend jobs now print what each assembly executed. Merged as
-> pull request #18 on 2026-09-11.
+> run under `CI=true`, which makes warnings errors, on a 10.0 SDK the `backend/global.json`
+> pin admits.
+
+**Addendum (2026-09-12).** The figures above were counted locally at the packet's close. The
+merge's own CI run matched them assembly by assembly, on backend jobs that now print what
+each assembly executed; Packet 9 merged as pull request #18 on 2026-09-11. The original
+sentence is left as it was written:
+[Documentation Standards § Document Types](../standards/13-documentation.md) says a shipped
+packet's delivery record is not rewritten and its original words stay, and this packet is
+where that rule landed.
 
 ### The four decisions, and why the corpus did not settle them
 

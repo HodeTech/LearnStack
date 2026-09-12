@@ -192,7 +192,7 @@ See [17-code-review.md](17-code-review.md) for full review standards. Highlights
 ## Forbidden
 
 - Force push to `main` or to a shared feature branch.
-- Skipping `--no-verify` on commits (pre-commit hooks must pass).
+- Using `--no-verify` on commits (pre-commit hooks must pass).
 - Bypassing CI to merge.
 - Committing secrets, lock files for the wrong package manager, or large binaries.
 - "WIP" or unrelated commits squashed into a feature PR.

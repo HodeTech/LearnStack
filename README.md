@@ -201,17 +201,23 @@ contributor (and every agent) follows.
 | Storage · Search | SeaweedFS · PostgreSQL FTS | S3-compatible in production; Meilisearch behind `ITenantSearch` when scale requires it |
 | Observability | OpenTelemetry · Serilog → OTLP | Spans enriched centrally; module code never tags a tenant id ([ADR-0032](docs/decisions/0032-exception-handling-logging-and-observability.md)) |
 
-**Vendor adapters are demand-gated.** Dapr, Kafka, Valkey, Vault and APISIX each sit
-behind a port that ships today with a working default — `InProcessEventBus`,
-`InMemoryCacheService`, `ConfigurationSecretProvider`, `NullEntitlementProvider` — and
-each adapter has an owning phase and a **written trigger condition** in
-[ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md). A building block missing
-any of those four is not demand-gated; it is missing.
+**Vendor adapters are demand-gated.** Each has a seam that ships today, an owning phase and
+a **written trigger condition** in
+[ADR-0035](docs/decisions/0035-demand-gated-infrastructure.md); a building block missing any
+of those is not demand-gated, it is missing. Most seams are a port in
+`LearnStack.SharedKernel` with a working default — `IEventBus` / `InProcessEventBus` for
+Kafka, `ICacheService` / `InMemoryCacheService` for Valkey, `ISecretProvider` /
+`ConfigurationSecretProvider` for Vault, `IEntitlementProvider` / `NullEntitlementProvider`
+for the Hub. Not all of them are: APISIX's seam is the composition root, and `audit_log`
+partitioning is schema-internal.
+[Infrastructure Stack Standards § Demand-gated](docs/standards/20-infrastructure-stack.md)
+is the table that maps each one, and it is the authority.
 
-**Three deployment modes, two of them wired.** SaaS and Development run end to end.
-`Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped` are **prepared seams, not
-supported deployments**, until [Phase 11](docs/roadmap/phase-11-production-hardening.md)
-builds their adapters and suites
+**One binary, five `DeploymentMode` values, two of them wired.** `Development` and `SaaS`
+run end to end. `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped` are **prepared
+seams, not supported deployments**, until
+[Phase 11](docs/roadmap/phase-11-production-hardening.md) builds their adapters and suites.
+The three *production* categories those values serve are SaaS, Dedicated and Self-Hosted
 ([ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md),
 [25 — Deployment Models](docs/architecture/25-deployment-models.md)).
 

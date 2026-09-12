@@ -361,7 +361,9 @@ public sealed class CrossCuttingFoundationTests
     /// referenced analyzer is one that does not run in the configuration the condition excludes,
     /// and this rule cannot tell which that is. The condition may sit on the reference or on
     /// the <c>ItemGroup</c> around it, and both hide the analyzer equally well, so a
-    /// conditional group is removed before the references are read.
+    /// conditional group is removed before the references are read — and so is a
+    /// <c>Choose</c> block, whose <c>When</c> carries the condition and whose <c>Otherwise</c>
+    /// runs only when none matched. Both are conditions spelled differently.
     /// </remarks>
     internal static bool WiresTheAnalyzer(string projectXml)
     {
@@ -369,7 +371,7 @@ public sealed class CrossCuttingFoundationTests
 
         project = Regex.Replace(
             project,
-            @"<ItemGroup\b[^>]*\bCondition\s*=.*?</ItemGroup>",
+            @"<ItemGroup\b[^>]*\bCondition\s*=.*?</ItemGroup>|<Choose\b.*?</Choose>",
             string.Empty,
             RegexOptions.Singleline);
 
@@ -412,13 +414,36 @@ public sealed class CrossCuttingFoundationTests
 
                 public static void Loud() =>
                     throw new LearnStack.SharedKernel.Errors.DomainException("nobody justified this one");
+
+                // Inside a region the SDK compiles. Reconstructed symbol lists omitted
+                // NETCOREAPP, so the parser dropped this and the scan reported nothing.
+            #if NETCOREAPP
+                public static LearnStack.SharedKernel.Results.Result<int> Conditional() =>
+                    throw new LearnStack.SharedKernel.Errors.DomainException("compiled, and it was invisible");
+            #endif
             }
+
+            internal static class Aliased
+            {
+                // An alias changes the name, not the channel. Classified from the syntax alone
+                // this read as "not a Result", so the suppression was accepted.
+                public static Outcome Value()
+                {
+            #pragma warning disable LS0001
+                    throw new LearnStack.SharedKernel.Errors.DomainException("an expected case, renamed");
+            #pragma warning restore LS0001
+                }
+            }
+            """;
+
+        const string Alias = """
+            using Outcome = LearnStack.SharedKernel.Results.Result<int>;
             """;
 
         var run = await AnalyzerReport.RunAsync(
             AnalyzerReport.Projects().Single(project =>
                 project.EndsWith("LearnStack.Modules.Tenancy.Application.csproj", StringComparison.Ordinal)),
-            Planted);
+            Alias + Planted);
 
         // Only the planted file: the rest of the project is the rule's subject, not this
         // companion's, and a justified invariant throw landing there later must not break it.
@@ -427,13 +452,15 @@ public sealed class CrossCuttingFoundationTests
             .ToList();
 
         planted.Select(finding => finding.Member).Should().BeEquivalentTo(
-            ["Returned", "Silenced", "Guard", "Loud"],
-            "the analyzer sees all four, suppressed or not");
+            ["Returned", "Silenced", "Guard", "Loud", "Conditional", "Value"],
+            "the analyzer sees every one of them, suppressed or not — including the member "
+            + "inside `#if NETCOREAPP`, which the build compiles");
 
         planted.Where(AnalyzerReport.Violates).Select(finding => finding.Member)
             .Should().BeEquivalentTo(
-                ["Returned", "Silenced", "Loud"],
-                "the invariant guard is the sanctioned suppression; the other three are not");
+                ["Returned", "Silenced", "Loud", "Conditional", "Value"],
+                "the invariant guard is the sanctioned suppression, and it is the only one — an "
+                + "aliased Result returns through the same channel as one spelled out");
 
         // And the wiring check reads an element rather than a line: either attribute order, no
         // comment, and no condition.
@@ -447,6 +474,14 @@ public sealed class CrossCuttingFoundationTests
             .Should().BeFalse("a conditional analyzer does not run in the configuration the condition excludes");
         WiresTheAnalyzer("<!-- " + Reference + """OutputItemType="Analyzer" /> -->""")
             .Should().BeFalse("a commented-out reference is not a reference");
+        WiresTheAnalyzer(
+            """<ItemGroup Condition="'$(CI)' == 'true'">""" + Reference
+            + """OutputItemType="Analyzer" /></ItemGroup>""")
+            .Should().BeFalse("a condition on the group hides the analyzer exactly as well");
+        WiresTheAnalyzer(
+            """<Choose><When Condition="'$(CI)' == 'true'"><ItemGroup>""" + Reference
+            + """OutputItemType="Analyzer" /></ItemGroup></When></Choose>""")
+            .Should().BeFalse("and so does a Choose/When, which is a condition spelled differently");
     }
 
     [Fact]

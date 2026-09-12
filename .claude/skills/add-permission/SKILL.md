@@ -112,7 +112,7 @@ role names; pick from that table or extend it via PR + standard update.
 
 ```csharp
 [ApiController]
-[Route("v1/enrollments")]
+[Route("enrollments")]   // the versioned prefix is the convention's, not yours
 public sealed class EnrollmentsController : ControllerBase
 {
     [HttpGet]

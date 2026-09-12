@@ -56,9 +56,11 @@ Both carry `[TenantOwned]`, an EF global query filter, and the Row Level Securit
 policy set from the canonical template in
 [Database Standards](../standards/05-database.md) — the permissive isolation policy plus,
 where the table is org-scoped, the two `AS RESTRICTIVE` write guards. The isolation
-machinery is exercised by real domain tables here, not only by fixtures. This is the
-first time the template is applied to anything, so it is also the first chance to find
-out that it is wrong: treat a surprising query result as a template bug, not a data bug.
+machinery is exercised by **Education content** tables here, not only by the tenancy,
+customization and audit tables Phase 02a applied it to — seventeen of them across four
+migration chains. This is the first time the template meets a table a learner's page reads,
+so it is the first chance to find out it is wrong under that load: treat a surprising query
+result as a template bug, not a data bug.
 
 ### Localization schema — the one-way door this phase walks through
 
@@ -257,8 +259,9 @@ here:
     above are that first page, and they are the right ones to hold a budget against:
     they are what a visitor actually loads.
 
-  The third placeholder, the integration-test job, activates earlier still — in
-  [Phase 02a Packet 7](phase-02a-kernel-tenancy.md), with the first isolation test.
+  The third placeholder, the integration-test job, activated earlier still — in
+  [Phase 02a Packet 6](phase-02a-kernel-tenancy.md), with the first Docker-bound test: the
+  four-role provisioning suite.
 
 ## Completion Criteria
 

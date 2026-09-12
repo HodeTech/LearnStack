@@ -1931,17 +1931,21 @@ because the filters hold, and removing both turns all five red.
   any request, and what it carries is the policy DDL that *reads* these variables. A setter
   moved into one would be a setter this rule does not see, which is why the exemption is a
   directory rather than a pattern.
-- **Why the order, exactly:** because the statement binds only what follows it. PostgreSQL does
-  **not** refuse it after a first statement — measured on 18: issued after an `INSERT` it is
-  accepted and the insert still commits — so the ordering is this rule's doing rather than the
-  server's, and a guard that trusted the server would not be a guard.
-- **What the offset comparison does and does not prove.** PostgreSQL refuses
-  `SET TRANSACTION` after the transaction's *first statement of any kind*, and this scan
-  only orders it against the announcement. A setter that ran some other statement — a
-  `SELECT`, a second `SET` — between `BEGIN` and `SET TRANSACTION READ ONLY` would satisfy
-  the rule and fail at runtime. That failure is loud and immediate rather than silent,
-  which is why the cheap ordering check is the one that ships; the expensive alternative
-  is parsing the method for every command execution, and
+- **Why the order, exactly:** because the statement binds only what follows it. A guard that
+  trusted the server to complain would not be a guard — see the next bullet for what the
+  server actually does.
+- **What the scan does and does not prove.** It proves the statement is **executed** before
+  the announcement in the same method: the literal arms the check and a call to an
+  `Execute…` member confirms it, so deleting the execution and leaving the command fails the
+  rule. Measured — an earlier version set its flag on the string alone, and removing
+  `await readOnly.ExecuteNonQueryAsync(…)` left it green while the server reported
+  `transaction_read_only=off`.
+  What it does **not** prove is that no other statement ran first. A setter that issued a
+  `SELECT` between `BEGIN` and `SET TRANSACTION READ ONLY` still satisfies this rule — and,
+  measured on PostgreSQL 18, the server accepts that: neither an earlier `SELECT` nor an
+  earlier `INSERT` refuses the statement, and the earlier insert still commits. So the
+  ordering against the announcement is this rule's doing rather than the server's, and
+  nothing here observes the session's actual `transaction_read_only` setting;
   [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
   states the general limit.
 - **Why the property matters at all.** Read-only is what makes an out-of-band setter of a
@@ -1962,9 +1966,12 @@ because the filters hold, and removing both turns all five red.
   because nothing told it they existed. Packet 10 made it find the setters, and both
   loaders now open their transaction read-only. Its companion,
   `The_Setter_Scan_Can_Actually_Fail`, refuses a reader with no statement, one that issues it
-  too late, one whose second announcement has none of its own, and one that only names the
-  statement in a message — each written `async`, because a real reader is and an async method's
-  statements live in a state machine. It also feeds the discovery pattern each spelling. Mutation-checked: dropping the statement from `FeatureFlags` fails it.
+  too late, one whose second announcement has none of its own, one that only names the
+  statement in a message, and one that **builds the command and never runs it** — each written
+  `async`, because a real reader is and an async method's statements live in a state machine. It
+  also feeds the discovery pattern each spelling. Mutation-checked twice: dropping the statement
+  from `FeatureFlags` fails it, and so does replacing `AuditConfigService`'s execution with a
+  read of the command's text.
 - **Phase:** 02a (Packet 7; discovery-based from Packet 10).
 
 #### `Registering_The_Pipeline_Twice_Registers_It_Once`
