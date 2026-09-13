@@ -162,8 +162,11 @@ match the change:
 
 - Backend changes → `dotnet build`, `LearnStack.Tests.Architecture`,
   `LearnStack.Tests.Unit`, `LearnStack.Tests.Integration` (Testcontainers).
-- Frontend changes → `pnpm lint`, `pnpm typecheck`, `pnpm test`, and Lighthouse on
-  representative routes if the public surface changed. There is no `pnpm test:a11y` yet
+- Frontend changes → `pnpm lint`, `pnpm typecheck` and `pnpm test`. No Lighthouse
+  command exists yet, locally or in CI — the `lighthouse-budget` job is a deferred
+  placeholder — so judge public-route budgets against
+  [Performance Standards](../../../docs/standards/15-performance.md) by reading. There
+  is no `pnpm test:a11y` yet
   — the axe suite arrives in Phase 06 ([run-tests-locally](../run-tests-locally/SKILL.md)).
 - Documentation-only → broken-link sweep + `docs/analysis/` residual scan
   (see Step 7's link audit).

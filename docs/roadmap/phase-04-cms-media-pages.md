@@ -7,12 +7,12 @@ merely a course-management system. This phase enables landing pages, blog conten
 catalog pages, campaign pages, and tenant-defined page blocks.
 
 [Phase 02d](phase-02d-walking-skeleton.md) already renders two tenants' catalog and
-lesson pages from customization data. It does so with hard-coded route segments and a
-single built-in content primitive. This phase replaces that with an authored,
-versioned, localized content system that a tenant admin drives from Admin Studio — and
-it is the phase where four long-standing modelling conflicts in the corpus get an
-answer, because every one of them becomes load-bearing the moment content is authored
-rather than seeded.
+lesson pages from customization data. It does so with hard-coded route segments, and
+draws lesson bodies through their content type's composite over the subset of primitives
+that phase implements. This phase replaces that with an authored, versioned, localized
+content system that a tenant admin drives from Admin Studio — and it is the phase where
+four long-standing modelling conflicts in the corpus get an answer, because every one of
+them becomes load-bearing the moment content is authored rather than seeded.
 
 Decisions consumed in this phase:
 
@@ -87,6 +87,8 @@ Also in scope:
 - `ContentEntry` CRUD per type, with draft and published states.
 - Schema-version migration path: lazy on entry save, plus bulk migration as a
   tenant-admin operation with a dry run.
+- Whether a customization change owes an integration event, per
+  [the Customization spec § Integration-event catalogue](../modules/customization/README.md#integration-event-catalogue).
 
 ### Customization Key Shape and Immutable Schema Versions
 
@@ -177,8 +179,10 @@ one thing a per-table constraint cannot do.
   never resolved by picking a winner at render time.
 
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
-and per-locale publish readiness. The frontend i18n library is chosen in ADR-0027 (see
-the Phase Exit Decision).
+per-locale publish readiness, and locale negotiation from `Accept-Language` for
+API-returned messages
+([Error Handling Standards § Validation Errors](../standards/09-error-handling.md#validation-errors)).
+The frontend i18n library is chosen in ADR-0027 (see the Phase Exit Decision).
 
 ### Page Blocks — Two-Tier Registry
 
@@ -316,6 +320,17 @@ not write it.
 - Media library with upload, folders, variant status, and transcode job state.
 - Navigation editor.
 - Publish and preview controls, including per-locale readiness.
+
+**Open question, answered in this phase's decision pass before its first Studio
+screen:** where a tenant admin enters the per-locale values of translatable fields —
+titles, bodies, slugs, SEO metadata — for this phase's entities and for the courses and
+lessons [Phase 02d](phase-02d-walking-skeleton.md) seeds. The candidates are each
+entity's own editor (this phase's screens here,
+[Phase 05](phase-05-education-learning-content.md)'s for courses and lessons) or a
+separate translation screen. The answer is recorded as a row in
+[Phase 06 § Admin Studio — screen ownership](phase-06-renderer-admin-studio.md#admin-studio--screen-ownership),
+together with where untranslated gaps are shown, per
+[Localization § Risks](../architecture/12-localization.md#risks).
 
 The visual drag-and-drop schema builder is [Phase 06](phase-06-renderer-admin-studio.md);
 this phase ships the picker-and-reorder Studio MVP the page-builder architecture

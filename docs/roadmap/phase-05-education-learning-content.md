@@ -11,9 +11,12 @@ their per-tenant shape. Every model here is **domain-agnostic**. Domain-specific
 
 This phase **deepens** what [Phase 02d](phase-02d-walking-skeleton.md) already shipped
 rather than creating it. `Course` and `Lesson` exist in thin form from the walking
-skeleton — slug, title, published state, an ordered lesson list, and a body rendered
-from a single primitive. Phase 05 adds the structure a real catalog needs: programs,
-versioning, modules, lesson items, and tenant-defined item types.
+skeleton — a published state, a per-locale slug, title and summary held in translation
+satellites, an ordered lesson list, and a body drawn through its content type's
+composite over the primitive subset that phase implements (G18 in
+[Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register)).
+Phase 05 adds the structure a real catalog needs: programs, versioning, modules, lesson
+items, and tenant-defined item types.
 
 This phase also carries the decision the customization model has been running without.
 **[ADR-0025](../decisions/README.md#open-adr-drafts) — the scoring and completion DSL
@@ -41,15 +44,19 @@ Decisions consumed:
 
 ### What Phase 02d already shipped
 
-Phase 05 does not re-create these; its migrations are additive, and the one destructive
-change (lesson bodies become lesson items) goes through the two-step deprecation window
-in [Database Standards](../standards/05-database.md).
+Phase 05 does not re-create these. Its destructive changes are enumerated in this
+phase's own decision pass. They include lesson bodies becoming lesson items, and
+whatever it takes to bring Phase 02d's lessons under course versions and modules, given
+the model recorded as G2 in
+[Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
+Each follows [Database Standards § Migrations](../standards/05-database.md#migrations).
 
 | Already exists | Phase 05 adds |
 |---|---|
-| `Course` — slug, title, summary, published / draft | Program membership, versioning, categories, tags, SEO, catalog visibility |
-| `Lesson` — ordered within a course, single-primitive body | Module membership, lesson items, required / optional, duration, prerequisites |
-| Three anonymous read endpoints — the catalog list and two detail reads | The authenticated authoring surface and the versioned read path |
+| `Course` — the publication state G3 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) records, with its per-locale slug, title and summary in `course_translations` ([Phase 02d § Localization schema](phase-02d-walking-skeleton.md#localization-schema--the-one-way-door-this-phase-walks-through)) | Program membership, versioning, categories, tags, SEO, catalog visibility — and how that visibility and `CourseVersion` state compose with 02d's publication state, decided in this phase's decision pass against the values and meaning G3 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) records |
+| `Lesson` — ordered within a course, its body drawn through its content type's composite over Phase 02d's primitive subset (G18) | Module membership, lesson items, required / optional, duration, prerequisites |
+| The anonymous public reads Phase 02d ships — their paths, shapes and count are G25 and G26 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) | The authenticated authoring surface and the versioned read path |
+| The customization definition read path — content types and taxonomies through the generation-keyed cache ([32-tenant-customization-model.md § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy)) | The `TenantLessonItemType` read, the batched reference walk and the measured cost model |
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
 
 ### ADR-0025 — the scoring and completion DSL engine
@@ -189,12 +196,16 @@ boundary, and both are load-bearing here:
 
 The customization runtime is the platform's central read path — every rendered page,
 lesson and catalog entry passes through schema lookup, taxonomy lookup, reference
-resolution and, on the learner path, rule evaluation. Its cost model is written here
-because this is the phase where the read path first carries real payloads, and because a
-cost model retrofitted after the caches exist is a rewrite. The conceptual model lives
-in
+resolution and, on the learner path, rule evaluation. The definition read path and its
+generation-keyed cache are not this phase's: they land with their first consumer in
+[Phase 02d](phase-02d-walking-skeleton.md), per [Phase 02a](phase-02a-kernel-tenancy.md)
+and [the Customization module spec](../modules/customization/README.md). Its cost model
+is written here because this is the phase whose lesson renders put lesson items,
+reference resolution and rule evaluation on that path — the load the batched walk, the
+limit set and the rule cache exist for — and because a cost model retrofitted after
+those caches exist is a rewrite. The conceptual model lives in
 [32-tenant-customization-model.md](../architecture/32-tenant-customization-model.md);
-this phase implements and measures it.
+this phase extends what Phase 02d shipped and measures the whole.
 
 **Validation timing — write time, not read time.**
 
@@ -202,32 +213,35 @@ this phase implements and measures it.
   when an instance is saved (does this payload match its schema version?). Both are
   authoring-path operations with a human waiting on one request.
 - The read path does **not** re-validate. Entries pin `schema_version` at creation
-  ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)) and schema versions are
-  immutable, so a stored payload cannot drift out of conformance with the version it
-  declares. An entry whose declared version no longer resolves renders the
-  `UnknownVersionBlock` placeholder — it does not trigger validation on a hot path.
+  ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)), and the schema is a
+  write-time contract the read path trusts —
+  [32-tenant-customization-model.md § 8.1](../architecture/32-tenant-customization-model.md#81-validation-timing--write-time-not-read-time)
+  owns that rule and names what breaks it. An entry whose declared version no longer
+  resolves renders the `UnknownVersionBlock` placeholder — it does not trigger
+  validation on a hot path.
 - Validating on read would put a schema compile and a full document walk in front of
   every catalog page, for a defect the write path already prevents.
 
 **Cache strategy.**
 
-- Three read-through caches: `TenantContentType` by `(tenant, key, version)`,
-  `TenantLessonItemType` by `(tenant, key, version)`, `TenantLevelTaxonomy` by
-  `(tenant, key)`.
-- Because schema versions are immutable, a versioned entry **never needs invalidation**.
-  Only the *active version pointer* for a key changes, and only on publish. Cache the
-  immutable body aggressively; keep the pointer on a short TTL behind a per-tenant
-  generation key that publish bumps.
-- Invalidation uses that generation key, not a prefix scan.
+- Definition sets are cached on
+  [32-tenant-customization-model.md § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy)'s
+  families, which [Phase 02d](phase-02d-walking-skeleton.md) ships for content types and
+  taxonomies. The `TenantLessonItemType` read this phase adds follows
+  [Infrastructure Stack § `ICacheService`](../standards/20-infrastructure-stack.md#icacheservice-state),
+  and its family is added to that document's cheat sheet and the adapter's `cache.name`
+  mapping together.
+- Invalidation uses the generation key, not a prefix scan.
   `ICacheService.RemoveByPrefixAsync` was removed in
   [Phase 02a Packet 5](phase-02a-kernel-tenancy.md) precisely because prefix eviction
   cannot be honoured across instances; this phase must not reintroduce the assumption.
-- Compiled artefacts — the compiled JSON Schema validator and the compiled rule — live
-  in a per-process L1 cache only and are never serialised to L2. The L1 cache is a
-  bounded LRU with a global entry cap, so a tenant with a thousand schema versions
-  cannot evict every other tenant's working set.
-- Cold start after a deploy pays compilation once per `(tenant, key, version)` actually
-  requested. That cost is measured, not assumed.
+- There is no compiled JSON Schema validator cache
+  ([ADR-0043 § 6](../decisions/0043-customization-payload-validation.md#6-there-is-no-compiled-validator-cache)).
+  The compiled **rule** lives in a per-process L1 cache only and is never serialised to
+  L2; that cache is a bounded LRU with a global entry cap, so a tenant with a thousand
+  rules cannot evict every other tenant's working set.
+- Cold start after a deploy pays § 8.2's miss cost per definition set and one
+  compilation per rule actually requested. That cost is measured, not assumed.
 
 **Reference resolution and the N+1 path.**
 
@@ -329,8 +343,12 @@ cross-phase screen ownership table lives in **one** place —
 - Public catalog rendering data, extending the read endpoints
   [Phase 02d](phase-02d-walking-skeleton.md) shipped.
 - The customization runtime cost model implemented and **measured**: validation on the
-  write path, the two-tier cache with generation-key invalidation, the batched
-  reference walk, the enforced limit set, and the `embed-html` sanitisation contract.
+  write path, the generation-keyed definition cache
+  [Phase 02d](phase-02d-walking-skeleton.md) shipped, extended to this phase's
+  aggregates (its L2 tier arrives on
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s trigger in
+  [Phase 11](phase-11-production-hardening.md)), the batched reference walk, the
+  enforced limit set, and the `embed-html` sanitisation contract.
 
 ## Completion Criteria
 

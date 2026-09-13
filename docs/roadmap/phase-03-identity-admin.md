@@ -93,14 +93,19 @@ data, and three concrete defects follow from it:
   runtime; column-level classification cannot see inside it. Retention, export and
   redaction are therefore undefined for exactly the data most likely to be personal.
 
-This phase resolves all three — and settles one marking the audit capture is waiting on.
-`[PiiSensitive]`, the capture's redaction marker
-([ADR-0044 § 8 and Amendment 4 § 1](../decisions/0044-audit-write-path.md)), is on no
-property as of Phase 02a Packet 9, because no shipped aggregate holds personal data.
-`TenantSetting.Value` — a tenant-authored document on a MUST-class operation, whose whole
-value the marker would replace — is the first candidate. This phase decides whether it
-carries the marker, and no command writing `tenant_settings` lands before that decision,
-whichever phase ships it.
+This phase resolves all three. One marking the audit capture is waiting on is sequenced
+by the first writer rather than by this phase. `[PiiSensitive]`, the capture's redaction
+marker ([ADR-0044 § 8 and Amendment 4 § 1](../decisions/0044-audit-write-path.md)), is
+on no property as of Phase 02a Packet 9, because no shipped aggregate holds personal
+data. `TenantSetting.Value` — a tenant-authored document on a MUST-class operation,
+whose whole value the marker would replace — is the first candidate. Whether it carries
+the marker is decided before the first command writing `tenant_settings` lands,
+whichever phase ships it. [Phase 02d](phase-02d-walking-skeleton.md) plans that command,
+so the question is G17 in
+[Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
+answered in the decision pass of the packet that ships it, per
+[Roadmap § Decision Timing](README.md#decision-timing). If Phase 02d stops shipping the
+command, the decision returns to this phase.
 
 **Attribute ownership.** Each attribute has exactly one owner, and the owner determines
 the table it lives in and who may write it.
@@ -236,6 +241,14 @@ refresh token storage, or brute-force protection — those are Keycloak responsi
 - Resource-scoped policies (for example, an instructor edits only their own courses).
 - Admin and Studio route guards.
 - API authorization policies.
+- Every endpoint carries `[Authorize(Policy = …)]` or `[AllowAnonymous]` with its
+  one-line reason, as
+  [Permissions Standards § HTTP endpoints](../standards/19-permissions.md#http-endpoints)
+  requires, and an architecture test registered in the catalogue fails the build for an
+  endpoint that carries neither — the anonymous reads
+  [Phase 02d](phase-02d-walking-skeleton.md) ships included.
+- Permission keys for those public reads, granted to the `Portal Public` role of
+  [Permissions Standards § Built-in Roles](../standards/19-permissions.md#built-in-roles).
 - **Lights up the [Phase 02a Packet 3](phase-02a-kernel-tenancy.md)
   `AuthorizationBehavior` shell** — resolves each command's `[Authorize(Policy)]`,
   calls `IAuthorizationService.AuthorizeAsync` against the tenant +
@@ -293,9 +306,12 @@ strictly higher value than it.
   `GET /api/v1/localization/en`. When the catch-all wins the tie, `openid-connect` with
   `bearer_only: true` returns 401 to a request that has no token and is not supposed to
   need one.
-- That request is the first call the public renderer makes. Anonymous rendering from
-  [Phase 02d](phase-02d-walking-skeleton.md) and the public CMS reads from
-  [Phase 04](phase-04-cms-media-pages.md) sit behind exactly this route.
+- The rule is not specific to localization. Every anonymous read the public renderer
+  makes — the `[PublicSurface]` request types enumerated in
+  [API Standards § Public surface](../standards/04-api-design.md#public-surface), whose
+  first rows come from [Phase 02d](phase-02d-walking-skeleton.md) — and the public CMS
+  reads from [Phase 04](phase-04-cms-media-pages.md) are matched by the authenticated
+  catch-all, so each needs a public-band route that outranks it.
 
 **Route 100's `client_secret_ref` is deleted.** The line currently reads
 `client_secret_ref: vault://learnstack/hub/internal-api-hmac-key`, binding the

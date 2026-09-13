@@ -25,11 +25,13 @@ Run an end-to-end online English-learning tenant on LearnStack, where:
   from `TenantContentType`, `TenantLevelTaxonomy`, `TenantScoringRule`, etc. **No
   English-specific code lives in any module.**
 - A second tenant — a **yoga studio** — has existed since
-  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), with its own
-  taxonomy, content types and branding loaded from its own customization data. The
-  substrate-genericity proof is therefore continuous from
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) onward, not a checkbox at MVP
-  exit.
+  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), holding the same
+  built-in customization rows as the English school, owned per tenant.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) gives each tenant its own
+  taxonomy, content type and branding as tenant data and renders both sites
+  ([§ Genericity proof](../roadmap/phase-02d-walking-skeleton.md#genericity-proof)). The
+  substrate-genericity proof is therefore continuous from Phase 02d onward, not a
+  checkbox at MVP exit.
 
 ## Vertical Slice First
 

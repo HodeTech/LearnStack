@@ -109,7 +109,7 @@ repository right now, and the documentation says so wherever it describes them.
 | Tenant customization foundation — content types and level taxonomy | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** (2 of the 8 aggregates) |
 | Audit trail, written inside the business transaction | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
 | API conventions, entitlement socket, foundation ports | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
-| Two tenants rendering their own sites, side by side | [02d](docs/roadmap/phase-02d-walking-skeleton.md) | **Next** |
+| Two tenants rendering their own sites, side by side | [02d](docs/roadmap/phase-02d-walking-skeleton.md) | **In progress** |
 | Authentication, sessions, events | [02b](docs/roadmap/phase-02b-events-auth.md) | Planned |
 | Users, roles, permissions, admin foundation | [03](docs/roadmap/phase-03-identity-admin.md) | Planned |
 | Headless CMS, page builder, media library | [04](docs/roadmap/phase-04-cms-media-pages.md) | Planned |

@@ -361,12 +361,24 @@ what you pasted — a reviewer will:
   nothing may *write* outside its own. `WITH CHECK` is not sufficient on its own for
   that guarantee — PostgreSQL has no `WITH CHECK` for `DELETE`, and `USING` is also
   what selects the rows an `UPDATE` may target — which is why the two `AS RESTRICTIVE`
-  guards above are part of the template and not an optional extra.
+  guards above are part of the template and not an optional extra. One write path stays
+  open — the organization arm of `WITH CHECK` admits `organization_id IS NULL` from any
+  session, so an organization-scoped session can `INSERT` a tenant-wide row; its status
+  is in
+  [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md#tenant-owned-and-organization-scoped-tables).
 - **The composite `UNIQUE (tenant_id, id)` and the composite foreign keys** — referential
   integrity is checked on behalf of the table owner and bypasses RLS entirely, so a
   single-column FK is a cross-tenant reference waiting to happen, invisible to every
   policy. See
   [05-database.md § Foreign keys between tenant-owned tables](../../../docs/standards/05-database.md).
+
+Two obligations the policy block does not carry, both in
+[05-database.md](../../../docs/standards/05-database.md): the `BEFORE UPDATE`
+organization immutability trigger on every org-scoped table (the rule after the
+template), and an index supporting every foreign key
+([§ Indexes](../../../docs/standards/05-database.md#indexes)). Neither makes a child's
+or satellite's mirrored `organization_id` equal its parent's at insert — see
+[§ Translation satellite tables](../../../docs/standards/05-database.md#translation-satellite-tables).
 
 Always call `current_setting` with the second argument `true`. Without it an unset
 context raises inside a pooled connection instead of simply filtering the row out.

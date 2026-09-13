@@ -92,7 +92,9 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 
 - Server Components call the typed SDK directly.
 - Client Components route through server actions or RSC props; never call the API with bearer tokens directly.
-- Cache keys include `tenantId` and `locale`.
+- Cache keys carry the tenant, the organization where applicable, and the locale; the
+  rule lives in
+  [Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist).
 - API errors mapped to typed `AppError` before reaching UI code (see [09-error-handling.md](09-error-handling.md)).
 
 ## Forms

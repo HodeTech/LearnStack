@@ -74,6 +74,17 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 
 ## Tenant + Organization Resolution at the Edge
 
+> **Open in Phase 02d.** Whether the edge calls an API host lookup at all — and if so,
+> what it returns and how it states the visitor's host to the API — is G25 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> It is answered in the decision pass of the packet that ships the public reads. This
+> section's "Phase 02d ships it" and the diagram's host-lookup step record the plan the
+> section was written against. They are reconciled with the answer in that pass,
+> together with
+> [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution)
+> and
+> [Infrastructure Stack Standards § Host → Tenant Resolution](../standards/20-infrastructure-stack.md#host--tenant-resolution).
+
 Next.js middleware resolves the tenant, and optionally the organization, before any
 route handler runs. Four rules, all of them from
 [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md);
@@ -209,18 +220,21 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-A tenant's branding flows from the API as design tokens. The renderer applies them as
-CSS variables on the document root. When the resolved request carries an organization
-id and that organization has a `BrandingOverride`, the override merges on top of the
-tenant defaults before injection — the merged token set is the source of truth for the
-SSR'd page.
+A tenant's branding flows from the API as design tokens, and the renderer applies them
+as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` set
+[Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)
+names and the shared Tailwind preset reads; this document keeps no second vocabulary.
+Which tokens a tenant may set and the value each accepts are G16 in
+[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+How the tokens reach the document, and how that mechanism stays compatible with the
+nonce-based policy that
+[Security Standards § HTTP Headers](../standards/11-security.md#http-headers) sets as
+the target, is G42 in the same register.
 
-```html
-<html style="--brand-primary: #1f3a8a; --brand-on-primary: #ffffff; --brand-font: 'Inter';">
-```
+When the resolved request carries an organization id and that organization has a
+`BrandingOverride`, the override merges on top of the tenant defaults before injection —
+the merged token set is the source of truth for the SSR'd page.
 
-Tailwind reads these variables via
-`theme.extend.colors.brand.primary = 'rgb(var(--brand-primary) / <alpha-value>)'`.
 The first paint is themed; there is no FOUC because tokens are injected into the SSR'd
 HTML.
 
@@ -357,22 +371,31 @@ The classroom screen is the only place that knows the LiveKit URL; the rest of t
 
 ## Performance Budgets
 
-The public renderer has hard budgets:
-
-- Time to First Byte: < 200 ms at the origin under steady state.
-- Largest Contentful Paint: < 2.5 s on a mid-tier mobile device on 4G.
-- JavaScript shipped on the public segment: < 150 KB gzipped initial route bundle.
+The public renderer's budgets — time to first byte, Largest Contentful Paint, layout
+shift, interaction latency and the initial JavaScript payload — are owned by
+[Performance Standards § Initial Budgets and § Bundle Size](../standards/15-performance.md).
+This document does not restate them.
 
 Studio and Portal have higher budgets because they are authenticated apps and benefit from client-side state.
 
-CI runs Lighthouse on representative public pages on every PR; budgets failing the threshold fail the build.
+CI's Lighthouse job over representative public pages is scaffolded and not yet active.
+Whether it activates in [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), and what
+it asserts, is G44 in
+[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Accessibility
 
 - WCAG 2.2 AA is the target.
-- `axe-core` runs in component tests; violations fail the test.
+- Automated `axe-core` checks run through Playwright, per
+  [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling);
+  [Testing Standards § End-to-End Tests](../standards/06-testing.md#end-to-end-tests)
+  names the owning phase.
 - Keyboard navigation and focus order are reviewed before any block ships.
-- Color contrast is verified for every branded theme — tenant brand tokens that violate contrast cannot be saved.
+- Color contrast is verified for every branded theme, including the merged tenant and
+  organization token set, per
+  [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast).
+  Whether a failing token set is refused or saved with a warning is G16 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Splitting into Multiple Apps Later
 

@@ -317,7 +317,12 @@ Rules:
 - FluentValidation produces field-level errors.
 - Always include all failures, not just the first one.
 - Field names match the request shape (`camelCase`).
-- Messages are localizable; the API returns the locale-appropriate message based on the request's `Accept-Language` or tenant default.
+- Messages are localizable because they travel as keys: `messageKey` and each `errors`
+  entry are `LocalizedMessage` payloads (`key` + optional `params`) the frontend
+  resolves against its i18n catalogue, as [§ API Surface](#api-surface) states. The API
+  returns no message text today; locale negotiation from `Accept-Language` for any
+  message text the API composes later is
+  [Phase 04](../roadmap/phase-04-cms-media-pages.md)'s.
 - **`ValidationBehavior` returns `Result.Fail(validation_failed, errors)` —
   it does NOT throw `FluentValidation.ValidationException`.** Per
   [ADR-0032 § Sub-decision 3](../decisions/0032-exception-handling-logging-and-observability.md),

@@ -43,7 +43,6 @@ flowchart LR
     Tenant
     Organization
     TenantDomain
-    TenantBranding
     TenantFeatureFlag
     TenantLocale
     TenantSetting
@@ -220,7 +219,7 @@ flowchart LR
 | `Tenant` | Yes | Tenant-owned, **self-keyed**: no `tenant_id` column, because its `id` *is* the tenant id and its RLS policy keys on `id`. Status: Trial / Active / Suspended / Archived. |
 | `Organization` | Yes | Sub-unit within a tenant (branch, studio, campus, department, cohort). Two-level hierarchy strict (ADR-0017). Every tenant has at least one default org. |
 | `TenantDomain` | Yes | Subdomain on `{slug}.learnstack.app` (always available) or custom domain (Hub-managed; see [27-custom-domain-tls.md](27-custom-domain-tls.md)). |
-| `TenantBranding` | Inside Tenant | Logo, colors, typography tokens. May be overridden per-organization via `OrganizationBranding`. |
+| `TenantBranding` | No — not an entity; the values are `TenantSetting` rows ([Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)) | Logo, colors, typography tokens. May be overridden per-organization via `OrganizationBranding`. |
 | `OrganizationBranding` | Inside Organization | Optional partial design-token override (logo / colors / typography) merged on top of `TenantBranding` at render time. When the resolved request carries an organization id and a row exists, the merged token set is injected as CSS variables on the SSR'd HTML root; missing fields fall through to the tenant default. See [Glossary § Branding](../glossary.md). |
 | `TenantFeatureFlag` | Inside Tenant | Experimental / gradual-rollout flags. Plan-level features are surfaced via the entitlement projection (ADR-0021), not stored here. See [21-feature-flags.md](21-feature-flags.md). |
 | `TenantLocale` | Inside Tenant | The locales a tenant publishes in ([ADR-0008](../decisions/0008-localization-schema.md)). Composite key `(tenant_id, locale)`, no surrogate id; exactly one row is the default. |

@@ -38,10 +38,11 @@ plan.
 
 - **The content.** A `TenantContentType` says what an article looks like; the
   articles live in Content, from [Phase 04](../../roadmap/phase-04-cms-media-pages.md).
-- **The renderers.** `default-card` and its eight siblings are frontend
-  components; this module stores their keys and
-  `Composite_Renderer_Keys_Match_The_Frontend_Registry` holds the two lists
-  equal.
+- **The renderers.** `default-card` and its eight siblings are keys of frontend
+  composites; this module stores the keys, and
+  [`Composite_Renderer_Keys_Match_The_Frontend_Registry`](../../standards/21-architecture-tests-catalogue.md#composite_renderer_keys_match_the_frontend_registry)
+  holds the frontend's registered set inside the nine this module declares —
+  containment, not equality.
 - **The evaluator.** Scoring and completion rule bodies are `text` plus a
   `dialect` discriminator, decided here and given a table in
   [Phase 05](../../roadmap/phase-05-education-learning-content.md) once ADR-0025

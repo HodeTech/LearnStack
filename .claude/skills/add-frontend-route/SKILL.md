@@ -32,7 +32,8 @@ contract per
 
 - Operator portal pages — they live in `operator-portal`, a separate repo.
 - Calling the API directly from a Client Component without the SDK — forbidden by
-  ESLint (`no-restricted-imports`).
+  ESLint (`no-restricted-globals` on `fetch`,
+  `frontend/packages/config/eslint/index.cjs`).
 - Routes that bypass tenant resolution — every authenticated route requires a
   resolved tenant.
 
@@ -52,7 +53,7 @@ contract per
 
 | Group | Purpose | Auth | Default render |
 |-------|---------|------|----------------|
-| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | SSR + ISR-like cache per `(tenantId, organizationId?, locale, slug)`. |
+| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | SSR + ISR-like cache per `(tenantId, organizationId?, locale, slug)` (under an open gate — see Step 8). |
 | `(studio)` | Tenant admin Studio. | Tenant-admin or org-admin. Required at the edge. | SSR, no cache (always fresh). |
 | `(portal)` | Learner / instructor portal. | Membership in the resolved tenant. | SSR shell + Client Component for interactivity. |
 
@@ -95,16 +96,15 @@ Rules:
 
 ### Step 4: Tenant + organization context (automatic)
 
-The Next.js middleware (`src/middleware.ts`) resolves the host via
-`IHostToTenantResolver` and sets:
-
-- `x-tenant-id` header
-- `x-organization-id` header (when the host maps to a specific organization)
-- `x-locale` header
-
-The SDK reads these from the request context automatically; you don't pass them.
-Don't read `host` directly inside a page; the resolution is the middleware's
-contract.
+The API resolves tenant and organization from the host
+([ADR-0036 § Effective host and the trusted hop](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)).
+The frontend never calls `IHostToTenantResolver`, and ADR-0036 makes
+`frontend/packages/sdk/src/server.ts` the only frontend place that sets the hop
+headers. At HEAD that file is a typed stub, and `src/middleware.ts` is a scaffold
+that copies the raw host into `x-tenant-id` and sets `x-locale`; it sets no
+`x-organization-id`. Their replacement is recorded as G35 and G36 in
+[Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+Don't read `host` directly inside a page.
 
 ### Step 5: Authentication + permission gating
 
@@ -114,7 +114,7 @@ For `(studio)` and `(portal)` routes:
 - Permission check happens at the page level via the `auth()` helper:
 
 ```tsx
-import { auth } from "@learnstack/auth/server";
+import { auth } from "@learnstack/auth/server"; // illustrative: no such package exists yet; Phase 02b's session work owns the real helper
 import { redirect } from "next/navigation";
 
 export default async function UsersPage() {
@@ -164,14 +164,17 @@ See [add-i18n-key](../add-i18n-key/SKILL.md).
 
 ### Step 8: Public-site SSR caching
 
-For `(public)` routes that render CMS content:
-
-```tsx
-export const revalidate = 60;   // ISR-like; tenant publishes invalidate via webhook
-```
-
-Cache key includes tenant + org + locale + slug automatically because the SDK
-threads them through.
+This step is under an open gate. How `(public)` routes render, and which Next.js
+caches they may use, is G37 in
+[Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+The step is rewritten when that gate closes; until then add no `revalidate`,
+`generateStaticParams` or `unstable_cache` to a `(public)` route. The cache key is
+**not** tenant-bearing automatically. A statically rendered route, which is what
+`revalidate` produces when the page reads no request data, is cached by path, and a
+public URL carries no tenant
+([Frontend Architecture Standards](../../../docs/standards/07-frontend-architecture.md)).
+Every cache key carries the tenant, the organization where applicable, and the locale
+([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](../../../docs/standards/11-security.md#multi-tenant--organization-isolation-review-checklist)).
 
 ### Step 9: Loading + error boundaries
 
@@ -184,21 +187,34 @@ Every route ships its own:
 
 ### Step 10: Tests
 
-- Component test (`frontend/apps/web/src/app/(studio)/dashboard/users/page.test.tsx`) with
-  `axe-core` for accessibility.
-- Lighthouse budget check on representative public routes (CI).
+- Component tests (`frontend/apps/web/src/app/(studio)/dashboard/users/page.test.tsx`)
+  with Testing Library, per
+  [Testing Standards § Frontend Test Types](../../../docs/standards/06-testing.md#frontend-test-types).
+  Automated `axe-core` runs through Playwright, owned by
+  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) per
+  [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md#end-to-end-tests);
+  the manual keyboard and contrast checks
+  [Accessibility Standards § Tooling](../../../docs/standards/16-accessibility.md#tooling)
+  and [§ Testing](../../../docs/standards/16-accessibility.md#testing) require are
+  recorded in the PR description. The phase that ships a route names its test set in
+  its decision register.
+- Lighthouse budget check on representative public routes — CI's `lighthouse budget`
+  job is a deferred placeholder until Phase 02d activates it; until then judge by
+  reading.
 
 ## Validation
 
 - `pnpm build` / `next build` succeeds.
-- `pnpm lint` is green; specifically the `no-restricted-imports` rule that bans
-  raw `fetch('/v1/...')` from any component.
+- `pnpm lint` is green; specifically the `no-restricted-globals` rule on `fetch`,
+  which bans a direct `fetch` call outside the SDK.
 - The route renders under the resolved tenant/org/locale and rejects mismatched
   authn.
 - A `(studio)` route returns 403 when the actor lacks the required permission;
   the API was already authoritative — confirm.
-- Lighthouse budgets (LCP < 2.5s, INP < 200ms, CLS < 0.05) green on
-  representative routes.
+- The public-route budgets in
+  [Performance Standards](../../../docs/standards/15-performance.md) hold on
+  representative routes — judged by reading until CI's `lighthouse budget` job is
+  active.
 
 ## Common pitfalls
 

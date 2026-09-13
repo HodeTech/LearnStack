@@ -101,6 +101,11 @@ CREATE TABLE course_translations (
 );
 ```
 
+This sketch shows where the translatable columns and the slug key live. The table's
+complete DDL — its foreign-key index, policy set and triggers — is
+[Database Standards § Translation satellite tables](05-database.md#translation-satellite-tables),
+the canonical artefact.
+
 Slug lookup is **exact** on `(tenant_id, locale, slug)`. The fallback chain resolves
 display fields after the entity is found; it never resolves a slug. An entity with no
 translation in the requested locale has no URL in that locale, and a link to it is

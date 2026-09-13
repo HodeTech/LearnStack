@@ -142,7 +142,9 @@ return <p>{t("count", { count: learners.length })}</p>;
 ### Step 4: Variable interpolation
 
 ICU placeholders: `{name}`, `{count}`, `{date, date, short}`. The frontend i18n
-library (next-intl / react-intl — see ADR-pending) handles ICU natively.
+library (next-intl / react-intl — ADR-0027, reserved in
+[the decisions index](../../../docs/decisions/README.md#open-adr-drafts)) handles ICU
+natively.
 
 ### Step 5: Don't branch on locale
 

@@ -40,7 +40,6 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
   - Required status checks (the job names from `.github/workflows/ci.yml`):
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
-    - `meta (compose + commit hygiene + link audit)`
     - `secret scan (leakwatch)`
     - `meta (compose + commit hygiene + link audit)` — ⚠️ **the live rule still
       requires the pre-rename name** `meta (commit hygiene + link audit)`, which

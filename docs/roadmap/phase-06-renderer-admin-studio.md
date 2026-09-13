@@ -8,8 +8,9 @@ learner-facing and instructor-facing screen after this phase is built into.
 
 [Phase 02d](phase-02d-walking-skeleton.md) already put a site in a browser — a catalog
 page and a lesson page, on two hosts, for two tenants. That skeleton proved the request
-path. It is not a website: it has no navigation, no SEO, no error pages, one block, and
-no editing surface. Phase 06 **deepens** it into something a tenant can publish.
+path. It is not a website: it has no navigation, no SEO, no error pages, no block
+registry beyond the primitive subset its lesson composites draw, and no editing surface.
+Phase 06 **deepens** it into something a tenant can publish.
 
 After this phase, LearnStack publishes a simple but real education website for a tenant,
 and a non-developer tenant admin can maintain it.
@@ -21,10 +22,10 @@ and a non-developer tenant admin can maintain it.
 | Already exists | Phase 06 adds |
 |---|---|
 | Host-based tenant + organization resolution, end to end | Per-organization branding override on the resolved context |
-| Catalog page and lesson page, Server Components over the typed SDK | Navigation, SEO metadata, 404 and redirect handling, full page composition |
-| One built-in content primitive | The complete two-tier block registry with safe-render placeholders |
+| The anonymous `(public)` pages listed in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer), Server Components over the typed SDK | Navigation, SEO metadata, 404 and redirect handling, full page composition |
+| Lesson bodies drawn through their content type's composite, over the primitive subset [Phase 02d](phase-02d-walking-skeleton.md) implements | The complete two-tier block registry with safe-render placeholders |
 | Branding tokens read from `TenantSetting` | The branding configuration surface that writes them |
-| First frontend tests, replacing the `--passWithNoTests` placeholder | The browser-level end-to-end suite |
+| The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
 
 ### Public site renderer
 

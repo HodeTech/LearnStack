@@ -110,11 +110,17 @@ CREATE TABLE courses (
     deleted_at      timestamptz NULL,
     deleted_by      uuid NULL,
     row_version     bigint NOT NULL DEFAULT 0,
-    CONSTRAINT ux_courses_tenant_id_slug_key UNIQUE (tenant_id, slug_key),
     -- Composite unique on (tenant_id, id) exists solely so child tables can
     -- carry a composite FK. See § Foreign keys between tenant-owned tables.
+    -- It contains the primary key, so § Soft Delete's partial rule exempts it.
     CONSTRAINT ux_courses_tenant_id_id   UNIQUE (tenant_id, id)
 );
+
+-- slug_key is unique per tenant among live rows. A table with deleted_at takes a
+-- partial unique INDEX: PostgreSQL has no partial UNIQUE table constraint, and a
+-- table-wide one lets a deleted row hold its key forever (§ Soft Delete).
+CREATE UNIQUE INDEX ux_courses_tenant_id_slug_key
+    ON courses (tenant_id, slug_key) WHERE deleted_at IS NULL;
 
 -- Enable *and* force: without FORCE, the table owner bypasses its own policies.
 ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
@@ -179,9 +185,10 @@ CREATE POLICY courses_org_delete_guard ON courses
         OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
     );
 
--- No standalone index on tenant_id: ux_courses_tenant_id_slug_key and
--- ux_courses_tenant_id_id are both b-trees with tenant_id leading, and either serves
--- a tenant-only lookup. One composite index carries the organization dimension.
+-- No standalone index on tenant_id: ux_courses_tenant_id_id is a b-tree with
+-- tenant_id leading and serves a tenant-only lookup (the partial slug_key index
+-- serves only queries that exclude deleted rows). One composite index carries the
+-- organization dimension.
 -- Deliberately NOT partial: the policy's `organization_id IS NULL` branch matches
 -- every tenant-wide row, and a b-tree indexes NULLs, so the non-partial form serves
 -- both branches of the predicate.
@@ -214,6 +221,7 @@ CREATE TABLE lessons (
     CONSTRAINT fk_lessons_course
         FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)
 );
+-- Plus an index led by (tenant_id, course_id) — § Indexes: index every foreign key.
 ```
 
 The parent therefore carries `UNIQUE (tenant_id, id)` purely to be referenceable this
@@ -241,12 +249,12 @@ makes the absence loud.
 The standing exception is a **child inside an aggregate boundary**, which
 cascades from its own root: it is not an independent row, and outliving its root
 would leave it referring to nothing. That is deletion *within* an aggregate, not
-deletion *of* one, and it is why the two fences differ. Two tables are in the
-class today — a **translation satellite** (`ON DELETE CASCADE` in the
-`course_translations` fence above), and `tenant_level_taxonomy_items`, whose
-composite key names the taxonomy revision it belongs to and which is meaningless
-without it. A cascade from anything that is *not* a root's own child is still a
-decision, not a convenience, and it needs a record.
+deletion *of* one, and it is why the two fences differ. Two shapes are in the
+class — a **translation satellite** (`ON DELETE CASCADE` in the `course_translations`
+fence in § Translation satellite tables below; no shipped chain creates one yet), and
+`tenant_level_taxonomy_items`, whose composite key names the taxonomy revision it
+belongs to and which is meaningless without it. A cascade from anything that is *not* a
+root's own child is still a decision, not a convenience, and it needs a record.
 
 **The circular reference, and why it is still composite.**
 `tenants.default_organization_id` points at `organizations`, which points back at
@@ -297,7 +305,12 @@ Rules:
   for `DELETE`, and `USING` is also what selects the rows an `UPDATE` may target — so
   the two `AS RESTRICTIVE` `FOR UPDATE` / `FOR DELETE` guards in the template above are
   what actually close the `USING`-only write paths. They are part of the template for
-  every organization-scoped table, not an optional hardening step.
+  every organization-scoped table, not an optional hardening step. One write path is
+  not closed: the organization arm of `WITH CHECK` admits `organization_id IS NULL`
+  from any session, so an organization-scoped session can `INSERT` a tenant-wide row
+  that the guards then stop it updating or deleting. Whether that arm is tightened is
+  G7 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - The session variable names `app.tenant_id`, `app.organization_id`, `app.scope` and
   `app.resolving_host` are canonical and the set is closed; do not invent alternatives
   (`app.current_tenant_id`, `learnstack.tenant_id`, …). `app.tenant_id` and
@@ -378,6 +391,11 @@ CREATE TABLE course_translations (
         FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)
         ON DELETE CASCADE
 );
+
+-- Index every foreign key (§ Indexes): neither the primary key, led by course_id,
+-- nor the slug key, led by (tenant_id, locale), serves (tenant_id, course_id).
+CREATE INDEX ix_course_translations_tenant_id_course_id
+    ON course_translations (tenant_id, course_id);
 ```
 
 It then declares `ENABLE` + `FORCE ROW LEVEL SECURITY` and the same
@@ -386,7 +404,13 @@ policy of its own is unprotected — a check constraint on the parent does not p
 Row Level Security, and a table holding `title` and `slug` holds the content.
 
 `organization_id` on a satellite exists **only** to carry the isolation predicate.
-Denormalizing it is safe because of the immutability rule above. It is deliberately
+The immutability rule above keeps a correct mirror correct; it does not make a mirror
+correct at insert. Neither does the composite foreign key, which carries no
+organization, nor `WITH CHECK`, which admits `organization_id IS NULL` from any session
+— so nothing in this template forces a satellite's `organization_id` to equal its
+parent's. The insert-time control is G7 in
+[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+answered before the first Education migration. `organization_id` is deliberately
 **absent** from the slug unique key — see § Constraints and
 [Localization Standards § Pattern A](08-localization.md).
 
@@ -1113,7 +1137,9 @@ changes `xmin` while leaving `row_version` intact.
 
 - `NOT NULL` aggressively; defaults only when business sense dictates.
 - `CHECK` constraints for invariants the database can enforce (`status IN (...)`, `length(slug) BETWEEN 1 AND 120`).
-- `UNIQUE` constraints for tenant-scoped natural keys (`UNIQUE (tenant_id, slug_key)`).
+- Uniqueness for tenant-scoped natural keys (`(tenant_id, slug_key)`): a `UNIQUE`
+  constraint, or — on a table with a `deleted_at` column — a partial unique index, per
+  § Soft Delete.
 - **A nullable column in a `UNIQUE` constraint does not constrain the rows where it is
   null.** PostgreSQL follows the SQL standard and treats nulls as distinct for uniqueness
   purposes, so `UNIQUE (tenant_id, organization_id, key)` permits unlimited duplicates

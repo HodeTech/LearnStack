@@ -197,6 +197,7 @@ tenant eventually carries belongs to a phase that has not written its schema yet
 | Keycloak OIDC wiring and the realm's `tenant_id` claim mapper | [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) |
 | `TenantContentType`, `TenantLevelTaxonomy` | **Shipped** — [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). `SeedRunner` writes the built-in pair through `RegisterTenantContentTypeCommand` / `PublishTenantContentTypeCommand` and their taxonomy siblings, so a seeded tenant already has something to render |
 | `Course`, `Lesson` and their translation satellites | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
+| Rows in `tenant_locales` — each tenant's enabled locales and its one default — written through the Tenancy command raising `tenancy.locale.write` | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
 | Each tenant's **own** content type and level taxonomy, and its branding token **values** written as `TenantSetting` rows — the seed that makes the two tenants differ, not only the built-in pair they share | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), through the `tenancy.setting.write` command those rows need |
 | `TenantCustomFieldDef` | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
 | `TenantPageBlock` | [Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md) |
@@ -235,10 +236,16 @@ To browse a tenant on a host that matches production-like custom domains:
 127.0.0.1   demo-yoga.learnstack.local
 ```
 
-Then visit `http://demo-english.learnstack.local:3000`. The middleware resolves
-the host through `IHostToTenantResolver`, which reads `platform_host_to_tenant`
-and nothing else — never the Hub
-([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md)).
+The API resolves the host: `HostClassificationMiddleware` calls
+`IHostToTenantResolver`, which reads `platform_host_to_tenant` and nothing else — never
+the Hub ([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md))
+— and the renderer states the visitor's host to the API over the trusted hop
+([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)).
+The Next.js middleware at `frontend/apps/web/src/middleware.ts` is still a scaffold
+that copies the raw host into `x-tenant-id`, so the web app renders no tenant page on
+either host until [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md). Its
+§ Host-based tenant resolution, end to end owns the hostnames and the step a browser
+needs to reach them.
 
 ### Step 6: Verify
 

@@ -136,7 +136,6 @@ erDiagram
     Tenant ||--o{ TenantLessonItemType : "defines"
     Tenant ||--o{ TenantLevelTaxonomy : "defines"
     Tenant ||--o{ TenantScoringRule : "defines"
-    Tenant ||--o{ TenantBranding : "has"
     Tenant ||--o{ CustomDomain : "has 0..N"
     Tenant ||--|| TenantPlan : "subscribed to (via Hub)"
     Organization ||--o{ User : "has members"

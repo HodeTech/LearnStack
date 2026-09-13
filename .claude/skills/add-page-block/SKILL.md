@@ -197,7 +197,9 @@ the page.
 - JSON Schema validation test for the new primitive / tenant schema.
 - Renderer snapshot test.
 - Accessibility test (`axe-core` violations fail).
-- Lighthouse budget check for representative pages embedding the block.
+- Budgets in [Performance Standards](../../../docs/standards/15-performance.md) for
+  representative pages embedding the block — judged by reading until CI's
+  `lighthouse budget` job, deferred to Phase 02d, is active.
 
 ## Validation
 

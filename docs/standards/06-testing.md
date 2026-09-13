@@ -214,7 +214,11 @@ If a test gets slow, fix the test before the suite.
 
 - A flaky test is a bug. Triage immediately.
 - Quarantined tests re-enabled within one sprint or deleted.
-- `Skip = "..."` requires a linked issue and a date.
+- A `Skip` fails CI: `scripts/assert-tests-ran.py` refuses any backend run whose results
+  report a case that did not run
+  ([`No_Architecture_Test_Is_Skippable`](21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)).
+  The frontend Vitest run is not yet checked; closing that is G38 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Live Classroom Testing
 

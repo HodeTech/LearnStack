@@ -302,10 +302,12 @@ domain the diff doesn't touch.
 - [ ] No `--force` on `main`; no `--amend` on a published commit.
 
 #### `15-performance.md`
-- [ ] Public-route Lighthouse budgets respected (LCP < 2.5s, INP < 200ms,
-  CLS < 0.05). **Not mechanically checkable yet** — `ci.yml`'s
-  `lighthouse-budget` job is a placeholder deferred to Phase 02d. Judge by
-  reading; do not report a pass or a failure as measured.
+- [ ] Public-route budgets in
+  [15-performance.md § Initial Budgets](../../../docs/standards/15-performance.md#initial-budgets)
+  and [§ Bundle Size](../../../docs/standards/15-performance.md#bundle-size) respected.
+  **Not mechanically checkable yet** — `ci.yml`'s `lighthouse-budget` job is a
+  placeholder deferred to Phase 02d. Judge by reading; do not report a pass or a
+  failure as measured.
 - [ ] Backend latency budget per module respected.
 
 #### `16-accessibility.md`

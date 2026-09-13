@@ -216,9 +216,13 @@ What it does not write yet, and which phase owns each:
    the `users` table arrives with
    [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md)'s Identity
    migration, and Packet 7 creates none.
-4. Customization data (`TenantContentType`, `TenantPageBlock`,
-   `TenantLevelTaxonomy`, …) — the Customization module is empty until
-   [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), which is what first needs them.
+4. Each tenant's **own** content type, level taxonomy and branding token values, and
+   the customization aggregates that have no schema yet (`TenantPageBlock`, …). The
+   built-in `card` content type and `plain` taxonomy are already written for both
+   tenants, since
+   [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). Which phase
+   adds each of the rest is in
+   [seed-tenant § Step 4: What a later phase adds](../seed-tenant/SKILL.md#step-4-what-a-later-phase-adds).
 5. SeaweedFS buckets and Meilisearch indexes — both adapters are demand-gated to
    [Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) under
    [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
@@ -245,12 +249,13 @@ open http://localhost:8080/realms/learnstack-hub/account
 # SeaweedFS filer UI (replaces the MinIO console of the prior stack)
 open http://localhost:9001       # S3 access: learnstack / learnstack-dev-secret
 
-# Web app
-open http://localhost:3000       # one of the demo tenants
-
-# A second demo tenant (use the Hosts file to alias)
-# /etc/hosts: 127.0.0.1 demo-yoga.learnstack.local demo-english.learnstack.local
-open http://demo-english.learnstack.local:3000
+# Web app (after `pnpm --filter @learnstack/web dev`): the scaffold page only.
+# `localhost` is a platform host (Tenancy:PlatformHosts in
+# appsettings.Development.json) and never resolves a tenant. No tenant-rendered
+# page exists on any host yet: browsing the two demo tenants, and the host step
+# it needs, arrive with Phase 02d (docs/roadmap/phase-02d-walking-skeleton.md
+# § Host-based tenant resolution, end to end).
+open http://localhost:3000
 ```
 
 ### Step 6: Switch deployment modes locally
@@ -287,7 +292,6 @@ dotnet run --project backend/src/LearnStack.Api
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
-| Web app shows raw i18n keys | i18n bundle build skipped; `pnpm build:i18n`. |
 | Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |
 

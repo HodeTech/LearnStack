@@ -25,10 +25,10 @@
 #     § Branch protection.
 #
 # Still deferred to later phases. Each is scaffolded behind a repository variable
-# (`vars.ENABLE_*`), unset by default, so activation is one variable plus the
-# real steps. A constant `if: false` would be simpler but actionlint rejects it
-# ([if-cond] constant expression). Activation is never *only* the variable —
-# see .github/CONTRIBUTING.md § Branch protection for the three edits:
+# (`vars.ENABLE_*`), unset by default. A constant `if: false` would be simpler but
+# actionlint rejects it ([if-cond] constant expression). Activation is never *only*
+# the variable — .github/CONTRIBUTING.md § Branch protection lists every edit it
+# takes, including the rename and the live required-check registration:
 #   - openapi-diff        : oasdiff against the prior `main` spec. Activates
 #     in Phase 02d, which ships the first real `/api/v1/*` read endpoints and
 #     retires `/healthz` as the only documented surface.

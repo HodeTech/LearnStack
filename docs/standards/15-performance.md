@@ -38,15 +38,17 @@ Budgets are reviewed quarterly against measured production metrics.
 
 - Read-through cache for stable, public, read-heavy data (published page render, course catalog list).
 - Cache invalidation triggered by integration events from the producing module.
-- Cache keys include `tenant_id` and `locale` where relevant.
+- Cache keys carry the tenant, the organization where applicable, and the locale
+  ([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist)).
 - TTL chosen per content type; default 5 minutes for catalog, 1 minute for course detail.
 - Cache hit ratio per cache name surfaced as a metric.
 
 ### Pagination
 
-- All list endpoints paginated. Default `limit = 20`, max `limit = 100`.
-- Cursor pagination by default; offset only for bounded admin lists.
-- API rejects requests without explicit pagination on resource collections.
+- All list endpoints are paginated as
+  [API Standards § Pagination](04-api-design.md#pagination) specifies; that section owns
+  the default and maximum `limit`, the answer to an absent `limit`, and when offset
+  pagination is allowed.
 
 ### Background Work
 

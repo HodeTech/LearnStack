@@ -58,9 +58,13 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
   `IEntitlementProvider.RefreshAsync`, and never calls the Hub to read it.
 - **Certificate material.** It moves by secret-store replication and is
   referenced by path; `tenant_domains` carries verification state and no keys.
-- **Branding tokens.** `OrganizationBranding` and the token merge are
-  [Phase 06](../../roadmap/phase-06-renderer-admin-studio.md); the column arrives with
-  them rather than as an unused `jsonb` nobody writes.
+- **The per-organization branding override.** `OrganizationBranding` and the token merge
+  are [Phase 06](../../roadmap/phase-06-renderer-admin-studio.md); the column arrives
+  with them rather than as an unused `jsonb` nobody writes. The tenant's own token
+  values are not a separate store: they are `TenantSetting` rows
+  ([Frontend Architecture Standards § Tenant Branding](../../standards/07-frontend-architecture.md#tenant-branding)),
+  and their key set and value grammar are G16 in
+  [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - **Any domain-specific shape.** CEFR levels, asana catalogs, kyu/dan ranks and
   every other vertical concept are tenant customization data
   ([ADR-0018](../../decisions/0018-tenant-driven-customization-model.md)), not

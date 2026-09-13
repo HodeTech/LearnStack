@@ -99,7 +99,8 @@ Rules:
 ## Locale Resolution
 
 - Public-site URL: `/{locale}/...`.
-- Default locale from tenant settings.
+- Default locale from the tenant's default `tenant_locales` row, which the Tenancy
+  module owns ([ADR-0008](../decisions/0008-localization-schema.md)).
 - Locale propagated as `X-Locale` to downstream API calls.
 - Client-side locale switching triggers `router.push` to the new locale path.
 
