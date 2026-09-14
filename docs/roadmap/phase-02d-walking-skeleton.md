@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-09-13).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-09-14).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -9,7 +9,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
-> | P02d-1 | Education schema and database-level isolation | decision pass Accepted — 2026-09-14; [closed parts and delivery status](#delivery-record-p02d-1) |
+> | P02d-1 | Education schema and database-level isolation | implementation verified — 2026-09-14; final review in progress; [delivery record](#delivery-record-p02d-1) |
 > | P02d-2 | Writers and seed | not started |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
@@ -259,7 +259,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 
 | Packet | Contents | Cannot start until |
 |---|---|---|
-| **P02d-0** | Phase entry: this plan — the inherited baseline, the packet table, the decision register, criteria that name their evidence, and the corrections to the documents that contradicted the phase. It answers no gate. The required-check edits CONTRIBUTING records as outstanding are due no later than `P02d-1` | Phase 02a exits (met) |
+| **P02d-0** | Phase entry: this plan — the inherited baseline, the packet table, the decision register, criteria that name their evidence, and the corrections to the documents that contradicted the phase. It answers no gate. The required-check edits identified at kickoff belong to `P02d-1`; its [delivery record](#step-3--packet-completion-2026-09-14) records their repair | Phase 02a exits (met) |
 | **P02d-1** | Education schema and database-level isolation: the Education migration chain (`courses`, `lessons`, both translation satellites) with its policies, grants, foreign-key indexes and immutability triggers; the insert-time organization control; aggregates and EF configuration; the structural guards; the schema-level Education isolation suite as `learnstack_app`; the Education module spec skeleton and its pinned-list entry | G1, G2, G3 (values), G4, G5 (column), G6 (a), G7, G8, G9, G10 (order), G26 (slug grammar) Accepted |
 | **P02d-2** | Writers and seed: the Education write commands and the Tenancy locale and setting commands, with their catalogue sources, matrices and composition-root registration; the Customization contract the lesson writer calls; the seeder's acts, contexts, ordering and re-run behaviour; each tenant's own content type, taxonomy, locales, branding, courses and lessons; `SeederTests` and the Packet 7 suite recomputed | G3 (commands and seeded states), G5 (validation), G7 (child derivation), G11, G12 (contract), G13, G14, G15, G16 (a–e), G17, G18, G19, G20 (literal source), G21 (subresources), G23 (bound) Accepted; P02d-1 |
 | **P02d-3** | Read internals, no HTTP: the generation-keyed customization projection and its cache families; the typed settings accessor | G12 (cache key), G22, G23 (accessor), G24 Accepted; P02d-2 |
@@ -445,10 +445,12 @@ isolation surfaces. The following are confirmed against this pass's baseline:
   mechanisms: ADR-0043 refuses all schema cycles. The Phase 05 wording is corrected.
 - The extension overview's stale phase table and runtime claims, and Phase 04's stale
   customization uniqueness premise, are corrected against the canonical owners.
-- Live GitHub branch protection still requires `meta (commit hygiene + link audit)`
-  while CI reports `meta (compose + commit hygiene + link audit)`, and does not require
-  `backend integration (Testcontainers)`. The exact required-check update is part of
-  P02d-1, preserving the other checks and maintainer-approved settings.
+- The decision-pass inspection found that live GitHub branch protection required
+  `meta (commit hygiene + link audit)` while CI reported
+  `meta (compose + commit hygiene + link audit)`, and did not require
+  `backend integration (Testcontainers)`. The approved exact repair preserves the
+  other checks and maintainer-approved settings; [Step 3](#step-3--packet-completion-2026-09-14)
+  records its application and verification.
 
 The relevant corpus includes the roadmap baseline and exit criteria; Domain Model,
 module boundaries, tenant isolation, localization and customization architecture;
@@ -1045,10 +1047,10 @@ are hard-coded route segments.
   Lighthouse is neither an end-to-end suite nor WCAG conformance.
 - **Activation and required checks.** Each deferred job activates through the edits
   [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
-  lists, with its skip condition per **G31**. The two required-check edits CONTRIBUTING
-  records as outstanding — requiring `backend integration (Testcontainers)` and the
-  `meta` check under the name it reports — are this phase's no later than its first
-  Education migration, because
+  lists, with its skip condition per **G31**. P02d-1 [repairs and verifies](#step-3--packet-completion-2026-09-14)
+  the two inherited required-check gaps — `backend integration (Testcontainers)` and
+  the `meta` check under its current name — before the first Education migration merges,
+  because
   [Git Workflow Standards § Checks](../standards/14-git-workflow.md#checks) makes
   tenant-isolation tests a merge condition and the Education isolation suites run in
   that job.
@@ -1155,8 +1157,8 @@ catalogued legs are not implemented (**G28**), and the tenant-branching check is
 - The CI gates the corpus assigns here: the OpenAPI breaking-change check over a
   committed snapshot and the SDK drift gate (**G31**), each activated through
   CONTRIBUTING's edits and shown able to fail, and the Lighthouse budget likewise if
-  **G44** activates it in this phase; and the two outstanding required-check edits, made
-  no later than the first Education migration merges.
+  **G44** activates it in this phase; and the two inherited required-check edits,
+  [verified in P02d-1](#step-3--packet-completion-2026-09-14) before the first Education migration merges.
 
 **Server-rendering path**
 
@@ -1305,8 +1307,8 @@ depends on an open gate name that gate, and are written in full when it is Accep
   records, while matching inserts in the same test succeed. An organization-scoped
   session's `INSERT` of a tenant-wide row into `courses` and `tenant_settings` has the
   outcome G7 records, and
-  `An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row`, which today asserts
-  only `UPDATE` on `tenant_settings`, asserts `INSERT`, `UPDATE` and `DELETE` of a
+  `An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row` now asserts
+  `INSERT`, `UPDATE` and `DELETE` of a
   tenant-wide row on both tables. On each of `courses`, `lessons`, `course_translations`
   and `lesson_translations`, an organization-scoped session's `UPDATE` or `DELETE` of a
   tenant-wide row affects no row or is refused, and its `INSERT` has the outcome G7
@@ -1794,7 +1796,9 @@ otherwise
 - **An activated check gates nothing.** Required checks match by name, and a job skipped
   by its `if:` condition satisfies a required check.
   [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
-  records the required-check edits still outstanding, and admin bypass stays possible. A
+  records the five checks made required in P02d-1; admin bypass remains possible under
+  the separate maintainer decision. The later OpenAPI and Lighthouse activations still
+  need their own live verification. A
   first run over a base with no `/api/v1` operations cannot fail, and neither can a
   Lighthouse run over placeholder pages. The mitigation is the live required-check list
   recorded at exit, a per-pull-request rollup comparison, and a planted failure per
@@ -1865,10 +1869,10 @@ served by one backend binary, one `apps/web` application and one database — an
 publication/transition contract), G4, G5 (column), G6 (a), G7 (database controls and
 factory derivation), G8, G9, G10 (order), and G26 (slug grammar), through the
 [accepted answers](#p02d-1-accepted-answers). ADR-0048 is Accepted and ADR-0003 gains
-Accepted Amendment 6. The Education spec is design stable, the module matrix list
-includes Education, and the four structural rules are Registered. Production code,
-migrations, regression proofs and the live required-check changes remain to be
-implemented and verified in the approved sequence above. P02d-1 is in progress.
+Accepted Amendment 6. At this decision commit, the Education spec became design stable,
+the module matrix list gained Education, and the four structural rules were Registered.
+The following records distinguish that accepted design from its implementation and
+verification.
 
 ### Step 1 — Shared database controls (2026-09-14)
 
@@ -1937,5 +1941,65 @@ then passed after both the schema and CLR/model predicates were corrected. Each
 companion also removes its planted column and verifies the same detector is clean.
 All 41 Education structural cases pass with zero skips after this repair.
 
-Round 2 follows that fix commit with fresh reviewers. Packet completion and the
-approved live required-check repair remain in step 3.
+Round 2 reviewed the implementation and fix with three fresh reviewers. All approved
+without further findings. Independent focused runs passed 281 security/persistence
+cases and 129 structural/schema/migration cases, each with zero skips. The final full
+run after the repair passes **2,366** cases: 1,453 unit, 177 architecture, 735 integration
+and one contract, with zero skips.
+
+### Step 3 — Packet completion (2026-09-14)
+
+The approved GitHub repair was applied only to `main`'s `required_status_checks`
+endpoint. A fresh full-protection API read at **2026-09-14 13:04 UTC** verified the
+following snapshot, comparing check identities as a set because GitHub reordered the
+entries. All five retain GitHub Actions `app_id: 15368`; `strict` remains `true`.
+
+```json
+{
+  "strict": true,
+  "checks": [
+    { "context": "backend (build + unit + arch + contract)", "app_id": 15368 },
+    { "context": "frontend (typecheck + lint + build + test)", "app_id": 15368 },
+    { "context": "secret scan (leakwatch)", "app_id": 15368 },
+    { "context": "meta (compose + commit hygiene + link audit)", "app_id": 15368 },
+    { "context": "backend integration (Testcontainers)", "app_id": 15368 }
+  ]
+}
+```
+
+Verification command:
+`gh api repos/HodeTech/LearnStack/branches/main/protection/required_status_checks`.
+The full before/after comparison also verified that every field outside
+`required_status_checks` remained unchanged, including the separately approved
+single-maintainer exceptions. CONTRIBUTING and both affected standards-index rows now
+state the live setting. The later OpenAPI and Lighthouse gates retain their owning
+packets and open decisions.
+
+The previous packet's `main` merge commit was merged into `development` without
+rewriting history or switching branches. The tree before and after that merge was
+identical, and `origin/main` is now an ancestor of the packet branch. This satisfies the
+strict up-to-date requirement without changing the reviewed implementation.
+
+The final full backend run passes **2,366** cases with zero failures or skips; the
+nonempty-run checker verifies all four assemblies. Fresh-schema, populated upgrade,
+full reversal and app-role reapplication proofs pass. The manual aggregate review
+also confirms the accepted roles match the applied foreign keys: Lesson is a separate
+root with RESTRICT to Course; each plain satellite CASCADEs only to its own root.
+Education commands and public-read eligibility remain the explicitly owned work of
+P02d-2 and P02d-4.
+
+Informational coverage combines successful unit and integration runs by source
+line/branch identity, excluding generated `obj` and EF migration files: Education
+Domain is **235/235 lines and 80/80 branches (100%)**; Infrastructure is **139/152
+lines (91.45%) and 0/2 branches**. The uncovered lines and branches belong only to the
+design-time factory, exercised separately by the EF CLI model and SQL checks. The
+first solution-wide coverage attempt failed when a Coverlet-injected tracker type
+could not be resolved by NetArchTest's IL/reflection sweep; it is not passing evidence.
+The subsequent unit/integration coverage runs and uninstrumented **177-case**
+architecture run pass. The local-test skill now records that working procedure;
+no test or assertion was skipped or weakened.
+
+Backend formatting, all 177 architecture cases, 1,470 changed-Markdown relative
+path/anchor checks, the tracked-file `docs/analysis/` residual scan and strict commit
+hygiene pass. Two fresh-agent review rounds and the PR required-check rollup comparison
+follow this step's commit; packet review remains in progress until they are recorded.

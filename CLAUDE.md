@@ -60,8 +60,8 @@ reader. The whole .NET suite runs with **zero skips**, which the runner now refu
 let change.
 **[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is in progress**: its kickoff
 shipped the packet table and the decision register, and every later packet opens with
-its decision pass. P02d-1 Step 2 implements Education's domain and schema;
-packet review and Step 3's required-check repairs remain in progress. Education
+its decision pass. P02d-1 implements Education's domain and schema, and its five
+required CI checks are verified live; final packet review is in progress. Education
 commands and seed writes belong to P02d-2; public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

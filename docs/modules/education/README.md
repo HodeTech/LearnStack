@@ -1,7 +1,8 @@
 # Education Module
 
 **Status:** Domain and persistence implemented in P02d-1 Step 2 — 2026-09-14.
-Packet review, Step 3's required-check repairs and completion remain in progress.
+Implementation and the live required-check repair are verified; final packet review
+remains in progress.
 The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
 records the accepted scope. Commands, audit catalogue entries and seed writes remain
 planned for P02d-2; public reads remain planned for P02d-4.
