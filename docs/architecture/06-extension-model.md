@@ -218,8 +218,9 @@ or implement `IModuleExtension`.
   LearnStack ships the feature, gates it by plan.
 - **Renderer composite set is closed.** A tenant wanting a truly novel UI pattern must
   either compose existing primitives (fast path) or request LearnStack to add a new
-  composite (slow path, CODEOWNERS gate). The closed set is intentional — it prevents
-  the platform from becoming a wild west.
+  composite through the [platform registry and review process above](#6-frontend-rendering-of-customization-data).
+  Tenant definitions continue to select registered keys; expanding that vocabulary
+  is a platform change.
 - **JSON Schema authoring is harder than writing a C# class.** Admin Studio needs a
   visual schema editor (Phase 06+) to make this approachable for non-technical tenant
   admins.

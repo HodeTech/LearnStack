@@ -130,11 +130,21 @@ version and the corpus does not currently say which edits those are:
 - Strictly additive changes — an optional field with a default, a widened enum, a new
   facet — raise `schema_revision` within the same `schema_version`. Instances pin
   `schema_version` only; `schema_revision` is not part of any unique key.
+  The shipped `TenantContentType.ReviseSchema` permits body changes only while the
+  row is `Draft`; this counter does not permit mutating a published schema body
+  ([Customization spec § Risks and open questions](../modules/customization/README.md#risks-and-open-questions)).
 - The classification is not left to the author's judgement. On save, the editor diffs
   the submitted schema against the current revision and refuses an additive claim that
   removes or narrows anything.
 - `status` moves `draft → active → deprecated`. After first publish, `status` and
   presentation metadata are the only mutable columns on the row.
+
+**Open decision for this phase:**
+[ADR-0043 § 6](../decisions/0043-customization-payload-validation.md#6-there-is-no-compiled-validator-cache)
+deliberately leaves the lifecycle stage of a `schema_revision` bump unresolved.
+Resolve it before implementing the editor's revision workflow or extending that
+workflow to this phase's new customization aggregates, including how additive changes
+after publication fit the versioned identity and published-history requirements above.
 
 ### Page Model
 

@@ -2047,3 +2047,12 @@ The deferred OpenAPI and Lighthouse placeholders are outside this required set a
 retain their later packet gates. The PR's current check rollup is the verification
 source for any later head. P02d-1 is complete and the PR is ready for the maintainer's
 detailed review.
+
+The PR's subsequent automated review identified three corpus corrections: a remaining
+CODEOWNERS reference in the extension overview, omitted P02d-1 expansion metadata on
+the migration-order rule, and an ambiguous Phase 04 revision paragraph. The first two
+now match their current owners. The revision clarification records the shipped
+Draft-only body guard and links the lifecycle question that ADR-0043 § 6 already leaves
+with Phase 04; it does not introduce a successor-draft/history-storage design or change
+the accepted versioned identity. These documentation corrections preserve P02d-1's
+implementation and accepted scope.

@@ -1318,11 +1318,11 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   named rule the only thing that catches it.
 - **Source:** [05-database.md § Migrations](05-database.md); the `migrate` target.
 - **Type:** xUnit + Makefile and directory inspection. **Kind:** structural.
-- **Status:** **Implemented** (Packet 9 step 3,
+- **Status:** **Implemented** (Packet 9 step 3; expanded in P02d-1 Step 2,
   `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
-  Mutation-checked: deleting the Tenancy prefix from the recipe fails this case and
-  no other.
-- **Phase:** 02a (Packet 9).
+  Mutation-checked: deleting the Tenancy prefix fails this case; the Audit-first and
+  Education-first companions each exercise and repair the same order detector.
+- **Phase:** 02a (Packet 9); expanded in 02d (P02d-1).
 
 #### `Migrate_Target_Refuses_An_Aliased_Runtime_Credential`
 
