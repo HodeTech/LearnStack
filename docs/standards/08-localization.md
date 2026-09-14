@@ -27,6 +27,13 @@ Localization covers:
   across organizations — see [§ Pattern A](#pattern-a--side-translation-table-default-for-content-shaped-entities).
 - Fallback chain: requested → tenant default → field-level fallback (if allowed) → render-safe missing-content state.
 
+> **Open in Phase 02d.** Whether a schema marker such as `isLocalized` exists (G4),
+> whether a read resolves under a disabled locale and what a tenant with no locale rows
+> serves (G13), and which document owns the display fallback chain — this list and
+> [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules)
+> state different ones (G24) — are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
 ## URL Strategy
 
 Public URLs:
@@ -179,6 +186,13 @@ var msg = _stringLocalizer["course.publish.success"];
 - IETF BCP 47: `tr`, `en`, `en-GB`, `de`. Lowercase.
 - Always store the full code, not a truncated form.
 - An enum-like registry of supported locales lives in `LearnStack.SharedKernel.Locales`.
+
+> **Open in Phase 02d.** The shipped `LocaleTag` canonicalizes a script subtag
+> Title-cased and a region uppercased (`tr-TR`, `zh-Hans`), which "Lowercase" does not
+> describe, and no `LearnStack.SharedKernel.Locales` namespace exists. Which spelling
+> content tables and request parameters use (G6) and whether a platform registry bounds
+> a tenant's enabled set (G13) are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Right-to-Left
 

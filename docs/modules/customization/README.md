@@ -238,7 +238,7 @@ In [audit.md](audit.md), the file
 | Path | Budget | Why this number |
 |---|---|---|
 | Resolve a tenant's live definitions (cache hit) | **< 1 ms** | On every render of every page |
-| Resolve a tenant's live definitions (cache miss) | **< 20 ms** p95 | Two indexed reads on partial unique indexes |
+| Resolve a tenant's live definitions (cache miss) | **< 20 ms** p95 | Two indexed reads on partial unique indexes. How a request learns the generation, in what order the loader reads it and the rows, and how many statements a read issues are G22 in [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register); the pass that closes it edits this row and the cache-hit row with its answer |
 | Admit a tenant-authored schema (four gates) | **< 50 ms** p95 | Interactive, on save, and rare |
 | Validate one instance at the § 8.4 caps | **742 ms, 1.6 GB** | Measured worst case, not a budget — see below |
 | Publish a successor (2 reads, 2 updates, 1 upsert) | **< 100 ms** p95 | Interactive but rare |

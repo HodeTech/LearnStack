@@ -253,8 +253,8 @@ prompt for that agent so it doesn't have to re-learn the context. Use the
 [code-review § Generating a review-agent prompt](../code-review/SKILL.md)
 template. The prompt must:
 
-- Set the project context (LearnStack PaaS, pre-implementation phase, the
-  hard-rules summary).
+- Set the project context (LearnStack PaaS, the live phase from `CLAUDE.md` § What
+  state this is in, the hard-rules summary).
 - Point at the specific commit / branch / file list under review.
 - Tell the review agent to walk security + bug / potential bug + optimisation
   + refactor + standards conformance.

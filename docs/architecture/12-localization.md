@@ -48,6 +48,10 @@ CREATE TABLE tenant_locales (
 
 A tenant with no `tenant_locales` row falls back to the platform default (`en`).
 
+> **Open in Phase 02d.** Nothing implements this fallback yet; what a tenant with no
+> `tenant_locales` row serves is G13 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
 The shipped table is the Tenancy module's migration, which adds the audit-free
 composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
 tenant-wide policy; this fence is the column sketch, not the DDL.
@@ -176,6 +180,12 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 
 ## Fallback Rules
 
+> **Open in Phase 02d.** This chain and the one in
+> [Localization Standards § Locale Model](../standards/08-localization.md#locale-model)
+> differ. Which is canonical, and the terminal state of a missing field or label, are
+> G24 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
 When the requested locale is unavailable:
 
 1. Try the requested locale (e.g. `tr-TR`).
@@ -194,6 +204,10 @@ Slugs are **per locale**. Two patterns:
 - **Locale-by-host**: `english.learnstack.io` always English, `ingilizce.learnstack.io` always Turkish. Available as a tenant-level configuration.
 
 The Next.js renderer reads tenant locale config at the edge and produces locale-aware routes.
+
+> **Open in Phase 02d.** Whether the edge reads it, and how the renderer gets a tenant's
+> locales, are G25 and G36 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 Slug uniqueness is `UNIQUE (tenant_id, locale, slug)`, declared on the translation table,
 and **flat across organizations**. The same entity can have completely different slugs
@@ -245,6 +259,12 @@ Keys are dotted, namespaced by feature, ICU MessageFormat for plural/select. The
 frontend uses a lightweight i18n library (e.g. `next-intl` or `react-intl`); the choice
 is ADR-0027, reserved and not yet made — see
 [the decisions index](../decisions/README.md#open-adr-drafts).
+
+> **Open in Phase 02d.** Where the catalogue lives — this tree,
+> [Localization Standards § Strings in Code](../standards/08-localization.md#strings-in-code)
+> and the `add-i18n-key` skill each name a different path — and whether ADR-0027 is
+> Accepted in that phase are G39 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 API responses do **not** localise system-level identifiers, only human-facing strings. Error codes are stable English strings; human-readable messages are localised by the consumer when needed, using the locale from the JWT or request.
 

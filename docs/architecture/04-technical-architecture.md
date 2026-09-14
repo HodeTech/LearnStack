@@ -199,26 +199,43 @@ Full details: [Events & Outbox](15-event-and-outbox.md).
 - Tenant resolution at the edge / middleware layer; tenant context propagated via header into RSC and route handlers.
 - Typed API client generated from OpenAPI.
 
+> **Open in Phase 02d.** For what Phase 02d builds, whether the edge resolves a tenant
+> at all and whether the frontend ever holds a tenant or organization id are G25, what
+> the middleware carries inward and under which header is G36, and whether the SDK is
+> a hand-written transport over the generated `paths` or a typed client library is
+> G31 — all in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The passes that close them edit these bullets with their answers.
+
 Detailed conventions: [Frontend Architecture](14-frontend-architecture.md) and [Frontend Architecture Standards](../standards/07-frontend-architecture.md).
 
 ## Local Infrastructure
 
-`docker-compose` brings up:
+`make dev` brings up the default profile of
+[`infra/compose/dev.yml`](../../infra/compose/dev.yml), which
+[its README](../../infra/compose/README.md) describes service by service:
 
 ```
 postgres
-valkey
 seaweedfs            # single dev binary: master + volume + filer + S3 gateway
+mailpit
 meilisearch
 keycloak
-livekit-server
-livekit-egress
+livekit
 coturn
-mailhog
-otel-collector
 ```
 
+`make dev-gated` adds the `gated` profile — Valkey, Kafka, kafka-ui, Vault, APISIX and
+the two Dapr containers ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+
 Application projects run **outside** containers during active development for fast iteration. CI runs identical container versions.
+
+> **Open in Phase 02d.** Where the API and the web app run relative to each other, on a
+> workstation and in the CI job that renders the pages, is G33; what `make demo` starts
+> and waits on over this stack is G45. Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> They are answered in the decision passes of the packets they block, and those passes
+> edit this section with their answers.
 
 ## Observability
 

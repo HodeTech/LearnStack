@@ -131,11 +131,20 @@ frontend tooling table below.
 - Cover the MVP vertical slice (tenant → page → course → enrollment → live
   session).
 - ~10 high-signal scenarios.
-- **Owner:** the first flow arrives with the first rendered surface, in
+- **Owner:** the first flow arrives in
   [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), which also wires the
   axe accessibility checks that run through the same harness.
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) puts two tenants in a
-  browser but gates on a human opening them, not on a Playwright run.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) renders the first tenant
+  surfaces, puts two tenants in a browser and gates on a human opening them, not on a
+  Playwright run.
+
+> **Open in Phase 02d.** Whether automated evidence re-proves the page-level two-host
+> claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke
+> pulled forward from Phase 06, or a dated manual record — is G38 (c), and what
+> discharges ADR-0036's "Phase 02d's browser test" is G33, both in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The decision pass that closes either gate edits this section only if its answer moves
+> a browser smoke or the Playwright ownership into Phase 02d, citing the row.
 
 ## Frontend Test Types
 
@@ -153,6 +162,13 @@ Rules:
 - Snapshot tests only for stable visual primitives.
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
+
+> **Open in Phase 02d.** Phase 02d ships the platform's first public pages. The frontend
+> case set for its code is G38, and which accessibility checks on those pages fail a
+> build — including axe under jsdom rather than through Playwright, where the table
+> above places it — is G43, both in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes either gate edits this section where its answer departs from it.
 
 ## Tenant Isolation Tests
 

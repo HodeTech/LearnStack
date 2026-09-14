@@ -37,7 +37,7 @@ two scopes (tenant + organization):
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
 | PostgreSQL | The tenant term of the single policy: `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid` | The organization term `AND`-ed into that **same** policy, plus the restrictive `UPDATE` / `DELETE` write guards. Canonical SQL in [Database Standards](../standards/05-database.md) |
 | Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
-| Cache | Cache key auto-prefixed `{tenant_id}:{key}` | `{tenant_id}:{org_id}:{key}` when org context set |
+| Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. How the settings accessor keys a read whose rows depend on the session's organization is G23 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register); the decision pass that closes it edits this row if its answer changes it |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search | `tenant_id` as a mandatory filter composed **inside** `ITenantSearch` — callers pass criteria, never filter strings. Until Meilisearch's demand gate fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), search runs on PostgreSQL full-text over tenant-owned tables and inherits Row Level Security; the engine-enforced per-request tenant token arrives with the Meilisearch adapter in [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | `organization_id = X OR organization_id IS NULL` clause when org context |
 | Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
@@ -257,8 +257,8 @@ tenants/{tenant_id}/brand/...                                        ← tenant-
 ### Cache (Dapr State Store / Valkey)
 
 ```
-{tenant_id}:{org_id}:{module}:{logical-name}    ← org context set
-{tenant_id}:{module}:{logical-name}             ← tenant-wide or no org context
+{tenant_id}:{org_id}:{module}:{logical-name}    ← a value scoped to one organization
+{tenant_id}:{module}:{logical-name}             ← a tenant-wide value
 platform:hub:host-map:{normalized-host}         ← the host map
 platform:tenancy:killswitch                     ← the killswitch overlay
 ```

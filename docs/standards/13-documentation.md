@@ -21,7 +21,7 @@ docs/
   roadmap/        phase-NN-topic.md   (with phase-NNa / phase-NNb splits for parallel tracks)
   standards/      NN-topic.md   engineering rules
   runbooks/       *.md           operations procedures (Phase 11+)
-  modules/        NN-module/    per-module specs (created with the first module impl)
+  modules/        <module>/     per-module specs (one directory per module, created with its first spec)
   glossary.md     terminology
 ```
 
@@ -182,7 +182,10 @@ Common diagram types:
 
 ## Per-Module Specifications
 
-When a module reaches "design stable, ready to implement", it gets a spec under `docs/modules/<module>/` (this directory is created with the first module spec; it does not exist during pre-implementation) containing **at minimum**:
+When a module reaches "design stable, ready to implement", it gets a spec under
+`docs/modules/<module>/` — one directory per module, created with that module's first
+spec, the first being [Tenancy](../modules/tenancy/README.md)'s in Phase 02a Packet 6 —
+containing **at minimum**:
 
 - **Overview** — what the module owns, what it does not.
 - **Entity-relationship diagram** (Mermaid `erDiagram`) — aggregate roots, owned entities, cross-module id references.

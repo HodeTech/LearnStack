@@ -45,6 +45,17 @@ organization-scoped where it makes sense.
 
 ## 2. Generic primitive renderers
 
+> **Open in Phase 02d.** The closed set below is ADR-0018's and is not in question, and
+> no component for any of its keys exists yet. Which members Phase 02d implements,
+> whether `markdown` renders, and how a field with no row in the mapping table
+> (`integer`, `number`, `boolean`, an `enum`) maps are G18; how the page draws what that
+> subset does not, and where the primitive and composite components live, are G41. The
+> folder named in the comment below does not exist, and the shipped key registry sits
+> in `frontend/apps/web/src/lib/customization/`; neither answers G41. Both gates are
+> open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each edits this section with its answer.
+
 The frontend ships a **fixed, closed set** of primitive renderers:
 
 ```typescript
@@ -200,6 +211,13 @@ output_format: { type: "string", enum: ["a1","a2","b1","b2","c1","c2"] }
 ```
 
 ### Example B — Yoga studio platform
+
+> **Open in Phase 02d.** Phase 02d seeds a yoga tenant whose content type is also keyed
+> `asana-pose`, and this example is not that seed. Which fields the seed declares — this
+> one has an `integer`, an `enum` and a video field — and which composite draws them are
+> G18; the yoga taxonomy's key is G14. Both are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each edits this example with its answer.
 
 `tenant_content_types`:
 
@@ -544,6 +562,20 @@ Two rules make this safe:
 Cache misses cost one indexed query per tenant per definition set. A cold pod serving its
 first request for a tenant performs at most three such queries, not one per entry.
 
+> **Open in Phase 02d.** This section owns the families, their keys and the generation
+> rule, and Phase 02d builds the first loader against them. What a key carries for a
+> lesson's bound revision is G12. The rest is G22: whether the loader runs in the
+> request's transaction; how a request learns the generation, and in what order it reads
+> it and the rows; what an absent row means, since a tenant that has never had a
+> customization has none; what keeps an entry filled inside a transaction that bumped
+> and rolled back unreachable; what the TTLs bound; how the adapter's `cache.name`
+> mapping matches a generation-embedded name; and how many statements a public read
+> issues, which the count above states without a generation read. Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each edits this section with its answer. The
+> `TenantPageBlock` family is [Phase 04](../roadmap/phase-04-cms-media-pages.md)'s, with
+> its aggregate.
+
 ### 8.3 The N+1 problem, and the limits that bound it
 
 The guided-sequence example in [§ 3](#3-worked-example-three-tenants-same-modules) is a
@@ -710,6 +742,14 @@ Admin Studio
 first; [Phase 06](../roadmap/phase-06-renderer-admin-studio.md) replaces them with the
 visual schema editor and preview pane. The screen tree above is the target; each row
 arrives with the aggregate it edits, per [§ 12](#12-phasing).
+
+> **Open in Phase 02d.** The branding keys Phase 02d's writer admits and its seed
+> writes, which the Branding screen later edits, are G16 (b). Whether
+> `tenancy.white_label_branding` governs applying theme tokens or only removing
+> LearnStack attribution is G16 (g). Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The Branding row's "(plan-gated)" records the plan this tree was written against; the
+> decision pass that closes G16 edits the row with its answer.
 
 ## 11. Hard architectural invariants
 

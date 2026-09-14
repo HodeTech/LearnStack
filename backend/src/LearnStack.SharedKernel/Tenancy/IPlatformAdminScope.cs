@@ -24,10 +24,10 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// announce to, because the role bypasses them — so it is outside both closed sets:
 /// the four writers of <c>ITenantContextAccessor.Current</c>
 /// (<see href="../../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md">ADR-0036
-/// § Rules</see>, which names it as explicitly not one) and the seven out-of-band
+/// § Rules</see>, which names it as explicitly not one) and the eight out-of-band
 /// setters (<see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
-/// Amendment 3</see>, whose closing property is that every one of them connects as
-/// <c>learnstack_app</c>).
+/// Amendments 3 and 7</see>, whose closing property is that every one of them connects
+/// as <c>learnstack_app</c>).
 /// </para>
 /// <para>
 /// <b>Entry is audited, and an entry that cannot be recorded does not happen.</b> Every

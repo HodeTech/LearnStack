@@ -284,6 +284,13 @@ per ADR-0018, not on `Membership` extension tables.
 
 > **Course vs. CourseVersion.** `Course` carries identity, catalog metadata, SEO, public visibility. `CourseVersion` carries the structure (modules, lessons, items) and is what enrollments and progress bind to. Editing a course never breaks a learner currently progressing through a published version.
 
+> **Open in Phase 02d.** Whether [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)
+> ships a minimal `CourseVersion` is G2, and which publication state `Course` carries
+> is G3, in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The split above is Phase 05's target model; see the note under
+> [§ Learning Content](#learning-content).
+
 ## Learning Content
 
 | Entity | Aggregate root? | Notes |
@@ -293,6 +300,17 @@ per ADR-0018, not on `Membership` extension tables.
 | `LessonItem` | Inside Lesson | Polymorphic: rich text, video, file, quiz reference, live-session reference, embedded tool. |
 | `LearningPath` | Yes | Optional cross-course traversal. |
 | `CompletionRule` | Inside CourseVersion | Determines when a lesson / module / course is complete. |
+
+> **Open in Phase 02d.** [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) ships
+> `Course` and `Lesson` ahead of Phase 05. Which aggregate `Lesson` belongs to and what
+> its parent is — an entity inside `Course`, its own root referencing `Course`, or a
+> minimal `CourseVersion` and default `Module` — is G2, and which publication state
+> `Course` and `Lesson` carry is G3, in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> Placing `Lesson` inside `Course` makes every lesson edit a structural change to
+> `Course`, which [§ Education Catalog](#education-catalog) says a published course
+> never undergoes. Where an answer departs from these tables, the pass that closes its
+> gate records an interim note here; the tables stay Phase 05's target model.
 
 ## Assessment
 

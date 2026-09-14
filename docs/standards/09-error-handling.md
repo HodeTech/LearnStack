@@ -112,7 +112,7 @@ matching localization key adds the `lockey_` prefix.
 | `audit_unavailable` | A MUST-class audit row could not be written durably | 503 |
 | `audit_unclassified_operation` | Operation absent from the audit catalogue | 500 |
 | `recording_consent_required` | Live session requires consent | 409 |
-| `unsupported_locale` | Locale not enabled for tenant | 400 |
+| `unsupported_locale` | Locale not enabled for tenant. Whether Phase 02d's public reads answer a not-enabled locale with this code or with `not_found` is G30 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the pass that closes it edits this row with its answer | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
 | `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |

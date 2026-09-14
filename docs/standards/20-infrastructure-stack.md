@@ -130,7 +130,7 @@ Rules:
 | Cache | `InMemoryCacheService` | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey | `DaprCacheService` → Valkey |
 | Secrets | `ConfigurationSecretProvider` | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault | `DaprSecretProvider` → Vault or file |
 | Entitlement | `NullEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` | `HubEntitlementProvider` (phone-home) | `SignedLicenseKeyEntitlementProvider` |
-| Host → tenant | Config / single tenant | Hub-mirrored projection | Hub-mirrored projection | Hub-mirrored projection | Config / `.lic` claim |
+| Host → tenant | `platform_host_to_tenant`, whose rows the seeder writes through `MapHostToTenantCommand` | Hub-mirrored projection | Hub-mirrored projection | Hub-mirrored projection | Config / `.lic` claim |
 | Phone-home | n/a | enabled | enabled | enabled (daily, 30-day grace) | disabled |
 | Error tracking ([ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)) | `NoOpErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` | `SentryErrorTracker` (optional; `NoOp` if no DSN) | `LocalFileErrorTracker` |
 | OTLP exporter target ([ADR-0032](../decisions/0032-exception-handling-logging-and-observability.md)) | local OTel Collector (dev compose) | central Collector | central Collector | customer-managed Collector | local file `/var/learnstack/otel/` |
@@ -259,6 +259,14 @@ drifts:
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |
 | `{tenant_id}:tenancy:settings` | `CacheKey.ForTenant(tenantId, "tenancy", "settings")` |
 | `{tenant_id}:audit:config` | `CacheKey.ForTenant(tenantId, "audit", "config")` |
+
+**`{tenant_id}:tenancy:settings` has a key and no reader yet.** The family and its
+`cache.name` mapping are shipped; nothing caches a settings read. Whether settings are
+cached at all, how a cached read keeps one organization's overrides from reaching
+another, and what bounds staleness before the `learnstack.tenancy.settings` event
+exists, are G23 in
+[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+The pass that closes it edits both `tenancy:settings` rows above with its answer.
 
 **`{tenant_id}:audit:config` has no eager invalidation, and that is a stated gap rather
 than an omission.** The projection is read by `IAuditConfigService` on the classification
@@ -546,7 +554,9 @@ are the Hub's public API, governed by the Hub repository.
   plane converts a Hub outage into a tenant-marketing-site outage.
 - A cache miss re-reads the table. An unknown host is a 404, not a Hub lookup.
 - The frontend edge calls the resolver via a thin API endpoint; the backend uses it
-  directly for inbound request resolution.
+  directly for inbound request resolution. Whether Phase 02d's renderer calls that
+  endpoint, or gets its per-host data another way, is G25 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - Custom-domain activations on Hub push a new host-mapping set; LearnStack updates
   `platform_host_to_tenant` and invalidates the resolver cache. Once the event-bus
   adapter lands, the same update also arrives as

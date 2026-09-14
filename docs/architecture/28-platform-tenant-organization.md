@@ -198,7 +198,7 @@ domain-specific shape comes from the tenant's customization data (ADR-0018).
 | **Audit** | Audit trail of every command + sensitive read | Retention policy (within plan limits) |
 | **Search** | Meilisearch tenant-scoped indexes per locale | Search-indexed content types (registered as data) |
 | **Domain** | Tenant subdomain (`{slug}.learnstack.app`) always | Custom domain (paid feature) via Hub admin |
-| **Branding** | Tenant brand tokens applied as CSS variables | Logo, colours, typography, custom CSS overrides (plan-gated) |
+| **Branding** | Tenant brand tokens applied as CSS variables | Logo, colours, typography, custom CSS overrides (plan-gated). Open in Phase 02d: the branding keys Phase 02d admits are G16 (b), and whether `tenancy.white_label_branding` governs applying theme tokens or only removing LearnStack attribution is G16 (g), in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register); the decision pass that closes G16 edits this row with its answer. |
 | **Localization** | Multi-locale per tenant; en + tr baseline | Adding/removing enabled locales |
 | **Integrations** | Webhook engine, OAuth client manager | Webhook subscriptions, OAuth client definitions |
 

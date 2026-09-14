@@ -140,7 +140,8 @@ Permission-aware UI hides actions the user cannot perform — but the API is aut
 
 ## Permission Matrix Template
 
-Every module ships this matrix as part of its module spec under `docs/modules/<module>/permissions.md` (the directory is created with the first module spec; it does not exist during pre-implementation):
+Every module ships this matrix as part of its module spec under
+`docs/modules/<module>/permissions.md`. The rows below are an example of its shape:
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|

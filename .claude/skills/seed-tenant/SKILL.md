@@ -243,9 +243,12 @@ the Hub ([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.
 ([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)).
 The Next.js middleware at `frontend/apps/web/src/middleware.ts` is still a scaffold
 that copies the raw host into `x-tenant-id`, so the web app renders no tenant page on
-either host until [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md). Its
-§ Host-based tenant resolution, end to end owns the hostnames and the step a browser
-needs to reach them.
+either host until [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md).
+
+> **Open in Phase 02d.** Whether the seed hosts stay under `*.learnstack.local` with the
+> alias above, and what step a browser needs to reach them, is G32 in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the pass that closes it edits this step with its answer.
 
 ### Step 6: Verify
 
@@ -301,6 +304,11 @@ To add a third domain showcase (e.g. music school):
    host row to the seeder's data set.
 2. Register the host in `/etc/hosts` and, from Phase 02d, expect it to render.
 3. Run `make seed`.
+
+> **Open in Phase 02d.** Whether a new host needs that hosts-file entry, and which
+> development domain it sits under, is G32 in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the pass that closes it edits step 2 with its answer.
 
 Its customization data — content types, level taxonomy, blocks, rules, templates —
 is added as each owning phase from § What a later phase adds lands the aggregate

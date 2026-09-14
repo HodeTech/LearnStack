@@ -87,6 +87,13 @@ public sealed class RateLimitForwardedForTests(ForwardedForHostFixture fixture)
         // against eleven without it. `RefuseAmbientForwardedHeaders` refuses to
         // start in that configuration; this asserts the other half — that the
         // header buys nothing while it is off.
+        //
+        // Open in Phase 02d: this caller is outside the trusted hop, and the case
+        // stays a non-hop case. How a request arriving over the hop is keyed and
+        // budgeted is G34 in Phase 02d's decision register at
+        // ../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register
+        // — the pass that closes it edits "it must stay that way" above with its
+        // answer.
         using var client = fixture.CreateClient();
         var path = new Uri("/healthz", UriKind.Relative);
         var rejected = 0;

@@ -106,9 +106,20 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 ## Styling
 
 - Tailwind CSS for utility-first styling.
-- Design tokens defined in `packages/ui/tokens/`; tenant theme overrides applied at layout level.
+- Design tokens are the `--ls-*` CSS custom properties that
+  [Frontend Architecture Standards § Tenant Branding](07-frontend-architecture.md#tenant-branding)
+  names. Their defaults are declared in `apps/web/src/app/globals.css`, and the shared
+  Tailwind preset in `packages/config/tailwind` reads them. `packages/ui` holds no
+  tokens, because [ADR-0009](../decisions/0009-frontend-single-app-first.md) extracts a
+  shared package only when duplication is real. Tenant theme overrides are applied at
+  layout level.
 - No inline `style={{}}` except for runtime-computed values (e.g. progress bar width).
 - `clsx` / `tailwind-merge` for conditional class composition.
+
+> **Open in Phase 02d.** Which tenant tokens exist and the value each accepts is G16;
+> how they reach the server-rendered HTML is G42. Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each gate edits this section with its answer.
 
 ## Server Actions
 
@@ -150,6 +161,15 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 - `console.error` only via a centralized `logger` wrapper that ships to Sentry.
 - Never `alert()`. Use toast or modal system.
 - Error boundaries at route-group level for graceful fallbacks.
+
+> **Open in Phase 02d.** `apps/web` has no `logger` wrapper and no Sentry client yet.
+> Which parts of
+> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability)
+> ship in Phase 02d, the wrapper's Sentry capture among them, and which phase owns the
+> rest are G35. Whether the `(public)` route group ships its own error, loading and
+> not-found files in Phase 02d is G40. Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each gate edits this section with its answer.
 
 ## Forbidden
 
@@ -196,6 +216,16 @@ features/<feature>/
   schemas.ts       # zod schemas
   types.ts
 ```
+
+> **Open in Phase 02d.** Three questions these trees answer are open for the public
+> renderer. Where the UI string catalogue lives is G39: `packages/i18n/` is one of
+> several homes the corpus names, and `frontend/packages` holds no such package. What
+> `packages/sdk` becomes once regeneration fills `paths` is G31; today it holds
+> generated types beside hand-written factories. Where the lesson page's composite and
+> primitive field components live — `packages/ui/`, a route group's or a feature's
+> `components/`, or elsewhere — is G41. Each is a row in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes it edits this section with its answer.
 
 ## Comments
 

@@ -66,7 +66,12 @@ The Content module keeps the half that is genuinely its own:
   through Mechanism #1 — an application contract in
   `Customization.Application.Contracts` that resolves a `(tenant_id, key,
   schema_version)` tuple to its JSON Schema and reports whether the revision is still
-  publishable.
+  publishable. [Phase 02d](phase-02d-walking-skeleton.md)'s lesson writer calls this
+  contract first, so whether it resolves an exact revision or binds the Active one for
+  a key, whether it is an interface or a query, and which revisions a writer may bind
+  are G12 in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
+  P02d-2's decision pass closes that part of G12 and edits this bullet with its answer.
 - Referential integrity is therefore enforced in the application, and the failure mode
   is explicit: deleting a schema revision requires a zero-instance count across the
   tenant, per [ADR-0013](../decisions/0013-page-block-schema-versioning.md).
@@ -177,6 +182,12 @@ one thing a per-table constraint cannot do.
   otherwise names only the slug and the locale, because naming a row in another
   organization would leak across the boundary Row Level Security exists to hold. It is
   never resolved by picking a winner at render time.
+
+> **Open in Phase 02d.** For `Course` and `Lesson`, whose translation rows hold their
+> slug from the moment they are inserted under the key Phase 02d ships, which command
+> reports a collision, and whether it is still the publish command, is G11 in
+> [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes it edits this section with its answer.
 
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
 per-locale publish readiness, and locale negotiation from `Accept-Language` for
@@ -380,7 +391,10 @@ describes.
   second publish returns a business-rule failure naming the first. The same holds for a
   page and a redirect competing for one root path, and for an organization-scoped entity
   competing with a tenant-wide one. An integration test attempts all three and the
-  database rejects each, connected as `learnstack_app`.
+  database rejects each, connected as `learnstack_app`. For courses, which command
+  reports the collision, and so whether the second one fails at publish, is G11 in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this criterion.
 - When the conflicting row belongs to another organization, the failure names the slug and
   the locale but not the row — asserted by a test, because the constraint is enforced with
   Row Level Security bypassed and the handler has to make that choice deliberately.

@@ -68,6 +68,14 @@ Before requesting reviews, run the relevant checklist on your own diff:
 - [ ] Accessibility: every interactive element keyboard-reachable; labels associated; color contrast checked; axe-core tests pass.
 - [ ] Bundle size delta acceptable on public routes (< 200 KB gzipped per route).
 
+> **Open in Phase 02d.** No axe-core suite exists in `frontend/` today, and
+> [Testing Standards § End-to-End Tests](06-testing.md#end-to-end-tests) assigns the
+> Playwright axe run to [Phase 06](../roadmap/phase-06-renderer-admin-studio.md). Which
+> accessibility checks fail a build on Phase 02d's public pages — route tests,
+> `jsx-a11y` at error severity or component axe — is G43 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes it edits the accessibility box with its answer.
+
 If a checkbox doesn't apply to your diff, omit it. If you cannot tick a checkbox, fix the gap before requesting review.
 
 ## Priority Order

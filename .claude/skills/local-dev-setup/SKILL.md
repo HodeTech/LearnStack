@@ -260,9 +260,13 @@ open http://localhost:3000
 
 ### Step 6: Switch deployment modes locally
 
-Edit `.env` to flip `DEPLOYMENT_MODE`. This changes the composition paths that
-already exist, such as error tracking and telemetry. It does not make the
-demand-gated Dapr adapters exist early:
+Set `Deployment__Mode` in the shell that runs `dotnet run`, or `Deployment:Mode` in the
+user-secrets store Step 3 uses, to flip the mode. Editing `.env` does nothing: it has no
+mode key, and `dotnet run` reads no `.env` (Step 3). The committed value is
+`Development`, under `Deployment:Mode` in `appsettings.Development.json`, and the
+composition root refuses to start without the key rather than defaulting it. The mode
+changes the composition paths that already exist, such as error tracking and telemetry.
+It does not make the demand-gated Dapr adapters exist early:
 
 | Value | What happens |
 |-------|--------------|
@@ -277,7 +281,7 @@ For **every** value today, the three demand-gated ports still resolve to
 `ConfigurationSecretProvider`. `DaprEventBus`, `DaprCacheService`, and
 `DaprSecretProvider` land in Phase 11 only after their ADR-0035 triggers fire.
 
-After changing `.env`, stop and rerun the API process:
+After changing the mode, stop and rerun the API process:
 
 ```bash
 # In the terminal running `dotnet run`, press Ctrl+C, then:
@@ -307,12 +311,17 @@ state.
 
 ## Validation
 
+> **Open in Phase 02d.** Which hostnames serve the two demo tenants, and the step a
+> browser needs to reach them, is G32; what `make demo` starts and guarantees is G45.
+> Both are in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each adds its check to this list with its answer.
+
 - `make dev` exits 0; after starting the API separately, `/healthz` responds 200.
 - After `make dev-gated` and with that API running, APISIX forwards `/healthz`.
-- The web app loads against a demo tenant's host (either default subdomain or
-  Hosts-aliased custom domain).
+- The web app serves the scaffold page on `http://localhost:3000` (Step 5); no tenant
+  page renders on either demo host yet.
 - Keycloak login works for both realms.
-- A test learner can complete a lesson against the seeded English tenant's data.
 - `dotnet test backend/tests/LearnStack.Tests.Integration` passes against the
   same containers (the Testcontainers fixture is independent; this is just a
   consistency check).

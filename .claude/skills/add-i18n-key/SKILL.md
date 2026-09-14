@@ -19,6 +19,15 @@ Manage user-facing translations in `apps/web` consistently per
 [08-localization.md](../../../docs/standards/08-localization.md) +
 [ADR-0008 Localization Schema](../../../docs/decisions/0008-localization-schema.md).
 
+> **Open in Phase 02d.** None of the machinery below exists today: no
+> `frontend/apps/web/src/i18n/` tree, no i18n library, no `pnpm lint:i18n` task, no
+> `no-literal-strings` rule, no `_deprecated.json`, and no screenshot or `axe-core`
+> test. Where the one UI string catalogue lives — this skill, Localization Standards
+> and Localization architecture name three different paths — and whether ADR-0027
+> picks the library in Phase 02d are G39 in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the pass that closes it edits this skill.
+
 ## When to use
 
 - A new screen / component renders user-facing English (or any language) text.

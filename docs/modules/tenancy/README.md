@@ -72,11 +72,11 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## Entity-relationship diagram
 
-Aggregate roots in the shipped code are `Tenant` and `Organization` — the two
-that implement `IAggregateRoot<TId>`; the promotion below adds `TenantDomain` and
-`TenantSetting`, which carry the shape of a root but which no command writes yet. `PlatformHostMapping` and `PlatformEntitlement` are
-projections rather than aggregates: nothing in this module mutates them through
-a root.
+Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
+`TenantSetting` — the four that implement `IAggregateRoot<TId>`, the last two by the
+promotion below. No command writes `TenantDomain` or `TenantSetting` yet.
+`PlatformHostMapping` and `PlatformEntitlement` are projections rather than
+aggregates: nothing in this module mutates them through a root.
 
 **The other four resolve two ways, and Packet 7 settles them as promotion.**
 `TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` each have
@@ -93,10 +93,15 @@ So the first pair becomes aggregate roots in their own right and the second
 becomes navigations inside `Tenant` — four roots in Tenancy, with a write to
 `TenantLocale` or `TenantFeatureFlag` bumping `Tenant.row_version` and the two
 promoted roots carrying their own.
-[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) writes the first command
-that touches any of them, which is the evidence the boundary had none of and
-where the promotion lands; provisioning writing `Tenant` and its default
-`Organization` in one transaction is sanctioned by enumeration in
+[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) lands the promotion, and none of
+its three commands touches `TenantDomain`, `TenantSetting`, `TenantLocale` or
+`TenantFeatureFlag`. The first commands that do — the locale and setting commands
+raising `tenancy.locale.write` and `tenancy.setting.write` — are Phase 02d's, and
+their shape is G11 in
+[Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+the pass that closes it edits this section with its answer. Provisioning writing
+`Tenant` and its default `Organization` in one transaction is sanctioned by
+enumeration in
 [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 
 ```mermaid
@@ -357,7 +362,7 @@ In [audit.md](audit.md), the file
 | Host → tenant resolution (cache miss) | **< 15 ms** p95 | One indexed single-row read in its own short transaction |
 | Entitlement projection read (L1 hit) | **< 1 ms** | Read on every feature check |
 | Tenant provisioning (3 statements) | **< 100 ms** p95 | Interactive but rare |
-| Settings read for a request | **< 5 ms** p95 | Cached; a miss is one indexed read |
+| Settings read for a request | **< 5 ms** p95 | Cached; a miss is one indexed read. Whether settings are cached before Phase 02b's `learnstack.tenancy.settings` event exists, and how a cached read keys tenant-wide and organization rows, is G23 in [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register); its pass edits this row |
 
 The two resolution numbers are the load-bearing ones: they sit in front of every
 request and are the only Tenancy work an anonymous visitor pays for.

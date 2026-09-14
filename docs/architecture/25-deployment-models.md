@@ -105,9 +105,22 @@ Internet
   connection, saturate the pool, and degrade every other tenant on the instance while
   every isolation test stays green.
 
-  What exists today: APISIX `limit-req` keyed on `remote_addr`, which throttles a noisy
-  client but not a noisy tenant — one tenant behind many IPs is unaffected, and many
-  tenants behind one NAT are punished together.
+  What exists today: the API's own anonymous limiter, which runs before host
+  classification and partitions every request on its socket peer
+  ([API Standards § Request and Response Limits](../standards/04-api-design.md#request-and-response-limits)).
+  APISIX's `limit-req`, keyed on `remote_addr`, fronts the API only once the gateway
+  lands, which [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates to
+  [Phase 11](../roadmap/phase-11-production-hardening.md). Each keys on the client, so
+  each throttles a noisy client but not a noisy tenant — one tenant behind many IPs is
+  unaffected, and many tenants behind one NAT are punished together. A server-side
+  renderer is such a NAT: every visitor it renders for, of every tenant, reaches the API
+  from one peer.
+
+  > **Open in Phase 02d.** How the anonymous limiter treats a request arriving over the
+  > trusted hop is G34 in
+  > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  > It is answered in the decision pass of the packet that ships the server-rendering
+  > path, and that pass edits this paragraph with its answer.
 
   What is required, and where it lives: **resource fairness is
   [Phase 11](../roadmap/phase-11-production-hardening.md)** — `statement_timeout` per

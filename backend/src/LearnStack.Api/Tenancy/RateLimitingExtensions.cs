@@ -37,6 +37,15 @@ namespace LearnStack.Api.Tenancy;
 /// 02b adds the token-keyed budgets Standards 04 also fixes, and adding a
 /// partition key that is constant-null today would be a partition in name only.
 /// </para>
+/// <para>
+/// <b>Open in Phase 02d.</b> A server-rendered page reaches the API from the
+/// renderer's peer, so under this key every visitor of such a page would share the
+/// renderer's partition. How a request arriving over the trusted hop is keyed and
+/// budgeted is G34 in
+/// <see href="../../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register">Phase
+/// 02d's decision register</see>; the pass that closes it edits this class and these
+/// remarks with its answer.
+/// </para>
 /// </remarks>
 public static class RateLimitingExtensions
 {
@@ -99,10 +108,14 @@ public static class RateLimitingExtensions
     /// <summary>
     /// Reads the socket peer, with the same caveat as the trusted hop:
     /// <see cref="IHttpConnectionFeature"/> is the storage
-    /// <c>UseForwardedHeaders</c> mutates, so if that middleware ever runs ahead
-    /// of this one, every request behind a proxy shares one partition — which
-    /// turns the limiter into a global cap. <c>Forwarded_Headers_Are_Not_Wired</c>
-    /// is the tripwire for both.
+    /// <c>UseForwardedHeaders</c> mutates, so if that middleware ever ran ahead of
+    /// this one, the key would become whatever address a forwarded header states —
+    /// a partition the caller mints for itself unless only a trusted proxy may
+    /// state it. The remarks on <c>RefuseAmbientForwardedHeaders</c> record the
+    /// measurement: zero rejections under a rotating <c>X-Forwarded-For</c>. In
+    /// the shipped state, with no such middleware, every request arriving through
+    /// one proxy shares that proxy's partition. <c>Forwarded_Headers_Are_Not_Wired</c>
+    /// is the tripwire for this key and the hop alike.
     /// </summary>
     private static string PartitionKeyFor(HttpContext context) =>
         context.Features.Get<IHttpConnectionFeature>()?.RemoteIpAddress?.ToString()

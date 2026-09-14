@@ -95,9 +95,14 @@ scoring and does not re-decide it.
 - Course version.
 - Category.
 - **Level** — `Level` rows are looked up by `(tenant_id, taxonomy_key, key)` against the
-  tenant's `TenantLevelTaxonomy` (CEFR for the English school, `Difficulty` for the yoga
-  studio, `Track` for a coding bootcamp). The taxonomy is data, not code; the `Level`
-  aggregate holds whatever items the active taxonomy declares.
+  tenant's `TenantLevelTaxonomy` (CEFR levels for the English school, difficulty levels
+  for the yoga studio, tracks for a coding bootcamp). A taxonomy key and an item key are
+  lowercase under
+  [ADR-0018's key rule](../decisions/0018-tenant-driven-customization-model.md#2026-09-04--customization-keys-and-item-keys-are-lowercase),
+  and a band's name is its `display_name`. Which key the yoga taxonomy uses is G14 in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
+  and the decision pass that closes it writes the key here. The taxonomy is data, not
+  code; the `Level` aggregate holds whatever items the active taxonomy declares.
 - Tag.
 - Instructor profile reference, with tenant-defined custom fields via
   `TenantCustomFieldDef` (which lands in [Phase 03](phase-03-identity-admin.md)) for

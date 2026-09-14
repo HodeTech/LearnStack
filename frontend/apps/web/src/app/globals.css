@@ -2,9 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tenant theme tokens default to neutral values; layouts override per tenant
- * via inline <style> from server-fetched tenant settings (Standards 07 §
- * Tenant Branding). */
+/* Tenant theme tokens default to neutral values. How a layout overrides them
+ * per tenant from validated tenant settings is G42 in Phase 02d's decision
+ * register (docs/roadmap/phase-02d-walking-skeleton.md; Standards 07 § Tenant
+ * Branding). */
 :root {
   --ls-primary: #1f6feb;
   --ls-bg: #ffffff;

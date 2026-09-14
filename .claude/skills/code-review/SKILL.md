@@ -81,9 +81,9 @@ Walk every change against the project's
 | **Tenant + organization isolation** | New tenant-owned entity has `[TenantOwned]` + EF filter + RLS policy + canonical `app.tenant_id` session var. `[OrganizationScoped]` covered the same way. Any `IgnoreQueryFilters` outside platform-admin paths is a zero-tolerance blocker per [17-code-review.md § Zero Tolerance](../../../docs/standards/17-code-review.md). |
 | **4-step auth order** | Every write use case checks in order: (1) Authn → (2) Tenant membership → (3) Role / permission → (4) Resource scope. Failure at each step returns the right Problem Details code (`unauthorized` / `tenant_mismatch` / `forbidden` / `resource_scope_violation`). Source: [11-security.md § Authorization](../../../docs/standards/11-security.md), [19-permissions.md § Enforcement Points](../../../docs/standards/19-permissions.md). |
 | **Authn / authz** | Every new endpoint has `[Authorize(Policy=…)]` or `[AllowAnonymous]` with a comment. Policy keys exist in the permission registry. Resource-scope handlers (`instructor` edits own course only) present where needed. |
-| **Tenant id from JWT only** | Never from request body / query / header that isn't authenticated. Check command and DTO surfaces. |
+| **Tenant id from the resolved context only** | Resolved per [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md): from the host lookup of the effective host, or on a platform host from validated claims confirmed by live membership; off HTTP, from the job parameters or the integration-event envelope. Never from a request body, query string, cookie or tenant header — `X-Tenant-Id` and `X-Organization-Id` are assertions that can only reject, on every hop. Check command and DTO surfaces. |
 | **SQL injection** | EF Core LINQ or `FromSqlInterpolated`; never raw string concatenation. Raw SQL has parameters. |
-| **XSS** | No `dangerouslySetInnerHTML` outside a sanitisation wrapper; CSP nonces in place; markdown via allowlist. |
+| **XSS** | No `dangerouslySetInnerHTML` outside a sanitisation wrapper; CSP nonces in place; markdown via allowlist. Nothing sets a CSP today: the [standards index](../../../docs/standards/README.md#honest-status-today) row for Security Standards carves § HTTP Headers out to [Phase 11](../../../docs/roadmap/phase-11-production-hardening.md#security), so a missing nonce is not a Blocker until that phase sets one. How Phase 02d's theme tokens reach the page without constraining that nonce-based target is G42 in [its decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the pass that closes it edits this row. |
 | **CSRF** | Server Actions / Auth.js session check; non-Action mutating fetches carry CSRF tokens. |
 | **Secrets** | No secret in source / appsettings / env-file-committed; reads through `ISecretProvider`. No log of token / password / national id. |
 | **PII redaction** | `[PiiSensitive]` fields carry `SensitiveTokenCatalog.RedactedValue` in audit snapshots — the property stays, so the diff still records *that* it changed; logs don't carry raw PII. |
@@ -128,7 +128,7 @@ Each finding → severity (Blocker / Major / Minor) + concrete fix.
 | **Bundle size (FE)** | Large dependency imported into a public-route Client Component. Lighthouse JS budget violated. |
 | **Re-render storm (FE)** | Context value computed inline in the provider — every consumer re-renders on every render. |
 | **Suspense boundary missing** | Server Component awaits slow data on the critical path; missing `<Suspense>` for streaming. |
-| **Per-tenant SSR cardinality** | Cache key includes tenant + org + locale + slug; reviewer can confirm memory budget. |
+| **Per-tenant SSR cardinality** | Cache key includes tenant + org + locale + slug; reviewer can confirm memory budget. Whether a `(public)` route may hold rendered output or fetched data in a Next.js cache at all is G37 in [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register); until it closes, [add-frontend-route § Step 8](../add-frontend-route/SKILL.md#step-8-public-site-ssr-caching) bars `revalidate`, `generateStaticParams` and `unstable_cache` there, and the pass that closes it edits this row. |
 
 ### Step 6 — Refactor / Clean Code lens
 
@@ -163,7 +163,13 @@ This is the lens that generic reviewers miss. Walk:
 - `docs/modules/<m>/audit.md` / `permissions.md` updated.
 - For frontend changes: route group is correct, SDK is the only API path,
   middleware-resolved `x-tenant-id` / `x-organization-id` honoured, no
-  hand-rolled `fetch('/v1/...')`.
+  hand-rolled `fetch('/v1/...')`. The API treats an `X-Tenant-Id` or `X-Organization-Id`
+  it receives as an assertion, never a source
+  ([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#one-header-names-a-host-and-it-is-still-not-a-source)).
+  Whether the frontend holds a tenant or organization id at all, and what the middleware
+  carries inward, is G25 and G36 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes them edits this item.
 - For customization changes: data-only, no domain term in core code.
 
 If the change is doc-only, the equivalent checks: no `docs/analysis/` refs,
@@ -179,7 +185,7 @@ change.
 | Outbox round-trip test for new integration event | Always |
 | Permission denied test for every new permission key | Always |
 | Boundary tests for every DSL band threshold | Scoring / completion rules |
-| Lighthouse / axe-core for public-route changes | Frontend — Lighthouse **from Phase 02d**, axe-core **from Phase 06**; neither is wired today, so do not raise a Blocker for a missing run |
+| Lighthouse / axe-core for public-route changes | Frontend — Lighthouse **from Phase 02d**, axe-core **from Phase 06**; neither is wired today, so do not raise a Blocker for a missing run. Whether Lighthouse activates in Phase 02d is G44 in [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the pass that closes it edits this row |
 
 A change without tests is incomplete; flag as Blocker unless the user
 explicitly deferred the test.
@@ -228,9 +234,9 @@ separate agent to run the review. Template:
 
 ````markdown
 You are the code-review agent for LearnStack, a multi-tenant PaaS for building
-education products. The repository is pre-implementation; current corpus is
-documentation under `docs/`. Read `CLAUDE.md` first for hard rules and the
-documentation layout.
+education products. Code ships under `backend/` and `frontend/` beside the corpus
+under `docs/`, and `CLAUDE.md` § What state this is in names the live phase. Read
+`CLAUDE.md` first for hard rules and the documentation layout.
 
 ## Scope of this review
 

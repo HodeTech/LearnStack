@@ -35,6 +35,13 @@
 #   - lighthouse-budget   : LHCI against the built Next.js app. Activates
 #     in Phase 02d, which ships the first content-bearing public pages (the
 #     two tenant catalog / lesson pages a visitor actually loads).
+#
+# Open in Phase 02d: whether lighthouse-budget activates there, on what harness,
+# over which pages and with which assertions is G44, and whether an activated job
+# keeps its `if: vars.ENABLE_*` condition is G31, both in
+# docs/roadmap/phase-02d-walking-skeleton.md § The decision register. The pass that
+# closes each gate edits this block, the deferred jobs and
+# .github/CONTRIBUTING.md § Branch protection with its answer.
 
 name: ci
 

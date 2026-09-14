@@ -141,9 +141,9 @@ public interface IUnitOfWork : IAsyncDisposable
     /// <para>
     /// <b>It does not widen the setter set.</b>
     /// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
-    /// Amendment 3</see> closes that set at seven, and <c>TransactionBehavior</c> remains
-    /// the only caller of this as it is of its sibling — this is the same setter
-    /// announcing a different value for one request shape, not an eighth.
+    /// Amendment 7</see> closes that set at eight, and <c>TransactionBehavior</c>
+    /// remains the only caller of this as it is of its sibling — this is the same
+    /// setter announcing a different value for one request shape, not a ninth.
     /// </para>
     /// <para>
     /// <b>Every way of misusing it throws rather than degrading.</b> No open transaction,

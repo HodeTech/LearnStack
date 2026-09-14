@@ -24,8 +24,10 @@ namespace LearnStack.SharedKernel.Validation;
 /// LearnStack boundary, and an in-process evaluator crosses nothing. It is here
 /// because four modules need it: Customization in
 /// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Packet 8</see>,
-/// Identity for <c>tenant_custom_field_defs</c> in Phase 03, Content for the
-/// validating bulk importer in Phase 04, and Education in Phase 05. A port in
+/// Education for lesson bodies in
+/// <see href="../../../../docs/roadmap/phase-02d-walking-skeleton.md">Phase 02d</see>,
+/// Identity for <c>tenant_custom_field_defs</c> in Phase 03, and Content for the
+/// validating bulk importer in Phase 04. A port in
 /// <c>Customization.Application.Contracts</c> would make three unrelated modules
 /// depend on Customization to reach a library wrapper.
 /// </para>

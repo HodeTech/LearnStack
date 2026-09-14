@@ -3501,6 +3501,14 @@ structural test proves — and what it does not.
   header produced **zero** rejections against eleven without it, and the
   composition root refuses to start in that configuration now.
 - **Phase:** 02a (Packet 4).
+- **Note:** the partition key is open for one class of request.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s server-rendered reads reach
+  the API over the authenticated trusted hop from the renderer's peer, so every visitor
+  of both seed tenants shares one partition. How the limiter keys and budgets such a
+  request is G34 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  An answer keyed on a visitor address the renderer states changes the "never comes from
+  a header" clause above, and the pass that closes G34 edits this entry.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
@@ -3687,7 +3695,12 @@ structural test proves — and what it does not.
   leg and the tenant-owned-write leg are Registered.
 - **Phase:** 02a (Packet 7) for the enumeration legs. The permitted-methods and
   tenant-owned-write legs arrive with the first `[PublicSurface]` request type, in
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md).
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Which methods that phase's rows
+  permit, `GET` alone or the `GET` / `HEAD` default, what the methods leg compares a row
+  against, and whether the write leg is a structural scan, a `READ ONLY` unit of work or
+  both are G28 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this entry with its answer.
 - **Note:** the two directions are not equally vacuous, and the existing note above covers
   only one of them. **Marked set → table** is vacuous while no type carries the marker.
   **Table → marked set** is live from the day it ships: the table may not name a type that

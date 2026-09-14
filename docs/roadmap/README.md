@@ -136,8 +136,12 @@ retrofit**, and **thin where it is not**:
   ([ADR-0033](../decisions/0033-audit-durability-model.md)). Audit correctness cannot be
   added later; audit *scale* can, and is.
 - Module boundaries stay clear; architecture tests enforce them from Phase 02a,
-  including `Core_Modules_HaveNo_DomainSpecific_Names` — the mechanical guarantee behind
-  the platform's entire premise.
+  including `Core_Modules_HaveNo_DomainSpecific_Names`, which keeps every name the
+  platform ships free of the forbidden domain terms. That rule reads names and strips
+  literals, so it cannot show that no production code branches on which tenant it
+  serves. What mechanically backs that claim is open as G20 in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
+  and the pass that closes G20 edits this bullet with its answer.
 - CMS and education catalog capabilities work together against tenant-defined content
   types, blocks, lesson items, taxonomies, and scoring / completion rules
   ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).

@@ -78,13 +78,23 @@ livekit-egress          # Phase 08c (recording / consent / cost model)
 otel-collector          # Phase 11 (Production hardening — observability stack)
 ```
 
-- Application projects run **outside** containers during active development; the Dapr
-  sidecar still runs alongside via `dapr run` or compose.
+- Application projects run **outside** containers during active development. No Dapr
+  sidecar runs beside them in the default loop: Valkey, Kafka, kafka-ui, Vault, APISIX
+  and both Dapr services sit behind the compose `gated` profile, which `make dev` does
+  not start and `make dev-gated` does, and nothing the backend runs today calls them
+  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md#the-gated-set)).
 - CI runs the same image tags as developers.
 - `.env.example` is the source of truth for required env vars; secrets in real
   environments come from Vault via `ISecretProvider`, not env files.
 - `infra/apisix/config.yaml` is the canonical APISIX standalone config; routes / plugins
   hot-reload on file change.
+
+> **Open in Phase 02d.** Where the API and the web app run when a browser renders both
+> seed tenants — on the workstation loopback, in containers or behind the gated APISIX —
+> how one trusted-hop secret reaches both processes, and what `make demo` starts, are
+> G33 and G45 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The passes that close them edit this section with their answers.
 
 ### Healthchecks and the readiness gate
 

@@ -43,6 +43,14 @@ Budgets are reviewed quarterly against measured production metrics.
 - TTL chosen per content type; default 5 minutes for catalog, 1 minute for course detail.
 - Cache hit ratio per cache name surfaced as a metric.
 
+> **Open in Phase 02d.** That phase ships the first course-catalog reads and the first
+> pages rendered from them, and no Education publish event to invalidate a cache with.
+> Whether those reads are cached at all, with what directive and what freshness, is G27;
+> which Next.js caches may hold the rendered pages is G37. Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> A pass whose answer caches edits this section with it, and the pass that closes the
+> later of the two gates removes this note.
+
 ### Pagination
 
 - All list endpoints are paginated as
@@ -103,6 +111,12 @@ Budgets are reviewed quarterly against measured production metrics.
 - Web Vitals collected via the Next.js reporting hook.
 - Dashboards track LCP, INP, CLS, FCP per route.
 - Regression on a critical route is a Sev-2 issue.
+
+> **Open in Phase 02d.** Whether web-vitals reporting ships with that phase's public
+> pages, and which phase owns it if not, is G35 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes it edits this section with its answer, together with
+> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability).
 
 ## Live Classroom
 

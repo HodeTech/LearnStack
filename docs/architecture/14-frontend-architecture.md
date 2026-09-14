@@ -61,6 +61,12 @@ frontend/
     config/                               # eslint, tsconfig, tailwind shared bits
 ```
 
+> **Open in Phase 02d.** Where composite and primitive components live (G41), where the
+> UI string catalogue lives (G39) and what `middleware.ts` resolves (G25, G36) are open
+> in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The tree records the plan written before them.
+
 The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
 tree.
@@ -74,13 +80,14 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 
 ## Tenant + Organization Resolution at the Edge
 
-> **Open in Phase 02d.** Whether the edge calls an API host lookup at all — and if so,
-> what it returns and how it states the visitor's host to the API — is G25 in
+> **Open in Phase 02d.** Whether the edge calls an API host lookup at all, and what it
+> returns, is G25; what the middleware carries inward and answers is G36; the server
+> SDK's transport, including the headers the sketch below sends, is G35; and how the
+> locale reaches the API is G30 — all in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> It is answered in the decision pass of the packet that ships the public reads. This
-> section's "Phase 02d ships it" and the diagram's host-lookup step record the plan the
-> section was written against. They are reconciled with the answer in that pass,
-> together with
+> This section's "Phase 02d ships it", the diagram's host-lookup step and the SDK sketch
+> record the plan the section was written against. Each pass reconciles them with its
+> answer, together with
 > [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution)
 > and
 > [Infrastructure Stack Standards § Host → Tenant Resolution](../standards/20-infrastructure-stack.md#host--tenant-resolution).
@@ -208,6 +215,11 @@ In text, for a reader whose renderer does not draw it:
 
 ## Rendering Strategies
 
+> **Open in Phase 02d.** How tenant-varying `(public)` routes render, and which caches
+> may hold tenant data, is G37 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The `(public)` row below records the plan written before it; that pass rewrites it.
+
 Per segment:
 
 | Segment | Strategy | Notes |
@@ -239,7 +251,9 @@ The first paint is themed; there is no FOUC because tokens are injected into the
 HTML.
 
 Logo and font assets are URLs (served from CDN). Custom fonts are validated and
-rate-limited at upload to prevent unbounded font payloads.
+rate-limited at upload to prevent unbounded font payloads. Whether branding may name a
+logo or font asset at all (G16) and whether a public page may load one from another
+origin (G21) are open in the same register.
 
 A `ThemeProvider` is **not** introduced unless dynamic theme switching is needed; the
 CSS-variable approach handles the static-per-request case (one render = one theme = one
@@ -416,6 +430,13 @@ The route-segment structure today is deliberately shaped to make this extraction
 mechanical.
 
 ## Risks
+
+> **Open in Phase 02d.** Two bullets below state answers Phase 02d has not given.
+> Whether the `(public)` routes it ships are cached at all, and on what key, is G37;
+> whether a brand-token set that fails the contrast check is refused or saved with a
+> warning is G16 (d). Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each gate edits its bullet with the answer.
 
 - **Per-tenant SSR cost** — caching is per `(tenantId, organizationId?, locale, slug)`.
   Cardinality is bounded; budget memory headroom.

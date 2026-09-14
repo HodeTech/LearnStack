@@ -677,10 +677,14 @@ settles it; what the phase ships either way:
   also needs a transport the session cookie can survive: `Secure` is a secure-channel
   attribute, the seed hosts are `*.learnstack.local`, and the frontend's dev script
   serves plain HTTP, so the cookie this phase sets would be accepted and never sent
-  back. The gate settles local TLS with its trust step and the matching callback and
-  post-logout URLs, or moves the dev hosts under `localhost`; what it may not do is drop
-  `Secure`. The login transaction's `state`, `nonce` and `code_verifier` live in a
-  host-only transaction cookie, and return URLs are validated.
+  back. Which transport and hostnames serve the seed tenants — local TLS with its trust
+  step, or the dev hosts moved under `localhost` — is **G32** in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
+  which closes before this phase starts; the pass that closes it edits this text with
+  its answer, and `P02b-0` re-verifies it. This gate settles the callback and
+  post-logout URLs that answer needs, and neither gate may drop `Secure`. The login
+  transaction's `state`, `nonce` and `code_verifier` live in a host-only transaction
+  cookie, and return URLs are validated.
 - **Logout**, which
   [Identity and Auth § Logout](../architecture/13-identity-and-auth.md#logout) describes
   and Phase 03 expects: the session cleared, the end-session endpoint called, and
@@ -1190,7 +1194,8 @@ shape depends on an open gate say so, and are written when that gate is Accepted
   `SameSite=Lax`, `Path=/` with no `Domain`; and no response body or script-readable
   cookie carries the refresh token. Asserting the header is not enough: on each real
   seed host a browser-level case shows the cookie **stored and sent back** on the next
-  request, which is what fails if the dev transport G12 settles is not in place.
+  request, which is what fails if the dev transport Phase 02d's G32 settles is not in
+  place.
 - Two concurrent requests with a near-expiry token produce exactly one token request at
   the issuer and one logical session version — counted as versions, not as `Set-Cookie`
   headers, because a session adapter may split one cookie across several and a correct

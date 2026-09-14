@@ -120,7 +120,7 @@ In `<Module>.Domain/<Name>/<Name>.cs`:
 public sealed class <Name> : AuditableEntity<<Name>Id>
 {
     public TenantId TenantId { get; private set; }
-    public OrganizationId? OrganizationId { get; private set; }   // nullable when row may be tenant-wide
+    public OrganizationId? OrganizationId { get; private set; }   // always nullable: null = tenant-wide
 
     // ... domain fields ...
 
@@ -136,8 +136,13 @@ public sealed class <Name> : AuditableEntity<<Name>Id>
 Rules:
 
 - `TenantId` is always set at construction; nullable is not allowed.
-- `OrganizationId` is nullable only for entities that may be tenant-wide; if the
-  entity is **always** org-scoped, make the property non-nullable.
+- `OrganizationId` is nullable on every `[OrganizationScoped]` entity — null means
+  tenant-wide — and `Every_OrgScoped_Entity_HasOrgIdAndFilter` fails a mapped
+  `organization_id` that is not nullable (Step 4).
+  > **Open in Phase 02d.** Whether a child or satellite row carries its parent's
+  > organization, and what forces it to at insert, is G7 in
+  > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  > The pass that closes it edits this rule with its answer.
 - Use `AuditableEntity<<Name>Id>` for mutable aggregates. **Never** `Entity<TId>`
   unless the aggregate is append-only (e.g. `AuditEntry`).
 - Domain events for state changes; don't write to other aggregates from this one.
@@ -500,7 +505,8 @@ See [add-integration-test](../add-integration-test/SKILL.md).
   `app.tenant_id` but breaks isolation silently — RLS returns zero rows, no test
   fails unless you test for non-empty.
 - **Org-scoped without nullable column.** Forces every row to be org-bound, breaking
-  tenant-wide rows. The default is `nullable + tenant-wide allowed`.
+  tenant-wide rows, and fails `Every_OrgScoped_Entity_HasOrgIdAndFilter`. Nullable is
+  the rule, not a default.
 - **`Entity<TId>` instead of `AuditableEntity<<Name>Id>`.** You lose
   `created_at` / `updated_at` automation. Only the audit aggregate uses `Entity<TId>`.
 - **Writing a query filter at all.** Since Packet 7 step 3 the module's

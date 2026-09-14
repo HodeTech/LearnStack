@@ -85,6 +85,14 @@ export default async function UsersPage({ searchParams }: { searchParams: { q?: 
 }
 ```
 
+> **Open in Phase 02d.** The call shape above is illustrative. At HEAD
+> `@learnstack/sdk/server` exports `createServerSdk(options)`, a typed stub that takes
+> a `tenantId` and a `locale` and returns `{}`; no `sdk` object and no module namespace
+> exist. What the SDK surface becomes once regeneration makes `paths` non-empty is G31,
+> and the server transport's options are G35, in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the passes that close them edit this step.
+
 Rules:
 
 - Default to Server Component. `"use client"` only when the screen needs hooks,
@@ -162,6 +170,12 @@ export default function CoursesPage() {
 Translation keys live under `frontend/apps/web/src/i18n/<locale>/courses.json`.
 See [add-i18n-key](../add-i18n-key/SKILL.md).
 
+> **Open in Phase 02d.** No i18n library is installed and no catalogue exists. Whether
+> ADR-0027 picks the library in Phase 02d, and where the one UI string catalogue
+> lives — the corpus names three paths — are G39 in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the pass that closes it edits this step and add-i18n-key.
+
 ### Step 8: Public-site SSR caching
 
 This step is under an open gate. How `(public)` routes render, and which Next.js
@@ -199,8 +213,10 @@ Every route ships its own:
   recorded in the PR description. The phase that ships a route names its test set in
   its decision register.
 - Lighthouse budget check on representative public routes — CI's `lighthouse budget`
-  job is a deferred placeholder until Phase 02d activates it; until then judge by
-  reading.
+  job is a deferred placeholder, so judge by reading. Whether Phase 02d activates it
+  is G44 in its
+  [decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it rewrites this bullet.
 
 ## Validation
 
@@ -219,9 +235,16 @@ Every route ships its own:
 ## Common pitfalls
 
 - **Mounting under the wrong route group.** `(public)` SSR + ISR is wrong for a
-  Studio screen — caching across users is a leak.
+  Studio screen — caching across users is a leak. How a `(public)` route renders, and
+  which Next.js caches it may use, is G37 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+  held open in [Step 8](#step-8-public-site-ssr-caching); the pass that closes it
+  edits this pitfall.
 - **Hand-rolled `fetch`.** The ESLint rule rejects it; use the SDK.
 - **Reading `host` inside a page.** The middleware is the only legal resolver.
+  Whether the middleware resolves anything, and what it carries, is G25 and G36 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes them edits this pitfall.
 - **Client Component by default.** Default to Server. Don't sprinkle
   `"use client"` to avoid thinking about boundaries; that's how INP regresses.
 - **Trusting frontend permission check.** Hidden buttons are not security; the

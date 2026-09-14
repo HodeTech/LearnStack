@@ -93,6 +93,12 @@ written through `ProvisionTenantCommand` and the same handlers a request uses, s
 browser — which is how the genericity claim is tested continuously rather than asserted
 once at the end.
 
+> **Open in Phase 02d.** Whether the seed hosts stay under `*.learnstack.local` with the
+> hosts-file step above, and what a reviewer does between a clean checkout and both
+> sites, is G32; what `make demo` starts and prints is G45. Both are in
+> [Phase 02d's decision register](docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each gate edits this section with its answer.
+
 ---
 
 ## Where it is today

@@ -256,6 +256,13 @@ fence in § Translation satellite tables below; no shipped chain creates one yet
 belongs to and which is meaningless without it. A cascade from anything that is *not* a
 root's own child is still a decision, not a convenience, and it needs a record.
 
+> **Open in Phase 02d.** The `lessons` fence above illustrates the composite key, not
+> Education's model. Which aggregate `Lesson` belongs to, what its foreign key targets,
+> and whether it cascades as a child inside an aggregate — a third shape in the class
+> above — or restricts as its own root are G2 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the pass that closes it edits this section with its answer.
+
 **The circular reference, and why it is still composite.**
 `tenants.default_organization_id` points at `organizations`, which points back at
 `tenants`. This direction is **not** covered by the self-keyed exception above —
@@ -410,9 +417,13 @@ organization, nor `WITH CHECK`, which admits `organization_id IS NULL` from any 
 — so nothing in this template forces a satellite's `organization_id` to equal its
 parent's. The insert-time control is G7 in
 [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-answered before the first Education migration. `organization_id` is deliberately
-**absent** from the slug unique key — see § Constraints and
-[Localization Standards § Pattern A](08-localization.md).
+answered before the first Education migration. So are four things this template shows
+only one way: the `locale` column's type and stored spelling (G6); the slug's shape,
+width and `CHECK` backstop (G9); whether a satellite maps `deleted_at` (G2); and how
+`fn_organization_id_immutable`, which reports `OLD.id`, serves a satellite that has no
+`id` (G8). The pass that closes each gate edits this section with its answer.
+`organization_id` is deliberately **absent** from the slug unique key — see
+§ Constraints and [Localization Standards § Pattern A](08-localization.md).
 
 The foreign key is composite on `tenant_id` for the reason in § Foreign keys between
 tenant-owned tables. A composite key that also carried `organization_id` would not work:

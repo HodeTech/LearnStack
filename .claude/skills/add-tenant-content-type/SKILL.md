@@ -120,6 +120,18 @@ Rules of thumb:
 - The `x-taxonomy` you name has to exist **before** the content type that references
   it — any revision of it, published or not. Register the taxonomy first.
 
+> **Open in Phase 02d.** Nothing above gives a field a display order or a label in each
+> of the tenant's locales: `json_schema` is `jsonb`, which keeps no key order, and the
+> profile collects only the three extensions listed. How a content type carries order,
+> labels and a composite's field roles, which composite draws a lesson, which primitives
+> the phase implements and how a type with no primitive row maps are G18. Which URL
+> schemes a field may hold is G19: validation constrains structure, not schemes, and
+> `format: "uri"` admits `javascript:`.
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
+> holds both, and the pass that closes each edits this note with its answer. G18's row
+> records why it closes before the seed publishes a content type: a later answer needs
+> successor revisions.
+
 ### Step 2: Register it through the command
 
 Registration goes through the module's command, never through a `DbContext` and

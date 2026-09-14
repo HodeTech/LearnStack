@@ -48,12 +48,13 @@ public record ListRequest : CursorPaginationRequest, IValidatableObject
     /// Free-text search.
     /// </summary>
     /// <remarks>
-    /// No length cap here. Standards 04 § Request and Response Limits states a
-    /// 2 KB URL bound, but nothing in this application enforces it — the real
-    /// ceiling today is Kestrel's request-line and header limits, and the
-    /// gateway's once it fronts the app. Capping <c>q</c> at some other number
-    /// would add a third bound that agrees with neither, so the honest move is
-    /// to inherit whatever actually rejects an over-long URL and to say so.
+    /// No length cap here. Standards 04 § Request and Response Limits states the
+    /// URL bound as Kestrel's request-line limit (<c>MaxRequestLineSize</c>, which
+    /// this application leaves at its 8 KiB default), and Kestrel refuses an
+    /// over-long URL before any middleware runs; the gateway's limit joins it once
+    /// the gateway fronts the app. Capping <c>q</c> at some other number would add
+    /// a third bound that agrees with neither, so the honest move is to inherit
+    /// whatever actually rejects an over-long URL and to say so.
     /// </remarks>
     [FromQuery(Name = QParameterName)]
     public string? Q { get; init; }
