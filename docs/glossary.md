@@ -46,12 +46,12 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | Term | Definition |
 |------|------------|
 | **Program** | A higher-level grouping of related courses or learning paths. |
-| **Course** | A learning product listed in a tenant catalog. Identified by a stable id. |
+| **Course** | A tenant-owned learning product with a stable id. P02d-1 implements its domain, schema and isolation; command and seed writes belong to P02d-2, public reads to P02d-4. [Phase 05](roadmap/phase-05-education-learning-content.md#what-phase-02d-supplies) adds versioning and catalog visibility. |
 | **Publication** | The independent `draft` / `published` lifecycle of a walking-skeleton Course or Lesson. A published state is one condition of anonymous-read eligibility; tenant, organization, translation, deletion and parent eligibility still apply. It does not create a Course Version or grant Course Access. [ADR-0048](decisions/0048-walking-skeleton-publication.md) owns the lifecycle. |
 | **Revision pin** | A stored binding to a particular customization definition's key and schema version, rather than whichever revision is active when content is read. Education uses pins for lesson content types and optional course taxonomy/band references; a successor does not implicitly rebind existing content. [Education data model](modules/education/README.md#data-model-and-invariants) owns the binding contract. |
 | **Course Version** | A versioned, publishable structure of modules and lessons attached to a Course. Enrollments target a specific version. |
 | **Module (course aggregate)** | An ordered grouping of lessons inside a course version. Distinct from the backend module-loading concept *`IModule`* (see *Module-Loading Contracts* below). When the term "module" appears unqualified in code or docs, prefer this domain meaning unless the surrounding text is clearly about the backend loader. |
-| **Lesson** | A unit of learning consumption inside a module. |
+| **Lesson** | A unit of learning consumption. In the [Phase 02d model](modules/education/README.md#data-model-and-invariants), it is an independent aggregate root referencing a Course by typed id, with its own translations. [Phase 05](roadmap/phase-05-education-learning-content.md#what-phase-02d-supplies) introduces membership in a Module within a Course Version. |
 | **Lesson Item** | A single piece inside a lesson: rich text, video, file, quiz reference, live-session reference, embedded tool. |
 | **Learning Path** | An ordered or conditional traversal across multiple courses or lessons. |
 | **Completion Rule** | A rule that determines when a lesson, module, or course is considered complete. |
